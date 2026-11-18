@@ -44,6 +44,7 @@ internal static partial class RulesPageChecks
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
             await OpenRulesAsync(window);
             await RuleExtensionsLifetimeChecks.RunAsync(window);
+            await CheckOverviewFirstAsync(window, page);
             page.EditScope(MediaRuleScope.Global);
             await FlushAsync();
             RequireScopeSelection(page, MediaRuleScope.Global);
@@ -55,14 +56,14 @@ internal static partial class RulesPageChecks
             Require(page.ExtensionsText.Contains(".jpg", StringComparison.Ordinal) && page.ExtensionsText.Contains(".webm", StringComparison.Ordinal),
                 "The first focused edit was not synchronously attached to the rule tag draft: " + page.ExtensionsText);
             Console.WriteLine("SMOKE rules before global save: types=" + page.TypesMode + "; raw=" + page.ExtensionsText
-                + "; sizeMode=" + page.SizeMode + "; MB=" + page.MegabytesText);
+                + "; sizeMode=" + page.SizeMode + "; MiB=" + page.MegabytesText);
             await SaveThroughButtonAsync(window, page);
             MediaRuleSet savedGlobal = window.SessionHost.MediaRules;
             EffectiveMediaRule global = new MediaRuleResolver(savedGlobal).Resolve(MediaRuleScope.Global);
-            Require(global.Types.Extensions.SequenceEqual(new[] { ".jpg", ".webm" }) && global.SizeLimit.Bytes == 1_500_000,
-                "The global Rules editor did not commit normalized types and decimal MB through the session host. Actual: mode=" + global.Types.Mode
+            Require(global.Types.Extensions.SequenceEqual(new[] { ".jpg", ".webm" }) && global.SizeLimit.Bytes == 1_572_864,
+                "The global Rules editor did not commit normalized types and MiB through the session host. Actual: mode=" + global.Types.Mode
                 + "; extensions=" + string.Join(",", global.Types.Extensions) + "; bytes=" + global.SizeLimit.Bytes
-                + "; draft=" + page.ExtensionsText + "; draftMB=" + page.MegabytesText + "; revision=" + savedGlobal.Revision);
+                + "; draft=" + page.ExtensionsText + "; draftMiB=" + page.MegabytesText + "; revision=" + savedGlobal.Revision);
             Require(File.ReadAllText(Path.Combine(Config.GetConfigDirectory(), "media_rules.json")).Contains(savedGlobal.Revision, StringComparison.Ordinal),
                 "The visible saved rule revision was not present in the isolated profile.");
 
@@ -80,7 +81,7 @@ internal static partial class RulesPageChecks
             await SaveThroughButtonAsync(window, page);
             EffectiveMediaRule inherited = window.SessionHost.ResolveRules(board);
             Require(inherited.TypesOrigin.Scope == board && inherited.SizeLimitOrigin.Scope == MediaRuleScope.Global
-                && inherited.SizeLimit.Bytes == 1_500_000, "The saved board rule did not resolve fields independently.");
+                && inherited.SizeLimit.Bytes == 1_572_864, "The saved board rule did not resolve fields independently.");
 
             page.FindControl<CheckBox>("RuleEnabledInput")!.IsChecked = false;
             await FlushAsync();
@@ -97,6 +98,9 @@ internal static partial class RulesPageChecks
 
             // Picking a scope is separate from opening it. Refreshing translated labels
             // must retain that choice and keep the current editor untouched until Open.
+            // Both pickers live in wizard step 1 now (the saved one folded); the open draft stays untouched while it is shown.
+            Require(page.ShowWizardStep(RuleWizardStep.Scope, focus: false), "The rules wizard did not return to its scope step.");
+            page.FindControl<Expander>("RuleSavedScopesExpander")!.IsExpanded = true;
             ComboBox scopes = page.FindControl<ComboBox>("RulesScopeList")!;
             scopes.SelectedItem = page.ScopeChoices.Single(choice => choice.Scope == MediaRuleScope.Global);
             page.FindControl<ComboBox>("NewRuleScopeKindInput")!.SelectedIndex = (int)MediaRuleScopeKind.Thread;
@@ -129,6 +133,7 @@ internal static partial class RulesPageChecks
             await WaitLayoutAsync(window, () => PresentationChecks.MatchesRequestedSize(window, overviewWidth, overviewHeight)
                 && Fits(window, page.FindControl<Button>("SaveRuleButton")!));
             Program.CaptureWindow(window, "smoke-rules-board-inheritance.png");
+            RequireFooterOnContentColumn(window, page);
 
             page.EditScope(thread);
             await FlushAsync();
@@ -138,12 +143,26 @@ internal static partial class RulesPageChecks
             page.FindControl<ComboBox>("RuleSizeModeInput")!.SelectedIndex = (int)MediaSizeLimitMode.Limited;
             page.FindControl<TextBox>("RuleMegabytesInput")!.Text = "not-a-number";
             await FlushAsync();
-            Require(page.HasValidationError && !page.CanSave, "Invalid rule values did not block save.");
+            Require(page.HasValidationError && page.CanSave, "Save was disabled by an invalid field instead of explaining it on click.");
+            Require(page.FindControl<TextBlock>("RuleExtensionsErrorText")!.IsEffectivelyVisible
+                && page.FindControl<TextBlock>("RuleMegabytesErrorText")!.Text == string.Empty,
+                "An invalid extension did not show its error text in the Rules page.");
+            // The field link lives in the review step; Save from there returns to the settings step and the invalid field.
+            Click(page.FindControl<Button>("RuleWizardNextButton")!);
+            await FlushAsync();
+            Require(page.WizardStep == RuleWizardStep.Review && page.FindControl<Control>("RuleGoToInvalidFieldButton")!.IsEffectivelyVisible,
+                "The review step did not show the link to the invalid field.");
             string revisionBeforeInvalidDraft = window.SessionHost.MediaRules.Revision;
             Click(page.FindControl<Button>("SaveRuleButton")!);
             await FlushAsync();
             Require(window.SessionHost.MediaRules.Revision == revisionBeforeInvalidDraft,
                 "A disabled or invalid Rules save still changed durable rules.");
+            await FlushAsync();
+            Require(page.WizardStep == RuleWizardStep.Settings && FocusWithin(window, page.FindControl<Control>("RuleExtensionsInput")!),
+                "Saving an invalid Rules draft did not return to the settings step and move focus to the invalid field.");
+            Require(page.StatusMessage == Texts.T("rules.saveRejected", page.ExtensionsLabel)
+                && page.StatusLiveSetting == Avalonia.Automation.AutomationLiveSetting.Assertive,
+                "The footer did not name the invalid field after a refused save.");
 
             intake.Text = retainedUrl;
             settings.DownloadPath = retainedSettings;
@@ -179,11 +198,11 @@ internal static partial class RulesPageChecks
                     Require(rulesNavigation.IsVisible || (toolsNavigation.IsVisible && toolsNavigation.IsEffectivelyEnabled
                         && Fits(window, toolsNavigation) && rulesOverflow[0].IsEnabled),
                         "Hidden Rules navigation did not retain a usable Tools route.");
-                    MenuItem rulesMenu = window.FindControl<MenuItem>("RulesMenuItem")!;
-                    Require(rulesMenu.IsVisible && rulesMenu.IsEnabled,
-                        "Rules navigation did not retain its normal app-menu route.");
+                    // F1: the header menu holds no page entries any more; the footer or More is the route (checked above).
+                    Require(window.FindControl<MenuItem>("RulesMenuItem") == null,
+                        "The header menu still lists the Rules page.");
                     RequireIconLabel(page.FindControl<Button>("OpenSavedRuleButton")!, page.OpenLabel);
-                    RequireIconLabel(page.FindControl<Button>("OpenNewRuleScopeButton")!, page.OpenLabel);
+                    RequireTemplatedLabel(page.FindControl<Button>("OpenNewRuleScopeButton")!, Texts.T("rules.wizard.next"));
                     RequireIconLabel(page.FindControl<Button>("DiscardRuleButton")!, page.DiscardLabel);
                     RequireIconLabel(page.FindControl<Button>("SaveRuleButton")!, page.SaveLabel);
                     double width = mode == "Barebones" ? 640 : 760;
@@ -237,7 +256,7 @@ internal static partial class RulesPageChecks
             await FlushAsync();
             RequireModeSelections(page);
             Require(page.MegabytesText == "0,000001" && page.CanSave,
-                "Changing language did not preserve the exact one-byte decimal MB draft.");
+                "Changing language did not preserve the exact one-byte MiB draft.");
             Texts.SetLanguage("en");
             await FlushAsync();
             RequireModeSelections(page);
@@ -435,20 +454,46 @@ internal static partial class RulesPageChecks
         }
     }
 
+    private static bool FocusWithin(Window window, Control control) =>
+        window.FocusManager?.GetFocusedElement() is Visual focused && (ReferenceEquals(focused, control) || focused.GetVisualAncestors().Contains(control));
+
+    /// <summary>The footer text starts on the body column and the buttons end on it (880 dip column, not the old 1088 grid).</summary>
+    private static void RequireFooterOnContentColumn(Window window, RulesPage page)
+    {
+        Control content = page.FindControl<Control>("RulesContent")!;
+        Control status = page.FindControl<Control>("RuleStatusText")!;
+        Control actions = page.FindControl<Control>("RulesFooterActions")!;
+        double contentLeft = content.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double contentRight = contentLeft + content.Bounds.Width;
+        double statusLeft = status.TranslatePoint(new Point(0, 0), window)!.Value.X;
+        double actionsRight = actions.TranslatePoint(new Point(actions.Bounds.Width, 0), window)!.Value.X;
+        Console.WriteLine($"SMOKE rules footer column: content={contentLeft:0.#}..{contentRight:0.#}; status starts {statusLeft:0.#}; actions end {actionsRight:0.#}.");
+        Require(Math.Abs(statusLeft - contentLeft) <= 2 && Math.Abs(actionsRight - contentRight) <= 2,
+            "The Rules footer is not aligned with the content column: content "
+            + $"{contentLeft:0.#}..{contentRight:0.#}, status {statusLeft:0.#}, actions end {actionsRight:0.#}.");
+    }
+
     private static async Task SaveThroughButtonAsync(MainWindow window, RulesPage page)
     {
         await FlushAsync();
         Require(page.CanSave, "A valid changed rule did not enable Save.");
         string revision = window.SessionHost.MediaRules.Revision;
+        MediaRuleScope scope = page.ActiveScope;
         Click(page.FindControl<Button>("SaveRuleButton")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && (page.HasError || window.SessionHost.MediaRules.Revision != revision));
         Require(!page.HasError && window.SessionHost.MediaRules.Revision != revision,
             "A Rules save did not commit: " + page.ErrorMessage);
+        // A successful save leaves the wizard for the overview, confirmed and with focus on the saved rule's row.
+        await CheckSaveReturnedToOverviewAsync(window, page, scope);
+        // The rest of this smoke keeps editing the same scope: open it again (its draft is the saved, clean one).
+        page.EditScope(scope);
+        await FlushAsync();
+        Require(page.IsWizardOpen && page.ActiveScope == scope, "Re-opening the saved scope after the overview confirmation did not open the wizard.");
     }
 
     private static async Task OpenRulesAsync(MainWindow window)
     {
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && window.RulesPage.IsEditable);
     }
 

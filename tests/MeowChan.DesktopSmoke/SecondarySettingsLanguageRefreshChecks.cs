@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Views.Shortcuts;
 using MeowChan.Testing;
 using Ursa.Controls;
 
@@ -71,9 +72,9 @@ internal static class SecondarySettingsLanguageRefreshChecks
         await FocusAsync(window, raw);
         raw.Text = "17 unfinished raw";
         await Program.WaitUntilAsync(() => seconds.Text == raw.Text && raw.Text == "17 unfinished raw");
-        CheckBox mediaFocus = Need<CheckBox>(editor, "GalleryMediaFocusInput");
-        CheckBox overlay = Need<CheckBox>(editor, "GalleryOverlayControlsInput");
-        CheckBox postContext = Need<CheckBox>(editor, "GalleryOverlayPostContextInput");
+        ToggleSwitch mediaFocus = Need<ToggleSwitch>(editor, "GalleryMediaFocusInput");
+        ToggleSwitch overlay = Need<ToggleSwitch>(editor, "GalleryOverlayControlsInput");
+        ToggleSwitch postContext = Need<ToggleSwitch>(editor, "GalleryOverlayPostContextInput");
         mediaFocus.IsChecked = !config.GalleryMediaFocus;
         overlay.IsChecked = !config.GalleryOverlayControls;
         postContext.IsChecked = !config.GalleryOverlayPostContext;
@@ -165,14 +166,14 @@ internal static class SecondarySettingsLanguageRefreshChecks
 
     private static async Task ShortcutFrameAsync(SettingsWindow window, Config config)
     {
-        ShortcutEditor editor = await OpenShortcutsAsync(window);
-        (TextBox search, ListBox actions) = SelectAction(editor);
+        (ShortcutsWindow shortcuts, ShortcutBindingsEditor editor) = await OpenShortcutsAsync(window);
+        (TextBox search, ListBox actions) = await SelectActionAsync(editor);
         // Make a real unsaved edit through a production button, not Load/Set.
         Click(ActionButton(editor, "clearBinding"));
         await Program.WaitUntilAsync(() => editor.IsDirty && editor.Draft.HasOverride(ActionId));
         Require(EffectiveShortcutBindings.Build(editor.Draft).RequestedGestures[ActionId].Count == 0,
             "Clear binding did not establish the real dirty/unbound fixture.");
-        await FocusAsync(window, search);
+        await FocusAsync(shortcuts, search);
         SelectText(search);
         InputState input = InputState.Read(search);
         string draft = editor.Draft.Raw.GetRawText();
@@ -180,16 +181,16 @@ internal static class SecondarySettingsLanguageRefreshChecks
         foreach (string language in Languages)
         {
             Texts.SetLanguage(language);
-            await SettleAsync(window);
-            AssertShortcutFrame(editor, actions, customUnbound: true);
-            Require(ReferenceEquals(Need<ShortcutEditor>(window.Editor, "ShortcutsEditor"), editor)
+            await SettleAsync(shortcuts);
+            AssertShortcutFrame(window, shortcuts, editor, actions, customUnbound: true);
+            Require(ReferenceEquals(ShortcutsWindow.For(window), shortcuts) && ReferenceEquals(shortcuts.Editor, editor)
                 && editor.IsDirty && editor.Draft.Raw.GetRawText() == draft && DraftState(window.Editor) == settingsDraft,
                 language + ": shortcut/settings dirty draft was replaced or reset.");
             Require(InputState.Read(search) == input && search.Text == ActionId
-                && actions.Items.OfType<ListBoxItem>().Count() == 1
+                && ActionRows(actions).Count() == 1
                 && (actions.SelectedItem as ListBoxItem)?.Tag as string == ActionId,
                 language + ": shortcut search/caret/selection or selected command identity changed.");
-            Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), search) && search.IsFocused && Visible(window, search),
+            Require(ReferenceEquals(shortcuts.FocusManager?.GetFocusedElement(), search) && search.IsFocused && Visible(shortcuts, search),
                 language + ": shortcut frame refresh detached/refocused the live search input.");
             Require(!ShortcutService.IsCapturing, language + ": frame-only refresh invented a capture lease.");
             Console.WriteLine("SMOKE secondary shortcut frame language cell passed: " + language);
@@ -199,21 +200,21 @@ internal static class SecondarySettingsLanguageRefreshChecks
     private static async Task ShortcutCaptureAsync(SettingsWindow window, Config config, bool continueRecording)
     {
         Require(!ShortcutService.IsCapturing, "Capture fixture requires no pre-existing capture lease.");
-        ShortcutEditor editor = await OpenShortcutsAsync(window);
-        var (_, actions) = SelectAction(editor);
+        (ShortcutsWindow shortcuts, ShortcutBindingsEditor editor) = await OpenShortcutsAsync(window);
+        var (_, actions) = await SelectActionAsync(editor);
         Click(ActionButton(editor, "clearBinding"));
         await Program.WaitUntilAsync(() => editor.IsDirty);
         Button record = ActionButton(editor, "recordAdditional");
-        await FocusAsync(window, record);
+        await FocusAsync(shortcuts, record);
         Click(record);
         KeyGestureInput capture = editor.GetVisualDescendants().OfType<KeyGestureInput>().Single();
         TextBlock pendingLabel = CapturePendingLabel(capture);
-        Require(editor.GetVisualDescendants().OfType<CheckBox>().Single().IsChecked != true,
+        Require(ExplicitModifiers(editor).IsChecked != true,
             "Capture fixture expects portable Primary-modifier recording, not explicit modifiers.");
         capture.BringIntoView();
-        await SettleAsync(window);
-        await Program.WaitUntilAsync(() => ShortcutService.IsCapturing && capture.IsKeyboardFocusWithin && Visible(window, capture));
-        Control captureFocus = window.FocusManager?.GetFocusedElement() as Control
+        await SettleAsync(shortcuts);
+        await Program.WaitUntilAsync(() => ShortcutService.IsCapturing && capture.IsKeyboardFocusWithin && Visible(shortcuts, capture));
+        Control captureFocus = shortcuts.FocusManager?.GetFocusedElement() as Control
             ?? throw new InvalidOperationException("Capture acquired no real focused control.");
         var pending = new KeyGesture(Key.F9, KeyModifiers.Control | KeyModifiers.Shift);
         Press(captureFocus, pending);
@@ -225,15 +226,15 @@ internal static class SecondarySettingsLanguageRefreshChecks
         foreach (string language in Languages)
         {
             Texts.SetLanguage(language);
-            await SettleAsync(window);
-            AssertShortcutFrame(editor, actions, customUnbound: true);
+            await SettleAsync(shortcuts);
+            AssertShortcutFrame(window, shortcuts, editor, actions, customUnbound: true);
             Require(editor.Draft.Raw.GetRawText() == draft && editor.IsDirty && DraftState(window.Editor) == settingsDraft,
                 language + ": pending capture was applied/discarded during language refresh.");
             Require(ReferenceEquals(capture, editor.GetVisualDescendants().OfType<KeyGestureInput>().Single())
                 && capture.IsEffectivelyEnabled && SameGesture(capture.Gesture, pending) && ShortcutService.IsCapturing,
                 language + ": refresh replaced/disabled the capture, lost its pending gesture or released routing suppression.");
-            Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), captureFocus)
-                && capture.IsKeyboardFocusWithin && Visible(window, capture),
+            Require(ReferenceEquals(shortcuts.FocusManager?.GetFocusedElement(), captureFocus)
+                && capture.IsKeyboardFocusWithin && Visible(shortcuts, capture),
                 language + ": active capture focus was lost/stolen on language refresh.");
             Require(AutomationProperties.GetName(capture) == T("settings.shortcutsEditor.record")
                 && AutomationProperties.GetHelpText(capture) == T("settings.shortcutsEditor.recordHelp"),
@@ -273,7 +274,7 @@ internal static class SecondarySettingsLanguageRefreshChecks
 
     private static TextBlock CapturePendingLabel(KeyGestureInput capture)
     {
-        // ShortcutEditor.RefreshDetail adds capture, explicit-modifier checkbox,
+        // ShortcutBindingsEditor.RefreshDetail adds capture, explicit-modifier checkbox,
         // then the real pending TextBlock. No private field/reflection surrogate.
         Panel detail = capture.Parent as Panel ?? throw new InvalidOperationException("Capture detail panel missing.");
         int index = detail.Children.IndexOf(capture);
@@ -287,7 +288,7 @@ internal static class SecondarySettingsLanguageRefreshChecks
             && label.Text == expected.Display(EffectiveShortcutBindings.CurrentPlatform),
             Texts.Language + ": actual pending capture label was replaced, cleared or changed: " + label.Text);
 
-    private static void AssertAppliedRecording(ShortcutEditor editor, KeyGesture expected)
+    private static void AssertAppliedRecording(ShortcutBindingsEditor editor, KeyGesture expected)
     {
         EffectiveShortcutBindings snapshot = EffectiveShortcutBindings.Build(editor.Draft);
         IReadOnlyList<ShortcutGesture> requested = snapshot.RequestedGestures[ActionId];
@@ -299,51 +300,82 @@ internal static class SecondarySettingsLanguageRefreshChecks
                 + " gesture; requested=" + JsonSerializer.Serialize(requested) + "; effective=" + JsonSerializer.Serialize(effective));
     }
 
-    private static async Task<ShortcutEditor> OpenShortcutsAsync(SettingsWindow window)
+    // The Settings card opens the one modeless shortcuts window (KS2); the table, search, recorder and frame live there.
+    private static async Task<(ShortcutsWindow Window, ShortcutBindingsEditor Editor)> OpenShortcutsAsync(SettingsWindow window)
     {
         SettingsEditor settings = window.Editor;
         await SettleAsync(window);
         settings.OpenSectionNavigation();
         Require(settings.CanGoToSection("settings.shortcuts"), "Shortcut section unavailable through public navigation.");
         settings.GoToSection("settings.shortcuts");
-        ShortcutEditor editor = Need<ShortcutEditor>(settings, "ShortcutsEditor");
-        await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.SectionHeading.IsFocused
-            && editor.Bounds.Width > 0 && ReferenceEquals(TopLevel.GetTopLevel(editor), window));
-        return editor;
+        ShortcutEditor card = Need<ShortcutEditor>(settings, "ShortcutsEditor");
+        await Program.WaitUntilAsync(() => card.IsEffectivelyVisible && card.SectionHeading.IsFocused
+            && card.Bounds.Width > 0 && ReferenceEquals(TopLevel.GetTopLevel(card), window));
+        Button open = card.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "SettingsShortcutsOpen");
+        await Program.WaitUntilAsync(() => open.IsEffectivelyVisible && open.Bounds.Width > 0);
+        Click(open);
+        await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) is { IsVisible: true } opened && opened.Editor.ActionList.IsEffectivelyVisible);
+        ShortcutsWindow shortcuts = ShortcutsWindow.For(window)!;
+        Require(ReferenceEquals(shortcuts.Editor.Session, card.Session), "The shortcuts window does not edit the Settings draft.");
+        shortcuts.Activate();
+        await Program.WaitUntilAsync(() => shortcuts.IsActive);
+        await SettleAsync(shortcuts);
+        return (shortcuts, shortcuts.Editor);
     }
 
-    private static (TextBox Search, ListBox Actions) SelectAction(ShortcutEditor editor)
+    private static IEnumerable<ListBoxItem> ActionRows(ListBox actions) => actions.Items.OfType<ListBoxItem>().Where(item => item.Tag is string);
+
+    private static async Task<(TextBox Search, ListBox Actions)> SelectActionAsync(ShortcutBindingsEditor editor)
     {
-        Panel content = editor.Content as Panel ?? throw new InvalidOperationException("Shortcut root panel missing.");
-        TextBox search = content.Children.OfType<TextBox>().Single();
-        ListBox actions = content.Children.OfType<ListBox>().Single();
+        TextBox search = editor.SearchInput;
+        ListBox actions = editor.ActionList;
         search.Text = ActionId; // Stable ID, never translated labels as identity.
-        actions.SelectedItem = actions.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == ActionId);
+        await Program.WaitUntilAsync(() => ActionRows(actions).Count() == 1);
+        actions.SelectedItem = ActionRows(actions).Single(item => item.Tag as string == ActionId);
+        await Program.WaitUntilAsync(() => editor.SelectedCommandId == ActionId && editor.GetVisualDescendants().OfType<KeyGestureInput>().Any());
         return (search, actions);
     }
 
-    private static void AssertShortcutFrame(ShortcutEditor editor, ListBox actions, bool customUnbound)
+    private static CheckBox ExplicitModifiers(ShortcutBindingsEditor editor) => editor.GetVisualDescendants().OfType<CheckBox>()
+        .Single(box => box.Content as string == T("settings.shortcutsEditor.keepExplicit"));
+
+    private static void AssertShortcutFrame(SettingsWindow settings, ShortcutsWindow shortcuts, ShortcutBindingsEditor editor, ListBox actions, bool customUnbound)
     {
-        Panel root = editor.Content as Panel ?? throw new InvalidOperationException("Shortcut root panel missing.");
-        AssertText((TextBlock)editor.SectionHeading, "shortcuts.title");
-        Require(root.Children.OfType<TextBlock>().Any(text => text.Text == T("settings.shortcutsEditor.hint")), "Stale shortcut editor hint.");
-        TextBox search = root.Children.OfType<TextBox>().Single();
+        // The window and the Settings card both follow the live language.
+        Require(shortcuts.Title == T("shortcuts.title"), "Stale shortcuts window title.");
+        ShortcutEditor card = Need<ShortcutEditor>(settings.Editor, "ShortcutsEditor");
+        AssertText((TextBlock)card.SectionHeading, "shortcuts.title");
+        Button open = card.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "SettingsShortcutsOpen");
+        Require(open.Content as string == T("shortcuts.card.open") && AutomationProperties.GetName(open) == T("shortcuts.card.open"),
+            "Stale Settings card button text/accessibility.");
+        TextBox search = editor.SearchInput;
         Require(search.PlaceholderText == T("settings.shortcutsEditor.search")
             && AutomationProperties.GetName(search) == T("settings.shortcutsEditor.search")
             && AutomationProperties.GetName(actions) == T("settings.shortcutsEditor.actions"), "Stale shortcut search/actions accessible frame labels.");
-        Grid header = root.Children.OfType<Grid>().Single();
-        Require(header.Children.OfType<TextBlock>().Select(text => text.Text).SequenceEqual(
-            new[] { "action", "context", "effectiveBinding" }.Select(key => T("settings.shortcutsEditor." + key))),
-            "Stale shortcut table headings.");
+        Require(AutomationProperties.GetName(editor.GetVisualDescendants().OfType<ComboBox>().Single(box => box.Name == "ShortcutsArea")) == T("shortcuts.window.area"),
+            "Stale shortcut area filter accessible name.");
+        Require(editor.GetVisualDescendants().OfType<CheckBox>().Any(box => box.Content as string == T("shortcuts.window.assignedOnly"))
+            && editor.GetVisualDescendants().OfType<CheckBox>().Any(box => box.Content as string == T("shortcuts.window.grouped")),
+            "Stale shortcut filter checkboxes.");
+        // Column heads are a plain header row: label text, header semantics, no buttons.
+        Grid head = editor.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == ShortcutBindingsEditor.HeaderName);
+        string[] labels = { T("settings.shortcutsEditor.action"), T("shortcuts.window.shortcut"), T("shortcuts.window.status") };
+        TextBlock[] heads = head.Children.OfType<TextBlock>().ToArray();
+        Require(heads.Length == 3 && head.Children.Count == 3 && heads.Select(text => text.Text).SequenceEqual(labels)
+            && heads.Select(text => AutomationProperties.GetName(text)).SequenceEqual(labels), "Stale shortcut table headings.");
         foreach (string suffix in new[] { "resetAll", "recordAdditional", "clearBinding", "restoreDefault", "applyRecording", "takeOver", "cancelRecording" })
         {
             Button button = ActionButton(editor, suffix);
             Require(button.IsEffectivelyVisible && AutomationProperties.GetName(button) == T("settings.shortcutsEditor." + suffix),
                 "Missing/stale shortcut button/accessibility: " + suffix);
         }
-        CheckBox explicitModifiers = editor.GetVisualDescendants().OfType<CheckBox>().Single();
-        Require(explicitModifiers.Content as string == T("settings.shortcutsEditor.keepExplicit"), "Stale explicit-modifier label.");
-        ListBoxItem row = actions.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == ActionId);
+        foreach (string key in new[] { "shortcuts.window.undo", "shortcuts.window.recordReplace", "shortcuts.window.save", "shortcuts.window.discard" })
+            Require(editor.GetVisualDescendants().OfType<Button>().Any(button => button.Content as string == T(key)
+                && AutomationProperties.GetName(button) == T(key)), "Missing/stale shortcuts window button: " + key);
+        Require(ExplicitModifiers(editor).IsEffectivelyVisible, "Stale explicit-modifier label.");
+        Require(editor.StatusText.Text == Texts.T("shortcuts.window.changes", editor.Session.ChangeCount),
+            "Stale shortcuts window change summary.");
+        ListBoxItem row = ActionRows(actions).Single(item => item.Tag as string == ActionId);
         Require(ReferenceEquals(actions.SelectedItem, row), "Shortcut selected row identity was lost.");
         Control rowContent = row.Content as Control ?? throw new InvalidOperationException("Shortcut row content missing.");
         Require(rowContent.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == CommandCatalog.Label(ActionId)),
@@ -402,6 +434,7 @@ internal static class SecondarySettingsLanguageRefreshChecks
             // Do not reset/load the draft or synthesize a replacement capture lease.
             try
             {
+                if (window != null) ShortcutsWindow.For(window)?.CloseWithoutAsking();
                 if (window?.IsVisible == true) window.Close();
                 if (dialog != null) await dialog.WaitAsync(Deadline);
             }
@@ -556,7 +589,7 @@ internal static class SecondarySettingsLanguageRefreshChecks
     private static bool SameGesture(KeyGesture? actual, KeyGesture expected) => actual?.Key == expected.Key && actual.KeyModifiers == expected.KeyModifiers;
     private static void Press(Control source, KeyGesture gesture) => source.RaiseEvent(new KeyEventArgs
         { RoutedEvent = InputElement.KeyDownEvent, Key = gesture.Key, KeyModifiers = gesture.KeyModifiers });
-    private static Button ActionButton(ShortcutEditor editor, string suffix) => editor.GetVisualDescendants().OfType<Button>()
+    private static Button ActionButton(ShortcutBindingsEditor editor, string suffix) => editor.GetVisualDescendants().OfType<Button>()
         .Single(button => button.Content as string == T("settings.shortcutsEditor." + suffix));
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static string T(string key)
@@ -569,10 +602,11 @@ internal static class SecondarySettingsLanguageRefreshChecks
     private static void AssertAccessible(Control control, string key, string? help = null) => Require(
         AutomationProperties.GetName(control) == T(key) && (help == null || AutomationProperties.GetHelpText(control) == T(help)),
         "Stale accessible gallery label/help: " + key);
-    private static void AssertCheckBox(CheckBox control, string key, string? help = null)
+    private static void AssertCheckBox(ToggleSwitch control, string key, string? help = null)
     {
+        // SP1: the visible label is the row's own text (the switch is labelled by it), not the content of the control.
         AssertAccessible(control, key, help);
-        Require(control.IsEffectivelyVisible && control.Content is TextBlock text && text.Text == T(key), "Stale visible gallery checkbox: " + key);
+        Require(control.IsEffectivelyVisible && AutomationProperties.GetLabeledBy(control) is TextBlock text && text.Text == T(key), "Stale visible gallery switch: " + key);
     }
     private static string[] Files(string profile) => Directory.GetFiles(profile, "*", SearchOption.AllDirectories)
         .OrderBy(path => path, StringComparer.Ordinal)

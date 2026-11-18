@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Diagnostics;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -27,6 +28,13 @@ internal static class MediaInteractionChecks
             throw new IOException("Media input report must have an existing parent and a fresh absolute filename.");
         string fixture = Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
             ?? throw new InvalidOperationException("Media input requires MEOWCHAN_VIDEO_FIXTURE.");
+        using var playbackTrace = PerformanceDiagnostics.BeginRun("media-native-input",
+            Environment.GetEnvironmentVariable("MEOWCHAN_MEDIA_INTERACTION_SOURCE_DIGEST") ?? "unknown", "media-native-fixture");
+        PerformanceSnapshot PlaybackTrace()
+        {
+            var snapshot = playbackTrace.Snapshot();
+            return snapshot with { Events = snapshot.Events.Where(e => e.Phase.StartsWith("video.", StringComparison.Ordinal)).ToArray() };
+        }
         List<object> events = new();
         List<string> failures = new(), completed = new();
         Stopwatch clock = Stopwatch.StartNew();
@@ -101,7 +109,7 @@ internal static class MediaInteractionChecks
 
         try
         {
-            native = new MediaNativeInput(window);
+            native = new MediaNativeInput(window, Record);
             await Program.WaitUntilAsync(() => window.IsActive);
             // Only an in-session test override using the established settings owner. No new defaults or schema.
             Config configured = original.Clone();
@@ -147,7 +155,7 @@ internal static class MediaInteractionChecks
                 await FreshVideoAsync();
                 Slider seek = Seek();
                 await SeekClickAsync(.20);
-                await native.MoveAsync(Named<Button>("GalleryVideoPlayPause")); // move only; do not steal keyboard focus
+                await native.MoveAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause")); // move only; do not steal keyboard focus
                 Require(!seek.IsPointerOver && seek.IsKeyboardFocusWithin, "Pointer-away repro lost actual timeline focus.");
                 await ProgressAsync("focus-remains-with-pointer-away");
                 await CheckVolumeAndPanelsAsync("Playing");
@@ -155,7 +163,7 @@ internal static class MediaInteractionChecks
             await StageAsync("paused-drag-key", async () =>
             {
                 await FreshVideoAsync();
-                await native.ClickAsync(Named<Button>("GalleryVideoPlayPause"));
+                await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
                 await WaitPlaybackAsync(p => p.State == "Paused");
                 await SeekClickAsync(.25);
                 await DragAsync(.45, release: true);
@@ -276,18 +284,228 @@ internal static class MediaInteractionChecks
                     assemblySha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(typeof(Program).Assembly.Location))).ToLowerInvariant(),
                     fixtureImageSha256 = VideoGalleryChecks.FixtureImageSha256,
                     fixtureSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture))).ToLowerInvariant(),
-                    completed, failures, dropped, events,
+                    completed, failures, dropped, events, playbackTrace = PlaybackTrace(),
                     limits = "Only the recorded OS/backend was executed; no physical audio, MP4, touch-device, slideshow end-to-end, restart persistence or forced late-callback proof. Transition stress is a real-input race, not deterministic callback injection. Test stages are not production generation IDs. Source digest is inventory, not compiler provenance."
                 }, new JsonSerializerOptions { WriteIndented = true }));
             }
         }
 
-        T Named<T>(string name) where T : Control => viewer!.GetGalleryVisualDescendants().OfType<T>().Single(c => c.Name == name);
+        IEnumerable<Visual> EvidenceVisuals()
+        {
+            GalleryViewer current = viewer!;
+            IEnumerable<Visual> visuals = current.GetGalleryVisualDescendants();
+            if (OperatingSystem.IsMacOS())
+            {
+                // The software-video presentation can leave the shared transport under its
+                // player root while GalleryControlTransfer is moving it into the dock. That
+                // root is still the authoritative control tree, even when it is not included
+                // by the viewer's attached descendants for this UI turn.
+                foreach (GalleryVideoPlayer player in visuals.OfType<GalleryVideoPlayer>())
+                {
+                    visuals = visuals.Concat(new[] { player.TransportControl }.Concat(player.TransportControl.GetVisualDescendants()));
+                    break;
+                }
+            }
+            return visuals.Distinct();
+        }
+        T Named<T>(string name) where T : Control
+        {
+            T[] matches = EvidenceVisuals().OfType<T>().Where(control => control.Name == name).ToArray();
+            if (matches.Length != 1)
+                throw new InvalidOperationException($"Expected exactly one {typeof(T).Name} named {name}; found {matches.Length} in the current gallery presentation.");
+            return matches[0];
+        }
+        async Task<T> NativeTargetAsync<T>(string name) where T : Control
+        {
+            // A native overlay/control transfer can replace the retained instance between
+            // two dispatcher turns. Resolve the current visual-tree target on every probe;
+            // waiting on the first instance leaves SendInput pointed at a retired root.
+            T? target = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                try
+                {
+                    target = Named<T>(name);
+                    return MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
+                }
+                catch (InvalidOperationException)
+                {
+                    // During reparenting there can briefly be zero or multiple named
+                    // controls. That is a target transition, not a smoke assertion.
+                    target = null;
+                    return false;
+                }
+                catch (ArgumentException)
+                {
+                    // Avalonia can reject a cross-root conversion while the retained
+                    // control is moving into its current native transport root. Retry
+                    // the probe so input is sent only to the settled current instance.
+                    target = null;
+                    return false;
+                }
+            }, () => $"The {name} control did not settle as a native hit target.");
+            return target!;
+        }
+        async Task<T> NativeOverflowTargetAsync<T>(string name, bool requireHitTest = true) where T : Control
+        {
+            // Opening the overflow menu reparents its rows into the popup. Do not keep
+            // the pre-open control returned by Named<T>: it may be the retained template
+            // row and never become a valid native target after the reparenting turn.
+            T? target = null;
+            string? previousPredicate = null;
+            int transitions = 0, probes = 0;
+            object? lastState = null;
+            await Program.WaitUntilAsync(() =>
+            {
+                target = null;
+                probes++;
+                TopLevel? popup = null;
+                ScrollViewer? scroller = viewer?.OverflowFlyout.Content as ScrollViewer;
+                Point? centerInRoot = null;
+                string operation = "menu-state";
+                bool Observe(string predicate)
+                {
+                    Control? content = viewer?.OverflowMenuContent;
+                    lastState = new
+                    {
+                        name, requireHitTest, predicate, operation, probes,
+                        overflowOpen = viewer?.IsOverflowOpen,
+                        contentAttached = content?.IsAttachedToVisualTree(),
+                        contentVisible = content?.IsEffectivelyVisible,
+                        contentBounds = content?.Bounds.ToString(),
+                        contentRoot = Target(content == null ? null : TopLevel.GetTopLevel(content)),
+                        target = Target(target), attached = target?.IsAttachedToVisualTree(),
+                        visible = target?.IsEffectivelyVisible, enabled = target?.IsEffectivelyEnabled,
+                        arrangeValid = target?.IsArrangeValid, bounds = target?.Bounds.ToString(),
+                        root = Target(popup), rootIsMainWindow = ReferenceEquals(popup, window),
+                        rootVisible = popup?.IsVisible, clientSize = popup?.ClientSize.ToString(),
+                        // An OverlayPopupHost legitimately shares the main TopLevel.
+                        // Record it separately; do not infer popup ownership from TopLevel alone.
+                        popupAncestry = (target as Control ?? content)?.GetVisualAncestors()
+                            .Take(16).Select(v => v.GetType().Name).ToArray(),
+                        centerInRoot = centerInRoot?.ToString(),
+                        scrollOffset = scroller?.Offset.ToString(), viewport = scroller?.Viewport.ToString(),
+                        extent = scroller?.Extent.ToString(),
+                        focus = Target(window.FocusManager?.GetFocusedElement()), window.IsActive
+                    };
+                    // Keep first/changed predicates bounded, plus an unconditional final
+                    // snapshot on timeout. A long layout race must not exhaust input evidence.
+                    if (predicate != previousPredicate && transitions < 16)
+                    {
+                        Record("overflow-target-probe", lastState);
+                        transitions++;
+                    }
+                    previousPredicate = predicate;
+                    return predicate == "ready";
+                }
+                try
+                {
+                    if (viewer is not { IsOverflowOpen: true }) return Observe("overflow-closed");
+                    if (!viewer.OverflowMenuContent.IsAttachedToVisualTree()) return Observe("content-detached");
+                    if (!viewer.OverflowMenuContent.IsEffectivelyVisible) return Observe("content-hidden");
+                    if (viewer.OverflowMenuContent.Bounds.Width <= 0 || viewer.OverflowMenuContent.Bounds.Height <= 0)
+                        return Observe("content-empty-bounds");
+                    target = viewer.OverflowMenuContent.GetVisualDescendants()
+                        .OfType<T>().FirstOrDefault(control => control.Name == name);
+                    if (target is null) return Observe("target-missing");
+
+                    // Resolve the current row, then scroll it into the bounded viewport.
+                    // Never reuse a retained row or screen coordinate from a prior popup.
+                    operation = "layout-and-scroll";
+                    popup = TopLevel.GetTopLevel(target);
+                    popup?.UpdateLayout();
+                    scroller?.UpdateLayout();
+                    target.BringIntoView();
+                    if (scroller != null && target.TranslatePoint(default, scroller) is { } origin)
+                    {
+                        double y = scroller.Offset.Y;
+                        if (origin.Y < 0) y += origin.Y;
+                        else if (origin.Y + target.Bounds.Height > scroller.Viewport.Height)
+                            y += origin.Y + target.Bounds.Height - scroller.Viewport.Height;
+                        double max = Math.Max(0, scroller.Extent.Height - scroller.Viewport.Height);
+                        scroller.Offset = new Vector(scroller.Offset.X, Math.Clamp(y, 0, max));
+                    }
+                    scroller?.UpdateLayout();
+                    popup?.UpdateLayout();
+                    operation = "readiness";
+                    // Evaluate the original admission expression unchanged. The checks
+                    // below only diagnose rejection; they must not tighten or loosen it.
+                    if (target.IsAttachedToVisualTree() && popup is not null
+                        && !ReferenceEquals(popup, window)
+                        && (requireHitTest
+                            ? MediaInteractionSmokeHelpers.IsPointerTargetReady(target)
+                            : MediaInteractionSmokeHelpers.IsNativeGeometryReady(target)))
+                        return Observe("ready");
+                    if (!target.IsAttachedToVisualTree()) return Observe("target-detached");
+                    if (popup is null) return Observe("root-missing");
+                    if (ReferenceEquals(popup, window)) return Observe("root-is-main-window");
+                    if (!target.IsArrangeValid) return Observe("target-not-arranged");
+                    if (!target.IsEffectivelyVisible) return Observe("target-hidden");
+                    if (!target.IsEffectivelyEnabled) return Observe("target-disabled");
+                    if (target.Bounds.Width <= 0 || target.Bounds.Height <= 0) return Observe("target-empty-bounds");
+                    if (!popup.IsVisible) return Observe("root-hidden");
+                    operation = "screen-conversion";
+                    centerInRoot = popup.PointToClient(target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2)));
+                    if (!new Rect(popup.ClientSize).Contains(centerInRoot.Value)) return Observe("center-outside-root");
+                    operation = "geometry-or-hit-test";
+                    return Observe(requireHitTest ? "hit-test-or-geometry-race" : "geometry-race");
+                }
+                catch (ArgumentException)
+                {
+                    // Preserve bounded retry for cross-root layout/conversion races.
+                    // Keep the current probe's target and operation in the evidence.
+                    return Observe("argument-exception");
+                }
+            }, () =>
+            {
+                Record("overflow-target-timeout", lastState!);
+                return $"The {name} control did not settle as a native popup target: {JsonSerializer.Serialize(lastState)}";
+            });
+            return target!;
+        }
+        async Task OpenOverflowForNativeTargetAsync(string targetName)
+        {
+            // One native click only. Record both sides so a closed flyout is not
+            // misdiagnosed as a row geometry/hit-test failure, and never retry a
+            // toggle click that could close an already-open menu.
+            void Snapshot(string phase) => Record("overflow-open-input", new
+            {
+                targetName, phase, overflowOpen = viewer?.IsOverflowOpen,
+                contentAttached = viewer?.OverflowMenuContent.IsAttachedToVisualTree(),
+                contentVisible = viewer?.OverflowMenuContent.IsEffectivelyVisible,
+                root = Target(viewer == null ? null : TopLevel.GetTopLevel(viewer.OverflowMenuContent)),
+                focus = Target(window.FocusManager?.GetFocusedElement()), window.IsActive
+            });
+            Snapshot("before-click");
+            await native!.ClickAsync(() => NativeTargetAsync<Button>("GalleryMore"));
+            Snapshot("after-click");
+        }
         Slider Seek() => Named<Slider>("GalleryVideoSeek");
-        GalleryVideoPlayer Player() => viewer!.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
+        GalleryVideoPlayer Player()
+        {
+            GalleryVideoPlayer[] players = viewer!.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().ToArray();
+            if (players.Length != 1)
+                throw new InvalidOperationException($"Expected exactly one GalleryVideoPlayer in the current gallery presentation; found {players.Length}.");
+            return players[0];
+        }
         async Task<GalleryVideoPlayer.PlaybackEvidence> SampleAsync(string label)
         {
-            var evidence = await Player().InspectPlaybackAsync().WaitAsync(TimeSpan.FromSeconds(4));
+            GalleryVideoPlayer player = Player();
+            using CancellationTokenSource observation = new();
+            GalleryVideoPlayer.PlaybackEvidence evidence;
+            try { evidence = await player.InspectPlaybackAsync(cancellationToken: observation.Token).WaitAsync(TimeSpan.FromSeconds(4)); }
+            catch (TimeoutException)
+            {
+                var trace = PlaybackTrace();
+                Record("playback-observation-timeout", new { label, post = viewer?.CaptureState().PostId, timeoutMs = 4000,
+                    lifecycle = player.InspectPlaybackLifecycle(), trace.Frequency, trace.Dropped,
+                    phases = trace.Events.TakeLast(256).ToArray() });
+                Console.Error.WriteLine($"SMOKE playback observation timeout: stage={stage}, label={label}, post={viewer?.CaptureState().PostId}");
+                throw;
+            }
+            // WaitAsync only abandons its await. Remove any still-queued observer so it
+            // cannot enter native code after this sample/stage has already failed.
+            finally { observation.Cancel(); }
             foreach (Window inputRoot in window.OwnedWindows.Where(w => viewer!.OwnsOverlayWindow(w))) ObserveRoot(inputRoot);
             Slider seek = Seek();
             Record("sample", new { label, post = viewer!.CaptureState().PostId, evidence,
@@ -312,10 +530,62 @@ internal static class MediaInteractionChecks
                 && p.Length <= 60000 && (OperatingSystem.IsWindows() ? p.DisplayedFrames >= 3 : p.SurfaceFrames >= 3 && p.SurfaceNonUniform));
             Require(Seek().IsEffectivelyEnabled, "Ready video did not enable seek.");
         }
+        bool IsOverflowPopupRootVisible()
+        {
+            if (viewer == null || TopLevel.GetTopLevel(viewer.OverflowMenuContent) is not { } popup)
+                return false;
+            return !ReferenceEquals(popup, window) && popup.IsVisible;
+        }
+        bool HasTransientNativePopup(GalleryVideoPlayer? player) =>
+            viewer?.IsOverflowOpen == true
+            || CommandRouter.HasOpenPopup(window)
+            || IsOverflowPopupRootVisible()
+            || viewer?.IsOverlayOpen == true
+            || MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true }
+            || player?.IsVolumePopupOpen == true;
+
+        async Task DismissTransientNativeRootsAsync()
+        {
+            GalleryVideoPlayer? player = viewer?.GetGalleryVisualDescendants()
+                .OfType<GalleryVideoPlayer>().SingleOrDefault();
+            if (!HasTransientNativePopup(player)) return;
+
+            // Volume is a retained popup in the native transport root, not an Avalonia
+            // Flyout, so checking IsOverflowOpen/IsOverlayOpen alone misses it. Close it
+            // explicitly before dismissing a possibly focused overflow PopupRoot.
+            player?.SetVolumePopupOpen(false);
+            // A failed popup-target assertion must not leave its native light-dismiss
+            // root over the next stage. One real Escape dismisses the currently focused
+            // root; the explicit Hide below is the owner-side cleanup for a PopupRoot
+            // whose focus was already lost during a failed native target probe.
+            if (HasTransientNativePopup(player))
+                await native!.KeyAsync(MediaNativeInput.Escape);
+            viewer?.OverflowFlyout.Hide();
+            viewer?.TryDismissOverlay();
+            await Program.WaitUntilAsync(() => !HasTransientNativePopup(player),
+                () => "The previous native media popup/overlay did not dismiss during stage setup.");
+        }
+        async Task CloseVolumePopupAsync()
+        {
+            GalleryVideoPlayer player = Player();
+            if (!player.IsVolumePopupOpen) return;
+            // Leave the slider's native hit target before forcing the retained popup shut;
+            // otherwise its hover callback can reopen it on the next layout turn.
+            GalleryViewer current = viewer!;
+            // This move only leaves the retained popup; the viewer is a parent, not
+            // the asserted native hit target. Keep strict hit testing for every actual
+            // control click and use geometry-only positioning for this cleanup move.
+            await native!.MoveAsync(current, new Point(current.Bounds.Width / 2, current.Bounds.Height / 2),
+                requireHitTest: false);
+            player.SetVolumePopupOpen(false);
+            await Program.WaitUntilAsync(() => !player.IsVolumePopupOpen,
+                () => "The native volume popup did not close after its target was abandoned.");
+        }
         async Task FreshVideoAsync()
         {
             if (viewer != null)
             {
+                await DismissTransientNativeRootsAsync();
                 viewer.RemoveHandler(InputElement.KeyDownEvent, ViewerKeyTunnel);
                 viewer.RemoveHandler(InputElement.KeyDownEvent, ViewerKeyBubble);
                 // Recovery setup: a previous failed edge assertion may have left controls hidden.
@@ -332,18 +602,25 @@ internal static class MediaInteractionChecks
             Require(viewer.CaptureState().PostId == "2000", "Fresh fixture did not start at video A.");
             await ReadyAsync();
         }
-        Point TrackPoint(double fraction) => MediaInteractionSmokeHelpers.TrackPoint(Seek(), fraction);
+        Task<Point> TrackPointAsync(double fraction) => MediaInteractionSmokeHelpers.TrackPointAsync(Seek(), fraction);
+        Point VolumeTrackPoint(Slider volume, double fraction, bool requireEnabled = true) =>
+            MediaInteractionSmokeHelpers.ReadyTrackPoint(volume, fraction, requireEnabled);
         async Task SeekClickAsync(double fraction)
         {
             Record("inject", new { action = "native-track-click", fraction });
-            await native!.ClickAsync(Seek(), TrackPoint(fraction));
+            await native!.ClickAsync(
+                () => NativeTargetAsync<Slider>("GalleryVideoSeek"),
+                current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.ReadyTrackPoint(current, fraction)));
             Require(Seek().IsKeyboardFocusWithin, "Native timeline click did not acquire focus.");
             await WaitPlaybackAsync(p => Math.Abs(p.Time - fraction * p.Length) < 1000);
         }
         async Task DragAsync(double fraction, bool release)
         {
             Slider seek = Seek();
-            Thumb thumb = seek.GetVisualDescendants().OfType<Track>().Single().Thumb!;
+            Thumb[] thumbs = seek.GetVisualDescendants().OfType<Thumb>().ToArray();
+            Require(thumbs.Length == 1,
+                $"Expected exactly one native timeline thumb in the current slider presentation; found {thumbs.Length}.");
+            Thumb thumb = thumbs[0];
             Record("inject", new { action = "native-thumb-drag", fraction, release });
             string stateBefore = (await SampleAsync("before-native-drag")).State;
             await native!.MoveAsync(thumb);
@@ -354,7 +631,7 @@ internal static class MediaInteractionChecks
                 double start = (seek.Value - seek.Minimum) / (seek.Maximum - seek.Minimum);
                 for (int i = 1; i <= 4; i++)
                 {
-                    await native.MoveAsync(seek, TrackPoint(start + (fraction - start) * i / 4));
+                    await native.MoveAsync(seek, await TrackPointAsync(start + (fraction - start) * i / 4));
                     Require((await SampleAsync("native-drag-held")).State == stateBefore,
                         "An active native seek gesture changed the playback intent before release.");
                 }
@@ -415,7 +692,7 @@ internal static class MediaInteractionChecks
         async Task CheckVolumeAndPanelsAsync(string expected)
         {
             if (expected == "Playing") await SeekClickAsync(.05); // Keep short supported fixtures away from a natural end.
-            Slider volume = Named<Slider>("GalleryVideoVolume");
+            Slider Volume() => Named<Slider>("GalleryVideoVolume");
             var volumeEvidence = await SampleAsync("volume-availability-before");
             if (Environment.GetEnvironmentVariable("MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO") == "1")
                 Require(volumeEvidence.AudioAvailable && volumeEvidence.AudioTracks > 0 && volumeEvidence.PlayedAudioBuffers > 0,
@@ -429,18 +706,22 @@ internal static class MediaInteractionChecks
                 var before = await SampleAsync("disabled-volume-before-click");
                 ToggleButton mute = Named<ToggleButton>("GalleryVideoMute");
                 Require(ProvesNativeUnavailable(before) && before.State == expected
-                    && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !Player().CanAdjustVolume,
+                    && !Volume().IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !Player().CanAdjustVolume,
                     "Disabled-volume branch lacks native unavailable-output evidence or disabled controls.");
                 string? post = viewer!.CaptureState().PostId;
                 Require(post == "2000", "Disabled-volume check started on unexpected media.");
-                await native!.MoveAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native!.MoveAsync(
+                    () => Task.FromResult(Volume()),
+                    current => Task.FromResult((Point?)VolumeTrackPoint(current, .60, requireEnabled: false)),
+                    requireEnabled: false, requireHitTest: false);
                 await native.ButtonAsync(true);
                 await native.ButtonAsync(false);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Disabled volume pointer click");
+                await CloseVolumePopupAsync();
                 var after = await SampleAsync("disabled-volume-after-click");
                 Require(ProvesNativeUnavailable(after) && after.Volume == before.Volume
                     && after.Muted == before.Muted && after.State == before.State
-                    && viewer.CaptureState().PostId == post && !volume.IsEffectivelyEnabled
+                    && viewer.CaptureState().PostId == post && !Volume().IsEffectivelyEnabled
                     && !mute.IsEffectivelyEnabled && !Player().CanAdjustVolume,
                     "Disabled volume pointer click changed native volume/mute/state/selection or availability.");
             }
@@ -455,41 +736,69 @@ internal static class MediaInteractionChecks
             }
             else
             {
-                await native!.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
-                Require(volume.IsKeyboardFocusWithin, "Native volume click did not focus the actual slider.");
-                await native.KeyAsync(MediaNativeInput.Home);
-                Require(volume.Value == volume.Minimum && viewer!.CaptureState().PostId == "2000",
-                    "Native volume Home did not stay local to the slider.");
-                await native.KeyAsync(MediaNativeInput.End);
-                await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
-                Require(volume.Value == volume.Maximum && viewer!.CaptureState().PostId == "2000",
-                    "Native volume End escaped or failed to adjust volume.");
-                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume click/Home/End");
+                await native!.ClickAsync(
+                    () => Task.FromResult(Volume()),
+                    current => Task.FromResult((Point?)VolumeTrackPoint(current, .60)));
+                // The released slider hands the keys back to the gallery (one rule for chrome over a keyed surface): arrows are the
+                // gallery's volume keys, never slider-local steps, and the popup's mute button does not get them either.
+                await Program.WaitUntilAsync(() => !Volume().IsKeyboardFocusWithin);
+                Require(!Volume().IsKeyboardFocusWithin, "Native volume click left the keys on the slider instead of the gallery.");
+                var afterClick = await SampleAsync("volume-after-click");
                 await native.KeyAsync(MediaNativeInput.Down);
-                await WaitPlaybackAsync(p => p.Volume == 99 && p.State == expected);
+                await WaitPlaybackAsync(p => p.Volume == Math.Max(0, afterClick.Volume - 1) && p.State == expected);
+                Require(viewer!.CaptureState().PostId == "2000", "Volume Down navigated media.");
                 await native.KeyAsync(MediaNativeInput.Up);
-                await WaitPlaybackAsync(p => p.Volume == 100 && p.State == expected);
-                Require(viewer!.CaptureState().PostId == "2000", "Volume Up/Down navigated media.");
-                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume Up/Down");
+                await WaitPlaybackAsync(p => p.Volume == afterClick.Volume && p.State == expected);
+                Require(viewer!.CaptureState().PostId == "2000", "Volume Up navigated media.");
+                await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Volume click then gallery Down/Up");
                 Console.WriteLine("SMOKE functional-audio-positive media volume: " + JsonSerializer.Serialize(new
                 { expected, before = volumeEvidence, after = await SampleAsync("functional-audio-positive-volume") }));
             }
+            await CloseVolumePopupAsync();
             foreach (string panel in new[] { "GalleryToggleContext", "GalleryHelp" })
             {
                 if (expected == "Playing") await SeekClickAsync(.05);
-                await native.ClickAsync(Named<Button>(panel));
-                Require(panel == "GalleryHelp" ? viewer!.IsOverlayOpen : viewer!.CaptureState().ContextOpen,
+                if (panel == "GalleryHelp")
+                {
+                    // More is in the gallery root; GalleryHelp is reparented into a
+                    // separate Flyout/PopupRoot. Open it through the OS first, then
+                    // wait for the popup's current screen geometry before converting
+                    // the row coordinate. Popup-root hit testing can lag one layout
+                    // turn, so the native click and shortcuts-window assertion below
+                    // remain the delivery proof.
+                    await OpenOverflowForNativeTargetAsync(panel);
+                    bool requirePanelPopupHitTest = !OperatingSystem.IsMacOS();
+                    await native.ClickAsync(
+                        () => NativeOverflowTargetAsync<Button>(panel, requirePanelPopupHitTest),
+                        requireHitTest: requirePanelPopupHitTest);
+                }
+                else
+                    await native.ClickAsync(() => NativeTargetAsync<Button>(panel));
+                // The Help tool opens the one modeless shortcuts window (KS3); the context panel stays in the gallery.
+                if (panel == "GalleryHelp") await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
+                Require(panel == "GalleryHelp" ? MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true } : viewer!.CaptureState().ContextOpen,
                     "Native panel action failed to open its actual panel: " + panel);
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, panel + " open");
                 await native.KeyAsync(MediaNativeInput.Escape);
-                Require(!viewer!.CaptureState().ContextOpen && !viewer.IsOverlayOpen,
+                if (panel == "GalleryHelp") await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
+                Require(!viewer!.CaptureState().ContextOpen && !viewer.IsOverlayOpen
+                    && MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null,
                     "Native Escape did not dismiss only the active panel.");
                 await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, panel + " dismissed");
                 Require(window.FindControl<ContentControl>("GalleryHost")!.IsVisible && viewer.CaptureState().PostId == "2000",
                     "Panel dismissal closed/navigated the gallery.");
             }
             if (expected == "Playing") await SeekClickAsync(.05);
-            await native.ClickAsync(Named<ComboBox>("GalleryPlaybackModeSelector"));
+            await OpenOverflowForNativeTargetAsync("GalleryPlaybackModeSelector");
+            // On macOS Avalonia's PopupRoot can expose the current ComboBox with
+            // valid native geometry one dispatcher turn before its hit-test cache
+            // includes the freshly reparented row. Keep current-target resolution
+            // and real CGEvent delivery, but do not reject that live target on the
+            // stale framework hit-test probe. Other platforms retain the strict probe.
+            bool requirePopupHitTest = !OperatingSystem.IsMacOS();
+            await native.ClickAsync(
+                () => NativeOverflowTargetAsync<ComboBox>("GalleryPlaybackModeSelector", requirePopupHitTest),
+                requireHitTest: requirePopupHitTest);
             Require(Named<ComboBox>("GalleryPlaybackModeSelector").IsDropDownOpen, "Native mode click failed to open the menu.");
             await MediaInteractionSmokeHelpers.HoldStateAsync(Player(), expected, "Playback menu open");
             await native.KeyAsync(MediaNativeInput.Escape);
@@ -509,7 +818,9 @@ internal static class MediaInteractionChecks
             else
             {
                 // Actual volume pointer focus must yield media navigation on exactly one key.
-                await native.ClickAsync(volume, MediaInteractionSmokeHelpers.TrackPoint(volume, .60));
+                await native.ClickAsync(
+                    () => Task.FromResult(Volume()),
+                    current => Task.FromResult((Point?)VolumeTrackPoint(current, .60)));
             }
             await native.KeyAsync(MediaNativeInput.Right);
             await Program.WaitUntilAsync(() => viewer!.CaptureState().PostId == "2001");
@@ -521,7 +832,7 @@ internal static class MediaInteractionChecks
             await ReadyAsync();
             if (expected == "Paused")
             {
-                await native.ClickAsync(Named<Button>("GalleryVideoPlayPause"));
+                await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryVideoPlayPause"));
                 await WaitPlaybackAsync(p => p.State == "Paused");
             }
         }
@@ -542,10 +853,20 @@ internal static class MediaInteractionChecks
                     viewer.ConfigurePlayback(docked);
                     await NavigateAsync(viewer.CaptureState().PostId == "2000", "2001");
                     viewer.ConfigurePlayback(docked.WithControlsOverlay(true));
-                    await native!.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2));
+                    // Reveal/hide is a real OS pointer motion, but the viewer parent
+                    // is not itself the interactive target at this edge. Actual key and
+                    // click assertions below still resolve and hit-test their controls.
+                    await native!.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2),
+                        requireHitTest: false);
                     await Program.WaitUntilAsync(() => Named<Border>("GalleryOverlayControls").IsEffectivelyVisible);
-                    await native.ClickAsync(Named<Button>("GalleryFit"));
-                    await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .30));
+                    // Navigation can expose the retained image toolbar before the
+                    // decoder has re-enabled its fit commands. Resolve the current
+                    // enabled presentation at delivery time; passing Named() here
+                    // pins a temporarily disabled button and makes macOS native input
+                    // fail with ArgumentException instead of retrying the transition.
+                    await native.ClickAsync(() => NativeTargetAsync<Button>("GalleryFit"));
+                    await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .30),
+                        requireHitTest: false);
                     await Program.WaitUntilAsync(() => !Named<Border>("GalleryOverlayControls").IsEffectivelyVisible);
                     string? before = viewer.CaptureState().PostId;
                     int beforeKeys = routedKeys;

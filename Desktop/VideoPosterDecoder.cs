@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
@@ -15,12 +16,44 @@ namespace MeowChan.Desktop;
 internal static class VideoPosterDecoder
 {
     private static int _nativeReleaseFailed;
+    /// <summary>Largest poster frame (the first-frame poster contract; <see cref="VideoPosterCache.Valid"/> checks the same bounds).</summary>
+    internal const int PosterMaximumWidth = 960, PosterMaximumHeight = 640;
     internal sealed record Frame(byte[] Pixels, int Width, int Height, int Pitch);
-    internal static async Task<byte[]> DecodeAsync(Stream verifiedVideo, CancellationToken token)
+
+    /// <summary>The first-frame poster (unchanged contract): decoded from the start, at most 960×640.</summary>
+    internal static Task<byte[]> DecodeAsync(Stream verifiedVideo, CancellationToken token) =>
+        DecodeAsync(verifiedVideo, sourceName: null, token);
+
+    /// <summary>Decode a poster while retaining the verified media suffix for LibVLC's file demuxer.</summary>
+    internal static Task<byte[]> DecodeAsync(Stream verifiedVideo, string? sourceName, CancellationToken token) =>
+        DecodeCoreAsync(verifiedVideo, sourceName, TimeSpan.Zero, PosterMaximumWidth, PosterMaximumHeight, "video.poster.decode", token);
+
+    /// <summary>
+    /// One scrub-preview frame near <paramref name="start"/> (LibVLC <c>:start-time</c>), scaled to fit the given bounds. Like
+    /// <see cref="DecodeAsync"/> the decoder owns <paramref name="verifiedVideo"/> from this call on, including failures and cancellation.
+    /// A start at or beyond the end fails like a video without a decodable frame. Not exercised natively yet (X06 core, wiring separate).
+    /// </summary>
+    internal static Task<byte[]> DecodeAtAsync(Stream verifiedVideo, TimeSpan start, int maximumWidth, int maximumHeight, CancellationToken token) =>
+        DecodeAtAsync(verifiedVideo, sourceName: null, start, maximumWidth, maximumHeight, token);
+
+    /// <summary>Decode a scrub frame while retaining the verified media suffix for LibVLC's file demuxer.</summary>
+    internal static Task<byte[]> DecodeAtAsync(Stream verifiedVideo, string? sourceName, TimeSpan start,
+        int maximumWidth, int maximumHeight, CancellationToken token)
     {
-        await using var decoder = new DecodeSession(verifiedVideo);
-        using var measurement = PerformanceDiagnostics.Measure("video.poster.decode", decoder.Id);
-        decoder.Initialize();
+        if (start < TimeSpan.Zero) { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(start)); }
+        if (maximumWidth is < 1 or > PosterMaximumWidth)
+        { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(maximumWidth), "The frame bounds exceed the poster limits."); }
+        if (maximumHeight is < 1 or > PosterMaximumHeight)
+        { verifiedVideo.Dispose(); throw new ArgumentOutOfRangeException(nameof(maximumHeight), "The frame bounds exceed the poster limits."); }
+        return DecodeCoreAsync(verifiedVideo, sourceName, start, maximumWidth, maximumHeight, "video.scrub.decode", token);
+    }
+
+    private static async Task<byte[]> DecodeCoreAsync(Stream verifiedVideo, string? sourceName, TimeSpan start,
+        int maximumWidth, int maximumHeight, string phase, CancellationToken token)
+    {
+        await using var decoder = new DecodeSession(verifiedVideo, sourceName, start, maximumWidth, maximumHeight);
+        using var measurement = PerformanceDiagnostics.Measure(phase, decoder.Id);
+        await decoder.InitializeAsync(token).ConfigureAwait(false);
         Frame frame = await decoder.ReadAsync(token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         using SKBitmap bitmap = new(new SKImageInfo(frame.Width, frame.Height, SKColorType.Bgra8888, SKAlphaType.Opaque));
@@ -38,11 +71,15 @@ internal static class VideoPosterDecoder
     {
         internal readonly long Id = PerformanceDiagnostics.NextId();
         private readonly Stream _verifiedVideo;
+        private readonly string? _sourceName;
+        private readonly TimeSpan _start;
+        private readonly int _maximumWidth, _maximumHeight;
         private readonly object _disposeLock = new();
         private Task? _dispose;
         private readonly VideoCleanupWatch _cleanupWatch = new("video.poster.cleanup");
         private LibVLC? _engine;
         private StreamMediaInput? _input;
+        private VerifiedVideoFile? _nativeFile;
         private Media? _media;
         private MediaPlayer? _player;
         private GCHandle _root;
@@ -57,24 +94,36 @@ internal static class VideoPosterDecoder
         private int _width, _height, _codedWidth, _codedHeight, _pitch, _count;
         private Frame? _last;
 
-        internal DecodeSession(Stream stream)
+        internal DecodeSession(Stream stream, string? sourceName, TimeSpan start, int maximumWidth, int maximumHeight)
         {
-            _verifiedVideo = stream;
+            _verifiedVideo = stream; _sourceName = sourceName;
+            _start = start; _maximumWidth = maximumWidth; _maximumHeight = maximumHeight;
             _format = Format;
             _cleanup = (ref IntPtr opaque) => { };
             _lock = Lock;
             _unlock = (_, _, _) => Capture();
             _display = (_, _) => { };
         }
-        internal void Initialize()
+        internal async Task InitializeAsync(CancellationToken token)
         {
             if (Volatile.Read(ref _nativeReleaseFailed) != 0)
                 throw new InvalidOperationException("Video poster decoding is unavailable after a native cleanup failure.");
             NativeVideoRuntime.EnsureInitialized();
             _engine = new LibVLC("--no-audio", "--no-spu", "--no-osd", "--no-video-title-show", "--no-media-library", "--avcodec-hw=none");
-            _input = new StreamMediaInput(_verifiedVideo);
-            _media = new Media(_engine, _input);
+            if (VideoNativeInput.UsesFileInput)
+            {
+                _nativeFile = await VideoNativeInput.MaterializeAsync(_verifiedVideo, _sourceName, token).ConfigureAwait(false);
+                _media = new Media(_engine, _nativeFile.Path, FromType.FromPath);
+            }
+            else
+            {
+                _input = new StreamMediaInput(_verifiedVideo);
+                _media = new Media(_engine, _input);
+            }
             _media.AddOption(":no-audio");
+            // The first-frame poster passes zero and keeps its exact former option set.
+            if (_start > TimeSpan.Zero)
+                _media.AddOption(":start-time=" + _start.TotalSeconds.ToString("0.###", CultureInfo.InvariantCulture));
             _player = new MediaPlayer(_engine);
             // A root independent of this async call remains until native release joins callbacks.
             _root = GCHandle.Alloc(this);
@@ -104,7 +153,7 @@ internal static class VideoPosterDecoder
                 if (width == 0 || height == 0 || (long)width * height > 80_000_000 || _allocations.Count >= 4)
                 { _frame.TrySetException(new InvalidDataException("The video frame exceeds safe limits.")); return 0; }
                 _codedWidth = (int)width; _codedHeight = (int)height;
-                double ratio = Math.Min(1, Math.Min(960d / width, 640d / height));
+                double ratio = Math.Min(1, Math.Min((double)_maximumWidth / width, (double)_maximumHeight / height));
                 width = (uint)Math.Max(1, (int)(width * ratio));
                 height = (uint)Math.Max(1, (int)(height * ratio));
                 _width = (int)width; _height = (int)height;
@@ -147,12 +196,14 @@ internal static class VideoPosterDecoder
         }
         public ValueTask DisposeAsync()
         {
-            lock (_disposeLock) return new ValueTask(_dispose ??= Task.Run(DisposeCore));
+            lock (_disposeLock) return new ValueTask(_dispose ??= DisposeCoreAsync());
         }
-        private void DisposeCore()
+
+        private async Task DisposeCoreAsync()
         {
+            await Task.CompletedTask.ConfigureAwait(ConfigureAwaitOptions.ForceYielding);
             _cleanupWatch.Begin(Id);
-            _cleanupWatch.Owns("native operation, player, callback buffers/delegates, media/input, verified stream, engine");
+            _cleanupWatch.Owns("native operation, player, callback buffers/delegates, media/input, verified stream, native file, engine");
             try
             {
                 MediaPlayer? player = _player;
@@ -164,12 +215,15 @@ internal static class VideoPosterDecoder
                     _cleanupWatch.Phase("player-dispose");
                     player.Dispose(); _player = null;
                 }
-                _cleanupWatch.Owns("native operation, callback buffers/delegates, media/input, verified stream, engine");
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, media/input, verified stream, native file, engine");
                 _cleanupWatch.Phase("media-dispose");
                 _media?.Dispose(); _media = null;
-                _cleanupWatch.Owns("native operation, callback buffers/delegates, input, verified stream, engine");
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, input, native file, verified stream, engine");
                 _cleanupWatch.Phase("input-dispose");
                 _input?.Dispose(); _input = null;
+                _cleanupWatch.Owns("native operation, callback buffers/delegates, native file, verified stream, engine");
+                _cleanupWatch.Phase("native-file-dispose");
+                _nativeFile?.Dispose(); _nativeFile = null;
                 _cleanupWatch.Owns("native operation, callback buffers/delegates, verified stream, engine");
                 _cleanupWatch.Phase("engine-dispose");
                 _engine?.Dispose(); _engine = null;
@@ -190,6 +244,8 @@ internal static class VideoPosterDecoder
                 _cleanupWatch.Fail();
                 throw new InvalidOperationException("The video poster decoder could not release its native session; ownership is retained.", exception);
             }
+            finally { _cleanupWatch.Dispose(); }
         }
+
     }
 }

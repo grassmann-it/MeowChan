@@ -72,6 +72,9 @@ internal static class ReaderUxChecks
                 "Reader UX " + thread, ThreadSourceState.Archived, DateTimeOffset.UtcNow, threadMedia, posts));
         }
         if (!deletionFixture) await ReaderStabilityChecks.SeedAsync(catalog, media);
+        if (!deletionFixture) await ReaderPostWidthChecks.SeedAsync(catalog, media);
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY") == "1")
+            await ReaderSidebarShortcutChecks.SeedAsync(catalog, media);
     }
 
     internal static async Task RunAsync(MainWindow window)
@@ -97,14 +100,83 @@ internal static class ReaderUxChecks
             await ReaderGroupChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_IDEAS_ONLY") == "1")
+        {
+            await ReaderIdeaChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_REPLIES_ONLY") == "1")
+        {
+            await ReaderRepliesChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_POST_FILTER_ONLY") == "1")
+        {
+            await ReaderPostFilterChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_RETURNS_ONLY") == "1")
         {
             await ReaderReturnChecks.RunAsync(window);
             return;
         }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_POST_WIDTH_ONLY") == "1")
+        {
+            await ReaderPostWidthChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_STABILITY_ONLY") == "1")
         {
             await ReaderStabilityChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_CONVERSATION_ONLY") == "1")
+        {
+            await ReaderConversationChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_DISPLAY_ONLY") == "1")
+        {
+            await ReaderDisplayChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY") == "1")
+        {
+            List<Exception> failures = new();
+            foreach (Func<Task> scene in new Func<Task>[] {
+                () => ReaderGalleryShortcutParityChecks.RunAsync(window),
+                () => ReaderSidebarShortcutChecks.RunAsync(window),
+                () => ReaderMediaSidebarChecks.RunAsync(window) })
+            {
+                try { await scene(); }
+                catch (Exception error) { failures.Add(error); Console.WriteLine("SMOKE reader sidebar independent scene failed: " + error); }
+            }
+            if (failures.Count > 0) throw new AggregateException("Reader sidebar scenes completed with failures", failures);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_INLINE_VIDEO_ONLY") == "1")
+        {
+            await ReaderInlineVideoChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_VIEW_ONLY") == "1")
+        {
+            await ReaderViewChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_QUICK_SETTINGS_ONLY") == "1")
+        {
+            await ReaderQuickSettingsChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_THREAD_MENU_ONLY") == "1")
+        {
+            await ReaderThreadMenuChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_TOOLBAR_ONLY") == "1")
+        {
+            await ReaderToolbarChecks.RunAsync(window);
             return;
         }
         window.Width = 1520; window.Height = 920;
@@ -123,7 +195,7 @@ internal static class ReaderUxChecks
             Console.WriteLine($"SMOKE wide reader geometry: target=1520x920, requested={window.Width}x{window.Height}, client={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}, screen={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
         }
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX";
@@ -133,6 +205,10 @@ internal static class ReaderUxChecks
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
         await CheckEmbeddedArchiveFooterAsync(window, page);
+        await ReaderPointerChecks.RunAsync(window, page, large: false);
+        await ArchiveFilterSurfaceChecks.RunAsync(window);
+        await ArchiveListWidthChecks.RunAsync(window);
+        await ArchiveSavedMediaPosterChecks.RunAsync(window);
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && SelectedPost(page) == "1000");
@@ -140,16 +216,97 @@ internal static class ReaderUxChecks
         await CheckDetachedReaderIconsAsync(window, page, reader);
         await CheckReaderThreadFavoritesAsync(window, page);
         await ReaderInteractionChecks.RunAsync(window, page);
+        await ReaderPointerChecks.RunAsync(window, page, large: true);
+        await ReaderIdeaChecks.RunAsync(window);
         await ReaderNavigationOverlayChecks.RunAsync(window, page);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_READER_NAVIGATION_ONLY") == "1")
         {
             Console.WriteLine("SMOKE scoped reader navigation overlay: completed real reader setup and responsive overlay/last-post matrix; remaining reader-ux groups not run.");
             return;
         }
+        await CheckOwnedNavigationAsync(window, page, reader);
+        await RunFreshGalleryRoundtripAsync(window, page, reader);
+        await CheckListGalleryReturnAsync(window, page, reader);
+        await ReaderReturnChecks.RunAsync(window);
+        await ReaderStabilityChecks.RunAsync(window);
+        await ReaderGroupChecks.RunAsync(window);
+        Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, post page boundary, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
+    }
+
+    // Each scoped journey starts from its own real archive query and opened reader.
+    // No prior journey's selected post, gallery session or query snapshot is reused.
+    private static WindowStartupFit SetReaderJourneyGeometry(MainWindow window)
+    {
+        Avalonia.Platform.Screen screen = window.Screens.ScreenFromWindow(window)
+            ?? throw new InvalidOperationException("Reader journey fixture has no native screen.");
+        Size client = window.ClientSize;
+        Size frame = window.FrameSize ?? client;
+        WindowStartupFit target = WindowStartupGeometry.Fit(
+            new Size(1520, 920),
+            new Size(1520 + Math.Max(0, frame.Width - client.Width),
+                920 + Math.Max(0, frame.Height - client.Height)),
+            new Size(window.MinWidth, window.MinHeight), screen.WorkingArea, window.RenderScaling,
+            window.Position, WindowStartupGeometry.NormalFrameInsetPixels);
+        window.Width = target.Client.Width;
+        window.Height = target.Client.Height;
+        window.Position = target.Position;
+        return target;
+    }
+
+    internal static async Task RunJourneyAsync(MainWindow window, string id)
+    {
+        WindowStartupFit target = SetReaderJourneyGeometry(window);
+        try
+        {
+            await Program.WaitUntilAsync(() =>
+            {
+                // Native window resizes can update Bounds one dispatcher turn after
+                // the request. Re-measure after layout so macOS does not report a
+                // stale client size during the transition.
+                window.UpdateLayout();
+                return PresentationChecks.MatchesRequestedSize(
+                    window, target.Client.Width, target.Client.Height);
+            });
+        }
+        finally
+        {
+            Console.WriteLine($"SMOKE reader journey geometry: target={target.Client.Width}x{target.Client.Height}; "
+                + $"requested={window.Width}x{window.Height}; client={window.Bounds.Size}; frame={window.FrameSize}; "
+                + $"minimum={window.MinWidth}x{window.MinHeight}; scale={window.RenderScaling}; "
+                + $"screen={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+        }
+        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
+        ArchivePage page = window.ArchivePage;
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
+        page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX";
+        page.FindControl<ComboBox>("ArchiveSort")!.SelectedIndex = 2;
+        await page.ApplySearchAsync();
+        page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Hero);
+        Click(page.FindControl<Button>("ArchiveReadPosts")!);
+        ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
+        await Program.WaitUntilAsync(() => reader.IsVisible && !page.IsBusy && SelectedPost(page) == "1000");
+        await page.MediaLoadTask;
+        switch (id)
+        {
+            case "reader-owned-navigation": await CheckOwnedNavigationAsync(window, page, reader); break;
+            case "reader-gallery-roundtrip": await RunFreshGalleryRoundtripAsync(window, page, reader); break;
+            case "reader-list-gallery-return":
+                Click(page.FindControl<Button>("ArchiveCloseReader")!);
+                await Program.WaitUntilAsync(() => !reader.IsVisible);
+                await CheckListGalleryReturnAsync(window, page, reader);
+                break;
+            default: throw new ArgumentOutOfRangeException(nameof(id), id, "Unknown reader journey.");
+        }
+    }
+
+    private static async Task CheckOwnedNavigationAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
         await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .Any(view => view.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240));
         await CheckOverlayChromeAsync(window, reader);
-        Require(page.FindControl<Grid>("ArchiveReaderPane")!.Parent == reader, "Reader pane has the wrong owner.");
+        Require(HostsLargeReader(reader, page), "Reader pane has the wrong owner.");
         Program.CaptureWindow(window, "smoke-reader-initial.png");
         Click(page.FindControl<Button>("ExportArchiveButton")!);
         await Program.WaitUntilAsync(() => page.FindControl<Border>("ArchiveExportDialog")!.IsVisible);
@@ -178,6 +335,10 @@ internal static class ReaderUxChecks
         await page.LoadThreadAsync(Hero);
         await page.FocusPostAsync("1000");
         await page.MediaLoadTask;
+    }
+
+    private static async Task CheckGalleryRoundtripAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
         ArchiveAttachmentView inline = reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
             .First(view => view.DataContext is ArchiveAttachmentRow);
         Click(inline.PreviewButton);
@@ -228,7 +389,7 @@ internal static class ReaderUxChecks
             savedAsset.Manifest, savedAsset.Asset, null, null, false, true);
         string? retainedAnchor = TopPost(page);
         string? retainedSelection = SelectedPost(page);
-        await window.OpenMediaGalleryAsync(new[] { unassigned }, unassigned.EntryKey);
+        await window.OpenMediaGalleryLaidOutAsync(new[] { unassigned }, unassigned.EntryKey);
         viewer = (GalleryViewer)gallery.Content!;
         Require(viewer.CaptureState().PostId == null, "Unassigned medium acquired an invented post association.");
         Click(GalleryButton(viewer, "GalleryClose"));
@@ -249,6 +410,65 @@ internal static class ReaderUxChecks
             "Embedded archive retained the reader overlay or its reserved content band.");
         Require(!reader.IsVisible && page.FindControl<Grid>("ArchiveReaderPane")!.Parent == page.FindControl<Grid>("ArchiveSplit"),
             "Closing reader did not return control ownership.");
+    }
+
+    private static async Task RunFreshGalleryRoundtripAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
+        // A fresh profile clicks media into the sidebar by default. This
+        // journey tests the gallery route, not that separate sidebar choice.
+        // Pin the input preference explicitly (as ReaderInteractionChecks
+        // does), never the gallery/post/zoom outcome; restore it even on failure.
+        ReaderMediaPreferences mediaBefore = page.ReaderMedia;
+        bool overlayBefore = window.SessionHost.Config.GalleryOverlayControls;
+        bool autoHideBefore = window.SessionHost.Config.GalleryAutoHideControls;
+        Exception? failureBeforeCleanup = null;
+        try
+        {
+            // GalleryCaptionChecks is the docked scene: it requires tools
+            // below the viewport and still visible after 4.2 seconds idle.
+            // Overlay/autohide has its own journeys; choose the docked input
+            // through the real settings owner before creating this gallery.
+            await window.SessionHost.SaveViewPreferencesAsync(config =>
+            {
+                config.GalleryOverlayControls = false;
+                config.GalleryAutoHideControls = false;
+            });
+            ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery);
+            // MediaLoadTask completes the manifest scan, not the realized
+            // attachment's decode/layout. The old prefix had already waited
+            // for a large preview before arriving at this real button click.
+            await Program.WaitUntilAsync(() => reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .FirstOrDefault(view => view.DataContext is ArchiveAttachmentRow) is { } first
+                && first.Thumbnail.Source is Bitmap bitmap && bitmap.PixelSize.Width > 240
+                && first.PreviewButton.IsEffectivelyVisible && first.PreviewButton.IsEffectivelyEnabled
+                && first.PreviewButton.Bounds.Width > 0 && first.PreviewButton.Bounds.Height > 0);
+            Console.WriteLine($"SMOKE scoped gallery-roundtrip setup: click mode {mediaBefore.Video.Mode} → {page.ReaderMedia.Video.Mode}; "
+                + $"controls overlay {overlayBefore} → {window.SessionHost.Config.GalleryOverlayControls}; "
+                + "first actual preview has a large decoded bitmap and a visible enabled button; single-click gallery journey follows.");
+            await CheckGalleryRoundtripAsync(window, page, reader);
+        }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                try
+                {
+                    await window.SessionHost.SaveViewPreferencesAsync(config =>
+                    {
+                        config.GalleryOverlayControls = overlayBefore;
+                        config.GalleryAutoHideControls = autoHideBefore;
+                    });
+                }
+                finally { ReaderSmokeSetup.Restore(page, mediaBefore); }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in scoped gallery roundtrip: " + exception));
+        }
+    }
+
+    private static async Task CheckListGalleryReturnAsync(MainWindow window, ArchivePage page, ContentControl reader)
+    {
+        ContentControl gallery = window.FindControl<ContentControl>("GalleryHost")!;
+        GalleryViewer viewer;
         Click(page.FindControl<Button>("NextThreadsButton")!);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 2);
         string? listPage = page.FindControl<TextBlock>("ArchiveThreadPage")!.Text;
@@ -355,10 +575,6 @@ internal static class ReaderUxChecks
         Require(!returnedToOverflow || resultActions.More!.IsChecked != true,
             "Returning from the list-origin gallery reopened its overflow popup.");
         Require(ReferenceEquals(window.FocusManager!.GetFocusedElement(), expectedGalleryFocus), "List-origin focus was not restored.");
-        await ReaderReturnChecks.RunAsync(window);
-        await ReaderStabilityChecks.RunAsync(window);
-        await ReaderGroupChecks.RunAsync(window);
-        Console.WriteLine("SMOKE reader UX: full-window ownership, readable media, real arrow routing, post page boundary, frozen thread navigation, A→D return, zoom, Tab and list-origin restore passed.");
     }
 
     internal static async Task CheckOverlayChromeAsync(MainWindow window, ContentControl overlay)
@@ -407,6 +623,7 @@ internal static class ReaderUxChecks
     private static async Task CheckArchiveThreadFavoritesAsync(MainWindow window, ArchivePage page)
     {
         string originalLayout = page.ArchiveLayoutPreference;
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (string layout in new[] { "List", "Table" })
@@ -468,8 +685,9 @@ internal static class ReaderUxChecks
                 string frozenLabel = star.Header!.ToString()!;
                 Select(rows[1]);
                 await Program.WaitUntilAsync(() => !page.IsBusy);
-                Require(Equals(star.Header, frozenLabel) && frozenLabel.Contains(rows[0].Summary.Id.Thread!, StringComparison.Ordinal),
-                    layout + " thread-favorite menu lost its frozen lead label.");
+                // The label names no thread (AR-02: the right-clicked row is the target); the frozen lead shows in what the command then does.
+                Require(Equals(star.Header, frozenLabel) && !frozenLabel.Contains(rows[0].Summary.Id.Thread!, StringComparison.Ordinal),
+                    layout + " thread-favorite menu lost its frozen lead label or repeats the target.");
                 Require(star.Command?.CanExecute(null) == true, layout + " thread-favorite menu is unexpectedly disabled.");
                 star.Command!.Execute(null);
                 await Program.WaitUntilAsync(() => window.SessionHost.GetThreadFavorites().Contains(rows[0].Summary.Id));
@@ -478,21 +696,25 @@ internal static class ReaderUxChecks
                 await Program.WaitUntilAsync(() => surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Any(button =>
                     button.IsEffectivelyVisible && button.IsEnabled
                     && button.DataContext is ArchiveThreadRow row && row.Summary.Id == rows[0].Summary.Id
-                    && button.Content is TextBlock { Text: "★" }));
+                    && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(button.Content) == true));
                 Require(!window.SessionHost.GetThreadFavorites().Contains(rows[1].Summary.Id),
                     layout + " thread-favorite menu targeted the changed selection instead of its frozen lead.");
                 Require(surface.GetVisualDescendants().OfType<ArchiveThreadFavoriteButton>().Any(button =>
                     button.DataContext is ArchiveThreadRow row && row.Summary.Id == rows[0].Summary.Id
-                    && button.Content is TextBlock { Text: "★" }), layout + " row did not display the committed star.");
+                    && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(button.Content) == true), layout + " row did not display the committed star.");
                 menu.Close();
                 await window.SessionHost.SetThreadFavoriteAsync(rows[0].Summary.Id, false);
                 await page.ActivateAsync();
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + originalLayout)!);
-            await Program.WaitUntilAsync(() => page.ArchiveLayoutPreference == originalLayout);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                SmokeActionClick.Execute(page.FindControl<Button>("ArchiveLayout" + originalLayout)!);
+                await Program.WaitUntilAsync(() => page.ArchiveLayoutPreference == originalLayout);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderUxChecks: " + exception));
         }
         Console.WriteLine("SMOKE thread favorites: list/table stars and captured context lead passed.");
     }
@@ -507,6 +729,7 @@ internal static class ReaderUxChecks
         Button star = page.FindControl<ArchiveThreadFavoriteButton>("ArchiveCurrentThreadFavorite")!;
         bool Marked() => window.SessionHost.GetThreadFavorites().Contains(id);
         Require(!Marked(), "Thread-favorite reader fixture must start unmarked.");
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (string language in new[] { "de", "en" })
@@ -514,15 +737,18 @@ internal static class ReaderUxChecks
                 Texts.SetLanguage(language);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 string add = language == "de" ? "Thread als Favorit markieren" : "Favorite thread";
-                Require(Avalonia.Automation.AutomationProperties.GetName(star) == add && star.Content is TextBlock { Text: "☆" },
+                Require(Avalonia.Automation.AutomationProperties.GetName(star) == add && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) == false,
                     "Reader thread star lost its localized add label or unmarked state.");
                 star.Focus(); Click(star);
-                await Program.WaitUntilAsync(() => Marked() && star.Content is TextBlock { Text: "★" });
+                await Program.WaitUntilAsync(() => Marked() && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) == true,
+                    () => "star: marked " + Marked() + ", shown mark " + MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) + ", attached " + star.IsAttachedToVisualTree()
+                        + ", enabled " + star.IsEnabled + ", visible " + star.IsEffectivelyVisible + ", bounds " + star.Bounds + ", row " + (star.DataContext as ArchiveThreadRow)?.Summary.Id
+                        + ", current " + id);
                 string remove = language == "de" ? "Threadfavorit entfernen" : "Remove thread favorite";
                 Require(Avalonia.Automation.AutomationProperties.GetName(star) == remove,
                     "Reader thread star lost its localized remove label.");
                 Click(star);
-                await Program.WaitUntilAsync(() => !Marked() && star.Content is TextBlock { Text: "☆" });
+                await Program.WaitUntilAsync(() => !Marked() && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) == false);
             }
             Config customized = original.Clone();
             customized.ShortcutBindings = customized.ShortcutBindings.Set("thread.favorite-toggle",
@@ -537,20 +763,24 @@ internal static class ReaderUxChecks
                 toolbarOrigin.Focus();
                 toolbarOrigin.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F9, KeyModifiers = modifiers });
                 bool expected = attempt == 0;
-                await Program.WaitUntilAsync(() => Marked() == expected && star.Content is TextBlock text && text.Text == (expected ? "★" : "☆"));
+                await Program.WaitUntilAsync(() => Marked() == expected && MeowChan.Desktop.Controls.FavoriteStar.MarkOf(star.Content) == expected);
             }
             var bookmarksAfter = await window.SessionHost.ReadPostBookmarksAsync();
             Require(mediaBefore.SequenceEqual(window.SessionHost.GetFavorites()) && bookmarksBefore.Revision == bookmarksAfter.Revision
                 && bookmarksBefore.Bookmarks.SequenceEqual(bookmarksAfter.Bookmarks),
                 "Thread starring changed media favorites or post bookmarks.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            long restoreRevision = MeowChan.Desktop.Commands.ShortcutService.Revision;
-            await window.SessionHost.ApplySettingsAsync(original);
-            await Program.WaitUntilAsync(() => MeowChan.Desktop.Commands.ShortcutService.Revision > restoreRevision);
-            Texts.SetLanguage(originalLanguage);
-            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                long restoreRevision = MeowChan.Desktop.Commands.ShortcutService.Revision;
+                await window.SessionHost.ApplySettingsAsync(original);
+                await Program.WaitUntilAsync(() => MeowChan.Desktop.Commands.ShortcutService.Revision > restoreRevision);
+                Texts.SetLanguage(originalLanguage);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderUxChecks: " + exception));
         }
         Console.WriteLine("SMOKE thread favorites: reader commit/unmark, EN/DE, toolbar custom shortcut and independent media/bookmarks passed.");
     }
@@ -612,7 +842,6 @@ internal static class ReaderUxChecks
                     throw;
                 }
                 TextBlock label = page.FindControl<TextBlock>("ArchiveThreadPage")!;
-                TextBlock hint = page.FindControl<TextBlock>("ArchivePartialHint")!;
                 Grid listPane = page.FindControl<Grid>("ArchiveListPane")!;
                 Grid readerPane = page.FindControl<Grid>("ArchiveReaderPane")!;
                 Control activeList = layout == "Table" ? page.FindControl<DataGrid>("ArchiveThreadTable")!
@@ -624,23 +853,130 @@ internal static class ReaderUxChecks
                     layout, language = Texts.Language, theme = window.ActualThemeVariant.ToString(), scale = window.RenderScaling,
                     client = window.ClientSize.ToString(), results = left.ToString(), reader = right.ToString(),
                     footer = footerBox.ToString(), pagination = pageBox.ToString(), label = labelBox.ToString(),
-                    range = label.Text, list = listBox.ToString(), hint = hint.Bounds.ToString(), hint.IsVisible,
-                    listFooterHeight = listPane.RowDefinitions[2].ActualHeight,
-                    readerFooterHeight = readerPane.RowDefinitions[2].ActualHeight
+                    range = label.Text, list = listBox.ToString(),
+                    listRows = listPane.RowDefinitions.Count, readerRows = readerPane.RowDefinitions.Count,
+                    statusStripHeight = page.FindControl<Grid>("ArchiveRoot")!.RowDefinitions[2].ActualHeight,
+                    blankBelowFooter = Bounds(page).Bottom - footerBox.Bottom,
+                    blankBelowResults = Bounds(page).Bottom - left.Bottom,
+                    blankBelowReader = Bounds(page).Bottom - right.Bottom,
+                    footerInline = page.FindControl<ArchiveFooterLayout>("ArchiveResultsRange")!.IsInline
                 }));
                 Require(results.IsEffectivelyVisible && reader.IsEffectivelyVisible
                     && Math.Abs(left.Bottom - right.Bottom) <= 1,
                     "Embedded archive result and reader borders do not share their lower edge.");
-                Require(ReferenceEquals(footer.Parent, listPane) && Grid.GetRow(footer) == 2
-                    && Math.Abs(listPane.RowDefinitions[2].ActualHeight - readerPane.RowDefinitions[2].ActualHeight) <= 1,
-                    "Archive pagination and reader hint do not share their outside footer row.");
+                // ARCH-DENSE-01 slice 2: the pager is a docked bar inside the result border,
+                // below the list and never over it; neither pane keeps a footer row below its border.
+                Border bar = page.FindControl<Border>("ArchiveResultsBar")!;
+                Rect barBox = Bounds(bar);
+                Require(ReferenceEquals(footer.Parent, bar) && Grid.GetRow(bar) == 1
+                    && bar.GetVisualAncestors().Contains(results)
+                    && listPane.RowDefinitions.Count == 2 && readerPane.RowDefinitions.Count == 2,
+                    "Archive pagination is not docked in its result border, or a pane keeps a footer row.");
                 Require(footer.IsEffectivelyVisible && pagination.IsEffectivelyVisible && label.IsEffectivelyVisible
                     && !string.IsNullOrWhiteSpace(label.Text) && label.DesiredSize.Width <= label.Bounds.Width + 1
                     && Contains(footerBox, pageBox) && Contains(footerBox, labelBox)
-                    && Contains(new Rect(default(Point), window.ClientSize), footerBox)
-                    && left.Bottom + 4 <= footerBox.Top && listBox.Bottom <= left.Bottom
-                    && left.Bottom - listBox.Bottom <= 3 && pageBox.Bottom <= labelBox.Top,
-                    "Archive pagination/range is clipped, inside its result border, or leaves unused list space.");
+                    && Contains(left, barBox) && Contains(new Rect(default(Point), window.ClientSize), footerBox)
+                    && listBox.Bottom <= barBox.Top + 1 && barBox.Top - listBox.Bottom <= 3
+                    && left.Bottom - barBox.Bottom <= 3,
+                    "Archive pagination/range is clipped, covers the list, or leaves unused space in the result border.");
+                // ARCH-DENSE-01: one line when pager and range fit, otherwise range below pager; never overlapping.
+                ArchiveFooterLayout range = page.FindControl<ArchiveFooterLayout>("ArchiveResultsRange")!;
+                bool besidePager = pageBox.Right + ArchiveFooterLayout.InlineGap - 1 <= labelBox.Left
+                    && labelBox.Top >= pageBox.Top - 1 && labelBox.Bottom <= pageBox.Bottom + 1;
+                Require(range.IsInline ? besidePager : pageBox.Bottom <= labelBox.Top,
+                    "Archive pager and range label overlap or do not match the chosen footer arrangement.");
+                Require(layout != "List" || range.IsInline,
+                    "Archive pager and range label still use two lines although both fit the default list pane.");
+                // ARCH-DENSE-01 (user decision 11.11.2026): status and loading messages are an
+                // overlay; without an error the status row reserves nothing and both boxes end
+                // at the page margin. Showing a message must not move list, pager or reader.
+                Grid root = page.FindControl<Grid>("ArchiveRoot")!;
+                double rootMargin = root.Margin.Bottom;
+                Require(page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveErrorBanner")!.IsVisible
+                    // The split spans the empty status row, so measure the visible edges, not the row.
+                    || (Bounds(page).Bottom - left.Bottom <= rootMargin + 1
+                        && Bounds(page).Bottom - right.Bottom <= rootMargin + 1),
+                    "Archive status row still reserves idle height below the result and reader boxes: "
+                    + $"statusRow={root.RowDefinitions[2].ActualHeight}, belowResults={Bounds(page).Bottom - left.Bottom}, belowReader={Bounds(page).Bottom - right.Bottom}, margin={rootMargin}.");
+                MethodInfo operationMessage = typeof(ArchivePage).GetMethod("OperationMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                MethodInfo expireMessage = typeof(ArchivePage).GetMethod("ExpireStatusMessage", BindingFlags.Instance | BindingFlags.NonPublic)!;
+                static bool Same(Rect a, Rect b) => Math.Abs(a.X - b.X) <= 0.5 && Math.Abs(a.Y - b.Y) <= 0.5
+                    && Math.Abs(a.Width - b.Width) <= 0.5 && Math.Abs(a.Height - b.Height) <= 0.5;
+                Border overlay = page.FindControl<Border>("ArchiveStatusOverlay")!;
+                TextBlock message = page.FindControl<TextBlock>("ArchiveMessage")!;
+                static string DescribeHit(Visual? hit) => hit == null ? "none"
+                    : string.Join(" < ", hit.GetSelfAndVisualAncestors().Take(8).Select(v => v.GetType().Name + (v is Control { Name: { } n } ? "#" + n : "")));
+                bool HitsOverlay(Point point) => window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(overlay);
+                bool HitsReader(Point point) => window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(reader);
+                // Hit testing follows the rendered scene, so pointer facts settle after the next frame.
+                async Task RequireHitAsync(Func<bool> condition, Point point, string failure)
+                {
+                    try { await Program.WaitUntilAsync(() => { window.UpdateLayout(); return condition(); }); }
+                    catch (Exception error) when (error is not OutOfMemoryException)
+                    {
+                        throw new InvalidOperationException(failure + $" overlayVisible={overlay.IsVisible}, overlay={Bounds(overlay)}, point={point}, "
+                            + $"channels={string.Join("|", overlay.GetVisualDescendants().OfType<TextBlock>().Where(t => t.IsVisible).Select(t => t.Name + "=" + t.Text))}, "
+                            + $"hit={DescribeHit(window.InputHitTest(point) as Visual)}.", error);
+                    }
+                }
+                string previousMessage = message.Text ?? string.Empty;
+                // Empty: the overlay is not shown and the content beneath takes the pointer.
+                operationMessage.Invoke(page, new object?[] { "action", string.Empty, false });
+                // Saved-media loading is its own channel; it ends with its load, then the overlay goes.
+                await Program.WaitUntilAsync(() => { window.UpdateLayout(); return !overlay.IsVisible; });
+                Point probe = new(right.Left + 24, right.Bottom - 20);
+                await RequireHitAsync(() => !overlay.IsVisible && HitsReader(probe), probe,
+                    "The empty archive status overlay is shown or takes the pointer from the reader beneath it.");
+                string shown = Texts.T("archive.loading");
+                operationMessage.Invoke(page, new object?[] { "action", shown, false });
+                window.UpdateLayout();
+                Rect overlayBox = Bounds(overlay);
+                Control? readerFooter = new Control[] { page.FindControl<Grid>("ArchivePostNavigation")!, page.FindControl<StackPanel>("ArchiveMediaFooter")!,
+                    page.FindControl<Grid>("ArchiveReferencesNavigation")! }.FirstOrDefault(candidate => candidate.IsEffectivelyVisible && candidate.Bounds.Height > 0);
+                Avalonia.Automation.Peers.AutomationPeer messagePeer = Avalonia.Automation.Peers.ControlAutomationPeer.CreatePeerForElement(message);
+                Console.WriteLine("SMOKE embedded archive status overlay: " + JsonSerializer.Serialize(new
+                {
+                    layout, language = Texts.Language, theme = window.ActualThemeVariant.ToString(), overlay = overlayBox.ToString(),
+                    pager = Bounds(bar).ToString(), reader = right.ToString(), readerFooter = readerFooter == null ? null : Bounds(readerFooter).ToString(),
+                    tip = ToolTip.GetTip(overlay), live = Avalonia.Automation.AutomationProperties.GetLiveSetting(message).ToString(),
+                    peerName = messagePeer.GetName(), offscreen = messagePeer.IsOffscreen(),
+                    duration = ArchivePage.StatusMessageDuration(shown).TotalSeconds
+                }));
+                Require(message.IsEffectivelyVisible && overlay.IsEffectivelyVisible && message.Text == shown && !overlay.Focusable
+                    && Same(Bounds(results), left) && Same(Bounds(reader), right) && Same(Bounds(bar), barBox)
+                    && Contains(right, overlayBox) && !overlayBox.Intersects(barBox)
+                    && (readerFooter == null || overlayBox.Bottom <= Bounds(readerFooter).Top + 1),
+                    "A short archive status message moved the boxes or pager, was not shown over the reader, or covers a docked footer: "
+                    + $"overlay={overlayBox}, reader={right}, pager={barBox}, readerFooter={(readerFooter == null ? "none" : Bounds(readerFooter).ToString())}.");
+                Require(Avalonia.Automation.AutomationProperties.GetLiveSetting(message) == Avalonia.Automation.AutomationLiveSetting.Polite
+                    && messagePeer.GetName() == shown && !messagePeer.IsOffscreen() && Equals(ToolTip.GetTip(overlay), shown),
+                    "The archive status overlay message is not announced as a live region or lacks its full-text tooltip.");
+                // Shown, the box takes the pointer only over itself (for its tooltip).
+                Point beside = new(overlayBox.Right + 4, overlayBox.Center.Y);
+                await RequireHitAsync(() => HitsOverlay(overlayBox.Center), overlayBox.Center,
+                    "The visible archive status overlay is not hit-testable for its tooltip.");
+                await RequireHitAsync(() => !HitsOverlay(beside) && HitsReader(beside), beside,
+                    "The visible archive status overlay takes the pointer outside its own box.");
+                TimeSpan duration = ArchivePage.StatusMessageDuration(shown);
+                Require(duration >= TimeSpan.FromSeconds(5) && duration <= TimeSpan.FromSeconds(15)
+                    && ArchivePage.StatusMessageDuration(new string('x', 400)) == TimeSpan.FromSeconds(15),
+                    "Archive status messages do not stay between five and fifteen seconds.");
+                Program.CaptureWindow(window, $"smoke-archive-status-overlay-{(layout == "List" ? "list" : "table")}-{code}-{window.ActualThemeVariant.ToString().ToLowerInvariant()}.png");
+                // Expired: the text stays readable for automation, but the overlay is gone and passes the pointer on.
+                expireMessage.Invoke(page, Array.Empty<object?>());
+                window.UpdateLayout();
+                Require(message.Text == shown && !message.IsVisible && !overlay.IsVisible
+                    && Same(Bounds(results), left) && Same(Bounds(reader), right),
+                    "An expired archive status message is still shown, lost its text, or moved the boxes.");
+                await RequireHitAsync(() => !HitsOverlay(overlayBox.Center) && HitsReader(overlayBox.Center), overlayBox.Center,
+                    "An expired archive status message still takes the pointer from the reader beneath it.");
+                if (layout == "List" && code == "en")
+                    Program.CaptureWindow(window, $"smoke-archive-status-overlay-hidden-{code}-{window.ActualThemeVariant.ToString().ToLowerInvariant()}.png");
+                operationMessage.Invoke(page, new object?[] { "action", previousMessage, false });
+                window.UpdateLayout();
+                Require(message.IsVisible == !string.IsNullOrWhiteSpace(previousMessage)
+                    && Same(Bounds(results), left) && Same(Bounds(reader), right),
+                    "Restoring the archive status message left a blank status item or moved the boxes.");
                 Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
                     "Embedded archive lost its reader status line.");
                 Ursa.Controls.PaginationButton next = pagination.GetVisualDescendants().OfType<Ursa.Controls.PaginationButton>()
@@ -680,8 +1016,7 @@ internal static class ReaderUxChecks
                 Texts.SetLanguage(language);
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 window.UpdateLayout();
-                Require(ReferenceEquals(page.FindControl<Grid>("ArchiveReaderPane")!.Parent, reader),
-                    "Language change reattached the large reader.");
+                Require(HostsLargeReader(reader, page), "Language change reattached the large reader.");
                 foreach (string name in names)
                 {
                     Button button = page.FindControl<Button>(name)!;
@@ -697,14 +1032,33 @@ internal static class ReaderUxChecks
                             && Avalonia.Automation.AutomationProperties.GetName(button) == label,
                             "Reader history lost its localized visible label or accessible command name.");
                     }
-                    if (!button.IsEffectivelyVisible) continue;
+                    // A detached control keeps a stale IsEffectivelyVisible; a work view's omitted item is parked outside the bar.
+                    if (!button.IsEffectivelyVisible || Avalonia.LogicalTree.LogicalExtensions.GetLogicalAncestors(button)
+                        .OfType<ActionToolBar>().Any(bar => bar.OmittedHost.Children.Contains(button))) continue;
+                    // R2 (Thread ▾) made the bar fuller: an action the bar moved into "More" is checked where the user finds it,
+                    // in the opened overflow popup (as HtmlExportButtonLabelChecks does for Export).
+                    ActionToolBar? overflow = Avalonia.LogicalTree.LogicalExtensions.GetLogicalAncestors(button).OfType<ActionToolBar>()
+                        .FirstOrDefault(bar => bar.OverflowHost?.Children.Contains(button) == true);
+                    if (overflow != null)
+                    {
+                        Require(overflow.More?.IsEffectivelyVisible == true, name + " moved into More, but the bar shows no More toggle.");
+                        overflow.More!.IsChecked = true;
+                        await Program.WaitUntilAsync(() => { window.UpdateLayout(); return button.IsAttachedToVisualTree() && button.Bounds.Width > 0; },
+                            () => name + " is not shown in the opened More popup.");
+                    }
                     Point? position = icon.TranslatePoint(default, button);
                     Require(button.Bounds.Width > 0 && (labeled.Contains(name) || button.Bounds.Width <= 40)
                         && icon.Bounds.Width > 0 && icon.Bounds.Width <= button.Bounds.Width
                         && position is Point p && p.X >= -1 && p.Y >= -1
                         && p.X + icon.Bounds.Width <= button.Bounds.Width + 1
                         && p.Y + icon.Bounds.Height <= button.Bounds.Height + 1,
-                        name + " icon overflows its compact reader button.");
+                        name + " icon overflows its compact reader button: button " + button.Bounds + ", icon " + icon.Bounds + " at " + position
+                            + ", in overflow " + (overflow != null) + ", language " + language);
+                    if (overflow != null)
+                    {
+                        overflow.More!.IsChecked = false;
+                        await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                    }
                 }
             }
         }
@@ -720,6 +1074,7 @@ internal static class ReaderUxChecks
     {
         double width = window.Width, height = window.Height;
         string mode = window.SessionHost.Config.WorkspaceMode;
+        Exception? failureBeforeCleanup = null;
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
@@ -729,11 +1084,15 @@ internal static class ReaderUxChecks
             Program.CaptureWindow(window, "smoke-gallery-caption-small.png");
             await WindowChromeChecks.RunAsync(window);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await PresentationChecks.SwitchModeAsync(window, mode);
-            window.Width = width; window.Height = height;
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                window.Width = width; window.Height = height;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderUxChecks: " + exception));
         }
         await CheckOverlayChromeAsync(window, overlay);
     }
@@ -898,8 +1257,12 @@ internal static class ReaderUxChecks
         for (int i = 0; i < 5; i++) Click(GalleryButton(viewer, "GalleryPlus"));
         await Program.WaitUntilAsync(() => image.Source is Bitmap bitmap && bitmap.PixelSize.Width == 1800);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
-        Require(image.RenderTransform is TranslateTransform, "Gallery image has no translation transform.");
-        var transform = (TranslateTransform)image.RenderTransform!;
+        // The image's transform is a group (quarter-turn rotation, then the pan); the pan translation is one stable instance.
+        static TranslateTransform? PanOf(Image picture) => picture.RenderTransform as TranslateTransform
+            ?? (picture.RenderTransform as TransformGroup)?.Children.OfType<TranslateTransform>().SingleOrDefault();
+        Require(PanOf(image) != null, "Gallery image has no translation transform.");
+        var transform = PanOf(image)!;
+        object? imageTransform = image.RenderTransform;
         double width = image.Width, height = image.Height;
         TextBlock[] captions = viewer.GetGalleryVisualDescendants().OfType<Border>()
             .Single(value => value.Name == "GalleryOverlayInfo").GetVisualDescendants().OfType<TextBlock>().ToArray();
@@ -916,7 +1279,7 @@ internal static class ReaderUxChecks
                     ?? throw new InvalidOperationException("No gallery input root."), type, point, modifiers));
         void CheckUnchanged()
         {
-            Require(ReferenceEquals(transform, image.RenderTransform), "Dragging replaced the image transform.");
+            Require(ReferenceEquals(transform, PanOf(image)) && ReferenceEquals(imageTransform, image.RenderTransform), "Dragging replaced the image transform.");
             Require(image.Width == width && image.Height == height, "Dragging resized the image.");
             Require(captions.Select(value => value.Text).SequenceEqual(captionText), "Dragging changed gallery quality/caption text.");
         }
@@ -943,7 +1306,7 @@ internal static class ReaderUxChecks
         GalleryViewerState fit = viewer.CaptureState();
         Require(!fit.ManualZoom && fit.PanX == 0 && fit.PanY == 0 && transform.X == 0 && transform.Y == 0,
             "Fit did not reset the dragged image and its translation.");
-        Require(ReferenceEquals(transform, image.RenderTransform), "Fit replaced the reusable image transform.");
+        Require(ReferenceEquals(transform, PanOf(image)) && ReferenceEquals(imageTransform, image.RenderTransform), "Fit replaced the reusable image transform.");
         Console.WriteLine("SMOKE gallery drag: raw captured pointer movement, stable transform/size/captions, both pan bounds and Fit reset.");
     }
 
@@ -967,5 +1330,9 @@ internal static class ReaderUxChecks
     private static Button GalleryButton(GalleryViewer viewer, string name) => viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == name);
     private static void PressKey(Control control, Key key) { control.Focus(); control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key }); }
     private static void Click(Control control) => control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
+    // R8: the large reader's host holds the frame (ReaderLargeFrame) with the media sidebar beside the pane, not the pane itself.
+    internal static bool HostsLargeReader(ContentControl reader, ArchivePage page) =>
+        page.FindControl<Grid>("ArchiveReaderPane")!.Parent is Grid { Name: "ReaderLargeFrame" } frame && ReferenceEquals(reader.Content, frame);
+
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

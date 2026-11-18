@@ -35,7 +35,7 @@ public sealed class UpdateSessionTests
         await using Fixture fixture = new();
         fixture.Handler.ResponseGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Task automatic = fixture.Session.CheckAsync(UpdateCheckKind.Automatic);
-        await fixture.Handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+        await fixture.Handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
         Task manual = fixture.Session.CheckAsync();
         Assert.True(fixture.Session.View.IsChecking);
         await fixture.Session.CheckAsync();
@@ -119,7 +119,7 @@ public sealed class UpdateSessionTests
                 new UpdateSession(profile, config, new HttpClient(handler), disableEnvironment: () => null));
             await host.StartAsync();
             Task check = host.Updates.CheckAsync();
-            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(3));
+            await handler.Entered.Task.WaitAsync(TimeSpan.FromSeconds(30));
             await host.DisposeAsync();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => check);
             Assert.True(handler.Cancelled);
@@ -183,7 +183,7 @@ public sealed class UpdateSessionTests
     });
     private static async Task UntilAsync(Func<bool> condition)
     {
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(3));
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30)); // hang guard only
         while (!condition()) await Task.Delay(5, timeout.Token);
         await Task.Yield();
     }

@@ -26,6 +26,7 @@ internal static class GalleryCaptionChecks
         string language = Texts.Language;
         bool contextOpen = viewer.CaptureState().ContextOpen;
         string warnings = Find<TextBlock>(viewer, "GalleryWarnings").Text ?? string.Empty;
+        Exception? failureBeforeCleanup = null;
         try
         {
             // Exercise the media component's 640-DIP contract without changing
@@ -75,17 +76,21 @@ internal static class GalleryCaptionChecks
                 throw new InvalidOperationException("Gallery tools disappeared while the pointer was idle.");
             Check(window, viewer, video, "Dark", 851, false, "tools-idle-visible");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            viewer.SetWarnings(warnings);
-            SetContext(viewer, contextOpen);
-            Application.Current.RequestedThemeVariant = theme;
-            Texts.SetLanguage(language);
-            window.Width = width; window.Height = height;
-            window.MinWidth = minimumWidth;
-            viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.LeftShift });
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                viewer.SetWarnings(warnings);
+                SetContext(viewer, contextOpen);
+                Application.Current.RequestedThemeVariant = theme;
+                Texts.SetLanguage(language);
+                window.Width = width; window.Height = height;
+                window.MinWidth = minimumWidth;
+                viewer.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.LeftShift });
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryCaptionChecks: " + exception));
         }
         Console.WriteLine($"SMOKE gallery caption: {(video ? "real video, EN/DE,640/849/850/851" : "decoded image,849/850/851")},D/L,context open/closed,wrapped status,persistent tools below media passed.");
     }
@@ -123,9 +128,21 @@ internal static class GalleryCaptionChecks
             Control surface = viewer.GetGalleryVisualDescendants().OfType<Control>()
                 .Single(control => control.Name is "GalleryNativeVideo" or "GallerySoftwareVideo");
             Rect surfaceBounds = Bounds(surface, viewer);
+            // GL2: docked, the video bar is the dock's first row (inside the tools surface, directly under the picture, no gap);
+            // in the Windows transparency fallback it stays under the picture inside the media viewport.
+            bool inDock = transport.GetVisualAncestors().OfType<Control>().Any(ancestor => ancestor.Name == "GalleryDockTransportHost");
+            // GL1+GL2: a bottom filmstrip shown in the dock is its first row; it touches the picture and the tools surface follows it.
+            Control? band = viewer.GetGalleryVisualDescendants().OfType<Control>()
+                .FirstOrDefault(control => control.Name == "GalleryFilmstrip" && control.IsEffectivelyVisible && control.Parent is Control { Name: "GalleryDock" });
+            Rect? bandBounds = band == null ? null : Bounds(band, viewer);
+            double dockTop = bandBounds?.Top ?? toolsBounds.Top;
             if (surfaceBounds.Height < 100 || transportBounds.Top < surfaceBounds.Bottom - 1
-                || transportBounds.Bottom > viewportBounds.Bottom + 1)
-                throw new InvalidOperationException("Video transport covers its picture or leaves the media viewport.");
+                || (inDock ? transportBounds.Top < viewportBounds.Bottom - 1 || transportBounds.Top < toolsBounds.Top - 1
+                    || transportBounds.Bottom > toolsBounds.Bottom + 1 || transportBounds.Left < toolsBounds.Left - 1
+                    || transportBounds.Right > toolsBounds.Right + 1 || dockTop - viewportBounds.Bottom > 1
+                    || bandBounds is { } strip && (toolsBounds.Top - strip.Bottom > 1 || strip.Top < viewportBounds.Bottom - 1)
+                    : transportBounds.Bottom > viewportBounds.Bottom + 1))
+                throw new InvalidOperationException("Video transport covers its picture, leaves the dock, or leaves a gap above it.");
             Control[] actions = transport.GetVisualDescendants().OfType<Control>()
                 .Where(control => control.IsEffectivelyVisible && control.Name is "GalleryVideoSeek" or "GalleryVideoVolume"
                     or "GalleryVideoPlayPause" or "GalleryVideoMute" or "GalleryVideoLoop" or "GalleryVideoTime").ToArray();
@@ -208,13 +225,10 @@ internal static class GalleryCaptionChecks
     {
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         bool originalContext = viewer.CaptureState().ContextOpen;
-        Border help = Find<Border>(viewer, "GalleryShortcutHelp");
-        bool originalHelp = help.IsVisible;
         Dictionary<string, Color>? firstLight = null, previous = null;
         try
         {
             SetContext(viewer, true);
-            if (!help.IsVisible) Find<Button>(viewer, "GalleryHelp").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             GalleryViewerState held = viewer.CaptureState();
             foreach (ThemeVariant variant in new[] { ThemeVariant.Light, ThemeVariant.Dark, ThemeVariant.Light })
             {
@@ -222,11 +236,22 @@ internal static class GalleryCaptionChecks
                 await Program.WaitUntilAsync(() => window.ActualThemeVariant == variant && viewer.ActualThemeVariant == variant);
                 await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
                 Dictionary<string, Color> colors = new();
-                foreach (string name in new[] { "GalleryContext", "GalleryShortcutHelp", "GalleryOverlayControls", "GalleryOverlayInfo" })
+                foreach (string name in new[] { "GalleryContext", "GalleryOverlayControls", "GalleryOverlayInfo" })
                 {
                     Border panel = Find<Border>(viewer, name);
+                    // Visibility and theme are separate contracts: an idle overlay can hide with a correct palette.
+                    // Report both before failing so a docked-caption fixture mismatch is not diagnosed as a theme regression.
+                    string state = JsonSerializer.Serialize(new
+                    {
+                        panel = name, requestedTheme = variant.ToString(), actualTheme = panel.ActualThemeVariant.ToString(),
+                        windowTheme = window.ActualThemeVariant.ToString(), viewerTheme = viewer.ActualThemeVariant.ToString(),
+                        panel.IsVisible, panel.IsEffectivelyVisible,
+                        hiddenAncestors = panel.GetVisualAncestors().OfType<Control>()
+                            .Where(control => !control.IsVisible).Select(control => control.Name ?? control.GetType().Name).ToArray()
+                    });
+                    Console.WriteLine("SMOKE gallery live theme panel: " + state);
                     if (!panel.IsEffectivelyVisible || panel.ActualThemeVariant != variant)
-                        throw new InvalidOperationException(name + " lost its visible host theme during live theme change.");
+                        throw new InvalidOperationException(name + " lost its visible host theme during live theme change: " + state);
                     Color background = Solid(panel.Background);
                     colors.Add(name + ".background", background);
                     // Native button/selector text has its own state surfaces; its contrast
@@ -256,8 +281,8 @@ internal static class GalleryCaptionChecks
                 }
                 GalleryViewerState current = viewer.CaptureState();
                 if (current.Key != held.Key || current.PostId != held.PostId || current.AttachmentPosition != held.AttachmentPosition
-                    || current.ManualZoom != held.ManualZoom || !current.ContextOpen || !help.IsVisible)
-                    throw new InvalidOperationException("Live theme change lost the gallery asset, zoom mode, context or help.");
+                    || current.ManualZoom != held.ManualZoom || !current.ContextOpen)
+                    throw new InvalidOperationException("Live theme change lost the gallery asset, zoom mode or context.");
                 if (viewer.GetGalleryVisualDescendants().OfType<ComboBox>().Any(control => control.Name == "GalleryPostAssociation"))
                     await CheckContextSelectorAsync(window, viewer, variant);
                 Console.WriteLine("SMOKE gallery live theme: " + JsonSerializer.Serialize(new
@@ -268,7 +293,6 @@ internal static class GalleryCaptionChecks
         }
         finally
         {
-            if (!originalHelp && help.IsVisible) Find<Button>(viewer, "GalleryHelp").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             SetContext(viewer, originalContext);
             Application.Current.RequestedThemeVariant = originalTheme;
             await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);

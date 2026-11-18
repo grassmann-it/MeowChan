@@ -51,12 +51,16 @@ internal static class ReaderReturnChecks
             ArchivePostRow opening = Rows().Single(row => row.Id == "7100");
             await Program.WaitUntilAsync(() => opening.BacklinkCount == 35);
             await Flush(window);
-            Expander expander = list.GetVisualDescendants().OfType<Expander>().Single(item => ReferenceEquals(item.DataContext, opening));
-            expander.IsExpanded = true;
-            await Program.WaitUntilAsync(() => opening.Replies.Count == 20 && !opening.RepliesLoading);
-            Button more = expander.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, opening.MoreRepliesLabel));
-            Click(more);
-            await Program.WaitUntilAsync(() => opening.Replies.Count == 35 && !opening.RepliesLoading);
+            Button counter = list.GetVisualDescendants().OfType<Button>().Single(item => item.Classes.Contains("reader-reply-toggle") && ReferenceEquals(item.DataContext, opening));
+            Click(counter);
+            await Program.WaitUntilAsync(() => opening.Replies.Count == ReaderDisplayLimits.ReplyStepDefault && !opening.RepliesLoading);
+            while (opening.HasMoreReplies)
+            {
+                int before = opening.Replies.Count;
+                Click(list.GetVisualDescendants().OfType<Button>().Single(button => ReferenceEquals(button.DataContext, opening) && Equals(button.Content, opening.MoreRepliesLabel) && button.IsEffectivelyVisible));
+                await Program.WaitUntilAsync(() => opening.Replies.Count > before && !opening.RepliesLoading);
+            }
+            Require(opening.Replies.Count == 35, "The reply pages did not add up to 35.");
             await Flush(window);
             ScrollViewer scroll = list.GetVisualDescendants().OfType<ScrollViewer>().First();
             // Leave the opening post partially above the viewport while its >20
@@ -72,7 +76,7 @@ internal static class ReaderReturnChecks
             await Flush(window);
             ArchivePostRow restored = Rows().Single(row => row.Id == "7100");
             Require(restored.RepliesLoaded && restored.Replies.Count == 35 && !restored.HasMoreReplies
-                && restored.Replies[^1].Quote.Origin.PostId == "7135", "Quote Back lost expanded reply pages above the 20-item boundary.");
+                && restored.Replies[^1].Quote.Origin.PostId == "7135", "Quote Back lost expanded reply pages above the first page.");
             await Program.WaitUntilAsync(() => Math.Abs(Top(list, "7100") - top) < 2);
             Require((list.SelectedItem as ArchivePostRow)?.Id == "7100", "Quote Back lost the selected opening post.");
             Console.WriteLine($"SMOKE reader return F5: expanded35 replies restored, origin top={top:F2}, actual={Top(list, "7100"):F2}.");
@@ -82,11 +86,10 @@ internal static class ReaderReturnChecks
             await catalog.CaptureAsync(Snapshot(b, 5));
             await page.CheckReaderUpdatesAsync();
             Button show = page.FindControl<Button>("ReaderShowNewPosts")!;
-            CheckBox follow = page.FindControl<CheckBox>("ReaderFollowLive")!;
             Require(show.IsVisible, "Gallery fixture did not create B's pending live update.");
-            follow.IsChecked = true;
+            await page.SetFollowLiveAsync(true);
             restoreGallery();
-            Require(page.CurrentThread?.Summary.Id == a && !show.IsVisible && follow.IsChecked != true,
+            Require(page.CurrentThread?.Summary.Id == a && !show.IsVisible && !page.FollowLive,
                 "Gallery return retained another thread's pending update or live-follow state.");
             await page.CheckReaderUpdatesAsync();
             Require(!show.IsVisible, "Unchanged origin poll resurrected another thread's pending update.");
@@ -108,15 +111,20 @@ internal static class ReaderReturnChecks
     {
         double width = window.Width, height = window.Height;
         PixelPoint position = window.Position;
+        Exception? failureBeforeCleanup = null;
         try { await CheckCloseFocusCoreAsync(window); }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            // The wide focus fixture must not become the following gallery
-            // fullscreen check's normal origin on a smaller scaled desktop.
-            window.Width = width; window.Height = height;
-            window.Position = position;
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                // The wide focus fixture must not become the following gallery
+                // fullscreen check's normal origin on a smaller scaled desktop.
+                window.Width = width; window.Height = height;
+                window.Position = position;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderReturnChecks: " + exception));
         }
     }
 
@@ -126,7 +134,7 @@ internal static class ReaderReturnChecks
         // already has a visible anchor before opening the large reader.
         window.Width = 1915; window.Height = 1045;
         window.Activate();
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy);
         await page.LoadThreadAsync(new ResourceId("4chan", "g", "1000"));
@@ -159,6 +167,27 @@ internal static class ReaderReturnChecks
         if (Environment.GetEnvironmentVariable("MEOWCHAN_EXPECT_FOCUS_RACE") == "1")
             Require(immediate && !final, "Expected pre-fix anchor/focus race was not reproduced dynamically.");
         else Require(final, "Delayed reader anchor restore replaced the intended origin focus.");
+
+        await CheckListOriginFocusAsync(window, page, open);
+    }
+
+    // O2-01: an origin that is the thread list itself (Enter) or a row of it (double-click) takes no focus back by itself; the selected row does.
+    private static async Task CheckListOriginFocusAsync(MainWindow window, ArchivePage page, MethodInfo open)
+    {
+        Control list = page.ThreadListFocusTarget;
+        if (list is not (ListBox { SelectedItem: not null } or DataGrid { SelectedItem: not null }))
+        {
+            Console.WriteLine("SMOKE reader return O2-01: skipped, the archive list shows no selected row.");
+            return;
+        }
+        open.Invoke(window, [list]);
+        await Flush(window);
+        Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        await Flush(window);
+        await Flush(window);
+        object? focused = window.FocusManager?.GetFocusedElement();
+        Console.WriteLine($"SMOKE reader return O2-01: focus after closing a reader opened from the list: {focused?.GetType().Name ?? "null"}.");
+        Require(list.IsKeyboardFocusWithin, "Closing a large reader opened from the thread list lost keyboard focus (O2-01).");
     }
 
     private static double Top(ListBox list, string id) => list.GetVisualDescendants().OfType<ListBoxItem>()

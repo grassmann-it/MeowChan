@@ -216,6 +216,70 @@ public sealed partial class PluginProfileStoreTests
     }
 
     [Fact]
+    public async Task ExplicitCurrentSameBundleBuildRecoveryClearsOnlyTheConfirmedPin()
+    {
+        var old = await Delivered("pinned-current-build", "one");
+        var store = Store();
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
+        state = await store.SelectRollbackAsync("test.plugin", state.Revision);
+        Assert.Equal(old.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].Pinned!.ExecutionRevision);
+
+        var current = await Delivered("pinned-current-build", "two");
+        // Since #130 the fixed app carries such a same-release rebuild over automatically; a profile left stale by an
+        // earlier app (here: a host without a serialized live permission authority) keeps this explicit recovery route.
+        state = await StalePinnedStartupStore().ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+        var preview = await store.PreviewBundledReselectionsAsync();
+        var row = Assert.Single(preview.Rows);
+        Assert.True(row.CanConfirm, row.BlockedReason);
+        Assert.Equal(old.Candidate.Artifact.ExecutionRevision, row.OldExecutionRevision);
+        Assert.Equal(current.Candidate.Artifact!.ExecutionRevision, row.NewExecutionRevision);
+        Assert.Equal(old.Candidate.Artifact.ExecutionRevision, state.Plugins[0].Pinned!.ExecutionRevision);
+
+        state = await store.ConfirmBundledReselectionAsync(row, preview.ProfileRevision);
+        Assert.Null(state.Plugins[0].Pinned);
+        Assert.Equal(current.Candidate.Artifact.ExecutionRevision, state.Plugins[0].Pending!.ExecutionRevision);
+        state = await store.ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+        Assert.Equal(current.Candidate.Artifact.ExecutionRevision, Active(state).ExecutionRevision);
+        Assert.Null(state.Plugins[0].Problem);
+    }
+
+    [Fact]
+    public async Task PinnedSameCandidateIdWithHistoricalProvenanceOffersCurrentRebuildAndPreservesSettings()
+    {
+        var old = await Delivered("pinned-historical", "one", source: true, settings: NumberSchema("1", 42));
+        var store = Store();
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
+        Assert.Equal(42, Number(Active(state)));
+        state = await store.SelectRollbackAsync("test.plugin", state.Revision);
+
+        foreach (string build in new[] { "two", "three", "four" })
+        {
+            var historical = await Delivered("pinned-historical", build, source: true, settings: NumberSchema("1", 42));
+            state = await StalePinnedStartupStore().ApplyBundledStartupAsync([historical.Candidate], [historical.Proof], [], state.Revision);
+        }
+        var current = await Delivered("pinned-historical", "current", source: true, settings: NumberSchema("1", 42));
+        current = await Redeclared(current, description => description with
+        {
+            Sources = [description.Sources[0] with { PostOrder = PostOrderKind.DecimalPostId }]
+        });
+        state = await StalePinnedStartupStore().ApplyBundledStartupAsync([current.Candidate], [current.Proof], [], state.Revision);
+
+        var preview = await store.PreviewBundledReselectionsAsync();
+        var row = Assert.Single(preview.Rows);
+        Assert.True(row.CanConfirm, row.BlockedReason);
+        Assert.Equal(old.Candidate.CandidateId, row.OldCandidateId);
+        Assert.Equal(current.Candidate.Artifact!.ExecutionRevision, row.NewExecutionRevision);
+
+        state = await store.ConfirmBundledReselectionAsync(row, preview.ProfileRevision);
+        Assert.Null(state.Plugins[0].Pinned);
+        Assert.Equal(42, Number(state.Plugins[0].Pending!));
+    }
+
+    /// <summary>Records current delivery proof but never updates automatically (no serialized live permission authority),
+    /// like an app before #130 that left a pinned bundled plugin stale. Used to reach the explicit recovery route.</summary>
+    private PluginProfileStore StalePinnedStartupStore() => new(profile, static _ => true, () => Array.Empty<string>());
+
+    [Fact]
     public async Task PinnedMissingCandidateCannotBeUnpinnedByNewSelection()
     {
         var old = await Delivered("legacy", "one"); var target = await Delivered("new", "two"); var store = Store();

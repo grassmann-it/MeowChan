@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Transfer;
 
@@ -26,7 +27,6 @@ internal sealed class NativeTransferImportDialog : Window
     private readonly NativeTransferImportSession _session;
     private readonly Func<Task<string?>> _chooseFile;
     private readonly Func<string, string> _label;
-    private readonly WindowChromeBar _chrome = new();
     private readonly Button _choose;
     private readonly Button _cancel;
     private readonly Button _apply;
@@ -34,7 +34,6 @@ internal sealed class NativeTransferImportDialog : Window
     private readonly Button _recheck;
     private readonly Button _conflicts;
     private string? _lastPath;
-    private readonly TextBlock _heading = new() { Name = "NativeTransferImportHeading" };
     private readonly TextBlock _source = new() { Name = "NativeTransferImportSource", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _scopeLabel = new() { Name = "NativeTransferImportScopeLabel", TextWrapping = TextWrapping.Wrap };
     private readonly ComboBox _scope = new() { Name = "NativeTransferImportScope" };
@@ -57,14 +56,8 @@ internal sealed class NativeTransferImportDialog : Window
         _label = label ?? (key => Texts.T(key));
         _display = session.Current;
         Name = "NativeTransferImportDialog";
-        Width = 760;
-        Height = 620;
-        MinWidth = 480;
-        MinHeight = 400;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        // Modals plan MD2: a modal assistant on the list step; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
@@ -77,7 +70,9 @@ internal sealed class NativeTransferImportDialog : Window
         _apply = CreateButton("NativeTransferImportApply", "transfer.import.apply", OnApplyAsync);
         _recheck = CreateButton("NativeTransferImportRecheck", "transfer.import.recheck", OnRecheckAsync);
         _conflicts = CreateButton("NativeTransferImportConflicts", "transfer.conflicts.open", OnOpenConflictsAsync);
-        _close = CreateButton("NativeTransferImportClose", "transfer.import.close", () => Close());
+        _close = CreateButton("NativeTransferImportClose", "action.close", () => Close());
+        // I1b: the secondary tools carry a catalog icon before their text (Apply, Cancel and Close stay text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(_choose, "folder"); MeowChan.Desktop.Controls.IconButtons.WithText(_recheck, "refresh-cw"); MeowChan.Desktop.Controls.IconButtons.WithText(_conflicts, "sliders");
         _cancel.IsEnabled = false;
         _apply.IsEnabled = false;
         _notice.Classes.Add("workspace-help");
@@ -85,59 +80,32 @@ internal sealed class NativeTransferImportDialog : Window
         AutomationProperties.SetLiveSetting(_state, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
 
-        _heading.Classes.Add("section-title");
         _source.Classes.Add("workspace-meta");
         _state.Classes.Add("workspace-meta");
         _summary.Classes.Add("workspace-meta");
-        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading);
-        body.Children.Add(_source);
+        // Header: the chosen source (the title is in the title bar); error strip: the local read/plan/apply error;
+        // body: the New/Merge scope (frozen once a file is chosen), inventory, plan/result and privacy notice;
+        // footer: the polite state line above the unchanged action order Choose/Cancel/Apply/Recheck/Conflicts with
+        // Close right-most. The scope stays in the body so the minimum-size window still leaves the plan readable.
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(_source);
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_scopeLabel);
         body.Children.Add(_scope);
-        body.Children.Add(_state);
         body.Children.Add(_summary);
         body.Children.Add(_details);
         body.Children.Add(_notice);
-        body.Children.Add(_error);
 
-        WrapPanel actions = new()
-        {
-            ItemSpacing = 8,
-            LineSpacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        actions.Children.Add(_choose);
-        actions.Children.Add(_cancel);
-        actions.Children.Add(_apply);
-        actions.Children.Add(_recheck);
-        actions.Children.Add(_conflicts);
-        actions.Children.Add(_close);
-        Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
+        Border footer = DialogFooter.Build(_close, new Control[] { _choose, _cancel, _apply, _recheck, _conflicts }, _state, statusAbove: true);
+        DialogWindow.Frame(this, DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error)), modal: true);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
-        layout.Children.Add(_chrome);
-        ScrollViewer scroll = new()
-        {
-            Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
-        };
-        layout.Children.Add(scroll);
-        Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer);
-        Grid.SetRow(footer, 2);
-        Content = layout;
-
-        Opened += (_, _) => _chrome.Attach(this);
         Closed += (_, _) => _ = TerminateAsync();
-        AddHandler(KeyDownEvent, (_, e) =>
+        // Escape first cancels a running read or apply, then closes.
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (CanCancel()) OnCancel();
-            else Close();
-        }, RoutingStrategies.Tunnel);
+            if (!CanCancel()) return false;
+            OnCancel(); return true;
+        });
         Texts.Changed += OnLanguageChanged;
         IsLanguageSubscribedForTests = true;
         ApplyLabels();
@@ -152,8 +120,6 @@ internal sealed class NativeTransferImportDialog : Window
     internal Button ConflictsButton => _conflicts;
     internal Func<MediaConflictsDialog, Task>? ConflictsShowForTests { get; set; }
     internal TextBlock StateText => _state;
-    internal ComboBox ScopeSelector => _scope;
-    internal NativeTransferImportScope ScopeForTests => SelectedScope;
     internal TextBlock SummaryText => _summary;
     internal TextBlock NoticeText => _notice;
     internal TextBlock ErrorText => _error;
@@ -447,13 +413,14 @@ internal sealed class NativeTransferImportDialog : Window
         _display = snapshot;
         RefreshControls();
         Title = Label("transfer.import.title");
-        _heading.Text = Label("transfer.import.heading");
         _source.Text = _fileName == null ? Label("transfer.import.noSource") : Label("transfer.import.source", _fileName);
         _scopeLabel.Text = Label("transfer.import.scope");
         _state.Text = Label(IsChoosing ? "transfer.import.choosing" : StateKey(snapshot));
         _notice.Text = Label("transfer.import.inventory") + Environment.NewLine + Label("transfer.import.privacy");
         if (snapshot.CleanupRetained) _notice.Text += Environment.NewLine + Label("transfer.import.cleanupRetained");
-        _error.Text = snapshot.Error == NativeTransferImportError.None ? string.Empty : Label(ErrorKey(snapshot.Error));
+        _error.Text = snapshot.Error != NativeTransferImportError.None
+            ? Label(ErrorKey(snapshot.Error))
+            : Label(PartialResultNoticeKey(snapshot.Result));
 
         if (snapshot.Inventory is not { } inventory)
         {
@@ -489,6 +456,12 @@ internal sealed class NativeTransferImportDialog : Window
             : Label("transfer.import.planNew", value.NewPosts, value.NewAttachments,
                 value.EvidenceAdditions, value.DerivedDescriptorAdditions);
     }
+
+    internal static bool IsPartialSetResult(NativeTransferImportResult? result) =>
+        result is { ThreadsTotal: > 0 } value && value.ThreadsApplied < value.ThreadsTotal;
+
+    internal static string PartialResultNoticeKey(NativeTransferImportResult? result) =>
+        IsPartialSetResult(result) ? "transfer.import.error.apply" : string.Empty;
 
     private string ResultText(NativeTransferImportResult? result)
     {
@@ -554,7 +527,7 @@ internal sealed class NativeTransferImportDialog : Window
         SetButtonLabel(_apply, "transfer.import.apply");
         SetButtonLabel(_recheck, "transfer.import.recheck");
         SetButtonLabel(_conflicts, "transfer.conflicts.open");
-        SetButtonLabel(_close, "transfer.import.close");
+        SetButtonLabel(_close, "action.close");
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e)

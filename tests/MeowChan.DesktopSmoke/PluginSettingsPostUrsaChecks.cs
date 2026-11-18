@@ -41,7 +41,7 @@ internal static class PluginSettingsPostUrsaChecks
 
         async Task ScopeErrorsAsync()
         {
-            await FlushAsync(); // Select builds logical controls; Expander templates materialize on layout.
+            await SmokeDispatcher.SettleAsync(backgroundTurns: 2); // Select builds logical controls; Expander templates materialize on layout.
             window.UpdateLayout();
             await PluginSettingsFormChecks.OpenManagedScopeAsync(page, SettingScope.Plugin);
             await PluginSettingsFormChecks.OpenManagedScopeAsync(page, SettingScope.Source);
@@ -53,7 +53,7 @@ internal static class PluginSettingsPostUrsaChecks
             set.IsChecked = true;
             slash.Text = "-";
             page.FindControl<Button>("PluginSave")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
             string localMessage = Texts.T("plugins.integerError");
             bool localPlugin = HasError(Editor(SettingScope.Plugin), localMessage);
             bool localSource = HasError(Editor(SettingScope.Source), localMessage);
@@ -66,7 +66,7 @@ internal static class PluginSettingsPostUrsaChecks
             Editor(SettingScope.Source).GetLogicalAncestors().OfType<Expander>().First().IsExpanded = false;
             page.FindControl<Button>("PluginSave")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => !page.IsBusy);
-            await FlushAsync();
+            await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
             bool workerPlugin = HasError(Editor(SettingScope.Plugin), "Fixture rejects slashed count nine");
             bool pluginHasSourceError = HasError(Editor(SettingScope.Plugin), "Fixture rejects this label");
             bool workerSource = HasError(Editor(SettingScope.Source), "Fixture rejects this label");
@@ -83,7 +83,7 @@ internal static class PluginSettingsPostUrsaChecks
 
         async Task LongHelpAsync()
         {
-            ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!;
+            ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!;
             object? retained = host.Content;
             try
             {
@@ -101,9 +101,9 @@ internal static class PluginSettingsPostUrsaChecks
                 _ = draft.Snapshot(out IReadOnlyList<FieldValidationError> errors);
                 editor.ShowErrors(errors);
                 Require(editor.TryFocusFirstError(), "Long-help SDK error could not be targeted.");
-                await FlushAsync();
+                await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
                 window.UpdateLayout();
-                TextBlock error = editor.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Classes.Contains("error"));
+                TextBlock error = editor.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Classes.Contains("workspace-error"));
                 TextBlock helpControl = editor.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Text == help);
                 bool focused = ReferenceEquals(window.FocusManager?.GetFocusedElement(), field);
                 bool fieldVisible = VisibleInScroll(field, scroll);
@@ -113,7 +113,7 @@ internal static class PluginSettingsPostUrsaChecks
                 Program.CaptureWindow(window, "smoke-form-review-long-help-error.png");
                 // Separately establish that the complete help can be scrolled to its end.
                 helpControl.BringIntoView(new Rect(0, Math.Max(0, helpControl.Bounds.Height - 16), helpControl.Bounds.Width, Math.Min(16, helpControl.Bounds.Height)));
-                await FlushAsync();
+                await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
                 Point? end = helpControl.TranslatePoint(new Point(0, helpControl.Bounds.Height), scroll);
                 bool helpEndReachable = end.HasValue && end.Value.Y >= 0 && end.Value.Y <= scroll.Bounds.Height + 1;
                 Emit("long-help-tail", new { helpEndReachable, end = end?.ToString(), offset = scroll.Offset.ToString(), retained = draft.Text("number") == "9223372036854775808" && !draft.Dirty });
@@ -125,7 +125,7 @@ internal static class PluginSettingsPostUrsaChecks
 
         async Task SchemaTransitionsAsync()
         {
-            window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
             ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!;
             object? retained = host.Content;
             string language = Texts.Language;
@@ -147,19 +147,19 @@ internal static class PluginSettingsPostUrsaChecks
                     TextBox Count() => (TextBox)Editor().FindField("rule-count")!;
                     PluginSettingsEditor Editor() => rules.GetVisualDescendants().OfType<PluginSettingsEditor>().Single(editor => editor.Draft.Scope == SettingScope.FilterRule);
                     Count().Text = raw;
-                    foreach (string next in new[] { "de", "en", "de", "en" }) { Texts.SetLanguage(next); await FlushAsync(); Require(Count().Text == raw, "Language rebuild lost invalid raw input."); }
+                    foreach (string next in new[] { "de", "en", "de", "en" }) { Texts.SetLanguage(next); await SmokeDispatcher.SettleAsync(backgroundTurns: 2); Require(Count().Text == raw, "Language rebuild lost invalid raw input."); }
                     await advanceSchema(version);
-                    await rules.RefreshPluginFiltersAsync(); await FlushAsync();
+                    await rules.RefreshPluginFiltersAsync(); await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
                     bool retainedRaw = Count().Text == raw;
                     string editorVersion = Editor().Draft.Schema.Version;
                     bool currentLabel = Editor().Draft.Schema.Fields.Single(field => field.Key == "rule-count").Label == "Rule count revision " + version;
                     Button? acknowledge = rules.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => Equals(button.Content, Texts.T("plugins.acceptSchema")));
                     int writesBefore = writes;
                     acknowledge?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    await rules.SaveCurrentAsync(); await FlushAsync();
+                    await rules.SaveCurrentAsync(); await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
                     bool invalidBlocked = writes == writesBefore && Count().Text == raw;
                     Count().Text = "2";
-                    await rules.SaveCurrentAsync(); await FlushAsync();
+                    await rules.SaveCurrentAsync(); await SmokeDispatcher.SettleAsync(backgroundTurns: 2);
                     string savedVersion = stored.Rules.Single().ImageFilter.SchemaVersion!;
                     Emit("schema-" + version, new { version, editorVersion, retainedRaw, currentLabel, acknowledgement = acknowledge != null, invalidBlocked, writesBefore, writes, savedVersion, raw });
                     Program.CaptureWindow(window, "smoke-form-review-schema-" + version + ".png");
@@ -186,12 +186,6 @@ internal static class PluginSettingsPostUrsaChecks
         return control.IsAttachedToVisualTree() && control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > 0 && point.HasValue
             && point.Value.Y >= -1 && point.Value.Y + control.Bounds.Height <= scroll.Bounds.Height + 1;
     }
-    private static bool HasError(PluginSettingsEditor editor, string message) => editor.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Classes.Contains("error") && text.IsVisible && (text.Text ?? "").Contains(message, StringComparison.Ordinal));
-    private static async Task FlushAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
+    private static bool HasError(PluginSettingsEditor editor, string message) => editor.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Classes.Contains("workspace-error") && text.IsVisible && (text.Text ?? "").Contains(message, StringComparison.Ordinal));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

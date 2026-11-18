@@ -114,6 +114,42 @@ public sealed class PluginEntryPresentationTests
     }
 
     [Fact]
+    public void AutomaticSdkTransitionIsVisibleOnlyForTheExactActiveBuildAndReviewState()
+    {
+        PluginCatalogEntry entry = Entry(Release("new"), Candidate("new"));
+        entry = entry with
+        {
+            Activation = entry.Activation! with
+            {
+                AutomaticSdkTransition = new PluginSdkTransitionSnapshot("1.0.0", "1.1.0", "new")
+            }
+        };
+
+        PluginEntryPresentation automatic = PluginEntryPresentation.Create(entry);
+        Assert.True(automatic.HasAutomaticSdkTransition);
+        Assert.False(automatic.HasExplicitlyReviewedSdkTransition);
+
+        PluginEntryPresentation reviewed = PluginEntryPresentation.Create(entry with
+        {
+            Activation = entry.Activation! with
+            {
+                AutomaticSdkTransition = new PluginSdkTransitionSnapshot("1.0.0", "1.1.0", "new", true)
+            }
+        });
+        Assert.False(reviewed.HasAutomaticSdkTransition);
+        Assert.True(reviewed.HasExplicitlyReviewedSdkTransition);
+
+        PluginEntryPresentation stale = PluginEntryPresentation.Create(entry with
+        {
+            Activation = entry.Activation! with
+            {
+                Active = entry.Activation!.Active! with { Artifact = entry.Activation.Active.Artifact with { ExecutionRevision = "other" } }
+            }
+        });
+        Assert.False(stale.HasAutomaticSdkTransition);
+    }
+
+    [Fact]
     public void BrokenCandidateUsesLabelledActiveDescriptionWithoutInventingItsVersion()
     {
         PluginReleaseSnapshot active = Release("active", version: "1.2.3");

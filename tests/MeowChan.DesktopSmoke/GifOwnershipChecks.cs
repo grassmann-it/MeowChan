@@ -10,6 +10,7 @@ using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
 
+// Independently invocable by gif-ownership; never requires playback journey success.
 // Controlled managed ownership failures only; NOT a native-codec failure or pixel-playback proof.
 internal static class GifOwnershipChecks
 {

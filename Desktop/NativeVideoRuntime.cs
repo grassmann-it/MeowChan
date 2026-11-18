@@ -17,6 +17,8 @@ internal static class NativeVideoRuntime
     private static readonly Lazy<LinuxVideoRuntimePolicy> LinuxPolicy = new(() =>
         LinuxVideoRuntimePolicy.Read(AppContext.BaseDirectory, LinuxVideoRuntimePolicy.CurrentRid));
     private static readonly Lazy<IntPtr> LinuxLibVlc = new(LoadLinuxLibrary);
+    // The startup preflight validates this same instance, so its loads reuse that result.
+    internal static LinuxVideoRuntimePolicy LinuxRuntimePolicy => LinuxPolicy.Value;
     private static IntPtr _linuxCore; // Retained alongside libvlc for the process lifetime.
     private static string MacDirectory => Path.Combine(AppContext.BaseDirectory, "libvlc",
         RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "osx-arm64" : "osx-x64", "lib");

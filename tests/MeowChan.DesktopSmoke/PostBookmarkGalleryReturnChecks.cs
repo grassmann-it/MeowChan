@@ -29,21 +29,25 @@ internal static class PostBookmarkGalleryReturnChecks
         PostBookmarkKey key = new(thread, "9100");
         string? captureFixture = null;
         using ManualResetEventSlim initialDecode = new(false);
+        Exception? failureBeforeCleanup = null;
         try
         {
-            new Config { DownloadsPaused = true, SaveUrlsOnExit = false,
+            // The media sidebar (on by default) would take a column from the reader: the exact anchor is measured without it, in a private profile.
+            new Config { DownloadsPaused = true, SaveUrlsOnExit = false, ReaderMediaSidebar = false,
                 CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced" }.SaveConfig(profile);
             await SeedAsync(profile, thread);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY") == "1")
                 captureFixture = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(profile, "media", ".meowchan-manifest.json"))));
-            session = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(session);
+            await using DesktopSessionHost ownedSession = new(profile, Array.Empty<IImageBoard>());
+            session = ownedSession;
+            await using MainWindow ownedShell = new(session);
+            shell = ownedShell;
             shell.Show(owner);
             await Program.WaitUntilAsync(() => session.State == DesktopSessionState.Ready
                 && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
             await session.SavePostBookmarkAsync(key, "Keep exact reader A", 0, false);
             shell.Width = 1280; shell.Height = 900;
-            Click(shell.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
             ArchivePage page = shell.ArchivePage;
             await Program.WaitUntilAsync(() => !page.IsBusy);
             Button manager = page.FindControl<ActionToolBar>("ArchiveResultActions")!.Items
@@ -74,6 +78,7 @@ internal static class PostBookmarkGalleryReturnChecks
                 "Shell bookmark fixture did not establish A's partial reader anchor.");
 
             // Open and move through actual controls. No shell flags or return delegates are fabricated.
+            GalleryImageCache.Shared.Clear(); // an earlier scenario may have kept this fixture's image: the controlled decode must happen
             TaskCompletionSource decoding = new(TaskCreationOptions.RunContinuationsAsynchronously);
             GalleryImageDecoder.DecodeStarted = _ =>
             {
@@ -122,19 +127,23 @@ internal static class PostBookmarkGalleryReturnChecks
                 "Closing the restored bookmark reader lost its overview selection or note.");
             Console.WriteLine($"SMOKE bookmark shell return: overview A → reader A top={originTop:F2} → gallery A/B → reader A exact anchor → same overview passed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            GalleryImageDecoder.DecodeStarted = null;
-            initialDecode.Set();
-            if (shell != null)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                shell.Close();
-                await Program.WaitUntilAsync(() => !shell.IsVisible);
-                await shell.GalleryCleanupTask;
-            }
-            else if (session != null) await session.DisposeAsync();
-            try { Directory.Delete(profile, recursive: true); } catch (IOException) { }
-            owner.Activate();
+                GalleryImageDecoder.DecodeStarted = null;
+                initialDecode.Set();
+                if (shell != null)
+                {
+                    shell.Close();
+                    await Program.WaitUntilAsync(() => !shell.IsVisible);
+                    await shell.GalleryCleanupTask; await shell.DisposeAsync();
+                }
+                else if (session != null) await session.DisposeAsync();
+                try { Directory.Delete(profile, recursive: true); } catch (IOException) { }
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in PostBookmarkGalleryReturnChecks: " + exception));
         }
     }
 

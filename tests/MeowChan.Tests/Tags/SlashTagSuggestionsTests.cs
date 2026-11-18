@@ -51,6 +51,31 @@ public sealed class SlashTagSuggestionsTests
         Assert.Equal(new[] { "/ok/" }, Detect(late, "/ok/"));
     }
 
+    [Theory]
+    [InlineData(3)]
+    [InlineData(8)]
+    [InlineData(20)]
+    public void ConfiguredCountPreservesOrderDedupeAndTextSafetyCeilings(int count)
+    {
+        string many = string.Join(" ", Enumerable.Range(0, 40).Select(index => "/tag" + index + "/"));
+        string[] expected = Enumerable.Range(0, count).Select(index => "/tag" + index + "/").ToArray();
+        Assert.Equal(expected, SlashTagSuggestions.Detect(count, "/TAG0/", null, many).Select(name => name.Display));
+        string late = new string(' ', SlashTagSuggestions.MaximumScannedCharacters) + "/late/";
+        string cut = new string(' ', SlashTagSuggestions.MaximumScannedCharacters - 3) + "/late/";
+        string longToken = "/" + new string('a', SlashTagSuggestions.MaximumTokenCharacters + 1) + "/";
+        Assert.Empty(SlashTagSuggestions.Detect(count, late, cut, longToken, "https://host.invalid/path/"));
+        Assert.Equal(new[] { "/ok/" }, SlashTagSuggestions.Detect(count, late, "/ok/").Select(name => name.Display));
+        Assert.Throws<ArgumentNullException>(() => SlashTagSuggestions.Detect(count, (string?[])null!));
+    }
+
+    [Theory]
+    [InlineData(int.MinValue)]
+    [InlineData(2)]
+    [InlineData(21)]
+    [InlineData(int.MaxValue)]
+    public void InvalidSuggestionCountsAreRefusedEvenWithoutInput(int count) =>
+        Assert.Equal("suggestionCount", Assert.Throws<ArgumentOutOfRangeException>(() => SlashTagSuggestions.Detect(count)).ParamName);
+
     [Fact]
     public void SuggestionsAreValidTagNamesThatCompareLikeTags()
     {

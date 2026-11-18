@@ -11,13 +11,62 @@ public sealed class BundledLanguagePackTests : IDisposable
     public void Dispose() => Reset();
     private static void Reset() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
+    /// <summary>Every embedded pack, discovered exactly as the loader discovers it (file name = language code).</summary>
+    public static TheoryData<string> BundledCodes()
+    {
+        TheoryData<string> data = new();
+        foreach (string code in Texts.BundledPackCodes()) data.Add(code);
+        return data;
+    }
+
+    [Theory]
+    [MemberData(nameof(BundledCodes))]
+    public void BundledPackStaysWellBelowTheLoaderCeilings(string code)
+    {
+        // The loader would refuse a pack at the ceiling and the language would silently vanish from the choice.
+        // This fails at 75 % so the ceilings are raised, with a reason, long before that happens.
+        using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream("MeowChan.Desktop.Localization.Packs." + code + ".json")!;
+        Assert.True(stream.Length <= Texts.MaximumPackBytes * 3 / 4,
+            code + " pack is " + stream.Length + " bytes of " + Texts.MaximumPackBytes + " allowed; raise the ceiling in Texts.cs.");
+        using JsonDocument document = JsonDocument.Parse(stream);
+        int keys = document.RootElement.GetProperty("strings").EnumerateObject().Count();
+        Assert.True(keys <= Texts.MaximumPackKeys * 3 / 4,
+            code + " pack has " + keys + " keys of " + Texts.MaximumPackKeys + " allowed; raise the ceiling in Texts.cs.");
+    }
+
+    [Fact]
+    public void BuiltInCatalogStaysWellBelowTheKeyCeilingAPackMustFit()
+    {
+        Assert.True(BuiltInCatalog.English.Count <= Texts.MaximumPackKeys * 3 / 4,
+            "The English catalog has " + BuiltInCatalog.English.Count + " keys of " + Texts.MaximumPackKeys + " a pack may hold.");
+    }
+
+    [Theory]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    public void PackAtTheKeyCeilingLoadsAndOneKeyMoreIsRejectedWithAWarning(int extra, bool loads)
+    {
+        using TempDirectory directory = new();
+        System.Text.StringBuilder json = new("{\"schemaVersion\":1,\"code\":\"nl\",\"nativeName\":\"Nederlands\",\"strings\":{\"action.close\":\"Sluiten\"");
+        for (int index = 1; index < Texts.MaximumPackKeys + extra; index++)
+            json.Append(",\"future.key.").Append(index).Append("\":\"x\"");
+        json.Append("}}");
+        File.WriteAllText(Path.Combine(directory.Path, "nl.json"), json.ToString());
+
+        Texts.Initialize(directory.Path);
+
+        Assert.Equal(loads, Texts.Languages.Any(language => language.Code == "nl"));
+        Assert.Equal(loads ? 0 : 1, Texts.Warnings.Count(warning => warning.StartsWith("nl.json:", StringComparison.Ordinal)));
+    }
+
     [Fact]
     public void DefaultInitializationIncludesBundlesWithoutSelectingOneOrWritingFiles()
     {
         using TempDirectory directory = new();
         string missing = Path.Combine(directory.Path, "LanguagePacks");
         Texts.Initialize(missing);
-        Assert.Equal(new[] { "en", "de", "es", "fr", "ru" }, Texts.Languages.Select(l => l.Code));
+        string[] expected = new[] { "en", "de" }.Concat(Texts.BundledPackCodes()).ToArray();
+        Assert.Equal(expected, Texts.Languages.Select(l => l.Code));
         Assert.Equal("en", Texts.Language);
         Assert.Equal("English", Texts.Languages[0].NativeName);
         Assert.Equal("Deutsch", Texts.Languages[1].NativeName);
@@ -25,14 +74,31 @@ public sealed class BundledLanguagePackTests : IDisposable
         Assert.False(Directory.Exists(missing));
         Assert.Empty(Directory.EnumerateFileSystemEntries(directory.Path));
         Texts.Initialize(); // The default, no-directory startup path must also load resources.
-        Assert.Equal(new[] { "en", "de", "es", "fr", "ru" }, Texts.Languages.Select(l => l.Code));
+        Assert.Equal(expected, Texts.Languages.Select(l => l.Code));
         Assert.Empty(Texts.Warnings);
+    }
+
+    // An English "<key>.one" the language never selects (zh/ja/ko have no number forms) is not expected in its pack.
+    private static bool IsSelectableEnglishKey(string code, string key)
+    {
+        int dot = key.LastIndexOf('.');
+        if (PluralRules.BaseKey(key) == null || !BuiltInCatalog.English.ContainsKey(key[..dot])) return true;
+        string category = key[(dot + 1)..];
+        return Enumerable.Range(0, 1000).Any(count => PluralRules.Category(code, count) == category);
+    }
+
+    private static bool IsExtraPluralForm(string key)
+    {
+        int dot = key.LastIndexOf('.');
+        return dot > 0 && !BuiltInCatalog.English.ContainsKey(key) && BuiltInCatalog.English.ContainsKey(key[..dot])
+            && key[(dot + 1)..] is "zero" or "one" or "two" or "few" or "many";
     }
 
     [Theory]
     [InlineData("es", "Español (Untested)", "Configuración")]
     [InlineData("fr", "Français (Untested)", "Paramètres")]
     [InlineData("ru", "Русский (Untested)", "Настройки")]
+    [InlineData("zh-Hans", "简体中文 (Untested)", "设置")]
     public void RealAssemblyResourceLoadsEveryTranslationThroughNormalStartup(string code, string name, string title)
     {
         // No source-tree path, manual copy or Assembly.Location (empty in single-file apps).
@@ -43,8 +109,18 @@ public sealed class BundledLanguagePackTests : IDisposable
         using JsonDocument document = JsonDocument.Parse(stream);
         var translations = document.RootElement.GetProperty("strings").EnumerateObject()
             .ToDictionary(p => p.Name, p => p.Value.GetString()!, StringComparer.Ordinal);
+        string[] missing = BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
+            .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key) && !BundledLanguagePackCompletenessTests.KnownMissingKeys.Contains(key))
+            .Except(translations.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        Assert.Empty(missing);
+        Assert.Equal(BundledLanguagePackCompletenessTests.KnownMissingKeys.Order(StringComparer.Ordinal),
+            BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
+                .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key) && !translations.ContainsKey(key))
+                .Order(StringComparer.Ordinal));
         Assert.Equal(BuiltInCatalog.English.Where(p => !string.IsNullOrWhiteSpace(p.Value))
-            .Select(p => p.Key).Order(StringComparer.Ordinal), translations.Keys.Order(StringComparer.Ordinal));
+            .Select(p => p.Key).Where(key => IsSelectableEnglishKey(code, key) && !BundledLanguagePackCompletenessTests.KnownMissingKeys.Contains(key)).Order(StringComparer.Ordinal),
+            // Optional extra number forms ("<key>.few") exist only in the pack, e.g. Russian.
+            translations.Keys.Where(key => !IsExtraPluralForm(key)).Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
         Texts.Initialize();
         Texts.SetLanguage(code);
@@ -52,6 +128,11 @@ public sealed class BundledLanguagePackTests : IDisposable
         Assert.Equal(name, Assert.Single(Texts.Languages, l => l.Code == code).NativeName);
         Assert.Equal(name, Assert.Single(Texts.Languages, l => l.Code == code).ToString());
         foreach (var (key, value) in translations) Assert.Equal(value, Texts.T(key));
+        foreach (string key in BundledLanguagePackCompletenessTests.KnownMissingKeys)
+        {
+            Assert.Null(Texts.Own(key));
+            Assert.Equal(BuiltInCatalog.English[key], Texts.T(key));
+        }
         Assert.Equal(title, Texts.T("settings.title"));
         Assert.Equal("", Texts.T("savedSearch.prompt.None"));
         Assert.Equal("", Texts.T("savedSearch.confirm.None"));
@@ -66,6 +147,7 @@ public sealed class BundledLanguagePackTests : IDisposable
     [InlineData("es")]
     [InlineData("fr")]
     [InlineData("ru")]
+    [InlineData("zh-Hans")]
     public void ReinitializationPreservesExplicitSavedSelection(string code)
     {
         using TempDirectory directory = new();
@@ -80,6 +162,7 @@ public sealed class BundledLanguagePackTests : IDisposable
     [InlineData("es")]
     [InlineData("fr")]
     [InlineData("ru")]
+    [InlineData("zh-Hans")]
     public void ValidUserOverrideWinsWithoutRewritingItAndRemovalRestoresBundle(string code)
     {
         using TempDirectory directory = new();
@@ -121,7 +204,7 @@ public sealed class BundledLanguagePackTests : IDisposable
         Assert.EndsWith(" (Untested)", Assert.Single(Texts.Languages, l => l.Code == code).NativeName);
         Assert.StartsWith(code + ".json: ", Assert.Single(Texts.Warnings));
         Assert.Equal(original, File.ReadAllBytes(path));
-        Assert.Equal(5, Texts.Languages.Count);
+        Assert.Equal(2 + Texts.BundledPackCodes().Count, Texts.Languages.Count);
     }
 
     [Fact]
@@ -129,13 +212,13 @@ public sealed class BundledLanguagePackTests : IDisposable
     {
         using TempDirectory directory = new();
         string path = Path.Combine(directory.Path, "fr.json");
-        File.WriteAllText(path, new string(' ', 2_000_001));
+        File.WriteAllText(path, new string(' ', 2 * 1024 * 1024 + 1));
         Texts.SetLanguage("fr");
         Texts.Initialize(directory.Path);
         Assert.Equal("fr", Texts.Language);
         Assert.Equal("Paramètres", Texts.T("settings.title"));
-        Assert.Contains("exceeds 2 MB", Assert.Single(Texts.Warnings));
-        Assert.Equal(2_000_001L, new FileInfo(path).Length);
+        Assert.Contains("exceeds 2 MiB", Assert.Single(Texts.Warnings));
+        Assert.Equal(2L * 1024 * 1024 + 1, new FileInfo(path).Length);
     }
 
     [Theory]
@@ -164,7 +247,7 @@ public sealed class BundledLanguagePackTests : IDisposable
         Texts.SetLanguage(code);
         Assert.Equal(title, Texts.T("settings.title"));
         Assert.Contains("Duplicate language code:", Assert.Single(Texts.Warnings));
-        Assert.Equal(5, Texts.Languages.Count);
+        Assert.Equal(2 + Texts.BundledPackCodes().Count, Texts.Languages.Count);
     }
 
     [Fact]

@@ -152,6 +152,48 @@ public sealed class MediaLibraryExportTests
     }
 
     [Fact]
+    public async Task EntriesWithBrokenOrForeignOriginalFactsAreGapsOnRealManifestsAndMeasureAgrees()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        Saved kept = await Commit(directory.Path, board, [1, 2, 3], "a", "100", new("stub", "g", "100"), "1");
+        Saved other = await Commit(directory.Path, board, [4, 5, 6, 7], "b", "200", new("stub", "g", "200"), "2");
+        // No directory / asset id / media id and a blank asset id: nothing to read, not a null key for the manifest reader.
+        MediaLibraryEntry noDirectory = Fresh(kept.Entry, "301", "3") with { Directory = null };
+        MediaLibraryEntry noAsset = Fresh(kept.Entry, "302", "4") with { AssetId = null };
+        MediaLibraryEntry blankAsset = Fresh(kept.Entry, "303", "5") with { AssetId = "  " };
+        MediaLibraryEntry noMedia = Fresh(kept.Entry, "304", "6") with { MediaId = null };
+        // Valid-looking facts that point into another original's folder: the folder holds a different asset, never a substitute.
+        MediaLibraryEntry foreignFolder = Fresh(kept.Entry, "305", "7") with { Directory = other.Entry.Directory };
+        MediaLibraryEntry foreignAsset = Fresh(kept.Entry, "306", "8") with { Directory = other.Entry.Directory, AssetId = other.Entry.AssetId };
+        MediaLibraryEntry[] gaps = [noDirectory, noAsset, blankAsset, noMedia, foreignFolder, foreignAsset];
+        IReadOnlyList<MediaLibraryTile> tiles = TilesOf([kept.Entry, .. gaps]);
+        Assert.Equal(gaps.Length + 1, tiles.Count);
+        List<string?> opened = new();
+        string destination = Path.Combine(directory.Path, "out");
+        string[] before = Snapshot(Path.Combine(directory.Path, "media"));
+
+        MediaLibraryExportSize size = MediaLibraryExport.Measure(tiles);
+        MediaLibraryExportPlan plan = await MediaLibraryExport.BuildAsync(tiles, (folder, token) => { opened.Add(folder); return MediaAssetReader.OpenAsync(folder, token); });
+        FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(plan.Assets, destination);
+
+        // Measure is the index-only upper bound: it may offer the two folder-pointing entries that the manifest then refuses,
+        // but every entry whose facts are invalid counts as not offered in both, and the exported bytes are only kept's.
+        Assert.Equal(4, size.NotOffered);
+        Assert.Equal(size.Files, plan.Assets.Count + 2);
+        Assert.Equal(size.NotOffered + 2, plan.Unavailable);
+        Assert.DoesNotContain(opened, folder => string.IsNullOrWhiteSpace(folder));
+        Assert.Equal(1, result.Copied);
+        Assert.Equal(kept.Bytes, File.ReadAllBytes(Assert.Single(Files(destination))));
+        Assert.Equal(before, Snapshot(Path.Combine(directory.Path, "media")));
+    }
+
+    // The same index entry as a tile of its own (another thread and post, hence its own group key via a distinct hash).
+    private static MediaLibraryEntry Fresh(MediaLibraryEntry source, string thread, string post) =>
+        source with { Thread = new("stub", "g", thread), PostId = post, PostOrdinal = long.Parse(post),
+            Sha256 = Convert.ToHexString(SHA256.HashData(System.Text.Encoding.UTF8.GetBytes("fresh" + thread))).ToLowerInvariant() };
+
+    [Fact]
     public async Task CancelBeforeTheCopyWritesNothingAndClaimsNothing()
     {
         using TempDirectory directory = new();

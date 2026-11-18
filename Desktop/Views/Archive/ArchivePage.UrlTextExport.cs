@@ -11,6 +11,13 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
+    private int _urlTextExportLimitMiB = UrlTextExportFileWriter.DefaultLimitMiB;
+    internal int UrlTextExportLimitMiBPreference
+    {
+        get => _urlTextExportLimitMiB;
+        set => _urlTextExportLimitMiB = Math.Clamp(value, UrlTextExportFileWriter.MinimumLimitMiB, UrlTextExportFileWriter.MaximumLimitMiB);
+    }
+
     private bool _urlTextExportBusy;
     private CancellationTokenSource? _urlTextExportCancellation;
     private UrlTextExportDialog? _urlTextExportDialog;
@@ -21,7 +28,7 @@ public partial class ArchivePage
     internal Func<ArchiveUrlTextExportPlan, string, CancellationToken, Task<UrlTextExportFileWriteResult>>? UrlTextWriteForTests { get; set; }
 
     private bool UrlTextOtherModalOpen => IsFilenameSearchOpen || IsArchiveCleanupOpen
-        || Control<Border>("ArchiveExportDialog").IsVisible || _exportRunning
+        || ArchiveExportDialog.IsVisible || _exportRunning
         || _transferPreviewOpening || _transferPreviewDialog != null;
     private bool CanOpenUrlTextExport => !_ended && !_busy && _available
         && !_urlTextExportBusy && _openReader != null && !UrlTextOtherModalOpen;
@@ -40,6 +47,9 @@ public partial class ArchivePage
     private async Task RunUrlTextExportAsync(ResourceId id, Control? origin, Window owner,
         CancellationTokenSource cancellation)
     {
+        // One confirmed operation uses one preference snapshot, including its error text.
+        int limitMiB = UrlTextExportLimitMiBPreference;
+        var writer = new UrlTextExportFileWriter(limitMiB);
         UrlTextExportDialog? dialog = null;
         void OwnerClosing(object? sender, WindowClosingEventArgs e) => cancellation.Cancel();
         owner.Closing += OwnerClosing;
@@ -78,7 +88,7 @@ public partial class ArchivePage
                 }
                 finally { file?.Dispose(); }
             }, UrlTextWriteForTests ?? ((planToWrite, target, token) =>
-                new UrlTextExportFileWriter().WriteAsync(planToWrite, target, token)), cancellation.Token);
+                writer.WriteAsync(planToWrite, target, token)), cancellation.Token, limitMiB);
             _urlTextExportDialog = dialog;
             if (UrlTextShowForTests is { } show) await show(dialog, owner);
             else await dialog.ShowDialog(owner);

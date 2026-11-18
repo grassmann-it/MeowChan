@@ -19,7 +19,7 @@ public partial class DownloadQueue
         Transition transition = BeginTransition(item, admission, executing: !continuation);
         try
         {
-            IWorkStateStore? store = _workStore;
+            IWorkStateStore? store = JournalFor(item);
             if (store != null)
             {
                 string url = ResourceUrl(item);
@@ -31,6 +31,13 @@ public partial class DownloadQueue
         }
         catch { transition.Dispose(); throw; }
     }
+
+    /// <summary>
+    /// The chan work journal governing <paramref name="item"/>, or null when the queue is volatile or the
+    /// item belongs to an <see cref="IExternalMediaWorkOwner"/> whose durability lives elsewhere.
+    /// </summary>
+    private IWorkStateStore? JournalFor(DownloadItem item)
+        => item.Thread is IExternalMediaWorkOwner ? null : _workStore;
 
     private string ResourceUrl(DownloadItem item)
     {
@@ -115,11 +122,11 @@ public partial class DownloadQueue
         Transition transition = BeginTransition(item, admission, executing: false);
         try
         {
-            if (_workStore != null)
+            if (JournalFor(item) is IWorkStateStore journal)
             {
                 using (PerformanceDiagnostics.Measure("queue.publication.wait", request: item.WorkOperationId, watch: item.Thread.ThreadUri.AbsoluteUri,
                     asset: item.AcquisitionRevisionKey ?? item.MediaIdentifier + ":" + item.Variant, epoch: item.WorkGeneration ?? 0))
-                    transition.Fence = await WorkStateAccess.For(_workStore).EnterAsync(
+                    transition.Fence = await WorkStateAccess.For(journal).EnterAsync(
                         item.WorkResourceUrl ?? item.Thread.ThreadUri.AbsoluteUri, token).ConfigureAwait(false);
             }
             token.ThrowIfCancellationRequested();

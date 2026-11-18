@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
-"""Check a slim desktop payload without changing it or inspecting native trees.
+"""Check a slim desktop payload without changing it.
 
 Pass a flat publish directory or a macOS Contents/MacOS alias view. Bundle
 signatures, native architectures and symlink confinement are checked separately.
 """
+from __future__ import annotations
+
 import argparse
 import hashlib
 import json
 from pathlib import Path, PurePosixPath
+import os
 import re
+import stat
 
 
 LEGAL_DOCS = (
@@ -24,25 +28,181 @@ LEGAL_FILES = ('LICENSE', 'THIRD-PARTY-NOTICES.md', *(f'docs/{name}' for name in
 FORBIDDEN_ROOT_DOCUMENTS = frozenset(('readme.md', 'changelog.md'))
 FORBIDDEN_REPOSITORY_ROOTS = frozenset(('desktop', 'libmeowchan', 'tests', 'samples'))
 FORBIDDEN_DEVELOPER_FILES = frozenset(('meowchan.pdb', 'meowchan.xml', 'libmeowchan.pdb', 'libmeowchan.xml'))
+FORBIDDEN_PAYLOAD_COMPONENTS = frozenset(('bin', 'obj', '.git', '.vs', 'profile', 'profiles'))
 RUNTIMES = ('win-x64', 'win-arm64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
 
 
 def require_file(root: Path, relative: str) -> int:
     path = root / relative
+    # validate_payload has already confined first-level macOS aliases. A link
+    # deeper in the payload is never a legal file input.
+    if path.is_symlink() and len(Path(relative).parts) > 1:
+        raise ValueError('Nested desktop package symlink is not allowed: ' + relative)
     if not path.is_file() or path.stat().st_size == 0:
         raise ValueError('Required desktop package file missing or empty: ' + relative)
-    return path.stat().st_size
+    metadata = path.stat()
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        raise ValueError('Required desktop package file is not a single-link regular file: ' + relative)
+    return metadata.st_size
+
+
+# macOS ships /tmp, /var and /etc as symlinks into /private. These three
+# first-level aliases are the only parent-path links tolerated for the package
+# root: the alias must match a listed absolute path (a direct child of the
+# filesystem root), resolve to exactly its listed physical target and must not
+# be the root directory itself. Every other link in the root path -
+# including the root directory itself, any user-created parent alias, or a
+# payload entry - is still rejected. The accepted alias is replaced by its
+# physical target, so later checks and the reported root use the real path.
+SYSTEM_PARENT_ALIASES = {'/tmp': '/private/tmp', '/var': '/private/var', '/etc': '/private/etc'}
+
+
+def _system_alias_target(component):
+    target = SYSTEM_PARENT_ALIASES.get(str(component))
+    if target is not None and os.path.realpath(component) == target and not Path(target).is_symlink():
+        return Path(target)
+    return None
+
+
+def _ordinary_directory(path: Path) -> Path:
+    """Return the physical package root; only the named system aliases may be links."""
+    absolute = Path(os.path.abspath(path))
+    parts = absolute.parts[1:]
+    # ``Path.root`` is only ``\\`` for a Windows drive; start at the full
+    # anchor (for example ``D:\\``) so temporary package roots stay on the
+    # drive where their fixture was created.
+    current = Path(absolute.anchor)
+    for index, part in enumerate(parts):
+        current /= part
+        if current.is_symlink():
+            target = _system_alias_target(current) if index < len(parts) - 1 else None
+            if target is None:
+                raise ValueError('Desktop package root path contains a symlink: ' + str(current))
+            current = target
+    if not current.is_dir():
+        raise ValueError('Desktop package root must be a directory')
+    return current
+
+
+def _internal_payload_target(root: Path, path: Path, relative: Path | None = None) -> Path:
+    """Validate a publish-time relative link without following external data.
+
+    Native macOS runtimes legitimately contain file aliases (for example VLC's
+    libvlccore alias). They are safe only when they are relative, resolve
+    strictly inside this physical payload, and end at a regular file. Bundle
+    layout aliases are handled separately by _macos_alias_target because they
+    may target directories as well.
+    """
+    target = Path(os.readlink(path))
+    nested = relative is not None and len(relative.parts) > 1
+    if target.is_absolute():
+        message = ('Nested desktop package symlink is not allowed: ' + relative.as_posix()
+                   if nested else 'Desktop package symlink must be relative: ' + str(path))
+        raise ValueError(message)
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        message = ('Nested desktop package symlink is not allowed: ' + relative.as_posix()
+                   if nested else 'Invalid desktop package symlink target: ' + str(path))
+        raise ValueError(message) from error
+    # When validating the Contents/MacOS alias view, generated first-level
+    # aliases are walked into the physical Resources/application tree. Nested
+    # native aliases (for example VLC's libvlccore alias) must stay confined to
+    # that physical payload, not to the alias-view directory itself.
+    payload_root = root
+    if root.name == 'MacOS' and root.parent.name == 'Contents':
+        resource_payload = root.parent / 'Resources' / 'application'
+        if resource_payload.is_dir() and not resource_payload.is_symlink():
+            payload_root = _ordinary_directory(resource_payload)
+    if not resolved.is_relative_to(payload_root) or not resolved.is_file():
+        message = ('Nested desktop package symlink is not allowed: ' + relative.as_posix()
+                   if nested else 'Desktop package symlink target escapes the payload: ' + str(path))
+        raise ValueError(message)
+    return resolved
+
+
+def _bundle_alias_view(root: Path) -> bool:
+    return ((root.name == 'MacOS' and root.parent.name == 'Contents')
+            or (root.name == 'application' and root.parent.name == 'Resources'
+                and root.parent.parent.name == 'Contents'))
+
+
+def _macos_alias_target(root: Path, path: Path) -> Path:
+    """Accept only the relative aliases generated by package-macos.py."""
+    if root.name == 'MacOS' and root.parent.name == 'Contents' and path.name != 'MeowChan':
+        relative = Path('../Resources/application') / path.name
+    elif (root.name == 'application' and root.parent.name == 'Resources'
+          and root.parent.parent.name == 'Contents' and path.name == 'MeowChan'):
+        relative = Path('../../MacOS/MeowChan')
+    else:
+        raise ValueError('Unexpected desktop package symlink: ' + str(path))
+    if os.readlink(path) != str(relative):
+        raise ValueError('Unexpected macOS desktop package symlink target: ' + str(path))
+    target = Path(os.path.abspath(root / relative))
+    # A signed bundle's MacOS aliases point into Resources/application. The
+    # publish tree may itself contain a relative file alias, so validate its
+    # resolved endpoint rather than rejecting the alias link outright.
+    if root.name == 'MacOS' and root.parent.name == 'Contents':
+        payload = _ordinary_directory(root.parent / 'Resources' / 'application')
+        try:
+            resolved = target.resolve(strict=True)
+        except (OSError, RuntimeError) as error:
+            raise ValueError('Invalid macOS desktop package symlink target: ' + str(path)) from error
+        if not resolved.is_relative_to(payload) or not (resolved.is_file() or resolved.is_dir()):
+            raise ValueError('Invalid macOS desktop package symlink target: ' + str(path))
+        return resolved
+    # Validate each physical parent too: the apphost alias must not hide a
+    # redirected MacOS directory or a target-side link.
+    _ordinary_directory(target.parent)
+    if target.is_symlink() or not target.is_file():
+        raise ValueError('Invalid macOS desktop package symlink target: ' + str(path))
+    return target
+
+
+def _payload_entries(root: Path):
+    """Walk physical alias targets as well, without following any nested link."""
+    def entries(directory, prefix):
+        for path in directory.iterdir():
+            relative = prefix / path.name
+            was_symlink = path.is_symlink()
+            followed_bundle_alias = False
+            if was_symlink:
+                # First-level links in the two bundle alias views are created
+                # by package-macos.py. Recognise them by their exact textual
+                # target; any other relative link is a publish file alias
+                # (including nested VLC aliases).
+                generated_target = None
+                if root.name == 'MacOS' and root.parent.name == 'Contents' and path.name != 'MeowChan':
+                    generated_target = str(Path('../Resources/application') / path.name)
+                elif (root.name == 'application' and root.parent.name == 'Resources'
+                      and root.parent.parent.name == 'Contents' and path.name == 'MeowChan'):
+                    generated_target = str(Path('../../MacOS/MeowChan'))
+                if (_bundle_alias_view(root) and generated_target is not None
+                        and os.readlink(path) == generated_target):
+                    path = _macos_alias_target(root, path)
+                    followed_bundle_alias = True
+                else:
+                    path = _internal_payload_target(root, path, relative)
+            yield path, relative
+            if path.is_dir() and (not was_symlink or followed_bundle_alias):
+                yield from entries(path, relative)
+    yield from entries(root, Path())
 
 
 def validate_payload(root: Path) -> dict:
     """Validate legal/docs layout independent of RID; follow legitimate Mac aliases."""
-    root = Path(root).resolve(strict=True)
-    if not root.is_dir():
-        raise ValueError('Desktop package root must be a directory')
+    root = _ordinary_directory(Path(root))
     for entry in root.iterdir():
         name = entry.name.casefold()
         if name in FORBIDDEN_ROOT_DOCUMENTS or name in FORBIDDEN_REPOSITORY_ROOTS or name in FORBIDDEN_DEVELOPER_FILES:
             raise ValueError('Repository/development artifact in desktop package: ' + entry.name)
+    for path, relative in _payload_entries(root):
+        if any(part.casefold() in FORBIDDEN_PAYLOAD_COMPONENTS for part in relative.parts):
+            raise ValueError('Build or profile artifact in desktop package: ' + relative.as_posix())
+        if not (path.is_file() or path.is_dir()):
+            raise ValueError('Desktop package contains a special file: ' + relative.as_posix())
+        if path.is_file() and path.stat().st_nlink != 1:
+            raise ValueError('Desktop package contains a hardlink: ' + relative.as_posix())
     legal_bytes = sum(require_file(root, relative) for relative in LEGAL_FILES)
     documentation = root / 'docs'
     actual = {entry.name for entry in documentation.iterdir()}
@@ -112,6 +272,9 @@ def validate_linux_notices(root: Path, runtime: str) -> dict:
             if current.is_symlink():
                 raise ValueError('Bundled Linux license path cannot contain symlinks')
         size = require_file(legal_root, name)
+        current_stat = current.stat()
+        if current_stat.st_nlink != 1:
+            raise ValueError('Bundled Linux license tree contains a hardlink: ' + name)
         total += size
         if size > 64 * 1024 * 1024 or total > 256 * 1024 * 1024:
             raise ValueError('Bundled Linux license inventory exceeds its byte limit')

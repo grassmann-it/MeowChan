@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Linq;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
@@ -26,11 +28,49 @@ public partial class MainWindow
 
     private void ApplyGalleryPreferences()
     {
+        // A saved zero must discard recent tags immediately, even when the tag panel is closed.
+        if (_quickTagRecent is { } recent) QuickTagSettings.ApplyRecentLimit(recent, _config);
+        ApplyTaggingPreferences();
+        ConfigureGalleryScrubPreview();
         _gallery?.Configure(_desiredGalleryContext ?? _config.GalleryContextOpen, _config.ShowShortcutHelp,
             _config.VideoAutoplay, _config.VideoStartMuted, _desiredGalleryVolume ?? _config.VideoVolume);
         _presentedGalleryPlayback = _desiredGalleryPlayback ?? GalleryPlaybackPreferences.FromConfig(_config);
         _gallery?.ConfigurePlayback(_presentedGalleryPlayback);
-        if (_archivePage != null) _archivePage.ReadingFontSizePreference = ReadingFontSize();
+        _gallery?.ConfigureFit(ReaderSettingsPreferences.Gallery(_config));
+        _gallery?.ConfigureZoomLimits(_config.GalleryMaxZoomPercent);
+        _gallery?.ConfigureWheelMode(_config.GalleryWheelMode);
+        if (_gallery != null) _gallery.ControlsIdleHideMs = _config.ControlsIdleHideMs;
+        if (_gallery != null) _gallery.VideoSeekStepSeconds = _config.GalleryVideoSeekStepSeconds;
+        if (_gallery != null) _gallery.StatusDwellMs = _config.GalleryStatusDwellMs;
+        if (_gallery != null) _gallery.PostTagChipLimit = _config.GalleryPostTagChipLimit;
+        if (_gallery != null) _gallery.PanelWidth = GalleryPanelWidthPreference();
+        ConfigureGalleryFilmstrip();
+        if (_archivePage != null)
+        {
+            _archivePage.ReadingFontSizePreference = ReadingFontSize();
+            _archivePage.ReaderPostWidthPreference = _config.ReaderPostWidth;
+            ReaderSettingsPreferences.Apply(_archivePage, _config);
+            _archivePage.ReaderNavigationIdleDelayMs = _config.ControlsIdleHideMs;
+            _archivePage.ReaderNavigationMode = _config.ReaderNavigationMode;
+            _archivePage.ReaderNavigationShowPosition = _config.ReaderNavigationShowPosition;
+        }
+    }
+
+    // V2: the width of the gallery side panel is a view preference of the layout profile (ColumnWidths["gallery.panelWidth"]),
+    // written with the window's column widths (MainWindow.ViewPreferences.cs) and clamped to the panel's limits when read.
+    private double GalleryPanelWidthPreference() =>
+        _config.ColumnWidths.TryGetValue(GallerySidePanel.WidthPreferenceKey, out double width)
+            ? GallerySidePanel.ClampWidth(width) : Config.GalleryPanelWidthDefault;
+
+    private void QueueGalleryPanelWidth(double width)
+    {
+        string mode = _config.WorkspaceMode;
+        width = GallerySidePanel.ClampWidth(width);
+        if (!_pendingColumnWidths.TryGetValue(mode, out Dictionary<string, double>? pending))
+            _pendingColumnWidths[mode] = pending = new(StringComparer.Ordinal);
+        pending[GallerySidePanel.WidthPreferenceKey] = width;
+        _config.GetLayoutProfile(mode).ColumnWidths[GallerySidePanel.WidthPreferenceKey] = width;
+        QueueWindowPreferences(); // in fullscreen the draft waits for the next window save or the final flush on close
     }
 
     private void QueueGalleryPlaybackPreference(GalleryPlaybackPreferences preferences)
@@ -47,7 +87,9 @@ public partial class MainWindow
     {
         if (_isClosing || _gallery == null) return;
         bool activeSurface = IsActive || OwnedWindows.Any(window => window.IsActive && _gallery.OwnsOverlayWindow(window));
-        _gallery.SetInteractionAvailable(activeSurface && IsEnabled && !_gallerySuspended);
+        // The second value is the part that is not about the focus: with "Pause when MeowChan loses focus" off, a slideshow runs on while
+        // another window has the focus, while minimised or in the tray, but a disabled main window or the reader still stop it.
+        _gallery.SetInteractionAvailable(activeSurface && IsEnabled && !_gallerySuspended, IsEnabled && !_gallerySuspended);
     }
 
     private void QueueGalleryPreference(bool? context, int? volume)
@@ -67,9 +109,11 @@ public partial class MainWindow
         int? volume = _pendingGalleryVolume;
         GalleryPlaybackPreferences? playback = _pendingGalleryPlayback;
         GalleryPlaybackPreferences? baseline = _pendingGalleryPlaybackBaseline;
+        GalleryLayoutChoice? layoutView = _pendingGalleryLayoutView, layoutTag = _pendingGalleryLayoutTag;
         _pendingGalleryContext = null; _pendingGalleryVolume = null;
         _pendingGalleryPlayback = null; _pendingGalleryPlaybackBaseline = null;
-        if (!context.HasValue && !volume.HasValue && playback == null)
+        _pendingGalleryLayoutView = null; _pendingGalleryLayoutTag = null;
+        if (!context.HasValue && !volume.HasValue && playback == null && layoutView == null && layoutTag == null)
         {
             // A later explicit Settings/Close flush may retry a retained failed
             // host draft. Do not permanently chain the earlier faulted observer.
@@ -88,6 +132,7 @@ public partial class MainWindow
                 if (context.HasValue) current.GalleryContextOpen = context.Value;
                 if (volume.HasValue) current.VideoVolume = volume.Value;
                 if (playback != null && baseline != null) playback.ApplyChangesTo(current, baseline);
+                ApplyGalleryLayoutChanges(current, layoutView, layoutTag);
             });
         }
         catch (Exception error)
@@ -96,6 +141,8 @@ public partial class MainWindow
             _pendingGalleryVolume ??= volume;
             _pendingGalleryPlayback ??= playback;
             _pendingGalleryPlaybackBaseline ??= baseline;
+            _pendingGalleryLayoutView ??= layoutView;
+            _pendingGalleryLayoutTag ??= layoutTag;
             write = Task.FromException(error);
         }
         if (!ReferenceEquals(write, _galleryPreferenceWrite))
@@ -111,12 +158,16 @@ public partial class MainWindow
         try
         {
             await write;
+            // The gallery's volume reaches the Media page's panel (its next player) now, not only after the settings were saved.
+            if (!_isClosing) ConfigureMediaPanel();
             if (_pendingGalleryContext == null && _desiredGalleryContext == _config.GalleryContextOpen)
                 _desiredGalleryContext = null;
             if (_pendingGalleryVolume == null && _desiredGalleryVolume == _config.VideoVolume)
                 _desiredGalleryVolume = null;
             if (ReferenceEquals(write, _galleryPreferenceWrite) && _pendingGalleryPlayback == null)
                 _desiredGalleryPlayback = null;
+            if (ReferenceEquals(write, _galleryPreferenceWrite) && !GalleryLayoutPending)
+                _desiredGalleryLayout = null;
         }
         catch (Exception error)
         {

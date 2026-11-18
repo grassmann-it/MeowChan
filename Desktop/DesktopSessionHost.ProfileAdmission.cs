@@ -84,15 +84,45 @@ internal sealed partial class DesktopSessionHost
         {
             host.EnsureReady();
             host.CloseTransitionCommandIngress();
+            // F2: nothing new starts in the Danbooru family from here; a kernel refusal its running work meets after
+            // the reservation is attributed to this transition, not to local storage.
+            host._booruProducers.BeginTransition();
         }
-        public Task CutAndDrainAsync() => host.CutAndDrainFinalWrites();
-        public void ReleaseDrainedEpoch() => host.ReleaseFinalWriteEpoch(stopped: false);
+        public Task CutAndDrainAsync()
+        {
+            // The final-write cut may refuse (Stop before cut) and then nothing was cut. Both cuts are synchronous
+            // before this returns; the Registry drains its own families concurrently.
+            Task finalWrites = host.CutAndDrainFinalWrites();
+            Task booru = host._booruProducers.CutAndDrainAsync();
+            return Task.WhenAll(finalWrites, booru);
+        }
+        public void ReleaseDrainedEpoch()
+        {
+            host.ReleaseFinalWriteEpoch(stopped: false);
+            host._booruProducers.ReleaseDrained();
+        }
         public void InstallReadyEpoch() => host.InstallReadyFinalWriteEpoch();
-        public void OpenAfterProducerActivation() => host.OpenFinalWriteEpoch();
+        public void OpenAfterProducerActivation()
+        {
+            // SafeToResume only (the Registry never resumes after RecoveryRequired or Stop): a fresh Danbooru
+            // generation after the queue producers are active again, then the final-write family.
+            host.OpenBooruProducers();
+            host.OpenFinalWriteEpoch();
+        }
+        // Activation rollback is still retryable after a complete drain. A post-cut drain failure uses
+        // RequireRecovery below instead; it must not leave the Booru family merely Suspended.
         public void FailTransition(Exception error) => host.FailFinalWriteTransition(error);
-        public void RequireRecovery(Exception error) => host.RequireProfileRecovery(error);
+        public void RequireRecovery(Exception error)
+        {
+            // Seal kernel ingress before terminal family cleanup. Accepted uses keep their exact ownership until
+            // the lifecycle's terminal drain has completed; this call never revokes them early.
+            host._profileLease.Admission.FailRecovery();
+            host._booruProducers.RequireRecovery();
+            host.RequireProfileRecovery(error);
+        }
         public void AbortBeforeCut()
         {
+            host._booruProducers.AbortTransition();
             lock (host._finalWrites) { if (!host.FinalWriteAuthorityOpen) return; }
             host.ReopenTransitionCommandIngress();
         }

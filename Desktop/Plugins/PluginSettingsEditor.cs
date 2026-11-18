@@ -39,10 +39,10 @@ internal sealed class PluginSettingsEditor : StackPanel
     {
         Draft = draft;
         _errorState = SavedErrors.GetValue(draft, _ => new ErrorState());
-        Spacing = 10;
+        Spacing = 8;
         if (draft.UnmappedValues.Count > 0)
         {
-            StackPanel removed = new() { Spacing = 6 };
+            StackPanel removed = new() { Spacing = 8 };
             removed.Children.Add(new TextBlock { Text = Texts.T("plugins.removedSettings") + "\n" + string.Join("\n", draft.UnmappedValues.Select(pair => pair.Key + " = " + pair.Value)), TextWrapping = TextWrapping.Wrap });
             Button acknowledge = new() { Content = Texts.T("plugins.acceptSchema") };
             SchemaAcknowledgement = acknowledge;
@@ -58,7 +58,9 @@ internal sealed class PluginSettingsEditor : StackPanel
         foreach (SettingDefinition field in draft.Schema.Fields)
         {
             TextBlock label = new() { Text = field.Label, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-field-label" } };
-            StackPanel content = new() { Spacing = 6 };
+            // Ursa's FormItem leaves 5 dip under the label; 3 more give label, Set value box, field, error and help one 8 dip
+            // rhythm (measured: label 403-415, box 420-435, field 445-469 before). Box, label and field share the left edge.
+            StackPanel content = new() { Spacing = 8, Margin = new Thickness(0, 4, 0, 0) };
             Control editor;
             if (field.Kind == SettingKind.Boolean)
             {
@@ -111,8 +113,10 @@ internal sealed class PluginSettingsEditor : StackPanel
                     (field.MaximumLength > 1024 || draft.Text(field.Key).Contains('\n'));
                 TextBox input = new() { Text = draft.Text(field.Key), HorizontalAlignment = HorizontalAlignment.Stretch,
                     PlaceholderText = field.Kind == SettingKind.Uri ? "https://…" : null,
-                    AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap,
-                    MinHeight = multiline ? 96 : 0, MaxHeight = multiline ? 192 : double.PositiveInfinity };
+                    AcceptsReturn = multiline, TextWrapping = multiline ? TextWrapping.Wrap : TextWrapping.NoWrap };
+                // A single-line field keeps the workspace input height (Workspace.Size.Input via the TextBox style);
+                // a local MinHeight of 0 here used to crush it to the text height.
+                if (multiline) { input.MinHeight = 96; input.MaxHeight = 192; }
                 CheckBox? set = null;
                 if (!field.IsRequired)
                 {
@@ -150,7 +154,7 @@ internal sealed class PluginSettingsEditor : StackPanel
             _definitions.Add(field.Key, field);
             content.Children.Add(editor);
             // Keep correction and its error adjacent even when the schema help exceeds the viewport.
-            TextBlock error = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "error", "workspace-error" } };
+            TextBlock error = new() { IsVisible = false, TextWrapping = TextWrapping.Wrap, Classes = { "workspace-error" } };
             AutomationProperties.SetLiveSetting(error, AutomationLiveSetting.Polite);
             _errors.Add(field.Key, error); content.Children.Add(error);
             if (!string.IsNullOrEmpty(field.Help))

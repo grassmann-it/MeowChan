@@ -41,6 +41,13 @@ internal sealed class PluginEntryPresentation
     internal PluginReleaseSnapshot? Pending { get; private init; }
     internal PluginReleaseSnapshot? Pinned { get; private init; }
     internal PluginReleaseSnapshot? LastGood { get; private init; }
+    internal PluginSdkTransitionSnapshot? AutomaticSdkTransition { get; private init; }
+    internal bool HasAutomaticSdkTransition => AutomaticSdkTransition is { ExplicitlyApproved: false } transition &&
+        Active is { } active && active.ExecutionRevision == transition.ExecutionRevision &&
+        active.Description.SdkVersion == transition.ToSdkVersion;
+    internal bool HasExplicitlyReviewedSdkTransition => AutomaticSdkTransition is { ExplicitlyApproved: true } transition &&
+        Active is { } active && active.ExecutionRevision == transition.ExecutionRevision &&
+        active.Description.SdkVersion == transition.ToSdkVersion;
     internal PluginPendingKind PendingKind { get; private init; }
     internal bool IsRollbackPinned => Pinned != null;
     internal bool IsSelectedCandidate { get; private init; }
@@ -51,6 +58,31 @@ internal sealed class PluginEntryPresentation
     internal bool HasCandidateConflict { get; private init; }
     internal string? CandidateProblem { get; private init; }
     internal string? ActivationProblem { get; private init; }
+    /// <summary>
+    /// The plugin is not running because its bundled build waits for an explicit repair review, or its running build was
+    /// observed failing with <c>sdk-mismatch</c> in this session (it runs but cannot work until another build is confirmed).
+    /// </summary>
+    internal bool NeedsRepairReview => HasSdkMismatch
+        || !IsActiveCandidate && MeowChan.PluginHost.Configuration.PluginActivationProblems.RequiresRepairReview(ActivationProblem);
+    /// <summary>The exact active build was observed failing with <c>sdk-mismatch</c> in this session (presentation evidence only).</summary>
+    internal bool HasSdkMismatch { get; private init; }
+    /// <summary>No build is active in the profile and a build waits for the next start: only a restart remains.</summary>
+    internal bool IsConfirmedForNextStart => Availability == PluginAvailability.Unavailable && Active == null && PendingKind == PluginPendingKind.Build;
+    /// <summary>
+    /// The activation problem worth showing as a problem. The store's own note after a confirmed new bundled selection is the
+    /// confirmation receipt, not a problem: the "confirmed for next start" status line says it in the UI language.
+    /// </summary>
+    internal string? VisibleActivationProblem => IsConfirmedForNextStart && ActivationProblem == ReselectionConfirmedNote ||
+        IsPinnedReleaseUpdatedInPlace ? null : ActivationProblem;
+    /// <summary>
+    /// This start moved the pinned release to its rebuilt bundled build of the same version (#130): a calm one-start notice,
+    /// not a problem. The store's note is cleared by the next start, so the card says it once.
+    /// </summary>
+    internal bool IsPinnedReleaseUpdatedInPlace =>
+        ActivationProblem == MeowChan.PluginHost.Configuration.PluginActivationProblems.PinnedReleaseUpdatedInPlace &&
+        Pinned is { } pin && Active is { } active && SameBuild(pin, active);
+    /// <summary>The exact note <c>PluginProfileStore.ConfirmBundledReselectionAsync</c> leaves (pinned by a source test).</summary>
+    internal const string ReselectionConfirmedNote = "New bundled selection confirmed for next start; original state retained in backup.";
     internal bool CanSelectCandidate { get; private init; }
     internal bool CandidateChoiceRequired { get; private init; }
     internal PluginWorkerSnapshot? Worker { get; private init; }
@@ -66,7 +98,8 @@ internal sealed class PluginEntryPresentation
         IReadOnlyList<PluginProductionWorkerSnapshot>? productionWorkers = null,
         PluginConfigurationDraft? draft = null, long? profileRevision = null,
         IReadOnlyList<SourceWordingMaintenanceEvidence>? maintenanceEvidence = null,
-        IReadOnlyList<SourceWordingMaturityEvidence>? maturityEvidence = null)
+        IReadOnlyList<SourceWordingMaturityEvidence>? maturityEvidence = null,
+        Func<string, string, bool>? sdkMismatch = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
         PluginActivationSnapshot? state = entry.Activation;
@@ -131,6 +164,7 @@ internal sealed class PluginEntryPresentation
             Pending = state?.Pending,
             Pinned = state?.Pinned,
             LastGood = state?.LastGood,
+            AutomaticSdkTransition = state?.AutomaticSdkTransition,
             PendingKind = state?.Pending == null ? PluginPendingKind.None :
                 state.Active != null && SameBuild(state.Active, state.Pending)
                     ? PluginPendingKind.Configuration : PluginPendingKind.Build,
@@ -142,6 +176,8 @@ internal sealed class PluginEntryPresentation
             HasCandidateConflict = state?.Candidates.Count(item => item.IsPresent) > 1,
             CandidateProblem = candidate?.Problem,
             ActivationProblem = state?.Problem,
+            HasSdkMismatch = sdkMismatch != null && pluginId != null && state is { Enabled: true, Active: { } running }
+                && sdkMismatch(pluginId, running.ExecutionRevision),
             CanSelectCandidate = canSelect,
             CandidateChoiceRequired = canSelect && !alreadyScheduled,
             // Multiple matching observations are ambiguous; do not choose by enumeration order.

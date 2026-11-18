@@ -43,6 +43,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
     private readonly Dictionary<(string MediaId, string Variant), HashSet<string>> _verifiedDestinations = new();
     private readonly Dictionary<string, Dictionary<string, FailureInfo>> _destinationFailures = new Dictionary<string, Dictionary<string, FailureInfo>>(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _mediaFailures = new Dictionary<string, string>(StringComparer.Ordinal);
+    private readonly Dictionary<(string MediaId, string Variant), string> _rejectedMedia = new();
     private ThreadSourceState _sourceState = ThreadSourceState.Active;
     private RequestPolicyProgress? _requestProgress;
     // Raw source metadata and display-only OP excerpt have separate provenance.
@@ -283,15 +284,21 @@ public abstract class BaseThread : IThread, ICheckRequestSource
         set
         {
             if (!Enum.IsDefined(value)) throw new ArgumentOutOfRangeException(nameof(value));
+            ThreadActivity previous;
             lock (_stateLock)
             {
                 if (_mediaFailures.Count > 0 && value is ThreadActivity.Finished or ThreadActivity.Downloading or ThreadActivity.Pending)
                     value = ThreadActivity.Error;
                 if (_activity == value) return;
+                previous = _activity;
                 _activity = value;
             }
             OnPropertyChanged();
-            Logger.Information("Thread {ThreadId} activity changed to: {Activity}", ThreadId, value);
+            // A switched-off source moves every watched thread of it at once; the source itself reports that single
+            // transition, so entering or leaving the state is only a debug detail per thread.
+            Logger.Write(value == ThreadActivity.SourceUnavailable || previous == ThreadActivity.SourceUnavailable
+                ? Serilog.Events.LogEventLevel.Debug : Serilog.Events.LogEventLevel.Information,
+                "Thread {ThreadId} activity changed to: {Activity}", ThreadId, value);
         }
     }
 
@@ -503,6 +510,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             {
                 _checkTrigger.Consume();
                 SourceCheckDeferredException? deferredCheck = null;
+                bool sourceUnavailable = false;
                 ThreadActivity previousActivity = Activity;
                 try
                 {
@@ -517,6 +525,13 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                     if (deferred.Failure != null) SetCheckFailure(FailureInfo.FromException(deferred.Failure, media: false));
                     if (LastCheckFailure != null) Activity = ThreadActivity.Error;
                     else if (Activity == ThreadActivity.Checking) Activity = previousActivity;
+                }
+                catch (SourceUnavailableException)
+                {
+                    // A switched-off source is expected, not an error: neutral state, no failure record, no stack trace.
+                    sourceUnavailable = true;
+                    SetCheckFailure(null);
+                    Activity = ThreadActivity.SourceUnavailable;
                 }
                 catch (QueueStoppingException)
                 {
@@ -534,6 +549,13 @@ public abstract class BaseThread : IThread, ICheckRequestSource
                     Logger.Error(exception, "Error checking thread {ThreadId}", ThreadId);
                 }
                 cancellationToken.ThrowIfCancellationRequested();
+                if (sourceUnavailable)
+                {
+                    // No polling while the source is off: wait for its availability signal (an explicit check request
+                    // only re-tests it) instead of re-checking every cycle.
+                    await _checkTrigger.WaitOrDelayAsync(WaitForSourceAvailableAsync, cancellationToken).ConfigureAwait(false);
+                    continue;
+                }
                 long finished = System.Diagnostics.Stopwatch.GetTimestamp();
                 if (SourceState != ThreadSourceState.Active && !(_content?.NeedsRetry ?? false))
                 {
@@ -573,6 +595,15 @@ public abstract class BaseThread : IThread, ICheckRequestSource
 
     protected virtual Task WaitForNextCheckAsync(TimeSpan interval, CancellationToken cancellationToken)
     {
+        return Task.Delay(interval, cancellationToken);
+    }
+
+    /// <summary>Completes when a source reported through <see cref="SourceUnavailableException"/> may be polled again.
+    /// The default re-tests once per monitoring interval; sources with an availability signal complete on it.</summary>
+    protected virtual Task WaitForSourceAvailableAsync(CancellationToken cancellationToken)
+    {
+        TimeSpan interval;
+        lock (_monitoringLock) { interval = _monitoringInterval; }
         return Task.Delay(interval, cancellationToken);
     }
 
@@ -816,6 +847,7 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             if (!mediaChanged && !failuresChanged) return;
             ThreadActivity nextStatus = _activity;
             if (_mediaFailures.Count > 0) nextStatus = ThreadActivity.Error;
+            else if (_activity == ThreadActivity.SourceUnavailable) nextStatus = _activity; // The source state outranks saved media.
             else if (CompletedCountLocked >= _totalMediaCount - (_content?.Snapshot.ExcludedMedia ?? 0)) nextStatus = ThreadActivity.Finished;
             else if (failuresChanged && _activity == ThreadActivity.Error) nextStatus = ThreadActivity.Downloading;
             statusChanged = _activity != nextStatus;
@@ -863,6 +895,39 @@ public abstract class BaseThread : IThread, ICheckRequestSource
             _activity = ThreadActivity.Error;
         }
         NotifyMediaStateChanged(mediaChanged, true, statusChanged);
+    }
+
+    /// <summary>Marks one attachment whose metadata the host rejected; nothing was downloaded, so no completion is invalidated.</summary>
+    internal void ReportRejectedMedia(string mediaIdentifier, string variant, string? destinationPath, string message)
+    {
+        string destinationKey = string.IsNullOrWhiteSpace(destinationPath) ? string.Empty : destinationPath;
+        bool statusChanged;
+        lock (_stateLock)
+        {
+            if (_rejectedMedia.TryGetValue((mediaIdentifier, variant), out string? previous) && previous != destinationKey
+                && _destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? stale)) stale.Remove(previous);
+            _rejectedMedia[(mediaIdentifier, variant)] = destinationKey;
+            if (!_destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures))
+                _destinationFailures.Add(mediaIdentifier, failures = new Dictionary<string, FailureInfo>(DestinationComparer));
+            FailureInfo failure = new(FailureKind.InvalidData, message);
+            if (failures.TryGetValue(destinationKey, out FailureInfo? existing) && existing == failure && _activity == ThreadActivity.Error) return;
+            failures[destinationKey] = failure;
+            RefreshMediaFailureLocked(mediaIdentifier);
+            statusChanged = _activity != ThreadActivity.Error;
+            _activity = ThreadActivity.Error;
+        }
+        NotifyMediaStateChanged(false, true, statusChanged);
+    }
+
+    /// <summary>Corrected metadata supersedes an earlier rejection; the caller recomputes Activity.</summary>
+    internal void ClearRejectedMedia(string mediaIdentifier, string variant)
+    {
+        lock (_stateLock)
+        {
+            if (!_rejectedMedia.Remove((mediaIdentifier, variant), out string? destinationKey)) return;
+            if (_destinationFailures.TryGetValue(mediaIdentifier, out Dictionary<string, FailureInfo>? failures) && failures.Remove(destinationKey))
+                RefreshMediaFailureLocked(mediaIdentifier);
+        }
     }
 
     // The empty key represents an old completion/failure without a known destination.

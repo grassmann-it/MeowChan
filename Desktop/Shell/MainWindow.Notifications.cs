@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using System.Threading.Tasks;
 using System.Windows.Input;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -11,6 +12,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -24,7 +26,7 @@ public partial class MainWindow
     private bool _feedbackDismissWired;
     private ICommand? _feedbackDismissGesture;
     private sealed record PendingFeedback(string Title, string Message, NotificationType Type,
-        FeedbackCategory Category, SessionFeedback? Entry);
+        FeedbackCategory Category, SessionFeedback? Entry, IReadOnlyList<FeedbackToastAction>? Actions = null, bool Essential = false);
     private readonly Queue<PendingFeedback> _startupNotifications = new();
 
     // CallerMemberName is a safe fallback for future callers: even an unclassified error is retained.
@@ -33,14 +35,49 @@ public partial class MainWindow
         ShowNotificationCore(title, message, type, context, operation,
             KnownNotificationFaultKey(type, operation, message));
 
+    // A toast with action buttons (for example "Undo"). Choosing one runs it and closes the toast. The actions are only
+    // offered while the toast is shown; the diagnostics history keeps the message, never the actions.
+    private void ShowActionNotification(string title, string message, NotificationType type, FeedbackToastAction[] actions,
+        string? context = null, [CallerMemberName] string operation = "ui") =>
+        ShowNotificationCore(title, message, type, context, operation, actions: actions);
+
+    // DL-03: a toast whose action is the only way back (the Undo of "Remove from watch list") is not information the user may switch off:
+    // it is shown whatever the popup settings say. Everything else about it is an ordinary action toast.
+    private void ShowEssentialActionNotification(string title, string message, NotificationType type, FeedbackToastAction[] actions,
+        string? context = null, [CallerMemberName] string operation = "ui") =>
+        ShowNotificationCore(title, message, type, context, operation, actions: actions, essential: true);
+
+    // WV12: deliberately not queued at startup and not subject to ToastDuration.Action's ten-second floor.
+    // The caller owns an occurrence lease; every kind of close (expiry, eviction, CloseAll, explicit dismissal) revokes it.
+    private FeedbackToastContent? ShowTransientActionNotification(string title, string message, TimeSpan duration,
+        FeedbackToastAction[] actions, Action onClose)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (_allowClose || _isClosing || !_hasOpened || duration <= TimeSpan.Zero
+            || !SessionFeedbackStore.AllowsPopup(_config, FeedbackCategory.Information)) return null;
+        RememberFeedbackReturnTarget(FocusManager?.GetFocusedElement());
+        FeedbackToastContent content = new(title, message, null, toast =>
+        {
+            onClose();
+            if (toast.IsKeyboardFocusWithin) RestoreFeedbackDismissFocus();
+            _notificationManager.Close(toast);
+        }, actions);
+        _notificationManager.Show(content, NotificationType.Information, duration, onClose: () =>
+        {
+            onClose();
+            if (content.IsKeyboardFocusWithin) RestoreFeedbackDismissFocus();
+        });
+        return content;
+    }
+
     // Separate helper preserves the five-parameter reflection entry point. Future structured
     // owners may supply a fault key, but disappearance/text changes never imply recovery.
     private void ShowNotificationCore(string title, string message, NotificationType type,
-        string? context, string operation, string? faultKey = null)
+        string? context, string operation, string? faultKey = null, IReadOnlyList<FeedbackToastAction>? actions = null, bool essential = false)
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Post(() => ShowNotificationCore(title, message, type, context, operation, faultKey));
+            Dispatcher.UIThread.Post(() => ShowNotificationCore(title, message, type, context, operation, faultKey, actions, essential));
             return;
         }
         if (_allowClose) return;
@@ -62,17 +99,19 @@ public partial class MainWindow
             if (_feedback.IsDismissed(entry)) return;
             _shellFeedback = entry;
             // Freeze the displayed identity in the command, not a mutable control's Tag/current ID.
-            Button dismiss = this.FindControl<Button>("ShellFeedbackDismissButton")!;
+            Button dismiss = ShellFeedbackDismissButton;
             WireFeedbackDismissGesture(dismiss);
             dismiss.Command = new DelegateCommand(() => DismissShellFeedback(entry));
-            TextBlock text = this.FindControl<TextBlock>("ShellActionError")!;
-            AutomationProperties.SetLiveSetting(text, SessionFeedbackStore.AllowsPopup(_config, category)
+            TextBlock text = ShellActionError;
+            AutomationProperties.SetLiveSetting(text, SessionFeedbackStore.ShowsPopup(_config, category, essential)
                 ? AutomationLiveSetting.Off : AutomationLiveSetting.Assertive);
+            // The icon shows the severity; the screen reader hears it as the first word of the live text (the visible text stays the message).
+            AutomationProperties.SetName(text, MeowChan.Desktop.Controls.WorkspaceBanner.AnnouncedText(type, message));
             text.Text = message;
-            this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.Type = type;
-            this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible = true;
+            ShellActionErrorBanner.Type = type;
+            ShellActionErrorBanner.IsVisible = true;
         }
-        PendingFeedback feedback = new(title, message, type, category, entry);
+        PendingFeedback feedback = new(title, message, type, category, entry, actions, essential);
         if (!_hasOpened) _startupNotifications.Enqueue(feedback);
         else RenderNotification(feedback);
     }
@@ -97,6 +136,7 @@ public partial class MainWindow
     {
         if (_feedbackDismissWired) return;
         _feedbackDismissWired = true;
+        InitializeNotificationMenu();
         // Remember where the user was working so closing feedback by keyboard can hand focus back.
         RememberFeedbackReturnTarget(FocusManager?.GetFocusedElement());
         AddHandler(GotFocusEvent, (_, e) => RememberFeedbackReturnTarget(e.Source), RoutingStrategies.Bubble, handledEventsToo: true);
@@ -148,7 +188,7 @@ public partial class MainWindow
                 card.Close(); // Closing a card never acknowledges another event.
             }
         if (_shellFeedback == null || !SessionFeedbackStore.SameOccurrence(_shellFeedback, entry)) return;
-        var banner = this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!;
+        var banner = ShellActionErrorBanner;
         // Only move focus when removing the focused banner, never on background publication.
         if (banner.IsKeyboardFocusWithin)
             RestoreFeedbackDismissFocus();
@@ -166,7 +206,7 @@ public partial class MainWindow
             target.Focus();
         // The earlier control is gone: continue in the page, never at the brand button first.
         else if (FocusManager?.TryMoveFocus(NavigationDirection.Next) != true)
-            this.FindControl<Button>("BrandAboutButton")!.Focus();
+            BrandAboutButton.Focus();
     }
 
     private WeakReference<Control>? _feedbackReturnTarget;
@@ -174,7 +214,7 @@ public partial class MainWindow
     {
         if (source is not Control control || !control.Focusable) return;
         // Focus inside the banner or a toast is the feedback surface itself, not a place to return to.
-        if (control.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.Banner or FeedbackToastContent or NotificationCard)) return;
+        if (control.GetSelfAndVisualAncestors().Any(v => v is MeowChan.Desktop.Controls.WorkspaceBanner or FeedbackToastContent or NotificationCard)) return;
         _feedbackReturnTarget = new WeakReference<Control>(control);
     }
 
@@ -184,7 +224,7 @@ public partial class MainWindow
     {
         // Presentation only: closing a toast is not acknowledgement or recovery.
         _notificationManager.CloseAll();
-        this.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible = false;
+        ShellActionErrorBanner.IsVisible = false;
         _shellFeedback = null;
     }
 
@@ -194,19 +234,24 @@ public partial class MainWindow
             && feedback.Entry?.Operation != "session.shutdown") return;
         // Pending startup items retain their captured identity even after diagnostics are cleared.
         if (feedback.Entry != null && _feedback.IsDismissed(feedback.Entry)) return;
-        if (_allowClose || !SessionFeedbackStore.AllowsPopup(_config, feedback.Category)) return;
+        if (_allowClose || !SessionFeedbackStore.ShowsPopup(_config, feedback.Category, feedback.Essential)) return;
         FeedbackToastContent content = new(feedback.Title, feedback.Message, feedback.Entry, toast =>
         {
             if (_allowClose) return;
             if (feedback.Entry != null) DismissShellFeedback(feedback.Entry);
             if (toast.IsKeyboardFocusWithin) RestoreFeedbackDismissFocus();
             _notificationManager.Close(toast);
-        });
+        }, feedback.Actions, CopyNotificationTextAsync, CloseAllNotifications);
         // Semi 12.1.0.1 has no template close button. Only the explicit content action acknowledges
         // a fault. Do not use onClose: expiry, max-item eviction and CloseAll also call it.
-        _notificationManager.Show(content, feedback.Type);
+        _notificationManager.Show(content, feedback.Type,
+            ToastDuration.For(feedback.Type, feedback.Title.Length + feedback.Message.Length, feedback.Actions is { Count: > 0 }));
     }
 }
+
+/// <summary>The single optional button of a toast. The label is already localized when the toast is shown.</summary>
+/// <summary>One action button of a toast. <paramref name="Icon"/> (a catalog icon file name) draws an icon before the label; the label stays the content, tooltip source and accessible name.</summary>
+internal sealed record FeedbackToastAction(string Label, Func<Task> Invoke, string? Icon = null);
 
 /// <summary>Small theme-independent toast content; expiry has no acknowledgement callback.</summary>
 internal sealed class FeedbackToastContent : Grid
@@ -215,33 +260,81 @@ internal sealed class FeedbackToastContent : Grid
     internal string Message { get; }
     internal SessionFeedback? Entry { get; }
     internal Button DismissButton { get; }
+    internal IReadOnlyList<Button> ActionButtons { get; }
+    internal Button? ActionButton => ActionButtons.Count > 0 ? ActionButtons[0] : null;
 
     private bool _attached;
+    private Task? _actionRun;
+    private readonly IReadOnlyList<FeedbackToastAction> _actions;
+    private readonly Action<FeedbackToastContent> _dismiss;
+    private readonly MeowChan.Desktop.Controls.ContextMenuHost? _menu;
 
-    internal FeedbackToastContent(string title, string message, SessionFeedback? entry, Action<FeedbackToastContent> dismiss)
+    /// <summary>The card's menu host (null for a toast built without the window's copy and close-all actions); read by tests.</summary>
+    internal MeowChan.Desktop.Controls.ContextMenuHost? MenuHost => _menu;
+
+    internal FeedbackToastContent(string title, string message, SessionFeedback? entry, Action<FeedbackToastContent> dismiss,
+        IReadOnlyList<FeedbackToastAction>? actions = null, Func<string, Task>? copyText = null, Action? dismissAll = null)
     {
+        _actions = actions ?? Array.Empty<FeedbackToastAction>();
+        _dismiss = dismiss;
         Title = title; Message = message;
         Entry = entry;
         Name = "FeedbackToastContent";
+        Classes.Add("toast-content"); // D1: arrival animation (WorkspaceStyles), absent under motion-off.
         ColumnDefinitions = new ColumnDefinitions("*,Auto");
         MaxWidth = 420;
         StackPanel text = new() { Spacing = 4 };
         text.Children.Add(new TextBlock { Text = title, FontWeight = Avalonia.Media.FontWeight.SemiBold,
             TextWrapping = Avalonia.Media.TextWrapping.Wrap });
-        text.Children.Add(new SelectableTextBlock { Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap });
+        SelectableTextBlock body = new() { Name = "FeedbackToastMessage", Text = message, TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            // The toast has one menu (below) for the whole card; the text's own copy/select-all menu would hide it. Ctrl+C still copies a selection.
+            ContextFlyout = null };
+        // The toast is the only announcement while the popup is allowed (the shell banner is then Off): errors interrupt,
+        // everything else (information such as the Danbooru watcher result, success, warnings) waits its turn.
+        AutomationProperties.SetLiveSetting(body, LiveSettingFor(entry));
+        text.Children.Add(body);
+        List<Button> buttons = new();
+        if (_actions.Count > 0)
+        {
+            WrapPanel row = new() { Orientation = Orientation.Horizontal, Margin = new Avalonia.Thickness(0, 4, 0, 0) };
+            for (int index = 0; index < _actions.Count; index++)
+            {
+                int chosen = index;
+                Button button = new()
+                {
+                    Name = index == 0 ? "FeedbackToastActionButton" : "FeedbackToastActionButton" + (index + 1),
+                    Content = _actions[index].Label, FontWeight = Avalonia.Media.FontWeight.SemiBold,
+                    MinHeight = 32, Padding = new Avalonia.Thickness(12, 2), Margin = new Avalonia.Thickness(0, 0, 8, 0),
+                    Command = new DelegateCommand(() => _ = RunActionAsync(chosen))
+                };
+                button.Classes.Add("subtle");
+                AutomationProperties.SetName(button, _actions[index].Label);
+                if (_actions[index].Icon is { } icon) CommandBindings.ShowIconBeforeText(button, icon);
+                buttons.Add(button);
+                row.Children.Add(button);
+            }
+            text.Children.Add(row);
+        }
+        ActionButtons = buttons;
+        // The card has no peer of its own; the name lets a reader that enters the toast (dismiss button) hear what it says.
+        AutomationProperties.SetName(this, AccessibleName(title, message));
         Children.Add(new ScrollViewer { Content = text, MaxHeight = 160,
             HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
         DismissButton = new Button
         {
-            Name = "FeedbackToastDismissButton", Content = "×", FontSize = 20,
-            MinWidth = 32, MinHeight = 32, Padding = new Avalonia.Thickness(8, 2),
+            Name = "FeedbackToastDismissButton", Content = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close),
             Margin = new Avalonia.Thickness(8, 0, 0, 0), VerticalAlignment = VerticalAlignment.Top,
             Command = new DelegateCommand(() => dismiss(this))
         };
         DismissButton.Classes.Add("subtle");
+        DismissButton.Classes.Add(MeowChan.Desktop.Controls.WorkspaceIcons.SquareClass);
         LocalizeDismissButton();
         SetColumn(DismissButton, 1);
         Children.Add(DismissButton);
+        // Right-click, Menu key and Shift+F10 anywhere on the card: copy the text (the selection when there is one), dismiss, close all.
+        if (copyText != null && dismissAll != null)
+            _menu = new MeowChan.Desktop.Controls.ContextMenuHost(this, () => MeowChan.Desktop.NotificationMenu.Compose(title,
+                () => _ = copyText(string.IsNullOrEmpty(body.SelectedText) ? message : body.SelectedText), () => dismiss(this), dismissAll));
         AttachedToVisualTree += (_, _) =>
         {
             _attached = true;
@@ -250,6 +343,24 @@ internal sealed class FeedbackToastContent : Grid
         };
         DetachedFromVisualTree += (_, _) => { _attached = false; Texts.Changed -= OnLanguageChanged; };
     }
+
+    /// <summary>Runs one toast action, once for the whole toast; the toast closes afterwards, whether it worked or not.</summary>
+    internal Task RunActionAsync(int index = 0) => _actionRun ??= RunActionCoreAsync(index);
+
+    private async Task RunActionCoreAsync(int index)
+    {
+        if (index < 0 || index >= _actions.Count) return;
+        foreach (Button button in ActionButtons) button.IsEnabled = false;
+        try { await _actions[index].Invoke(); }
+        catch (Exception exception) { Serilog.Log.Warning(exception, "A toast action failed."); }
+        finally { _dismiss(this); }
+    }
+
+    internal static AutomationLiveSetting LiveSettingFor(SessionFeedback? entry) =>
+        entry?.Category == FeedbackCategory.Error ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite;
+
+    internal static string AccessibleName(string title, string message) =>
+        string.IsNullOrWhiteSpace(title) ? message : string.IsNullOrWhiteSpace(message) ? title : title.TrimEnd('.', ' ') + ". " + message;
 
     private void LocalizeDismissButton()
     {

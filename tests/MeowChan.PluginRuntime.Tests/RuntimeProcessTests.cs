@@ -7,6 +7,7 @@ using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginRuntime.Fixture;
 using MeowChan.PluginSdk;
+using MeowChan.TestSupport;
 using SdkThreadSnapshot = MeowChan.PluginSdk.ThreadSnapshot;
 
 namespace MeowChan.PluginRuntime.Tests;
@@ -23,7 +24,7 @@ public sealed class RuntimeProcessTests
         }
     }
     private static string Dotnet => Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "/usr/share/dotnet/dotnet";
-    private static PluginConfiguration Configuration => new("config1", new("1", []), new Dictionary<string, SettingsSnapshot> { ["fixture"] = new("1", []) });
+    private static PluginConfiguration Configuration => new("config1", new("1", []), new Dictionary<string, SettingsSnapshot> { ["fixture"] = new("1", []), ["danbooru"] = new("1", []) });
     private static PluginOperationContext Operation => new("fixture/b/1", 7);
     private static ThreadReadRequest Thread(string id = "1") => new(new("fixture", "b", id));
     private static PluginArtifact Artifact(IReadOnlyList<PluginArtifactResource>? resources = null, string? root = null)
@@ -33,8 +34,8 @@ public sealed class RuntimeProcessTests
     }
     private static PluginWorkerLaunch Launch(string workspace, string? fault = null)
     {
-        string worker = Path.Combine(Root, "MeowChan.PluginWorker/bin/Release/net10.0/MeowChan.PluginWorker.dll");
-        string fixture = Path.Combine(Root, "tests/MeowChan.PluginRuntime.Fixture/bin/Release/net10.0/MeowChan.PluginRuntime.Fixture.dll");
+        string worker = BuiltTestBinaries.WorkerAssembly();
+        string fixture = BuiltTestBinaries.AssemblyOf(Path.Combine("tests", "MeowChan.PluginRuntime.Fixture"));
         return new(Dotnet, fault == null ? [worker] : [fixture, fault], workspace);
     }
     [Fact]
@@ -51,6 +52,61 @@ public sealed class RuntimeProcessTests
         CatalogSnapshot catalog = Assert.IsType<CatalogSnapshot>(await worker.ReadCatalogAsync(new(new("fixture", "b")), Operation));
         Assert.Single(catalog.Snapshot.Threads);
         Assert.Empty(await worker.ValidateSettingsAsync(new(SettingScope.Plugin, new("1", []))));
+    }
+    [Fact]
+    public async Task BooruSearchRoundTripsThroughRealWorkerAndReturnsValidatedPage()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        BooruSearchSnapshot snapshot = Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("danbooru", "blue_sky rating:general", 1, 20), Operation));
+        Assert.Equal("blue_sky rating:general", snapshot.Page.Query); Assert.False(snapshot.Page.IsEnd);
+        Assert.Equal(["101", "102"], snapshot.Page.Posts.Select(post => post.Id.PostId));
+        Assert.All(snapshot.Page.Posts, post => Assert.Equal("danbooru", post.Id.SourceId));
+        Assert.Equal([BooruMediaRole.Original, BooruMediaRole.Preview], snapshot.Page.Posts[0].Media!.Select(media => media.Role));
+        Assert.Equal(4, snapshot.Page.Posts[0].Media![0].ExpectedSize);
+        Assert.Single(Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("danbooru", "q", 2, 1), Operation)).Page.Posts);
+        Assert.True(Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("danbooru", "empty", 3, 10), Operation)).Page.IsEnd);
+        Assert.IsType<BooruSearchDeferred>(await worker.SearchBooruPostsAsync(new("danbooru", "deferred", 1, 10), Operation));
+        Assert.IsType<SdkThreadSnapshot>(await worker.ReadThreadAsync(Thread(), Operation));
+    }
+    [Fact]
+    public async Task BooruPostReadRoundTripsAndNotFoundIsExplicit()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        BooruPostSnapshot snapshot = Assert.IsType<BooruPostSnapshot>(await worker.ReadBooruPostAsync(new(new("danbooru", "42")), Operation));
+        Assert.Equal(new BooruPostId("danbooru", "42"), snapshot.Post.Id);
+        Assert.Equal("fixture_tag", Assert.Single(snapshot.Post.Tags!).Name);
+        BooruPostNotFound missing = Assert.IsType<BooruPostNotFound>(await worker.ReadBooruPostAsync(new(new("danbooru", "missing")), Operation));
+        Assert.Equal(404, missing.HttpStatusCode);
+    }
+    [Fact]
+    public async Task BooruResultsFromAnotherSourceAreRejectedByTheHostClient()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        PluginWorkerException search = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("danbooru", "foreign", 1, 10), Operation));
+        Assert.Equal("validation", search.Code); Assert.DoesNotContain("foreign", search.Message);
+        PluginWorkerException post = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadBooruPostAsync(new(new("danbooru", "foreign")), Operation));
+        Assert.Equal("validation", post.Code);
+        Assert.IsType<BooruSearchSnapshot>(await worker.SearchBooruPostsAsync(new("danbooru", "q", 1, 10), Operation));
+    }
+    [Fact]
+    public async Task BooruCallsOnASourceWithoutPostSearchAreRefusedBeforeAnyWorkerCall()
+    {
+        using Workspace workspace = new(); await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        string instance = worker.Identity.InstanceId;
+        PluginWorkerException search = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("fixture", "q", 1, 10), Operation));
+        Assert.Equal("capability", search.Code);
+        PluginWorkerException post = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadBooruPostAsync(new(new("fixture", "1")), Operation));
+        Assert.Equal("capability", post.Code);
+        Assert.Equal("capability", (await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("undeclared", "q", 1, 10), Operation))).Code);
+        // An invalid request never reaches the worker either.
+        Assert.Equal("validation", (await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("danbooru", "q", 0, 10), Operation))).Code);
+        Assert.Equal("validation", (await Assert.ThrowsAsync<PluginWorkerException>(() => worker.SearchBooruPostsAsync(new("danbooru", "a\u0001b", 1, 10), Operation))).Code);
+        Assert.Equal(instance, worker.Identity.InstanceId); Assert.Equal("ready", worker.Snapshot.State);
+        Assert.Single(Assert.IsType<CatalogSnapshot>(await worker.ReadCatalogAsync(new(new("fixture", "b")), Operation)).Snapshot.Threads);
     }
     [Fact]
     public async Task DescribeRequiresNoConfiguredSourceAndNoHostServices()
@@ -103,11 +159,19 @@ public sealed class RuntimeProcessTests
     public async Task UncooperativeTimeoutKillsProcessAndExplicitRetryUsesNewInstance()
     {
         using Workspace workspace = new();
-        await using PluginWorkerManager manager = new(new() { OperationTimeout = TimeSpan.FromMilliseconds(200), CancellationGrace = TimeSpan.FromMilliseconds(100) });
+        // The operation deadline is shared by the hanging call and the first call on the replacement
+        // process. A fresh worker pays cold start (JIT, pipes, process-tree setup), which on Windows
+        // CI can exceed a 200 ms deadline. Keep a short deadline with startup headroom;
+        // the elapsed assertion also bounds process cleanup, allowing for runner scheduling.
+        TimeSpan operationTimeout = TimeSpan.FromSeconds(2), grace = TimeSpan.FromMilliseconds(100);
+        await using PluginWorkerManager manager = new(new() { OperationTimeout = operationTimeout, CancellationGrace = grace });
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         int pid = worker.Snapshot.ProcessId!.Value; string instance = worker.Identity.InstanceId;
+        System.Diagnostics.Stopwatch clock = System.Diagnostics.Stopwatch.StartNew();
         PluginWorkerException exception = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("hang"), Operation));
+        clock.Stop();
         Assert.Equal("timeout", exception.Code);
+        Assert.InRange(clock.Elapsed, operationTimeout - TimeSpan.FromMilliseconds(50), operationTimeout + grace + TimeSpan.FromSeconds(8));
         await WaitExited(pid);
         await worker.RetryAsync();
         Assert.NotEqual(instance, worker.Identity.InstanceId);
@@ -173,12 +237,20 @@ public sealed class RuntimeProcessTests
     {
         using Workspace workspace = new();
         await using PluginWorkerManager manager = new(new() { MaximumConcurrentCalls = 1 });
-        using HttpClient transport = new(new StaticHandler());
+        StaticHandler handler = new();
+        using HttpClient transport = new(handler);
         using PluginHostHttp http = new(transport, new RequestPolicyState(), new FixturePlugin().Describe().Sources);
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
-        Stopwatch watch = Stopwatch.StartNew();
         ThreadDeferred deferred = Assert.IsType<ThreadDeferred>(await worker.ReadThreadAsync(Thread("http"), Operation));
-        Assert.True(deferred.RetryAt > DateTimeOffset.UtcNow.AddSeconds(20)); Assert.True(watch.Elapsed < TimeSpan.FromSeconds(5));
+        DateTimeOffset returned = DateTimeOffset.UtcNow;
+        // The handler asks for a 30 s cooldown once. The deferral carries the whole cooldown from the 429 answer, and the call
+        // came back with at least two thirds of it still to go: sitting out any real part of it (e.g. half) fails here,
+        // while only the time after the answer counts, not the worker start or request setup on a busy machine.
+        DateTimeOffset answered = Assert.IsType<DateTimeOffset>(handler.AnsweredAt);
+        Assert.Equal(1, handler.Requests);
+        Assert.True(deferred.RetryAt >= answered + StaticHandler.Cooldown - TimeSpan.FromSeconds(1), $"RetryAt {deferred.RetryAt:O} vs answer {answered:O}");
+        Assert.True(deferred.RetryAt - returned > StaticHandler.Cooldown * 2 / 3,
+            $"The call returned {returned - answered} after the 429 answer, with only {deferred.RetryAt - returned} of the cooldown left.");
         await using IPluginWorkerClient other = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         Assert.IsType<SdkThreadSnapshot>(await other.ReadThreadAsync(Thread(), Operation));
     }
@@ -255,10 +327,10 @@ public sealed class RuntimeProcessTests
         CancellableHttp http = new();
         await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
         Task<ThreadReadResult> call = worker.ReadThreadAsync(Thread(crash ? "background-crash" : "background"), Operation);
-        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await http.Started.Task.WaitAsync(HangGuard);
         if (crash) await Assert.ThrowsAsync<PluginWorkerException>(() => call);
         else Assert.IsType<SdkThreadSnapshot>(await call);
-        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await http.Cancelled.Task.WaitAsync(HangGuard);
     }
     [Fact]
     public async Task SharedTemporaryBudgetIsEnforcedEvenWithAnEmptyWorkerWorkspace()
@@ -290,7 +362,7 @@ public sealed class RuntimeProcessTests
         PluginWorkerLaunch delayed = Launch(workspace.Path, "delayed");
         delayed = delayed with { Arguments = delayed.Arguments.Concat([workspace.Path]).ToArray() };
         Task<IPluginWorkerClient> first = manager.StartAsync(delayed, Artifact(), Configuration, new Services());
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
         while (!File.Exists(Path.Combine(workspace.Path, "handshake.wait"))) await Task.Delay(10, timeout.Token);
         Task<PluginDescription> describe = manager.DescribeAsync(Launch(workspace.Path), Artifact(), timeout.Token);
         Task<IPluginWorkerClient> test = manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(), testWorker: true, cancellationToken: timeout.Token);
@@ -325,9 +397,9 @@ public sealed class RuntimeProcessTests
         DrainingHttp http = new();
         IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
         Task<ThreadReadResult> call = worker.ReadThreadAsync(Thread("http"), Operation);
-        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await http.Started.Task.WaitAsync(HangGuard);
         Task first = worker.DisposeAsync().AsTask();
-        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await http.Cancelled.Task.WaitAsync(TimeSpan.FromSeconds(30));
         try
         {
             Task second = worker.DisposeAsync().AsTask();
@@ -338,7 +410,7 @@ public sealed class RuntimeProcessTests
             Assert.Same(managerFirst, managerSecond);
             Assert.False(managerSecond.IsCompleted);
             http.Release.TrySetResult();
-            await Task.WhenAll(first, second, managerFirst, managerSecond).WaitAsync(TimeSpan.FromSeconds(5));
+            await Task.WhenAll(first, second, managerFirst, managerSecond).WaitAsync(TimeSpan.FromSeconds(30));
             Assert.Empty(manager.GetSnapshots());
             Assert.Empty(Directory.GetDirectories(workspace.Path));
         }
@@ -354,12 +426,12 @@ public sealed class RuntimeProcessTests
         await using IPluginWorkerClient first = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services(http));
         using CancellationTokenSource cancellation = new();
         Task<ThreadReadResult> call = first.ReadThreadAsync(Thread("http"), Operation, cancellation.Token);
-        await http.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
+        await http.Started.Task.WaitAsync(HangGuard);
         Task<IPluginWorkerClient> queued = manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
         Assert.False(queued.IsCompleted);
         cancellation.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
-        await using IPluginWorkerClient second = await queued.WaitAsync(TimeSpan.FromSeconds(2));
+        await using IPluginWorkerClient second = await queued.WaitAsync(HangGuard);
         Assert.IsType<SdkThreadSnapshot>(await second.ReadThreadAsync(Thread(), Operation));
         Assert.Equal("idle", first.Snapshot.State);
     }
@@ -390,7 +462,7 @@ public sealed class RuntimeProcessTests
     }
     private static async Task WaitExited(int pid)
     {
-        try { using Process process = Process.GetProcessById(pid); await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5)); }
+        try { using Process process = Process.GetProcessById(pid); await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(30)); }
         catch (ArgumentException) { }
     }
     private sealed class Workspace : IDisposable
@@ -411,12 +483,22 @@ public sealed class RuntimeProcessTests
         public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, PluginOperationContext operation, CancellationToken cancellationToken)
         { ImageReads++; return Task.FromResult(new ImageAssetChunk(offset, [1, 2, 3, 4], true)); }
     }
+    // Only a hang guard: the awaited signals end every wait, never this limit.
+    private static readonly TimeSpan HangGuard = TimeSpan.FromSeconds(30);
     private sealed class StaticHandler : HttpMessageHandler
     {
+        internal static readonly TimeSpan Cooldown = TimeSpan.FromSeconds(30);
+        private int _requests;
+        private long _answeredTicks;
+        internal int Requests => Volatile.Read(ref _requests);
+        internal DateTimeOffset? AnsweredAt => Interlocked.Read(ref _answeredTicks) is var ticks and > 0 ? new DateTimeOffset(ticks, TimeSpan.Zero) : null;
         protected override Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
+            Interlocked.Increment(ref _requests);
             HttpResponseMessage response = new(HttpStatusCode.TooManyRequests) { RequestMessage = request };
-            response.Headers.RetryAfter = new(System.TimeSpan.FromSeconds(30)); return Task.FromResult(response);
+            response.Headers.RetryAfter = new(Cooldown);
+            Interlocked.Exchange(ref _answeredTicks, DateTimeOffset.UtcNow.UtcTicks);
+            return Task.FromResult(response);
         }
     }
 }

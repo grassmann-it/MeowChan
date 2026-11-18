@@ -123,7 +123,7 @@ public class EightKunThread : BaseThread, IThread
                     if (file.Deleted) { attachments.Add(new CapturedAttachment(file.Position, null, IsDeleted: true)); continue; }
                     DownloadItem item = CreateMedia(file);
                     media.TryAdd(item.MediaIdentifier, item);
-                    attachments.Add(ProviderPostCapture.Attachment(item, file.Position));
+                    attachments.Add(ProviderPostCapture.Attachment(item, file.Position, file.Width, file.Height));
                 }
                 capturedPosts.Add(new CapturedPost(post.Id, post.Ordinal, (PostFieldPresence)post.Fields,
                     post.PostedAt, post.Subject, post.Author, post.Text, post.Deleted, attachments.AsReadOnly()));

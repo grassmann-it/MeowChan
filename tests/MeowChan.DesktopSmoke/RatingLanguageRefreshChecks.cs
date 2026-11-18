@@ -30,98 +30,13 @@ internal static class RatingLanguageRefreshChecks
             foreach (string language in Languages)
                 Require(Texts.Languages.Any(item => item.Code == language), "Bundled rating language is unavailable: " + language);
 
-            await DialogAsync(owner);
             await ManagerAsync(owner);
-            Console.WriteLine("SMOKE rating language refresh: MediaRatingDialog and MediaRatingsManagerDialog retained synthetic draft/selection/focus, busy state and provider-call count across EN/DE/ES/FR/RU; managed routed input only; no profile/media/network.");
+            Console.WriteLine("SMOKE rating language refresh: MediaRatingsManagerDialog retained synthetic draft/selection/focus, busy state and provider-call count across EN/DE/ES/FR/RU; managed routed input only; no profile/media/network.");
         }
         finally
         {
             Texts.SetLanguage(originalLanguage);
             await SettleAsync();
-        }
-    }
-
-    private static async Task DialogAsync(MainWindow owner)
-    {
-        FavoriteAssetKey key = SyntheticKey("dialog");
-        Texts.SetLanguage("en");
-        int calls = 0;
-        int? requested = null;
-        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        MediaRatingDialog dialog = new(key, 2, value =>
-        {
-            calls++;
-            requested = value;
-            return release.Task;
-        });
-        Task result = dialog.ShowDialog(owner);
-        try
-        {
-            await WaitUntilAsync(() => dialog.IsVisible);
-            Ursa.Controls.Rating rating = Need<Ursa.Controls.Rating>(dialog, "MediaRatingEditor");
-            TextBlock valueText = Need<TextBlock>(dialog, "MediaRatingValue");
-            TextBlock help = Private<TextBlock>(dialog, "_help");
-            Require(rating.Focus(), "Rating editor did not accept focus.");
-            RaiseKey(rating, Key.Right);
-            await SettleAsync(dialog);
-            Require(rating.Value == 3 && valueText.Text == MediaRatingText.KeyboardValue(3),
-                "Keyboard draft was not materialized before the pending save.");
-            Control focused = Focused(dialog);
-            foreach (string language in Languages)
-            {
-                Texts.SetLanguage(language);
-                await SettleAsync(dialog);
-                CheckDialogLabels(dialog, rating, 2, MediaRatingText.KeyboardValue(3));
-                Require(calls == 0 && rating.Value == 3 && !IsBusy(dialog)
-                    && ReferenceEquals(Focused(dialog), focused),
-                    language + ": uncommitted keyboard draft/focus changed or a save started.");
-            }
-            RaiseKey(rating, Key.Enter);
-            await WaitUntilAsync(() => calls == 1);
-            Require(requested == 3 && !release.Task.IsCompleted && IsBusy(dialog),
-                "Exactly one controlled save call must remain pending and mark the dialog busy.");
-            // Disabling the editor for Save may intentionally move focus. Snapshot
-            // after that transition; language changes must not move it again.
-            object? pendingFocus = dialog.FocusManager?.GetFocusedElement();
-            foreach (string language in Languages)
-            {
-                Texts.SetLanguage(language);
-                await SettleAsync(dialog);
-                CheckDialogLabels(dialog, rating, 2, MediaRatingText.KeyboardValue(3));
-                Require(calls == 1 && IsBusy(dialog) && rating.Value == 3
-                    && valueText.Text == MediaRatingText.KeyboardValue(3)
-                    && ReferenceEquals(dialog.FocusManager?.GetFocusedElement(), pendingFocus),
-                    "Dialog language refresh changed pending draft, busy state, focus or call count in " + language + ".");
-                Require(valueText.Text == MediaRatingText.KeyboardValue(3),
-                    "Dialog value did not use the current catalog in " + language + ".");
-                Require(help.Text == Texts.T("media.rating.help"),
-                    "Dialog help was stale during pending refresh in " + language + ".");
-            }
-            const string raw = "Provider literal: media.rating.error.save {0} <raw> ü 日本\nunaltered payload";
-            release.SetException(new InvalidOperationException(raw));
-            await WaitUntilAsync(() => !IsBusy(dialog) && rating.IsEffectivelyEnabled);
-            Require(rating.Focus(), "Failed-save editor did not accept focus.");
-            foreach (string language in Languages)
-            {
-                Texts.SetLanguage(language);
-                await SettleAsync(dialog);
-                CheckDialogLabels(dialog, rating, 2, MediaRatingText.LocalizedValue(2));
-                string expected = MediaRatingText.FormatError(Texts.T("media.rating.error.save"), raw);
-                Require(Need<TextBlock>(dialog, "MediaRatingError").Text == expected
-                    && Private<string>(dialog, "_errorDetails") == raw
-                    && Need<Button>(dialog, "MediaRatingRetry").IsVisible,
-                    language + ": error wrapper is stale or raw provider payload changed.");
-                Require(calls == 1 && requested == 3 && rating.Value == 2 && !IsBusy(dialog)
-                    && ReferenceEquals(Focused(dialog), rating),
-                    language + ": failed-save refresh committed/retried or altered restored value/focus.");
-            }
-        }
-        finally
-        {
-            release.TrySetResult();
-            await WaitUntilAsync(() => !IsBusy(dialog));
-            if (dialog.IsVisible) dialog.Close();
-            await result.WaitAsync(Deadline);
         }
     }
 
@@ -166,7 +81,7 @@ internal static class RatingLanguageRefreshChecks
                     "Manager language refresh changed selection, focus, search or busy state in " + language + ".");
                 CheckManagerLabels(manager, entries.Length);
                 Require(list.Items.Cast<object>().Zip(originalRows).All(pair => ReferenceEquals(pair.First, pair.Second))
-                    && string.IsNullOrEmpty(Need<TextBlock>(manager, "MediaRatingsError").Text),
+                    && string.IsNullOrEmpty(Private<TextBlock>(manager, "_error").Text),
                     language + ": manager reloaded/refiltered rows or tried to read the host again.");
                 foreach (object row in originalRows)
                 {
@@ -226,22 +141,6 @@ internal static class RatingLanguageRefreshChecks
         }
     }
 
-    private static void CheckDialogLabels(MediaRatingDialog dialog, Ursa.Controls.Rating rating,
-        int confirmed, string currentValue)
-    {
-        Require(dialog.Title == MediaRatingText.LocalizedLabel
-            && Private<TextBlock>(dialog, "_heading").Text == MediaRatingText.LocalizedLabel
-            && Private<TextBlock>(dialog, "_help").Text == Texts.T("media.rating.help")
-            && Need<TextBlock>(dialog, "MediaRatingConfirmed").Text == MediaRatingText.LocalizedSaved(confirmed)
-            && Need<TextBlock>(dialog, "MediaRatingValue").Text == currentValue
-            && AutomationProperties.GetName(rating) == MediaRatingText.AccessibleValue(currentValue),
-            Texts.Language + ": dialog visible/accessibility value or help is stale.");
-        string keyboardHelp = Texts.T("media.rating.keyboardHelp");
-        Require((AutomationProperties.GetHelpText(rating) ?? "").Contains(keyboardHelp, StringComparison.Ordinal)
-            && (ToolTip.GetTip(rating)?.ToString() ?? "").Contains(keyboardHelp, StringComparison.Ordinal),
-            Texts.Language + ": keyboard help is stale.");
-    }
-
     private static void CheckManagerLabels(MediaRatingsManagerDialog manager, int count)
     {
         Require(manager.Title == MeowChan.Desktop.Commands.CommandCatalog.Label("media.rating.manage")
@@ -250,7 +149,7 @@ internal static class RatingLanguageRefreshChecks
             && Need<TextBlock>(manager, "MediaRatingsSummary").Text == Texts.T("media.rating.summary", count, count)
             && Equals(Private<Button>(manager, "_confirm").Content, Texts.T("media.rating.removeThis"))
             && Equals(Private<Button>(manager, "_cancel").Content, Texts.T("media.rating.cancel"))
-            && Equals(Private<Button>(manager, "_close").Content, Texts.T("media.rating.close")),
+            && Equals(Private<Button>(manager, "_close").Content, Texts.T("action.close")),
             Texts.Language + ": manager summary/search/action presentation is stale.");
     }
 

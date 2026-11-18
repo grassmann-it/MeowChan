@@ -99,7 +99,7 @@ public sealed class ArchiveAttachmentMatchingTests
             Assert.Empty(MediaProvenanceText.Summary(fixture.Binding! with
                 { Acceptance = new(MediaAcceptanceKind.Strict, false, false, DateTimeOffset.UtcNow) }));
             ArchiveAssetRow row = new(fixture.Snapshot, fixture.Asset);
-            Assert.Equal((fixture.Asset.Length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB", row.Size);
+            Assert.Equal(SizeText.Format(fixture.Asset.Length), row.Size);
         }
         finally { Texts.SetLanguage(previous); }
     }

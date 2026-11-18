@@ -138,11 +138,12 @@ internal static partial class ArchiveSql
 
     private static void RequirePersistedMediaSchema(SqliteConnection connection, SqliteTransaction transaction)
     {
-        // The four persisted transfer tables keep their Schema10 shape in Schema11;
-        // Schema11 adds only the post attachment-presence column. Historical evidence
-        // readers therefore support exactly both headers, while future/older headers
-        // remain rejected before any row is decoded.
-        if (GetPragma(connection, "user_version", transaction) is not (10 or 11 or 12))
+        // The four persisted transfer tables keep their Schema10 shape through the
+        // additive later schemas. Historical evidence readers support every known
+        // current header, while future/older headers remain rejected before any row
+        // is decoded.
+        int version = GetPragma(connection, "user_version", transaction);
+        if (version < 10 || version > SchemaVersion)
             throw InvalidPersistedMedia();
     }
 

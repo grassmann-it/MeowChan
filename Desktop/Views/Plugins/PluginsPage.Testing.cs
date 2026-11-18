@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Compilation;
@@ -31,14 +32,21 @@ public partial class PluginsPage
 
     private void UpdateTestButtons()
     {
-        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsLoading = C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible = _busy;
-        if (_busy && _testStatusKey == null) C<TextBlock>("PluginTestStatus").Text = Texts.T("feedback.working");
+        // While the bundled repair review is open it owns the page operation: its own footer shows progress and its Close
+        // stops it, so the page shows neither a spinner nor a Cancel that the modal keeps out of reach.
+        bool reviewOpen = _busy && _migrationWindow is not null;
+        bool working = (_busy && !reviewOpen) || _sourceOperationBusy;
+        C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsLoading = C<Ursa.Controls.LoadingIcon>("PluginOperationLoading").IsVisible = working;
+        // Only the generic text is owned here: an operation's own result (_testStatusKey) is never erased. Once nothing runs,
+        // "Working…" goes away instead of staying behind after the operation ended.
+        if (_testStatusKey == null)
+            C<TextBlock>("PluginTestStatus").Text = working ? Texts.T("feedback.working") : reviewOpen ? Texts.T("plugins.repair.reviewOpen") : string.Empty;
         bool source = Selected?.SourcePath != null;
         SetAction("PluginBuild", source ? "plugins.unavailable" : "plugins.reason.noSource", source && _services != null);
         SetAction("PluginEdit", "plugins.reason.noSource", source);
         SetAction("PluginDefaultEditor", "plugins.reason.noSource", source);
-        C<Button>("PluginCancel").IsEnabled = _busy;
-        C<Button>("PluginCancel").IsVisible = _busy;
+        C<Button>("PluginCancel").IsEnabled = _busy && !reviewOpen;
+        C<Button>("PluginCancel").IsVisible = _busy && !reviewOpen;
         SetAction("PluginProbe", "plugins.reason.noTest", _tested is { } tested && IsCurrentTestedCandidate(tested) && tested.Description.Sources.Count > 0);
         C<TextBox>("PluginProbeUrl").IsEnabled = !_busy;
         SetAction("PluginEditorSave", "plugins.reason.noEditorStore", SaveEditorOptionsAsync != null);
@@ -47,7 +55,6 @@ public partial class PluginsPage
     }
     private async void OnSaveClick(object? sender, RoutedEventArgs e)
     {
-        _pluginSectionNavigation?.CancelPendingNavigation();
         if (_ended || _busy || _services == null || CurrentDraft is not { } draft || Selected is not { } entry || entry.PluginId == null) return;
         PluginConfiguration configuration = draft.Configuration(out IReadOnlyList<PluginConfigurationFieldError> errors);
         ShowFieldErrors(errors, focusFirstError: true);
@@ -67,11 +74,11 @@ public partial class PluginsPage
             }
             await _services.ProfileStore.SaveConfigurationAsync(entry.PluginId, draft.CandidateId, configuration, draft.ExpectedRevision, token);
             if (!Current(generation)) return;
-            _drafts.Remove(entry.Key); _renderedKey = null;
+            _drafts.Remove(entry.Key); _renderedKey = null; _savedNoticeKey = entry.Key;
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) { Error(exception.Message); focusSaveError = true; } }
+        catch (Exception exception) { if (Current(generation)) { ErrorFailure("plugins.error.save", exception); focusSaveError = true; } }
         finally
         {
             FinishOperation(generation);
@@ -87,7 +94,8 @@ public partial class PluginsPage
             IReadOnlyList<FieldValidationError> scoped = PluginConfigurationFieldError.ForScope(errors, scope);
             editor.ShowErrors(scoped);
         }
-        Error(errors.Count == 0 ? null : string.Join(Environment.NewLine, errors.Select(error => error.Error.Message)));
+        if (errors.Count == 0) Error(null);
+        else ErrorFailure("plugins.error.fields", string.Join(Environment.NewLine, errors.Select(error => error.Error.Message)));
         if (focusFirstError && errors.Count > 0) FocusFirstSettingError();
     }
     private static async Task<IReadOnlyList<PluginConfigurationFieldError>> ValidateInWorkerAsync(IPluginWorkerClient worker,
@@ -142,7 +150,7 @@ public partial class PluginsPage
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) { Error(exception.Message); SetTestStatus("plugins.testFailed"); } }
+        catch (Exception exception) { if (Current(generation)) { ErrorFailure("plugins.error.test", exception); SetTestStatus("plugins.testFailed"); } }
         finally
         {
             FinishOperation(generation);
@@ -168,11 +176,12 @@ public partial class PluginsPage
                     if (_ended || _selectedKey != entry.Key) return;
                     // The compiler reports the loader input. Never accept plugin-supplied executable strings.
                     try { await PluginEditorLauncher.OpenAsync(GetEditorOptions?.Invoke() ?? new(null, new[] { "{file}" }), file, diagnostic.Line ?? 1, diagnostic.Column ?? 1, _lifetime.Token); }
-                    catch (Exception error) { if (!_ended && _selectedKey == entry.Key) Error(error.Message); }
+                    catch (Exception error) { if (!_ended && _selectedKey == entry.Key) ErrorLocalized("plugins.editorFallback", error.Message); }
                 };
                 panel.Children.Add(location);
             }
         }
+        RefreshWorkViewPresentation();
     }
     private async void OnProbeClick(object? sender, RoutedEventArgs e) => await ProbeAsync();
     internal async Task ProbeAsync()
@@ -192,11 +201,12 @@ public partial class PluginsPage
             ToolState(tested.Key).Result = PluginProbePresentation.Capture(result);
             RenderPluginProbeResult();
             string formatted = C<TextBox>("PluginProbeResult").Text ?? string.Empty;
+            // The probe result is the plugin's own output for the URL the user entered; it stays verbatim.
             if (result is ThreadFailure or CatalogFailure) Error(formatted);
             SetTestStatus("plugins.probeFinished");
         }
         catch (OperationCanceledException) { }
-        catch (Exception exception) { if (Current(generation)) Error(exception.Message); }
+        catch (Exception exception) { if (Current(generation)) ErrorFailure("plugins.error.probe", exception); }
         finally { FinishOperation(generation); }
     }
     private void OnCancelClick(object? sender, RoutedEventArgs e)
@@ -218,6 +228,6 @@ public partial class PluginsPage
             (C<TextBox>("PluginEditorArguments").Text ?? "{file}").Replace("\r", string.Empty, StringComparison.Ordinal).Split('\n'));
         string? key = _selectedKey;
         try { _ = PluginEditorLauncher.CreateStartInfo(options, Selected?.SourcePath ?? "plugin.cs"); await SaveEditorOptionsAsync(options); }
-        catch (Exception exception) { if (!_ended && key == _selectedKey) Error(exception.Message); }
+        catch (Exception exception) { if (!_ended && key == _selectedKey) ErrorFailure("plugins.error.editorSave", exception); }
     }
 }

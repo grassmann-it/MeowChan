@@ -15,6 +15,7 @@ using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 
@@ -51,10 +52,29 @@ public partial class SavedArchiveSearchesDialog : Window
     private SavedArchiveSearch? Selected => List.SelectedItem as SavedArchiveSearch;
     internal bool Applied { get; private set; }
 
+    /// <summary>
+    /// Minimum window height: the eight wrapped footer actions, the header and a usable body fit together in the longest of
+    /// the 12 languages (SavedSearchesFooterBudgetTests). The step's own minimum is lower.
+    /// </summary>
+    internal const double MinimumHeight = 500;
+
     internal SavedArchiveSearchesDialog(DesktopSessionHost host, ArchivePage page, ArchiveSearchSpec? initialDefinition = null)
     {
-        InitializeComponent(); _host = host; _page = page; _initialDefinition = initialDefinition;
+        InitializeComponent();
+        // I1b: the secondary tools carry a catalog icon before their text (Apply, Delete, Close and the name editor stay text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(Button("SavedSearchRename"), "edit-2"); MeowChan.Desktop.Controls.IconButtons.WithText(Button("SavedSearchReplace"), "search"); MeowChan.Desktop.Controls.IconButtons.WithText(Button("SavedSearchReload"), "refresh-cw");
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize); the
+        // footer's eight actions need a little more height than the step's minimum in the longest languages.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
+        MinHeight = Math.Max(MinHeight, MinimumHeight);
+        DialogWindow.Wrap(this, modal: true);
+        DialogFooter.Fill(this.FindControl<Border>("DialogFrameFooter")!, Button("SavedSearchApply"),
+            new Control[] { Button("SavedSearchCreate"), Button("SavedSearchRename"), Button("SavedSearchReplace"), Button("SavedSearchDelete"),
+                Button("SavedSearchReload"), Button("SavedSearchRecover"), Button("SavedSearchClose") },
+            this.FindControl<ScrollViewer>("SavedSearchStatusHost"), statusAbove: true);
+        _host = host; _page = page; _initialDefinition = initialDefinition;
         _router = new CommandRouter(this);
+        AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("SavedSearchError")!, AutomationLiveSetting.Assertive);
         List.ItemTemplate = new FuncDataTemplate<SavedArchiveSearch>((entry, _) =>
         {
             string detail = entry == null ? "" : entry.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported") + " " + entry.UnsupportedReason;
@@ -69,6 +89,10 @@ public partial class SavedArchiveSearchesDialog : Window
         Wire("SavedSearchRename", "rename", () => Begin(EditKind.Rename), CanEditSelection);
         Wire("SavedSearchReplace", "replace", () => Begin(EditKind.Replace), () => CanEditSelection() && CanCapture());
         Wire("SavedSearchDelete", "delete", () => Begin(EditKind.Delete), CanEditSelection);
+        // Dead-affordance audit: a double click or Enter on a saved search applies it (the "Apply" button); a right-click, Menu key or Shift+F10 offers the
+        // footer's own actions for the selected search. Each runs the button's command, so it is refused exactly when the button is disabled.
+        ListRowActions.OnActivate(List, () => Invoke("SavedSearchApply"));
+        _rowMenu = ListRowActions.AttachMenu(List, ComposeRowMenu);
         Button("SavedSearchConfirm").Click += async (_, _) => await ConfirmAsync();
         Button("SavedSearchCancelEdit").Click += (_, _) => CancelEdit();
         Button("SavedSearchReload").Click += async (_, _) => await ReloadAsync();
@@ -82,8 +106,18 @@ public partial class SavedArchiveSearchesDialog : Window
         KeyDown += (_, e) =>
         {
             if (_router.Route(e)) return;
-            if (e.Key == Key.Escape) { e.Handled = true; if (_edit != EditKind.None) CancelEdit(); else Close(); }
+            // Enter in the name field is the keyboard form of the primary button (save or rename).
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && (_edit is EditKind.Create or EditKind.Rename)
+                && ReferenceEquals(e.Source, NameInput) && Button("SavedSearchConfirm").IsEnabled)
+            { e.Handled = true; _ = ConfirmAsync(); }
         };
+        // Escape leaves the editor first (a local cancel), then closes the dialog.
+        DialogEscape.Attach(this, tryCancelLocal: () =>
+        {
+            if (_edit == EditKind.None) return false;
+            CancelEdit();
+            return true;
+        });
         AddHandler(PointerPressedEvent, OnInitialFocusPointer, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(KeyDownEvent, OnInitialFocusKey, RoutingStrategies.Tunnel, handledEventsToo: true);
         AddHandler(GotFocusEvent, OnInitialFocusChanged, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -116,7 +150,7 @@ public partial class SavedArchiveSearchesDialog : Window
             _closed = true; _lifetime.Cancel(); CancelInitialFocus();
             _page.SearchStateChanged -= OnPageStateChanged; _host.StateChanged -= OnHostStateChanged; Texts.Changed -= OnLanguageChanged;
             foreach (IDisposable registration in _registrations) registration.Dispose();
-            _router.Dispose();
+            _router.Dispose(); _rowMenu?.Dispose();
         };
         SizeChanged += (_, _) => ArrangeWorkspace();
         Localize(); Refresh(); ArrangeWorkspace();
@@ -197,9 +231,7 @@ public partial class SavedArchiveSearchesDialog : Window
     }
     private void ArrangeWorkspace()
     {
-        Grid layout = (Grid)Content!;
-        layout.RowDefinitions[1].Height = _edit == EditKind.None ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
-        layout.RowDefinitions[3].Height = _edit == EditKind.None ? new GridLength(0) : new GridLength(1, GridUnitType.Star);
+        // Workspace and editor share the scrolling frame body; Refresh shows exactly one of them.
         bool stacked = ClientSize.Width < 580;
         Grid workspace = this.FindControl<Grid>("SavedSearchWorkspace")!;
         workspace.ColumnDefinitions = new(stacked ? "*" : "220,*");
@@ -209,6 +241,31 @@ public partial class SavedArchiveSearchesDialog : Window
     }
     internal void CloseForLifetime() { if (_closed) return; _closingAccepted = true; _lifetime.Cancel(); Close(); }
     private Button Button(string name) => this.FindControl<Button>(name)!;
+    private ContextMenuHost? _rowMenu;
+    /// <summary>The menu host of the saved searches list; read by tests.</summary>
+    internal ContextMenuHost? RowMenuHost => _rowMenu;
+
+    private bool CanInvoke(string name) => Button(name).Command is { } command && command.CanExecute(null);
+    private void Invoke(string name)
+    {
+        if (Button(name).Command is { } command && command.CanExecute(null)) command.Execute(null);
+    }
+
+    /// <summary>The menu of the selected saved search as it would open now (null without one, or while an editor is open); also the test seam.</summary>
+    internal ContextMenuBuilder? ComposeRowMenu()
+    {
+        if (_closed || Selected == null || _edit != EditKind.None) return null;
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Title ?? string.Empty);
+        void Entry(string id, string name) => menu.Command(id, () => Invoke(name), CanInvoke(name));
+        Entry("archive.saved-searches.apply", "SavedSearchApply");
+        menu.Section();
+        Entry("archive.saved-searches.rename", "SavedSearchRename");
+        Entry("archive.saved-searches.replace", "SavedSearchReplace");
+        menu.Section();
+        Entry("archive.saved-searches.delete", "SavedSearchDelete");
+        return menu;
+    }
+
     private void Wire(string name, string suffix, Action execute, Func<bool> canExecute)
     {
         string id = "archive.saved-searches." + suffix;
@@ -221,6 +278,41 @@ public partial class SavedArchiveSearchesDialog : Window
     }
     private bool Ready => _host.State == DesktopSessionState.Ready;
     private bool CanCapture() => _snapshot?.CanWrite == true && _page.CanSaveCurrentSearch;
+    // A disabled action explains itself: why nothing can be saved, or that a search must be selected first.
+    private string? UnavailableReason(string suffix) => UnavailableReason(_snapshot, suffix, Selected != null,
+        _page.CanSaveCurrentSearch, _page.AppliedSearchSpec != null);
+
+    // The store's own state comes first: with damaged, read-only or recovery-pending storage every write action is
+    // unavailable, and that is the reason, whatever is or is not selected. Applying a saved search needs no write.
+    internal static string? UnavailableReason(SavedArchiveSearchSnapshot? snapshot, string suffix, bool hasSelection,
+        bool canSaveCurrent, bool hasAppliedSearch)
+    {
+        if (snapshot == null) return null;
+        if (!snapshot.CanWrite && suffix is not "apply")
+        {
+            string readOnly = Texts.T("savedSearch.readonly", snapshot.Error ?? snapshot.State.ToString());
+            return snapshot.State == SavedSearchStoreState.RecoveryAvailable
+                ? readOnly + " " + Texts.T("savedSearch.prompt.Recover") : readOnly;
+        }
+        bool needsCapture = suffix is "save-current" or "replace";
+        bool needsSelection = suffix is not "save-current";
+        if (needsSelection && !hasSelection) return Texts.T("savedSearch.choose");
+        if (needsCapture && !canSaveCurrent)
+            return Texts.T(hasAppliedSearch ? "savedSearch.captureBlocked" : "savedSearch.noApplied");
+        return null;
+    }
+    private void UpdateUnavailableHints()
+    {
+        foreach ((string id, string suffix) in new[] { ("SavedSearchCreate", "save-current"), ("SavedSearchApply", "apply"),
+            ("SavedSearchRename", "rename"), ("SavedSearchReplace", "replace"), ("SavedSearchDelete", "delete") })
+        {
+            Button button = Button(id);
+            string tip = CommandBindings.Tooltip("archive.saved-searches." + suffix, button.IsEnabled ? null : UnavailableReason(suffix));
+            ToolTip.SetTip(button, tip);
+            ToolTip.SetShowOnDisabled(button, true);
+            AutomationProperties.SetHelpText(button, tip);
+        }
+    }
     private bool CanEditSelection() => _snapshot?.CanWrite == true && Selected != null;
     private bool HasNameChanges() => (_edit is EditKind.Create or EditKind.Rename || _edit == EditKind.Discard && (_discardedEdit is EditKind.Create or EditKind.Rename)) && (NameInput.Text ?? "") != _initialName;
     private void Begin(EditKind kind, ArchiveSearchSpec? frozen = null, bool focusEditor = true)
@@ -264,7 +356,7 @@ public partial class SavedArchiveSearchesDialog : Window
         this.FindControl<TextBlock>("SavedSearchConflictTitle")!.Text = Texts.T("savedSearch.conflictTitle");
         SavedArchiveSearch? current = _edit == EditKind.Create ? null : _snapshot!.Searches.FirstOrDefault(x => x.Id == _target);
         this.FindControl<TextBlock>("SavedSearchConflictCurrent")!.Text = _edit == EditKind.Create || _edit == EditKind.Recover
-            ? Texts.T("savedSearch.conflictList", _snapshot!.Searches.Count)
+            ? Texts.Count("savedSearch.conflictList", _snapshot!.Searches.Count)
             : current == null ? Texts.T("savedSearch.conflictDeleted")
             : Texts.T("savedSearch.conflictCurrent", current.Name,
                 current.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported"));
@@ -302,7 +394,7 @@ public partial class SavedArchiveSearchesDialog : Window
                 if (definition == null) return;
                 bool applied = await _page.ApplySearchSpecAsync(definition, _lifetime.Token);
                 if (_closed || _lifetime.IsCancellationRequested || !Ready) return;
-                if (!applied) { _edit = EditKind.None; RenderEditor(); Status(Texts.T("savedSearch.applyFailed")); return; }
+                if (!applied) { _edit = EditKind.None; RenderEditor(); Status(Texts.T("savedSearch.applyFailed"), error: true); return; }
                 Applied = true; _closingAccepted = true; Close(); return;
             }
             SavedArchiveSearchSnapshot result = kind switch
@@ -323,12 +415,13 @@ public partial class SavedArchiveSearchesDialog : Window
         catch (SavedSearchRevisionException error)
         {
             if (_closed) return;
-            _snapshot = error.Current; Render(target); _conflict = true; RenderEditor(); Status(Texts.T("savedSearch.conflict"));
+            _snapshot = error.Current; Render(target); _conflict = true; RenderEditor(); Status(Texts.T("savedSearch.conflict"), error: true);
             // Preserve frozen target/name/definition. Retry is explicitly against the reviewed revision.
             _revision = error.Current.Revision;
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message)); }
+        catch (ProfileBackupBlockedException blocked) { if (!_closed) Status(Texts.T("savedSearch.error", StoreBackupBlockedText.For(blocked)), error: true); }
+        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message), error: true); }
         finally
         {
             if (!_closed)
@@ -352,10 +445,12 @@ public partial class SavedArchiveSearchesDialog : Window
         {
             SavedArchiveSearchSnapshot result = await _host.LoadSavedArchiveSearchesAsync(_lifetime.Token);
             if (_closed || !Ready) return;
-            _snapshot = result; Render(selected); Status(result.Error == null ? Texts.T("savedSearch.hint") : Texts.T("savedSearch.readonly", result.Error));
+            _snapshot = result; Render(selected);
+            Status(result.Error == null ? Texts.T("savedSearch.hint") : Texts.T("savedSearch.readonly", result.Error), error: result.Error != null);
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message)); }
+        catch (ProfileBackupBlockedException blocked) { if (!_closed) Status(Texts.T("savedSearch.error", StoreBackupBlockedText.For(blocked)), error: true); }
+        catch (Exception error) { if (!_closed) Status(Texts.T("savedSearch.error", error.Message), error: true); }
         finally { if (!_closed) { _working = false; Refresh(); } }
     }
     private void Render(Guid? selected = null, int previous = -1)
@@ -371,9 +466,10 @@ public partial class SavedArchiveSearchesDialog : Window
         this.FindControl<Grid>("SavedSearchWorkspace")!.IsVisible = _edit == EditKind.None;
         ArrangeWorkspace();
         this.FindControl<TextBlock>("SavedSearchSelectionName")!.Text = Selected?.Name ?? "";
+        // Without a selection the detail pane says what to do next instead of staying blank.
         this.FindControl<TextBlock>("SavedSearchSelectionDefinition")!.Text = Selected is { } selected
             ? selected.Definition is { } spec ? SavedArchiveSearchDescription.Describe(spec, TagName) : Texts.T("savedSearch.unsupported") + " " + selected.UnsupportedReason
-            : "";
+            : _snapshot == null ? "" : Texts.T(_snapshot.Searches.Count == 0 ? "savedSearch.empty" : "savedSearch.choose");
         foreach (string id in new[] { "SavedSearchCreate", "SavedSearchApply", "SavedSearchRename", "SavedSearchReplace", "SavedSearchDelete" })
         {
             Button(id).IsVisible = _edit == EditKind.None;
@@ -388,8 +484,17 @@ public partial class SavedArchiveSearchesDialog : Window
         Button("SavedSearchRecover").IsEnabled = idle && _edit == EditKind.None;
         Button("SavedSearchConfirm").IsEnabled = idle && _edit != EditKind.None && !TargetDeletedByConflict && (_edit == EditKind.Apply || _edit == EditKind.Discard || _snapshot?.CanWrite == true || _edit == EditKind.Recover && _snapshot?.State == SavedSearchStoreState.RecoveryAvailable);
         Button("SavedSearchCancelEdit").Content = Texts.T(_working ? "savedSearch.cancelOperation" : _edit == EditKind.Discard ? "savedSearch.keepEditing" : "savedSearch.cancel");
+        UpdateUnavailableHints();
     }
-    private void Status(string text) => this.FindControl<TextBlock>("SavedSearchStatus")!.Text = text;
+    // Failures go to the local error strip between header and body; SavedSearchStatus keeps the
+    // same text for its existing readers, other outcomes stay in the footer status line.
+    private void Status(string text, bool error = false)
+    {
+        this.FindControl<TextBlock>("SavedSearchStatus")!.Text = text;
+        this.FindControl<TextBlock>("SavedSearchError")!.Text = error ? text : "";
+        this.FindControl<Border>("DialogFrameErrorStrip")!.IsVisible = error;
+        this.FindControl<ScrollViewer>("SavedSearchStatusHost")!.IsVisible = !error;
+    }
     private void OnPageStateChanged() => Dispatcher.UIThread.Post(() => { if (!_closed) Refresh(); });
     private void OnHostStateChanged() => Dispatcher.UIThread.Post(() => { if (!_closed) { if (!Ready) { CloseForLifetime(); } else Refresh(); } });
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (!_closed) { Localize(); Render(Selected?.Id); if (_edit != EditKind.None) RenderEditor(); } });
@@ -400,5 +505,6 @@ public partial class SavedArchiveSearchesDialog : Window
         foreach (var pair in new[] { ("SavedSearchCreate", "save-current"), ("SavedSearchApply", "apply"), ("SavedSearchRename", "rename"), ("SavedSearchReplace", "replace"), ("SavedSearchDelete", "delete") }) CommandBindings.Apply(Button(pair.Item1), "archive.saved-searches." + pair.Item2);
         Button("SavedSearchReload").Content = Texts.T("savedSearch.reload"); Button("SavedSearchRecover").Content = Texts.T("savedSearch.recover"); Button("SavedSearchClose").Content = Texts.T("savedSearch.close");
         AutomationProperties.SetName(List, Texts.T("savedSearch.title")); AutomationProperties.SetName(NameInput, Texts.T("savedSearch.name"));
+        UpdateUnavailableHints();
     }
 }

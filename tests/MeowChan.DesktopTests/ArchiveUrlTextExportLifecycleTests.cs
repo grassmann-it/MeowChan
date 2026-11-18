@@ -66,6 +66,53 @@ public sealed class ArchiveUrlTextExportLifecycleTests
     }
 
     [Fact]
+    public async Task CancelAfterWriteStartsKeepsDialogOutcomeVisibleAndDoesNotRetry()
+    {
+        var writer = Gate<UrlTextExportFileWriteResult>();
+        CancellationToken observed = default;
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int writes = 0;
+        using var operation = new UrlTextExportOperation(Plan(), () => Task.FromResult<string?>("target"),
+            (p, path, token) => { writes++; observed = token; entered.TrySetResult(); return writer.Task; }, default);
+
+        Task run = operation.ConfirmAsync();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Task cancel = operation.CancelAsync();
+
+        Assert.Equal("urltext.export.canceling", operation.StatusKey);
+        Assert.True(observed.IsCancellationRequested);
+        Assert.False(run.IsCompleted);
+        writer.SetResult(new UrlTextExportFileWriteResult(UrlTextExportFileWriteStatus.PartialRetained,
+            UrlTextExportFileWriteError.Canceled));
+        await cancel;
+
+        Assert.Equal("urltext.export.partialRetained", operation.StatusKey);
+        Assert.Equal(UrlTextExportFileWriteStatus.PartialRetained, operation.Result!.Status);
+        Assert.Equal(1, writes);
+        Assert.Same(run, operation.ConfirmAsync());
+    }
+
+    [Fact]
+    public async Task CancellationRequestDoesNotHideAWriterThatActuallySaved()
+    {
+        var writer = Gate<UrlTextExportFileWriteResult>();
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var operation = new UrlTextExportOperation(Plan(), () => Task.FromResult<string?>("target"),
+            (p, path, token) => { entered.TrySetResult(); return writer.Task; }, default);
+
+        Task run = operation.ConfirmAsync();
+        await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Task cancel = operation.CancelAsync();
+        writer.SetResult(new UrlTextExportFileWriteResult(UrlTextExportFileWriteStatus.Saved,
+            UrlTextExportFileWriteError.None));
+        await cancel;
+
+        Assert.Equal("urltext.export.saved", operation.StatusKey);
+        Assert.Equal(UrlTextExportFileWriteStatus.Saved, operation.Result!.Status);
+        Assert.True(run.IsCompletedSuccessfully);
+    }
+
+    [Fact]
     public async Task StartedWriteIsDrainedAndItsPartialResultRetainedWithoutStaleNotification()
     {
         var writer = Gate<UrlTextExportFileWriteResult>(); CancellationToken observed = default; int notifications = 0;

@@ -1,8 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
-using MeowChan.Plugins.Examples.Wizchan;
-using MeowChan.Plugins.Examples.Lainchan;
+using MeowChan.Plugins.Examples.VichanFamily;
 using MeowChan.Plugins.Examples.Kohlchan;
 
 namespace MeowChan.ExamplePlugins.Tests;
@@ -12,11 +11,11 @@ public sealed class WizchanPluginTests
     [Fact]
     public void DescriptionIsPassiveSdkOnlyAndDeclaresOnlyProvenRoutesAndGrants()
     {
-        PluginDescription description = new WizchanPlugin().Describe();
-        SourceDescription source = Assert.Single(description.Sources);
-        Assert.Equal("meowchan.source.wizchan", description.PluginId);
+        PluginDescription description = new VichanFamilyPlugin().Describe();
+        SourceDescription source = Assert.Single(description.Sources, s => s.SourceId == "wizchan");
+        Assert.Equal(VichanFamilyPlugin.PluginId, description.PluginId);
         Assert.Equal("wizchan", source.SourceId);
-        Assert.Empty(SdkValidation.ValidateDescriptions([new LainchanPlugin().Describe(), new KohlchanPlugin().Describe(), description]));
+        Assert.Empty(SdkValidation.ValidateDescriptions([new KohlchanPlugin().Describe(), description]));
         Assert.Empty(description.Settings.Fields);
         Assert.Empty(source.Settings.Fields);
         Assert.Equal(SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog | SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia, source.Capabilities);
@@ -30,10 +29,10 @@ public sealed class WizchanPluginTests
         Assert.Equal(RouteIdentifierKind.Decimal, thread.ThreadIdentifierKind);
         Assert.All(source.Routes, r => { Assert.Equal("wizchan.org", r.Host); Assert.False(r.AllowTitleSegment); Assert.False(r.LowercaseBoardId); });
         Assert.Equal(new HttpHostDeclaration("wizchan.org", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia), Assert.Single(source.HttpHosts));
-        string[] references = typeof(WizchanPlugin).Assembly.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
+        string[] references = typeof(VichanFamilyPlugin).Assembly.GetReferencedAssemblies().Select(a => a.Name!).ToArray();
         Assert.Contains("MeowChan.PluginSdk", references);
         Assert.DoesNotContain(references, name => name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
-        Assert.Single(typeof(WizchanPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
+        Assert.Single(typeof(VichanFamilyPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
         SourceDescription collision = source with { SourceId = "other-wizchan" };
         Assert.NotEmpty(SdkValidation.ValidateDescriptions([description, description with { PluginId = "other.wizchan", Sources = [collision] }]));
     }
@@ -250,8 +249,8 @@ public sealed class WizchanPluginTests
 
     private sealed class Harness
     {
-        internal WizchanPlugin Plugin { get; } = new();
-        internal SourceDescription Source => Plugin.Describe().Sources[0];
+        internal VichanFamilyPlugin Plugin { get; } = new();
+        internal SourceDescription Source => Plugin.Describe().Sources.Single(s => s.SourceId == "wizchan");
         internal SourceValidators Validators { get; } = new(EntityTag: "\"unaccepted\"");
         internal ThreadReadRequest ThreadRequest { get; } = new(new SourceThreadId("wizchan", "demo", "123"));
         internal CatalogReadRequest CatalogRequest { get; } = new(new SourceBoardId("wizchan", "demo"));

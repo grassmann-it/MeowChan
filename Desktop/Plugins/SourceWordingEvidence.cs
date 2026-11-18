@@ -7,7 +7,7 @@ namespace MeowChan.Desktop.Plugins;
 
 /// <summary>
 /// Host-owned presentation evidence for the seven bundled 1.0.3 Chan adapters.
-/// The exact complete-description hashes prevent a changed local candidate from inheriting the tier.
+/// The exact complete-description hashes (SDK 1.1.0 descriptions) prevent a changed local candidate from inheriting the tier.
 /// This wording confers neither operator approval nor execution authority.
 /// </summary>
 internal static class SourceWordingEvidence
@@ -18,19 +18,19 @@ internal static class SourceWordingEvidence
         new Dictionary<string, BundledChanSource>(StringComparer.Ordinal)
         {
             ["meowchan.source.sevenchan"] = new("sevenchan", "7chan",
-                "a46a883174b0e7ce192d8c9557766648678a6acd115b606047911df66e3429ef"),
+                "7bb3e64621ef69fc0944fb87705c352210b8e9c76d5fe0d9d9db82cb83949f81"),
             ["meowchan.source.bbwchan"] = new("bbwchan", "BBW-Chan",
-                "dfc8daeffa87c5621b66887a953d91d982fb0859d39e24e5d453ca32991004bb"),
+                "26fed55f213b5d771d3582c41cd4864ce155e56c5fbae7a1585f507094dc7865"),
             ["meowchan.source.anonimageboards"] = new("anonimageboards", "Anon Imageboards",
-                "bd008437c58ddc62f9cc93f26a4416a1a18144699c72580463bee0dd240015f8"),
+                "9d1327b848bd236e5cf3e545237a8ea345a6a858f5ec504986314707a7ed0ac6"),
             ["meowchan.source.eightchanmoe"] = new("eightchanmoe", "8chan.moe",
-                "0e4775c0617ad649ca56582580c0f715b12d44f5f45a99b44cbfa1d8a44093a6"),
+                "a4b2eb1161cd504850fffd8b3fe62f6a4162b6273091aaac970b7fa2203bd46f"),
             ["meowchan.source.gurocx"] = new("gurocx", "Guro.cx",
-                "cdeea3f6bc18d1ca76de46aa0ab5b99aa05e2974bf80558af2837b8102adb6e4"),
+                "c6dfedcef2bfca4770e71886804cbd68f183f087184c9199393802c901c5c06d"),
             ["meowchan.source.fchan"] = new("fchan", "Fchan",
-                "e18c7035769bd59ceeb35911e2e326b47154c5c93935515ff114be4a2f3a7dc2"),
+                "c4b1462cfe191bee12f8fa82934eef0c6b13b373be73c2df43cc7f02242bb628"),
             ["meowchan.source.capybarachan"] = new("capybarachan", "CapybaraChan",
-                "88fd438768fb3fd4ab30aee491c9f3bb41b460fad5f22c7072856ea487ee56f0")
+                "a03355430416a3f85e68a93417bfac61c70c9f0a01114794b5bc64268052d819")
         };
 
     internal static IReadOnlyList<SourceWordingMaintenanceEvidence> Maintenance(

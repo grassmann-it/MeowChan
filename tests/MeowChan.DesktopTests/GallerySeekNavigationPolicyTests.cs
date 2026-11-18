@@ -99,7 +99,7 @@ public sealed class GallerySeekNavigationPolicyTests
         var volume = new VolumeHost();
         foreach (Control control in new Control[] { seek, volume })
         {
-            var press = new KeyEventArgs { Source = control, Key = key };
+            var press = new KeyEventArgs { Source = control, Key = key, KeyModifiers = KeyModifiers.Shift };
             Assert.False(CommandBindings.Matches(press, command));
             Assert.True(CommandBindings.MatchesGalleryTransport(press, command, seek, volume));
             Assert.False(press.Handled); // Matching alone never invokes volume or consumes input.
@@ -109,7 +109,7 @@ public sealed class GallerySeekNavigationPolicyTests
             new SelectableTextBlock { Text = "Selected text", SelectionStart = 0, SelectionEnd = 1 },
             new TabControl(), new DataGrid() })
         {
-            var press = new KeyEventArgs { Source = control, Key = key };
+            var press = new KeyEventArgs { Source = control, Key = key, KeyModifiers = KeyModifiers.Shift };
             Assert.False(GalleryViewer.IsGalleryShortcutInput(press));
             Assert.False(CommandBindings.MatchesGalleryTransport(press, command, seek, volume));
             Assert.False(press.Handled);

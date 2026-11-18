@@ -10,6 +10,7 @@ using Avalonia.Automation;
 using Avalonia.VisualTree;
 using Avalonia.Threading;
 using System.Linq;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -24,7 +25,7 @@ public partial class ArchivePage
 
     private PaginationFocusOrigin? CapturePaginationFocusOrigin(PaginationButton button)
     {
-        Pagination navigation = Control<Pagination>("ArchiveResultsPagination");
+        Pagination navigation = ArchiveResultsPagination;
         TopLevel? owner = TopLevel.GetTopLevel(navigation);
         return owner?.FocusManager?.GetFocusedElement() is Control focused
             && focused.GetSelfAndVisualAncestors().Contains(button) ? new(owner, focused) : null;
@@ -32,7 +33,7 @@ public partial class ArchivePage
 
     private void InitializePaginationFocus()
     {
-        Pagination navigation = Control<Pagination>("ArchiveResultsPagination");
+        Pagination navigation = ArchiveResultsPagination;
         // Ursa updates/disables its next/previous button before raising
         // CurrentPageChanged. Capture the real focus before native activation.
         navigation.AddHandler(PointerPressedEvent, CapturePointer, RoutingStrategies.Tunnel);
@@ -115,7 +116,7 @@ public partial class ArchivePage
             bool success = await loading;
             if (success && origin != null) await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                Pagination navigation = Control<Pagination>("ArchiveResultsPagination");
+                Pagination navigation = ArchiveResultsPagination;
                 if (_ended || _busy || revision != _paginationNavigationRevision || request != _contentRequest
                     || focusChanged || !IsEffectivelyVisible || !IsEffectivelyEnabled
                     || !ReferenceEquals(TopLevel.GetTopLevel(navigation), origin.Owner)
@@ -128,7 +129,7 @@ public partial class ArchivePage
                     navigation.GetVisualDescendants().OfType<PaginationButton>().FirstOrDefault(button =>
                         button.Page == _listOffset / PageSize + 1 && !button.Classes.Contains(PaginationButton.PC_Left)
                         && !button.Classes.Contains(PaginationButton.PC_Right))?.Focus();
-                else Control<TextBox>("ArchiveSearchText").Focus();
+                else ArchiveScopedBox.Focus();
             }, DispatcherPriority.Loaded);
             return success;
         }
@@ -136,10 +137,11 @@ public partial class ArchivePage
     }
     private void UpdateSearchActions(bool ready)
     {
-        Control<WrapPanel>("ArchiveAppliedFilters").IsEnabled = ready;
-        Button retry = Control<Button>("ArchiveRetrySearch");
+        ArchiveAppliedFilters.IsEnabled = ready;
+        Button retry = ArchiveRetrySearch;
         retry.IsVisible = _retryList != null; retry.IsEnabled = ready && _retryList != null;
-        Pagination pagination = Control<Pagination>("ArchiveResultsPagination");
+        SyncSearchPanelGaps();
+        Pagination pagination = ArchiveResultsPagination;
         _updatingPagination = true;
         try
         {
@@ -147,6 +149,8 @@ public partial class ArchivePage
             pagination.PageSize = PageSize;
             pagination.CurrentPage = _listTotal > 0 ? _listOffset / PageSize + 1 : null;
             pagination.IsVisible = _listLoaded && ResultsPageCount(_listTotal) > 1;
+            // A new result total may choose a one-line footer again; paging within it keeps the layout.
+            ArchiveResultsRange.LayoutKey = _listTotal;
             pagination.IsEnabled = ready;
             foreach (PaginationButton button in pagination.GetVisualDescendants().OfType<PaginationButton>())
             {
@@ -163,8 +167,8 @@ public partial class ArchivePage
         finally { _updatingPagination = false; }
         // Ursa owns visible previous/next actions; keep old named buttons only as
         // hidden command adapters for existing command/smoke consumers.
-        Control<Button>("PreviousThreadsButton").IsVisible = false;
-        Control<Button>("NextThreadsButton").IsVisible = false;
+        PreviousThreadsButton.IsVisible = false;
+        NextThreadsButton.IsVisible = false;
         SearchStateChanged?.Invoke();
     }
     private async void OnResultsPageChanged(object? sender, Ursa.Controls.ValueChangedEventArgs<int> e)

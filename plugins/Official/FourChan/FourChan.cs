@@ -91,7 +91,8 @@ public sealed class FourChanPlugin : ISourcePlugin
                     post.PostedAt, post.Subject, post.Author, post.Text, SourceTextFormat.Html, post.Deleted,
                     (post.Fields & 32) != 0 ? post.Attachments.Select(file => new SourceAttachment(file.Position, file.Id,
                         Url: file.Url, OriginalFileName: file.FileName, Extension: file.Extension,
-                        ExpectedSize: file.Size, ExpectedMd5: file.Md5, IsDeleted: file.Deleted)).ToArray() : null)).ToArray(), response.Validators));
+                        ExpectedSize: file.Size, ExpectedMd5: file.Md5, IsDeleted: file.Deleted)
+                        { Width = file.Width, Height = file.Height }).ToArray() : null)).ToArray(), response.Validators));
         }
         catch (Exception exception) when (exception is JsonException or InvalidDataException or ArgumentException or OverflowException or FormatException or InvalidOperationException)
         { return new ThreadFailure(request.Thread, new FailureDetail("invalid_metadata", "The thread response is invalid.")); }
@@ -108,7 +109,7 @@ public sealed class FourChanPlugin : ISourcePlugin
 internal static class FourChanParser
 {
     internal sealed record Attachment(int Position, string? Id, Uri? Url = null, string? FileName = null,
-        string? Extension = null, long? Size = null, string? Md5 = null, bool Deleted = false);
+        string? Extension = null, long? Size = null, string? Md5 = null, int? Width = null, int? Height = null, bool Deleted = false);
     internal sealed record Post(string Id, int Ordinal, int Fields, DateTimeOffset? PostedAt, string? Subject,
         string? Author, string? Text, bool Deleted, IReadOnlyList<Attachment> Attachments);
     internal sealed record ThreadData(string? Title, bool Archived, IReadOnlyList<Post> Posts);
@@ -197,7 +198,9 @@ internal static class FourChanParser
         if (extension.Length is < 2 or > 33 || extension[0] != '.' || !extension.AsSpan(1).ToArray().All(char.IsAsciiLetterOrDigit))
             throw new InvalidDataException("Invalid media extension.");
         attachments.Add(new Attachment(position, id, new Uri($"https://i.4cdn.org/{board}/{id}{extension}"),
-            (filename ?? "unknown") + extension, extension, Number(file, "fsize"), Text(file, "md5")));
+            (filename ?? "unknown") + extension, extension, Number(file, "fsize"), Text(file, "md5"),
+            Number(file, "w") is long width ? checked((int)width) : null,
+            Number(file, "h") is long height ? checked((int)height) : null));
     }
 
     private static bool Has(JsonElement element, string name) => element.TryGetProperty(name, out _);

@@ -1,5 +1,8 @@
 <p align="center">
-  <img src="Assets/meowchan.png" alt="MeowChan cat logo" width="256">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="Assets/meowchan-dark.png">
+    <img src="Assets/meowchan.png" alt="MeowChan cat logo" width="256">
+  </picture>
 </p>
 
 <h1 align="center">MeowChan</h1>
@@ -159,7 +162,7 @@ Separately, **Scan clipboard for URLs** is an optional setting under Settings �
 
 Use **Copy URL** for a single row or **Copy all URLs** for every watched thread and board, regardless of the selected tab. The copied list contains one URL per line and can be imported again.
 
-Double-click a thread row to open the large reader. Shift+Enter or the context menu opens its gallery. Board rows open details. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
+Double-click a thread row to open the large reader. Shift+Enter or the context menu opens its gallery. Board rows open details; a double-click on a saved-media row or tile in Archive or on a tile of the Media page opens the gallery at that item. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
 
 The header shows download speed from received media bytes, with a compact history graph in wider windows.
 
@@ -181,7 +184,7 @@ Use Shift/Ctrl (Command on macOS) multi-selection and
 context actions for selected watches/exports. Delete removes the selection. Enter
 and **Read posts** require exactly one selected thread. Shift+Enter opens the
 focused lead thread’s gallery. Inputs retain their own keys. In the Board list only,
-Ctrl/Cmd+Shift+R opens **Thread filters…** for the focused board.
+Ctrl/Cmd+Shift+F opens **Thread filters…** for the focused board.
 Board intake previews catalog threads by default, with literal title/opening-post
 filters, reasons and per-thread choices. Cancel leaves the whole pasted batch
 unadded. Removed board threads stay durably excluded until reactivated; filter
@@ -203,7 +206,7 @@ A large reader fills the work area with readable posts and embedded media; Up/Do
 
 In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the large reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
 
-**F** toggles the current gallery favorite; **P** toggles post context, **0** selects Fit and **1** selects 1:1. Stars also mark reader attachments and saved-media items. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
+**M** adds the current medium to the favorites, **U** removes it and **F** toggles it; **Shift+P** toggles post context, **0** selects Fit and **1** selects 1:1. Stars also mark reader attachments and saved-media items. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
 
 PNG, JPEG, GIF, WebP and BMP depend on decoder support. The gallery animates supported GIFs from verified originals, with pause/resume and zoom; other animated image formats use a still first-frame preview. GIF playback is limited to 64 MiB, 16 million source pixels and 1024 frames; damaged or over-limit GIFs are unavailable rather than silently played as stills. Other image previews are limited to 64 MiB and 80 million source pixels, with Fit buffers bounded to 16 million pixels. Missing, unsupported or unverifiable previews report a reason while saved originals remain on disk.
 
@@ -225,7 +228,7 @@ For a recognized earlier result, **New folder** keeps the previous copy and rema
 
 The SQLite catalog (`archive.db`) stays in the local profile; media folders may live on a NAS. Back up the complete profile and referenced media with the writer stopped. Current writers migrate archive schemas 1–3 to schema 4; passive readers can read schemas 1–4 without migration. V1 and V2 media manifests remain readable; new writes use V3, which binds attachment revisions to saved media and records provider metadata, local integrity values and acceptance evidence. Older binaries may not understand these formats. No downgrade path is promised; keep backups before upgrading.
 
-Rules select allowed filename extensions and a maximum file size. Each field inherits through Global → Source → Board → Thread, and the editor shows where its effective value comes from. Disabling an override restores inheritance. Sizes use decimal MB (1 MB = 1,000,000 bytes). Provider sizes guide preselection; media with unknown size are initially eligible. Downloaded bytes must also stay within the effective limit for that medium. Saving rules affects newly evaluated media; it does not automatically reconsider recorded selections/exclusions or alter existing files, including after restart.
+Rules select allowed filename extensions and a maximum file size. Each field inherits through Global → Source → Board → Thread, and the editor shows where its effective value comes from. Disabling an override restores inheritance. Sizes are entered in MiB (1 MiB = 1,048,576 bytes); a saved rule keeps its exact byte count, so an older 10 MB rule shows as 9.537 MiB. Provider sizes guide preselection; media with unknown size are initially eligible. Downloaded bytes must also stay within the effective limit for that medium. Saving rules affects newly evaluated media; it does not automatically reconsider recorded selections/exclusions or alter existing files, including after restart.
 
 Diagnostics shows current session warnings, request cooldowns and watch/media/storage failures. You can copy details and navigate to the affected watch. It reflects current snapshots, not a complete event history or a source-wide online test. The next-release passive evidence view explains observed failure facts and separates waiting from errors without adding network probes. See the [preview guide](docs/user-guide/passive-diagnostics.en.md) ([Deutsch](docs/user-guide/passive-diagnostics.md)), including the privacy limits of copied details.
 
@@ -272,3 +275,7 @@ If MeowChan helps you, you can voluntarily [support its development via PayPal](
 ## License
 
 The project uses Artistic License 2.0; see [LICENSE](LICENSE). Desktop dependency and asset notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
+Bundled fonts: Inter (via `Avalonia.Fonts.Inter`) for the interface and a Latin/Greek/Cyrillic subset of Noto Sans for post bodies; both are licensed under the SIL Open Font License 1.1, with the full text in the same file.
+
+Cat photos (Mila, grey; Simba, orange): [Alexander Huxel · Webentwicklung Huxel](https://webentwicklung-huxel.de/)
+([Flickr](https://flickr.com/people/204852984@N05/)).

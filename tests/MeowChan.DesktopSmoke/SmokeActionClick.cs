@@ -12,6 +12,15 @@ internal static class SmokeActionClick
         {
             if (button.IsEnabled && command.CanExecute(button.CommandParameter)) command.Execute(button.CommandParameter);
         }
-        else control.RaiseEvent(new RoutedEventArgs(control is MenuItem ? MenuItem.ClickEvent : Button.ClickEvent));
+        else if (control is MenuItem { Command: { } itemCommand } item)
+        {
+            if (item.IsEnabled && itemCommand.CanExecute(item.CommandParameter)) itemCommand.Execute(item.CommandParameter);
+        }
+        else control.RaiseEvent(new RoutedEventArgs(control switch
+        {
+            MenuItem => MenuItem.ClickEvent,
+            SplitButton => SplitButton.ClickEvent, // the main part of a split button (AP2 saved searches)
+            _ => Button.ClickEvent
+        }));
     }
 }

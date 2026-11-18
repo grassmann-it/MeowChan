@@ -229,11 +229,11 @@ public sealed class PostBookmarkStoreSnapshotTests
         string maxNote = string.Concat(Enumerable.Repeat("🙂", PostBookmarkStore.MaximumNoteCodepoints));
         File.WriteAllText(StorePath(temp.Path), Document(Entry.Replace(PrivateNote, maxNote)));
         Assert.Equal(maxNote, Assert.Single(PostBookmarkStore.ReadTransferSnapshot(temp.Path, lease).Bookmarks).Note);
-        var entries = Enumerable.Range(0, PostBookmarkStore.MaximumEntries).Select(index => new
+        var entries = Enumerable.Range(0, ProfileStoreLimits.BookmarkCeiling).Select(index => new
         { source = "synthetic", board = "b", thread = "10", post = index.ToString(), note = "" }).ToArray();
         File.WriteAllText(StorePath(temp.Path), JsonSerializer.Serialize(new { schemaVersion = 1, revision = 8, bookmarks = entries }));
         PostBookmarkTransferSnapshot maxEntries = PostBookmarkStore.ReadTransferSnapshot(temp.Path, lease);
-        Assert.Equal(PostBookmarkStore.MaximumEntries, maxEntries.Bookmarks.Count);
+        Assert.Equal(ProfileStoreLimits.BookmarkCeiling, maxEntries.Bookmarks.Count);
         File.WriteAllText(StorePath(temp.Path), JsonSerializer.Serialize(new
         { schemaVersion = 1, revision = 8, bookmarks = entries.Append(new { source = "synthetic", board = "b", thread = "10", post = "extra", note = "" }) }));
         Assert.Throws<InvalidDataException>(() => PostBookmarkStore.ReadTransferSnapshot(temp.Path, lease));

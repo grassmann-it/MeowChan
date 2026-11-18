@@ -9,6 +9,7 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
@@ -147,88 +148,64 @@ internal static partial class MediaRatingChecks
         Require(ReferenceEquals(liveTiles.SelectedItem, current), "ListBox did not select the current exact-key row");
         return await FocusSelectedAsync(liveTiles, current);
     }
-    private static async Task<MediaRatingDialog> OpenStar(ArchiveAssetRow row)
+    // Review 15.11.: the rating modal and the rating menu are gone. The archive rates through "Rate and tag" (the quick tag popover with the favourite and
+    // stars row on top); the checks open that real popover and press the real stars, like a keyboard or pointer user does.
+    private static async Task<QuickTagPopover> OpenRatingMenu(ArchiveAssetRow row)
     {
         await SelectAsync(row);
         Button edit = _page.FindControl<Button>("ArchiveEditRatingButton")!;
         await Program.WaitUntilAsync(() => edit.IsEnabled);
-        Click(edit, "Open production rating dialog for selected exact identity");
-        await Program.WaitUntilAsync(() => _window.OwnedWindows.OfType<MediaRatingDialog>().Any());
-        MediaRatingDialog dialog = _window.OwnedWindows.OfType<MediaRatingDialog>().Single();
-        await Program.WaitUntilAsync(() => dialog.IsVisible && Find<Ursa.Controls.Rating>(dialog, "MediaRatingEditor").IsEffectivelyVisible);
-        await AssertEditorRender(dialog, Rating(row) ?? 0, "initial confirmed rating");
-        await NativeFeatureCheckpoint.HoldAsync("rating-star", dialog, null, Find<Ursa.Controls.Rating>(dialog, "MediaRatingEditor"), Find<Button>(dialog, "MediaRatingClose"));
-        return dialog;
+        Click(edit, "Open the production Rate and tag popover for the selected exact identity");
+        QuickTagPopover? popover = null;
+        await Program.WaitUntilAsync(() => (popover = QuickTagPopover.Current) is { IsOpen: true, DecisionRow: not null });
+        Require(popover!.DecisionRow!.StarButtons.Count == 5 && popover.DecisionRow.ClearButton != null, "The popover must offer five stars and Remove rating");
+        return popover;
     }
-    private static Control Editor(Window dialog) => dialog is MediaRatingDialog
-        ? Find<Ursa.Controls.Rating>(dialog, "MediaRatingEditor") : Find<ComboBox>(dialog, "NumericRatingEditor");
-    private static string Prefix(Window dialog) => dialog is MediaRatingDialog ? "MediaRating" : "NumericRating";
-    private static double Draft(Window dialog) => Editor(dialog) is Ursa.Controls.Rating star ? star.Value : ((ComboBox)Editor(dialog)).SelectedIndex;
-    private static async Task Choose(Window dialog, int value)
+    private static Button RatingItem(QuickTagPopover popover, int? value) =>
+        value is { } star ? popover.DecisionRow!.StarButtons[star - 1] : popover.DecisionRow!.ClearButton;
+    private static async Task CloseRatingMenu(QuickTagPopover popover)
     {
-        await EditorReady(dialog);
-        int guard = 0;
-        while (Draft(dialog) != value && guard++ < 6)
-        {
-            double before = Draft(dialog);
-            Press(Editor(dialog), before < value ? Key.Right : Key.Left, "Choose draft " + (before < value ? before + 1 : before - 1));
-            await Task.Yield();
-        }
-        Require(Draft(dialog) == value, "Arrow input did not reach requested draft " + value);
-        await AssertEditorRender(dialog, value, "chosen draft");
-    }
-    private static async Task Commit(Window dialog, ArchiveAssetRow row, int value)
-    {
-        await Choose(dialog, value);
-        Press(Editor(dialog), Key.Enter, "Confirm draft " + value + " for " + row.Asset.OriginalFileName);
-        await Program.WaitUntilAsync(() => Rating(row) == value && Editor(dialog).IsEnabled);
-        await AssertEditorRender(dialog, value, "confirmed keyboard save");
-        Observe("Keyboard confirmation persisted exact identity at " + value, Rating(row) == value);
-    }
-    private static async Task Close(Window dialog)
-    {
-        Press(Editor(dialog), Key.Escape, "Dismiss rating dialog with Escape");
-        await Program.WaitUntilAsync(() => !dialog.IsVisible);
+        popover.Close();
+        await Program.WaitUntilAsync(() => !popover.IsOpen);
         await Task.Delay(70);
     }
-    private static async Task<Window> OpenAlternative(ArchiveAssetRow row, bool numeric)
+    // The checked star is the stored rating (none checked while unrated).
+    private static void RequireMenuShows(QuickTagPopover popover, int? rating, string phase)
     {
-        if (!numeric) return await OpenStar(row);
-        Log("Open test-only labelled numeric alternative on same key and MainWindow commit delegate", "test fixture window creation");
-        NumericRatingComparisonDialog dialog = new(KeyOf(row), Rating(row), value => _page.SetMediaRatingAsync!(KeyOf(row), value));
-        _ = dialog.ShowDialog(_window);
-        await Program.WaitUntilAsync(() => dialog.IsVisible);
-        await AssertEditorRender(dialog, Rating(row) ?? 0, "initial numeric confirmed rating");
-        await NativeFeatureCheckpoint.HoldAsync("rating-numeric", dialog, null, Find<ComboBox>(dialog, "NumericRatingEditor"), Find<Button>(dialog, "NumericRatingClose"));
-        return dialog;
+        int? checkedStar = Enumerable.Range(1, 5).Cast<int?>().SingleOrDefault(star => popover.DecisionRow!.StarButtons[star!.Value - 1].IsChecked == true);
+        Require(checkedStar == rating, phase + ": the popover checks " + (checkedStar?.ToString() ?? "no star") + " instead of " + (rating?.ToString() ?? "no star"));
+        Require(RatingItem(popover, null).IsEnabled == rating.HasValue, phase + ": Remove rating must be available exactly while the medium is rated");
     }
-    private static async Task CompareBasic(bool numeric)
+    private static async Task Pick(ArchiveAssetRow row, int? value)
+    {
+        QuickTagPopover menu = await OpenRatingMenu(row);
+        Button item = RatingItem(menu, value);
+        Click(item, value is { } star ? "Rate the exact identity " + star : "Remove the exact rating");
+        await Program.WaitUntilAsync(() => Rating(row) == value);
+        if (menu.IsOpen) await CloseRatingMenu(menu);
+        Observe("Menu choice persisted exact identity at " + (value?.ToString() ?? "unrated"), Rating(row) == value);
+    }
+    private static async Task CompareBasic()
     {
         ArchiveAssetRow row = Row(2);
         Log("Reset shared comparison identity to 3", "explicit fixture reset through same production host callback");
         await _page.SetMediaRatingAsync!(KeyOf(row), 3);
         string before = Digest(RatingPath);
-        Window dialog = await OpenAlternative(row, numeric);
-        await Choose(dialog, 4);
-        Observe("Draft is not written", Rating(row) == 3 && Digest(RatingPath) == before);
-        Program.CaptureWindow(dialog, numeric ? "smoke-rating-numeric-draft.png" : "smoke-rating-star-draft.png");
-        await Close(dialog);
-        Observe("Escape cancels draft with byte-identical ratings file", Rating(row) == 3 && Digest(RatingPath) == before);
-        dialog = await OpenAlternative(row, numeric);
-        await Commit(dialog, row, 4);
-        Click(Find<Button>(dialog, Prefix(dialog) + "Clear"), "Clear exact rating to unrated");
-        await Program.WaitUntilAsync(() => Rating(row) == null && Editor(dialog).IsEnabled);
-        await AssertEditorRender(dialog, 0, "confirmed Clear");
-        Observe("Clear means absent/unrated, never zero", Rating(row) == null);
-        await Commit(dialog, row, 1);
-        await Close(dialog);
+        QuickTagPopover menu = await OpenRatingMenu(row);
+        RequireMenuShows(menu, 3, "initial confirmed rating");
+        Program.CaptureWindow(_window, "smoke-rating-menu-open.png");
+        await CloseRatingMenu(menu);
+        Observe("Closing the menu without a choice leaves a byte-identical ratings file", Rating(row) == 3 && Digest(RatingPath) == before);
+        await Pick(row, 4);
+        await Pick(row, null);
+        Observe("Remove rating means absent/unrated, never zero", Rating(row) == null);
+        await Pick(row, 1);
     }
-    private static async Task CompareRetry(bool numeric)
+    private static async Task CompareRetry()
     {
         ArchiveAssetRow row = Row(4);
         Log("Reset retry comparison identity to 3", "explicit fixture reset through same production host callback");
         await _page.SetMediaRatingAsync!(KeyOf(row), 3);
-        Window dialog = await OpenAlternative(row, numeric);
         string backup = RatingPath + ".bak", parked = backup + ".comparison-parked";
         Log("Inject real durable-write failure at backup path", "disposable fixture filesystem mutation");
         if (File.Exists(backup)) File.Move(backup, parked);
@@ -236,24 +213,22 @@ internal static partial class MediaRatingChecks
         string before = Digest(RatingPath);
         try
         {
-            await Choose(dialog, 4);
-            Press(Editor(dialog), Key.Enter, "Attempt commit during durable write failure");
-            await Program.WaitUntilAsync(() => Find<Button>(dialog, Prefix(dialog) + "Retry").IsVisible && Editor(dialog).IsEnabled);
-            await AssertEditorRender(dialog, 3, "failed save restored confirmed rating");
-            Observe("Failed commit leaves durable value and confirmed control at 3", Rating(row) == 3 && Digest(RatingPath) == before && Draft(dialog) == 3);
-            Require(!string.IsNullOrWhiteSpace(Find<TextBlock>(dialog, Prefix(dialog) + "Error").Text), "Failure must be visible");
-            Program.CaptureWindow(dialog, numeric ? "smoke-rating-numeric-retry.png" : "smoke-rating-star-retry.png");
+            QuickTagPopover menu = await OpenRatingMenu(row);
+            Click(RatingItem(menu, 4), "Attempt a rating during the durable write failure");
+            await Task.Delay(300);
+            if (menu.IsOpen) await CloseRatingMenu(menu);
+            Observe("Failed write leaves the durable value at 3", Rating(row) == 3 && Digest(RatingPath) == before);
+            menu = await OpenRatingMenu(row);
+            RequireMenuShows(menu, 3, "after the failed write");
+            await CloseRatingMenu(menu);
         }
         finally
         {
             Directory.Delete(backup);
             if (File.Exists(parked)) File.Move(parked, backup);
         }
-        Click(Find<Button>(dialog, Prefix(dialog) + "Retry"), "Retry same frozen attempted value after restoring backup path");
-        await Program.WaitUntilAsync(() => Rating(row) == 4 && Editor(dialog).IsEnabled);
-        await AssertEditorRender(dialog, 4, "confirmed retry");
-        Observe("Retry commits original attempted 4", Rating(row) == 4 && Draft(dialog) == 4);
-        await Close(dialog);
+        // There is no retry button: the next choice of the same star tries again.
+        await Pick(row, 4);
     }
     private static void SetChoice(ComboBox combo, int index, string intent)
     { Log(intent, "real ComboBox SelectedIndex property (not native dropdown input)", combo); combo.SelectedIndex = index; }
@@ -335,25 +310,26 @@ internal static partial class MediaRatingChecks
                 return;
             }
             await DetachedShortcut();
-            // Mutate both versions through real dialog controls, restoring desired 1/5 after distinct intermediate values.
+            // Mutate both versions through the real rating menu, restoring desired 1/5 after distinct intermediate values.
             foreach ((int index, int interim, int final) in new[] { (0, 2, 1), (1, 4, 5) })
             {
-                MediaRatingDialog dialog = await OpenStar(Row(index)); await Commit(dialog, Row(index), interim); await Commit(dialog, Row(index), final); await Close(dialog);
+                await Pick(Row(index), interim); await Pick(Row(index), final);
             }
             Observe("Historical/current versions retain independent 1 and 5", Rating(Row(0)) == 1 && Rating(Row(1)) == 5);
-            // Order crossover: star/numeric for draft+clear; numeric/star for failure+retry, same key and initial state within each task.
-            await CompareBasic(false); await CompareBasic(true);
-            await CompareRetry(true); await CompareRetry(false);
-            // An initially unrated dialog creates Clear with CanExecute=false. Its first save must republish command availability.
-            MediaRatingDialog firstRating = await OpenStar(Row(15));
-            await Commit(firstRating, Row(15), 1);
-            Button newlyAvailableClear = Find<Button>(firstRating, "MediaRatingClear");
-            Require(newlyAvailableClear.IsEffectivelyEnabled, "First rating must make Clear genuinely available");
-            Click(newlyAvailableClear, "Clear first rating from initially unrated dialog");
-            await Program.WaitUntilAsync(() => Rating(Row(15)) == null && Editor(firstRating).IsEnabled);
-            Observe("Initially unrated dialog enables actual Clear after first save", Rating(Row(15)) == null);
-            await Close(firstRating);
-            MediaRatingDialog missingDialog = await OpenStar(Row(3)); await Commit(missingDialog, Row(3), 2); await Close(missingDialog);
+            await CompareBasic();
+            await CompareRetry();
+            // An initially unrated medium offers Remove rating disabled; after the first rating the menu offers it.
+            QuickTagPopover unratedMenu = await OpenRatingMenu(Row(15));
+            RequireMenuShows(unratedMenu, null, "initially unrated");
+            await CloseRatingMenu(unratedMenu);
+            await Pick(Row(15), 1);
+            QuickTagPopover firstRated = await OpenRatingMenu(Row(15));
+            RequireMenuShows(firstRated, 1, "first rating");
+            Click(RatingItem(firstRated, null), "Remove the first rating from the initially unrated medium");
+            await Program.WaitUntilAsync(() => Rating(Row(15)) == null);
+            if (firstRated.IsOpen) await CloseRatingMenu(firstRated);
+            Observe("Remove rating becomes available after the first save and removes it", Rating(Row(15)) == null);
+            await Pick(Row(3), 2);
             Observe("Missing local bytes do not prevent exact metadata rating", !File.Exists(Row(3).Asset.Path) && Rating(Row(3)) == 2);
             SetChoice(Filter, 1, "Filter unrated only"); Projection("Unrated projection", row => Rating(row) == null);
             SetChoice(Filter, 5, "Filter minimum 4"); Projection("Minimum 4 projection", row => Rating(row) >= 4);
@@ -375,10 +351,12 @@ internal static partial class MediaRatingChecks
             Click(_page.FindControl<Button>("ArchiveMediaMode")!, "Return to actual tiles view");
             await Task.Delay(100); CheckTileLabels();
             SetChoice(Filter, 5, "Filter minimum 4 for selection removal");
-            MediaRatingDialog excluded = await OpenStar(Row(8)); await Commit(excluded, Row(8), 1); await Close(excluded);
+            await Pick(Row(8), 1);
             Observe("Lowered item disappears without selecting replacement", !Visible().Contains(Row(8)) && Tiles.SelectedItem == null && Table.SelectedItem == null);
             Observe("Filter receives real focus after excluded selected item closes", ReferenceEquals(window.FocusManager?.GetFocusedElement(), Filter));
             await GalleryFreeze();
+            // AP6: the manager is reached from where ratings live (the archive rating row here, the Media page and the gallery menu elsewhere).
+            Observe("Archive rating row offers the saved-ratings manager", _page.FindControl<Button>("ArchiveManageRatingsButton") is { IsEnabled: true });
             await ManagerCancelFocus();
             Observe("Favorites byte-for-byte independent of ratings", Digest(Path.Combine(_profile, "media-favorites.json")) == favoritesBefore);
             Observe("Original files and absence unchanged", mediaBefore.All(pair => Digest(pair.Key) == pair.Value));
@@ -406,9 +384,10 @@ internal static partial class MediaRatingChecks
             Require(!Tiles.GetSelfAndVisualAncestors().Contains(_page), "Regression must target genuinely reparented reader pane");
             KeyGesture gesture = CommandBindings.Gesture("media.rating.edit")!;
             Require(Press(selected, gesture.Key, "Invoke configured rating edit on detached pane", gesture.KeyModifiers).Handled, "Detached shortcut not routed");
-            await Program.WaitUntilAsync(() => _window.OwnedWindows.OfType<MediaRatingDialog>().Any());
-            await Close(_window.OwnedWindows.OfType<MediaRatingDialog>().Single());
-            Observe("Configured shortcut reached real rating dialog outside ArchivePage visual ancestry");
+            QuickTagPopover? opened = null;
+            await Program.WaitUntilAsync(() => (opened = QuickTagPopover.Current) is { IsOpen: true, DecisionRow: not null });
+            await CloseRatingMenu(opened!);
+            Observe("Configured shortcut opened the real Rate and tag popover outside ArchivePage visual ancestry");
         }
         finally { await _window.SessionHost.ApplySettingsAsync(original); }
     }
@@ -430,10 +409,10 @@ internal static partial class MediaRatingChecks
         GalleryEntry[] entries = Field<List<GalleryEntry>>(_window, "_galleryEntries").ToArray();
         Require(order.SequenceEqual(entries.Select(entry => entry.Asset.AssetId)), "Gallery did not freeze visible order");
         int index = Field<int>(_window, "_galleryIndex");
-        Click(Find<Button>(viewer, "GalleryRating"), "Edit frozen current gallery identity");
-        await Program.WaitUntilAsync(() => _window.OwnedWindows.OfType<MediaRatingDialog>().Any());
-        MediaRatingDialog dialog = _window.OwnedWindows.OfType<MediaRatingDialog>().Single();
-        await Commit(dialog, Row(1), 1); await Close(dialog);
+        // The rating key of the gallery (Shift+1) goes through the viewer's own router, the same path as a keyboard user.
+        KeyGesture setOne = CommandBindings.Gesture("media.rating.set-1")!;
+        Press(viewer, setOne.Key, "Rate the frozen current gallery identity with its key", setOne.KeyModifiers);
+        await Program.WaitUntilAsync(() => Rating(Row(1)) == 1);
         Observe("Gallery membership/order/current frozen after current item leaves archive rating filter",
             entries.Select(e => e.EntryKey).SequenceEqual(Field<List<GalleryEntry>>(_window, "_galleryEntries").Select(e => e.EntryKey))
             && Field<int>(_window, "_galleryIndex") == index && viewer.CaptureState().Key?.AssetId == Row(1).Asset.AssetId);

@@ -17,9 +17,10 @@ public sealed class GalleryOverlayActivityTests
         ActiveWindow: true, Focused: false, Captured: false, Popup: false, Reading: false, Notice: false);
 
     [Theory]
+    // The default "Hide controls after" is 2000 ms (Config.ControlsIdleHideMs).
     [InlineData(0, false)]
-    [InlineData(499, false)]
-    [InlineData(500, true)]
+    [InlineData(1999, false)]
+    [InlineData(2000, true)]
     [InlineData(60000, true)]
     public void OnlyAnIdleOverlayMayHide(int milliseconds, bool expected) =>
         Assert.Equal(expected, Idle.CanHide(TimeSpan.FromMilliseconds(milliseconds)));
@@ -54,7 +55,7 @@ public sealed class GalleryOverlayActivityTests
     public void HoverProtectsOnlyItsPanelAndMouseFocusAloneIsNotKeyboardOwnership()
     {
         Assert.False((Idle with { Hovered = true }).CanHide(TimeSpan.FromSeconds(9)));
-        Assert.True(Idle.CanHide(TimeSpan.FromSeconds(1))); // caller maps pointer focus to Focused=false
+        Assert.True(Idle.CanHide(TimeSpan.FromSeconds(2))); // caller maps pointer focus to Focused=false
         Assert.False((Idle with { Focused = true }).CanHide(TimeSpan.FromSeconds(9)));
     }
 
@@ -307,13 +308,16 @@ public sealed class GalleryOverlayActivityTests
         Assert.Null(indicator.FocusAdorner);
         Assert.Equal(Colors.Transparent, Assert.IsAssignableFrom<ISolidColorBrush>(indicator.Background).Color);
         Assert.Equal(Colors.Transparent, Assert.IsAssignableFrom<ISolidColorBrush>(indicator.BorderBrush).Color);
-        // The complete custom template contains no theme presenter/border and no
-        // state setters that could restore a hover or pressed box.
+        // The complete custom template contains no theme presenter or state setters
+        // that could restore a hover or pressed box. The one transparent Border is
+        // intentional: it gives the full 44-DIP handle a native hit-test surface.
         Assert.Empty(indicator.Styles);
-        var glyph = Assert.Single(indicator.GetVisualChildren().OfType<TextBlock>());
+        Assert.Single(indicator.GetVisualChildren().OfType<Border>());
+        // The chevron is a drawn icon (P6), not the font glyphs "‹" / "⌃".
+        var glyph = Assert.Single(indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>());
         Assert.Empty(glyph.GetVisualChildren());
-        Assert.Equal(post ? "‹" : "⌃", glyph.Text);
-        byte alpha = Assert.IsAssignableFrom<ISolidColorBrush>(glyph.Foreground).Color.A;
+        Assert.Empty(indicator.GetVisualDescendants().OfType<TextBlock>());
+        byte alpha = Assert.IsAssignableFrom<ISolidColorBrush>(glyph.Stroke).Color.A;
         Assert.InRange(alpha, (byte)1, (byte)127);
         Assert.Equal(0, glyph.Opacity); // no initial/static hint
         Assert.True(indicator.IsHitTestVisible); // invisible artwork is not a lost touch target
@@ -342,8 +346,9 @@ public sealed class GalleryOverlayActivityTests
         Assert.Null(GetField(viewer, "_lastIndicatorMotion"));
         foreach (Button indicator in new[] { controls, post })
         {
-            Assert.Equal(0, Assert.Single(indicator.GetVisualChildren().OfType<TextBlock>()).Opacity);
-            Assert.True(indicator.IsHitTestVisible);
+            Assert.Equal(0, Assert.Single(indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()).Opacity);
+            Assert.False(indicator.IsHitTestVisible); // an undrawn hint takes no clicks (they reach the media); the keyboard stop stays
+            Assert.True(indicator.Focusable);
             Assert.Equal(44, indicator.Width);
             Assert.Equal(44, indicator.Height);
         }

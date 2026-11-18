@@ -36,6 +36,7 @@ public partial class MainWindow : Window
     private readonly HashSet<string> _knownWarnings = new HashSet<string>(StringComparer.Ordinal);
     private readonly Task _restoreTask;
     private TrayIcon? _trayIcon;
+    private IDisposable? _trayLogo;
     private TrayIcons? _applicationTrayIcons;
     private NativeMenuItem? _clipboardMenuItem;
     private DispatcherTimer? _trayHostMonitor;
@@ -52,11 +53,15 @@ public partial class MainWindow : Window
     private NativeMenuItem? _trayOpenItem;
     private NativeMenuItem? _trayFolderItem;
     private NativeMenuItem? _trayExitItem;
+    private NativeMenuItem? _trayPauseItem;
+    private NativeMenuItem? _trayUpdateItem;
+    private string _trayUpdateKey = string.Empty;
+    private bool? _trayPauseIconPaused;
     private IPlatformSettings? _trayPlatformSettings;
     private readonly Dictionary<string, Bitmap> _trayMenuIcons = new Dictionary<string, Bitmap>();
     private readonly List<AdmissionFeedback> _admissionResults = new List<AdmissionFeedback>();
 
-    private sealed record AdmissionFeedback(string Url, AdmissionStatus? Status, string? Error, bool Skipped = false);
+    private sealed record AdmissionFeedback(string Url, AdmissionStatus? Status, string? Error, bool Skipped = false, long? WatchId = null);
 
     public ObservableCollection<ThreadRow> UrlList { get; } = new ObservableCollection<ThreadRow>();
     public ObservableCollection<BoardRow> BoardsList { get; } = new ObservableCollection<BoardRow>();
@@ -65,24 +70,35 @@ public partial class MainWindow : Window
 
     internal MainWindow(DesktopSessionHost? session)
     {
-        try { InitializeComponent(); }
+        RecordStartupTiming(StartupTimingPoint.ConstructorBegin);
+        // The quick tag popover swallows the repeats of the key that opened it (R held a little long), so it must know which keys are down.
+        MeowChan.Desktop.Controls.QuickTagPopover.TrackHeldKeys();
+        try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.xaml")) InitializeComponent(); }
         catch
         {
             // A supplied session is already owned by this window, including a failed view construction.
             session?.DisposeAsync().AsTask().GetAwaiter().GetResult();
             throw;
         }
+        InitializeGlyphIcons();
         _session = session ?? new DesktopSessionHost();
         _config = _session.Config;
         InitializeStartupWindowSize();
         try
         {
-            Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
+            AttachStartupTiming();
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.texts-init")) Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
             Texts.SetLanguage(_config.Language);
             if (Application.Current != null)
             {
                 Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
+                MeowChan.Desktop.Theming.ThemeRuntime.ApplyOverrides(_config.ThemeOverrides); // TH2: the user's colours
             }
+            MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
+            // After the saved theme, so the first logo decoded is the one shown. The header has one
+            // theme-appropriate cat; the About window owns the documentation/credits pair.
+            ThemeLogo.Follow(this);
+            ThemeLogo.Follow(WorkspaceLogo, variant => WorkspaceLogo.Source = ThemeLogo.BitmapFor(variant));
             // Progress-only changes are spaced (first comparison variant of PF-03: 100 ms, background priority);
             // lifecycle, pause, warnings, watch-set and failure changes use RequestImmediate.
             _sessionRefresh = new CoalescedUiUpdate(RefreshSession, SessionProgressIntervalForTests);
@@ -94,42 +110,58 @@ public partial class MainWindow : Window
             Deactivated += OnGalleryActivationChanged;
 
             // The Add button is wired once in XAML. Enter uses that same action.
-            this.FindControl<TextBox>("UrlInput")!.AddHandler(KeyDownEvent,
+            UrlInput.AddHandler(KeyDownEvent,
                 OnUrlInputKeyDown, RoutingStrategies.Tunnel, handledEventsToo: true);
-            this.FindControl<MenuItem>("SettingsMenuItem")!.Click += OnSettingsMenuItemClick;
-            this.FindControl<MenuItem>("AboutMenuItem")!.Click += OnAboutMenuItemClick;
-            this.FindControl<MenuItem>("ExitMenuItem")!.Click += async (sender, e) => await CloseApplicationAsync();
-            this.FindControl<DataGrid>("ThreadsDataGrid")!.AddHandler(PointerPressedEvent,
+            SettingsMenuItem.Click += OnSettingsMenuItemClick;
+            AboutMenuItem.Click += OnAboutMenuItemClick;
+            ExitMenuItem.Click += async (sender, e) => await CloseApplicationAsync();
+            ThreadsDataGrid.AddHandler(PointerPressedEvent,
                 OnThreadPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
-            this.FindControl<DataGrid>("BoardsDataGrid")!.AddHandler(PointerPressedEvent,
+            BoardsDataGrid.AddHandler(PointerPressedEvent,
                 OnBoardPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
             AddHandler(KeyDownEvent, OnKeyDown, handledEventsToo: true);
 
             _notificationManager = new WindowNotificationManager(this)
             {
                 Position = NotificationPosition.TopRight,
-                Margin = new Thickness(0, 48, 0, 0),
+                Margin = new Thickness(0, WorkspaceMetrics.TitleBarHeight, 0, 0),
                 MaxItems = 3
             };
-            InitializeWorkspacePages();
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.pages")) InitializeWorkspacePages();
             InitializeReaderGroups(); // URSA-12 shared initialization hunk.
-            InitializeWorkspace();
+            using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.workspace")) InitializeWorkspace();
             RegisterReadingResumeCommand();
+            RegisterManualImportCommand();
+            InitializeProfileMenu();
+            ArrangeHeaderMenu(); // every part has inserted its entry by now: group them (Reading, Collection, App)
             RegisterReaderGroupCommands();
             RegisterPostBookmarkCommands();
-            RegisterSectionCommands();
-            RegisterRuleTemplateCommands();
+            RegisterTagQueueCommands();
+            // Section and rule-template registrations belong to pages built after the first frame
+            // (EnsureDeferredWorkspacePages installs them there).
+            RegisterTagAndFilterCommands();
             WireWorkspaceCommands();
             InitializeSelectionCommands();
+            InitializeStatusColumnRedundancy();
+            InitializeArchiveBridgeHint();
+            InitializeAdmissionProblemTools();
+            InitializeAdmissionFollowUp();
             Texts.Changed += OnLanguageChanged;
-            SetupTrayIcon();
+            RecordStartupTiming(StartupTimingPoint.TrayBegin);
+            try { using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.tray")) SetupTrayIcon(); }
+            finally { RecordStartupTiming(StartupTimingPoint.TrayEnd); }
             InitializeClipboardMonitor();
+            InitializeUrlDrop();
             Opened += OnMainWindowOpened;
             UpdateInteractionState();
+            // Pages no gate offers before the shell is interactive follow the first frame, one per pass.
+            Dispatcher.UIThread.Post(PumpDeferredWorkspacePages, DispatcherPriority.Background);
             _restoreTask = RestoreSessionAsync();
+            RecordStartupTiming(StartupTimingPoint.ConstructorEnd);
         }
         catch
         {
+            DetachStartupTiming();
             Texts.Changed -= OnLanguageChanged;
             _session.ProjectionPublished -= OnSessionChanged;
             _session.StartupPreviewChanged -= OnStartupPreviewChanged;
@@ -161,19 +193,22 @@ public partial class MainWindow : Window
 
     private void OnMainWindowOpened(object? sender, EventArgs e)
     {
+        RecordStartupTiming(StartupTimingPoint.Opened);
         Opened -= OnMainWindowOpened;
         _hasOpened = true;
         _mainWindowOpened.TrySetResult();
+        PlatformSummary.LogOnce(this);
         RefreshClipboardMonitor();
         TryOfferFirstRunSetup();
         RestoreWindowPreferences();
         BeginStartupWindowFit();
-        if (!string.IsNullOrWhiteSpace(_config.LoadWarning))
+        // The localized sentence names file names only; the technical detail stays in the log (Config.LoadWarning).
+        if (_config.LocalizedLoadWarning() is { } loadWarning)
         {
-            ShowNotification(Texts.T("notification.settings"), _config.LoadWarning, NotificationType.Warning, operation: "config.load");
+            ShowNotification(Texts.T("notification.settings"), loadWarning, NotificationType.Warning, operation: "config.load");
         }
 
-        if (EffectiveShortcutBindings.Build(_config.ShortcutBindings).Issues.Count > 0)
+        if (EffectiveShortcutBindings.Build(_config.ShortcutBindings).Issues.Any(EffectiveShortcutBindings.NeedsStartupWarning))
             ShowNotification(Texts.T("shortcuts.title"), Texts.T("shortcuts.warning"), NotificationType.Warning);
 
         foreach (string warning in Texts.Warnings)
@@ -214,6 +249,7 @@ public partial class MainWindow : Window
         // need neither plugins nor the registry can already be chosen; their own actions stay gated.
         bool earlyPages = navigationReady || EarlyPageChoice;
         UpdatePauseControls(ready && !WorkspaceEditorBusy);
+        RefreshTray();
         if (_postBookmarksMenu != null) _postBookmarksMenu.IsEnabled = navigationReady;
 
         if (_settingsEditor != null) _settingsEditor.IsAvailable = ready;
@@ -223,35 +259,45 @@ public partial class MainWindow : Window
             _archivePage.IsAvailable = ready;
             _archivePage.IsReadable = !_isClosing && _session.CatalogReadable;
         }
-        this.FindControl<Button>("AddUrlButton")!.IsEnabled = ready && !_importing;
-        this.FindControl<TextBox>("UrlInput")!.IsEnabled = ready;
-        this.FindControl<MenuItem>("SettingsMenuItem")!.IsEnabled = earlyPages;
-        this.FindControl<Button>("DownloadsNavigationButton")!.IsEnabled = earlyPages;
-        this.FindControl<Button>("SettingsNavigationButton")!.IsEnabled = earlyPages;
-        this.FindControl<Button>("ArchiveNavigationButton")!.IsEnabled = earlyPages;
+        AddUrlButton.IsEnabled = ready && !_importing;
+        ThreadsEmptyImportButton.IsEnabled = ready && !_importing;
+        BoardsEmptyImportButton.IsEnabled = ready && !_importing;
+        UrlInput.IsEnabled = ready;
+        SettingsMenuItem.IsEnabled = earlyPages;
+        DownloadsNavigationButton.IsEnabled = earlyPages;
+        SettingsNavigationButton.IsEnabled = earlyPages;
+        ArchiveNavigationButton.IsEnabled = earlyPages;
         // Media reads the catalog and media folders like Archive, but its index build waits for a ready session.
-        this.FindControl<Button>("MediaNavigationButton")!.IsEnabled = navigationReady;
+        MediaNavigationButton.IsEnabled = navigationReady;
+        BooruNavigationButton.IsEnabled = navigationReady && CanOpenBooru;
+        // The tagging page needs a ready session like the queue it shows; ShowTaggingPage also refuses while a reader or gallery is open.
+        TaggingNavigationButton.IsEnabled = navigationReady && _session.State == DesktopSessionState.Ready;
         if (_mediaPage != null) _mediaPage.IsAvailable = ready;
-        this.FindControl<Button>("RulesNavigationButton")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("SourcesNavigationButton")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("PluginsNavigationButton")!.IsEnabled = navigationReady;
+        RulesNavigationButton.IsEnabled = navigationReady;
+        SourcesNavigationButton.IsEnabled = navigationReady;
         RefreshReadingResumeState();
-        this.FindControl<MenuItem>("SourcesMenuItem")!.IsEnabled = navigationReady;
-        this.FindControl<MenuItem>("ArchiveMenuItem")!.IsEnabled = earlyPages;
-        this.FindControl<MenuItem>("MediaMenuItem")!.IsEnabled = navigationReady;
+        // The pages' entries of the footer's More menu (the ⋯ menu holds none): they follow their footer buttons.
+        SetMoreMenuItemEnabled("nav.sources", navigationReady);
+        SetMoreMenuItemEnabled("nav.archive", earlyPages);
+        SetMoreMenuItemEnabled("nav.media", navigationReady);
+        SetMoreMenuItemEnabled("nav.tagging", TaggingNavigationButton.IsEnabled && CanShowTaggingPage);
+        SetMoreMenuItemEnabled("nav.booru", BooruNavigationButton.IsEnabled);
         RefreshReaderGroupsEntry(); // URSA-12 shared session-readiness refresh.
-        this.FindControl<MenuItem>("RulesMenuItem")!.IsEnabled = navigationReady;
+        SetMoreMenuItemEnabled("nav.rules", navigationReady);
         bool diagnosticsReady = !WorkspaceCommandBusy
             && (_restoreCompleted || _session.Projection.View.State == DesktopSessionState.RecoveryFailed);
-        this.FindControl<Button>("DiagnosticsNavigationButton")!.IsEnabled = diagnosticsReady;
-        this.FindControl<Button>("ToolsNavigationButton")!.IsEnabled = diagnosticsReady;
-        this.FindControl<MenuItem>("DiagnosticsMenuItem")!.IsEnabled = diagnosticsReady;
+        // Status opens after a failed recovery too (its Diagnostics segment); its Statistics segment waits for the restore.
+        StatusNavigationButton.IsEnabled = diagnosticsReady;
+        ToolsNavigationButton.IsEnabled = diagnosticsReady;
+        SetMoreMenuItemEnabled("nav.status", diagnosticsReady);
+        _statusPage?.SetStatisticsAvailable(StatisticsSegmentAvailable);
         if (_clipboardMenuItem != null)
         {
             _clipboardMenuItem.IsEnabled = navigationReady && !_importing;
         }
-        this.FindControl<ComboBox>("WorkspaceModeComboBox")!.IsEnabled = navigationReady;
-        this.FindControl<Button>("ThemeToggleButton")!.IsEnabled = navigationReady;
+        WorkspaceModeComboBox.IsEnabled = navigationReady;
+        ThemeToggleButton.IsEnabled = navigationReady;
+        RefreshWorkViewMenu();
         RefreshDiagnosticPage();
         RefreshSourcesPage();
         RefreshWorkspace();
@@ -281,6 +327,7 @@ public partial class MainWindow : Window
                 epoch: projection.Epoch, revision: projection.Version,
                 value: (long)System.Diagnostics.Stopwatch.GetElapsedTime(projection.CapturedAtTimestamp).TotalMicroseconds);
         UpdatePauseControls(_restoreCompleted && !WorkspaceEditorBusy);
+        RefreshTray();
         NotifyNewWarnings(projection.View);
         RefreshWorkspaceStatusText();
         if (_galleryCoversWorkspace)
@@ -305,8 +352,38 @@ public partial class MainWindow : Window
             return;
         }
         _pendingSessionProjection = null;
-        BeginSessionRows(projection);
+        try { BeginSessionRows(projection); }
+        catch (Exception error)
+        {
+            AbandonSessionRows();
+            if (!UnhandledErrors.TryRecover(error, "session.rows")) throw;
+            return;
+        }
         ContinueSessionRows();
+    }
+
+    private const int MaxAbandonedRowFrameRetries = 3;
+    private int _abandonedRowFramesInARow;
+
+    // A failing frame (a row that cannot be built or updated) must not keep _sessionRowsApplying set: every row command
+    // (RowCommandBusy) and every list click guarded by it would stay a silent no-op for the rest of the session. The frame is
+    // dropped and the next projection rebuilds the rows from scratch.
+    private void AbandonSessionRows()
+    {
+        _applyingSessionProjection = null;
+        _appliedSessionProjection = null;
+        _threadReconciliation = null; _boardReconciliation = null;
+        _sessionRowsApplying = false;
+        _sessionRowsApplied?.TrySetResult();
+        _sessionRowsApplied = null;
+        if (_isClosing) return;
+        // Nothing else asks for the next frame: an idle session would keep the half-applied lists until the next engine event.
+        // The newest projection is read again by that frame, so the pending one is consumed. A frame that keeps failing is retried a few
+        // times only (a deterministic failure must not spin the UI thread); the next engine event starts a fresh frame anyway.
+        _pendingSessionProjection = null;
+        if (++_abandonedRowFramesInARow <= MaxAbandonedRowFrameRetries) _sessionRefresh.RequestImmediate();
+        try { RefreshClipboardMonitor(); RefreshWorkspace(); }
+        catch (Exception error) { Log.Warning(error, "The download lists could not be refreshed after a failed row update."); }
     }
 
     private void BeginSessionRows(DesktopSessionProjection projection)
@@ -318,7 +395,7 @@ public partial class MainWindow : Window
         CaptureDownloadSearchInput();
         _threadReconciliation = new(projection.View.Threads, _threadRows, UrlList,
             entry => entry.WatchId, row => row.WatchId,
-            entry => { ThreadRow row = new(entry); row.SetPaused(projection.IsPaused); return row; },
+            entry => { ThreadRow row = new(entry); row.SetPaused(projection.IsPaused); row.StatusColumnVisible = _statusColumnVisible; return row; },
             (row, entry) => { row.UpdateSnapshot(entry); row.SetPaused(projection.IsPaused); },
             row => { _threadFilterExclusions.Remove(row.WatchId); row.Dispose(); },
             projection.Epoch, projection.Version);
@@ -345,6 +422,16 @@ public partial class MainWindow : Window
     private void ContinueSessionRows()
     {
         if (_isClosing || !_sessionRowsApplying) return;
+        try { ContinueSessionRowsCore(); }
+        catch (Exception error)
+        {
+            AbandonSessionRows();
+            if (!UnhandledErrors.TryRecover(error, "session.rows")) throw;
+        }
+    }
+
+    private void ContinueSessionRowsCore()
+    {
         if (_galleryCoversWorkspace) { _sessionDirtyWhileCovered = true; return; }
         // Exactly one bounded plan step per callback, including filtering/reorder after both source plans.
         if (!_threadReconciliation!.IsCompleted)
@@ -363,6 +450,7 @@ public partial class MainWindow : Window
         _applyingSessionProjection = null;
         _threadReconciliation = null; _boardReconciliation = null;
         _sessionRowsApplying = false;
+        _abandonedRowFramesInARow = 0;
         // Re-enable an already offered batch when its row-command guard clears;
         // waiting for another clipboard poll would leave a stale disabled action.
         RefreshClipboardMonitor();
@@ -372,6 +460,7 @@ public partial class MainWindow : Window
         _sessionRowsApplied?.TrySetResult();
         _sessionRowsApplied = null;
         RefreshWorkspace();
+        TryRevealAdmittedWatch(); // DL-02: a watch that was added a moment ago may only now have its row
         _archivePage?.NotifyArchiveMediaCountsChanged();
         RefreshDiagnosticPage(complete.View); RefreshSourcesPage(complete.View);
         // Keep only the newest pending frame. Yield at a completed frame before beginning it, so inputs can
@@ -406,6 +495,8 @@ public partial class MainWindow : Window
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (_isClosing) return;
+            // Never let a restored session offer a page that has not been built yet.
+            EnsureDeferredWorkspacePages();
             RefreshSession();
             _restoreCompleted = _session.Projection.View.State == DesktopSessionState.Ready;
             if (!_restoreCompleted)
@@ -414,8 +505,13 @@ public partial class MainWindow : Window
                     Texts.T("restore.failure", _session.StartupError ?? string.Empty), NotificationType.Error, operation: "session.restore");
             }
             UpdateInteractionState();
+            RefreshWorkViewNotice();
+            NotifyFavoritesUnreadable();
             TryOfferFirstRunSetup();
         });
+        // The restore body has returned from its existing UI continuation, independently of any
+        // render observer. On an exception this remains unobserved, rather than inventing success.
+        RecordStartupTiming(StartupTimingPoint.ShellRestoreCompleted);
     }
 
     private bool _firstRunSetupScheduled;
@@ -432,7 +528,12 @@ public partial class MainWindow : Window
             {
                 FirstRunSetupRunResult result = await FirstRunSetupCoordinator.RunAsync(this, _session);
                 if (result.Outcome == FirstRunSetupOutcome.Completed && !_isClosing)
+                {
                     _settingsEditor?.RefreshConfirmedFirstRunSetup();
+                    // The window just closes: confirm where new downloads go.
+                    ShowNotification(Texts.T("notification.settings"), Texts.T("setup.done", _config.DownloadPath),
+                        NotificationType.Success, operation: "setup.done");
+                }
                 if (result.Outcome == FirstRunSetupOutcome.PreparationFailed && !_isClosing)
                     ShowNotification(Texts.T("notification.error"), result.Message ?? Texts.T("setup.prepareFailed"), NotificationType.Error, operation: "setup.prepare");
             }
@@ -450,12 +551,13 @@ public partial class MainWindow : Window
         try
         {
             DesktopAdmissionResult result = await _session.AddAsync(url);
-            _admissionResults.Add(new AdmissionFeedback(url, result.Status, null));
+            _admissionResults.Add(new AdmissionFeedback(url, result.Status, null, WatchId: result.WatchId));
             return result;
         }
         catch (Exception exception)
         {
-            Log.Error(exception, "Failed to add URL {Url}", url);
+            // A Danbooru address may carry a private search; it is not logged.
+            Log.Error(exception, "Failed to add URL {Url}", MeowChan.Booru.DanbooruAddress.RedactForLog(url));
             _admissionResults.Add(new AdmissionFeedback(url, null, exception.Message));
             return null;
         }
@@ -464,17 +566,19 @@ public partial class MainWindow : Window
     private async void OnAddUrl(object? sender, RoutedEventArgs e)
     {
         if (!_restoreCompleted || _isClosing || _importing || _applyingPreferences) return;
-        TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
+        TextBox urlInput = UrlInput;
         // Capture the Add button too, before the busy state disables it.
         using var focusReturn = new ExperimentalAdmissionFocusReturn(this, urlInput,
-            this.FindControl<Button>("AddUrlButton")!);
+            AddUrlButton);
         _experimentalAdmissionFocusReturn = focusReturn;
         string enteredText = urlInput.Text ?? string.Empty;
         bool accepted = false;
+        // DL-02: the user is adding in a row; after a successful Add the field stays the place to type the next address.
+        bool typingInField = urlInput.IsKeyboardFocusWithin || AddUrlButton.IsKeyboardFocusWithin;
         _importing = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             accepted = await SubmitInputAsync(enteredText);
             if (!string.IsNullOrWhiteSpace(enteredText) && accepted && urlInput.Text == enteredText)
             {
@@ -488,6 +592,7 @@ public partial class MainWindow : Window
             try
             {
                 if (!accepted) focusReturn.Restore();
+                else if (typingInField) KeepFocusInUrlField(urlInput);
             }
             finally
             {
@@ -497,21 +602,35 @@ public partial class MainWindow : Window
         }
     }
 
-    private async Task<bool> SubmitInputAsync(string? input, Action<Window>? observeExperimentalModal = null)
+    // The busy state disables the Add button, which drops the focus when it was clicked: give it back to the field, unless the user
+    // has moved on to another control meanwhile.
+    private void KeepFocusInUrlField(TextBox urlInput)
+    {
+        if (_isClosing || !urlInput.IsEffectivelyVisible || !urlInput.IsEffectivelyEnabled || !IsActive) return;
+        object? focused = FocusManager?.GetFocusedElement();
+        if (focused == null || ReferenceEquals(focused, AddUrlButton)) urlInput.Focus();
+    }
+
+    private async Task<bool> SubmitInputAsync(string? input)
     {
         if (!_restoreCompleted || _isClosing) return false;
+        NoteAdmissionStart();
         _admissionResults.Clear();
+        _admissionProblemsOnly = false;
+        _admissionRepairDismissed = false;
+        _admissionReveal.Cancel();
+        _admissionSubmittedInput = input;
         bool allAccepted = true;
         try
         {
-            allAccepted = await SubmitAdmissionBatchAsync(input, observeExperimentalModal);
-            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled)
+            allAccepted = await SubmitAdmissionBatchAsync(input);
+            if (_admissionResults.Count == 0 && !_isClosing && !_admissionBatchCanceled && !_admissionBooruOpened)
             {
                 bool fromClipboard = string.IsNullOrWhiteSpace(input);
                 ShowNotification(Texts.T(fromClipboard ? "clipboard.title" : "admission.results"),
                     Texts.T(fromClipboard ? "clipboard.empty" : "admission.empty"), NotificationType.Information, operation: "admission.empty");
             }
-            return allAccepted && _admissionResults.Count != 0;
+            return allAccepted && (_admissionResults.Count != 0 || _admissionBooruOpened);
         }
         catch (OperationCanceledException) when (_isClosing)
         {
@@ -519,8 +638,9 @@ public partial class MainWindow : Window
         }
         catch (DesktopSessionBusyException exception)
         {
-            ShowNotification(Texts.T("notification.error"), exception.Message, NotificationType.Error,
-                context: input, operation: "admission.busy");
+            Log.Warning(exception, "The session was busy while adding URLs.");
+            ShowNotification(Texts.T("notification.error"), Texts.T("admission.sessionBusy"), NotificationType.Error,
+                context: MeowChan.Booru.DanbooruAddress.RedactForLog(input), operation: "admission.busy");
             return false;
         }
         catch (Exception exception)
@@ -531,27 +651,38 @@ public partial class MainWindow : Window
         }
         finally
         {
-            if (!_isClosing) RefreshAdmissionResults();
+            if (!_isClosing)
+            {
+                RefreshAdmissionResults();
+                RequestAdmissionReveal();
+            }
         }
     }
 
     private void RefreshAdmissionResults()
     {
         string? repairSources = RefreshAdmissionRepair();
-        Border panel = this.FindControl<Border>("AdmissionResultsPanel")!;
-        StackPanel rows = this.FindControl<StackPanel>("AdmissionResultRows")!;
+        Border panel = AdmissionResultsPanel;
+        StackPanel rows = AdmissionResultRows;
         panel.IsVisible = _admissionResults.Count > 0;
         rows.Children.Clear();
         int added = _admissionResults.Count(item => item.Status == AdmissionStatus.Added);
         int duplicate = _admissionResults.Count(item => item.Status == AdmissionStatus.AlreadyPresent);
-        this.FindControl<TextBlock>("AdmissionResultsTitle")!.Text = Texts.T("admission.summary", added, duplicate, _admissionResults.Count - added - duplicate);
+        int rejected = _admissionResults.Count - added - duplicate;
+        AdmissionResultsTitle.Text = Texts.T("admission.summary", added, duplicate, rejected);
+        RefreshAdmissionProblemTools(rejected, _admissionResults.Count);
+        bool problemsOnly = _admissionProblemsOnly && rejected > 0 && rejected < _admissionResults.Count;
+        OfferArchiveBridgeHint(added);
+        // A URL that is already watched says where: one link per duplicate (the first few) selects its row. The links sit below the
+        // result line, so they work with the report collapsed.
+        RefreshAdmissionDuplicateLinks(problemsOnly);
         if (_admissionResults.Count == 0) return;
         // One selectable, scrollable report keeps large imports from creating a control per URL.
         TextBox report = new TextBox
         {
             Name = "AdmissionReport", IsReadOnly = true, AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap, MaxHeight = 150,
-            Text = string.Join(Environment.NewLine, _admissionResults.Select(item =>
+            Text = string.Join(Environment.NewLine, _admissionResults.Where(item => !problemsOnly || IsRejectedAdmission(item)).Select(item =>
             {
                 string key = item.Skipped ? "activation.skippedLabel" : item.Status switch
                 {
@@ -561,18 +692,55 @@ public partial class MainWindow : Window
                     AdmissionStatus.Unsupported => "admission.unsupported",
                     _ => "admission.failed"
                 };
-                return Texts.T(key) + " · " + item.Url + (item.Error == null ? string.Empty : " · " + item.Error);
+                return DesktopLog.RedactText(Texts.T(key) + " · " + item.Url + (item.Error == null ? string.Empty : " · " + item.Error));
             }))
         };
+        // The read-only report is a bare TextBox: without a name a screen reader announces only "edit, read only".
+        // Register directly as well as on the results surface: TextBox key handling can stop the
+        // bubbling route before the surrounding Expander sees an already-handled Escape.
+        report.AddHandler(InputElement.KeyDownEvent, OnAdmissionResultsKeyDown, RoutingStrategies.Bubble, handledEventsToo: true);
+        Avalonia.Automation.AutomationProperties.SetName(report, Texts.T("admission.results"));
         rows.Children.Add(report);
         if (repairSources != null)
         {
             rows.Children.Add(new SelectableTextBlock
             {
                 Name = "AdmissionSourcesHelp", Text = repairSources,
-                TextWrapping = TextWrapping.Wrap, FontSize = 12
-            });
+                TextWrapping = TextWrapping.Wrap
+            }.MetaText());
         }
+    }
+
+    private const int MaxDuplicateLinks = 5;
+
+    private Button CreateShowInListLink(AdmissionFeedback duplicate)
+    {
+        string label = Texts.T("admission.showInList");
+        Button link = new()
+        {
+            Name = "AdmissionShowInListButton", HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            Padding = new Thickness(8, 2), MaxWidth = 460,
+            Content = new TextBlock { Text = DesktopLog.RedactText(label + " · " + duplicate.Url), TextTrimming = TextTrimming.CharacterEllipsis }.MetaText()
+        };
+        link.Classes.Add("subtle");
+        Avalonia.Automation.AutomationProperties.SetName(link, DesktopLog.RedactText(label + ": " + duplicate.Url));
+        ToolTip.SetTip(link, DesktopLog.RedactText(duplicate.Url));
+        long watchId = duplicate.WatchId!.Value;
+        link.Click += (_, _) => ShowAdmissionDuplicate(watchId);
+        return link;
+    }
+
+    // Selects the existing row and opens its details. A row hidden by the search filter cannot be selected: say so.
+    private void ShowAdmissionDuplicate(long watchId)
+    {
+        if (_isClosing || _sessionRowsApplying) return;
+        bool isThread = _threadRows.TryGetValue(watchId, out ThreadRow? threadRow);
+        BoardRow? boardRow = null;
+        bool exists = isThread || _boardRows.TryGetValue(watchId, out boardRow);
+        bool visible = isThread ? VisibleThreads.Contains(threadRow!) : boardRow != null && VisibleBoards.Contains(boardRow);
+        if (visible && OpenDiagnosticWatch(new DiagnosticTarget(isThread ? DiagnosticTargetKind.Thread : DiagnosticTargetKind.Board, watchId))) return;
+        ShowNotification(Texts.T("notification.session"), Texts.T(exists && !visible ? "admission.showInListHidden" : "diagnostics.removed"),
+            NotificationType.Information, operation: "admission.show-duplicate");
     }
 
     private async Task<string?> ReadClipboardAsync()
@@ -603,7 +771,7 @@ public partial class MainWindow : Window
     {
         if (RouteWorkspaceShortcut(e)) return;
         if (e.Handled || HasBlockingPageDecision() || IsNativeShortcutSource(e.Source) || !IsEnabled || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
-        TextBox urlInput = this.FindControl<TextBox>("UrlInput")!;
+        TextBox urlInput = UrlInput;
         KeyModifiers pasteModifier = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
         if (CommandBindings.Matches(e, "input.focus-url"))
         {
@@ -619,6 +787,9 @@ public partial class MainWindow : Window
         }
     }
 
+    // The Downloads empty state offers the same clipboard import as the tray item and the paste shortcut.
+    private async void OnEmptyStateImportClick(object? sender, RoutedEventArgs e) => await ImportClipboardAsync();
+
     private async Task ImportClipboardAsync()
     {
         if (!_restoreCompleted || _importing || WorkspaceCommandBusy)
@@ -628,9 +799,9 @@ public partial class MainWindow : Window
 
         NavigateWorkspace(WorkspacePage.Downloads);
         _importing = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             await SubmitInputAsync(null);
         }
         finally
@@ -673,10 +844,10 @@ public partial class MainWindow : Window
     private void ConfigureTrayIcon(TrayIcon trayIcon)
     {
         _trayPlatformSettings = Application.Current?.PlatformSettings;
-        using Stream iconStream = AssetLoader.Open(new Uri("avares://MeowChan/Assets/meowchan.png"));
-        trayIcon.Icon = new WindowIcon(iconStream);
-        trayIcon.ToolTipText = "MeowChan - Image Downloader";
+        _trayLogo = ThemeLogo.Follow(trayIcon);
+        trayIcon.ToolTipText = TrayMenuModel.BaseTooltip;
         NativeMenu menu = new NativeMenu();
+        AddTrayStatsItems(menu); // two statistics lines and a separator (hidden by the setting); text only
         NativeMenuItem openItem = CreateTrayCommandItem("app.show");
         _trayOpenItem = openItem;
         openItem.Click += (sender, e) =>
@@ -691,11 +862,22 @@ public partial class MainWindow : Window
         _clipboardMenuItem = CreateTrayCommandItem("watch.import-clipboard");
         _clipboardMenuItem.Click += async (sender, e) => await ImportClipboardAsync();
         menu.Items.Add(_clipboardMenuItem);
+        // Pause stays reachable while the window lives in the tray; the entry names the action it will perform.
+        _trayPauseItem = new NativeMenuItem();
+        _trayPauseIconPaused = null;
+        _trayPauseItem.Click += (sender, e) => OnPauseClick(sender, new RoutedEventArgs());
+        menu.Items.Add(_trayPauseItem);
+        // Quiet reminder while an update is available; it only opens the update section of About.
+        _trayUpdateItem = new NativeMenuItem { IsVisible = false };
+        _trayUpdateItem.Click += OnTrayUpdateClick;
+        menu.Items.Add(_trayUpdateItem);
+        AddTrayNavigationItems(menu); // statistics and settings, then a separator
         NativeMenuItem exitItem = CreateTrayCommandItem("app.quit");
         _trayExitItem = exitItem;
         exitItem.Click += async (sender, e) => await CloseApplicationAsync();
         menu.Items.Add(exitItem);
         trayIcon.Menu = menu;
+        RefreshTray();
         trayIcon.Clicked += (sender, e) =>
         {
             if (IsVisible && WindowState != WindowState.Minimized)
@@ -710,13 +892,15 @@ public partial class MainWindow : Window
 
     private void RestoreWindow()
     {
+        // The window hides when the shutdown starts; the tray must not bring back a window whose controls have stopped answering.
+        if (_shutdownRunning) return;
         _trayMinimizeRequest++;
         _trayHostMonitor?.Stop();
         ShowInTaskbar = true;
         Show();
         if (WindowState == WindowState.Minimized)
         {
-            WindowState = WindowState.Normal;
+            WindowState = _minimizeRestore.RestoreTarget;
         }
 
         Activate();
@@ -765,6 +949,8 @@ public partial class MainWindow : Window
 
     private void OnTrayWindowPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
     {
+        // Hidden or minimized claims the statistics for the tooltip; shown releases it again (the window samples for itself).
+        if ((e.Property == IsVisibleProperty || e.Property == WindowStateProperty) && _trayIcon != null) RefreshTray();
         // A user can restore from the taskbar while the host check is pending.
         if (e.Property == WindowStateProperty && !Equals(e.OldValue, e.NewValue)
             && WindowState != WindowState.Minimized && IsVisible)
@@ -777,12 +963,20 @@ public partial class MainWindow : Window
         if (_trayPlatformSettings != null)
             _trayPlatformSettings.ColorValuesChanged -= OnTrayColorValuesChanged;
         _trayPlatformSettings = null;
+        _trayLogo?.Dispose();
+        _trayLogo = null;
+        DisposeTrayStats();
         TrayIcon? trayIcon = _trayIcon;
         _trayIcon = null;
         _clipboardMenuItem = null;
         _trayOpenItem = null;
         _trayFolderItem = null;
         _trayExitItem = null;
+        DisposeTrayNavigation();
+        _trayPauseItem = null;
+        _trayUpdateItem = null;
+        _trayUpdateKey = string.Empty;
+        _trayPauseIconPaused = null;
         _trayMinimizeRequest++;
         _trayHostMonitor?.Stop();
         _trayHostMonitor = null;
@@ -807,6 +1001,9 @@ public partial class MainWindow : Window
         _trayMenuIcons.Clear();
     }
 
+    internal static string? TrayShortcut(string command) =>
+        EffectiveShortcutBindings.ExecutionContexts(command).Contains("shell") ? CommandCatalog.ShortcutDisplay(command) : null;
+
     private NativeMenuItem CreateTrayCommandItem(string command)
     {
         NativeMenuItem item = new();
@@ -814,12 +1011,20 @@ public partial class MainWindow : Window
         return item;
     }
 
-    private void ApplyTrayCommandItem(NativeMenuItem item, string command)
+    private void ApplyTrayCommandItem(NativeMenuItem item, string command, string? icon = null)
     {
-        CommandBindings.Apply(item, command);
+        // A state-dependent entry (pause) sets its own header; the command binding would reset it.
+        // The header names a shortcut only when it works from the whole window (shell): "Open folder" of the tray opens the download
+        // folder, while Ctrl/Cmd+O opens the selected thread's folder, and the clipboard import key acts in the Downloads list only.
+        if (icon == null) CommandBindings.Apply(item, command, shortcut: () => TrayShortcut(command), applyIcon: false);
         // Native menu exporters require actual tinted pixels, rather than an Avalonia mask.
-        (item.Icon as Bitmap)?.Dispose();
-        string icon = CommandCatalog.Get(command).Icon;
+        // The icon cache may share one instance between several native menu items.
+        // CommandBindings updates labels/shortcuts only: this tray owns its icons,
+        // never the shared native-menu cache. Cached tray icons are released
+        // together with the tray in DisposeTrayIcon().
+        if (item.Icon is Bitmap previous && !_trayMenuIcons.Values.Any(cached => ReferenceEquals(cached, previous)))
+            previous.Dispose();
+        icon ??= CommandCatalog.Get(command).Icon;
         bool dark = OperatingSystem.IsWindows() ? ActualThemeVariant == ThemeVariant.Dark
             : _trayPlatformSettings?.GetColorValues().ThemeVariant == PlatformThemeVariant.Dark;
         string cacheKey = icon + (dark ? ":light" : ":dark");
@@ -851,149 +1056,51 @@ public partial class MainWindow : Window
         if (_trayOpenItem != null) ApplyTrayCommandItem(_trayOpenItem, "app.show");
         if (_trayFolderItem != null) ApplyTrayCommandItem(_trayFolderItem, "location.open-folder");
         if (_clipboardMenuItem != null) ApplyTrayCommandItem(_clipboardMenuItem, "watch.import-clipboard");
+        RefreshTrayNavigationIcons();
         if (_trayExitItem != null) ApplyTrayCommandItem(_trayExitItem, "app.quit");
+        _trayPauseIconPaused = null;
+        RefreshTray();
     }
 
-    protected override async void OnClosing(WindowClosingEventArgs e)
+    // Pause entry and tooltip follow the authoritative projection; the native menu is only touched when something changed.
+    private void RefreshTray()
     {
-        Log.Debug("Window closing requested: reason {CloseReason}, allowed {AllowClose}, shutdown running {ShutdownRunning}, owned windows {OwnedWindowCount}.",
-            e.CloseReason, _allowClose, _shutdownRunning, OwnedWindows.Count);
-        base.OnClosing(e);
-        if (_allowClose)
+        if (_isClosing || _trayIcon == null) return;
+        bool paused = _session.Projection.IsPaused;
+        if (_trayPauseItem is NativeMenuItem pause)
         {
-            return;
+            string header = TrayMenuModel.PauseHeader(paused, CommandCatalog.ShortcutDisplay("session.pause"));
+            if (!Equals(pause.Header, header)) pause.Header = header;
+            bool enabled = TrayMenuModel.PauseEnabled(_restoreCompleted, WorkspaceEditorBusy, _session.Projection.IsPauseTransitioning);
+            if (pause.IsEnabled != enabled) pause.IsEnabled = enabled;
+            if (_trayPauseIconPaused != paused)
+            {
+                _trayPauseIconPaused = paused;
+                ApplyTrayCommandItem(pause, "session.pause", TrayMenuModel.PauseIcon(paused));
+            }
         }
-
-        e.Cancel = true;
-        if (_isClosing)
+        if (_clipboardMenuItem is NativeMenuItem clipboardItem)
         {
-            return;
+            bool clipboardEnabled = TrayMenuModel.ClipboardEnabled(_restoreCompleted, _importing, WorkspaceCommandBusy);
+            if (clipboardItem.IsEnabled != clipboardEnabled) clipboardItem.IsEnabled = clipboardEnabled;
         }
-
-        if (_config.CloseToTray && e.CloseReason == WindowCloseReason.WindowClosing)
+        if (_trayUpdateItem is NativeMenuItem updateItem)
         {
-            MinimizeWindow();
-            return;
+            MeowChan.Desktop.Updates.UpdateView updates = _session.Updates.View;
+            bool available = updates.Update != null && !updates.EnvironmentDisabled;
+            string key = available ? Texts.Language + "|" + updates.Update!.Version : string.Empty;
+            if (key != _trayUpdateKey)
+            {
+                _trayUpdateKey = key;
+                updateItem.Header = available ? Texts.T("updates.available", updates.Update!.Version) : string.Empty;
+            }
+            if (updateItem.IsVisible != available) updateItem.IsVisible = available;
         }
-
-        await CloseApplicationAsync();
+        // Tooltip text (with the statistics when set), the statistics claim and the menu lines: MainWindow.TrayStats.cs.
+        _trayStats?.Refresh();
     }
 
-    private async Task CloseApplicationAsync()
-    {
-        if (_shutdownRunning || _allowClose)
-        {
-            return;
-        }
-
-        if (_postBookmarkEditor != null && !await _postBookmarkEditor.PrepareToCloseAsync()) return;
-        if (_postBookmarksDialog != null && !await _postBookmarksDialog.PrepareToCloseAsync()) return;
-        _archivePage?.FlushReadingPositionInput();
-        _isClosing = true;
-        StopClipboardMonitor();
-        _pendingSessionProjection = null;
-        _sessionRowsApplying = false;
-        _sessionRowsApplied?.TrySetResult(); _sessionRowsApplied = null;
-        _restoreDownloadSelection?.Dispose(); _restoreDownloadSelection = null;
-        _refreshingDownloadSearch = false;
-        _postBookmarksDialog?.CloseForProfileEnd();
-        _postBookmarkEditor?.CloseForProfileEnd();
-        _shutdownRunning = true;
-        _settingsEditor?.EndLifetime();
-        _pluginsPage?.EndLifetime();
-        _rulesPage?.EndLifetime();
-        UpdateInteractionState();
-        Log.Information("Application shutdown started.");
-        try
-        {
-            // Cancellation/admission must precede a potentially unbounded native gallery cleanup.
-            // BeginShutdown retains the profile and permits these last writes until StopAsync seals them.
-            Task engineDrain = _session.BeginShutdown();
-            CloseGallery(restoreOrigin: false);
-            Task windowPreferences = FlushWindowPreferencesAsync();
-            Task galleryPreferences = FlushGalleryPreferencesAsync();
-            Task readingPosition = _readingPositionSave;
-            Task finalPreferences = FlushFinalPreferencesAsync(windowPreferences, galleryPreferences, readingPosition);
-            Log.Debug("Shutdown: engine cancellation requested; waiting independently for final writes and gallery cleanup.");
-            Exception? preferenceFailure = null;
-            try { await Task.WhenAll(engineDrain, finalPreferences, _galleryCleanupTask, _restoreTask); }
-            catch (Exception error)
-            {
-                // Do not abandon the profile owner when one final write is rejected.
-                // A faulted drain is NOT proof that its resources were released.
-                preferenceFailure = error;
-            }
-            bool nativeOwnershipReleased = _galleryNativeCleanupTask.IsCompletedSuccessfully;
-            if (!nativeOwnershipReleased) _session.RetainProfileForExternalCleanupFailure();
-            Log.Debug("Shutdown: draining session; native ownership released {Released}.", nativeOwnershipReleased);
-            try { await _session.StopAsync(); }
-            catch (Exception error) { preferenceFailure ??= error; }
-            Log.Debug("Shutdown: session stopped; disposing the session.");
-            // Dispose the profile owner before fallible UI subscription/tray teardown.
-            try { await _session.DisposeAsync(); }
-            catch (Exception error) { preferenceFailure ??= error; }
-            if (!nativeOwnershipReleased || !_session.IsProfileReleased)
-                throw new InvalidOperationException("Shutdown ownership is unproven; native surface and profile remain retained.", preferenceFailure);
-            Log.Debug("Shutdown: session disposed; releasing UI subscriptions.");
-            _session.ProjectionPublished -= OnSessionChanged;
-            _session.StartupPreviewChanged -= OnStartupPreviewChanged;
-            _session.CatalogReadableChanged -= OnCatalogReadableChanged;
-            Texts.Changed -= OnLanguageChanged;
-            DisposeWorkspace();
-            _sessionRefresh.Dispose();
-            foreach (ThreadRow row in _threadRows.Values)
-            {
-                row.Dispose();
-            }
-
-            foreach (BoardRow row in _boardRows.Values)
-            {
-                row.Dispose();
-            }
-
-            _clipboardMenuItem = null;
-            if (OperatingSystem.IsLinux())
-            {
-                // Only DBus needs its menu subscriptions detached and queued layout updates drained.
-                // Avalonia 11.3.22's macOS exporter rejects Menu=null; other platforms dispose directly.
-                Log.Debug("Shutdown: detaching the DBus tray menu; tray present {TrayPresent}.", _trayIcon != null);
-                if (_trayIcon != null)
-                {
-                    _trayIcon.Menu = null;
-                }
-
-                Log.Debug("Shutdown: DBus tray menu detached; waiting for the background dispatcher.");
-                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-                Log.Debug("Shutdown: background dispatcher completed.");
-            }
-
-            Log.Debug("Shutdown: disposing the tray icon; tray present {TrayPresent}.", _trayIcon != null);
-            DisposeTrayIcon();
-            Log.Debug("Shutdown: tray disposal returned; releasing the profile lease.");
-            if (preferenceFailure != null)
-            {
-                Log.Error(preferenceFailure, "Shutdown cleanup finished, but preferences were not confirmed saved.");
-                ShowNotification(Texts.T("notification.error"), Texts.T("shutdown.failed"), NotificationType.Error, operation: "session.shutdown");
-                // Leave an inert, safely disposed window for acknowledgement; the next close
-                // exits directly instead of retrying side effects against a released profile.
-                _allowClose = true;
-                return;
-            }
-            Log.Debug("Shutdown: profile lease released; requesting final window close.");
-            _allowClose = true;
-            Close();
-            Log.Information("Application shutdown window close returned; visible {IsVisible}.", IsVisible);
-        }
-        catch (Exception exception)
-        {
-            Log.Error(exception, "Failed to stop the application.");
-            ShowNotification(Texts.T("notification.error"), Texts.T("shutdown.failed"), NotificationType.Error, operation: "session.shutdown");
-        }
-        finally
-        {
-            _shutdownRunning = false;
-        }
-    }
+    // OnClosing and CloseApplicationAsync: MainWindow.Shutdown.cs (bounded shutdown).
 
     private async Task FlushFinalPreferencesAsync(params Task[] shellWrites)
     {
@@ -1031,9 +1138,19 @@ public partial class MainWindow : Window
     }
 
     private void OpenDirectory(string directory) => OpenDirectory(directory, null);
-    private void OpenDirectory(string directory, Action<string>? localError)
+    private async void OpenDirectory(string directory, Action<string>? localError)
     {
-        if (Directory.Exists(directory)) OpenTarget(directory, localError);
+        // The folder may sit on a network share that does not answer: probe off the UI thread. If the probe times
+        // out the folder is opened anyway, because the file manager runs out of process and reports its own failure.
+        DirectoryProbeResult probe;
+        try { probe = await DirectoryProbe.CheckAsync(directory); }
+        catch (Exception exception)
+        {
+            Log.Warning(exception, "Could not check {Directory} before opening it", directory);
+            probe = DirectoryProbeResult.Unknown;
+        }
+        if (_isClosing) return;
+        if (probe != DirectoryProbeResult.Missing) OpenTarget(directory, localError);
         else
         {
             localError?.Invoke(Texts.T("location.missing"));
@@ -1063,9 +1180,15 @@ public partial class MainWindow : Window
         DataGridRow? target = (e.Source as Visual)?.FindAncestorOfType<DataGridRow>();
         if (target?.DataContext is not ThreadRow row || SelectedThreads().Length != 1) return;
         e.Handled = true;
-        await OpenDownloadReaderAsync(row.Snapshot.Id, target);
+        await OpenActions.RunAsync(() => OpenDownloadReaderAsync(row.Snapshot.Id, target), "downloads.list.doubleClick");
     }
-    private void OnBoardDoubleTapped(object? sender, TappedEventArgs e) => OpenWorkspaceDetails();
+    // Interaction audit: a double click on a board row (not on the header, a button or empty space) opens its details, like Enter.
+    private void OnBoardDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (_sessionRowsApplying || sender is not Visual grid || !MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, grid)) return;
+        e.Handled = true;
+        OpenWorkspaceDetails();
+    }
 
     private void OnSettingsMenuItemClick(object? sender, RoutedEventArgs e) => NavigateWorkspace(WorkspacePage.Settings);
 
@@ -1073,37 +1196,54 @@ public partial class MainWindow : Window
     {
         if (!_restoreCompleted || _isClosing || _applyingPreferences)
             throw new InvalidOperationException("The session is not ready to apply settings.");
+        List<HeldFocus> heldFocus = HoldFocusForSettingsApply();
         _applyingPreferences = true;
-        UpdateInteractionState();
         try
         {
+            UpdateInteractionState();
             await FlushGalleryPreferencesAsync();
+            int mediaTagListWidthBefore = ConfiguredMediaTagListWidth();
             await _session.ApplySettingsAsync(candidate);
             _config.CopyFrom(_session.Config);
+            ApplyMediaTagListWidthAfterSettings(mediaTagListWidthBefore);
+            ForgetDesiredGalleryLayout(); // N3: the applied settings hold the layout now (a failed earlier write must not mask a reset)
             InvalidateReadingResumeState();
             ApplyAppearance();
+            RefreshStoreLimitWarning(force: true);
         }
         finally
         {
             _applyingPreferences = false;
-            if (!_isClosing) UpdateInteractionState();
+            if (!_isClosing)
+            {
+                UpdateInteractionState();
+                RestoreFocusAfterSettingsApply(heldFocus);
+                TryCompleteBooruUnavailableFallback();
+            }
         }
     }
 
     private void ApplyAppearance()
     {
         if (_isClosing) return;
-        if (Application.Current != null)
-            Application.Current.RequestedThemeVariant = ThemeForPreference(_config.Theme);
+        // Motion is switched off only for a real theme change; saving other settings must not cut running transitions short.
+        if (Application.Current is { } app && ThemeChangeNeeded(app.RequestedThemeVariant, ThemeForPreference(_config.Theme)) is { } next)
+            MeowChan.Desktop.Motion.MotionPolicy.WhileThemeChanges(() => app.RequestedThemeVariant = next);
+        // TH2: changed colour overrides recolour live, like a theme change without transitions; an unchanged set is skipped.
+        if (MeowChan.Desktop.Theming.ThemeRuntime.NeedsApply(_config.ThemeOverrides))
+            MeowChan.Desktop.Motion.MotionPolicy.WhileThemeChanges(() => MeowChan.Desktop.Theming.ThemeRuntime.ApplyOverrides(_config.ThemeOverrides));
         if (OperatingSystem.IsWindows()) RefreshTrayMenuIcons();
+        MeowChan.Desktop.Motion.MotionPolicy.SetSetting(_config.Animations);
         Texts.SetLanguage(_config.Language);
         ApplyWorkspacePreferences();
+        ApplyHeaderGraphMode();
+        ApplyHeaderTaglineSetting();
         ApplyGalleryPreferences();
     }
 
     private void WireWorkspaceCommands()
     {
-        this.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectionChanged += async (sender, e) =>
+        WorkspaceModeComboBox.SelectionChanged += async (sender, e) =>
         {
             if (_updatingWorkspacePreferences) return;
             if (!_restoreCompleted || WorkspaceCommandBusy)
@@ -1111,21 +1251,22 @@ public partial class MainWindow : Window
                 ApplyWorkspacePreferences();
                 return;
             }
-            if (this.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem is ComboBoxItem item && item.Tag is string mode && mode != _config.WorkspaceMode)
+            if (WorkspaceModeComboBox.SelectedItem is ComboBoxItem item && item.Tag is string mode && mode != _config.WorkspaceMode)
             {
                 Config candidate = _config.Clone();
                 candidate.WorkspaceMode = mode;
                 await SaveAppearanceAsync(candidate);
             }
         };
-        this.FindControl<Button>("ThemeToggleButton")!.Click += async (sender, e) =>
+        ThemeToggleButton.Click += async (sender, e) =>
         {
             if (!_restoreCompleted || WorkspaceCommandBusy) return;
             Config candidate = _config.Clone();
-            candidate.Theme = ActualThemeVariant == ThemeVariant.Dark ? "Light" : "Dark";
+            // Flips what is shown; from System it stores the explicit opposite ("Follow system" in its context menu restores System).
+            candidate.Theme = MeowChan.Desktop.Theming.ThemePreference.Toggled(_config.Theme, ActualThemeVariant == ThemeVariant.Dark);
             await SaveAppearanceAsync(candidate);
         };
-        this.FindControl<Button>("InspectorCopyUrlButton")!.Click += async (sender, e) =>
+        InspectorCopyUrlButton.Click += async (sender, e) =>
             await CopyUrlsAsync(GetInspectorUrl() is string url ? new[] { url } : Array.Empty<string>());
     }
 
@@ -1133,12 +1274,14 @@ public partial class MainWindow : Window
     {
         bool themeChanged = candidate.Theme != _config.Theme;
         bool modeChanged = candidate.WorkspaceMode != _config.WorkspaceMode;
+        bool noticeChanged = candidate.WorkViewNoticePending != _config.WorkViewNoticePending;
         try
         {
             await _session.SaveViewPreferencesAsync(current =>
             {
                 if (themeChanged) current.Theme = candidate.Theme;
                 if (modeChanged) current.WorkspaceMode = candidate.WorkspaceMode;
+                if (noticeChanged) current.WorkViewNoticePending = candidate.WorkViewNoticePending;
             });
             ApplyAppearance();
             _settingsEditor?.RefreshConfirmedAppearance(themeChanged, modeChanged);
@@ -1189,12 +1332,12 @@ public partial class MainWindow : Window
     private void UpdatePauseControls(bool enabled)
     {
         bool paused = _session.Projection.IsPaused;
-        MenuItem menu = this.FindControl<MenuItem>("PauseMenuItem")!;
+        MenuItem menu = PauseMenuItem;
         menu.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         CommandBindings.Apply(menu, "session.pause");
         menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
         menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
-        Button button = this.FindControl<Button>("PauseButton")!;
+        Button button = PauseButton;
         button.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         if (_lastPauseIcon != paused)
         {
@@ -1213,13 +1356,22 @@ public partial class MainWindow : Window
     {
         if (!_restoreCompleted || WorkspaceEditorBusy || _session.Projection.IsPauseTransitioning) return;
         _applyingPreferences = true;
-        UpdateInteractionState();
-        try { await _session.SetPausedAsync(!_session.Projection.IsPaused); }
+        try { UpdateInteractionState(); await _session.SetPausedAsync(!_session.Projection.IsPaused); }
         catch (Exception exception)
         {
             ShowNotification(Texts.T("notification.error"), Texts.T("preferences.failed", exception.Message), NotificationType.Error, operation: "preferences.pause");
         }
-        finally { _applyingPreferences = false; UpdateInteractionState(); }
+        finally
+        {
+            _applyingPreferences = false;
+            if (!_isClosing)
+            {
+                UpdateInteractionState();
+                // A composition can disappear while pause/resume owns the shell's busy gate.
+                // Retry only after releasing that owner, through the ordinary navigation gate.
+                TryCompleteBooruUnavailableFallback();
+            }
+        }
     }
 
     private async void OnAboutMenuItemClick(object? sender, RoutedEventArgs e)

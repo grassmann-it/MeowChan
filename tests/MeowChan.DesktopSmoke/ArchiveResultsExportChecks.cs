@@ -49,15 +49,16 @@ internal static class ArchiveResultsExportChecks
         string Summary() => page.FindControl<TextBlock>("ArchiveExportSummary")!.Text!;
         string Status() => page.FindControl<TextBlock>("ArchiveExportStatus")!.Text!;
         string Error() => page.FindControl<TextBlock>("ArchiveExportError")!.Text ?? string.Empty;
-        bool ErrorVisible() => page.FindControl<Ursa.Controls.Banner>("ArchiveExportErrorBanner") is { IsVisible: true, IsEffectivelyVisible: true };
+        bool ErrorVisible() => page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveExportErrorBanner") is { IsVisible: true, IsEffectivelyVisible: true };
+        await CheckFormatAndScopeAsync(page, origin, Summary);
         await page.OpenExportForAllResultsAsync(origin);
         window.UpdateLayout();
         TextBlock fixedScope = page.FindControl<TextBlock>("ArchiveExportFixedScope")!;
-        Check(fixedScope.IsEffectivelyVisible && fixedScope.Bounds.Height > 0 && fixedScope.Text == Texts.T("export.resultsFrozen", 60),
+        Check(fixedScope.IsEffectivelyVisible && fixedScope.Bounds.Height > 0 && fixedScope.Text == Texts.Count("export.resultsFrozen", 60),
             "The fixed target count scrolled out of the export dialog.");
         Program.CaptureWindow(window, "smoke-all-results-export-ready.png");
         string frozen = Summary();
-        Check(frozen.StartsWith(Texts.T("export.resultsFrozen", 60), StringComparison.Ordinal)
+        Check(frozen.StartsWith(Texts.Count("export.resultsFrozen", 60), StringComparison.Ordinal)
             && frozen.Split('\n').Length == 61, "All-results export did not resolve the real filtered 60 targets across pages.");
         work.Clear();
         await catalog.CaptureAsync(Snapshot(0, "late content after dialog"));
@@ -79,6 +80,9 @@ internal static class ArchiveResultsExportChecks
             .Any(path => File.ReadAllText(path).Contains("late content after dialog", StringComparison.Ordinal)),
             "Result export incorrectly froze thread content when opening the dialog.");
         Program.CaptureWindow(window, "smoke-all-results-export.png");
+        // AP7: after a success Close is the primary action; Export stays available for another target.
+        Check(Button("ArchiveExportClose").Classes.Contains("primary") && !Button("ArchiveExportStart").Classes.Contains("primary")
+            && Button("ArchiveExportStart").IsEnabled && page.ExportPrimaryIsClose, "A successful export kept Export as the primary action.");
         Click("ArchiveExportClose");
 
         // A zero-result resolution stays visible and cannot start an empty export.
@@ -108,7 +112,7 @@ internal static class ArchiveResultsExportChecks
         page.FindControl<ComboBox>("ArchiveWorkFilter")!.SelectedIndex = 0;
         await page.ApplySearchAsync();
         await page.OpenExportForAllResultsAsync(origin);
-        Check(Summary().StartsWith(Texts.T("export.resultsFrozen", 1), StringComparison.Ordinal), "Singleton all-results export lost its fixed count.");
+        Check(Summary().StartsWith(Texts.Count("export.resultsFrozen", 1), StringComparison.Ordinal), "Singleton all-results export lost its fixed count.");
         await catalog.DeleteThreadsAsync(new[] { new ResourceId("exportfixture", "a", "0") });
         output = Path.Combine(root, "removed-target");
         page.FindControl<TextBox>("ArchiveExportDestination")!.Text = output;
@@ -120,6 +124,41 @@ internal static class ArchiveResultsExportChecks
         Console.WriteLine("SMOKE all-result export assertions completed; checking original-export dialog states.");
         await CheckOriginalCloseAsync(window, page, root);
         Console.WriteLine("SMOKE all-result export: 60 filtered ordered targets across pages, frozen query/work/IDs, late content, null/error/cancel/duplicate lookup and missing-target failure passed.");
+    }
+
+    // AP7: one dialog, format × scope. A single-thread entry on the results offers "all matches" as a
+    // switchable scope and the link list as a second format; switching scope resolves the targets anew,
+    // and choosing the link list returns to the one thread the entry froze.
+    private static async Task CheckFormatAndScopeAsync(ArchivePage page, Control origin, Func<string> summary)
+    {
+        ResourceId first = new("exportfixture", "a", "0");
+        await page.OpenExportForThreadsAsync(new[] { first }, origin, offerResults: true);
+        ComboBox scope = page.FindControl<ComboBox>("ArchiveExportScope")!;
+        ComboBox format = page.FindControl<ComboBox>("ArchiveExportFormat")!;
+        Button start = page.FindControl<Button>("ArchiveExportStart")!;
+        await Program.WaitUntilAsync(() => start.IsEnabled);
+        Check(page.FindControl<TextBlock>("ArchiveExportTitle")!.Text == Texts.T("export.dialog.title")
+            && scope.IsVisible && scope.ItemCount == 2 && format.IsVisible && format.ItemCount == 2
+            && page.CurrentExportScope == ArchivePage.ExportScope.Selection && page.CurrentExportFormat == ArchivePage.ExportFormat.Html,
+            "The Export dialog did not offer format and scope for a single result thread.");
+        scope.SelectedIndex = 1;
+        await Program.WaitUntilAsync(() => page.CurrentExportScope == ArchivePage.ExportScope.AllResults && start.IsEnabled);
+        Check(summary().StartsWith(Texts.Count("export.resultsFrozen", 60), StringComparison.Ordinal) && scope.IsVisible,
+            "Switching to all matches did not resolve the 60 filtered targets in the open dialog.");
+        format.SelectedIndex = 1;
+        await Program.WaitUntilAsync(() => page.CurrentExportFormat == ArchivePage.ExportFormat.LinkList
+            && page.CurrentExportScope == ArchivePage.ExportScope.Selection && start.IsEnabled);
+        Check(!scope.IsVisible && page.FindControl<TextBlock>("ArchiveExportScopeFixed")!.Text == Texts.T("export.scope.thread")
+            && !page.FindControl<TextBox>("ArchiveExportDestination")!.IsVisible && !page.FindControl<CheckBox>("ArchiveExportMedia")!.IsVisible
+            && Equals(start.Content, Texts.T("export.link.review")) && summary().Contains(first.Thread!, StringComparison.Ordinal),
+            "The link list did not return to the frozen thread or kept the HTML options.");
+        Program.CaptureWindow((Window)TopLevel.GetTopLevel(page)!, "smoke-export-link-list.png");
+        format.SelectedIndex = 0;
+        await Program.WaitUntilAsync(() => page.CurrentExportFormat == ArchivePage.ExportFormat.Html && start.IsEnabled);
+        Check(page.FindControl<TextBox>("ArchiveExportDestination")!.IsVisible && scope.IsVisible && scope.ItemCount == 2,
+            "Returning to the HTML page did not restore its options and scopes.");
+        SmokeActionClick.Execute(page.FindControl<Button>("ArchiveExportClose")!);
+        await Program.WaitUntilAsync(() => !page.FindControl<Border>("ArchiveExportDialog")!.IsVisible);
     }
 
     private static async Task CheckOriginalCloseAsync(Window owner, ArchivePage page, string root)
@@ -146,6 +185,7 @@ internal static class ArchiveResultsExportChecks
             Window dialog = owner.OwnedWindows.Single(window => window.GetVisualDescendants()
                 .OfType<Button>().Any(button => button.Name == "OriginalExportClose"));
             Button close = dialog.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "OriginalExportClose");
+            Exception? failureBeforeCleanup = null;
             try
             {
             Console.WriteLine("SMOKE original-export idle: language=" + language + "; content=" + close.Content + "; automation=" + AutomationProperties.GetName(close) + "; tooltip=" + ToolTip.GetTip(close));
@@ -169,20 +209,25 @@ internal static class ArchiveResultsExportChecks
             await Program.WaitUntilAsync(() => Equals(close.Content, Texts.T("action.close")));
             Check(dialog.IsVisible && AutomationProperties.GetName(close) == Texts.T("action.close"),
                 "Original copy closed early or did not restore Close after " + scenario + ".");
-            if (scenario == "success") Check(Directory.GetFiles(originalDestination, "*", SearchOption.AllDirectories).Any(), "Successful original export wrote no file.");
+            if (scenario == "success") Check(Directory.GetFiles(originalDestination, "*", SearchOption.AllDirectories).Any()
+                && close.Classes.Contains("primary") && !start.Classes.Contains("primary"),
+                "Successful original export wrote no file or kept Start as the primary action.");
             close.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
             await shown;
             }
-            catch (Exception exception) { Console.WriteLine("SMOKE original-export assertion: " + exception); throw; }
+            catch (Exception exception) { failureBeforeCleanup = exception; Console.WriteLine("SMOKE original-export assertion: " + exception); throw; }
             finally
             {
-                if (dialog.IsVisible)
+                await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
                 {
-                    close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                    await Program.WaitUntilAsync(() => Equals(close.Content, Texts.T("action.close")));
-                    dialog.Close();
-                }
-                await shown;
+                    if (dialog.IsVisible)
+                    {
+                        close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                        await Program.WaitUntilAsync(() => Equals(close.Content, Texts.T("action.close")));
+                        dialog.Close();
+                    }
+                    await shown;
+                }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ArchiveResultsExportChecks: " + exception));
             }
         }
         Texts.SetLanguage("en");

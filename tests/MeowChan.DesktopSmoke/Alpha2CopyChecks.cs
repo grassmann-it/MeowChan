@@ -76,11 +76,10 @@ internal static class Alpha2CopyChecks
             Provider(NoPolicy, "Source without policy"), Provider(Inactive, "Inactive discussion source")
         ];
         SourcesPage sources = new(_ => { navigationCalls++; return false; }, _ => navigationCalls++,
-            () => navigationCalls++, () => navigationCalls++, _ => { submitCalls++; return Task.FromResult(false); })
+            _ => navigationCalls++, () => submitCalls++, () => navigationCalls++)
         {
             GetSourceMediaIntegrityPolicies = Policies,
-            SetSourceMediaIntegrityPermission = SaveAsync,
-            OpenPluginSettings = _ => navigationCalls++
+            SetSourceMediaIntegrityPermission = SaveAsync
         };
         MediaRuleSet ruleSet = new("alpha2-copy", Array.Empty<MediaRule>());
         RulesPage rules = new(() => ruleSet, (_, _) =>
@@ -112,7 +111,7 @@ internal static class Alpha2CopyChecks
             failSave = false;
             sources.SelectSource(Second);
             AssertSource(sources, providers[1], granted: false, active: true, hasPolicy: true);
-            Require(!C<Ursa.Controls.Banner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible,
+            Require(!C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible,
                 "An old source's save error followed selection.");
 
             // A failed grant must never display a successful grant's retry guidance.
@@ -147,8 +146,8 @@ internal static class Alpha2CopyChecks
             await FinishPendingOnSelectionAsync(window, sources, pending);
             pending = null; failSave = false;
             AssertSource(sources, providers[1], granted: false, active: true, hasPolicy: true);
-            Require(first.GetView().IsGranted && !C<Ursa.Controls.Banner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible
-                && !C<Ursa.Controls.Banner>(sources, "SourcesActionErrorBanner").IsVisible,
+            Require(first.GetView().IsGranted && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourceMediaIntegrityErrorBanner").IsVisible
+                && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(sources, "SourcesActionErrorBanner").IsVisible,
                 "Late failure changed consent or attached another source's error to the selection.");
             Observation(window, "late-failure-strict-selection", new { action = saves[^1], first = first.GetView(), second = second.GetView() });
 
@@ -308,16 +307,21 @@ internal static class Alpha2CopyChecks
         TextBlock error = C<TextBlock>(page, "SourceMediaIntegrityError");
         // Product code owns revealing failures: do not scroll/reveal after action.
         await Program.WaitUntilAsync(() => error.IsEffectivelyVisible && InViewport(window, error));
-        Require(C<Ursa.Controls.Banner>(page, "SourceMediaIntegrityErrorBanner").IsVisible
+        Require(C<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "SourceMediaIntegrityErrorBanner").IsVisible
             && error.Text == Texts.T("sources.providerMismatchSaveFailed", Failure)
             && C<CheckBox>(page, "SourceAllowProviderMismatch").IsChecked == expectedSaved
-            && !C<Ursa.Controls.Banner>(page, "SourcesActionErrorBanner").IsVisible,
+            && !C<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "SourcesActionErrorBanner").IsVisible,
             "Save failure lost its local identity, saved state or visible error banner.");
         AssertTextFits(error);
     }
 
-    private static void Navigate(MainWindow window, string key) => window.GetLogicalDescendants().OfType<MenuItem>()
-        .First(item => Equals(item.Tag, key)).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    // F1: the pages are footer buttons or entries of the footer's More menu, no longer entries of the ⋯ menu.
+    private static void Navigate(MainWindow window, string key) => SmokeNavigation.GoTo(window, key switch
+    {
+        "nav.sources" => MainWindow.WorkspacePage.Sources,
+        "nav.rules" => MainWindow.WorkspacePage.Rules,
+        _ => throw new ArgumentOutOfRangeException(nameof(key), key, "Not a page this fixture opens.")
+    });
     private static async Task RevealAsync(MainWindow window, Control target)
     {
         await Program.WaitUntilAsync(() => { window.UpdateLayout(); target.BringIntoView(); window.UpdateLayout(); return InViewport(window, target); });

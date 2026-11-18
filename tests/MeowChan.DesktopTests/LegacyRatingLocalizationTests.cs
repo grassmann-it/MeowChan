@@ -80,7 +80,7 @@ public sealed class LegacyRatingLocalizationTests : IDisposable
         Assert.Contains(".Columns[3].Header = MediaRatingText.LocalizedLabel;", archive);
         // Provider errors stay plain text, not catalog keys or format templates.
         Assert.Contains("_mediaRatingError = error.Message;", archive);
-        Assert.Contains("Control<TextBlock>(\"ArchiveRatingStatus\").Text = _mediaRatingError;", archive);
+        Assert.Contains("ArchiveRatingStatus.Text = _mediaRatingError;", archive);
     }
 
     private static string ReadSource(string relative, [CallerFilePath] string path = "") =>

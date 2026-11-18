@@ -30,6 +30,7 @@ internal static class SettingsChecks
             await CheckGalleryVolumeMergeAsync(owner, Path.Combine(profile, "gallery-volume"));
             CheckGalleryPairMigration(Path.Combine(profile, "gallery-pair-migration"));
             await CheckGalleryPlaybackDraftAsync(owner, Path.Combine(profile, "gallery-playback"));
+            await CheckTaggingSettingsDraftAsync(owner, Path.Combine(profile, "tagging"));
             await CheckSavedStatusRetiredAsync(owner, Path.Combine(profile, "saved-status"));
             Console.WriteLine("SMOKE settings: pending close/duplicate protection, visible errors, validation, retry, appearance persistence/cancel and folder-picker outcomes passed.");
         }
@@ -43,8 +44,8 @@ internal static class SettingsChecks
     private static async Task CheckGalleryPlaybackDraftAsync(MainWindow owner, string profile)
     {
         Config config = Config.LoadConfig(profile);
-        Require(!config.GalleryOverlayControls && !config.GalleryAutoHideControls,
-            "A fresh profile must retain the coherent docked/auto-hide-OFF default.");
+        Require(config.GalleryOverlayControls && config.GalleryAutoHideControls,
+            "A fresh profile must use the paired overlay/auto-hide-ON default.");
         config.VideoVolume = 70;
         config.SaveConfig(profile);
         int commits = 0;
@@ -80,7 +81,7 @@ internal static class SettingsChecks
                 "Legacy auto-hide ON failed to enable the same pair.");
             window.Editor.GalleryOverlayPostContext = true;
             window.UpdateLayout();
-            CheckBox[] controlsChoices = window.Editor.GetVisualDescendants().OfType<CheckBox>()
+            ToggleSwitch[] controlsChoices = window.Editor.GetVisualDescendants().OfType<ToggleSwitch>()
                 .Where(c => c.Name is "GalleryOverlayControlsInput" or "GalleryAutoHideControlsInput")
                 .Where(c => c.IsEffectivelyVisible).ToArray();
             Require(controlsChoices.Length == 1 && controlsChoices[0].IsEffectivelyEnabled
@@ -117,6 +118,59 @@ internal static class SettingsChecks
         Console.WriteLine("SMOKE gallery settings: duration validation, single paired overlay/auto-hide, legacy migration, profile commit, concurrent volume and discard passed.");
     }
 
+    // PT7: the Tagging group of the Reading and media page: defaults, the card slots swap instead of repeating, a bad number is refused
+    // with its own error line, and a save writes the numbers, the card choice and the start choice (and only the start choice when changed).
+    private static async Task CheckTaggingSettingsDraftAsync(MainWindow owner, string profile)
+    {
+        Config config = Config.LoadConfig(profile);
+        Require(config.TagStampSize == 9 && config.TagQueueWalkWindow == 200 && config.TaggingCardCount == 5 && !config.TaggingCardsDefault,
+            "A fresh profile lost a tagging default.");
+        config.SaveConfig(profile);
+        int commits = 0;
+        SettingsWindow window = new(config, candidate =>
+        {
+            config.CopySettingsFieldsFrom(candidate);
+            config.SaveConfig(profile);
+            commits++;
+            return Task.CompletedTask;
+        });
+        Task dialog = window.ShowDialog(owner);
+        try
+        {
+            await WaitUntilAsync(() => window.IsVisible);
+            SettingsEditor editor = window.Editor;
+            await SettingsSectionChecks.OpenAsync(editor, "settings.reading-media");
+            Require(editor.FindControl<Control>("SettingsTaggingHeading") != null && editor.TaggingCardChoices.Count == 10,
+                "The Tagging group or its card choices are missing.");
+            Require(string.Join(",", new[] { editor.SelectedTaggingCard1, editor.SelectedTaggingCard2, editor.SelectedTaggingCard3,
+                editor.SelectedTaggingCard4, editor.SelectedTaggingCard5 }.Select(choice => choice?.Value)) == "back,skip,favorite,stamp,done",
+                "The card slots do not show the default cards.");
+            // Card 3 takes "back" (card 1's decision): the two swap and no decision is ever twice.
+            editor.SelectedTaggingCard3 = editor.TaggingCardChoices.Single(choice => choice.Value == "back");
+            Require(editor.SelectedTaggingCard1?.Value == "favorite" && editor.SelectedTaggingCard3?.Value == "back",
+                "Choosing a decision another card has did not swap the two cards.");
+            editor.TagStampSize = 12;
+            editor.TagQueueWalkWindow = 50;
+            editor.TaggingCardCount = 3;
+            editor.TaggingCardsDefault = true;
+            NumericUpDown stamp = editor.FindControl<NumericUpDown>("TagStampSizeInput")!;
+            stamp.Text = "not a number";
+            Click(editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => editor.FindControl<TextBlock>("TagStampSizeInputError")!.IsEffectivelyVisible);
+            Require(commits == 0 && window.IsVisible, "An invalid stamp size was saved or discarded.");
+            stamp.Text = "12";
+            Click(editor.FindControl<Button>("SaveSettingsButton")!);
+            await WaitUntilAsync(() => !window.IsVisible);
+            await dialog;
+            Config loaded = Config.LoadConfig(profile);
+            Require(commits == 1 && loaded.TagStampSize == 12 && loaded.TagQueueWalkWindow == 50 && loaded.TaggingCardCount == 3
+                && loaded.TaggingCardsDefault && string.Join(",", loaded.TaggingCards) == "favorite,skip,back,stamp,done",
+                "The tagging settings commit lost a chosen field.");
+        }
+        finally { if (window.IsVisible) window.Close(); await dialog; }
+        Console.WriteLine("SMOKE tagging settings: defaults, swapping card slots, own error line, commit of stamp size, walk window, card count, card choice and start choice passed.");
+    }
+
     private static void CheckGalleryPairMigration(string profile)
     {
         // Raw legacy JSON is intentional: SaveConfig would normalize before the load under test.
@@ -136,8 +190,8 @@ internal static class SettingsChecks
                 "Saving/reopening the migrated controls pair changed its effective choice.");
         }
         Config defaults = Config.LoadConfig(Path.Combine(profile, "defaults"));
-        Require(!defaults.GalleryOverlayControls && !defaults.GalleryAutoHideControls,
-            "A fresh profile no longer defaults to paired OFF/docked controls.");
+        Require(defaults.GalleryOverlayControls && defaults.GalleryAutoHideControls,
+            "A fresh profile no longer defaults to paired overlay/auto-hide ON.");
     }
 
     private static async Task CheckGalleryVolumeMergeAsync(MainWindow owner, string profile)
@@ -262,7 +316,9 @@ internal static class SettingsChecks
             {
                 Texts.SetLanguage(language);
                 foreach (string name in new[] { "RecheckTimerInput", "BandwidthInput", "ParallelDownloadsInput", "ReserveInput",
-                    "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput" })
+                    "ProductionWorkersInput", "WorkerIdleMinutesInput", "SourceHeapMiBInput", "FilterHeapMiBInput",
+                    "PrivateTagLimitInput", "PrivateTagFileMiBInput", "MediaIndexCacheMiBInput",
+                    "FavoriteEntryLimitInput", "FavoriteFileLimitMiBInput", "PostBookmarkLimitInput", "SavedSearchLimitInput", "ReaderGroupLimitInput", "ProfileRegistryLimitInput", "SourcesWatchPreviewRowsInput", "ExportConfirmFilesInput", "ExportConfirmGiBInput", "PosterCacheLimitMiBInput", "PosterCacheFileLimitInput", "AudioProbeCacheLimitMiBInput", "AudioProbeCacheEntriesInput", "ThumbnailCacheTilesInput", "GalleryImageCacheMiBInput", "GalleryPreloadAheadInput", "GalleryPreloadBehindInput", "ClipboardUrlLimitInput", "ClipboardTextLimitKiBInput", "ImportMaxFilesPerBatchInput", "ImportMaxBatchGiBInput", "ImportMaxFileMiBInput", "ImportMaxTotalFilesInput", "ImportCatalogLimitMiBInput", "ImportMaxTagsPerBatchInput", "ImportMaxBatchesInput", "MediaIndexMaxEntriesInput", "MediaIndexMaxThreadsInput" })
                 {
                     Console.WriteLine($"SMOKE settings field begin: language={language}; field={name}; window={window.Bounds}; state={window.WindowState}.");
                     window.Editor.CancelChanges();
@@ -368,6 +424,7 @@ internal static class SettingsChecks
             candidate.SaveConfig();
         });
         Task dialog = window.ShowDialog(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await WaitUntilAsync(() => window.IsVisible && window.Bounds.Width > 0);
@@ -391,7 +448,7 @@ internal static class SettingsChecks
                 && !window.Editor.FindControl<Expander>("SettingsErrorDetails")!.IsExpanded,
                 "Save failure did not retain its technical details behind an explicit expander.");
             Require(config.RecheckTimer == 60, "Apply failure changed the live configuration.");
-            Require(config.Theme == "Dark" && config.WorkspaceMode == "Barebones" && config.Language == "en" && !config.CompactDensity,
+            Require(config.Theme == "Dark" && config.WorkspaceMode == "Simple" && config.Language == "en" && !config.CompactDensity,
                 "Apply failure changed live appearance preferences.");
             Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == original, "The dialog saved settings before its apply callback committed.");
             await AssertErrorInViewportAsync(window);
@@ -434,18 +491,22 @@ internal static class SettingsChecks
             Require(config.RecheckTimer == 120 && config.MaxParallelDownloads == 3, "Successful settings apply did not update the live configuration.");
             Require(Config.LoadConfig(profile).RecheckTimer == 120, "Successful settings apply did not commit the isolated profile.");
             Config saved = Config.LoadConfig(profile);
-            Require(config.Theme == "Light" && config.WorkspaceMode == "Simple" && config.Language == "de" && config.CompactDensity
-                && saved.Theme == "Light" && saved.WorkspaceMode == "Simple" && saved.Language == "de" && saved.CompactDensity,
+            Require(config.Theme == "Light" && config.WorkspaceMode == "Advanced" && config.Language == "de" && config.CompactDensity
+                && saved.Theme == "Light" && saved.WorkspaceMode == "Advanced" && saved.Language == "de" && saved.CompactDensity,
                 "Successful settings apply did not persist all appearance preferences.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetCanceled();
-            if (window.IsVisible)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                await WaitUntilAsync(() => !window.Editor.IsBusy);
-                window.Close();
-            }
+                pending.TrySetCanceled();
+                if (window.IsVisible)
+                {
+                    await WaitUntilAsync(() => !window.Editor.IsBusy);
+                    window.Close();
+                }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsChecks: " + exception));
         }
     }
 
@@ -468,11 +529,11 @@ internal static class SettingsChecks
             string originalTitle = window.Title ?? string.Empty;
             Texts.SetLanguage("de");
             await WaitUntilAsync(() => window.Title != originalTitle && window.Editor.SelectedLanguage?.Code == "de");
-            Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Simple" && window.Editor.CompactDensity,
+            Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Advanced" && window.Editor.CompactDensity,
                 "Changing language while settings were open discarded pending appearance edits.");
             Click(FindButton(window, "Cancel"));
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
-            Require(applies == 0 && config.Theme == "Dark" && config.WorkspaceMode == "Barebones"
+            Require(applies == 0 && config.Theme == "Dark" && config.WorkspaceMode == "Simple"
                 && config.Language == "en" && !config.CompactDensity,
                 "Cancelling appearance edits changed live settings or invoked apply.");
             Require(File.ReadAllText(Path.Combine(profile, "settings.json")) == original,
@@ -489,10 +550,10 @@ internal static class SettingsChecks
     private static void SetAppearance(SettingsWindow window)
     {
         window.Editor.FindControl<ComboBox>("ThemeInput")!.SelectedItem = window.Editor.ThemeChoices.Single(choice => choice.Value == "Light");
-        window.Editor.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.Editor.WorkspaceChoices.Single(choice => choice.Value == "Simple");
+        window.Editor.FindControl<ComboBox>("WorkspaceModeInput")!.SelectedItem = window.Editor.WorkspaceChoices.Single(choice => choice.Value == "Advanced");
         window.Editor.FindControl<ComboBox>("LanguageInput")!.SelectedItem = window.Editor.LanguageChoices.Single(choice => choice.Code == "de");
-        window.Editor.FindControl<CheckBox>("CompactDensityInput")!.IsChecked = true;
-        Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Simple"
+        window.Editor.FindControl<ToggleSwitch>("CompactDensityInput")!.IsChecked = true;
+        Require(window.Editor.SelectedTheme?.Value == "Light" && window.Editor.SelectedWorkspaceMode?.Value == "Advanced"
             && window.Editor.SelectedLanguage?.Code == "de" && window.Editor.CompactDensity,
             "Appearance controls did not update the detached settings edit.");
     }
@@ -568,6 +629,7 @@ internal static class SettingsChecks
         parent.Show(owner);
         SettingsWindow window = new SettingsWindow(config, candidate => pending.Task);
         Task dialog = window.ShowDialog(parent);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await WaitUntilAsync(() => window.IsVisible);
@@ -581,14 +643,18 @@ internal static class SettingsChecks
             await WaitUntilAsync(() => !window.Editor.IsBusy);
             Require(config.RecheckTimer == 60, "An apply failure after owner close changed live settings.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetCanceled();
-            await WaitUntilAsync(() => !window.Editor.IsBusy);
-            if (window.IsVisible)
-                window.Close();
-            if (parent.IsVisible)
-                parent.Close();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                pending.TrySetCanceled();
+                await WaitUntilAsync(() => !window.Editor.IsBusy);
+                if (window.IsVisible)
+                    window.Close();
+                if (parent.IsVisible)
+                    parent.Close();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsChecks: " + exception));
         }
     }
 
@@ -609,6 +675,7 @@ internal static class SettingsChecks
                 wrongThread = true;
         };
         TaskCompletionSource<IReadOnlyList<IStorageFolder>> pending = new TaskCompletionSource<IReadOnlyList<IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await WaitUntilAsync(() => window.IsVisible);
@@ -660,21 +727,26 @@ internal static class SettingsChecks
             window.Close();
             await dialog.WaitAsync(TimeSpan.FromSeconds(5));
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetCanceled();
-            if (window.IsVisible)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                await WaitUntilAsync(() => !window.Editor.IsBusy);
-                window.Close();
-            }
+                pending.TrySetCanceled();
+                if (window.IsVisible)
+                {
+                    await WaitUntilAsync(() => !window.Editor.IsBusy);
+                    window.Close();
+                }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsChecks: " + exception));
         }
     }
 
     private static async Task AssertErrorInViewportAsync(SettingsWindow window)
     {
         TextBlock error = window.Editor.FindControl<TextBlock>("SettingsError")!;
-        ScrollViewer scroll = window.GetVisualDescendants().OfType<ScrollViewer>().First();
+        // The settings window has a category navigation ScrollViewer ahead of the page one: use the one that holds the error.
+        ScrollViewer scroll = error.FindAncestorOfType<ScrollViewer>() ?? throw new InvalidOperationException("The settings error is not inside a ScrollViewer.");
         try
         {
             await WaitUntilAsync(() =>

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -43,73 +44,60 @@ public partial class MainWindow
     private void BuildDownloadMenu(DataGrid grid, ContextMenu menu)
     {
         DownloadMenuTarget? frozen = CaptureDownloadMenu(ReferenceEquals(grid, DownloadList(true)));
-        menu.Items.Clear();
-        if (frozen == null) { menu.Close(); return; }
+        if (frozen == null) { ContextMenuBuilder.Clear(menu); menu.Close(); return; }
         bool ready = _restoreCompleted && !RowCommandBusy && !_selectionCommandRunning;
-        // The reason names what is actually known: a running operation, an unfinished restore, or the
-        // action-specific selection condition. Everything else keeps the generic selection reason.
         string Unavailable(string id) => Texts.T(!ready
             ? RowCommandBusy || _selectionCommandRunning ? "menu.unavailable.busy"
               : !_restoreCompleted ? "menu.unavailable.restoring" : "menu.unavailable.selection"
             : id switch
             {
-                "thread.read" => "menu.unavailable.singleThread",
+                "thread.read" => frozen.Threads.Length == 1 ? "menu.unavailable.nothingCaptured" : "menu.unavailable.singleThread",
                 "watch.check" => "menu.unavailable.nothingToCheck",
                 "watch.retry-media" => "menu.unavailable.nothingToRetry",
                 _ => "menu.unavailable.selection"
             });
-        MenuItem Add(string id, Action action, bool available = true, int? count = null)
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("nav.downloads"));
+        void Add(string id, Action action, bool available = true, int? count = null)
         {
-            var item = CommandBindings.CreateMenuItem(id, () =>
+            bool CanExecute() => ready && available && !RowCommandBusy && !_selectionCommandRunning;
+            string label = count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id);
+            string? Reason() => CanExecute() ? null : Unavailable(id);
+            builder.Command(id, () =>
             {
                 DownloadMenuTarget? current = RevalidateDownloadMenu(frozen);
                 if (current == null) return;
                 frozen = current;
                 action();
-            }, () => ready && available && !RowCommandBusy && !_selectionCommandRunning,
-                () => ready && available ? null : Unavailable(id),
-                () => count is { } number && number != 1 ? CommandCatalog.Label(id) + " (" + number + ")" : CommandCatalog.Label(id));
-            item.Tag = id;
-            menu.Items.Add(item);
-            if (!ready || !available)
-            {
-                // Disabled menu entries are skipped by native keyboard navigation.
-                // This enabled explanatory item exposes the reason without hovering.
-                string reason = CommandCatalog.Label(id) + ": " + Unavailable(id);
-                var explanation = new MenuItem
-                {
-                    Header = reason,
-                    Icon = CommandBindings.Icon("thread.details"),
-                    Command = new DelegateCommand(() => ShowNotification(Texts.T("notification.session"), reason,
-                        Avalonia.Controls.Notifications.NotificationType.Information, operation: "command.unavailable"))
-                };
-                Avalonia.Automation.AutomationProperties.SetName(explanation, reason);
-                menu.Items.Add(explanation);
-            }
-            return item;
+            }, CanExecute(), Reason(), label, availableWhen: CanExecute, reasonWhen: Reason);
         }
         if (!frozen.Boards)
         {
-            Add("thread.read", async () => await OpenFrozenReaderAsync(frozen, grid),
-                frozen.Threads.Length == 1 && grid.SelectedItems.Count == 1);
-            Add("gallery.open", async () => await OpenGalleryAsync(frozen.Lead, origin: grid));
+            Add("thread.read", () => OpenActions.Start(() => OpenFrozenReaderAsync(frozen, grid), "downloads.menu.read"),
+                frozen.Threads.Length == 1 && !NothingCaptured(LeadRowOf(frozen)));
+            Add("gallery.open", () => OpenActions.Start(() => OpenGalleryAsync(frozen.Lead, origin: grid), "downloads.menu.gallery"));
+            // A selection of several threads shows them all, as one thread set (QW-A #7 follow-up); one thread keeps its thread: chip.
+            Add("thread.show-in-media", () => ShowSelectedThreadsInMedia(frozen.Threads, frozen.Lead,
+                _threadRows.TryGetValue(frozen.LeadWatch, out ThreadRow? leadRow) ? leadRow.Title : null), count: frozen.Threads.Length);
         }
         Add("thread.details", () => OpenFrozenDetails(frozen));
         if (frozen.Boards) Add("board.filters", async () => { if (frozen.Board != null) await OpenBoardAdmissionAsync(frozen.Board); });
-        menu.Items.Add(new Separator());
+        builder.Section();
         if (!frozen.Boards) Add("export.open-html-dialog", async () => await ExportFrozenThreadsAsync(frozen.Threads, grid), count: frozen.Threads.Length);
         Add("selection.copy-links", async () => await CopyUrlsAsync(frozen.Urls), count: frozen.Urls.Length);
         Add("location.open-folder", () => OpenDirectory(frozen.Folder));
         Add("location.open-source", () => OpenTarget(frozen.Url));
-        menu.Items.Add(new Separator());
+        builder.Section();
         Add("watch.check", async () => await RunCheckTargetsAsync(frozen.Checkable, retry: false, IsCurrentDownloadTarget), frozen.Checkable.Length > 0, frozen.Checkable.Length);
         if (!frozen.Boards)
             Add("watch.retry-media", async () => await RunCheckTargetsAsync(frozen.Retriable, retry: true, IsCurrentDownloadTarget), frozen.Retriable.Length > 0, frozen.Retriable.Length);
-        if (!frozen.Boards) AddUserPriorityMenus(menu, ready);
+        if (!frozen.Boards) AddUserPriorityMenus(builder, ready);
         Add("rules.edit-scope", () => EditFrozenRules(frozen.Lead));
-        menu.Items.Add(new Separator());
-        Add("watch.remove", async () => await RunSelectionCommandAsync(frozen.WatchIds,
-            id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
+        builder.Section();
+        Add("watch.remove", async () => await RemoveWatchesWithUndoAsync(frozen.WatchIds,
+            frozen.Boards, id => RemoveVisibleDownloadWatchAsync(id, frozen.Boards)), count: frozen.WatchIds.Length);
+        builder.Populate(menu);
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>().Where(item => item.Tag is "priority.menuHigh" or "priority.menuNormal"))
+            item.Icon = CommandBindings.Icon(Equals(item.Tag, "priority.menuHigh") ? "reader.previous-post" : "reader.next-post");
     }
 
     private DownloadMenuTarget? RevalidateDownloadMenu(DownloadMenuTarget frozen)
@@ -130,8 +118,8 @@ public partial class MainWindow
 
     private async Task OpenFrozenReaderAsync(DownloadMenuTarget frozen, Control origin)
     {
-        OpenLargeReader(origin, frozen.Scope);
-        await ArchivePage.LoadThreadAsync(frozen.Lead);
+        if (ReportNothingCaptured(LeadRowOf(frozen))) return;
+        await ArchivePage.OpenReaderOnThreadAsync(frozen.Lead, () => OpenLargeReader(origin, frozen.Scope));
     }
 
     private void OpenFrozenDetails(DownloadMenuTarget frozen)

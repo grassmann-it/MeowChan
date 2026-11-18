@@ -41,9 +41,13 @@ public sealed class ArchiveHtmlExportTests
         Assert.DoesNotContain("<script", html);
         Assert.DoesNotContain("secret-script", html);
         Assert.DoesNotContain(directory.Path, html);
-        Assert.DoesNotContain("https://", html);
+        // The only address in the page is the fixed credit link of the About dialog, never captured content.
+        Assert.Equal(1, html.Split("https://").Length - 1);
+        Assert.Contains("<a href=\"https://grassmann-it.de\" rel=\"noopener noreferrer\">grassmann-it.de</a>", html);
         Assert.Contains("Content-Security-Policy", html);
         Assert.Contains("Removed at source", html);
+        Assert.Contains("<article id=\"p-313233\" class=\"op\">", html); // The thread-number post is the OP.
+        Assert.Contains("<article id=\"p-313234\">", html);
         Assert.Equal(Bytes, await File.ReadAllBytesAsync(Assert.Single(Directory.GetFiles(Path.Combine(moved, "media")))));
         Assert.True(File.Exists(Path.Combine(moved, "style.css")));
         Assert.Empty(Directory.GetDirectories(directory.Path, ".meowchan-export-*"));
@@ -668,6 +672,88 @@ public sealed class ArchiveHtmlExportTests
         Assert.True(File.Exists(journal));
         Assert.Equal(before.ObservedFingerprint, (await ArchiveHtmlExporter.InspectAsync(backup, Id)).ObservedFingerprint);
         Assert.Equal(damaged.ObservedFingerprint, (await ArchiveHtmlExporter.InspectAsync(destination, Id)).ObservedFingerprint);
+    }
+
+    [Fact]
+    public void BodyMarksGreentextLinesAndKeepsEveryCharacterEncoded()
+    {
+        Assert.Equal("<span class=\"greentext\">&gt;be me</span>\n&gt;&gt;123 reply\n<span class=\"greentext\">&gt;&lt;b&gt;x</span>\nplain &amp; text",
+            ArchiveHtmlExporter.BodyHtml(">be me\n>>123 reply\n><b>x\nplain & text"));
+        Assert.Equal("&gt;&gt;&gt;/g/ board", ArchiveHtmlExporter.BodyHtml(">>>/g/ board"));
+        // Greentext has its own colour in both schemes; post bodies read in Noto Sans when it is installed, never downloaded.
+        Assert.Contains(".greentext{color:var(--greentext)}", ArchiveHtmlExporter.Css);
+        Assert.Contains("@media (prefers-color-scheme:light)", ArchiveHtmlExporter.Css);
+        Assert.Contains("--read:\"Noto Sans\",", ArchiveHtmlExporter.Css);
+        Assert.Contains(".body{font:1rem/1.45 var(--read);", ArchiveHtmlExporter.Css);
+    }
+
+    [Fact]
+    public void BodyStylesSpoilersCodeLinksAndDeadReferencesLikeTheReader()
+    {
+        string text = "a secret b code >>9 gone https://x.example/p c";
+        ArchiveTextMark[] marks = [new(ArchiveTextMarkKind.Spoiler, 2, 6), new(ArchiveTextMarkKind.Code, 11, 4)];
+        string html = ArchiveHtmlExporter.BodyHtml(text, marks, new HashSet<string> { ">>9" }, "(Post not captured)");
+        Assert.Equal("a <span class=\"spoiler\" tabindex=\"0\">secret</span> b <span class=\"code\">code</span> "
+            + "<s class=\"dead\">&gt;&gt;9</s> <span class=\"note\">(Post not captured)</span> gone "
+            + "<span class=\"link\">https://x.example/p</span> c", html);
+        // A spoiler over a greentext line keeps the line break outside both spans.
+        Assert.Equal("<span class=\"spoiler\" tabindex=\"0\"><span class=\"greentext\">&gt;x</span></span>\ny",
+            ArchiveHtmlExporter.BodyHtml(">x\ny", [new ArchiveTextMark(ArchiveTextMarkKind.Spoiler, 0, 3)]));
+        // A spoiler hides its text in its own colour until hovered or focused; an external link is only coloured and
+        // underlined (it has no target); reference links below the text are not underlined.
+        Assert.Contains(".spoiler{background:var(--spoiler);color:var(--spoiler);", ArchiveHtmlExporter.Css);
+        Assert.Contains(".spoiler:hover,.spoiler:focus{color:var(--text)}", ArchiveHtmlExporter.Css);
+        Assert.Contains(".link{color:var(--accent);text-decoration:underline}", ArchiveHtmlExporter.Css);
+        Assert.Contains(".quote{text-decoration:none}", ArchiveHtmlExporter.Css);
+    }
+
+    // Reader-card layout in the page: reply posts are cards that fit their content up to a maximum width (no full-width
+    // cards), the opening post stays on the page, narrow screens drop the floating thumbnail, print uses white paper.
+    [Fact]
+    public void TheStyleSheetFitsReplyCardsToTheirContentAndPrintsWithoutTheDarkBackground()
+    {
+        string css = ArchiveHtmlExporter.Css;
+        Assert.Contains("main{display:flex;flex-direction:column;align-items:flex-start;", css);
+        Assert.Contains("article{box-sizing:border-box;max-width:min(100%,52rem);", css);
+        Assert.Contains("article.op{align-self:stretch;max-width:100%;background:transparent;border-color:transparent;", css);
+        Assert.Contains("@media (max-width:560px){", css);
+        int print = css.IndexOf("@media print{", StringComparison.Ordinal);
+        Assert.True(print > 0);
+        Assert.Contains("--bg:#fff;--panel:#fff;--card:#fff;", css[print..]);
+    }
+
+    [Fact]
+    public void PlainTextWithMarksKeepsTheTextAndFindsSpoilersCodeAndExternalLinks()
+    {
+        string[] samples =
+        [
+            "<p>Hello <s>spoiler &amp; text</s> end</p>",
+            "<a href=\"#p9\" class=\"quotelink\">&gt;&gt;9</a><br>see <a href=\"https://example.org/a?b=1\">link</a>",
+            "<pre class=\"prettyprint\">int x = 1;\nint y;</pre>after",
+            "  <span class=\"spoiler\">hidden</span>  ",
+            "<a href=\"https://boards.4chan.org/g/thread/1#p2\">&gt;&gt;2</a> <code>c</code>",
+            "<s>unclosed spoiler",
+            "plain text only",
+            "<s>&#xE001;</s> weird",
+        ];
+        foreach (string html in samples)
+        {
+            (string text, IReadOnlyList<ArchiveTextMark> marks) = ArchiveText.PlainTextWithMarks(html);
+            Assert.Equal(ArchiveText.PlainText(html), text);
+            Assert.All(marks, mark => Assert.True(mark.Start >= 0 && mark.Length > 0 && mark.Start + mark.Length <= text.Length));
+        }
+        (string body, IReadOnlyList<ArchiveTextMark> found) = ArchiveText.PlainTextWithMarks(samples[1]);
+        ArchiveTextMark link = Assert.Single(found);
+        Assert.Equal(ArchiveTextMarkKind.Link, link.Kind);
+        Assert.Equal("link", body.Substring(link.Start, link.Length)); // The >>9 anchor is internal: no mark.
+        (string spoilerText, IReadOnlyList<ArchiveTextMark> spoilers) = ArchiveText.PlainTextWithMarks(samples[3]);
+        ArchiveTextMark spoiler = Assert.Single(spoilers);
+        Assert.Equal("hidden", spoilerText.Substring(spoiler.Start, spoiler.Length));
+        (string codeText, IReadOnlyList<ArchiveTextMark> code) = ArchiveText.PlainTextWithMarks(samples[2]);
+        Assert.Equal("int x = 1;\nint y;", codeText.Substring(code.Single().Start, code.Single().Length));
+        Assert.Empty(ArchiveText.PlainTextWithMarks(samples[6]).Marks);
+        Assert.Empty(ArchiveText.PlainTextWithMarks(samples[4]).Marks.Where(mark => mark.Kind == ArchiveTextMarkKind.Link));
+        Assert.Equal("c", ArchiveText.PlainTextWithMarks(samples[4]).Text[^1..]);
     }
 
     private sealed class InlineProgress(Action<ArchiveHtmlExportProgress> report) : IProgress<ArchiveHtmlExportProgress>

@@ -6,6 +6,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
 using MeowChan.Storage;
@@ -24,6 +25,11 @@ internal sealed partial class DesktopSessionHost
     private HashSet<FavoriteAssetKey>? _favoriteKeys;
 
     private Exception? _favoriteReadError;
+    private int _favoritesUnreadableNoticed;
+    // Originals the favorites resolution fully hashed in this session and found unchanged (identity incl. change time; never on Windows, see
+    // MediaAssetReader.OpenSessionVerifiedReadAsync): the overview resolves the whole scope on every open, scope change and remove, and
+    // View and Export verify the file again themselves, so this only spares the "is it still there and intact" classification.
+    private readonly VerifiedFileMemo _favoriteVerifiedFiles = new();
     private sealed record PassiveFavoriteIndex(IReadOnlyList<FavoriteEntry> Entries, FrozenSet<FavoriteAssetKey> Keys);
     private PassiveFavoriteIndex? _passiveFavorites;
     private void PublishFavoriteIndex()
@@ -31,6 +37,84 @@ internal sealed partial class DesktopSessionHost
         IReadOnlyList<FavoriteEntry> entries = _favoriteEntries!;
         Volatile.Write(ref _passiveFavorites, new(entries, entries.Select(entry => entry.Key).ToFrozenSet()));
     }
+
+    private int _booruCatalogReads;
+
+    /// <summary>Number of catalog reads so far; lets tests prove that one resolution reads the document once.</summary>
+    internal int BooruCatalogReads => Volatile.Read(ref _booruCatalogReads);
+
+    /// <summary>
+    /// The local Booru catalog for read-only views (media page, gallery, favorites). Null when it cannot be read; an
+    /// unreadable or newer catalog is never turned into "no posts". Nothing here reaches a provider.
+    /// </summary>
+    internal BooruCatalogSnapshot? ReadBooruCatalog()
+    {
+        Interlocked.Increment(ref _booruCatalogReads);
+        if (_disposed || _registry.BooruCatalog is not { } store) return null;
+        try { return store.Read(); }
+        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException)
+        { return null; }
+    }
+
+    /// <summary>Hands the configured Danbooru catalog write limit (Settings, validated by <see cref="Config.Validate"/>) to the store.</summary>
+    private void ApplyBooruCatalogLimit()
+    {
+        if (_registry.BooruCatalog is { } store) store.DocumentLimitBytes = (long)Config.BooruCatalogLimitMiB * 1024 * 1024;
+    }
+
+    /// <summary>
+    /// Hands the configured limits of the private lists (favorites, ratings, bookmarks, saved searches, reader groups) to the
+    /// profile and the video/tile preview cache limits to their caches. ThumbnailCacheTiles remains the tile upper bound; its
+    /// decoded-byte budget is derived by MediaTileThumbnails.Configure. Lowering a limit never removes saved data.
+    /// </summary>
+    private void ApplyStoreLimits()
+    {
+        ProfileStoreLimits limits = _profileLease.StoreLimits;
+        limits.FavoriteEntries = Config.FavoriteEntryLimit;
+        limits.FavoriteFileBytes = (long)Config.FavoriteFileLimitMiB * 1024 * 1024;
+        limits.Bookmarks = Config.PostBookmarkLimit;
+        limits.SavedSearches = Config.SavedSearchLimit;
+        limits.ReaderGroups = Config.ReaderGroupLimit;
+        limits.PostFilterRules = Config.PostFilterRuleLimit;
+        limits.HiddenPosts = Config.HiddenPostLimit;
+        limits.TagQueueEntries = Config.TagQueueLimit;
+        limits.TagQueueFileBytes = (long)Config.TagQueueFileLimitMiB * 1024 * 1024;
+        limits.TagQueueHistory = Config.TagQueueHistory;
+        limits.TagQueueGroups = Config.TagQueueGroupLimit;
+        limits.TagQueueGroupNameCharacters = Config.TagQueueGroupNameLimit;
+        VideoPosterCache.Configure((long)Config.PosterCacheLimitMiB * 1024 * 1024, Config.PosterCacheFileLimit);
+        MediaTileThumbnails.Configure(Config.ThumbnailCacheTiles);
+        Controls.MediaBadgeLimits.Configure(Config); // MB1: the thumbnail sizes at which the badges collapse or hide, and the corner capacity
+        GalleryImageCache.Configure(Config.GalleryImageCacheMiB, Config.GalleryPreloadAhead, Config.GalleryPreloadBehind);
+    }
+
+    /// <summary>The write limits the profile's private lists currently enforce (tests, diagnostics).</summary>
+    internal ProfileStoreLimits StoreLimits => _profileLease.StoreLimits;
+
+    /// <summary>
+    /// The favorite, thread favorite and rating lists that are 75 percent or more full against the limits in force (entries
+    /// from the loaded lists, sizes from the files). A list that is not loaded yet or cannot be read is left out, never an
+    /// error. Reads files: call it off the UI thread.
+    /// </summary>
+    internal IReadOnlyList<StoreLimitUsage.Item> ReadStoreLimitUsage()
+    {
+        if (_disposed) return Array.Empty<StoreLimitUsage.Item>();
+        List<(StoreLimitUsage.StoreList? List, long Value)> counts = new(3), sizes = new(3);
+        try { counts.Add((StoreLimitUsage.StoreList.Favorites, GetFavorites().Count)); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
+        try { if (GetPublishedThreadFavoriteSnapshot().Snapshot is { } threads) counts.Add((StoreLimitUsage.StoreList.ThreadFavorites, threads.Threads.Count)); } catch (ObjectDisposedException) { }
+        try { counts.Add((StoreLimitUsage.StoreList.Ratings, GetMediaRatings().Count)); } catch (Exception error) when (error is InvalidDataException or ObjectDisposedException) { }
+        foreach ((StoreLimitUsage.StoreList list, string file) in new[] { (StoreLimitUsage.StoreList.Favorites, "media-favorites.json"),
+            (StoreLimitUsage.StoreList.ThreadFavorites, "thread-favorites.json"), (StoreLimitUsage.StoreList.Ratings, "media-ratings.json") })
+            sizes.Add((list, ProfileStoreLimits.FileLength(Path.Combine(ProfileDirectory, file))));
+        ProfileStoreLimits limits = _profileLease.StoreLimits;
+        return StoreLimitUsage.Evaluate(counts, limits.FavoriteEntries, sizes, limits.FavoriteFileBytes);
+    }
+
+    /// <summary>The reader group limit in force (the create command is disabled at it).</summary>
+    internal int ReaderGroupLimit => _profileLease.StoreLimits.ReaderGroups;
+
+    /// <summary>The write limit the profile's Danbooru catalog currently enforces (diagnostics, tests).</summary>
+    internal long? BooruCatalogLimitBytes => _registry.BooruCatalog?.DocumentLimitBytes;
 
     /// <summary>Passive immutable index. Loading and writes belong to the background owner.</summary>
     internal IReadOnlyList<FavoriteEntry> GetFavorites()
@@ -40,15 +124,38 @@ internal sealed partial class DesktopSessionHost
         return entries ?? throw new InvalidDataException("Favorites are unavailable: " + _favoriteReadError?.Message, _favoriteReadError);
     }
 
+    /// <summary>
+    /// True when the favorites index could not be read at startup (damaged, a link, too large, unreadable). The stars then show the
+    /// "unavailable" state instead of an unmarked one; the file is never rewritten or repaired from here.
+    /// </summary>
+    internal bool FavoritesUnreadable => Volatile.Read(ref _passiveFavorites) == null && Volatile.Read(ref _favoriteReadError) != null;
+
+    /// <summary>
+    /// The sentence for the one notice of an unreadable favorites index, handed out exactly once per session (null when the index is
+    /// readable or the notice was already taken): the shell shows it once, never once per star or tile.
+    /// </summary>
+    internal string? TakeFavoritesUnreadableNotice()
+    {
+        if (!FavoritesUnreadable || Interlocked.Exchange(ref _favoritesUnreadableNoticed, 1) != 0) return null;
+        return Texts.T("favorites.unreadable.notice", Volatile.Read(ref _favoriteReadError)?.Message ?? string.Empty);
+    }
+
+    /// <summary>
+    /// Whether a medium is a favorite in the passive index. An index that is still loading or could not be read has no marks to report, so
+    /// this is false then and never throws for it (<see cref="FavoritesUnreadable"/> tells the unreadable case apart); only a disposed
+    /// session throws. <see cref="GetFavorites"/> keeps throwing for every consumer that must refuse instead (destructive commands, the overview).
+    /// </summary>
     internal bool IsFavorite(GalleryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
         ObjectDisposedException.ThrowIf(_disposed, this);
         PassiveFavoriteIndex? index = Volatile.Read(ref _passiveFavorites);
-        if (index == null) { GetFavorites(); return false; }
-        return index.Keys.Contains(key);
+        return index != null && index.Keys.Contains(key);
     }
+
+    /// <summary>Number of originals the favorites resolution remembers as verified (tests).</summary>
+    internal int FavoriteVerifiedFileCount => _favoriteVerifiedFiles.Count;
 
     internal Task<bool> SetFavoriteAsync(GalleryEntry entry, bool favorite,
         CancellationToken token = default)
@@ -115,6 +222,10 @@ internal sealed partial class DesktopSessionHost
 
         Dictionary<FavoriteAssetKey, FavoriteExportAsset> found = new();
         ArchiveReader? reader = null;
+        // The catalog is one JSON document that is parsed and validated whole on every read: read it once for all provider
+        // posts of this resolution (and not at all when no favorite is a provider post), never once per favorite group.
+        BooruCatalogSnapshot? booruCatalog = null;
+        bool booruCatalogRead = false;
         try
         {
             try { reader = await OpenArchiveReaderAsync(token).ConfigureAwait(false); }
@@ -131,6 +242,19 @@ internal sealed partial class DesktopSessionHost
                         .ConfigureAwait(false);
                     directories.AddRange(archived);
                 }
+                // A downloaded provider post is no archived thread: its folder is the one the catalog linked to its original.
+                if (BooruMediaIdentity.TryGetPostId(group.Key, out string booruPost))
+                {
+                    if (!booruCatalogRead) { booruCatalog = ReadBooruCatalog(); booruCatalogRead = true; }
+                    if (booruCatalog?.TryGetPost(BooruMediaIdentity.Source, booruPost) is { } booruRecord
+                        && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
+                        directories.Add(booruDirectory);
+                }
+                // A folder source file has no folder of its own: each favorite names its virtual item folder (answered by the shadow catalog).
+                if (FolderSources.FolderSourceIdentity.TryGetRootId(group.Key, out Guid folderRoot))
+                    foreach (FavoriteEntry folderFavorite in group)
+                        if (FolderSources.FolderSourceIdentity.TryParseId(folderFavorite.Key.MediaIdentifier, out Guid folderItem))
+                            directories.Add(FolderSources.FolderSourceIdentity.VirtualDirectory(_profileLease.ProfileDirectory, folderRoot, folderItem));
                 try
                 {
                     directories.Add(StorageLayout.GetThreadDirectory(Config.DownloadPath,
@@ -160,7 +284,7 @@ internal sealed partial class DesktopSessionHost
                             if (asset.Length != stored.Length) continue;
                             try
                             {
-                                await using Stream verified = await manifest.OpenVerifiedReadAsync(asset.AssetId, token)
+                                await using Stream verified = await manifest.OpenSessionVerifiedReadAsync(asset.AssetId, _favoriteVerifiedFiles, token)
                                     .ConfigureAwait(false);
                                 found.Add(key, FavoriteExportAsset.From(group.Key, manifest, asset));
                             }

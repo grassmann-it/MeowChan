@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -93,7 +94,7 @@ public sealed class GalleryPlaybackSettingsTests : IDisposable
     {
         XDocument markup = XDocument.Load(Path.Combine(RepositoryRoot(), "Desktop/Views/Settings/SettingsEditor.axaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
-        var controls = markup.Descendants().Where(element => element.Name.LocalName == "CheckBox")
+        var controls = markup.Descendants().Where(element => element.Name.LocalName == "ToggleSwitch")
             .ToDictionary(element => (string?)element.Attribute(x + "Name") ?? Guid.NewGuid().ToString());
         XElement visible = controls["GalleryOverlayControlsInput"];
         Assert.Null(visible.Attribute("IsVisible"));
@@ -104,6 +105,21 @@ public sealed class GalleryPlaybackSettingsTests : IDisposable
         Assert.Equal("False", (string?)legacy.Attribute("IsTabStop"));
         Assert.Equal("{Binding GalleryAutoHideControls, Mode=TwoWay}", (string?)legacy.Attribute("IsChecked"));
         Assert.Null(controls["GalleryOverlayPostContextInput"].Attribute("IsVisible"));
+    }
+
+    [Fact]
+    public void OverflowMenuRowsShareOneInsetAndTheTooltipIsTheLabelNotTheRowGrid()
+    {
+        string playback = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/GalleryViewer.Playback.cs"));
+        string styles = File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop/WorkspaceStyles.axaml"));
+        // The row content of a menu entry is a Grid: its ToString() must never reach a tooltip.
+        Assert.DoesNotContain("button.Content?.ToString()", playback);
+        Assert.Contains("string label = LabelOf(button) ?? CommandCatalog.Label(id);", playback);
+        // Rows use the context-menu inset and height tokens, captions and choice boxes the same 16 dip edge.
+        Assert.Contains("Property=\"Padding\" Value=\"{StaticResource Workspace.Inset.MenuItem}\"", styles.Substring(styles.IndexOf("Button.gallery-overflow-item, ToggleButton.gallery-overflow-item\">", StringComparison.Ordinal)));
+        Assert.Equal(16, GalleryViewer.RowInset);
+        Assert.Equal(GalleryViewer.RowInset, GalleryViewer.OverflowCaptionMargin.Left);
+        Assert.Equal(GalleryViewer.RowInset, GalleryViewer.OverflowChoiceMargin.Right);
     }
 
     private static string RepositoryRoot([CallerFilePath] string sourcePath = "") =>

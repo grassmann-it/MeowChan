@@ -46,7 +46,6 @@ public sealed class ArchiveSearchSpec : IEquatable<ArchiveSearchSpec>
         if (boardValues.Length > 128) throw new ArgumentException("At most 128 board selectors are supported.", nameof(boards));
         ThreadSourceState[] stateValues = (sourceStates ?? []).ToArray();
         if (stateValues.Any(value => !Enum.IsDefined(value))) throw new ArgumentOutOfRangeException(nameof(sourceStates));
-        SchemaVersion = schemaVersion;
         Text = text;
         Sources = Array.AsReadOnly(sourceValues.Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray());
         Boards = Array.AsReadOnly(boardValues.Distinct().OrderBy(value => value.Source, StringComparer.Ordinal).ThenBy(value => value.Board, StringComparer.Ordinal).ToArray());
@@ -58,25 +57,43 @@ public sealed class ArchiveSearchSpec : IEquatable<ArchiveSearchSpec>
         DateRange = dateRange is { StartDate: null, EndDate: null } ? null : dateRange;
     }
 
-    // Copy with a different tag filter. Every other member is already validated and canonical.
-    private ArchiveSearchSpec(ArchiveSearchSpec other, ArchiveTagFilter? tags)
+    // Copy with a different tag filter and text scope. Every other member is already validated and canonical.
+    private ArchiveSearchSpec(ArchiveSearchSpec other, ArchiveTagFilter? tags, ArchiveSearchScope scope)
     {
         Text = other.Text; Sources = other.Sources; Boards = other.Boards; SourceStates = other.SourceStates;
         CaptureEnabled = other.CaptureEnabled; HasPosts = other.HasPosts; Sort = other.Sort;
         WorkFilter = other.WorkFilter; DateRange = other.DateRange;
         Tags = tags;
-        // Definitions without tags keep schema 1 byte for byte; a tag filter is the only schema 2 content.
-        SchemaVersion = tags == null ? 1 : 2;
+        Scope = scope;
     }
 
     /// <summary>
     /// The same definition with this own-tag filter (null removes it). Like the work filter, tag
     /// membership is profile data evaluated outside SQL; a request must be bound to a tag snapshot.
     /// </summary>
-    internal ArchiveSearchSpec WithTags(ArchiveTagFilter? tags) => Equals(Tags, tags) ? this : new(this, tags);
+    internal ArchiveSearchSpec WithTags(ArchiveTagFilter? tags) => Equals(Tags, tags) ? this : new(this, tags, Scope);
+
+    /// <summary>The same definition with this text scope (<see cref="ArchiveSearchScope.AllPosts"/> is the default).</summary>
+    public ArchiveSearchSpec WithScope(ArchiveSearchScope scope)
+    {
+        if (!Enum.IsDefined(scope)) throw new ArgumentOutOfRangeException(nameof(scope));
+        return Scope == scope ? this : new(this, Tags, scope);
+    }
 
     internal ArchiveTagFilter? Tags { get; }
-    public int SchemaVersion { get; }
+
+    /// <summary>
+    /// The wire schema this definition needs, derived from its content so older definitions keep their bytes: 1 is the base,
+    /// 2 adds a tag filter, 3 adds a text scope or the relevance order (with or without tags). An older reader refuses
+    /// a newer schema visibly instead of silently widening or reordering the search.
+    /// </summary>
+    public int SchemaVersion => Scope != ArchiveSearchScope.AllPosts || Sort == ArchiveThreadSort.Relevance ? 3 : Tags == null ? 1 : 2;
+
+    /// <summary>Where the search text has to occur; no effect without a text.</summary>
+    public ArchiveSearchScope Scope { get; }
+
+    /// <summary>True when the text is non-blank and the order is <see cref="ArchiveThreadSort.Relevance"/>: results carry match tiers.</summary>
+    public bool RanksByMatchTier => Sort == ArchiveThreadSort.Relevance && Text.Trim().Length > 0;
     public string Text { get; }
     public IReadOnlyList<string> Sources { get; }
     public IReadOnlyList<ArchiveBoardConstraint> Boards { get; }
@@ -114,12 +131,12 @@ public sealed class ArchiveSearchSpec : IEquatable<ArchiveSearchSpec>
     public bool Equals(ArchiveSearchSpec? other) => other != null && SchemaVersion == other.SchemaVersion && Text == other.Text
         && Sources.SequenceEqual(other.Sources) && Boards.SequenceEqual(other.Boards) && SourceStates.SequenceEqual(other.SourceStates)
         && CaptureEnabled == other.CaptureEnabled && HasPosts == other.HasPosts && Sort == other.Sort
-        && WorkFilter == other.WorkFilter && Equals(DateRange, other.DateRange) && Equals(Tags, other.Tags);
+        && WorkFilter == other.WorkFilter && Equals(DateRange, other.DateRange) && Equals(Tags, other.Tags) && Scope == other.Scope;
     public override bool Equals(object? obj) => obj is ArchiveSearchSpec other && Equals(other);
     public override int GetHashCode()
     {
         HashCode hash = new();
-        hash.Add(SchemaVersion); hash.Add(Text); hash.Add(CaptureEnabled); hash.Add(HasPosts); hash.Add(Sort); hash.Add(WorkFilter); hash.Add(DateRange); hash.Add(Tags);
+        hash.Add(SchemaVersion); hash.Add(Text); hash.Add(CaptureEnabled); hash.Add(HasPosts); hash.Add(Sort); hash.Add(WorkFilter); hash.Add(DateRange); hash.Add(Tags); hash.Add(Scope);
         foreach (string source in Sources) hash.Add(source);
         foreach (ArchiveBoardConstraint board in Boards) hash.Add(board);
         foreach (ThreadSourceState state in SourceStates) hash.Add(state);

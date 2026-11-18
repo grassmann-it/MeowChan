@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginSdk;
@@ -78,7 +79,7 @@ public partial class PluginsPage
         {
             ResultKind.Thread => Texts.T("plugins.threadResult", EntryCount, AttachmentCount) + "\n" + RawContent
                 + (PreviewLimited ? "\n" + Texts.T("plugins.previewLimited") : string.Empty),
-            ResultKind.Catalog => Texts.T("plugins.catalogResult", EntryCount) + "\n" + RawContent,
+            ResultKind.Catalog => Texts.Count("plugins.catalogResult", EntryCount) + "\n" + RawContent,
             ResultKind.Failure => RawContent,
             ResultKind.Deferred => Texts.T("plugins.deferred", RetryAt, RawContent),
             ResultKind.NotFound => Texts.T("plugins.notFound", HttpStatusCode),
@@ -107,7 +108,6 @@ public partial class PluginsPage
             {
                 if (args.Property != Expander.IsExpandedProperty || _restoringPluginTools || _pluginToolKey is not { } key) return;
                 ExpansionState(key)[id] = expander.IsExpanded;
-                QueuePluginNavigationVisibility();
             };
         }
     }
@@ -149,14 +149,18 @@ public partial class PluginsPage
                 _editorOptionsLoaded = true;
             }
             var expansion = ExpansionState(entry.Key);
-            foreach (var item in new[] { ("PluginDeveloperExpander", "developer-details"), ("PluginInfoExpander", "information"),
-                ("PluginGrantExpander", "grants"), ("PluginEditorExpander", "editor-options") })
-                C<Expander>(item.Item1).IsExpanded = expansion.GetValueOrDefault(item.Item2);
+            // A disclosure the user has not touched for this plugin opens as the view says (Rights: open in Advanced).
+            foreach (var item in new[] { ("PluginDeveloperExpander", "developer-details", "plugins.detail.developer"),
+                ("PluginInfoExpander", "information", "plugins.detail.info"), ("PluginGrantExpander", "grants", "plugins.detail.grants"),
+                ("PluginEditorExpander", "editor-options", (string?)null) })
+                C<Expander>(item.Item1).IsExpanded = expansion.TryGetValue(item.Item2, out bool remembered) ? remembered
+                    : item.Item3 != null && DefaultOpen(item.Item3);
             PluginToolViewState state = ToolState(entry.Key);
             C<TextBox>("PluginProbeUrl").Text = state.Url;
             RenderPluginProbeResult();
             RenderDiagnostics(state.Diagnostics, entry);
             C<TextBlock>("PluginTechnicalCopyStatus").Text = string.Empty;
+            ShowPluginIdCopyStatus(null);
         }
         finally { _restoringPluginTools = false; }
     }
@@ -166,12 +170,13 @@ public partial class PluginsPage
         if (_ended || _pluginToolKey is not { } key || key != _selectedKey) return;
         TextBox output = C<TextBox>("PluginProbeResult");
         string text = ToolState(key).Result?.Render() ?? string.Empty;
-        if (output.Text == text) return;
+        if (output.Text == text) { RefreshWorkViewPresentation(); return; }
         int start = output.SelectionStart, end = output.SelectionEnd, caret = output.CaretIndex;
         output.Text = text;
         output.CaretIndex = Math.Clamp(caret, 0, text.Length);
         output.SelectionStart = Math.Clamp(start, 0, text.Length);
         output.SelectionEnd = Math.Clamp(end, 0, text.Length);
+        RefreshWorkViewPresentation();
     }
 
     private void RenderTechnicalIdentity(PluginCatalogEntry entry)
@@ -214,10 +219,36 @@ public partial class PluginsPage
         }
     }
 
+    private string? _copyablePluginId;
+
+    private void ShowPluginIdCopyStatus(string? text)
+    {
+        C<TextBlock>("PluginIdCopyStatus").Text = text ?? string.Empty;
+        C<TextBlock>("PluginIdCopyStatus").IsVisible = !string.IsNullOrEmpty(text);
+    }
+
+    // Dead-affordance audit: the ID chip copies the full plugin ID, like the technical details button copies its block; the status says what happened.
+    private async void OnCopyPluginIdClick(object? sender, RoutedEventArgs args)
+    {
+        if (_ended || Selected is not { } entry || _copyablePluginId is not { } pluginId) return;
+        string key = entry.Key;
+        try
+        {
+            var clipboard = TopLevel.GetTopLevel(this)?.Clipboard
+                ?? throw new InvalidOperationException(Texts.T("plugins.clipboardUnavailable"));
+            await clipboard.SetTextAsync(pluginId);
+            if (!_ended && Selected?.Key == key) ShowPluginIdCopyStatus(Texts.T("plugins.pluginIdCopied"));
+        }
+        catch (Exception exception)
+        {
+            if (!_ended && Selected?.Key == key) ShowPluginIdCopyStatus(Texts.T("plugins.technicalDetailsCopyFailed", exception.Message));
+        }
+    }
+
     internal void OpenPluginDeveloperDetails()
     {
         if (!_ended && Selected is { } entry && Included(entry))
-            C<Expander>("PluginDeveloperExpander").IsExpanded = true;
+            RevealDeveloperArea();
     }
 
     private void FocusPluginBuildDiagnostics()

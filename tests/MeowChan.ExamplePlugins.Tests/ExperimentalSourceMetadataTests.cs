@@ -2,7 +2,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
 using MeowChan.Plugins.Examples.Kohlchan;
-using MeowChan.Plugins.Examples.Wizchan;
+using MeowChan.Plugins.Examples.VichanFamily;
 using MeowChan.Plugins.Examples.Endchan;
 
 namespace MeowChan.ExamplePlugins.Tests;
@@ -16,8 +16,9 @@ public sealed class ExperimentalSourceMetadataTests
     public void ExperimentalIsPassiveSourceMetadataAndSurvivesDescriptionRoundtrip(string sourceId)
     {
         PluginDescription description = Plugin(sourceId).Describe();
-        SourceDescription source = Assert.Single(description.Sources);
-        Assert.Equal("meowchan.source." + sourceId, description.PluginId);
+        SourceDescription source = Assert.Single(description.Sources, item => item.SourceId == sourceId);
+        // Sites of an engine family share one plugin; the source identity stays the site's own.
+        Assert.Equal(sourceId == "wizchan" ? VichanFamilyPlugin.PluginId : "meowchan.source." + sourceId, description.PluginId);
         Assert.Equal(sourceId, source.SourceId);
         Assert.Equal(SourceMaturity.Experimental, source.Maturity);
         Assert.Empty(SdkValidation.ValidateDescription(description));
@@ -28,7 +29,7 @@ public sealed class ExperimentalSourceMetadataTests
         Assert.Equal(source.BaseUri.Host, grant.Host);
         Assert.Equal(HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia, grant.Purpose);
         PluginDescription copy = SdkJson.Deserialize<PluginDescription>(SdkJson.Serialize<PluginDescription>(description));
-        Assert.Equal(SourceMaturity.Experimental, Assert.Single(copy.Sources).Maturity);
+        Assert.Equal(SourceMaturity.Experimental, Assert.Single(copy.Sources, item => item.SourceId == sourceId).Maturity);
         Assert.Empty(SdkValidation.ValidateDescription(copy));
     }
 
@@ -56,8 +57,8 @@ public sealed class ExperimentalSourceMetadataTests
         Assert.Null(attachment.ExpectedSha256);
         Assert.Equal("123-0", attachment.MediaId);
         Assert.Equal(0, attachment.Position);
-        Assert.Equal(plugin.Describe().Sources[0].BaseUri.Host, attachment.Url!.Host);
-        Assert.Empty(SdkValidation.ValidateThreadResult(request, result, plugin.Describe().Sources[0]));
+        Assert.Equal(plugin.Describe().Sources.Single(item => item.SourceId == sourceId).BaseUri.Host, attachment.Url!.Host);
+        Assert.Empty(SdkValidation.ValidateThreadResult(request, result, plugin.Describe().Sources.Single(item => item.SourceId == sourceId)));
         ThreadSnapshot copy = Assert.IsType<ThreadSnapshot>(SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(result)));
         Assert.Equal(reportedBytes, copy.Snapshot.Posts[0].Attachments![0].ExpectedSize);
         Assert.Equal(attachment.ExpectedMd5, copy.Snapshot.Posts[0].Attachments![0].ExpectedMd5);
@@ -69,7 +70,7 @@ public sealed class ExperimentalSourceMetadataTests
     private static ISourcePlugin Plugin(string source) => source switch
     {
         "kohlchan" => new KohlchanPlugin(),
-        "wizchan" => new WizchanPlugin(),
+        "wizchan" => new VichanFamilyPlugin(),
         "endchan" => new EndchanPlugin(),
         _ => throw new ArgumentException("Unknown source", nameof(source))
     };

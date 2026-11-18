@@ -57,9 +57,9 @@ internal static class ArchiveNavigationChecks
                 // Use the real item template button, including its wired UI action.
                 Control container = posts.ContainerFromItem(targetRow)!;
                 await Program.WaitUntilAsync(() => targetRow.BacklinkCount == 1);
-                Expander backlinks = Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(container).OfType<Expander>()
-                    .Single(expander => ReferenceEquals(expander.DataContext, targetRow));
-                backlinks.IsExpanded = true;
+                Button counter = Avalonia.LogicalTree.LogicalExtensions.GetLogicalDescendants(container).OfType<Button>()
+                    .Single(button => button.Classes.Contains("reader-reply-toggle") && ReferenceEquals(button.DataContext, targetRow));
+                counter.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => targetRow.Replies.Count == 1);
                 ArchiveQuoteRow backlink = targetRow.Replies.Single();
                 Require(backlink.Backlink && backlink.Quote.Origin.Thread == origin, "Backlink origin is wrong.");

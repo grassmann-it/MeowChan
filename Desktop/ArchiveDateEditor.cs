@@ -14,10 +14,12 @@ namespace MeowChan.Desktop;
 // must never widen an archive search. Calendar selection explicitly replaces raw.
 public sealed class ArchiveDateEditor : UserControl
 {
-    private readonly TextBox _raw = new() { PlaceholderText = "YYYY-MM-DD" };
+    private readonly TextBox _raw = new() { PlaceholderText = Texts.T("archive.datePattern") };
     private sealed class CalendarPicker : DateOnlyPicker
     {
         private CalendarDisplayCulture? _displayCulture;
+        // A subclass takes its template from the control theme of its own type, which does not exist: the picker's theme is the base type's.
+        protected override Type StyleKeyOverride => typeof(DateOnlyPicker);
         protected override string? Format(DateOnly? value, string? format) => value?.ToString(format, CultureInfo.InvariantCulture);
         // Ursa also commits its read-only display on blur; match its ISO format.
         protected override DateOnly? Parse(string? text, string? format) =>
@@ -54,7 +56,10 @@ public sealed class ArchiveDateEditor : UserControl
     }
     internal void SetLabel(string label)
     {
-        AutomationProperties.SetName(_raw, label + " (YYYY-MM-DD)");
+        // Only the displayed pattern is localized; the accepted input stays the ISO yyyy-MM-dd.
+        string pattern = Texts.T("archive.datePattern");
+        _raw.PlaceholderText = pattern;
+        AutomationProperties.SetName(_raw, label + " (" + pattern + ")");
         AutomationProperties.SetName(_calendar, label);
         ToolTip.SetTip(_calendar, label);
     }

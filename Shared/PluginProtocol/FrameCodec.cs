@@ -32,17 +32,34 @@ internal sealed class FrameCodec : IDisposable
 
     public async Task WriteAsync(WireEnvelope envelope, CancellationToken cancellationToken)
     {
-        byte[] bytes = JsonSerializer.SerializeToUtf8Bytes(envelope, WireJson.Options);
-        if (bytes.Length > ProtocolVersion.MaximumFrameBytes)
+        using MemoryStream frame = new();
+        frame.Position = 4; // length prefix, filled in below: one buffer, one write
+        JsonSerializer.Serialize(frame, envelope, WireJson.Options);
+        int length = (int)frame.Length - 4;
+        if (length > ProtocolVersion.MaximumFrameBytes)
             throw new FrameLimitException("The protocol frame exceeds 16 MiB.");
-        byte[] prefix = new byte[4];
-        BinaryPrimitives.WriteInt32LittleEndian(prefix, bytes.Length);
+        byte[] bytes = frame.GetBuffer();
+        BinaryPrimitives.WriteInt32LittleEndian(bytes, length);
         await _writer.WaitAsync(cancellationToken).ConfigureAwait(false);
+        // Once started, a frame is always finished: a partial frame would desynchronize the peer.
+        // A cancelled caller stops waiting; the lock stays held until the write ends or the
+        // owner kills the worker on its cancellation grace, which breaks a hung pipe.
+        Task write = WriteFrameAsync(bytes.AsMemory(0, length + 4));
+        try { await write.WaitAsync(cancellationToken).ConfigureAwait(false); }
+        catch (OperationCanceledException)
+        {
+            _ = write.ContinueWith(static task => _ = task.Exception, CancellationToken.None,
+                TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            throw;
+        }
+    }
+
+    private async Task WriteFrameAsync(ReadOnlyMemory<byte> frame)
+    {
         try
         {
-            await _output.WriteAsync(prefix, cancellationToken).ConfigureAwait(false);
-            await _output.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
-            await _output.FlushAsync(cancellationToken).ConfigureAwait(false);
+            await _output.WriteAsync(frame, CancellationToken.None).ConfigureAwait(false);
+            await _output.FlushAsync(CancellationToken.None).ConfigureAwait(false);
         }
         finally { _writer.Release(); }
     }

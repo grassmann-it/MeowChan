@@ -23,6 +23,10 @@ internal static class MediaRepresentationWire
         ["Position", "MediaId", "Variant", "Url", "OriginalFileName", "PlannedPath",
          "ExpectedSize", "ExpectedMd5", "IsDeleted", "ExpectedSha256", "ExpectedSha1",
          "ProviderSizeHint", "AttachmentRevisionKey"];
+    // These fields were added to CapturedAttachment after the v6 wire contract was
+    // introduced.  Accepting them as optional keeps older v6 manifests readable while
+    // allowing current manifests to retain captured image dimensions.
+    private static readonly string[] MetadataOptionalFields = ["Width", "Height"];
     private static readonly string[] SizeHintFields = ["RawValue", "UnitLabel", "Precision"];
     private static readonly string[] IntegrityFields = ["Length", "Md5", "Sha256", "Sha1"];
     private static readonly string[] OriginFields = ["OperationId", "PackageFingerprint", "ImportedAtUtc"];
@@ -121,7 +125,7 @@ internal static class MediaRepresentationWire
 
     private static void Metadata(JsonElement value, CancellationToken ct)
     {
-        Fields(value, MetadataFields, ct);
+        Fields(value, MetadataFields, ct, MetadataOptionalFields);
         Int(value.GetProperty("Position"));
         NullableText(value.GetProperty("MediaId"));
         Text(value.GetProperty("Variant"));
@@ -133,6 +137,16 @@ internal static class MediaRepresentationWire
         NullableText(value.GetProperty("ExpectedMd5"));
         JsonValueKind deleted = value.GetProperty("IsDeleted").ValueKind;
         if (deleted is not (JsonValueKind.True or JsonValueKind.False)) throw Invalid();
+        bool hasWidth = value.TryGetProperty("Width", out JsonElement width);
+        bool hasHeight = value.TryGetProperty("Height", out JsonElement height);
+        // Pre-dimensions v6 manifests have neither field; current manifests write
+        // both fields (including explicit nulls). Never accept a half-upgraded pair.
+        if (hasWidth != hasHeight) throw Invalid();
+        if (hasWidth)
+        {
+            PositiveNullableInt(width);
+            PositiveNullableInt(height);
+        }
         NullableText(value.GetProperty("ExpectedSha256"));
         NullableText(value.GetProperty("ExpectedSha1"));
         NullableText(value.GetProperty("AttachmentRevisionKey"));
@@ -164,19 +178,27 @@ internal static class MediaRepresentationWire
         if (time.ValueKind != JsonValueKind.String || !time.TryGetDateTimeOffset(out _)) throw Invalid();
     }
 
-    private static void Fields(JsonElement value, string[] names, CancellationToken ct)
+    private static void Fields(JsonElement value, string[] names, CancellationToken ct,
+        params string[] optionalNames)
     {
         ct.ThrowIfCancellationRequested();
         if (value.ValueKind != JsonValueKind.Object) throw Invalid();
         // Every field is required, including nullable fields. The bitset also fails
         // closed on duplicates if this helper is ever used without the outer walker.
-        uint seen = 0;
+        uint seen = 0, optionalSeen = 0;
         foreach (JsonProperty property in value.EnumerateObject())
         {
             ct.ThrowIfCancellationRequested();
             int index = Array.IndexOf(names, property.Name);
-            if (index < 0 || (seen & (1u << index)) != 0) throw Invalid();
-            seen |= 1u << index;
+            if (index >= 0)
+            {
+                if ((seen & (1u << index)) != 0) throw Invalid();
+                seen |= 1u << index;
+                continue;
+            }
+            int optionalIndex = Array.IndexOf(optionalNames, property.Name);
+            if (optionalIndex < 0 || (optionalSeen & (1u << optionalIndex)) != 0) throw Invalid();
+            optionalSeen |= 1u << optionalIndex;
         }
         if (seen != (1u << names.Length) - 1) throw Invalid();
     }
@@ -199,6 +221,13 @@ internal static class MediaRepresentationWire
     private static void Long(JsonElement value)
     {
         if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out _)) throw Invalid();
+    }
+
+    private static void PositiveNullableInt(JsonElement value)
+    {
+        if (value.ValueKind == JsonValueKind.Null) return;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt32(out int result) || result <= 0)
+            throw Invalid();
     }
 
     private static InvalidDataException Invalid() => new("Invalid passive media inventory shape.");

@@ -8,12 +8,14 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
+using Ursa.Controls;
 
 namespace MeowChan;
 
@@ -21,11 +23,15 @@ public partial class SourcesPage : UserControl
 {
     private readonly Func<DiagnosticTarget, bool>? _openWatch;
     private readonly Action<string>? _editRules;
-    private readonly Action? _openDiagnostics;
+    private readonly Action<string>? _openDiagnostics;
+    private readonly Action? _addToDownloads;
     private readonly Action? _openDownloads;
-    private readonly Func<string, Action<Window>, Task<bool>>? _submit;
-    private IReadOnlyList<SourceRow> _rows = Array.Empty<SourceRow>();
-    private sealed record SourceCard(Button Control, TextBlock Name, TextBlock Address, TextBlock Observation);
+    private IReadOnlyList<SourceListRow> _rows = Array.Empty<SourceListRow>();
+    private sealed record SourceCard(SelectionListItem Control, TextBlock Name, WrapPanel Chips, TextBlock Address, TextBlock Observation,
+        Desktop.Controls.StatFooterRow Footer)
+    {
+        internal string ChipSignature { get; set; } = string.Empty;
+    }
     private sealed record SourceMediaIntegritySaveError(string PluginOwnerId, string SourceId, string Message);
     private SourceMediaIntegritySaveError? _sourceMediaIntegritySaveError;
     private readonly Dictionary<string, SourceCard> _sourceCards = new Dictionary<string, SourceCard>(StringComparer.Ordinal);
@@ -33,114 +39,179 @@ public partial class SourcesPage : UserControl
     private bool _available;
     private bool _busy;
     private bool _ended;
-    private bool _hasUrlResult;
-    private long _sourceSelectionRevision;
-    private Action? _cancelSubmitFocusRestore;
-    internal bool HasPendingSubmitFocusRestore => _cancelSubmitFocusRestore != null;
     private bool _showDetails;
     private bool _narrow;
-    internal Action<string>? OpenPluginSettings { get; set; }
     internal Func<IReadOnlyList<SourceMediaIntegrityPolicyView>>? GetSourceMediaIntegrityPolicies { get; set; }
     internal Func<string, string, bool, long, Task>? SetSourceMediaIntegrityPermission { get; set; }
-    internal bool IsBusy => _busy;
+    /// <summary>A family site's own switch (owner, source → on/off, null without one) and its setter.</summary>
+    internal Func<string, string, bool?>? GetChanSiteEnabled { get; set; }
+    internal Func<string, bool, Task<bool>>? SetChanSiteEnabled { get; set; }
+    /// <summary>The "Sources page: watch rows per source" setting; read on every render so a saved change shows on the next visit.</summary>
+    internal Func<int>? GetWatchPreviewRows { get; set; }
+    private Action? _openMediaFolders;
+    /// <summary>Opens Settings at the media folders group; set by the shell. While it is null the pointer under the source list stays hidden.</summary>
+    internal Action? OpenMediaFolders
+    {
+        get => _openMediaFolders;
+        set { _openMediaFolders = value; this.FindControl<Button>("SourcesMediaFoldersLink")!.IsVisible = value != null; }
+    }
+    private void OnMediaFoldersLinkClick(object? sender, RoutedEventArgs e) => _openMediaFolders?.Invoke();
+    internal bool IsBusy => _busy || SourcePluginManagement.IsBusy;
     internal event EventHandler? BusyChanged;
 
     public SourcesPage()
     {
-        InitializeComponent(); InitializeContextMenus();
-        DetachedFromVisualTree += (_, _) => _cancelSubmitFocusRestore?.Invoke();
+        // Every key of the page runs in the "sources" context (S3 P2-4), the plugin management inside it in "plugins" (its own host, nearer the key): a
+        // default that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
+        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "sources");
+        InitializeComponent(); InitializeContextMenus(); InitializeMergedSources(); InstallWatchEnter();
+        AddHandler(GotFocusEvent, (_, _) =>
+        {
+            if (!_applyingSourceFocus) ++_focusRequest;
+        }, RoutingStrategies.Bubble, handledEventsToo: true);
     }
-    internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action openDownloads, Func<string, Task<bool>> submit)
-        : this(openWatch, editRules, openDiagnostics, openDownloads, (input, _) => submit(input)) { }
 
+    /// <param name="openDiagnostics">Opens Status › Diagnostics with the source filter preset to the canonical id of the source.</param>
+    /// <param name="addToDownloads">Goes to Downloads and focuses its URL field; the Sources page itself admits nothing.</param>
+    /// <param name="openDownloads">Goes to Downloads for the watches beyond the preview. Downloads has no per-source filter, so none is applied.</param>
     internal SourcesPage(Func<DiagnosticTarget, bool> openWatch, Action<string> editRules,
-        Action openDiagnostics, Action openDownloads, Func<string, Action<Window>, Task<bool>> submit) : this()
+        Action<string> openDiagnostics, Action addToDownloads, Action openDownloads) : this()
     {
         _openWatch = openWatch;
         _editRules = editRules;
         _openDiagnostics = openDiagnostics;
+        _addToDownloads = addToDownloads;
         _openDownloads = openDownloads;
-        _submit = submit;
     }
 
     internal void Refresh(IReadOnlyList<ProviderDescriptor> providers, DesktopSessionView view, bool available)
     {
         if (_ended) return;
-        if (view.State != DesktopSessionState.Ready) _cancelSubmitFocusRestore?.Invoke();
         _available = available;
-        _rows = SourcesSnapshot.From(providers, view, GetSourceMediaIntegrityPolicies?.Invoke());
+        _registeredRows = SourcesSnapshot.From(providers, view, GetSourceMediaIntegrityPolicies?.Invoke());
+        RefreshSourceRows();
+    }
+
+    private void RefreshSourceRows()
+    {
+        if (_ended) return;
+        _rows = SourceListRows.Merge(_registeredRows, SourcePluginManagement.CatalogEntries);
         if (!_rows.Any(row => row.Id == _selectedId)) SetSelectedSource(_rows.FirstOrDefault()?.Id);
-        this.FindControl<TextBlock>("SourceCount")!.Text = Texts.T("sources.count", _rows.Count);
+        SourcePluginManagement.SetSourceCount(_rows.Count, _rows.Count(row => row.IsActive));
         this.FindControl<TextBlock>("SourcesEmpty")!.IsVisible = _rows.Count == 0;
-        StackPanel cards = this.FindControl<StackPanel>("SourceCards")!;
-        foreach (string removed in _sourceCards.Keys.Where(id => !_rows.Any(row => row.Id == id)).ToArray())
+        this.FindControl<Desktop.Controls.WorkspaceEmptyState>("SourcesEmptyState")!.IsVisible = _rows.Count == 0;
+        SelectionList cards = this.FindControl<SelectionList>("SourceCards")!;
+        _projectingSources = true;
+        try
         {
-            cards.Children.Remove(_sourceCards[removed].Control);
-            _sourceCards.Remove(removed);
-        }
-        foreach (SourceRow row in _rows)
-        {
-            if (!_sourceCards.TryGetValue(row.Id, out SourceCard? card))
+            foreach (string removed in _sourceCards.Keys.Where(id => !_rows.Any(row => row.Id == id)).ToArray())
             {
-                TextBlock name = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; name.Classes.Add("section-title");
-                TextBlock address = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; address.Classes.Add("workspace-meta");
-                TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("workspace-help");
-                StackPanel labels = new StackPanel { Spacing = 4 };
-                labels.Children.Add(name); labels.Children.Add(address); labels.Children.Add(observation);
-                Button select = new Button { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
-                    HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch, Padding = new Thickness(14) };
-                string sourceId = row.Id;
-                select.Click += (_, _) =>
-                {
-                    if (_selectedId != sourceId) SetActionError(string.Empty);
-                    SetSelectedSource(sourceId);
-                    _showDetails = true;
-                    RenderDetails();
-                    if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
-                };
-                select.Content = labels;
-                AttachSourceContextMenu(select, sourceId);
-                card = new SourceCard(select, name, address, observation);
-                _sourceCards.Add(row.Id, card); cards.Children.Add(select);
+                cards.Items.Remove(_sourceCards[removed].Control);
+                _sourceCards.Remove(removed);
             }
-            card.Name.Text = (row.Id == _selectedId ? "● " : "") + SourceDisplayName(row);
-            card.Address.Text = row.Address;
-            card.Observation.Text = row.Summary;
-            card.Control.IsEnabled = !_busy;
+            foreach (SourceListRow row in _rows)
+            {
+                if (!_sourceCards.TryGetValue(row.Id, out SourceCard? card))
+                {
+                    TextBlock name = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; name.Classes.Add("section-title");
+                    TextBlock address = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; address.Classes.Add("workspace-meta");
+                    TextBlock observation = new TextBlock { TextWrapping = Avalonia.Media.TextWrapping.Wrap }; observation.Classes.Add("workspace-help");
+                    WrapPanel chips = new WrapPanel { ItemSpacing = 8, LineSpacing = 4, IsVisible = false };
+                    StackPanel labels = new StackPanel { Spacing = 4 };
+                    // The counts close the card as a footer row (fixed slots, tabular figures); the sentence is only for "no observation", "stopped" and "not active".
+                    Desktop.Controls.StatFooterRow footer = new() { IsVisible = false };
+                    labels.Children.Add(name); labels.Children.Add(chips); labels.Children.Add(address); labels.Children.Add(observation); labels.Children.Add(footer);
+                    SelectionListItem select = new PluginSelectionItem { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                        HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+                    select.Classes.Add("workspace-list-card");
+                    string sourceId = row.Id;
+                    select.PointerReleased += (_, args) =>
+                    {
+                        if (args.InitialPressMouseButton is not (MouseButton.Left or MouseButton.None)) return;
+                        if (_selectedId != sourceId) SetActionError(string.Empty);
+                        SetSelectedSource(sourceId);
+                        _showDetails = true;
+                        RenderDetails();
+                        FocusSourceControlAfterLayout(this.FindControl<TextBlock>("SourceHeading")!);
+                    };
+                    select.Content = labels;
+                    AttachSourceContextMenu(select, sourceId);
+                    card = new SourceCard(select, name, chips, address, observation, footer);
+                    _sourceCards.Add(row.Id, card); cards.Items.Add(select);
+                }
+                card.Name.Text = row.Name;
+                RenderChips(card, row);
+                card.Address.Text = row.Address;
+                card.Observation.Text = row.Summary;
+                card.Observation.IsVisible = row.Stats == null;
+                card.Footer.IsVisible = row.Stats != null;
+                if (row.Stats is { } stats) card.Footer.Update(SourceStatFooter.Items(stats));
+                card.Control.IsEnabled = !IsBusy;
+                AutomationProperties.SetName(card.Control, row.Name + ". " + SourceWording.DescribeMeta(row.Badges) + ". " + row.Summary);
+            }
+            // Active first, then maturity/name; a change of maturity or name moves the card, it never rebuilds it.
+            for (int index = 0; index < _rows.Count; index++)
+            {
+                SelectionListItem control = _sourceCards[_rows[index].Id].Control;
+                int current = cards.Items.IndexOf(control);
+                if (current != index) { cards.Items.Remove(control); cards.Items.Insert(index, control); }
+            }
+            cards.SelectedItem = _selectedId != null ? _sourceCards.GetValueOrDefault(_selectedId)?.Control : null;
         }
+        finally { _projectingSources = false; }
         RenderDetails();
     }
 
-    private static string SourceDisplayName(SourceRow row) => row.Name +
-        (row.Classification is { } classification ? " · " + SourceWording.DescribeLabels(classification) : string.Empty);
+    /// <summary>A chip only where the source deviates from the norm; a source that is fine shows no chip at all.</summary>
+    private void RenderChips(SourceCard card, SourceListRow row)
+    {
+        SourceBadge[] deviating = row.Badges.Where(badge => badge.Deviates).ToArray();
+        bool problem = row.Plugin is { } plugin && SourcePluginManagement.SourcePluginNeedsAttention(plugin);
+        string signature = (problem ? "problem|" : string.Empty) + string.Join("|", deviating.Select(badge => (badge.Warning ? "!" : "") + badge.ChipText));
+        card.Chips.IsVisible = deviating.Length > 0 || problem;
+        if (signature == card.ChipSignature) return;
+        card.ChipSignature = signature;
+        card.Chips.Children.Clear();
+        if (problem)
+        {
+            Border attention = Desktop.Controls.WorkspaceChips.CreateBadge("SourcePluginProblem", Texts.T("plugins.problem"), compact: true);
+            attention.Classes.Add("chip-warning"); card.Chips.Children.Add(attention);
+        }
+        foreach (SourceBadge badge in deviating)
+        {
+            Border chip = Desktop.Controls.WorkspaceChips.CreateBadge("SourceChip", badge.ChipText, compact: true);
+            if (badge.Warning) chip.Classes.Add("chip-warning");
+            card.Chips.Children.Add(chip);
+        }
+    }
 
     private void SetSelectedSource(string? sourceId)
     {
         if (_selectedId == sourceId) return;
-        _cancelSubmitFocusRestore?.Invoke();
         _selectedId = sourceId;
-        _sourceSelectionRevision++;
+        if (!_projectingSources && sourceId != null && _sourceCards.TryGetValue(sourceId, out var card))
+            this.FindControl<SelectionList>("SourceCards")!.SelectedItem = card.Control;
     }
 
-    private SourceRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
+    private SourceListRow? Selected => _rows.FirstOrDefault(row => row.Id == _selectedId);
     private void RenderDetails()
     {
         RenderOperationFeedback();
         foreach (KeyValuePair<string, SourceCard> source in _sourceCards)
         {
-            source.Value.Name.Text = (source.Key == _selectedId ? "● " : "")
-                + (_rows.FirstOrDefault(row => row.Id == source.Key) is { } sourceRow ? SourceDisplayName(sourceRow) : source.Key);
             source.Value.Control.Classes.Set("selected", source.Key == _selectedId);
-            source.Value.Control.IsEnabled = !_busy;
+            source.Value.Control.IsEnabled = !IsBusy;
         }
-        SourceRow? row = Selected;
+        SourceListRow? row = Selected;
         Border details = this.FindControl<Border>("SourceDetailsPanel")!;
         StackPanel list = this.FindControl<StackPanel>("SourcesListPane")!;
         Button back = this.FindControl<Button>("SourceBackButton")!;
-        bool listHadFocus = list.IsKeyboardFocusWithin;
-        bool detailsHadFocus = details.IsKeyboardFocusWithin;
-        bool backHadFocus = back.IsKeyboardFocusWithin;
+        Control? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
+        bool ContainsFocus(Control container) => focused != null
+            && (ReferenceEquals(focused, container) || focused.GetVisualAncestors().Contains(container));
+        bool listHadFocus = ContainsFocus(list);
+        bool detailsHadFocus = ContainsFocus(details);
+        bool backHadFocus = ContainsFocus(back);
         details.IsVisible = row != null && (!_narrow || _showDetails);
         list.IsVisible = !_narrow || !_showDetails || row == null;
         back.IsVisible = _narrow;
@@ -156,21 +227,29 @@ public partial class SourcesPage : UserControl
             if (control is TextBlock text) text.Text = Texts.T(key);
             if (control is Button button && !button.Classes.Contains("command-icon")) button.Content = Texts.T(key);
         }
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", Texts.T("nav.sources"));
+        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceBackButton")!, "sources.back", CommandCatalog.Label("sources.back"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceRulesButton")!, "rules.edit-scope", Texts.T("sources.rules"));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDiagnosticsButton")!, "navigation.diagnostics", Texts.T("sources.diagnostics"));
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceDownloadsButton")!, "navigation.downloads", Texts.T("nav.downloads"));
-        CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceAddButton")!, "watch.add-url", Texts.T("action.add"));
+        Button addToDownloads = this.FindControl<Button>("SourceAddToDownloadsButton")!;
+        CommandBindings.ApplyLabeled(addToDownloads, "input.focus-url", Texts.T("sources.addInDownloads"));
+        // The explanation belongs to the hover, not to a sentence on the page; the shortcut stays visible.
+        ToolTip.SetTip(addToDownloads, Texts.T("sources.addInDownloadsHint")
+            + (CommandCatalog.ShortcutDisplay("input.focus-url") is string shortcut ? " (" + shortcut + ")" : string.Empty));
         CommandBindings.ApplyLabeled(this.FindControl<Button>("SourceOpenWatchButton")!, "watch.show-in-downloads", Texts.T("diagnostics.openWatch"));
+        AutomationProperties.SetName(this.FindControl<Button>("SourcesMediaFoldersLink")!, Texts.T("sources.mediaFoldersLink"));
+        Button emptyAdd = this.FindControl<Button>("SourcesEmptyAdd")!;
+        emptyAdd.Content = PluginsPage.IconAndLabel("plus", Texts.T("plugins.add")); AutomationProperties.SetName(emptyAdd, Texts.T("plugins.add")); ToolTip.SetTip(emptyAdd, Texts.T("plugins.add.help"));
         if (row == null) return;
-        this.FindControl<Button>("SourcePluginButton")!.Content = Texts.T("plugins.manageSource");
-        this.FindControl<Button>("SourcePluginButton")!.IsEnabled = OpenPluginSettings != null;
+        RenderSourcePluginBlock();
         this.FindControl<TextBlock>("SourceHeading")!.Text = row.Name;
         RenderSourceMediaIntegrity(row);
         this.FindControl<TextBlock>("SourceIdentity")!.Text = Texts.T("sources.identity", row.Id, row.Address);
         Button website = this.FindControl<Button>("SourceWebsiteButton")!;
-        CommandBindings.ApplyLabeled(website, "location.open-source", Texts.T("sources.website", row.Address));
-        website.IsEnabled = !_busy;
+        // The address is in the card and under "Technical details"; the label stays one short verb phrase, the address is the hover and the help text.
+        CommandBindings.ApplyLabeled(website, "location.open-source", Texts.T("sources.website"));
+        ToolTip.SetTip(website, row.Address + (CommandCatalog.ShortcutDisplay("location.open-source") is string websiteShortcut ? " · " + websiteShortcut : string.Empty));
+        AutomationProperties.SetHelpText(website, row.Address);
+        website.IsEnabled = !IsBusy;
         this.FindControl<TextBlock>("SourceHosts")!.Text = Texts.T("sources.hosts", row.Descriptor.SupportedHosts.Count > 0
             ? string.Join(", ", row.Descriptor.SupportedHosts) : Texts.T("sources.unspecified"));
         this.FindControl<TextBlock>("SourceVersion")!.Text = Texts.T("sources.version", row.Descriptor.AdapterVersion ?? Texts.T("sources.unspecified"));
@@ -195,30 +274,38 @@ public partial class SourcesPage : UserControl
         this.FindControl<TextBlock>("SourceCaptureAvailability")!.Text = Texts.T(row.Descriptor.CaptureAvailable
             ? "sources.captureAvailable" : "sources.captureUnavailable");
         this.FindControl<TextBlock>("SourceWatchSummary")!.Text = row.Summary;
-        this.FindControl<TextBox>("SourceUrlInput")!.PlaceholderText = Texts.T("downloads.urlPlaceholder");
-        this.FindControl<TextBlock>("SourceUrlResult")!.Text = _hasUrlResult ? Texts.T("sources.urlResult") : string.Empty;
-        DataGrid grid = this.FindControl<DataGrid>("SourceWatchesGrid")!;
-        if (grid.ItemsSource is not IReadOnlyList<SourceWatchRow> displayed || !displayed.SequenceEqual(row.Watches))
+        ListBox watchList = this.FindControl<ListBox>("SourceWatchesList")!;
+        int previewRows = Math.Clamp(GetWatchPreviewRows?.Invoke() ?? Config.SourcesWatchPreviewRowsDefault,
+            Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum);
+        IReadOnlyList<SourceWatchRow> shownWatches = row.Watches.Count <= previewRows ? row.Watches : row.Watches.Take(previewRows).ToArray();
+        if (watchList.ItemsSource is not IReadOnlyList<SourceWatchRow> displayed || !displayed.SequenceEqual(shownWatches))
         {
-            DiagnosticTarget? selected = (grid.SelectedItem as SourceWatchRow)?.Target;
-            grid.ItemsSource = row.Watches;
-            grid.SelectedItem = row.Watches.FirstOrDefault(watch => watch.Target == selected);
+            DiagnosticTarget? selected = (watchList.SelectedItem as SourceWatchRow)?.Target;
+            watchList.ItemsSource = shownWatches;
+            watchList.SelectedItem = shownWatches.FirstOrDefault(watch => watch.Target == selected);
         }
-        grid.Columns[0].Header = Texts.T("diagnostics.resource");
-        grid.Columns[1].Header = Texts.T("sources.work");
-        grid.Columns[2].Header = Texts.T("sources.observation");
-        foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceDownloadsButton", "SourceAddButton" })
-            this.FindControl<Button>(name)!.IsEnabled = _available && !_busy;
-        this.FindControl<TextBox>("SourceUrlInput")!.IsEnabled = _available && !_busy;
+        watchList.IsVisible = shownWatches.Count > 0;
+        Button allWatches = this.FindControl<Button>("SourceAllWatchesButton")!;
+        allWatches.IsVisible = row.Watches.Count > shownWatches.Count;
+        CommandBindings.ApplyLabeled(allWatches, "navigation.downloads", Texts.T("sources.showAll", row.Watches.Count));
+        allWatches.IsEnabled = _available && !IsBusy && _openDownloads != null;
+        foreach (string name in new[] { "SourceRulesButton", "SourceDiagnosticsButton", "SourceAddToDownloadsButton" })
+            this.FindControl<Button>(name)!.IsEnabled = _available && !IsBusy;
         RefreshWatchSelection();
+        RefreshWorkViewPresentation();
     }
 
-    private void RenderSourceMediaIntegrity(SourceRow row)
+    private void RenderSourceMediaIntegrity(SourceListRow row)
     {
         SourceMediaIntegrityPolicyView? policy = row.MediaIntegrityPolicy;
         TextBlock classificationText = this.FindControl<TextBlock>("SourceExperimental")!;
-        string classification = row.Classification is { } wording ? SourceWording.Describe(wording) : string.Empty;
-        classificationText.IsVisible = classification.Length > 0;
+        // The meta line is always complete; the sentence below explains "Experimental" and is there only for it.
+        TextBlock metaText = this.FindControl<TextBlock>("SourceMeta")!;
+        metaText.Text = SourceWording.DescribeMeta(row.Badges);
+        AutomationProperties.SetName(metaText, metaText.Text);
+        bool experimental = row.Classification?.Maturity == SourceWordingMaturity.Experimental;
+        string classification = experimental ? Texts.T("sources.experimentalNote") : string.Empty;
+        classificationText.IsVisible = experimental;
         classificationText.Text = classification;
         AutomationProperties.SetName(classificationText, classification);
         this.FindControl<StackPanel>("SourceMediaIntegrityPanel")!.IsVisible = policy != null
@@ -232,7 +319,7 @@ public partial class SourcesPage : UserControl
         this.FindControl<TextBlock>("SourceAllowProviderMismatchLabel")!.Text = Texts.T("sources.allowProviderMismatch");
         CheckBox permission = this.FindControl<CheckBox>("SourceAllowProviderMismatch")!;
         permission.IsChecked = policy.IsGranted;
-        permission.IsEnabled = _available && !_busy && SetSourceMediaIntegrityPermission != null && (policy.IsActive || policy.IsGranted);
+        permission.IsEnabled = _available && !IsBusy && SetSourceMediaIntegrityPermission != null && (policy.IsActive || policy.IsGranted);
         this.FindControl<TextBlock>("SourceMediaIntegrityScope")!.Text = Texts.T("sources.providerMismatchScope", row.Name);
         this.FindControl<TextBlock>("SourceMediaIntegrityStatus")!.Text = Texts.T(!policy.IsActive
             ? "sources.providerMismatchInactive" : policy.IsGranted ? "sources.providerMismatchAllowed" : "sources.providerMismatchStrict");
@@ -240,7 +327,7 @@ public partial class SourcesPage : UserControl
 
     private async void OnSourceMediaPermissionClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || !_available || _busy || SetSourceMediaIntegrityPermission is not { } save ||
+        if (_ended || !_available || IsBusy || SetSourceMediaIntegrityPermission is not { } save ||
             Selected?.MediaIntegrityPolicy is not { } policy) return;
         // Capture the authority, revision and intent before any await or selection refresh.
         string ownerId = policy.Snapshot.PluginOwnerId;
@@ -275,7 +362,7 @@ public partial class SourcesPage : UserControl
         bool belongsToSelection = error != null && policy is { } selected
             && selected.Snapshot.PluginOwnerId == error.PluginOwnerId && selected.Snapshot.SourceId == error.SourceId;
         if (!belongsToSelection) _sourceMediaIntegritySaveError = null;
-        this.FindControl<Ursa.Controls.Banner>("SourceMediaIntegrityErrorBanner")!.IsVisible = belongsToSelection;
+        this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("SourceMediaIntegrityErrorBanner")!.IsVisible = belongsToSelection;
         this.FindControl<TextBlock>("SourceMediaIntegrityError")!.Text = belongsToSelection
             ? Texts.T("sources.providerMismatchSaveFailed", error!.Message) : string.Empty;
     }
@@ -287,51 +374,152 @@ public partial class SourcesPage : UserControl
             if (_ended || !IsEffectivelyVisible || TopLevel.GetTopLevel(this) == null ||
                 !ReferenceEquals(_sourceMediaIntegritySaveError, expected) || Selected?.MediaIntegrityPolicy is not { } policy ||
                 policy.Snapshot.PluginOwnerId != expected.PluginOwnerId || policy.Snapshot.SourceId != expected.SourceId) return;
-            Ursa.Controls.Banner banner = this.FindControl<Ursa.Controls.Banner>("SourceMediaIntegrityErrorBanner")!;
+            MeowChan.Desktop.Controls.WorkspaceBanner banner = this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("SourceMediaIntegrityErrorBanner")!;
             if (banner.IsEffectivelyVisible) banner.BringIntoView();
         }, DispatcherPriority.Loaded);
     }
 
+    private const int SourceFocusMaxPasses = 3;
+    private int _focusRequest;
+    private bool _applyingSourceFocus;
+    // The one place that moves keyboard focus for the handoff; tests replace it, because a page without a TopLevel cannot take focus.
+    internal Func<Control, bool> FocusControl { get; set; } = static control => control.Focus();
     private void FocusSourceControlAfterLayout(Control target)
     {
-        Dispatcher.UIThread.Post(() =>
+        int request = ++_focusRequest;
+        void FocusWhenReady(int pass)
         {
-            if (_ended || !IsEffectivelyVisible || !target.IsEffectivelyVisible || !target.IsEffectivelyEnabled) return;
-            target.BringIntoView();
-            target.Focus();
-        }, DispatcherPriority.Loaded);
+            if (_ended || request != _focusRequest || !IsEffectivelyVisible) return;
+            if (SettleSourceFocus(target, pass)) return;
+            Dispatcher.UIThread.Post(() => FocusWhenReady(pass + 1), DispatcherPriority.Background);
+        }
+        Dispatcher.UIThread.Post(() => FocusWhenReady(0), DispatcherPriority.Loaded);
     }
 
-    private SourceWatchRow? SelectedWatch => this.FindControl<DataGrid>("SourceWatchesGrid")!.SelectedItem as SourceWatchRow;
-    private void OnWatchSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshWatchSelection();
-    private void RefreshWatchSelection()
+    /// <summary>One pass of the handoff. Returns true when it is finished (focus settled, or the final pass has run and fell back).</summary>
+    internal bool SettleSourceFocus(Control target, int pass)
     {
-        this.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled = _available && !_busy && SelectedWatch != null;
-        this.FindControl<TextBox>("SourceWatchDetails")!.Text = SelectedWatch is SourceWatchRow watch
-            ? watch.Resource + Environment.NewLine + watch.Work + Environment.NewLine + watch.Observation : string.Empty;
+        // SizeChanged can run before the new visibility/column state has been arranged. Force
+        // the owning page through that layout pass before deciding that the target is not reachable.
+        UpdateLayout();
+        if (target.IsEffectivelyVisible && target.IsEffectivelyEnabled)
+        {
+            // BringIntoView may itself queue a native/layout update. Focus once before it and
+            // once on the next bounded pass so Linux, ARM and Windows agree on the settled target.
+            _applyingSourceFocus = true;
+            try
+            {
+                target.BringIntoView();
+                FocusControl(target);
+            }
+            finally { _applyingSourceFocus = false; }
+            if (pass > 0 && target.IsFocused) return true;
+        }
+        if (pass + 1 < SourceFocusMaxPasses) return false;
+        FocusFirstReachableControl(target, pass + 1);
+        return true;
     }
-    private void OnPluginClick(object? sender, RoutedEventArgs e) { if (Selected is SourceRow row) OpenPluginSettings?.Invoke(row.Id); }
+
+    // The target never became reachable: leave focus on a control the user can see and use instead of on a hidden one or on nothing.
+    private void FocusFirstReachableControl(Control missed, int passes)
+    {
+        if (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() is Control current && IsReachableInPage(current)) return;
+        Control? fallback = FirstReachableControl(this, missed);
+        Serilog.Log.Warning("The Sources focus handoff to {Target} gave up after {Passes} passes; focusing {Fallback} instead.",
+            missed.Name ?? missed.GetType().Name, passes, fallback?.Name ?? fallback?.GetType().Name ?? "nothing (no reachable control)");
+        if (fallback == null) return;
+        _applyingSourceFocus = true;
+        try { FocusControl(fallback); }
+        finally { _applyingSourceFocus = false; }
+    }
+
+    private bool IsReachableInPage(Control control) =>
+        control.IsEffectivelyVisible && control.IsEffectivelyEnabled && control.Focusable && control.IsTabStop && this.IsVisualAncestorOf(control);
+
+    /// <summary>First control in document order that is visible, enabled and focusable; hidden or disabled subtrees are skipped. Walks the logical tree, which exists before templates are applied.</summary>
+    internal static Control? FirstReachableControl(Control root, Control? exclude = null)
+    {
+        foreach (ILogical child in root.GetLogicalChildren())
+        {
+            if (child is not Control control) continue;
+            if (!control.IsVisible || !control.IsEnabled) continue;
+            if (control.Focusable && control.IsTabStop && !ReferenceEquals(control, exclude)) return control;
+            if (FirstReachableControl(control, exclude) is { } nested) return nested;
+        }
+        return null;
+    }
+
+    private SourceWatchRow? SelectedWatch => this.FindControl<ListBox>("SourceWatchesList")!.SelectedItem as SourceWatchRow;
+    private void OnWatchSelectionChanged(object? sender, SelectionChangedEventArgs e) => RefreshWatchSelection();
+    private void RefreshWatchSelection() =>
+        this.FindControl<Button>("SourceOpenWatchButton")!.IsEnabled = _available && !IsBusy && SelectedWatch != null;
+    // Double click and Enter on a selected row are the same action as the button below the list.
+    // Interaction audit: only a double click on a row counts (not on empty list space below the rows).
+    private void OnWatchDoubleTapped(object? sender, TappedEventArgs e)
+    {
+        if (sender is Avalonia.Visual list && MeowChan.Desktop.Controls.ItemActivation.IsItemDoubleClick(e, list) && SelectedWatch != null)
+        { e.Handled = true; OnOpenWatchClick(sender, e); }
+    }
+    private void OnWatchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || SelectedWatch == null) return;
+        e.Handled = true;
+        OnOpenWatchClick(sender, e);
+    }
+    private async void OnSourcesEmptyAddClick(object? sender, RoutedEventArgs e) { if (!IsBusy) await SourcePluginManagement.AddPluginAsync(); }
+    private void OnAllWatchesClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _openDownloads?.Invoke(); }
+    private void OnPluginClick(object? sender, RoutedEventArgs e)
+    {
+        if (!IsBusy && Selected?.Plugin is { } plugin)
+        {
+            string key = SourcePluginManagement.Selected is { } selected && selected.PluginId == plugin.PluginId ? selected.Key : plugin.Key;
+            SourcePluginManagement.SelectSourcePlugin(key, details: true);
+        }
+    }
     internal void SelectSource(string sourceId)
     {
-        if (!_rows.Any(row => row.Id == sourceId)) return;
+        if (IsBusy || SourcePluginManagement.IsDiscardConfirmationOpen || !_rows.Any(row => row.Id == sourceId)) return;
+        SourcePluginManagement.SetFilter(SourcesPluginsFilter.Sources);
         SetSelectedSource(sourceId);
+        if (_sourceCards.TryGetValue(sourceId, out var card)) this.FindControl<SelectionList>("SourceCards")!.SelectedItem = card.Control;
         _showDetails = true;
         RenderDetails();
-        if (_narrow) FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
+        FocusSourceControlAfterLayout(this.FindControl<TextBlock>("SourceHeading")!);
     }
-    private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !_busy && Selected is SourceRow row) _editRules?.Invoke(row.Id); }
+    private void OnRulesClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy && Selected is SourceListRow row) _editRules?.Invoke(row.Id); }
     private void OnPageSizeChanged(object? sender, SizeChangedEventArgs e)
     {
+        Control? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control;
+        bool ContainsFocus(Control container) => focused != null
+            && (ReferenceEquals(focused, container) || focused.GetVisualAncestors().Contains(container));
+        StackPanel list = this.FindControl<StackPanel>("SourcesListPane")!;
+        Border details = this.FindControl<Border>("SourceDetailsPanel")!;
+        bool listHadFocus = ContainsFocus(list);
+        bool detailsHadFocus = ContainsFocus(details);
+        bool backHadFocus = ContainsFocus(this.FindControl<Button>("SourceBackButton")!);
         // The detail grid needs 520 DIP after list, gutters and panel padding.
         bool narrow = Bounds.Width - 40 - 280 - 14 - 32 < 520;
         if (_narrow == narrow) return;
+        // A focus request queued by the preceding wide layout must not win over the
+        // control that owns focus at this breakpoint transition.
+        ++_focusRequest;
         _narrow = narrow;
         Grid split = this.FindControl<Grid>("SourcesSplit")!;
         // Preserve the track collection while SizeChanged runs inside layout.
         split.ColumnDefinitions[0].Width = new GridLength(narrow ? 0 : 280);
-        split.ColumnSpacing = narrow ? 0 : 14;
-        Grid.SetColumn(this.FindControl<StackPanel>("SourcesListPane")!, narrow ? 1 : 0);
+        split.ColumnSpacing = narrow ? 0 : 16;
+        Grid.SetColumn(list, narrow ? 1 : 0);
         RenderDetails();
+        // RenderDetails schedules the same handoff for ordinary visibility changes;
+        // keep this explicit breakpoint path based on the actual FocusManager owner
+        // rather than a transient IsKeyboardFocusWithin value during SizeChanged.
+        if (narrow && listHadFocus && _showDetails)
+            FocusSourceControlAfterLayout(this.FindControl<Button>("SourceBackButton")!);
+        else if (!narrow && backHadFocus && details.IsVisible)
+            FocusSourceControlAfterLayout(this.FindControl<Button>("SourceWebsiteButton")!);
+        else if (narrow && detailsHadFocus && !details.IsVisible && _selectedId is string id
+            && _sourceCards.TryGetValue(id, out SourceCard? selectedCard))
+            FocusSourceControlAfterLayout(selectedCard.Control);
     }
     private void OnBackClick(object? sender, RoutedEventArgs e)
     {
@@ -341,223 +529,20 @@ public partial class SourcesPage : UserControl
     }
     private async void OnWebsiteClick(object? sender, RoutedEventArgs e)
     {
-        if (_ended || _busy || Selected is not SourceRow row) return;
+        if (_ended || IsBusy || Selected is not SourceListRow row) return;
         try { await ExternalLauncher.OpenAsync(row.Address); }
         catch (Exception exception) { if (!_ended && _selectedId == row.Id) SetActionError(exception.Message); }
     }
-    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDiagnostics?.Invoke(); }
-    private void OnDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !_busy) _openDownloads?.Invoke(); }
+    private void OnDiagnosticsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy && Selected is SourceListRow row) _openDiagnostics?.Invoke(row.Id); }
     private void OnOpenWatchClick(object? sender, RoutedEventArgs e)
     {
-        if (!_available || _busy || SelectedWatch == null) return;
+        if (!_available || IsBusy || SelectedWatch == null) return;
         if (_openWatch?.Invoke(SelectedWatch.Target) != true)
             SetActionError(Texts.T("diagnostics.removed"));
     }
-    private async void OnAddClick(object? sender, RoutedEventArgs e) => await SubmitAsync();
-    private async void OnUrlKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Key != Key.Enter) return;
-        e.Handled = true;
-        await SubmitAsync();
-    }
-    private async Task SubmitAsync()
-    {
-        if (_ended || !_available || _busy || _submit == null) return;
-        _cancelSubmitFocusRestore?.Invoke();
-        TextBox editor = this.FindControl<TextBox>("SourceUrlInput")!;
-        string input = editor.Text ?? string.Empty;
-        Button submitButton = this.FindControl<Button>("SourceAddButton")!;
-        // A real Add click may focus the button before its busy disable.
-        TopLevel? owner = editor.IsKeyboardFocusWithin || submitButton.IsKeyboardFocusWithin
-            ? TopLevel.GetTopLevel(editor) : null;
-        long selectionRevision = _sourceSelectionRevision;
-        bool accepted = false;
-        bool newerInput = false;
-        bool observing = owner != null;
-        Window? ownerWindow = owner as Window;
-        Window? admissionModal = null;
-        bool sawAdmissionModal = false;
-        bool modalOwnerDeactivated = false;
-        bool awaitingAdmissionOwnerActivation = false;
-        TaskCompletionSource? ownerActivation = null;
-        List<Action> stopModalObservers = new();
-        void StopObserving()
-        {
-            if (!observing) return;
-            observing = false;
-            owner?.RemoveHandler(GotFocusEvent, OnNewFocus);
-            owner?.RemoveHandler(PointerPressedEvent, OnNewPointer);
-            owner?.RemoveHandler(KeyDownEvent, OnNewKey);
-            if (ownerWindow != null)
-            {
-                ownerWindow.Deactivated -= OnOwnerDeactivated;
-                ownerWindow.Activated -= OnOwnerActivated;
-                ownerWindow.Closing -= OnOwnerClosing;
-                ownerWindow.PropertyChanged -= OnOwnerPropertyChanged;
-            }
-            editor.PropertyChanged -= OnEditorPropertyChanged;
-            foreach (Action stop in stopModalObservers) stop();
-            stopModalObservers.Clear();
-            if (_cancelSubmitFocusRestore == CancelFocusRestore) _cancelSubmitFocusRestore = null;
-        }
-        void CancelFocusRestore()
-        {
-            newerInput = true;
-            ownerActivation?.TrySetResult();
-            StopObserving();
-        }
-        void OnOwnerActivated(object? sender, EventArgs e)
-        {
-            // Close can raise a managed owner activation before Modal.Closed,
-            // followed by a native deactivation/activation bounce. Only the
-            // first activation after the exact normal Closed ends its return.
-            if (admissionModal == null) awaitingAdmissionOwnerActivation = false;
-            ownerActivation?.TrySetResult();
-        }
-        void OnOwnerDeactivated(object? sender, EventArgs e)
-        {
-            if (admissionModal != null) modalOwnerDeactivated = true;
-            else if (X11WindowActivation.OwnsNativeFocus(ownerWindow))
-            {
-                // X11 can deliver an old modal-return FocusOut after Closed.
-                // Exempt only a positively attributed stale report, never an
-                // arbitrary first external deactivation after the modal.
-                awaitingAdmissionOwnerActivation = true;
-            }
-            else CancelFocusRestore();
-        }
-        void OnOwnerClosing(object? sender, WindowClosingEventArgs e) => CancelFocusRestore();
-        void OnOwnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-        {
-            if (e.Property == IsVisibleProperty && ownerWindow is { IsVisible: false }
-                || e.Property == Window.WindowStateProperty && ownerWindow is { WindowState: WindowState.Minimized })
-                CancelFocusRestore();
-        }
-        void OnEditorPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
-        {
-            if (e.Property == TextBox.TextProperty) CancelFocusRestore();
-        }
-        void ObserveAdmissionModal(Window modal)
-        {
-            // This callback belongs to this exact submit operation. Cancellation
-            // must never attach new observers or revive a stale focus claim.
-            if (!observing) return;
-            sawAdmissionModal = true;
-            admissionModal = modal;
-            modalOwnerDeactivated = false;
-            awaitingAdmissionOwnerActivation = false;
-            WindowClosingEventArgs? closing = null;
-            void OnOpened(object? sender, EventArgs e)
-            {
-                if (!ReferenceEquals(modal.Owner, ownerWindow)) CancelFocusRestore();
-            }
-            void OnClosing(object? sender, WindowClosingEventArgs e) => closing = e;
-            void OnDeactivated(object? sender, EventArgs e)
-            {
-                // Keep the original args so a later handler's canceled Closing
-                // cannot make an external activation look like a normal close.
-                if (closing is not { Cancel: false }) CancelFocusRestore();
-            }
-            void OnClosed(object? sender, EventArgs e)
-            {
-                if (!observing || !ReferenceEquals(admissionModal, modal)) return;
-                admissionModal = null;
-                // No timer or blanket deactivation exemption: this one normal
-                // owned-modal return lasts only until its next owner activation.
-                awaitingAdmissionOwnerActivation = closing is { Cancel: false } && modalOwnerDeactivated
-                    && ownerWindow is { IsActive: false };
-            }
-            modal.Opened += OnOpened;
-            modal.Closing += OnClosing;
-            modal.Deactivated += OnDeactivated;
-            modal.Closed += OnClosed;
-            stopModalObservers.Add(() =>
-            {
-                modal.Opened -= OnOpened;
-                modal.Closing -= OnClosing;
-                modal.Deactivated -= OnDeactivated;
-                modal.Closed -= OnClosed;
-            });
-        }
-        void OnNewFocus(object? sender, FocusChangedEventArgs e) => CancelFocusRestore();
-        void OnNewPointer(object? sender, PointerPressedEventArgs e) => CancelFocusRestore();
-        void OnNewKey(object? sender, KeyEventArgs e) => CancelFocusRestore();
-        // Disabling the busy editor clears native focus. Remember later choices,
-        // including focus that subsequently moves to null, until completion.
-        owner?.AddHandler(GotFocusEvent, OnNewFocus, RoutingStrategies.Bubble, handledEventsToo: true);
-        owner?.AddHandler(PointerPressedEvent, OnNewPointer, RoutingStrategies.Tunnel, handledEventsToo: true);
-        owner?.AddHandler(KeyDownEvent, OnNewKey, RoutingStrategies.Tunnel, handledEventsToo: true);
-        if (ownerWindow != null)
-        {
-            ownerWindow.Deactivated += OnOwnerDeactivated;
-            ownerWindow.Activated += OnOwnerActivated;
-            ownerWindow.Closing += OnOwnerClosing;
-            ownerWindow.PropertyChanged += OnOwnerPropertyChanged;
-        }
-        if (observing)
-        {
-            editor.PropertyChanged += OnEditorPropertyChanged;
-            _cancelSubmitFocusRestore = CancelFocusRestore;
-        }
-        try
-        {
-            SetActionError(null);
-            _busy = true; BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails();
-            try
-            {
-                accepted = await _submit(input, ObserveAdmissionModal);
-                if (_ended) return;
-                _hasUrlResult = true;
-                if (accepted && editor.Text == input) editor.Text = string.Empty;
-            }
-            catch (Exception exception)
-            {
-                if (!_ended) SetActionError(exception.Message);
-            }
-            finally
-            {
-                _busy = false;
-                if (!_ended) { BusyChanged?.Invoke(this, EventArgs.Empty); RenderDetails(); }
-            }
-            if (!accepted && owner != null)
-            {
-                bool RestoreInputOrAwaitOwnerActivation()
-                {
-                    if (_ended || _busy || !_available || newerInput || selectionRevision != _sourceSelectionRevision
-                        || editor.Text != input || !IsEffectivelyVisible || !editor.IsEffectivelyVisible
-                        || !editor.IsEffectivelyEnabled || !ReferenceEquals(TopLevel.GetTopLevel(editor), owner)
-                        || owner is Window { IsVisible: false } or Window { IsEnabled: false }) return false;
-                    if (owner is Window { IsActive: false })
-                    {
-                        if (!sawAdmissionModal || !awaitingAdmissionOwnerActivation
-                            || !X11WindowActivation.OwnsNativeFocus(ownerWindow)) return false;
-                        // Recheck at Loaded: the owner may have become inactive
-                        // since submit completion. Preserve only this exact return
-                        // until its first activation or permanent cancellation.
-                        ownerActivation = new(TaskCreationOptions.RunContinuationsAsynchronously);
-                        return true;
-                    }
-                    var focus = owner.FocusManager?.GetFocusedElement();
-                    if (focus != null && !ReferenceEquals(focus, editor)) return false;
-                    editor.BringIntoView();
-                    editor.Focus();
-                    return false;
-                }
-                bool awaitingOwner = await Dispatcher.UIThread.InvokeAsync(RestoreInputOrAwaitOwnerActivation, DispatcherPriority.Loaded);
-                if (awaitingOwner)
-                {
-                    await ownerActivation!.Task;
-                    // The event clears the one-shot return or cancellation sets
-                    // newerInput. This callback cannot start another owner wait.
-                    await Dispatcher.UIThread.InvokeAsync(() => { RestoreInputOrAwaitOwnerActivation(); }, DispatcherPriority.Loaded);
-                }
-            }
-        }
-        finally { StopObserving(); }
-    }
+    private void OnAddToDownloadsClick(object? sender, RoutedEventArgs e) { if (_available && !IsBusy) _addToDownloads?.Invoke(); }
     internal void EndLifetime()
     {
-        _ended = true; _available = false; BusyChanged = null;
-        _cancelSubmitFocusRestore?.Invoke();
+        _ended = true; _available = false; BusyChanged = null; SourcePluginManagement.EndLifetime();
     }
 }

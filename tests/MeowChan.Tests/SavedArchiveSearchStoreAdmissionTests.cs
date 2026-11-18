@@ -243,7 +243,7 @@ public sealed class SavedArchiveSearchStoreAdmissionTests
         string[] inventory = f.Inventory();
         using ProfileAdmissionToken owner = f.Lease.Admission.EnterStartupWriter();
         int hooks = 0; f.Store.BeforeAdmittedMutationForTests = _ => hooks++;
-        if (kind == "future-backup") Assert.Throws<InvalidOperationException>(() => f.Borrow("rename", owner));
+        if (kind == "future-backup") Assert.Throws<ProfileBackupBlockedException>(() => f.Borrow("rename", owner));
         else Assert.Throws<SavedSearchRevisionException>(() => f.Store.RenameAdmitted(f.Id, "must not write",
             kind == "stale-revision" ? f.Current.Revision - 1 : f.Current.Revision, owner));
         Assert.Equal(0, hooks); Assert.Equal(inventory, f.Inventory()); Assert.Empty(f.Temps());

@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
@@ -33,6 +34,7 @@ internal static class ReaderGroupVisualChecks
             ReaderGroupsDialog dialog = new(host, origin)
             { Width = scenario.Wide ? 1040 : 720, Height = scenario.Wide ? 720 : 620 };
             Task<ReaderGroupReadRequest?> result = dialog.ShowDialog<ReaderGroupReadRequest?>(owner);
+            bool failed = false;
             try
             {
                 await Program.WaitUntilAsync(() => dialog.CanExecute("reader-groups.read"));
@@ -46,7 +48,7 @@ internal static class ReaderGroupVisualChecks
                 ListBox groups = dialog.FindControl<ListBox>("Groups")!;
                 groups.BringIntoView(); groups.Focus(NavigationMethod.Tab);
                 await SettleAsync(dialog);
-                Button[] footer = dialog.FindControl<WrapPanel>("GroupFooter")!.Children.OfType<Button>().Where(button => button.IsVisible).ToArray();
+                Button[] footer = dialog.GetVisualDescendants().OfType<WrapPanel>().Single(panel => panel.Name == DialogFooter.ActionsName).Children.OfType<Button>().Where(button => button.IsVisible).ToArray();
                 Require(footer.Length >= 4, "Manager lost persistent save/read/reload/close actions.");
                 Capture(dialog, scenario, "manager", new Control[] { groups, dialog.FindControl<TextBlock>("GroupMessage")! }.Concat(footer).ToArray());
 
@@ -88,9 +90,15 @@ internal static class ReaderGroupVisualChecks
                 await Program.WaitUntilAsync(() => (prompt = dialog.OwnedWindows.FirstOrDefault(window => window.IsVisible)) != null);
                 Window confirmation = prompt!;
                 await SettleAsync(confirmation);
-                Button[] choices = confirmation.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).ToArray();
-                Require(choices.Length == 2, "Group confirmation must expose exactly confirm and cancel.");
-                Button cancel = choices.Single(button => Equals(button.Content, scenario.Language == "de" ? "Abbrechen" : "Cancel"));
+                // The window has its own title-bar buttons now; the confirmation itself is exactly its named Cancel and Delete actions.
+                string cancelLabel = MeowChan.Desktop.Localization.Texts.T("readerGroups.cancel"), deleteLabel = MeowChan.Desktop.Localization.Texts.T("readerGroups.delete");
+                Button[] choices = confirmation.GetVisualDescendants().OfType<Button>()
+                    .Where(button => button.IsEffectivelyVisible && (Equals(button.Content, cancelLabel) || Equals(button.Content, deleteLabel))).ToArray();
+                Require(choices.Length == 2 && choices.Count(button => Equals(button.Content, cancelLabel)) == 1
+                    && choices.Count(button => Equals(button.Content, deleteLabel)) == 1,
+                    "Group confirmation must expose exactly one named Cancel and one named Delete button, found: "
+                    + string.Join(", ", confirmation.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible).Select(button => button.Content?.ToString() ?? button.Name ?? "?")));
+                Button cancel = choices.Single(button => Equals(button.Content, cancelLabel));
                 Require(ReferenceEquals(confirmation.FocusManager?.GetFocusedElement(), cancel), "Confirmation did not initially focus its safe cancel action.");
                 TextBlock message = confirmation.GetVisualDescendants().OfType<TextBlock>().First(text =>
                     text.Text?.Contains(scenario.Language == "de" ? "Zuordnungen" : "memberships", StringComparison.Ordinal) == true);
@@ -102,6 +110,7 @@ internal static class ReaderGroupVisualChecks
             }
             catch
             {
+                failed = true;
                 TryFailureDiagnostic(() => TraceManager(dialog, "failure"), "manager state");
                 TryFailureDiagnostic(() => Program.CaptureWindow(dialog, scenario.Stem(dialog) + "-manager-failure.png"), "manager capture");
                 throw;
@@ -110,7 +119,11 @@ internal static class ReaderGroupVisualChecks
             {
                 foreach (Window prompt in dialog.OwnedWindows.Where(window => window.IsVisible).ToArray()) prompt.Close(false);
                 dialog.Close();
-                await result;
+                // The manager vetoes a plain Close while it is busy or confirming; wait a bounded time so a failed check reports
+                // its own error at once instead of hanging on the dialog result.
+                try { await result.WaitAsync(TimeSpan.FromSeconds(10)); }
+                catch (TimeoutException) when (failed)
+                { Console.Error.WriteLine("SMOKE reader groups: the manager did not close after the failed check; reporting the check failure."); }
             }
         });
 
@@ -246,7 +259,7 @@ internal static class ReaderGroupVisualChecks
         Require(geometry.All(item => item.fullyVisible), stem + ": a required control is clipped; inspect PNG/JSON.");
         Require(geometry.All(item => item.labels == null || item.labels.All(label => label.fits)),
             stem + ": a required button label is clipped; inspect PNG/JSON.");
-        Button[] footerButtons = controls.OfType<Button>().Where(button => button.Parent is WrapPanel { Name: "GroupFooter" }).ToArray();
+        Button[] footerButtons = controls.OfType<Button>().Where(button => button.Parent is WrapPanel { Name: DialogFooter.ActionsName }).ToArray();
         for (int left = 0; left < footerButtons.Length; left++)
         for (int right = left + 1; right < footerButtons.Length; right++)
         {

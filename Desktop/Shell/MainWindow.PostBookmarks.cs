@@ -24,7 +24,9 @@ public partial class MainWindow
     {
         _postBookmarksMenu = CommandBindings.CreateMenuItem("post-bookmarks.open-manager",
             async () => await ShowPostBookmarksAsync(), () => CanOpenPostBookmarks);
-        this.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.Insert(2, _postBookmarksMenu);
+        // Tools group: behind Continue reading and its reading-history submenu (which sits directly behind it) when they exist,
+        // else at the start of the menu (MenuToolsAnchor).
+        WorkspaceMenuItem.Items.Insert(InsertIndexBehind(WorkspaceMenuItem.Items, MenuToolsAnchor, _readingHistoryMenu, _resumeReadingMenu), _postBookmarksMenu);
         ArchivePage.EditPostBookmark = EditPostBookmarkAsync;
         ArchivePage.OpenPostBookmarks = async () => await ShowPostBookmarksAsync();
         Closed += (_, _) =>
@@ -33,6 +35,17 @@ public partial class MainWindow
             _postBookmarksDialog?.CloseForProfileEnd();
             _postBookmarkEditor?.CloseForProfileEnd();
         };
+    }
+
+    /// <summary>The index behind the first of <paramref name="anchors"/> that is in <paramref name="items"/>, else behind <paramref name="fallbackAnchor"/>.</summary>
+    internal static int InsertIndexBehind(System.Collections.IList items, int fallbackAnchor, params object?[] anchors)
+    {
+        foreach (object? anchor in anchors)
+        {
+            int index = anchor is null ? -1 : items.IndexOf(anchor);
+            if (index >= 0) return index + 1;
+        }
+        return fallbackAnchor + 1;
     }
 
     // W17 calls after W13 creates _shortcutRouter and workspace pages are available.
@@ -94,12 +107,13 @@ public partial class MainWindow
     private async Task<bool> OpenBookmarkedPostAsync(PostBookmarkKey key, CancellationToken token)
     {
         if (_archivePage?.IsFilenameSearchOpen == true || _isClosing || _largeReaderOpen || _gallery != null) return false;
-        return await ArchivePage.OpenPostBookmarkAsync(key, () =>
+        bool opened = await ArchivePage.OpenPostBookmarkAsync(key, () =>
         {
             OpenLargeReader();
             // No bookmark-specific thread scope. Existing reader/quote/gallery navigation remains authoritative.
-            _postBookmarkReaderReturn = () => _postBookmarksDialog?.ReturnFromReader();
+            if (_largeReaderOpen) _postBookmarkReaderReturn = () => _postBookmarksDialog?.ReturnFromReader();
         }, token);
+        return opened && _largeReaderOpen;
     }
 
     private void RefreshPostBookmarkLabels()

@@ -42,23 +42,23 @@ public partial class ArchivePage
     private async Task OpenFavoritesOverviewAsync(FavoriteOverviewState? restore)
     {
         if (_ended || GetFavorites == null || ResolveFavoriteAssets == null
-            || (TopLevel.GetTopLevel(Control<Grid>("ArchiveReaderPane")) ?? TopLevel.GetTopLevel(this)) is not Window owner) return;
-        FavoriteEntry[] all = GetFavorites().ToArray();
+            || (TopLevel.GetTopLevel(ArchiveReaderPane) ?? TopLevel.GetTopLevel(this)) is not Window owner) return;
+        // An unreadable favorites file is refused with its own sentence (never an exception out of the click handler); the file is left as it is.
+        try { _ = GetFavorites(); }
+        catch (System.IO.InvalidDataException) { CaptureActionErrorReporter()(Texts.T("archive.favoritesUnreadable")); return; }
         ResourceId? currentThread = _selectedThread;
         ResourceId[] selectedThreads = FrozenArchiveSelection();
         var query = _appliedSearch ?? ArchiveSearchRequest.Create(_query);
         var eligibleUrls = CaptureExportWorkUrls(_workFilter, GetWorkSnapshots?.Invoke() ?? Array.Empty<ThreadWorkSnapshot>());
-        Window dialog = new()
-        {
-            Name = "FavoritesOverviewDialog", Title = Texts.T("viewer.favorites.title"), Width = 760, Height = 580,
-            MinWidth = 450, MinHeight = 340, WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
+        // Modals plan MD3: the list-and-detail step; the title stands in the title bar only.
+        Window dialog = MeowChan.Desktop.Controls.DialogWindow.Create(Texts.T("viewer.favorites.title"), DialogSize.L, modal: true);
+        dialog.Name = "FavoritesOverviewDialog";
         ComboBox scope = new() { Name = "FavoritesScope", ItemsSource = new[]
         {
             Texts.T("viewer.favorites.current"), Texts.T("viewer.favorites.selected"),
             Texts.T("viewer.favorites.filtered"), Texts.T("viewer.favorites.all")
         }, SelectedIndex = restore?.Scope ?? 3, MinWidth = 210 };
-        TextBox search = new() { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
+        TextBox search = new MeowChan.Desktop.Controls.SearchBox { Text = restore?.Search, Name = "FavoritesSearch", PlaceholderText = Texts.T("viewer.favorites.search"), MinWidth = 180 };
         TextBlock summary = new() { Name = "FavoritesSummary", TextWrapping = TextWrapping.Wrap };
         TextBlock empty = new() { Name = "FavoritesEmpty", TextWrapping = TextWrapping.Wrap, IsVisible = false };
         Button clearSearch = new() { Name = "FavoritesClearSearch", Content = Texts.T("viewer.favorites.clearSearch"),
@@ -74,56 +74,74 @@ public partial class ArchivePage
             return item;
         });
         Button view = new() { Name = "FavoritesView", Content = Texts.T("viewer.favorites.view") };
+        MeowChan.Desktop.Controls.IconButtons.WithText(view, "eye");
+        // A double click or Enter on a row runs the "View" button, refused exactly when the button is disabled.
+        MeowChan.Desktop.Controls.ListRowActions.OnActivate(list, () =>
+        {
+            if (view.IsEnabled) view.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        });
         Button remove = new() { Name = "FavoritesRemove", Content = Texts.T("viewer.favorite.remove") };
         AutomationProperties.SetName(view, Texts.T("viewer.favorites.view"));
         AutomationProperties.SetName(remove, Texts.T("viewer.favorite.remove"));
         SelectableTextBlock status = new() { Name = "FavoritesStatus", TextWrapping = TextWrapping.Wrap, Focusable = true };
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Assertive);
+        TextBlock error = new() { Name = "FavoritesError", TextWrapping = TextWrapping.Wrap };
+        // One message at a time, as before: failures in the local strip, notices in the footer.
+        void Notice(string text) { status.Text = text; error.Text = string.Empty; }
+        void Fail(string text) { status.Text = string.Empty; error.Text = text; }
+        void FailWith(Exception failure) => Fail(FavoriteOverviewError(failure));
         Button export = CommandBindings.CreateButton("favorites.export-originals", () => { });
         export.Name = "FavoritesExportOriginals";
+        MeowChan.Desktop.Controls.IconButtons.WithText(export, "download");
         Button close = new() { Content = Texts.T("action.close") };
         remove.Classes.Add("danger"); summary.Classes.Add("workspace-meta");
         ScrollViewer.SetHorizontalScrollBarVisibility(list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         WrapPanel filters = new() { ItemSpacing = 8, LineSpacing = 8 };
         filters.Children.Add(scope); filters.Children.Add(search);
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
         // Selection actions stay with the list; export always targets the shown set.
         WrapPanel selectionActions = new() { ItemSpacing = 8, LineSpacing = 8 };
         selectionActions.Children.Add(view); selectionActions.Children.Add(remove);
-        actions.Children.Add(export); actions.Children.Add(close);
-        Border footer = new() { Child = actions, Margin = new Thickness(-16, 0, -16, -16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto,Auto,Auto"), RowSpacing = 12, Margin = new Thickness(16) };
-        layout.Children.Add(filters);
-        layout.Children.Add(summary); Grid.SetRow(summary, 1);
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(filters); header.Children.Add(summary);
+        Grid content = new() { RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12, Margin = new Thickness(16, 0, 16, 12) };
         Grid results = new();
         results.Children.Add(list); results.Children.Add(emptyState);
-        layout.Children.Add(results); Grid.SetRow(results, 2);
-        layout.Children.Add(selectionActions); Grid.SetRow(selectionActions, 3);
-        ScrollViewer notice = new() { Content = status, MaxHeight = 96, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(notice); Grid.SetRow(notice, 4);
-        layout.Children.Add(footer); Grid.SetRow(footer, 5);
-        dialog.Content = layout;
+        content.Children.Add(results);
+        content.Children.Add(selectionActions); Grid.SetRow(selectionActions, 1);
+        // Close is the way out (primary, right-most); the status keeps the full width above the buttons.
+        Border footer = MeowChan.Desktop.Controls.DialogFooter.Build(close, new Control[] { export },
+            new ScrollViewer { Content = status, MaxHeight = 96, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled },
+            statusAbove: true);
+        // Scope and search stay fixed; the list keeps its own virtualized scrolling and fills the body
+        // until the body reaches its minimum height, after which the whole body scrolls.
+        Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(header, content, footer, MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error));
+        ScrollViewer bodyScroll = layout.Children.OfType<ScrollViewer>().Single();
+        bodyScroll.SizeChanged += (_, args) => content.Height = Math.Max(180, args.NewSize.Height - content.Margin.Bottom);
+        MeowChan.Desktop.Controls.DialogWindow.Frame(dialog, layout, modal: true);
         close.Click += (_, _) => dialog.Close();
         clearSearch.Click += (_, _) => { search.Text = string.Empty; search.Focus(); };
-        dialog.KeyDown += (_, key) =>
-        {
-            if (key.Handled || key.Key != Key.Escape) return;
-            key.Handled = true;
-            dialog.Close();
-        };
+        MeowChan.Desktop.Controls.DialogEscape.Attach(dialog);
 
-        FavoriteEntry[] scoped = all;
-        FavoriteEntry[] visible = all;
-        bool scopeLoading = false;
+        // Nothing is listed until the first scope has loaded: the restored scope's name must not stand over the full list.
+        FavoriteEntry[] scoped = Array.Empty<FavoriteEntry>();
+        FavoriteEntry[] visible = Array.Empty<FavoriteEntry>();
+        bool scopeLoading = true;
         bool actionRunning = false;
         FavoriteAssetKey? selection = restore?.Selected;
         GalleryEntry[]? galleryEntries = null;
         GalleryEntryKey? galleryStart = null;
         FavoriteOverviewState? returnState = null;
         HashSet<FavoriteAssetKey> missing = new();
-        int generation = 0;
-        CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        // The newest scope wins: changing the scope cancels the load that runs, waits until it has unwound and then loads the new one.
+        LatestWinsLoad scopeLoads = new(loading.Token);
+        HashSet<Task> operations = new();
+        async Task TrackAsync(Task task)
+        {
+            operations.Add(task);
+            try { await task; }
+            finally { operations.Remove(task); }
+        }
         dialog.Closed += (_, _) => loading.Cancel();
         void Render()
         {
@@ -149,48 +167,57 @@ public partial class ArchivePage
             string exportLabel = Texts.T("viewer.favorites.exportShown", visible.Length);
             export.Content = exportLabel;
             AutomationProperties.SetName(export, exportLabel);
-            string exportHint = Texts.T("viewer.favorites.exportShownHint", visible.Length);
+            string exportHint = Texts.Count("viewer.favorites.exportShownHint", visible.Length);
             ToolTip.SetTip(export, exportHint);
             AutomationProperties.SetHelpText(export, exportHint);
             clearSearch.IsEnabled = !actionRunning;
             export.IsEnabled = !scopeLoading && !actionRunning && visible.Length > 0;
-            if (selected?.Missing == true) status.Text = Texts.T("viewer.favorites.unavailable", 1);
+            if (selected?.Missing == true) Notice(Texts.Count("viewer.favorites.unavailable", 1));
         }
         list.SelectionChanged += (_, _) => RefreshActions();
-        async Task LoadScopeAsync()
+        // scopeChanged: the list of the scope that was shown is dropped at once (it must never stand under another scope's name while the new
+        // one loads); a reload of the same scope (after a Remove) keeps its rows until the new ones are there.
+        async Task LoadScopeAsync(bool scopeChanged = true)
         {
-            int request = ++generation;
+            if (loading.IsCancellationRequested) return;
             try
             {
                 scopeLoading = true;
+                if (scopeChanged) { scoped = Array.Empty<FavoriteEntry>(); missing = new HashSet<FavoriteAssetKey>(); }
                 Render();
-                status.Text = Texts.T("viewer.favorites.loading");
+                Notice(Texts.T("viewer.favorites.loading"));
                 FavoriteScope choice = (FavoriteScope)Math.Clamp(scope.SelectedIndex, 0, 3);
-                HashSet<ResourceId>? threadIds = choice switch
+                FavoriteScopeLoad? loaded = await scopeLoads.RunAsync(async token =>
                 {
-                    FavoriteScope.CurrentThread => currentThread == null ? new HashSet<ResourceId>() : new HashSet<ResourceId> { currentThread },
-                    FavoriteScope.SelectedThreads => selectedThreads.ToHashSet(),
-                    FavoriteScope.FilteredThreads => await FilteredFavoriteThreadsAsync(query, eligibleUrls, loading.Token),
-                    _ => null
-                };
-                all = GetFavorites().ToArray();
-                FavoriteEntry[] next = threadIds == null ? all : all.Where(entry => threadIds.Contains(entry.Key.Thread)).ToArray();
-                FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(next, loading.Token);
-                if (request != generation || loading.IsCancellationRequested) return;
-                scoped = next;
-                missing = resolved.Missing.Select(entry => entry.Key).ToHashSet();
-                status.Text = missing.Count == 0 ? string.Empty : Texts.T("viewer.favorites.unavailable", missing.Count);
+                    HashSet<ResourceId>? threadIds = choice switch
+                    {
+                        FavoriteScope.CurrentThread => currentThread == null ? new HashSet<ResourceId>() : new HashSet<ResourceId> { currentThread },
+                        FavoriteScope.SelectedThreads => selectedThreads.ToHashSet(),
+                        FavoriteScope.FilteredThreads => await FilteredFavoriteThreadsAsync(query, eligibleUrls, token),
+                        _ => null
+                    };
+                    FavoriteEntry[] current = GetFavorites().ToArray();
+                    FavoriteEntry[] next = threadIds == null ? current : current.Where(entry => threadIds.Contains(entry.Key.Thread)).ToArray();
+                    FavoriteResolutionSnapshot resolved = await ResolveFavoriteAssets(next, token);
+                    return new FavoriteScopeLoad(next, resolved.Missing.Select(entry => entry.Key).ToHashSet());
+                });
+                // Null: a newer scope took over (it owns the state and the messages now) or the dialog closed.
+                if (loaded == null || loading.IsCancellationRequested) return;
+                scoped = loaded.Scoped;
+                missing = loaded.Missing;
+                Notice(missing.Count == 0 ? string.Empty : Texts.Count("viewer.favorites.unavailable", missing.Count));
                 scopeLoading = false;
                 Render();
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception ex) { if (request == generation) { status.Text = ex.Message; scopeLoading = false; Render(); } }
+            catch (Exception ex) { FailWith(ex); scopeLoading = false; Render(); }
         }
-        scope.SelectionChanged += async (_, _) => await LoadScopeAsync();
+        scope.SelectionChanged += async (_, _) => await TrackAsync(LoadScopeAsync());
         search.PropertyChanged += (_, args) => { if (args.Property == TextBox.TextProperty) Render(); };
-        export.Click += async (_, _) =>
+        export.Click += async (_, _) => await TrackAsync(ExportAsync());
+        async Task ExportAsync()
         {
-            if (scopeLoading || actionRunning || visible.Length == 0 || ResolveFavoriteAssets == null) return;
+            if (loading.IsCancellationRequested || scopeLoading || actionRunning || visible.Length == 0 || ResolveFavoriteAssets == null) return;
             FavoriteEntry[] frozen = visible.ToArray();
             string label = scope.SelectedItem?.ToString() ?? Texts.T("viewer.favorites.all");
             if (!string.IsNullOrWhiteSpace(search.Text)) label += " · " + Texts.T("viewer.favorites.searchApplied");
@@ -201,28 +228,30 @@ public partial class ArchivePage
                 await OpenOriginalExportAsync(resolved.Available, export, resolved.Missing.Count, label);
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (Exception ex) { FailWith(ex); }
             finally { actionRunning = false; RefreshActions(); }
-        };
-        remove.Click += async (_, _) =>
+        }
+        remove.Click += async (_, _) => await TrackAsync(RemoveAsync());
+        async Task RemoveAsync()
         {
-            if (scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
+            if (loading.IsCancellationRequested || scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || RemoveFavoriteAsync == null) return;
             int index = list.SelectedIndex;
             actionRunning = true; RefreshActions();
-            status.Text = string.Empty;
+            Notice(string.Empty);
             try
             {
                 await RemoveFavoriteAsync(selected.Entry);
-                await LoadScopeAsync();
+                await LoadScopeAsync(scopeChanged: false);
                 if (list.ItemCount > 0) list.SelectedIndex = Math.Min(index, list.ItemCount - 1);
                 selection = (list.SelectedItem as FavoriteOverviewRow)?.Entry.Key;
             }
-            catch (Exception error) { status.Text = error.Message; }
+            catch (Exception failure) { FailWith(failure); }
             finally { actionRunning = false; RefreshActions(); }
-        };
-        view.Click += async (_, _) =>
+        }
+        view.Click += async (_, _) => await TrackAsync(ViewAsync());
+        async Task ViewAsync()
         {
-            if (scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || OpenFavoritesGallery == null) return;
+            if (loading.IsCancellationRequested || scopeLoading || actionRunning || list.SelectedItem is not FavoriteOverviewRow selected || OpenFavoritesGallery == null) return;
             FavoriteEntry[] frozen = visible.ToArray();
             returnState = new FavoriteOverviewState(scope.SelectedIndex, search.Text ?? string.Empty, selected.Entry.Key);
             actionRunning = true; RefreshActions();
@@ -239,23 +268,38 @@ public partial class ArchivePage
                 if (galleryStart == null)
                 {
                     missing.Add(selected.Entry.Key); Render();
-                    status.Text = Texts.T("viewer.favorites.unavailable", 1);
+                    Notice(Texts.Count("viewer.favorites.unavailable", 1));
                     return;
                 }
                 dialog.Close();
             }
             catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
-            catch (Exception error) { status.Text = error.Message; }
+            catch (Exception failure) { FailWith(failure); }
             finally { actionRunning = false; RefreshActions(); }
-        };
+        }
         Render();
-        Task shown = dialog.ShowDialog(owner);
-        await LoadScopeAsync();
-        await shown;
-        loading.Dispose();
+        try
+        {
+            Task shown = dialog.ShowDialog(owner);
+            await TrackAsync(LoadScopeAsync());
+            await shown;
+        }
+        finally
+        {
+            // Closing a window does not await its async event handlers. Drain every consumer before disposing the source.
+            loading.Cancel();
+            await Task.WhenAll(operations.ToArray());
+        }
         if (galleryStart != null && galleryEntries != null && OpenFavoritesGallery != null && !_ended)
-            await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) _ = OpenFavoritesOverviewAsync(returnState); });
+            await OpenFavoritesGallery(galleryEntries, galleryStart, () => { if (!_ended) OpenActions.Start(() => OpenFavoritesOverviewAsync(returnState), "archive.favorites.open"); });
     }
+
+    /// <summary>What one finished scope load publishes: the favorites in the scope and which of those have no intact original.</summary>
+    private sealed record FavoriteScopeLoad(FavoriteEntry[] Scoped, HashSet<FavoriteAssetKey> Missing);
+
+    /// <summary>The overview's failure sentence: the host's English "busy" refusal becomes a localized one, any other message stays as it is.</summary>
+    private static string FavoriteOverviewError(Exception failure) =>
+        failure is DesktopSessionBusyException ? Texts.T("queue.error.busy") : failure.Message;
 
     private async Task<HashSet<ResourceId>> FilteredFavoriteThreadsAsync(MeowChan.Archive.ArchiveSearchRequest query,
         IReadOnlySet<string>? eligibleUrls, CancellationToken token)
@@ -272,23 +316,31 @@ public partial class ArchivePage
     internal async Task OpenOriginalExportAsync(IReadOnlyList<FavoriteExportAsset> frozenAssets, Control? origin = null,
         int missingCount = 0, string? scopeLabel = null)
     {
-        Window? owner = TopLevel.GetTopLevel(origin ?? Control<Grid>("ArchiveReaderPane")) as Window
+        Window? owner = TopLevel.GetTopLevel(origin ?? ArchiveReaderPane) as Window
             ?? TopLevel.GetTopLevel(this) as Window;
         if (owner == null) return;
         FavoriteExportAsset[] assets = frozenAssets.DistinctBy(asset => asset.Key).ToArray();
-        Window dialog = new()
-        {
-            Title = Texts.T("viewer.export.title"), Width = 600, Height = 300, MinWidth = 420,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-        TextBlock scope = new() { Text = Texts.T("viewer.export.scope", scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount), TextWrapping = TextWrapping.Wrap };
+        // Modals plan MD3: the form step; the title stands in the title bar only.
+        Window dialog = MeowChan.Desktop.Controls.DialogWindow.Create(Texts.T("export.dialog.title"), DialogSize.M, modal: true);
+        // The same Export header as the thread dialog: files have one format, so both choices show as text.
+        ExportChoiceField format = new("OriginalExportFormat");
+        format.Set(Texts.T("export.format"), new[] { new ExportChoiceField.Option("originals", Texts.T("export.format.originals")) }, "originals", true);
+        ExportChoiceField scope = new("OriginalExportScope");
+        string scopeText = Texts.Count("viewer.export.scope", assets.Length + missingCount, scopeLabel ?? Texts.T("viewer.export.single"), assets.Length + missingCount);
+        scope.Set(Texts.T("export.scope"), new[] { new ExportChoiceField.Option("files", scopeText) }, "files", true);
+        WrapPanel choices = new() { Name = "OriginalExportChoices", ItemSpacing = 16, LineSpacing = 8 };
+        choices.Children.Add(format); choices.Children.Add(scope);
         TextBox destination = new() { Name = "OriginalExportDestination", IsReadOnly = true, PlaceholderText = Texts.T("viewer.export.destination") };
         TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
+        TextBlock error = new() { Name = "OriginalExportError", TextWrapping = TextWrapping.Wrap };
+        // One message at a time, as before: failures in the local strip, notices in the footer.
+        void Notice(string text) { status.Text = text; error.Text = string.Empty; }
+        void Fail(string text) { status.Text = string.Empty; error.Text = text; }
         if (assets.Length == 0)
-            status.Text = missingCount > 0 ? Texts.T("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
-        Button browse = CommandBindings.CreateButton("export.browse-parent", () => { });
+            status.Text = missingCount > 0 ? Texts.Count("viewer.favorites.unavailable", missingCount) : Texts.T("viewer.export.empty");
+        Button browse = CommandBindings.CreateButton("export.browse-parent", () => { }, iconWithLabel: true);
         browse.IsEnabled = assets.Length > 0;
-        Button openFolder = CommandBindings.CreateButton("location.open-folder", () => { });
+        Button openFolder = CommandBindings.CreateButton("location.open-folder", () => { }, iconWithLabel: true);
         Button start = CommandBindings.CreateButton("export.start-originals", () => { });
         start.Name = "OriginalExportStart";
         if (System.IO.Directory.Exists(LastExportDirectoryPreference)) destination.Text = LastExportDirectoryPreference;
@@ -296,34 +348,28 @@ public partial class ArchivePage
         openFolder.IsEnabled = !string.IsNullOrEmpty(destination.Text);
         Button cancel = CommandBindings.CreateButton("export.close", () => { });
         cancel.Name = "OriginalExportClose";
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6, HorizontalAlignment = HorizontalAlignment.Right };
-        cancel.Classes.Add("subtle"); start.Classes.Add("primary"); actions.Classes.Add("workspace-actions");
-        actions.Children.Add(cancel); actions.Children.Add(openFolder); actions.Children.Add(start);
-        TextBlock title = new() { Text = dialog.Title, TextWrapping = TextWrapping.Wrap }; title.Classes.Add("page-title");
-        scope.Classes.Add("section-title");
-        StackPanel header = new() { Spacing = 8, Margin = new Thickness(16, 16, 16, 0) };
-        header.Children.Add(title); header.Children.Add(scope);
+        cancel.Classes.Add("subtle"); start.Classes.Add("primary");
         TextBlock hint = new() { Text = Texts.T("export.originalHint"), TextWrapping = TextWrapping.Wrap };
         hint.Classes.Add("workspace-help");
+        // Said before the export starts: own tags never travel with copied files (no silent drop, no implied round trip).
+        TextBlock privateOmitted = new() { Name = "OriginalExportPrivateOmitted", Text = string.Join(" ", PrivateTransferDisclosure.Lines()),
+            TextWrapping = TextWrapping.Wrap };
+        privateOmitted.Classes.Add("workspace-help");
         TextBlock targetLabel = new() { Text = Texts.T("export.target") }; targetLabel.Classes.Add("section-title");
-        TextBlock unavailable = new() { Text = Texts.T("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
+        TextBlock unavailable = new() { Text = Texts.Count("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
         unavailable.Classes.Add("workspace-warning");
-        StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0) };
-        content.Children.Add(hint); content.Children.Add(unavailable); content.Children.Add(targetLabel);
+        StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 12) };
+        content.Children.Add(hint); content.Children.Add(privateOmitted); content.Children.Add(unavailable); content.Children.Add(targetLabel);
         content.Children.Add(destination); content.Children.Add(browse);
         AutomationProperties.SetLabeledBy(destination, targetLabel);
         AutomationProperties.SetLiveSetting(status, AutomationLiveSetting.Polite);
-        StackPanel footerContent = new() { Spacing = 12 };
-        footerContent.Children.Add(new ScrollViewer { Content = status, MaxHeight = 140, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled });
-        footerContent.Children.Add(actions);
-        Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 12 };
-        layout.Children.Add(header);
-        ScrollViewer scroll = new() { Content = content, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
-        dialog.Content = layout;
-        CancellationTokenSource run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        // Start is the primary action right-most; Close and Open folder stay left of it; the status keeps the full width above.
+        Border footer = MeowChan.Desktop.Controls.DialogFooter.Build(start, new Control[] { cancel, openFolder },
+            new ScrollViewer { Content = status, MaxHeight = 140, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled },
+            statusAbove: true);
+        MeowChan.Desktop.Controls.DialogWindow.Frame(dialog, MeowChan.Desktop.Controls.DialogFrame.Build(choices, content, footer,
+            MeowChan.Desktop.Controls.DialogFrame.ErrorStrip(error)), modal: true);
+        using CancellationTokenSource run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         bool running = false;
         dialog.Closing += (_, args) =>
         {
@@ -332,13 +378,13 @@ public partial class ArchivePage
             run.Cancel();
         };
         dialog.Closed += (_, _) => run.Cancel();
-        dialog.KeyDown += (_, key) =>
+        // Escape stops a running copy first (a local cancel), then closes the dialog.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(dialog, tryCancelLocal: () =>
         {
-            if (key.Handled || key.Key != Key.Escape) return;
-            key.Handled = true;
-            if (running) run.Cancel();
-            else dialog.Close();
-        };
+            if (!running) return false;
+            run.Cancel();
+            return true;
+        });
         openFolder.Click += async (_, _) =>
         {
             string? path = destination.Text;
@@ -348,12 +394,12 @@ public partial class ArchivePage
                 if (OpenExportFolder != null) await OpenExportFolder(path);
                 else _openFolder?.Invoke(path);
             }
-            catch (Exception ex) { status.Text = Texts.T("export.openFailed", ex.Message); }
+            catch (Exception ex) { Fail(Texts.T("export.openFailed", ex.Message)); }
         };
         browse.Click += async (_, _) =>
         {
             IStorageProvider? storage = owner.StorageProvider;
-            if (storage == null || !storage.CanPickFolder) { status.Text = Texts.T("settings.pickerUnavailable"); return; }
+            if (storage == null || !storage.CanPickFolder) { Fail(Texts.T("settings.pickerUnavailable")); return; }
             IReadOnlyList<IStorageFolder> folders = await storage.OpenFolderPickerAsync(new FolderPickerOpenOptions
             { Title = Texts.T("viewer.export.destination"), AllowMultiple = false });
             try
@@ -361,7 +407,7 @@ public partial class ArchivePage
                 if (run.IsCancellationRequested) return;
                 if (folders.Count == 0) return;
                 string? path = folders[0].TryGetLocalPath();
-                if (path == null) { status.Text = Texts.T("settings.pickerLocalOnly"); return; }
+                if (path == null) { Fail(Texts.T("settings.pickerLocalOnly")); return; }
                 await RememberExportDirectoryAsync(path);
                 destination.Text = path;
                 start.IsEnabled = assets.Length > 0;
@@ -374,15 +420,19 @@ public partial class ArchivePage
             if (running || string.IsNullOrWhiteSpace(destination.Text)) return;
             running = true; start.IsEnabled = browse.IsEnabled = openFolder.IsEnabled = false;
             CommandBindings.Apply(cancel, "export.cancel");
-            status.Text = Texts.T("viewer.export.running");
+            Notice(Texts.T("viewer.export.running"));
             try
             {
                 FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, run.Token);
-                status.Text = Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
-                    result.Missing + missingCount, result.Failed, result.Cancelled);
+                Notice(Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
+                    result.Missing + missingCount, result.Failed, result.Cancelled));
+                // As in the thread dialog: after the copy Close is the primary action (Start stays spent).
+                start.Classes.Set("primary", false);
+                cancel.Classes.Set("subtle", false);
+                cancel.Classes.Set("primary", true);
             }
-            catch (OperationCanceledException) when (run.IsCancellationRequested) { status.Text = Texts.T("viewer.export.cancelled"); }
-            catch (Exception ex) { status.Text = ex.Message; }
+            catch (OperationCanceledException) when (run.IsCancellationRequested) { Notice(Texts.T("viewer.export.cancelled")); }
+            catch (Exception ex) { Fail(ex.Message); }
             finally
             {
                 running = false;
@@ -393,6 +443,5 @@ public partial class ArchivePage
         };
         cancel.Click += (_, _) => { if (running) run.Cancel(); else dialog.Close(); };
         await dialog.ShowDialog(owner);
-        run.Dispose();
     }
 }

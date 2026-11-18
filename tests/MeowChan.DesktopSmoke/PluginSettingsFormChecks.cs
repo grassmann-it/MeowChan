@@ -33,7 +33,7 @@ internal static class PluginSettingsFormChecks
         string language = Texts.Language;
         Texts.SetLanguage(language == "de" ? "en" : "de");
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        Require(Field(SettingScope.Plugin, "number").Text == "1.5" && Editor(SettingScope.Plugin).GetLogicalDescendants().OfType<TextBlock>().Any(label => label.IsVisible && label.Classes.Contains("error") && !string.IsNullOrEmpty(label.Text)), "Language rebuild lost raw text or field errors.");
+        Require(Field(SettingScope.Plugin, "number").Text == "1.5" && Editor(SettingScope.Plugin).GetLogicalDescendants().OfType<TextBlock>().Any(label => label.IsVisible && label.Classes.Contains("workspace-error") && !string.IsNullOrEmpty(label.Text)), "Language rebuild lost raw text or field errors.");
         Texts.SetLanguage(language);
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         Field(SettingScope.Plugin, "number").Text = "2";

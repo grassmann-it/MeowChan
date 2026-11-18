@@ -64,4 +64,9 @@ __pycache__/
 /samples/oChan.RelaunchMock/
 /samples/MeowChan.RelaunchMock/
 /.architecture-sparring/
+/.commandcode/
+/.frontier-review/
 /samples/MeowChan.SemiUrsaMock/
+
+# Pinned synthetic 1.0.2 persistence fixtures, not user backups
+!tests/Fixtures/persistence102/*.json.bak

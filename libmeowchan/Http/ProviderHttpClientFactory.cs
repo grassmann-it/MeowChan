@@ -43,14 +43,18 @@ public static class ProviderHttpClientFactory
         return client;
     }
 
-    private static HttpClient CreateTransport()
+    private static HttpClient CreateTransport() => CreateTransport(TransferMeter.Shared);
+
+    /// <summary>Creates the default transport with caller-owned lifetime and isolated counter storage.</summary>
+    internal static HttpClient CreateTransport(SourceRegistry registry)
     {
+        ArgumentNullException.ThrowIfNull(registry);
         SocketsHttpHandler handler = new SocketsHttpHandler
         {
             AllowAutoRedirect = false,
             AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate | DecompressionMethods.Brotli,
             PooledConnectionLifetime = TimeSpan.FromMinutes(10)
         };
-        return new HttpClient(handler) { Timeout = Timeout.InfiniteTimeSpan };
+        return new HttpClient(new MeteringHandler(handler, registry)) { Timeout = Timeout.InfiniteTimeSpan };
     }
 }

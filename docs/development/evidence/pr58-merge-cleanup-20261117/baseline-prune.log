@@ -1,0 +1,2 @@
+usage: analyzer-baseline.py [-h] sarif_directory
+analyzer-baseline.py: error: 41 unbaselined/changed diagnostics: fix the debt, do not rebaseline it

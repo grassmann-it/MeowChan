@@ -74,27 +74,28 @@ internal static partial class SectionComparisonChecks
 
     private static async Task PluginsPresentation(Scenario scenario, PluginsPage page, string profileRoot, string beforeFiles, Func<int> workerCalls)
     {
-        scenario.Expect("Production B at actual minimum; source-b despite duplicate names, retained invalid draft through compact information roundtrip, actual Go focus and exact local error focus; no metadata writes/worker calls.");
+        scenario.Expect("Production B at actual minimum; source-b despite duplicate names, retained invalid draft through information/menu roundtrip, actual action-menu focus and exact local error focus; no metadata writes/worker calls.");
         await scenario.PresentationObservation("initial-plugins", new { title = page.FindControl<TextBlock>("PluginsTitle")!.Text });
-        Require(page.FindControl<TextBlock>("PluginsTitle")!.Text == Texts.T("nav.plugins")
+        Require(page.FindControl<TextBlock>("PluginsTitle")!.Text == Texts.T("nav.sources")
             && scenario.PresentationVisible(page.FindControl<TextBlock>("PluginsTitle")!), "Plugins title is not actually localized/rendered.");
         await scenario.OpenContents();
-        await scenario.PresentationObservation("minimum-contents", new { geometry = "natural navigation width at the actual window minimum" });
+        await scenario.PresentationObservation("minimum-contents", new { geometry = "actual plugin detail menu at the window minimum" });
         await scenario.Capture("minimum-contents");
-        string sourceB = scenario.Controller.Sections.Single(s => s.Id.EndsWith("settings/source/source-b", StringComparison.Ordinal)).Id;
-        string information = scenario.Controller.Sections.Single(s => s.Id.EndsWith("/information", StringComparison.Ordinal)).Id;
+        string sourceB = scenario.Targets.Single(s => s.Id.EndsWith("settings/source/source-b", StringComparison.Ordinal)).Id;
+        string information = scenario.Targets.Single(s => s.Id.EndsWith("/information", StringComparison.Ordinal)).Id;
         var others = page.CurrentDraft!.Sources.Where(p => p.Key != "source-b").ToDictionary(p => p.Key, p => p.Value.EditorFingerprint);
         string plugin = page.CurrentDraft.Plugin.EditorFingerprint;
         await scenario.Navigate(sourceB);
-        var group = (Expander)scenario.Controller.Sections.Single(s => s.Id == sourceB).ResolveTarget()!;
+        var group = (Expander)scenario.Targets.Single(s => s.Id == sourceB).ResolveTarget()!;
         if (!group.IsExpanded) await scenario.Toggle(group);
         var form = (PluginSettingsEditor)group.Content!;
         var limit = (TextBox)form.FindField("limit")!;
         const string raw = "invalid source-b presentation draft";
         await scenario.Edit(limit, raw);
         string fingerprint = page.CurrentDraft.Sources["source-b"].EditorFingerprint;
-        await scenario.CompactPresentationJump(information, captureFocus: false);
-        await scenario.CompactPresentationJump(sourceB, captureFocus: true);
+        await scenario.Navigate(information);
+        await scenario.Navigate(sourceB);
+        await scenario.Capture("source-b-menu-roundtrip");
         Require(limit.Text == raw && page.CurrentDraft.Sources["source-b"].EditorFingerprint == fingerprint,
             "Compact presentation navigation lost the exact source-b draft.");
         await scenario.Click(page.FindControl<Button>("PluginSave")!); await Settle();
@@ -126,7 +127,7 @@ internal static partial class SectionComparisonChecks
             Detail("presentation-observation", new { scene, requested = _presentation, actualMode,
                 actualLanguage = Texts.Language, actualTheme = Window.ActualThemeVariant.Key?.ToString(), actualScale = Window.RenderScaling,
                 client = Window.ClientSize.ToString(), frame = Window.FrameSize?.ToString(), minimum = new { Window.MinWidth, Window.MinHeight },
-                navigationBounds = Navigation.Bounds.ToString(), maxNavigationWidth = double.IsFinite(Navigation.MaxWidth) ? Navigation.MaxWidth : (double?)null,
+                navigationBounds = _navigation?.Bounds.ToString(), maxNavigationWidth = _navigation != null && double.IsFinite(_navigation.MaxWidth) ? _navigation.MaxWidth : (double?)null,
                 renderedLabels = _page.GetVisualDescendants().OfType<TextBlock>().Where(t => !string.IsNullOrWhiteSpace(t.Text) && InViewport(t))
                     .Select(t => new { t.Name, t.Text, bounds = t.Bounds.ToString(), windowTop = t.TranslatePoint(default, Window)?.Y }).ToArray(),
                 focus = Focus(), offset = Scroll.Offset.Y, viewport = Scroll.Viewport.ToString(), state,

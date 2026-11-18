@@ -1,45 +1,87 @@
-# Official 4chan and 8kun source plugins
+# Official source plugins: 4chan, 8kun and Danbooru
 
-Each plugin is one complete editable `.cs` file and consumes only .NET framework
-references plus `MeowChan.PluginSdk`. Its project builds a precompiled assembly:
+Each plugin is maintained as one complete editable `.cs` file **in this
+repository** and consumes only .NET framework references plus
+`MeowChan.PluginSdk`. The application package delivers prebuilt official bundles,
+not their editable source files:
 
-| Source | Plugin ID | Entry source | Assembly |
-| --- | --- | --- | --- |
-| `4chan` | `meowchan.official.4chan` | `FourChan/FourChan.cs` | `MeowChan.Plugin.FourChan.dll` |
-| `8kun` | `meowchan.official.8kun` | `EightKun/EightKun.cs` | `MeowChan.Plugin.EightKun.dll` |
+| Source | Plugin ID | Repository entry source | Delivered assembly | Editable source in package |
+| --- | --- | --- | --- | --- |
+| `4chan` | `meowchan.official.4chan` | `FourChan/FourChan.cs` | `MeowChan.Plugin.FourChan.dll` | No |
+| `8kun` | `meowchan.official.8kun` | `EightKun/EightKun.cs` | `MeowChan.Plugin.EightKun.dll` | No |
+| `danbooru` | `meowchan.official.danbooru` | `Danbooru/Danbooru.cs` | `MeowChan.Plugin.Danbooru.dll` | No |
 
-All board routes declare ASCII word identifiers and all thread routes declare
-decimal identifiers, matching the legacy URL grammar without worker IPC.
+[`PluginDelivery.targets`](../../packaging/PluginDelivery.targets) allowlists
+these projects for prebuilt delivery: each has a `.plugin.json` manifest under
+`plugins/` and its assembly under `plugins/assemblies/`. Its separate editable
+source allowlist contains only example/filter files under `plugins/Examples/`,
+copied to `plugins/sources/`. The [complete inventory](../../docs/plugins/README.md#packaged-inventory)
+is checked against [`package-plugins.py`](../../scripts/package-plugins.py).
+
+4chan and 8kun are board/thread sources. Danbooru is a booru post-search source
+(SDK 1.1.0, `IBooruSourcePlugin`, capability `PostSearch`): it has no URL routes, is
+not registered as a chan source by the desktop, and is verified by the same plugin
+package check. Its fixtures and the scenarios they cover are listed in the
+[booru test matrix](../../docs/development/booru-test-matrix.md).
+
+The 4chan/8kun board routes declare ASCII word identifiers and their thread
+routes declare decimal identifiers, matching the legacy URL grammar without worker IPC.
 
 Both have a public parameterless entry point (`FourChanPlugin` / `EightKunPlugin`
 in `MeowChan.OfficialSources.FourChan` / `.EightKun`). Descriptions are static,
 have an empty version-1 settings schema, and declare catalog, thread, post and
 original-media metadata capabilities. Describe performs no network access.
 
-Copying either source to the user's plugin source directory produces a complete
-drop-in candidate without `#load`, NuGet, project evaluation, generated sources
-or auxiliary files. A modified official source retains its identity; selecting
-it against the bundled candidate follows the host's explicit conflict-selection
-and next-start activation workflow. Merely editing or building does not activate
-it. Plugins make metadata requests only through `IHostHttp`, never retry, and do
+Plugins make metadata requests only through `IHostHttp`, never retry, and do
 not fetch media, choose paths, write captures or change watch generations.
+
+## Authoring and local builds
+
+For a source-file candidate, obtain the desired entry file from a matching
+repository checkout; it is not shipped beside the official assembly. Copy that
+complete `.cs` file directly to the active profile's plugin directory (opened
+with **Open plugin folder**), edit the copy and use **Build and test** under
+**Developer details**. The delivered compiler needs no installed developer SDK,
+`#load`, NuGet restore, project evaluation, generated sources or auxiliary files.
+See [install, test and select a source candidate](../../docs/plugins/using-plugins.md#install-a-source-file).
+
+For a project/assembly build, use the SDK pinned by the repository's
+`global.json`. From the repository root, for example, with `NUGET_PACKAGES`
+pointing to a populated local package cache:
+
+```sh
+dotnet restore plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj --locked-mode --source "$NUGET_PACKAGES" -p:NuGetAudit=false -m:1 -p:UseSharedCompilation=false
+dotnet build plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj -c Release --no-restore -m:1 -p:UseSharedCompilation=false
+```
+
+Substitute the EightKun or Danbooru project path to build those entries. This
+builds an assembly, not an installed bundle: a loose DLL alone is not installable.
+Repository desktop delivery generates the matching manifests; separately
+packaged candidates must follow the [verified bundle contract](../../docs/plugins/hosting-and-resources.md#prebuilt-bundles).
+Do not overwrite a delivered assembly without regenerating its manifest hashes.
+
+A modified official source retains its identity. Selecting it against the
+bundled candidate follows the host's explicit conflict-selection and next-start
+activation workflow. Merely copying, editing, building or testing does not
+activate it; explicitly select **Use this build next start** and restart.
 
 ## Shared parser and library integration
 
 The framework-only parser is inside the same file as its SDK adapter.
-`LibraryParsing.targets` must be imported by `libmeowchan.csproj` during root
-integration. It links these exact two files with `MEOWCHAN_CORE`: the SDK adapters are excluded and direct library
-providers call the identical parser. No SDK/runtime/compiler reference is added
+`LibraryParsing.targets` is imported by `libmeowchan.csproj`. It links the
+4chan/8kun files with `MEOWCHAN_CORE`: the SDK adapters are excluded and direct
+library providers call the identical parser. No SDK/runtime/compiler reference is added
 to libmeowchan. There is no copied or separately generated library parser.
 The 0.9 library classes retain metadata name lookup, request policy, downloads,
 paths, legacy media paths, watch state and archival lifecycle ownership.
 
-The Desktop project must exclude `plugins/**/*.cs` from recursive compile items.
-Build each project for delivery; ship its assembly plus its editable source.
-The worker supplies the SDK assembly. Source filenames/assembly filenames do not
-become source IDs or archive/export identities.
+The Desktop project excludes `plugins/**/*.cs` from recursive compile items.
+Delivery builds the allowlisted projects and ships their verified prebuilt
+bundles, not the official editable sources. The worker supplies the SDK assembly.
+Source filenames/assembly filenames do not become source IDs or archive/export
+identities.
 
-## Preserved semantics
+## Preserved 4chan/8kun semantics
 
 - `4chan` retains `boards.4chan.org` and `boards.4channel.org`, catalog aliases,
   lowercased board IDs and optional thread title segments. Metadata is fetched

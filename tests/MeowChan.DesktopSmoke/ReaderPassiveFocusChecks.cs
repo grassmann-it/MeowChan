@@ -23,6 +23,7 @@ internal static class ReaderPassiveFocusChecks
         string language = Texts.Language, layout = page.ArchiveLayoutPreference;
         double width = owner.Width, height = owner.Height;
         WindowState state = owner.WindowState;
+        Exception? failureBeforeCleanup = null;
         try
         {
             // Exercise the actual shell's archive split, including its real search and toolbar.
@@ -43,7 +44,7 @@ internal static class ReaderPassiveFocusChecks
             async Task LocalizationCase(string name, Control? newer, bool headerOrigin = false, bool missing = false)
             {
                 await page.FocusPostAsync(postId);
-                await SettleAsync();
+                await SmokeDispatcher.SettleAsync();
                 Control original = PostContainer(posts, postId);
                 Require(original.IsKeyboardFocusWithin, name + ": cannot establish post focus.");
                 if (headerOrigin) Require(header.Focus() && header.IsFocused, name + ": cannot focus surviving header.");
@@ -77,7 +78,7 @@ internal static class ReaderPassiveFocusChecks
                     await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
                     release.TrySetResult();
                     await operation.WaitAsync(TimeSpan.FromSeconds(10));
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     Control replacement = PostContainer(posts, postId);
                     if (newer != null || headerOrigin)
                     {
@@ -125,6 +126,7 @@ internal static class ReaderPassiveFocusChecks
                 {
                     if (e.Source is Visual target && target.GetVisualAncestors().Contains(posts)) latePostFocus++;
                 }
+                Exception? innerFailureBeforeCleanup = null;
                 try
                 {
                     await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
@@ -158,41 +160,49 @@ internal static class ReaderPassiveFocusChecks
                     owner.AddHandler(InputElement.GotFocusEvent, Focused, RoutingStrategies.Bubble, handledEventsToo: true);
                     release.TrySetResult();
                     await restoration.WaitAsync(TimeSpan.FromSeconds(10));
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     Require(latePostFocus == 0 && (expected == null || expected.IsKeyboardFocusWithin),
                         cover + ": held restoration focused the underlying reader. " + Describe(owner));
                 }
+                catch (Exception thrown) { innerFailureBeforeCleanup = thrown; throw; }
                 finally
                 {
-                    release.TrySetResult();
-                    await restoration.WaitAsync(TimeSpan.FromSeconds(10));
-                    owner.RemoveHandler(InputElement.GotFocusEvent, Focused);
-                    page.BeforePassiveReaderFocusAsync = null;
-                    if (cover == "gallery" && owner.FindControl<ContentControl>("GalleryHost")!.Content is GalleryViewer viewer)
+                    await SmokeCleanup.RunAsync(innerFailureBeforeCleanup, async () =>
                     {
-                        if (galleryContext.HasValue && viewer.CaptureState().ContextOpen != galleryContext.Value)
-                            Click(GalleryButton(viewer, "GalleryToggleContext"));
-                        Click(GalleryButton(viewer, "GalleryClose"));
-                    }
-                    child?.Close();
-                    owner.Activate();
-                    await Program.WaitUntilAsync(() => owner.IsActive && !page.IsObscuredByGallery);
-                    await SettleAsync();
+                        release.TrySetResult();
+                        await restoration.WaitAsync(TimeSpan.FromSeconds(10));
+                        owner.RemoveHandler(InputElement.GotFocusEvent, Focused);
+                        page.BeforePassiveReaderFocusAsync = null;
+                        if (cover == "gallery" && owner.FindControl<ContentControl>("GalleryHost")!.Content is GalleryViewer viewer)
+                        {
+                            if (galleryContext.HasValue && viewer.CaptureState().ContextOpen != galleryContext.Value)
+                                Click(GalleryButton(viewer, "GalleryToggleContext"));
+                            Click(GalleryButton(viewer, "GalleryClose"));
+                        }
+                        child?.Close();
+                        owner.Activate();
+                        await Program.WaitUntilAsync(() => owner.IsActive && !page.IsObscuredByGallery);
+                        await SmokeDispatcher.SettleAsync();
+                    }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
                 }
             }
             await CheckLiveAsync(owner);
             Console.WriteLine("SMOKE passive reader focus: PASS; actual-shell same-action external/internal intent; surviving toolbar; replacement anchor; missing-anchor fallback; held gallery/owned window; coverage roundtrip; whole live reload.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            page.BeforePassiveReaderFocusAsync = null;
-            Texts.SetLanguage(language);
-            await page.ReaderLocalizationTask;
-            page.ArchiveLayoutPreference = layout;
-            owner.Width = width; owner.Height = height; owner.WindowState = state;
-            owner.Activate();
-            await Program.WaitUntilAsync(() => owner.IsActive);
-            await SettleAsync();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                page.BeforePassiveReaderFocusAsync = null;
+                Texts.SetLanguage(language);
+                await page.ReaderLocalizationTask;
+                page.ArchiveLayoutPreference = layout;
+                owner.Width = width; owner.Height = height; owner.WindowState = state;
+                owner.Activate();
+                await Program.WaitUntilAsync(() => owner.IsActive);
+                await SmokeDispatcher.SettleAsync();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
         }
     }
 
@@ -210,7 +220,9 @@ internal static class ReaderPassiveFocusChecks
         Type anchorType = typeof(ArchivePage).GetNestedType("ReaderAnchor", BindingFlags.NonPublic)!;
         object anchor = Activator.CreateInstance(anchorType, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
             null, [id, "__pf05_missing_post__", 0d, selected], null)!;
-        typeof(ArchivePage).GetMethod("RenderThread", Private)!.Invoke(page, null);
+        // Reflection does not supply C# optional arguments: preserve RenderThread()'s
+        // refreshMedia=true default while replacing the real post containers.
+        typeof(ArchivePage).GetMethod("RenderThread", Private)!.Invoke(page, [true]);
         await (Task)typeof(ArchivePage).GetMethod("RestoreReaderAnchorAsync", Private)!
             .Invoke(page, [anchor, true, intent])!;
     }
@@ -222,6 +234,7 @@ internal static class ReaderPassiveFocusChecks
         Window? host = null;
         TaskCompletionSource? release = null;
         Task update = Task.CompletedTask;
+        Exception? failureBeforeCleanup = null;
         try
         {
             using ProfileLease lease = ProfileLease.Acquire(directory);
@@ -254,10 +267,9 @@ internal static class ReaderPassiveFocusChecks
             await Program.WaitUntilAsync(() => host.IsActive);
             await page.LoadThreadAsync(id);
             await page.MediaLoadTask;
-            CheckBox follow = page.FindControl<CheckBox>("ReaderFollowLive")!;
-            follow.IsChecked = true;
+            await page.SetFollowLiveAsync(true);
             await Program.WaitUntilAsync(() => !(bool)typeof(ArchivePage).GetField("_checkingReaderUpdate", Private)!.GetValue(page)!);
-            Require(follow.IsChecked == true, "Live focus fixture did not enable real following.");
+            Require(page.FollowLive, "Live focus fixture did not enable real following.");
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             int count = 2;
             foreach (string scenario in new[] { "external-during-load", "coverage-during-anchor", "no-new-intent" })
@@ -289,7 +301,7 @@ internal static class ReaderPassiveFocusChecks
                 {
                     release.TrySetResult();
                     await update.WaitAsync(TimeSpan.FromSeconds(10));
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     string newest = (1000 + count - 1).ToString();
                     Require(page.CurrentThread?.PostCount == count && (posts.SelectedItem as ArchivePostRow)?.Id == newest,
                         scenario + ": guarded refresh lost the appended content/follow target.");
@@ -307,16 +319,20 @@ internal static class ReaderPassiveFocusChecks
                 await page.MediaLoadTask;
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release?.TrySetResult();
-            page?.EndLifetime();
-            await update.WaitAsync(TimeSpan.FromSeconds(10));
-            host?.Close();
-            owner.Activate();
-            await Program.WaitUntilAsync(() => owner.IsActive);
-            await SettleAsync();
-            Directory.Delete(directory, recursive: true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                release?.TrySetResult();
+                page?.EndLifetime();
+                await update.WaitAsync(TimeSpan.FromSeconds(10));
+                host?.Close();
+                owner.Activate();
+                await Program.WaitUntilAsync(() => owner.IsActive);
+                await SmokeDispatcher.SettleAsync();
+                Directory.Delete(directory, recursive: true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderPassiveFocusChecks: " + exception));
         }
     }
 
@@ -328,11 +344,6 @@ internal static class ReaderPassiveFocusChecks
         + (host.FocusManager?.GetFocusedElement() is Control control ? control.GetType().Name + "#" + control.Name : "none");
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    private static async Task SettleAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
     private static void Require(bool condition, string message)
     { if (!condition) throw new InvalidOperationException(message); }
 }

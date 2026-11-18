@@ -22,13 +22,18 @@ internal static class UpdateGuiChecks
         Config config = Config.LoadConfig(profile);
         config.DownloadPath = Path.Combine(profile, "downloads");
         config.SaveConfig();
-        Handler handler = new();
+        // Saving a changed reserve re-checks the destination, which never creates folders; the fixture must provide it
+        // (after the first save, because settings are only written into an empty or already valid profile).
+        Directory.CreateDirectory(config.DownloadPath);
+        using Handler handler = new();
         string? disabled = null;
+        using HttpClient updateClient = new(handler);
         await using DesktopSessionHost host = new(profile, [], updateSessionFactory: (path, settings) =>
-            new UpdateSession(path, settings, new HttpClient(handler), disableEnvironment: () => disabled));
-        MainWindow window = new(host);
+            new UpdateSession(path, settings, updateClient, disableEnvironment: () => disabled));
+        await using MainWindow window = new(host);
         AboutWindow? about = null;
         window.Show(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready && window.IsVisible);
@@ -41,12 +46,12 @@ internal static class UpdateGuiChecks
             await Program.WaitUntilAsync(() => about.FindControl<TextBlock>("AvailableUpdateText")!.Text!.Contains("9.8.7"));
             Require(handler.Requests == 1, "Help update action did not perform exactly one fixture request.");
             about.FindControl<Button>("UpdateReleaseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 21);
+            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 42);
             about.FindControl<Button>("UpdateDownloadButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 28);
+            await Program.WaitUntilAsync(() => File.ReadAllLines(browserCapture).Length >= 49);
             string[] handoffs = File.ReadAllLines(browserCapture);
-            Require(handoffs[16] == Handler.ReleaseUrl && handoffs[23] == Handler.DownloadUrl,
-                "Update browser handoff differs: " + handoffs[16] + " | " + handoffs[23] + "; runtime=" + System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
+            Require(handoffs[37] == Handler.ReleaseUrl && handoffs[44] == Handler.DownloadUrl,
+                "Update browser handoff differs: " + handoffs[37] + " | " + handoffs[44] + "; runtime=" + System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier);
             about.Close();
             about = null;
 
@@ -98,7 +103,7 @@ internal static class UpdateGuiChecks
             // Settings drafts change no live preference until Save, and Discard restores all update/budget fields.
             window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             SettingsEditor editor = window.SettingsEditor;
-            Require(editor.FindControl<CheckBox>("AutomaticUpdatesInput")!.IsEffectivelyEnabled,
+            Require(editor.FindControl<ToggleSwitch>("AutomaticUpdatesInput")!.IsEffectivelyEnabled,
                 "Update settings did not use their actual profile session's enabled state.");
             editor.AutomaticUpdateChecks = false;
             editor.IncludePrereleaseUpdates = true;
@@ -113,7 +118,10 @@ internal static class UpdateGuiChecks
             editor.SelectedLanguage = editor.LanguageChoices.Single(choice => choice.Code == "de");
             editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == "Light");
             editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => !editor.IsBusy && !host.Config.AutomaticUpdateChecks);
+            await Program.WaitUntilAsync(() => !editor.IsBusy && !host.Config.AutomaticUpdateChecks,
+                () => $"busy={editor.IsBusy}, automatic={host.Config.AutomaticUpdateChecks}, status={editor.StatusMessage}, visible errors="
+                    + string.Join(" | ", editor.GetVisualDescendants().OfType<TextBlock>()
+                        .Where(block => block.IsVisible && block.Name?.EndsWith("Error") == true).Select(block => block.Name + ": " + block.Text)));
             Require(!editor.HasError && Config.LoadConfig(profile).MinimumFreeSpaceGiB == 2, "Updated settings were not persisted.");
             await RevealUpdateSettingsAsync(window);
             Capture(window, "smoke-updates-settings-de-Light.png");
@@ -155,13 +163,17 @@ internal static class UpdateGuiChecks
             about = null;
             Console.WriteLine("SMOKE Updates: fixture Help/About/status integration, EN/DE × Dark/Light × B/S/A, minimum sizes, exact browser handoff, settings draft/save/discard, skip, manual errors and distribution override passed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            about?.Close();
-            window.Close();
-            await Program.WaitUntilAsync(() => !window.IsVisible);
-            Texts.SetLanguage(owner.SessionHost.Config.Language);
-            Application.Current!.RequestedThemeVariant = owner.SessionHost.Config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                about?.Close();
+                window.Close();
+                await Program.WaitUntilAsync(() => !window.IsVisible);
+                Texts.SetLanguage(owner.SessionHost.Config.Language);
+                Application.Current!.RequestedThemeVariant = owner.SessionHost.Config.Theme == "Light" ? ThemeVariant.Light : ThemeVariant.Dark;
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in UpdateGuiChecks: " + exception));
         }
     }
 
@@ -224,7 +236,7 @@ internal static class UpdateGuiChecks
         await Program.WaitUntilAsync(() => window.SettingsPageVisible);
         window.UpdateLayout();
         TextBlock privacy = window.SettingsEditor.FindControl<TextBlock>("UpdatePrivacyText")!;
-        CheckBox automatic = window.SettingsEditor.FindControl<CheckBox>("AutomaticUpdatesInput")!;
+        ToggleSwitch automatic = window.SettingsEditor.FindControl<ToggleSwitch>("AutomaticUpdatesInput")!;
         ScrollViewer scroll = window.SettingsEditor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
         privacy.BringIntoView();
         await Program.WaitUntilAsync(() => privacy.TranslatePoint(default, scroll) is { } bottom

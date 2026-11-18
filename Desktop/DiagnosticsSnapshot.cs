@@ -70,7 +70,13 @@ internal sealed record DiagnosticsSnapshot(long Queued, long Active, int Threads
                 board.HostName + " /" + board.Snapshot.Id.Board + "/", board.Snapshot.RequestProgress, board.Snapshot.LastCheckFailure, board.Snapshot.Id);
         return new DiagnosticsSnapshot(view.Threads.Sum(thread => (long)thread.Snapshot.Downloads.Queued),
             view.Threads.Sum(thread => (long)thread.Snapshot.Downloads.Active), view.Threads.Count, view.Boards.Count,
-            Array.AsReadOnly(entries.ToArray()));
+            // Only outward text is redacted. Keys, action targets and source snapshots stay unchanged.
+            Array.AsReadOnly(entries.Select(entry => entry with
+            {
+                Resource = DesktopLog.RedactText(entry.Resource),
+                Summary = DesktopLog.RedactText(entry.Summary),
+                Details = DesktopLog.RedactText(entry.Details)
+            }).ToArray()));
     }
 
     internal static bool ContainsTarget(DesktopSessionView view, DiagnosticTarget target) => target.Kind switch

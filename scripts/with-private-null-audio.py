@@ -1,11 +1,13 @@
 #!/usr/bin/env python3
 """Linux CI: --report PATH -- COMMAND [ARG ...].
 
-Requires dbus-daemon, pulseaudio and pulseaudio-utils (Ubuntu 24.04 stock).
-No PipeWire or WirePlumber services are started. Runs real software audio, NOT a mocked availability flag.
-Only a muted null sink and its monitor are allowed. No inherited session,
-display or audio environment is used. The child may start its own GUI bus/Xvfb;
-its absolute Pulse socket/cookie remain usable across that bus change.
+Requires dbus-daemon, pactl and either a private PulseAudio binary or the
+pipewire/pipewire-pulse pair. Backend selection is explicit and never uses
+WirePlumber or a user/system service. Runs real process-owned software audio,
+NOT a mocked availability flag. Only a muted null sink and its monitor are
+allowed. No inherited session, display or audio environment is used. The child
+may start its own GUI bus/Xvfb; its absolute Pulse socket/cookie remain usable
+across that bus change.
 Readiness is bounded to 25s plus 8s for default metadata. Child execution has
 no arbitrary deadline; CI may SIGTERM this wrapper for bounded owned cleanup.
 The report contains summaries only (no environment, cookies or raw graphs).
@@ -15,13 +17,34 @@ import json
 import os
 from pathlib import Path
 import signal
+import shutil
 import subprocess
 import sys
 import tempfile
 import time
 
 SINK = 'ci_private_null'
-MODULES = {'module-native-protocol-unix', 'module-null-sink'}
+BACKEND_PULSEAUDIO = 'pulseaudio'
+BACKEND_PIPEWIRE = 'pipewire'
+PULSE_MODULES = {'module-native-protocol-unix', 'module-null-sink'}
+PIPEWIRE_MODULES = {
+    'libpipewire-module-access',
+    'libpipewire-module-adapter',
+    'libpipewire-module-link-factory',
+    'libpipewire-module-metadata',
+    'libpipewire-module-protocol-native',
+    'libpipewire-module-spa-node-factory',
+}
+
+
+def detect_backend():
+    """Return a locally available backend without starting anything."""
+    if all(shutil.which(name) for name in ('dbus-daemon', 'pactl', 'pulseaudio')):
+        return BACKEND_PULSEAUDIO
+    if all(shutil.which(name) for name in
+           ('dbus-daemon', 'pactl', 'pipewire', 'pipewire-pulse', 'pw-dump')):
+        return BACKEND_PIPEWIRE
+    raise RuntimeError('no supported private software-audio backend found')
 
 
 def cli(argv):
@@ -35,7 +58,7 @@ def cli(argv):
     return args
 
 
-def environment(base):
+def environment(base, backend=BACKEND_PULSEAUDIO):
     # Allowlist avoids indirect session/device/plugin overrides and user HOME.
     env = {k: os.environ[k] for k in ('PATH', 'LANG', 'LC_ALL', 'TZ') if k in os.environ}
     for name in ('home', 'config', 'cache', 'state', 'data', 'runtime', 'tmp'):
@@ -44,31 +67,125 @@ def environment(base):
                XDG_CONFIG_HOME=str(base/'config'), XDG_CACHE_HOME=str(base/'cache'),
                XDG_STATE_HOME=str(base/'state'), XDG_DATA_HOME=str(base/'data'),
                XDG_RUNTIME_DIR=str(base/'runtime'), XDG_CONFIG_DIRS=str(base/'config'),
-               PIPEWIRE_RUNTIME_DIR=str(base/'runtime'), PIPEWIRE_REMOTE='disabled-private-no-server',
+               PIPEWIRE_RUNTIME_DIR=str(base/'runtime'),
+               # This is deliberately retained for the child. The private
+               # pipewire-pulse service gets a separate env with a real remote.
+               PIPEWIRE_REMOTE='disabled-private-no-server',
                PULSE_CONFIG_PATH=str(base/'config/pulse'),
                PULSE_SERVER='unix:'+str(base/'runtime/pulse/native'),
                PULSE_SOCKET=str(base/'runtime/pulse/native'),
                PULSE_RUNTIME_PATH=str(base/'runtime/pulse'),
                PULSE_COOKIE=str(base/'config/pulse/cookie'), PULSE_SINK=SINK,
                ALSA_CONFIG_PATH=str(base/'config/alsa-null.conf'))
+    # The explicit PipeWire-Pulse socket address does not create its parent.
+    (base/'runtime/pulse').mkdir(mode=0o700)
     config = base/'config'
     (config/'alsa-null.conf').write_text('pcm.!default { type null }\nctl.!default { type null }\n')
-    (config/'pulse').mkdir()
+    (config/'pulse').mkdir(mode=0o700)
     cookie = config/'pulse/cookie'
     cookie.write_bytes(os.urandom(256))
     cookie.chmod(0o600)
     (config/'pulse/client.conf').write_text('autospawn = no\n')
     (config/'pulse/daemon.conf').write_text(
         'daemonize = no\nuse-pid-file = no\nexit-idle-time = -1\n')
-    # -n suppresses the system/user default.pa. Only these modules may load.
-    (config/'pulse/private.pa').write_text(
-        '.fail\n'
-        'load-module module-native-protocol-unix socket='+env['PULSE_SOCKET']+
-        ' auth-cookie='+str(cookie)+' auth-cookie-enabled=yes auth-anonymous=no\n'
-        'load-module module-null-sink sink_name='+SINK+' channels=2 rate=48000\n'
-        'set-default-sink '+SINK+'\nset-sink-mute '+SINK+' yes\n')
+    if backend == BACKEND_PULSEAUDIO:
+        # -n suppresses the system/user default.pa. Only these modules may load.
+        (config/'pulse/private.pa').write_text(
+            '.fail\n'
+            'load-module module-native-protocol-unix socket='+env['PULSE_SOCKET']+
+            ' auth-cookie='+str(cookie)+' auth-cookie-enabled=yes auth-anonymous=no\n'
+            'load-module module-null-sink sink_name='+SINK+' channels=2 rate=48000\n'
+            'set-default-sink '+SINK+'\nset-sink-mute '+SINK+' yes\n')
+    elif backend == BACKEND_PIPEWIRE:
+        # This is a deliberately closed PipeWire graph. No session manager,
+        # device enumerator, ALSA, Bluetooth, portal or WirePlumber is loaded.
+        (base/'pipewire.conf').write_text("""
+context.properties = {
+    core.daemon = true
+    core.name = pipewire-0
+    module.rt = false
+    module.profiler = false
+    module.portal = false
+    module.x11.bell = false
+    default.clock.rate = 48000
+    default.clock.allowed-rates = [ 48000 ]
+}
+context.spa-libs = {
+    audio.convert.* = audioconvert/libspa-audioconvert
+    audio.adapt = audioconvert/libspa-audioconvert
+    support.* = support/libspa-support
+}
+context.modules = [
+    { name = libpipewire-module-protocol-native }
+    { name = libpipewire-module-access args = { access.legacy = true } }
+    { name = libpipewire-module-spa-node-factory }
+    { name = libpipewire-module-adapter }
+    { name = libpipewire-module-metadata }
+    { name = libpipewire-module-link-factory }
+]
+context.objects = [
+    { factory = spa-node-factory
+      args = {
+        factory.name = support.node.driver
+        node.name = Dummy-Driver
+        node.group = pipewire.dummy
+        priority.driver = 200000
+      }
+    }
+    { factory = adapter
+      args = {
+        factory.name = support.null-audio-sink
+        node.name = ci_private_null
+        node.description = "CI private null sink"
+        media.class = Audio/Sink
+        audio.position = "FL,FR"
+        monitor.passthrough = true
+        adapter.auto-port-config = {
+            mode = dsp
+            monitor = true
+            position = preserve
+        }
+      }
+    }
+    { factory = metadata
+      args = {
+        metadata.name = default
+        metadata.values = [
+          { key = default.audio.sink value = { name = ci_private_null } }
+        ]
+      }
+    }
+]
+""")
+        pulse_config = """
+context.properties = {
+    module.rt = false
+}
+context.spa-libs = {
+    audio.convert.* = audioconvert/libspa-audioconvert
+    audio.adapt = audioconvert/libspa-audioconvert
+    support.* = support/libspa-support
+}
+context.modules = [
+    { name = libpipewire-module-protocol-native }
+    { name = libpipewire-module-client-node }
+    { name = libpipewire-module-adapter }
+    { name = libpipewire-module-metadata }
+    { name = libpipewire-module-protocol-pulse }
+]
+pulse.properties = {
+    server.address = [ "unix:__PULSE_SOCKET__" ]
+    pulse.allow-module-loading = false
+    pulse.default.req = 960/48000
+    pulse.default.tlength = 96000/48000
+}
+pulse.cmd = [ ]
+"""
+        (base/'pipewire-pulse.conf').write_text(
+            pulse_config.replace('__PULSE_SOCKET__', str(base/'runtime/pulse/native')))
+    else:
+        raise ValueError('unknown private audio backend: '+backend)
     return env
-
 
 def run(env, command, timeout=3):
     return subprocess.run(command, env=env, capture_output=True, text=True, timeout=timeout)
@@ -81,7 +198,7 @@ def checked(env, command):
     return result.stdout
 
 
-def proof(env):
+def pulse_proof(env):
     sinks = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sinks']))
     sources = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sources']))
     modules = json.loads(checked(env, ['pactl', '--format=json', 'list', 'modules']))
@@ -96,7 +213,7 @@ def proof(env):
         raise RuntimeError('unexpected source')
     if cards:
         raise RuntimeError('hardware card found')
-    if len(modules) != 2 or {m['name'] for m in modules} != MODULES:
+    if len(modules) != 2 or {m['name'] for m in modules} != PULSE_MODULES:
         raise RuntimeError('unexpected module (only private protocol and null sink allowed)')
     # PulseAudio 16 JSON omits module IDs. Short output supplies stable IDs;
     # cross-check both independent listings rather than weakening ownership.
@@ -122,7 +239,57 @@ def proof(env):
         raise RuntimeError('unexpected sink driver')
     return {'sink_count': 1, 'sink': SINK, 'muted': True, 'default_sink': default,
             'source_count': 1, 'hardware_cards': 0,
-            'modules': sorted(MODULES)}
+            'modules': sorted(PULSE_MODULES)}
+
+
+def pipewire_proof(env):
+    # pactl gives the Pulse compatibility view; pw-dump independently proves
+    # that the backing graph is our exact process-owned software graph.
+    native_env = env.copy()
+    native_env['PIPEWIRE_REMOTE'] = 'pipewire-0'
+    sinks = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sinks']))
+    sources = json.loads(checked(env, ['pactl', '--format=json', 'list', 'sources']))
+    cards = json.loads(checked(env, ['pactl', '--format=json', 'list', 'cards']))
+    default = checked(env, ['pactl', 'get-default-sink']).strip()
+    graph = json.loads(checked(native_env, ['pw-dump', '-N']))
+    if len(sinks) != 1 or sinks[0]['name'] != SINK or sinks[0]['mute'] is not True:
+        raise RuntimeError('unsafe PipeWire sink count/name/mute')
+    if default != SINK:
+        raise RuntimeError('unexpected PipeWire default sink')
+    if len(sources) != 1 or sources[0]['name'] != SINK+'.monitor':
+        raise RuntimeError('unexpected PipeWire source')
+    if cards:
+        raise RuntimeError('PipeWire hardware card found')
+    module_names = {
+        obj.get('info', {}).get('props', {}).get('module.name')
+        for obj in graph if obj.get('type') == 'PipeWire:Interface:Module'
+    }
+    if module_names != PIPEWIRE_MODULES:
+        raise RuntimeError('unexpected PipeWire module set')
+    nodes = [obj.get('info', {}).get('props', {}) for obj in graph
+             if obj.get('type') == 'PipeWire:Interface:Node']
+    if {node.get('node.name') for node in nodes} != {'Dummy-Driver', SINK}:
+        raise RuntimeError('unexpected PipeWire node set')
+    null_nodes = [node for node in nodes if node.get('node.name') == SINK]
+    if len(null_nodes) != 1 or null_nodes[0].get('factory.name') != 'support.null-audio-sink':
+        raise RuntimeError('sink is not owned by the private null factory')
+    if null_nodes[0].get('media.class') != 'Audio/Sink':
+        raise RuntimeError('private node is not an audio sink')
+    forbidden_prefixes = ('api.', 'device.', 'object.path', 'sysfs.')
+    if any(any(key.startswith(prefix) for prefix in forbidden_prefixes)
+           for node in nodes for key in node):
+        raise RuntimeError('PipeWire graph exposes a device-backed node')
+    return {'sink_count': 1, 'sink': SINK, 'muted': True, 'default_sink': default,
+            'source_count': 1, 'hardware_cards': 0,
+            'modules': sorted(PIPEWIRE_MODULES), 'graph_nodes': 2}
+
+
+def proof(env, backend=BACKEND_PULSEAUDIO):
+    if backend == BACKEND_PULSEAUDIO:
+        return pulse_proof(env)
+    if backend == BACKEND_PIPEWIRE:
+        return pipewire_proof(env)
+    raise ValueError('unknown private audio backend: '+backend)
 
 
 def cleanup(owned):
@@ -138,6 +305,7 @@ def cleanup(owned):
             p.wait(timeout=max(.01, deadline-time.monotonic()))
         except subprocess.TimeoutExpired:
             pass
+    complete = True
     for _, p in reversed(owned):
         try:
             os.killpg(p.pid, signal.SIGKILL)
@@ -146,19 +314,23 @@ def cleanup(owned):
         try:
             p.wait(timeout=2)
         except subprocess.TimeoutExpired:
-            return False
+            # A stuck group must not prevent escalation/reaping of the rest.
+            complete = False
     # Include descendants left in a group after the direct child exited.
     for _, p in owned:
         try:
             os.killpg(p.pid, 0)
         except ProcessLookupError:
             continue
-        return False
-    return True
+        complete = False
+    return complete
 
 
-def execute(command, report_path):
-    report = {'status': 'starting', 'readiness': {'before': None, 'after': None, 'during_checks': 0},
+def execute(command, report_path, backend=BACKEND_PULSEAUDIO):
+    if backend not in (BACKEND_PULSEAUDIO, BACKEND_PIPEWIRE):
+        raise ValueError('unknown private audio backend: '+backend)
+    report = {'backend': backend, 'status': 'starting',
+              'readiness': {'before': None, 'after': None, 'during_checks': 0},
               'services': {}, 'child_exit_code': None, 'cleanup': {'complete': False}}
     owned = []
     code = 1
@@ -180,10 +352,10 @@ def execute(command, report_path):
         raise InterruptedError(signum)
     old = {s: signal.signal(s, stop) for s in (signal.SIGTERM, signal.SIGINT)}
     try:
-        with tempfile.TemporaryDirectory(prefix='ci-audio-', dir='/tmp') as directory:
+        with tempfile.TemporaryDirectory(prefix='ci-audio-', dir=tempfile.gettempdir()) as directory:
             try:
                 base = Path(directory)
-                env = environment(base)
+                env = environment(base, backend)
                 bus_path = base/'runtime/bus'
                 conf = base/'bus.conf'
                 conf.write_text('<busconfig><type>session</type><listen>unix:path='+str(bus_path)+
@@ -201,10 +373,20 @@ def execute(command, report_path):
                     if time.monotonic() >= deadline:
                         raise RuntimeError('private bus readiness timeout')
                     time.sleep(.1)
-                spawn('pulseaudio', ['pulseaudio', '-n',
-                    '--file='+str(base/'config/pulse/private.pa'),
-                    '--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1',
-                    '--system=no', '--fail=yes', '--disallow-module-loading=yes'], env)
+                if backend == BACKEND_PULSEAUDIO:
+                    spawn('pulseaudio', ['pulseaudio', '-n',
+                        '--file='+str(base/'config/pulse/private.pa'),
+                        '--daemonize=no', '--use-pid-file=no', '--exit-idle-time=-1',
+                        '--system=no', '--fail=yes', '--disallow-module-loading=yes'], env)
+                else:
+                    # pipewire-pulse is a direct child of this wrapper, not a
+                    # systemd/user service. Only this service may reach the
+                    # private PipeWire core; the child remains fail-closed.
+                    service_env = env.copy()
+                    service_env['PIPEWIRE_REMOTE'] = 'pipewire-0'
+                    spawn('pipewire', ['pipewire', '-c', str(base/'pipewire.conf')], service_env)
+                    spawn('pipewire-pulse', ['pipewire-pulse', '-c',
+                        str(base/'pipewire-pulse.conf')], service_env)
                 while True:
                     alive()
                     result = run(env, ['pactl', '--format=json', 'list', 'sinks'])
@@ -220,7 +402,7 @@ def execute(command, report_path):
                         raise RuntimeError('default metadata timeout (8s)')
                     time.sleep(.2)
                 checked(env, ['pactl', 'set-sink-mute', SINK, '1'])
-                report['readiness']['before'] = proof(env)
+                report['readiness']['before'] = proof(env, backend)
                 report['services'] = {n: {'pid': p.pid, 'status': 'running'} for n, p in owned}
                 report['status'] = 'ready'
                 save()
@@ -229,14 +411,14 @@ def execute(command, report_path):
                 while child.poll() is None:
                     alive()
                     if time.monotonic() >= next_proof:
-                        proof(env)
+                        proof(env, backend)
                         report['readiness']['during_checks'] += 1
                         next_proof = time.monotonic()+.5
                     time.sleep(.1)
                 code = child.returncode if child.returncode >= 0 else 128-child.returncode
                 report['child_exit_code'] = code
                 alive()
-                report['readiness']['after'] = proof(env)
+                report['readiness']['after'] = proof(env, backend)
                 report['status'] = 'passed' if code == 0 else 'child_failed'
             finally:
                 # Ignore repeated termination while bounded cleanup is in progress.
@@ -267,7 +449,7 @@ def main(argv=None):
     args = cli(sys.argv[1:] if argv is None else argv)
     if sys.platform != 'linux':
         raise SystemExit('private null audio requires Linux')
-    return execute(args.command, args.report.resolve())
+    return execute(args.command, args.report.resolve(), detect_backend())
 
 
 if __name__ == '__main__':

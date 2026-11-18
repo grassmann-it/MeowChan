@@ -1,0 +1,128 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Plugins;
+
+namespace MeowChan;
+
+public partial class PluginsPage
+{
+    // One plugin can come from several files (candidates), each its own catalog entry. The list shows ONE card per plugin;
+    // the detail lists its files. Selection, drafts, actions and approvals all stay per entry (file): a card only stands for
+    // the group, and the entry shown in the detail is the one chosen in the list of files.
+    private string? _filesSignature;
+    private bool _focusFileChoice;
+
+    private IEnumerable<PluginCatalogEntry> GroupMembers(PluginCatalogEntry entry) => entry.PluginId == null
+        ? new[] { entry } : (_catalog?.Entries ?? Array.Empty<PluginCatalogEntry>()).Where(other => other.PluginId == entry.PluginId);
+
+    /// <summary>The file a plugin's card stands for: the one selected for the next start, else the one in use, else the first.</summary>
+    private PluginCatalogEntry Representative(PluginCatalogEntry entry)
+    {
+        PluginCatalogEntry[] members = GroupMembers(entry).ToArray();
+        string? selected = entry.Activation?.SelectedCandidateId, active = entry.Activation?.Active?.CandidateId;
+        PluginCatalogEntry? pick = members.Where(Included).FirstOrDefault(member => member.CandidateId != null && member.CandidateId == selected)
+            ?? members.Where(Included).FirstOrDefault(member => member.CandidateId != null && member.CandidateId == active)
+            ?? members.FirstOrDefault(Included);
+        return pick ?? entry;
+    }
+
+    /// <summary>The key of the card that stands for the entry's plugin (the entry's own key when it has no sibling files).</summary>
+    private string CardKey(string key) => _catalog?.Entries.FirstOrDefault(entry => entry.Key == key) is { } found ? Representative(found).Key : key;
+
+    private static bool HasProblem(PluginEntryPresentation presentation) => presentation.CandidateMissing || presentation.HasWorkerProblem
+        || presentation.HasSdkMismatch || !string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.VisibleActivationProblem);
+
+    private readonly PluginActivityTracker _activity = new();
+
+    /// <summary>One entry per plugin: plugins with activity first, then active, disabled, unavailable or not loaded; by name, then key, within each.</summary>
+    private PluginCatalogEntry[] CardEntries()
+    {
+        if (_catalog == null) return Array.Empty<PluginCatalogEntry>();
+        var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        PluginCatalogEntry[] representatives = _catalog.Entries.Where(Included).GroupBy(entry => entry.PluginId ?? entry.Key).Select(group => Representative(group.First())).ToArray();
+        Dictionary<string, PluginCatalogEntry> byKey = new(StringComparer.Ordinal);
+        List<PluginCardRank> ranks = new();
+        foreach (PluginCatalogEntry entry in representatives)
+        {
+            if (!byKey.TryAdd(entry.Key, entry)) continue;
+            PluginEntryPresentation presentation = PluginEntryPresentation.Create(entry, productionWorkers, sdkMismatch: _services?.HasSdkMismatch);
+            string activityKey = PluginActivityTracker.ActivityKey(entry.PluginId, entry.Key);
+            bool running = _activity.Observe(activityKey, PluginActivityTracker.IsBusy(presentation), now);
+            ranks.Add(new PluginCardRank(entry.Key, presentation.Name, presentation.Availability, running));
+        }
+        _activity.Retain(representatives.Select(entry => PluginActivityTracker.ActivityKey(entry.PluginId, entry.Key)));
+        return PluginCardOrder.Order(ranks).Select(rank => byKey[rank.Key]).ToArray();
+    }
+
+    private bool GroupNeedsAttention(PluginCatalogEntry entry)
+    {
+        var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
+        PluginCatalogEntry[] members = GroupMembers(entry).ToArray();
+        // A file the profile remembers from another app or build folder (for example an old worktree) is history while
+        // another file of the plugin is here: it is listed under Files but does not mark the whole plugin as a problem.
+        bool anyPresent = members.Any(member => member.Candidate?.IsPresent == true);
+        return members.Where(member => !(anyPresent && member.Candidate is { IsPresent: false } && !IsChosen(member)))
+            .Any(member => HasProblem(PluginEntryPresentation.Create(member, productionWorkers, sdkMismatch: _services?.HasSdkMismatch)));
+    }
+
+    // The file selected for the next start or the one in use; its absence is a real problem.
+    private static bool IsChosen(PluginCatalogEntry member) => member.CandidateId is { } id
+        && (member.Activation?.SelectedCandidateId == id || member.Activation?.Active?.CandidateId == id);
+
+    private int GroupCount => _catalog?.Entries.Select(entry => entry.PluginId ?? entry.Key).Distinct(StringComparer.Ordinal).Count() ?? 0;
+
+    /// <summary>The "Files (n)" part of the detail: shown only when the plugin has several files; choosing one shows that file's details.</summary>
+    private void RenderFileChoices(PluginCatalogEntry entry)
+    {
+        PluginCatalogEntry[] members = GroupMembers(entry).Where(Included).ToArray();
+        StackPanel panel = C<StackPanel>("PluginFilesPanel");
+        panel.IsVisible = members.Length > 1;
+        if (members.Length <= 1) { _filesSignature = null; return; }
+        var productionWorkers = _services?.GetProductionWorkerSnapshots?.Invoke();
+        var rows = members.Select(member =>
+        {
+            PluginEntryPresentation view = PluginEntryPresentation.Create(member, productionWorkers, sdkMismatch: _services?.HasSdkMismatch);
+            string file = Path.GetFileName(member.LoaderPath) ?? member.CandidateId ?? member.Key;
+            string[] facts = new[]
+            {
+                view.CandidateVersion is { } version ? Texts.T("plugins.fileVersion", version) : null,
+                view.IsActiveCandidate ? Texts.T("plugins.candidate.current") : view.IsSelectedCandidate ? Texts.T("plugins.candidate.selected") : null,
+                HasProblem(view) ? Texts.T("plugins.problem") : null
+            }.Where(value => value != null).Select(value => value!).ToArray();
+            return (member.Key, Label: file + (facts.Length > 0 ? " · " + string.Join(" · ", facts) : string.Empty), Path: member.LoaderPath);
+        }).ToArray();
+        string signature = Texts.Language + "|" + entry.Key + "|" + string.Join("|", rows.Select(row => row.Key + "=" + row.Label));
+        C<TextBlock>("PluginFilesHeading").Text = Texts.T("plugins.files", members.Length);
+        C<TextBlock>("PluginFilesHint").Text = Texts.T("plugins.filesHint", MeowChan.Desktop.Commands.CommandCatalog.Label("plugins.select-candidate"));
+        if (signature == _filesSignature) return;
+        _filesSignature = signature;
+        StackPanel choices = C<StackPanel>("PluginFileChoices");
+        choices.Children.Clear();
+        Button? shown = null;
+        foreach (var row in rows)
+        {
+            bool isShown = row.Key == entry.Key;
+            var button = new Button { Content = row.Label, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = Avalonia.Layout.HorizontalAlignment.Left, Tag = row.Key };
+            if (isShown) { button.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { MeowChan.Desktop.Commands.CommandBindings.NamedIcon("arrow-right"), new TextBlock { Text = row.Label } } }; button.Classes.Add("primary"); shown = button; }
+            ToolTip.SetTip(button, row.Path ?? row.Key);
+            AutomationProperties.SetName(button, isShown ? row.Label + " (" + Texts.T("plugins.fileShown") + ")" : row.Label);
+            string key = row.Key;
+            button.Click += (_, _) => { if (!_busy && key != _selectedKey) { _focusFileChoice = true; Select(key); } };
+            choices.Children.Add(button);
+        }
+        if (_focusFileChoice && shown != null)
+        {
+            _focusFileChoice = false;
+            Dispatcher.UIThread.Post(() => { if (!_ended && shown.IsAttachedToVisualTree()) shown.Focus(); }, DispatcherPriority.Loaded);
+        }
+    }
+}

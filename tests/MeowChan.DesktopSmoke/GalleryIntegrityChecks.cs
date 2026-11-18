@@ -44,7 +44,7 @@ internal static class GalleryIntegrityChecks
             foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
             {
                 Texts.SetLanguage(language); Application.Current.RequestedThemeVariant = theme;
-                await window.OpenMediaGalleryAsync([selected], selected.EntryKey);
+                await window.OpenMediaGalleryLaidOutAsync([selected], selected.EntryKey);
                 ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
                 await Program.WaitUntilAsync(() => host.Content is GalleryViewer current && Find<Image>(current, "GalleryImage").Source is Bitmap
                     && window.ActualThemeVariant == theme);
@@ -62,13 +62,24 @@ internal static class GalleryIntegrityChecks
                 SetContext(viewer, true); await Settle(window);
                 Border context = Find<Border>(viewer, "GalleryContext");
                 SelectableTextBlock[] text = context.GetVisualDescendants().OfType<SelectableTextBlock>().ToArray();
+                // UX round 3: binary size first, the exact byte count in brackets.
+                string unit = language == "de" ? "Bytes" : "bytes";
                 string localLabel = (language == "de" ? "Gespeicherte Datei: " : "Saved file: ")
-                    + binding.Actual.Length.ToString("N0", Texts.Culture) + " bytes";
+                    + MeowChan.Desktop.SizeText.Format(binding.Actual.Length, Texts.Culture) + " ("
+                    + binding.Actual.Length.ToString("N0", Texts.Culture) + " " + unit + ")";
                 string sourceLabel = (language == "de" ? "Anbieterangabe: " : "Source reported: ")
-                    + binding.Provider.ExpectedSize!.Value.ToString("N0", Texts.Culture) + " bytes";
+                    + MeowChan.Desktop.SizeText.Format(binding.Provider.ExpectedSize!.Value, Texts.Culture) + " ("
+                    + binding.Provider.ExpectedSize!.Value.ToString("N0", Texts.Culture) + " " + unit + ")";
                 SelectableTextBlock local = text.Single(item => item.Text == localLabel);
                 SelectableTextBlock provider = text.Single(item => item.Text == expectedSummary + Environment.NewLine + sourceLabel);
-                AssertVisibleText(summary, viewer); AssertVisibleText(local, viewer); AssertVisibleText(provider, viewer);
+                AssertVisibleText(summary, viewer);
+                // The context panel is a bounded ScrollViewer by design: at 640x480 it shows only part of its
+                // content. Each integrity line must fit completely once the user scrolls it into view.
+                foreach (SelectableTextBlock line in new[] { local, provider })
+                {
+                    line.BringIntoView(); await Settle(window);
+                    AssertVisibleText(line, viewer);
+                }
                 AssertNoRawValues(viewer, binding);
                 Rect caption = Bounds(Find<Border>(viewer, "GalleryOverlayInfo"), viewer);
                 Rect contextBounds = Bounds(context, viewer), chrome = Bounds(Find<Border>(viewer, "GalleryOverlayControls"), viewer);
@@ -95,7 +106,9 @@ internal static class GalleryIntegrityChecks
                 menu.Close();
                 Require(viewer.Focus(NavigationMethod.Tab) && ReferenceEquals(window.FocusManager?.GetFocusedElement(), viewer),
                     "The details action has no focused gallery origin to restore.");
-                details.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                // The shared menu runs its command (as a native click does), not a bare routed Click.
+                Require(details.Command?.CanExecute(null) == true, "The gallery details command is not executable.");
+                details.Command!.Execute(null);
                 await Program.WaitUntilAsync(() => window.OwnedWindows.Any(child => child.IsVisible));
                 Window dialog = window.OwnedWindows.Single(child => child.IsVisible);
                 bool dialogClosed = false;
@@ -115,7 +128,14 @@ internal static class GalleryIntegrityChecks
                 scroll.ScrollToEnd(); await Settle(dialog);
                 Require(scroll.Offset.Y >= Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height) - 1,
                     "Explicit details cannot scroll to their final raw values.");
-                Button close = dialog.GetVisualDescendants().OfType<Button>().Single();
+                // Template parts are not actions: the title bar's caption buttons (shared dialog frame, 9e30659d) and the
+                // ScrollBar line/page buttons that the visible scroll bar now carries. The action row's Close is the only other Button.
+                Button[] actionButtons = dialog.GetVisualDescendants().OfType<Button>()
+                    .Where(button => button.Name is not ("WindowMinimizeButton" or "WindowMaximizeButton" or "WindowCloseButton")
+                        && !button.GetVisualAncestors().OfType<Avalonia.Controls.Primitives.ScrollBar>().Any()).ToArray();
+                Require(actionButtons.Length == 1, "Explicit details action row is not a single Close button: "
+                    + string.Join(", ", actionButtons.Select(button => button.Name + "/" + button.Content)));
+                Button close = actionButtons[0];
                 Require(close.IsEffectivelyVisible && Bounds(close, dialog).Bottom <= dialog.Bounds.Height + 1,
                     "Explicit details Close action is outside the dialog.");
                 Console.WriteLine("GALLERY_INTEGRITY_DETAILS " + JsonSerializer.Serialize(new
@@ -215,7 +235,7 @@ internal static class GalleryIntegrityChecks
             && text.TextLayout.WidthIncludingTrailingWhitespace <= bounds.Width + 1 && text.TextLayout.Height <= bounds.Height + 1
             && visible.Width >= bounds.Width - 1 && visible.Height >= bounds.Height - 1
             && bounds.Left >= -1 && bounds.Top >= -1 && bounds.Right <= viewer.Bounds.Width + 1 && bounds.Bottom <= viewer.Bounds.Height + 1,
-            "Gallery provenance text is clipped or outside its visible viewport: " + text.Text);
+            "Gallery provenance text is clipped or outside its visible viewport: " + text.Text + " | text " + bounds + " visible " + visible + " viewer " + viewer.Bounds.Size + " layout " + text.TextLayout.WidthIncludingTrailingWhitespace + "x" + text.TextLayout.Height + " vis " + text.IsEffectivelyVisible);
     }
     private static object State(TextBlock text, Control root) => new { text.Text, bounds = Bounds(text, root).ToString(),
         layoutWidth = text.TextLayout.WidthIncludingTrailingWhitespace, layoutHeight = text.TextLayout.Height, text.IsEffectivelyVisible };

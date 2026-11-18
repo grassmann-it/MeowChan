@@ -15,7 +15,8 @@ namespace MeowChan.DesktopTests;
 [Collection("Delivered plugin hosts")]
 public sealed class LeftypolWaveIntegrationTests
 {
-    private const string Plugin = "meowchan.source.leftypol";
+    // Leftypol is an experimental site of the vichan family plugin: the family is on, the site starts off.
+    private const string Plugin = ChanSourceFamilies.Vichan;
     private static readonly ResourceId Thread = new("leftypol", "demo", "123");
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(45);
 
@@ -25,7 +26,9 @@ public sealed class LeftypolWaveIntegrationTests
         using TempDirectory profile = new();
         using LeftypolWaveFixtures fixture = new() { RejectAll = true };
         await using DesktopSessionHost host = await StartAsync(profile.Path, fixture);
-        Assert.False(Assert.Single((await host.Plugins!.ProfileStore.ReadAsync()).Plugins, row => row.PluginId == Plugin).Enabled);
+        var before = await host.Plugins!.ProfileStore.ReadAsync();
+        Assert.True(Assert.Single(before.Plugins, row => row.PluginId == Plugin).Enabled);
+        Assert.False(host.GetChanSiteEnabled(Plugin, "leftypol"));
         var projection = await host.ProjectExperimentalSourceActivationAsync(LeftypolWaveFixtures.ThreadUrl);
         Assert.Equal(ExperimentalSourceActivationProjectionStatus.ConfirmationRequired, projection.Status);
         var target = Assert.IsType<ExperimentalSourceActivationTarget>(projection.Target);
@@ -33,6 +36,7 @@ public sealed class LeftypolWaveIntegrationTests
         Assert.Equal("leftypol", target.SourceId);
         Assert.True(target.RequestsMismatchPermission);
         Assert.False(target.IsEnabled);
+        Assert.True(target.OwnerEnabled);
         Assert.False(target.IsGranted);
         Assert.Empty(fixture.Requests);
         Assert.Empty(host.Plugins.Runtime.GetSnapshots());
@@ -41,6 +45,11 @@ public sealed class LeftypolWaveIntegrationTests
         Assert.True(activated.ActualState!.IsEffective);
         Assert.True(Policy(host).IsGranted);
         Assert.All(host.GetSourceMediaIntegrityPolicies().Where(row => row.Snapshot.SourceId != "leftypol"), row => Assert.False(row.IsGranted));
+        // Only this site was turned on: no profile write, and no other site of the family changed.
+        Assert.True(host.GetChanSiteEnabled(Plugin, "leftypol"));
+        Assert.Equal(before.Revision, (await host.Plugins.ProfileStore.ReadAsync()).Revision);
+        Assert.All(new[] { "wizchan", "sushichan", "uboachan" }, site => Assert.False(host.GetChanSiteEnabled(Plugin, site)));
+        Assert.All(host.Plugins.Sources.Where(source => source.Name is "wizchan" or "sushichan" or "uboachan"), source => Assert.False(source.Enabled));
         Assert.Empty(fixture.Requests);
         Assert.Empty(host.GetThreadWorkSnapshots());
     }
@@ -55,8 +64,9 @@ public sealed class LeftypolWaveIntegrationTests
         {
             host = await StartAsync(profile.Path, fixture);
             var installed = await host.Plugins!.ProfileStore.ReadAsync();
-            Assert.False(Assert.Single(installed.Plugins, row => row.PluginId == Plugin).Enabled);
-            installed = await host.Plugins.ProfileStore.SetEnabledAsync(Plugin, true, installed.Revision);
+            Assert.True(Assert.Single(installed.Plugins, row => row.PluginId == Plugin).Enabled);
+            Assert.False(Policy(host).IsActive);
+            Assert.True(await host.SetChanSiteEnabledAsync("leftypol", true));
             // A direct store mutation updates live authority, but bypasses the host command's capture boundary.
             DesktopSessionProjection enabledFrame = await host.CaptureProjectionAsync().WaitAsync(Deadline);
             Assert.False(enabledFrame.IsStale, enabledFrame.CaptureError);

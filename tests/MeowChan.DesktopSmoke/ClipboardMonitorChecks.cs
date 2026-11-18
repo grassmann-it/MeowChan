@@ -91,7 +91,7 @@ internal static class ClipboardMonitorChecks
         await DrainAsync();
         f.RequirePassive("OFF acceptance guard");
         await f.OpenSettingsAsync();
-        CheckBox toggle = C<CheckBox>(f.Shell.SettingsEditor, "MonitorClipboardUrlsInput");
+        ToggleSwitch toggle = C<ToggleSwitch>(f.Shell.SettingsEditor, "MonitorClipboardUrlsInput");
         Require(toggle.IsEffectivelyVisible && toggle.IsChecked == false, "Visible setting did not start OFF.");
         toggle.IsChecked = true;
         await DrainAsync();
@@ -511,7 +511,7 @@ internal static class ClipboardMonitorChecks
         {
             await OpenSettingsAsync();
             SettingsEditor editor = Shell.SettingsEditor;
-            C<CheckBox>(editor, "MonitorClipboardUrlsInput").IsChecked = enabled;
+            C<ToggleSwitch>(editor, "MonitorClipboardUrlsInput").IsChecked = enabled;
             await DrainAsync();
             Require(editor.MonitorClipboardUrls == enabled, "Monitor checkbox binding did not update Settings draft.");
             int saves = 0;

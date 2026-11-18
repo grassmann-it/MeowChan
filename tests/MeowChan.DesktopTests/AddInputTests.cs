@@ -181,4 +181,50 @@ public sealed class AddInputTests
         Assert.Equal(useClipboard ? 1 : 0, clipboardReads);
         Assert.Equal(0, admissions);
     }
+
+    [Fact]
+    public async Task DanbooruAddressKeepsItsOwnCommasWhileOtherEntriesStillSplit()
+    {
+        const string search = "https://danbooru.donmai.us/posts?tags=cat+rating:g,s&page=2";
+        const string post = "https://safebooru.donmai.us/posts/123?q=a,b";
+        const string thread = "https://boards.4chan.org/g/thread/123";
+        List<string> admitted = new List<string>();
+
+        await AddInput.SubmitAsync(
+            $"{thread},{search},{post}, {thread}\n{search}\r\nnot a url, {post},",
+            () => Task.FromResult<string?>(null),
+            entry =>
+            {
+                admitted.Add(entry);
+                return Task.CompletedTask;
+            });
+
+        Assert.Equal(new[] { thread, search, post, thread, search, "not a url", post }, admitted);
+    }
+
+    [Fact]
+    public void AddressesOnOtherHostsAreSplitAtCommasAsBefore()
+    {
+        Assert.Equal(new[] { "https://other.test/posts?tags=rating:g", "s" },
+            AddInput.Split("https://other.test/posts?tags=rating:g,s"));
+    }
+
+    [Theory]
+    [InlineData("https://danbooru.donmai.us/posts?tags=blue_sky cat", "https://danbooru.donmai.us/posts?tags=blue_sky cat")]
+    [InlineData("https://danbooru.donmai.us/posts?tags=blue_sky   cat  solo", "https://danbooru.donmai.us/posts?tags=blue_sky   cat  solo")]
+    public void UnencodedSpacesInADanbooruAddressKeepTheQueryInOneEntry(string line, string expected) =>
+        Assert.Equal(new[] { expected }, AddInput.Split(line));
+
+    [Fact]
+    public void WordsAfterADanbooruAddressAndACommaOrAnotherUrlAreTheirOwnEntries()
+    {
+        const string first = "https://danbooru.donmai.us/posts?tags=blue_sky cat";
+        Assert.Equal(new[] { first, "dog" }, AddInput.Split(first + ", dog"));
+        Assert.Equal(new[] { first, "https://danbooru.donmai.us/posts/9" },
+            AddInput.Split(first + " https://danbooru.donmai.us/posts/9"));
+        Assert.Equal(new[] { first, "https://boards.4chan.org/g/thread/1" },
+            AddInput.Split(first + "\nhttps://boards.4chan.org/g/thread/1"));
+        // Other hosts keep splitting at commas and line breaks only, as before.
+        Assert.Equal(new[] { "https://other.test/a b c" }, AddInput.Split("https://other.test/a b c"));
+    }
 }

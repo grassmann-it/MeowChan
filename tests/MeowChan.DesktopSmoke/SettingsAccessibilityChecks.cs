@@ -39,7 +39,7 @@ internal static class SettingsAccessibilityChecks
                     {
                         await SettingsSectionChecks.OpenFieldAsync(editor, field);
                         NumericUpDown input = editor.FindControl<NumericUpDown>(field)!;
-                        TextBox text = input.GetVisualDescendants().OfType<TextBox>().Single(control => control.Name == "PART_TextBox");
+                        TextBox text = SettingsSectionChecks.NumericEditingSurface(editor, input);
                         text.BringIntoView();
                         Button outside = editor.FindControl<Button>("SaveSettingsButton")!;
                         foreach (string part in new[] { "PART_IncreaseButton", "PART_DecreaseButton" })
@@ -63,7 +63,7 @@ internal static class SettingsAccessibilityChecks
                         Require(ReferenceEquals(AutomationProperties.GetLabeledBy(text), AutomationProperties.GetLabeledBy(input)),
                             field + " is not related to the visible field label.");
                         if (unitKey != null)
-                            Require(peer.GetHelpText() == Texts.T(unitKey),
+                            Require(peer.GetHelpText()?.StartsWith(Texts.T(unitKey), StringComparison.Ordinal) == true, // the unit, then the allowed range
                                 $"{language}/{theme}: focused {field} has no localized unit help.");
                         await CheckStepActionsAsync(input, label, language + "/" + theme);
                     }

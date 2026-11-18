@@ -6,7 +6,7 @@ internal static class UrlTextExportCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("urltext.export.open", "Export page URL as text…", "Seiten-URL als Text exportieren …"),
+        ("urltext.export.open", "Export link list", "Linkliste exportieren"),
         ("urltext.export.title", "Export archived thread page URL as text", "Seiten-URL eines archivierten Threads als Text exportieren"),
         ("urltext.export.scope", "Scope: one saved archive thread, one page URL. The confirmed target stays fixed even if the selection changes.", "Umfang: ein gespeicherter Archivthread, eine Seiten-URL. Das bestätigte Ziel bleibt auch bei geänderter Auswahl fest."),
         ("urltext.export.source", "Source: {0}", "Quelle: {0}"),
@@ -17,12 +17,13 @@ internal static class UrlTextExportCatalog
         ("urltext.export.privacy", "A URL file can reveal your reading interests. Share it only with recipients you trust.", "Eine URL-Datei kann deine Leseinteressen offenlegen. Teile sie nur mit vertrauenswürdigen Empfängern."),
         ("urltext.export.noClient", "MeowChan starts no client, creates no jobs and downloads nothing. The target program decides whether to accept the URL and how to authenticate or download.", "MeowChan startet keinen Client, erstellt keine Jobs und lädt nichts herunter. Das Zielprogramm entscheidet über URL-Annahme, Authentifizierung und Download."),
         ("urltext.export.availability", "This file contains no offline content and does not guarantee that the page is reachable or supported by the target program.", "Diese Datei enthält keine Offlineinhalte und garantiert weder die Erreichbarkeit der Seite noch deren Unterstützung durch das Zielprogramm."),
-        ("urltext.export.save", "Save URL file…", "Linkdatei speichern …"),
+        ("urltext.export.save", "Save URL file…", "Linkdatei speichern…"),
         ("urltext.export.cancel", "Cancel", "Abbrechen"),
+        // Obsolete since modals MD2: dialogs use action.close; kept so the language packs keep one key set.
         ("urltext.export.close", "Close", "Schließen"),
         ("urltext.export.fileType", "Page URL text file (UTF-8)", "Seiten-URL-Textdatei (UTF-8)"),
-        ("urltext.export.choosing", "Choosing a new local file… Existing files will not be overwritten.", "Neue lokale Datei wählen … Bestehende Dateien werden nicht überschrieben."),
-        ("urltext.export.writing", "Saving the confirmed page URL… Cancellation after writing starts is best effort; a file may remain.", "Bestätigte Seiten-URL wird gespeichert … Abbruch nach Schreibbeginn erfolgt nach bestem Bemühen; eine Datei kann zurückbleiben."),
+        ("urltext.export.choosing", "Choosing a new local file… Existing files will not be overwritten.", "Neue lokale Datei wählen… Bestehende Dateien werden nicht überschrieben."),
+        ("urltext.export.writing", "Saving the confirmed page URL… Cancellation after writing starts is best effort; a file may remain.", "Bestätigte Seiten-URL wird gespeichert… Abbruch nach Schreibbeginn erfolgt nach bestem Bemühen; eine Datei kann zurückbleiben."),
         ("urltext.export.canceling", "Cancellation requested; waiting for the write outcome. A file may remain or saving may still complete.", "Abbruch angefordert; das Schreibergebnis wird abgewartet. Eine Datei kann zurückbleiben oder das Speichern noch erfolgreich enden."),
         ("urltext.export.saved", "Page URL file saved. Page reachability and target program support have not been verified.", "Seiten-URL-Datei gespeichert. Erreichbarkeit und Unterstützung durch das Zielprogramm wurden nicht geprüft."),
         ("urltext.export.canceled", "Export canceled before file creation; no file was written.", "Export vor der Dateierstellung abgebrochen; es wurde keine Datei geschrieben."),

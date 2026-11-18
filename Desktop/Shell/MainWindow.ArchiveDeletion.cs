@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -17,6 +18,50 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private bool _archiveDeletionOpen;
+    // S4 F4: while the dialog runs a step that cannot be cancelled half-way (the deletion itself, or a cleanup retry), the step's end;
+    // null otherwise. The dialog refuses its own close meanwhile, and a close of the app is asked at the veto point.
+    private TaskCompletionSource? _archiveDeletionRun;
+    private Window? _archiveDeletionDialog;
+    private bool _archiveDeletionCloseAsked;
+
+    /// <summary>A permanent deletion (or one of its cleanup retries) is running right now (test and smoke seam).</summary>
+    internal bool IsArchiveDeletionRunning => _archiveDeletionRun != null;
+
+    private void BeginArchiveDeletionRun() => _archiveDeletionRun ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    private void EndArchiveDeletionRun()
+    {
+        TaskCompletionSource? run = _archiveDeletionRun;
+        _archiveDeletionRun = null;
+        run?.TrySetResult();
+    }
+
+    // S4 F4: a permanent deletion removes the media folders first and the catalog rows afterwards, thread by thread, and has no point
+    // where it could stop cleanly. The shutdown time limit would end the process in its middle, which leaves deleted threads back in the
+    // archive with their media gone. Exempting the step from the limit would bring back the unbounded wait behind a hidden window, so
+    // the close is asked here, at the veto point, where nothing has changed yet: "Quit when finished" waits with the window as it is
+    // (the deletion dialog shows the progress) and then quits; "Keep MeowChan open" keeps everything. A second close request while the
+    // question is open or the wait runs is kept back; the first one ends the app.
+    private async Task<bool> ConfirmCloseDuringArchiveDeletionAsync()
+    {
+        if (_archiveDeletionRun == null) return true;
+        if (_archiveDeletionCloseAsked) return false;
+        _archiveDeletionCloseAsked = true;
+        try
+        {
+            Window owner = _archiveDeletionDialog is { IsVisible: true } dialog ? dialog : this;
+            bool quitAfter = await DialogPrompt.ConfirmAsync(owner, CommandCatalog.Label("archive.delete-permanently"),
+                Texts.T("shutdown.deletion.running"), Texts.T("shutdown.deletion.quitAfter"), Texts.T("shutdown.deletion.keepOpen"), danger: false);
+            if (!quitAfter) return false;
+            if (_archiveDeletionRun is { } run)
+            {
+                Serilog.Log.Information("Closing the application waits for the running permanent deletion to finish.");
+                await run.Task;
+            }
+            return true;
+        }
+        finally { _archiveDeletionCloseAsked = false; }
+    }
 
     private async Task DeleteArchivePermanentlyAsync(IReadOnlyList<ResourceId> selection, Control? origin)
     {
@@ -28,80 +73,98 @@ public partial class MainWindow
         {
             ArchivePermanentDeletionPlan plan = await _session.PrepareArchiveDeletionAsync(ids);
             if (_isClosing) return;
-            bool german = Texts.Language == "de";
             string title = CommandCatalog.Label("archive.delete-permanently");
-            Window dialog = new()
-            {
-                Name = "ArchivePermanentDeleteDialog", Title = title, Width = 640, Height = 460,
-                MinWidth = 360, MinHeight = 300, WindowStartupLocation = WindowStartupLocation.CenterOwner
-            };
+            // Modals plan MD3: the form step; the title stands in the title bar only, the destructive action is the primary one.
+            Window dialog = DialogWindow.Create(title, DialogSize.M, modal: true);
+            dialog.Name = "ArchivePermanentDeleteDialog";
+            _archiveDeletionDialog = dialog;
             TextBlock summary = new()
             {
                 TextWrapping = TextWrapping.Wrap,
-                Text = german
-                    ? $"{plan.Catalog.Threads.Count} Threads und {plan.Files.OwnedFileCount} lokale Dateien ({plan.Files.OwnedBytes:N0} Bytes) endgültig löschen?"
-                    : $"Permanently delete {plan.Catalog.Threads.Count} threads and {plan.Files.OwnedFileCount} local files ({plan.Files.OwnedBytes:N0} bytes)?"
+                Text = CountPhrases.ArchiveDeletionSummary(plan.Catalog.Threads.Count, plan.Files.OwnedFileCount, plan.Files.OwnedBytes)
             };
             List<string> details = plan.Catalog.Threads.Select(thread =>
                 thread.Summary.Id.Source + " /" + thread.Summary.Id.Board + "/ " + thread.Summary.Id.Thread + " · " + thread.Summary.Title).ToList();
             details.Add("");
-            details.Add(german ? $"{plan.RatingCount} Medienbewertungen werden entfernt." : $"{plan.RatingCount} media ratings will be removed.");
-            details.Add(german
-                ? "Archivbeiträge, lokale Originale und Favoriten werden entfernt. Die Threads werden nicht erneut vom beobachteten Board hinzugefügt. Exporte und fremde Dateien bleiben erhalten."
-                : "Archived posts, local originals and favorites will be removed. Watched boards will not add these threads again. Exports and unrelated files remain available.");
+            details.Add(Texts.Count("archive.delete.ratings", plan.RatingCount));
+            details.Add(Texts.T("archive.delete.effects"));
             details.Add(Texts.T("bookmarks.retained"));
             foreach (ArchiveDirectoryPlan directory in plan.Files.Directories)
             {
                 details.Add(""); details.Add(directory.Directory);
                 if (directory.Blocker != null) details.Add(directory.Blocker);
-                if (directory.Leftovers.Count > 0) details.Add((german ? "Bleiben erhalten: " : "Retained: ") + string.Join(", ", directory.Leftovers));
+                if (directory.Leftovers.Count > 0) details.Add(Texts.T("archive.delete.retained") + string.Join(", ", directory.Leftovers));
             }
             foreach (string shared in plan.Catalog.SharedMediaDirectories)
-                details.Add((german ? "Gemeinsam mit anderen Threads verwendet: " : "Shared with other threads: ") + shared);
+                details.Add(Texts.T("archive.delete.shared") + shared);
             TextBox detail = new()
             {
                 Name = "ArchivePermanentDeleteDetails", Text = string.Join(Environment.NewLine, details),
                 IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap
             };
             TextBlock status = new() { TextWrapping = TextWrapping.Wrap };
+            Avalonia.Automation.AutomationProperties.SetLiveSetting(status, Avalonia.Automation.AutomationLiveSetting.Polite);
+            // Blockers and failures stay local and above the body; progress and results remain in the footer.
+            TextBlock failure = new() { TextWrapping = TextWrapping.Wrap };
             Button cancel = new() { Name = "ArchivePermanentDeleteCancel", Content = Texts.T("action.cancel") };
             Button delete = CommandBindings.CreateButton("archive.delete-permanently", () => { });
             delete.Name = "ArchivePermanentDeleteConfirm";
             delete.Command = null;
-            delete.Background = new SolidColorBrush(Color.Parse("#B83535"));
-            delete.Foreground = Brushes.White;
+            delete.Classes.Add("danger");
             delete.IsEnabled = plan.Catalog.Threads.Count > 0 && !plan.Files.HasBlockers && plan.Catalog.SharedMediaDirectories.Count == 0;
             if (!delete.IsEnabled)
-                status.Text = german ? "Diese Auswahl kann nicht vollständig gelöscht werden. Bitte Details prüfen oder die Auswahl einschränken."
-                    : "This selection cannot be fully deleted. Review the details or select fewer threads.";
-            StackPanel buttons = new() { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
+                failure.Text = Texts.T("archive.delete.blocked");
             Button ratingRetry = CommandBindings.CreateButton("media.rating.cleanup-retry", () => { });
             ratingRetry.Command = null; ratingRetry.IsVisible = false;
             IReadOnlyList<ResourceId>? ratingRetryIds = null; // Deliberately session/dialog-only, never persisted.
-            buttons.Children.Add(ratingRetry); buttons.Children.Add(cancel); buttons.Children.Add(delete);
-            Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 12, Margin = new Thickness(20) };
-            layout.Children.Add(summary); layout.Children.Add(detail); Grid.SetRow(detail, 1);
-            layout.Children.Add(status); Grid.SetRow(status, 2);
-            layout.Children.Add(buttons); Grid.SetRow(buttons, 3); dialog.Content = layout;
+            // Own tags of the deleted threads: a failed cleanup is visible and can be retried here, idempotently.
+            Button tagRetry = new() { Name = "ArchivePermanentDeleteTagRetry", Content = Texts.T("archive.delete.tagRetry"), IsVisible = false };
+            Avalonia.Automation.AutomationProperties.SetName(tagRetry, Texts.T("archive.delete.tagRetry"));
+            IReadOnlyList<ResourceId>? tagRetryIds = null;
+            status.IsVisible = !string.IsNullOrEmpty(status.Text);
+            status.PropertyChanged += (_, e) => { if (e.Property == TextBlock.TextProperty) status.IsVisible = !string.IsNullOrEmpty(status.Text); };
+            // Risk flow: Cancel and the retries stay left of the destructive action, which is the primary one right-most.
+            // The status or result summary keeps the full width above the buttons.
+            Border footer = DialogFooter.Build(delete, new Control[] { cancel, ratingRetry, tagRetry }, status, statusAbove: true);
+            detail.Margin = new Thickness(16, 4, 16, 16);
+            detail.VerticalAlignment = VerticalAlignment.Top;
+            DialogWindow.Frame(dialog, DialogFrame.Build(summary, detail, footer, DialogFrame.ErrorStrip(failure)), modal: true);
             bool executing = false;
-            cancel.Click += (_, _) => dialog.Close();
             dialog.Closing += (_, e) => { if (executing) e.Cancel = true; };
-            dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape && !executing) { e.Handled = true; dialog.Close(); } };
+            DialogEscape.Attach(dialog, isBusy: () => executing);
+            cancel.Click += (_, _) => dialog.Close();
             async Task RetryRatingsAsync()
             {
                 if (executing || ratingRetryIds == null) return;
                 ResourceId[] frozen = ratingRetryIds.ToArray();
-                executing = true; ratingRetry.IsEnabled = cancel.IsEnabled = false;
+                executing = true; BeginArchiveDeletionRun(); ratingRetry.IsEnabled = cancel.IsEnabled = false;
                 try
                 {
                     await _session.RetryMediaRatingCleanupAsync(frozen);
                     ratingRetryIds = null; ratingRetry.IsVisible = false;
-                    status.Text = german ? "Bewertungen bereinigt. Es wurden keine weiteren Archivdateien gelöscht." : "Ratings cleaned up. No further archive files were deleted.";
+                    failure.Text = string.Empty;
+                    status.Text = Texts.T("archive.delete.ratingsCleaned");
                 }
-                catch (Exception error) { status.Text = error.Message; }
-                finally { executing = false; ratingRetry.IsEnabled = cancel.IsEnabled = true; }
+                catch (Exception error) { status.Text = string.Empty; failure.Text = Texts.T("archive.delete.cleanupRetryFailed", error.Message); }
+                finally { executing = false; EndArchiveDeletionRun(); ratingRetry.IsEnabled = cancel.IsEnabled = true; }
             }
             ratingRetry.Click += async (_, _) => await RetryRatingsAsync();
+            async Task RetryTagsAsync()
+            {
+                if (executing || tagRetryIds == null) return;
+                ResourceId[] frozen = tagRetryIds.ToArray();
+                executing = true; BeginArchiveDeletionRun(); tagRetry.IsEnabled = cancel.IsEnabled = false;
+                try
+                {
+                    await _session.RetryPrivateTagCleanupAsync(frozen);
+                    tagRetryIds = null; tagRetry.IsVisible = false;
+                    failure.Text = string.Empty;
+                    status.Text = Texts.T("archive.delete.tagsCleaned");
+                }
+                catch (Exception error) { status.Text = string.Empty; failure.Text = Texts.T("archive.delete.cleanupRetryFailed", error.Message); }
+                finally { executing = false; EndArchiveDeletionRun(); tagRetry.IsEnabled = cancel.IsEnabled = true; }
+            }
+            tagRetry.Click += async (_, _) => await RetryTagsAsync();
             CommandRouter ratingRouter = new(dialog);
             ratingRouter.Register(new("media.rating.cleanup-retry", dialog, () => dialog.IsVisible,
                 () => !executing && ratingRetryIds?.Count > 0, () => _ = RetryRatingsAsync(), Priority: 300));
@@ -110,8 +173,9 @@ public partial class MainWindow
             delete.Click += async (_, _) =>
             {
                 if (executing) return;
-                executing = true; delete.IsEnabled = cancel.IsEnabled = false;
-                status.Text = german ? "Lokale Daten werden gelöscht …" : "Deleting local data…";
+                executing = true; BeginArchiveDeletionRun(); delete.IsEnabled = cancel.IsEnabled = false;
+                failure.Text = string.Empty;
+                status.Text = Texts.T("archive.delete.deleting");
                 try
                 {
                     if (_gallery != null) { CloseGallery(restoreOrigin: false); await GalleryCleanupTask; }
@@ -120,29 +184,30 @@ public partial class MainWindow
                     ArchivePermanentDeletionResult result = await _session.DeleteArchivePermanentlyAsync(plan);
                     ratingRetryIds = result.RatingCleanupThreads;
                     ratingRetry.IsVisible = ratingRetryIds?.Count > 0;
+                    tagRetryIds = result.TagCleanupThreads;
+                    tagRetry.IsVisible = tagRetryIds?.Count > 0;
                     List<string> outcome = result.Errors.ToList();
                     if (result.Files != null)
                         foreach (ArchiveDirectoryResult directory in result.Files.Directories)
                             if (directory.Leftovers.Count > 0)
                                 outcome.Add(directory.Directory + Environment.NewLine +
-                                    (german ? "Bleiben erhalten: " : "Retained: ") + string.Join(", ", directory.Leftovers));
+                                    Texts.T("archive.delete.retained") + string.Join(", ", directory.Leftovers));
                     outcome.Add(Texts.T("bookmarks.retained"));
                     detail.Text = string.Join(Environment.NewLine, outcome);
                     _postBookmarksDialog?.InvalidateAvailability();
-                    status.Text = german ? $"{result.DeletedThreads.Count} Threads gelöscht."
-                        : $"Deleted {result.DeletedThreads.Count} threads.";
+                    status.Text = Texts.Count("archive.delete.deleted", result.DeletedThreads.Count);
                     if (result.Files != null)
-                        status.Text += german ? $" {result.Files.DeletedFileCount} lokale Dateien entfernt."
-                            : $" Removed {result.Files.DeletedFileCount} local files.";
+                        status.Text += " " + Texts.Count("archive.delete.filesRemoved", result.Files.DeletedFileCount);
                     await ArchivePage.ActivateAsync();
                 }
                 catch (Exception error) when (error is not OutOfMemoryException)
                 {
-                    status.Text = error.Message;
-                    localError(error.Message);
-                    ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
+                    status.Text = string.Empty;
+                    failure.Text = Texts.T("archive.delete.failed", error.Message);
+                    localError(Texts.T("archive.delete.failed", error.Message));
+                    ShowNotification(Texts.T("notification.error"), Texts.T("archive.delete.failed", error.Message), NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
                 }
-                finally { executing = false; cancel.IsEnabled = true; cancel.Content = Texts.T("action.close"); }
+                finally { executing = false; EndArchiveDeletionRun(); cancel.IsEnabled = true; cancel.Content = Texts.T("action.close"); }
             };
             dialog.Opened += (_, _) => cancel.Focus();
             await dialog.ShowDialog(this);
@@ -151,13 +216,15 @@ public partial class MainWindow
         {
             if (!_isClosing)
             {
-                localError(error.Message);
-                ShowNotification(Texts.T("notification.error"), error.Message, NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
+                localError(Texts.T("archive.delete.failed", error.Message));
+                ShowNotification(Texts.T("notification.error"), Texts.T("archive.delete.failed", error.Message), NotificationType.Error, context: string.Join(",", ids.Select(id => id.ToString())), operation: "archive.delete");
             }
         }
         finally
         {
             _archiveDeletionOpen = false;
+            _archiveDeletionDialog = null;
+            EndArchiveDeletionRun();
             if (origin?.IsEffectivelyVisible == true) origin.Focus();
         }
     }

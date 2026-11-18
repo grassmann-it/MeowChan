@@ -1,12 +1,10 @@
 using System.Text.Json;
-using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Documents;
 using Avalonia.Input;
-using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -14,6 +12,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Rules;
 using SkiaSharp;
 using PopConfirm = Ursa.Controls.PopConfirm;
@@ -32,7 +31,12 @@ internal static class CommandButtonContrastChecks
             .Any(notification => notification.IsEffectivelyVisible));
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         List<string> failures = new();
-        MouseDevice mouse = new();
+        // Use the existing guarded OS-input harness, not a second MouseDevice routed
+        // straight into InputManager. The native top level must own hit testing and
+        // pointer-over refreshes as pages/layout change. No state/pseudoclass writes.
+        using MediaNativeInput mouse = new(window);
+        Console.WriteLine("SMOKE command input: " + mouse.Backend);
+        await Program.WaitUntilAsync(() => window.IsActive);
         try
         {
             foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
@@ -44,7 +48,7 @@ internal static class CommandButtonContrastChecks
                 await Program.WaitUntilAsync(() => window.SettingsEditor.IsEffectivelyVisible);
                 await InspectStatesAsync(window, window.SettingsEditor.FindControl<Button>("SaveSettingsButton")!, theme, mouse, failures);
                 await InspectStatesAsync(window, window.SettingsEditor.FindControl<Button>("CancelSettingsButton")!, theme, mouse, failures);
-                window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
                 await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && window.RulesPage.IsEditable);
                 window.RulesPage.EditScope(MediaRuleScope.Global);
                 CheckBox enabled = window.RulesPage.FindControl<CheckBox>("RuleEnabledInput")!;
@@ -64,7 +68,7 @@ internal static class CommandButtonContrastChecks
         }
         finally
         {
-            Input(window, mouse, RawPointerEventType.LeftButtonUp, new Point(1, 1));
+            await ReleaseAwayAsync(window, mouse);
             Application.Current.RequestedThemeVariant = originalTheme;
             Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         }
@@ -72,7 +76,7 @@ internal static class CommandButtonContrastChecks
         Console.WriteLine("SMOKE command buttons: actual Add/Save/Save rule and neutral/toggle content followed Semi normal, pointerover, pressed and disabled foregrounds in Light/Dark; rendered pixels passed.");
     }
 
-    private static async Task InspectToggleAsync(MainWindow owner, ThemeVariant theme, MouseDevice mouse, List<string> failures)
+    private static async Task InspectToggleAsync(MainWindow owner, ThemeVariant theme, MediaNativeInput mouse, List<string> failures)
     {
         ToggleButton toggle = new() { Name = "CommandToggleFixture", Margin = new Thickness(20) };
         CommandBindings.Apply(toggle, "favorites.toggle", iconWithLabel: true);
@@ -93,14 +97,19 @@ internal static class CommandButtonContrastChecks
                 toggle.IsChecked = selected;
                 favorite.Configure(() => true, () => selected, () => Task.CompletedTask);
                 await InspectStatesAsync(owner, toggle, theme, mouse, failures, selected ? "checked" : "unchecked");
-                await InspectStatesAsync(owner, favorite, theme, mouse, failures, selected ? "checked" : "unchecked");
+                // The star's pointer acceptance (its favorite-star hit surface, hover fill and
+                // real clicks) is the reader-post-star smoke's; here only the vector content's
+                // normal/disabled rendering is checked.
+                await InspectStatesAsync(owner, favorite, theme, mouse, failures, selected ? "checked" : "unchecked",
+                    pointerStates: false);
             }
         }
         finally { root.Children.Remove(fixture); }
+        Console.WriteLine("SMOKE archive-favorite contrast: checked/unchecked vector content in normal/disabled states; native hover/press is the reader-post-star smoke's.");
     }
 
-    private static async Task InspectStatesAsync(Window window, Button button, ThemeVariant theme, MouseDevice mouse,
-        List<string> failures, string context = "command")
+    private static async Task InspectStatesAsync(Window window, Button button, ThemeVariant theme, MediaNativeInput mouse,
+        List<string> failures, string context = "command", bool pointerStates = true)
     {
         await Program.WaitUntilAsync(() => button.IsEffectivelyVisible && button.IsEffectivelyEnabled && button.Bounds.Width > 0);
         int clicks = 0;
@@ -108,17 +117,19 @@ internal static class CommandButtonContrastChecks
         button.Click += ObserveClick;
         try
         {
-            foreach (string state in new[] { "normal", "pointerover", "pressed", "disabled" })
+            foreach (string state in pointerStates ? new[] { "normal", "pointerover", "pressed", "disabled" } : new[] { "normal", "disabled" })
             {
-                Point outside = new Point(1, window.Bounds.Height - 2);
-                Input(window, mouse, RawPointerEventType.Move, outside);
-                Input(window, mouse, RawPointerEventType.LeftButtonUp, outside);
+                await ReleaseAwayAsync(window, mouse);
                 button.SetCurrentValue(InputElement.IsEnabledProperty, state != "disabled");
                 if (state is "pointerover" or "pressed")
                 {
+                    await SmokeDispatcher.SettleAsync();
+                    window.UpdateLayout();
                     Point center = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
-                    Input(window, mouse, RawPointerEventType.Move, center);
-                    if (state == "pressed") Input(window, mouse, RawPointerEventType.LeftButtonDown, center, RawInputModifiers.LeftMouseButton);
+                    if (window.InputHitTest(center) is not Visual hit || !hit.GetSelfAndVisualAncestors().Contains(button))
+                        throw new InvalidOperationException($"Command pointer target is obscured: {button.Name}; center={center}; bounds={button.Bounds}; hit={window.InputHitTest(center)?.GetType().Name}");
+                    await mouse.MoveAsync(button);
+                    if (state == "pressed") await mouse.ButtonAsync(true);
                 }
                 try
                 {
@@ -151,9 +162,7 @@ internal static class CommandButtonContrastChecks
         }
         finally
         {
-            Point outside = new Point(1, window.Bounds.Height - 2);
-            Input(window, mouse, RawPointerEventType.Move, outside);
-            Input(window, mouse, RawPointerEventType.LeftButtonUp, outside);
+            await ReleaseAwayAsync(window, mouse);
             button.SetCurrentValue(InputElement.IsEnabledProperty, true);
             button.Click -= ObserveClick;
         }
@@ -163,12 +172,26 @@ internal static class CommandButtonContrastChecks
     private static void InspectPixels(Window window, Button button, ThemeVariant theme, string state, string context, List<string> failures)
     {
         TextBlock? label = button.GetVisualDescendants().OfType<TextBlock>().SingleOrDefault();
-        Border icon = button.GetVisualDescendants().OfType<Border>().Single(border => border.OpacityMask != null);
+        // CommandContent uses a mask, but ArchiveFavoriteButton now renders the
+        // production vector star. Sample that real shape instead of assuming a mask.
+        Control icon;
+        Color iconColor;
+        if (button is ArchiveFavoriteButton)
+        {
+            Avalonia.Controls.Shapes.Path star = button.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()
+                .Single(path => path.Tag is WorkspaceIcons.Star or WorkspaceIcons.StarFilled);
+            icon = star;
+            iconColor = Solid(star.Stroke);
+        }
+        else
+        {
+            Border mask = button.GetVisualDescendants().OfType<Border>().Single(border => border.OpacityMask != null);
+            icon = mask;
+            iconColor = Solid(mask.Background);
+        }
         Color textColor = Solid(label?.Foreground ?? icon.GetValue(TextElement.ForegroundProperty));
-        Color iconColor = Solid(icon.Background);
-        // Specialized archive-favorite content deliberately uses Icon directly
-        // and owns a Gold foreground. Its existing neutral icon must be retained.
-        Color expectedIcon = button is ArchiveFavoriteButton ? Solid(window.Foreground) : textColor;
+        Color expectedIcon = button is ArchiveFavoriteButton { IsChecked: true }
+            ? SmokeThemeResources.Color(window, "Workspace.Favorite") : textColor;
         string image = $"smoke-command-{theme.ToString().ToLowerInvariant()}-{button.Name}-{context}-{state}.png";
         Program.CaptureWindow(window, image);
         using SKBitmap bitmap = SKBitmap.Decode(Path.Combine(AppContext.BaseDirectory, image));
@@ -226,14 +249,13 @@ internal static class CommandButtonContrastChecks
         return (Math.Max(a, b) + .05) / (Math.Min(a, b) + .05);
     }
 
-    private static void Input(Window window, MouseDevice mouse, RawPointerEventType type, Point point, RawInputModifiers modifiers = RawInputModifiers.None)
-        => AvaloniaLocator.Current.GetRequiredService<IInputManager>().ProcessInput(
-            new RawPointerEventArgs(mouse, (ulong)Environment.TickCount64,
-                // Avalonia 12 keeps the root internal. The harness routes raw input
-                // through it so hover/press are real control states, not styled mocks.
-                typeof(TopLevel).GetProperty("InputRoot", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window) as IInputRoot
-                    ?? throw new InvalidOperationException("No input root for the rendered window."),
-                type, point, modifiers));
+    private static async Task ReleaseAwayAsync(Window window, MediaNativeInput mouse)
+    {
+        // Release outside the inspected command: contrast sampling must never save,
+        // cancel, toggle or otherwise execute it. Stay inside the client, off WM grips.
+        await mouse.MoveAsync(window, new Point(window.Bounds.Width / 2, window.Bounds.Height - 12));
+        await mouse.ButtonAsync(false);
+    }
 
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 }

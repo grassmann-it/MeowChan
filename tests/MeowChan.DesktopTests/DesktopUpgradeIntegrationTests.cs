@@ -41,17 +41,12 @@ public sealed class DesktopUpgradeIntegrationTests
             Assert.True(host.IsPaused);
             Assert.NotNull(host.Plugins);
             Assert.Empty(host.Plugins.Warnings);
-            Assert.Equal(new[] { "2ch", "4chan", "8kun", "endchan", "kohlchan", "lainchan", "leftypol", "sushichan", "uboachan", "wizchan", "zzzchan" }, host.Plugins.Sources.Select(source => source.Name).Order());
             var installed = await host.Plugins.ProfileStore.ReadAsync();
-            Assert.Equal(16, installed.Plugins.Count);
-            // 0.9 has no plugin identities yet: first discovery uses current Host
-            // defaults, then subsequent normal restarts must preserve those values.
-            string[] defaultOff = ["meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan",
-                "meowchan.source.leftypol", "meowchan.source.2ch", "meowchan.source.uboachan",
-                "meowchan.source.zzzchan", "meowchan.source.sushichan"];
+            MeowChan.Desktop.ApphostAcceptanceAssertions.RequireApphostBundledInventory(host.Plugins, installed);
+            // 0.9 has no plugin identities: current defaults apply on discovery.
             Assert.All(installed.Plugins, plugin =>
             {
-                Assert.Equal(!defaultOff.Contains(plugin.PluginId, StringComparer.Ordinal), plugin.Enabled);
+                Assert.Equal(!MeowChan.Desktop.ApphostAcceptanceAssertions.ApphostDefaultOffPluginIds.Contains(plugin.PluginId, StringComparer.Ordinal), plugin.Enabled);
                 Assert.NotNull(plugin.Active); Assert.Null(plugin.Problem);
             });
             Dictionary<string, string> current = installed.Plugins.ToDictionary(plugin => plugin.PluginId, plugin => plugin.Active!.ExecutionRevision);

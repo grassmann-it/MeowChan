@@ -1,32 +1,38 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop"
-             xmlns:ursa="https://irihi.tech/ursa"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
+             xmlns:ursa="https://irihi.tech/ursa" xmlns:local="clr-namespace:MeowChan" xmlns:plugins="using:MeowChan.Desktop.Plugins"
+             xmlns:wv="using:MeowChan.Desktop.WorkViews"
              x:Class="MeowChan.SourcesPage" SizeChanged="OnPageSizeChanged">
-    <UserControl.Styles>
-        <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
-        <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
-    </UserControl.Styles>
+    <local:PluginsPage x:Name="SourcePluginManagement">
+      <local:PluginsPage.SourceContent>
     <ScrollViewer x:Name="SourcesScroll" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="20" Spacing="14">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <StackPanel Spacing="5">
-                    <TextBlock Tag="nav.sources" Classes="page-title localized" />
-                    <TextBlock Tag="sources.subtitle" Classes="workspace-help localized" TextWrapping="Wrap" />
-                </StackPanel>
-                <TextBlock x:Name="SourceCount" Grid.Column="1" Classes="muted" VerticalAlignment="Top" />
-            </Grid>
-            <Grid x:Name="SourcesSplit" ColumnDefinitions="280,*" ColumnSpacing="14">
-              <StackPanel x:Name="SourcesListPane" Grid.Column="0" Spacing="10">
-                <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="muted localized" />
-                <StackPanel x:Name="SourceCards" Spacing="10" />
+        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+            <Grid x:Name="SourcesSplit" ColumnDefinitions="280,*" ColumnSpacing="{StaticResource Workspace.Space.Card}">
+              <StackPanel x:Name="SourcesListPane" Grid.Column="0" Spacing="{StaticResource Workspace.Space.Card}">
+                <!-- No source at all: the one empty-state pattern, with the one next step (a source comes with a plugin). -->
+                <controls:WorkspaceEmptyState x:Name="SourcesEmptyState" IsVisible="False">
+                    <TextBlock x:Name="SourcesEmpty" Tag="sources.empty" Classes="workspace-empty-text localized" />
+                    <Button x:Name="SourcesEmptyAdd" Classes="primary" HorizontalAlignment="Center" Click="OnSourcesEmptyAddClick" />
+                </controls:WorkspaceEmptyState>
+                <plugins:PluginSelectionList x:Name="SourceCards" Classes="workspace-card-list" SelectionChanged="OnSourceSelectionChanged" KeyDown="OnSourceListKeyDown">
+                    <plugins:PluginSelectionList.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.Card}" /></ItemsPanelTemplate></plugins:PluginSelectionList.ItemsPanel>
+                </plugins:PluginSelectionList>
+                <!-- Read-only media folders are no longer a section here (Settings › Storage and limits, 14.11.2026): one quiet pointer for people who look for them. -->
+                <Button x:Name="SourcesMediaFoldersLink" Classes="subtle" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" IsVisible="False" Click="OnMediaFoldersLinkClick">
+                    <TextBlock Tag="sources.mediaFoldersLink" Classes="workspace-help localized" TextWrapping="Wrap" />
+                </Button>
               </StackPanel>
               <Border x:Name="SourceDetailsPanel" Grid.Column="1" Classes="workspace-section">
-                <StackPanel Spacing="12">
-                    <Button x:Name="SourceBackButton" HorizontalAlignment="Left" Click="OnBackClick" />
-                    <TextBlock x:Name="SourceHeading" Classes="section-title" TextWrapping="Wrap" />
+                <StackPanel Spacing="{StaticResource Workspace.Space.12}">
+                    <!-- The way back at the far left, then the heading (HeaderBar back slot, Tom's rule 14.11.). -->
+                    <controls:HeaderBar>
+                        <Button x:Name="SourceBackButton" controls:HeaderBar.IsBack="True" VerticalAlignment="Top" Click="OnBackClick" />
+                        <TextBlock x:Name="SourceHeading" Classes="section-title" TextWrapping="Wrap" Focusable="True" />
+                    </controls:HeaderBar>
+                    <TextBlock x:Name="SourceMeta" Classes="workspace-meta" TextWrapping="Wrap" />
                     <TextBlock x:Name="SourceExperimental" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
-                    <StackPanel x:Name="SourceMediaIntegrityPanel" Spacing="6" IsVisible="False">
+                    <StackPanel x:Name="SourceMediaIntegrityPanel" wv:WorkViewElement.Id="sources.detail.media-integrity" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False">
                         <TextBlock x:Name="SourceMediaIntegrityExplanation" TextWrapping="Wrap" />
                         <CheckBox x:Name="SourceAllowProviderMismatch" Click="OnSourceMediaPermissionClick">
                             <TextBlock x:Name="SourceAllowProviderMismatchLabel" TextWrapping="Wrap" />
@@ -34,61 +40,76 @@
                         <TextBlock x:Name="SourceMediaIntegrityScope" Classes="workspace-help" TextWrapping="Wrap" />
                         <TextBlock x:Name="SourceMediaIntegrityStatus" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="SourceMediaIntegrityRetryHint" Classes="workspace-help" TextWrapping="Wrap" IsVisible="False" />
-                        <ursa:Banner x:Name="SourceMediaIntegrityErrorBanner" Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" IsVisible="False">
+                        <controls:WorkspaceBanner x:Name="SourceMediaIntegrityErrorBanner" Type="Error" IsVisible="False">
                             <ScrollViewer MaxHeight="80" HorizontalScrollBarVisibility="Disabled">
                                 <TextBlock x:Name="SourceMediaIntegrityError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
                             </ScrollViewer>
-                        </ursa:Banner>
+                        </controls:WorkspaceBanner>
                     </StackPanel>
-                    <Button x:Name="SourceWebsiteButton" HorizontalAlignment="Left" Click="OnWebsiteClick" />
-                    <TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" />
-                    <WrapPanel x:Name="CapabilityCards" ItemSpacing="8" LineSpacing="8" />
+                    <Button x:Name="SourceWebsiteButton" wv:WorkViewElement.Id="sources.detail.website" HorizontalAlignment="Left" Click="OnWebsiteClick" />
+                    <!-- The capability cards fold in Barebones; whether capture works at all stays visible below them. -->
+                    <Expander x:Name="CapabilitiesExpander" wv:WorkViewElement.Id="sources.detail.capabilities" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Expander.Header><TextBlock Tag="ud.sources.capabilities" Classes="section-title localized" TextWrapping="Wrap" /></Expander.Header>
+                        <WrapPanel x:Name="CapabilityCards" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0" />
+                    </Expander>
                     <TextBlock x:Name="SourceCaptureAvailability" Classes="workspace-help" TextWrapping="Wrap" />
-                    <Expander x:Name="AdapterDetails" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
-                        <StackPanel Spacing="8" Margin="0,8,0,0">
+                    <Expander x:Name="AdapterDetails" wv:WorkViewElement.Id="sources.detail.technical" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0">
                             <TextBlock x:Name="SourceIdentity" Classes="workspace-meta mono" TextWrapping="Wrap" />
                             <TextBlock x:Name="SourceHosts" Classes="workspace-help" TextWrapping="Wrap" />
                             <TextBlock x:Name="SourceVersion" Classes="workspace-help" TextWrapping="Wrap" />
                         </StackPanel>
                     </Expander>
                     <WrapPanel Classes="workspace-toolbar">
-                        <Button x:Name="SourcePluginButton" Click="OnPluginClick" />
-                        <Button x:Name="SourceRulesButton" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
-                        <Button x:Name="SourceDiagnosticsButton" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
+                        <Button x:Name="SourceAddToDownloadsButton" wv:WorkViewElement.Id="sources.detail.add-downloads" Click="OnAddToDownloadsClick" />
+                        <Button x:Name="SourceRulesButton" wv:WorkViewElement.Id="sources.detail.rules" Tag="sources.rules" Classes="localized" Click="OnRulesClick" />
+                        <Button x:Name="SourceDiagnosticsButton" wv:WorkViewElement.Id="sources.detail.diagnostics" Tag="sources.diagnostics" Classes="localized" Click="OnDiagnosticsClick" />
+                        <!-- What the work view moved off this row (rules, plugin settings, diagnostics): shown only when something is there. -->
+                        <Button x:Name="SourcesMoreButton" Classes="subtle icon-square" IsVisible="False" Click="OnSourcesMoreClick" />
                     </WrapPanel>
-                    <StackPanel Classes="workspace-field">
-                        <TextBlock x:Name="SourceUrlLabel" Tag="detail.url" Classes="workspace-field-label localized" />
-                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                            <TextBox AutomationProperties.LabeledBy="{Binding ElementName=SourceUrlLabel}" x:Name="SourceUrlInput" KeyDown="OnUrlKeyDown" />
-                            <Button x:Name="SourceAddButton" Grid.Column="1" Tag="action.add" Classes="primary localized" Click="OnAddClick" />
-                        </Grid>
-                        <TextBlock Tag="sources.urlHint" Classes="workspace-help localized" TextWrapping="Wrap" />
-                        <TextBlock x:Name="SourceUrlResult" Classes="workspace-help" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <Button x:Name="SourceDownloadsButton" Tag="nav.downloads" Classes="localized" HorizontalAlignment="Left" Click="OnDownloadsClick" />
-                    <TextBlock Tag="sources.watches" Classes="section-title localized" />
+                    <TextBlock Tag="sources.watches" Classes="section-title localized" TextWrapping="Wrap" />
                     <TextBlock x:Name="SourceWatchSummary" Classes="workspace-help" TextWrapping="Wrap" />
-                    <DataGrid x:Name="SourceWatchesGrid" AutoGenerateColumns="False" IsReadOnly="True"
-                              GridLinesVisibility="None" SelectionMode="Single" RowHeight="40"
-                              MinHeight="100" MaxHeight="240" SelectionChanged="OnWatchSelectionChanged">
-                        <DataGrid.Columns>
-                            <DataGridTextColumn MinWidth="150" Width="2*" Binding="{Binding Resource, DataType=desktop:SourceWatchRow}" />
-                            <DataGridTextColumn MinWidth="140" Width="140" Binding="{Binding Work, DataType=desktop:SourceWatchRow}" />
-                            <DataGridTextColumn MinWidth="190" Width="*" Binding="{Binding Observation, DataType=desktop:SourceWatchRow}" />
-                        </DataGrid.Columns>
-                    </DataGrid>
-                    <TextBox x:Name="SourceWatchDetails" IsReadOnly="True" TextWrapping="Wrap" MaxHeight="100" />
-                    <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" HorizontalAlignment="Left" Click="OnOpenWatchClick" />
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <ursa:LoadingIcon x:Name="SourcesOperationLoading" Width="16" Height="16" VerticalAlignment="Center" IsVisible="False" Focusable="False" />
-                        <TextBlock x:Name="SourcesOperationStatus" VerticalAlignment="Center" Classes="muted" AutomationProperties.LiveSetting="Polite" TextWrapping="Wrap" />
-                    </StackPanel>
-                    <ursa:Banner Type="Error" CanClose="False" HorizontalContentAlignment="Stretch" x:Name="SourcesActionErrorBanner" IsVisible="False">
+                    <ListBox x:Name="SourceWatchesList" wv:WorkViewElement.Id="sources.detail.watches" SelectionMode="Single" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled" SelectionChanged="OnWatchSelectionChanged"
+                             DoubleTapped="OnWatchDoubleTapped" KeyDown="OnWatchKeyDown">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="desktop:SourceWatchRow">
+                                <StackPanel Spacing="{StaticResource Workspace.Space.2}" Margin="0,4">
+                                    <TextBlock Text="{Binding Resource}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Resource}" />
+                                    <TextBlock Text="{Binding Status}" Classes="workspace-meta" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                    <WrapPanel Classes="workspace-toolbar">
+                        <Button x:Name="SourceOpenWatchButton" Tag="diagnostics.openWatch" Classes="localized" Click="OnOpenWatchClick" />
+                        <Button x:Name="SourceAllWatchesButton" Classes="subtle" Click="OnAllWatchesClick" IsVisible="False" />
+                    </WrapPanel>
+                    <Border x:Name="SourcePluginBlock" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Workspace.Border}" Padding="0,12,0,0" IsVisible="False">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                            <TextBlock x:Name="SourcePluginSummary" Classes="section-title" TextWrapping="Wrap" />
+                            <WrapPanel x:Name="SourcePluginSteps" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" />
+                            <TextBlock x:Name="SourcePluginNext" Classes="workspace-help" TextWrapping="Wrap" />
+                            <TextBlock x:Name="SourcePluginShared" Classes="workspace-help" TextWrapping="Wrap" />
+                            <WrapPanel Classes="workspace-toolbar">
+                                <Button x:Name="SourcePluginEnabled" Click="OnSourcePluginEnabledClick" />
+                                <Button x:Name="SourcePluginCandidate" Click="OnSourcePluginCandidateClick" />
+                                <Button x:Name="SourcePluginSdk" Click="OnSourcePluginSdkClick" />
+                                <Button x:Name="SourcePluginReview" Click="OnSourcePluginReviewClick" IsVisible="False" />
+                                <Button x:Name="SourcePluginButton" wv:WorkViewElement.Id="sources.detail.plugin" Click="OnPluginClick" />
+                                <Button x:Name="SourcePluginMore" Classes="icon-square" Click="OnSourcePluginMoreClick" />
+                            </WrapPanel>
+                        </StackPanel>
+                    </Border>
+                    <TextBlock Tag="sources.reachabilityNote" Classes="workspace-help localized" TextWrapping="Wrap" />
+                    <controls:WorkspaceBanner Type="Error" x:Name="SourcesActionErrorBanner" wv:WorkViewElement.Id="sources.detail.error" IsVisible="False">
                         <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="SourcesActionError" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
-                    </ursa:Banner>
+                    </controls:WorkspaceBanner>
                 </StackPanel>
               </Border>
             </Grid>
         </StackPanel>
     </ScrollViewer>
+      </local:PluginsPage.SourceContent>
+    </local:PluginsPage>
 </UserControl>

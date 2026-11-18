@@ -108,9 +108,14 @@ internal static class ReaderThreadFindChecks
             CheckHit(1, 8);
             Click("ReaderFindPrevious");
             CheckHit(2, 26); // wrap, two occurrences in one post remain distinct
+            // SearchBox: the first Escape empties the typed query and keeps the bar; the second closes it.
             Dispatch(Key.Escape);
-            Require(!C<StackPanel>("ReaderFindBar").IsVisible, "Own-bar Escape did not close.");
-            Console.WriteLine($"SMOKE reader-find journey [{language}]: offline404/651, count/exact excerpt, offscreen ShowPost, own-bar managed Enter/ShiftEnter/Escape checked.");
+            Require(string.IsNullOrEmpty(query.Text) && C<StackPanel>("ReaderFindBar").IsVisible,
+                "First own-bar Escape did not clear the typed query while keeping the bar open.");
+            Dispatch(Key.Escape);
+            Require(!C<StackPanel>("ReaderFindBar").IsVisible, "Own-bar Escape in an empty query did not close.");
+            query.Text = Needle; // the closed bar's query seeds the next sections exactly as before the clear-first Escape
+            Console.WriteLine($"SMOKE reader-find journey [{language}]: offline404/651, count/exact excerpt, offscreen ShowPost, own-bar managed Enter/ShiftEnter/Escape (clear, then close) checked.");
 
             await InputBoundariesAsync();
 
@@ -257,7 +262,7 @@ internal static class ReaderThreadFindChecks
                         && runs.Length == 4 && runs[0].Text == Texts.T("readerFind.location", postId,
                             Texts.T("readerFind.body"), 1, 512) + "\n"
                         && runs[1].Text == "" && runs[2].Text == expected
-                        && runs[2].FontWeight == FontWeight.Bold && runs[3].Text == "",
+                        && runs[2].FontWeight == FontWeight.SemiBold && runs[3].Text == "",
                         "Boundary query was not searched/displayed as the exact complete saved-text hit.");
                 }
             }
@@ -278,14 +283,14 @@ internal static class ReaderThreadFindChecks
                 Require(e.Handled, "Own-bar routed key was not handled: " + key);
             }
             void Status(int selected, int total) => Require(C<TextBlock>("ReaderFindStatus").Text ==
-                Texts.T("readerFind.count", selected, total), "Actual localized count differs.");
+                Texts.Count("readerFind.count", total, selected, total), "Actual localized count differs.");
             void CheckHit(int selected, int position)
             {
                 Status(selected, 2);
                 Run[] runs = C<TextBlock>("ReaderFindExcerpt").Inlines!.OfType<Run>().ToArray();
                 Require(runs.Length == 4 && runs[0].Text == Texts.T("readerFind.location", "1650",
                     Texts.T("readerFind.body"), position, Needle.Length) + "\n"
-                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.Bold
+                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.SemiBold
                     && string.Concat(runs.Skip(1).Select(run => run.Text)) == Body,
                     "Exact inert excerpt/location does not identify the selected occurrence.");
             }
@@ -325,11 +330,13 @@ internal static class ReaderThreadFindChecks
                 "https://boards.4chan.org/g/thread/3000", "Offline shell routing",
                 ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, profile, data));
         }
-        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         MainWindow? shell = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
-            shell = new MainWindow(host);
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             shell.Show(owner);
             shell.Activate();
             await host.StartAsync().WaitAsync(Deadline);
@@ -337,7 +344,7 @@ internal static class ReaderThreadFindChecks
                 && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
             Require(shell.TryGetPlatformHandle()?.Handle is nint handle && handle != 0,
                 "Shell routing fixture has no native handle.");
-            shell.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
             ArchivePage page = shell.ArchivePage;
             await UntilAsync(() => !page.IsBusy);
             ListBox threads = C<ListBox>("ArchiveThreads");
@@ -408,6 +415,17 @@ internal static class ReaderThreadFindChecks
                     object? pane = reader.Content;
                     WindowState state = shell.WindowState;
                     int beforeRoute = routedAtShell;
+                    TextBox findQuery = C<TextBox>("ReaderFindQuery");
+                    if (sourceName == "ReaderFindQuery")
+                    {
+                        // SearchBox: with a typed query the first Escape only clears it; the bar, reader and shell stay.
+                        await SendAsync(findQuery, Key.Escape);
+                        Require(routedAtShell == beforeRoute + 1 && string.IsNullOrEmpty(findQuery.Text)
+                            && C<StackPanel>("ReaderFindBar").IsVisible && reader.IsVisible
+                            && ReferenceEquals(page.CurrentThread, snapshot) && shell.WindowState == state && unexpectedClicks == 0,
+                            "First Escape in a typed find query did not just clear it.");
+                        beforeRoute = routedAtShell;
+                    }
                     await SendAsync(C<Control>(sourceName), Key.Escape);
                     Require(routedAtShell == beforeRoute + 1
                         && !C<StackPanel>("ReaderFindBar").IsVisible && reader.IsVisible
@@ -427,7 +445,7 @@ internal static class ReaderThreadFindChecks
                     }
                     else Require(!reader.IsVisible, "Second Escape did not close the normal large reader.");
                     await UntilAsync(() => !reader.IsVisible && !page.IsBusy);
-                    Console.WriteLine($"SMOKE reader-find shell-escape [{language}]: source={sourceName}; fullscreen={fullscreen}; first closes only bar, second preserves shell dismissal. Managed events only.");
+                    Console.WriteLine($"SMOKE reader-find shell-escape [{language}]: source={sourceName}; fullscreen={fullscreen}; query: clear then close the bar; close button: closes only the bar; the next Escape preserves shell dismissal. Managed events only.");
                 }
             }
             finally
@@ -457,7 +475,7 @@ internal static class ReaderThreadFindChecks
                     await page.ThreadFindTask.WaitAsync(Deadline);
                 }
                 Require(C<StackPanel>("ReaderFindBar").IsVisible
-                    && C<TextBlock>("ReaderFindStatus").Text == Texts.T("readerFind.count", 0, 3),
+                    && C<TextBlock>("ReaderFindStatus").Text == Texts.Count("readerFind.count", 3, 0, 3),
                     "Shell fixture did not open a fresh three-hit search.");
             }
             void CountClick(object? sender, RoutedEventArgs e) => unexpectedClicks++;
@@ -477,25 +495,29 @@ internal static class ReaderThreadFindChecks
             {
                 Run[] runs = C<TextBlock>("ReaderFindExcerpt").Inlines!.OfType<Run>().ToArray();
                 Require(reader.IsVisible && C<StackPanel>("ReaderFindBar").IsVisible
-                    && C<TextBlock>("ReaderFindStatus").Text == Texts.T("readerFind.count", selected, 3)
+                    && C<TextBlock>("ReaderFindStatus").Text == Texts.Count("readerFind.count", 3, selected, 3)
                     && runs.Length == 4 && runs[0].Text == Texts.T("readerFind.location", "3650",
                         Texts.T("readerFind.body"), 1 + (selected - 1) * 12, Needle.Length) + "\n"
-                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.Bold
+                    && runs[2].Text == Needle && runs[2].FontWeight == FontWeight.SemiBold
                     && string.Concat(runs.Skip(1).Select(run => run.Text)) == triple
                     && C<ListBox>("ArchivePosts").SelectedItem is ArchivePostRow { Id: "3650" }
                     && unexpectedClicks == 0,
                     "Routed find key moved the wrong direction/wrapped twice/clicked/closed instead.");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (shell != null)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                shell.Close();
-                await UntilAsync(() => !shell.IsVisible);
-                await shell.GalleryCleanupTask.WaitAsync(Deadline);
-            }
-            await host.DisposeAsync();
+                if (shell != null)
+                {
+                    shell.Close();
+                    await UntilAsync(() => !shell.IsVisible);
+                    await shell.GalleryCleanupTask.WaitAsync(Deadline); await shell.DisposeAsync();
+                }
+                await host.DisposeAsync();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderThreadFindChecks: " + exception));
         }
     }
 

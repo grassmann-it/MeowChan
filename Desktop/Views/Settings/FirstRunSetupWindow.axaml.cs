@@ -4,13 +4,15 @@ using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
 
-/// <summary>Only the explicit accept action may submit a completion. Browse/Check/Later/X never do.</summary>
+/// <summary>Only the explicit accept action may submit a completion. Browse/Check/Later/X never do.
+/// Enter inside one of the three inputs is the keyboard form of the Accept button; Escape is the keyboard form of Later.</summary>
 internal partial class FirstRunSetupWindow : Window
 {
     private readonly Config _baseline;
@@ -39,7 +41,12 @@ internal partial class FirstRunSetupWindow : Window
         DownloadDestinationValidator? validator = null)
     {
         InitializeComponent();
+        WindowChrome.Apply(this);
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: true);
+        AppCaption.Kind = MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true);
         AppCaption.Attach(this);
+        ThemeLogo.Follow(this);
         _baseline = baseline.Clone();
         _accept = accept;
         _validator = validator ?? DownloadDestinationValidator.Shared;
@@ -53,6 +60,17 @@ internal partial class FirstRunSetupWindow : Window
         Texts.Changed += OnLanguageChanged;
         DownloadDestinationValidator.Shared.CleanupFailed += OnCleanupFailure;
         Opened += (_, _) => { if (!_closed && !_hasAction) SetupFolderInput.Focus(); };
+        KeyDown += OnWindowKeyDown;
+        // Escape is the keyboard form of Later and never commits; it is ignored while an admitted write runs.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, isBusy: () => _committing, close: () => { if (!_closed) Close(); });
+    }
+
+    // Escape never commits and is ignored while an admitted write runs; Enter in an input accepts only when idle.
+    private void OnWindowKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None || _closed) return;
+        if (e.Key == Key.Enter && e.Source is TextBox && !_busy && !_accepting
+            && _result.Outcome != FirstRunSetupOutcome.Completed) { e.Handled = true; OnAcceptClick(this, new RoutedEventArgs()); }
     }
 
     internal async Task<FirstRunSetupRunResult> ShowAsync(Window owner)
@@ -119,12 +137,12 @@ internal partial class FirstRunSetupWindow : Window
     {
         if (!FirstRunSetupCoordinator.TryParseLimits("1", parallel, inputCulture, out _, out int requested))
             return Texts.T("setup.parallelEffectiveInvalid", safetyLimit);
-        return Texts.T("setup.parallelEffective", Math.Min(requested, safetyLimit), requested, safetyLimit);
+        return Texts.Count("setup.parallelEffective", Math.Min(requested, safetyLimit), Math.Min(requested, safetyLimit), requested, safetyLimit);
     }
 
     private void RefreshLabels()
     {
-        Title = SetupHeading.Text = Texts.T("setup.title");
+        Title = Texts.T("setup.title");
         SetupIntroduction.Text = Texts.T("setup.intro");
         SetupFolderLabel.Text = Texts.T("settings.downloadPath");
         SetupBandwidthLabel.Text = Texts.T("setup.bandwidth");
@@ -341,6 +359,7 @@ internal partial class FirstRunSetupWindow : Window
         _closed = true;
         _checkWait?.Cancel(); // ends the caller wait, not physical IO or an admitted commit
         Texts.Changed -= OnLanguageChanged;
+        KeyDown -= OnWindowKeyDown;
         DownloadDestinationValidator.Shared.CleanupFailed -= OnCleanupFailure;
         base.OnClosed(e);
     }

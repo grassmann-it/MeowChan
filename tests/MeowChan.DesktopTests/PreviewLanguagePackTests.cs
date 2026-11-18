@@ -14,6 +14,14 @@ public sealed class PreviewLanguagePackTests : IDisposable
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
     private static void Reset() { Texts.InitializeWithoutBundlesForTests(); Texts.SetLanguage("en"); }
 
+    // Languages with more number forms than English add optional "<key>.few" style variants of an English key.
+    private static bool PluralVariantOfEnglishKey(string key)
+    {
+        int dot = key.LastIndexOf('.');
+        return dot > 0 && !BuiltInCatalog.English.ContainsKey(key) && BuiltInCatalog.English.ContainsKey(key[..dot])
+            && key[(dot + 1)..] is "zero" or "one" or "two" or "few" or "many";
+    }
+
     [Theory]
     [InlineData("es", "Español (Untested)")]
     [InlineData("fr", "Français (Untested)")]
@@ -30,8 +38,16 @@ public sealed class PreviewLanguagePackTests : IDisposable
         // ToDictionary deliberately rejects duplicate JSON keys, which GetProperty
         // alone would hide. Runtime loader below also validates all placeholders.
         var translations = entries.ToDictionary(p => p.Name, p => p.Value.GetString()!, StringComparer.Ordinal);
-        Assert.Equal(BuiltInCatalog.English.Where(pair => !string.IsNullOrWhiteSpace(pair.Value)).Select(pair => pair.Key).Order(StringComparer.Ordinal),
-            translations.Keys.Order(StringComparer.Ordinal));
+        Assert.Equal(BuiltInCatalog.English.Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
+                .Select(pair => pair.Key)
+                .Where(key => !BundledLanguagePackCompletenessTests.KnownMissingKeys.Contains(key))
+                .Order(StringComparer.Ordinal),
+            translations.Keys.Where(key => !PluralVariantOfEnglishKey(key)).Order(StringComparer.Ordinal));
+        Assert.Equal(BundledLanguagePackCompletenessTests.KnownMissingKeys.Order(StringComparer.Ordinal),
+            BuiltInCatalog.English.Where(pair => !string.IsNullOrWhiteSpace(pair.Value))
+                .Select(pair => pair.Key)
+                .Where(key => BundledLanguagePackCompletenessTests.KnownMissingKeys.Contains(key) && !translations.ContainsKey(key))
+                .Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
         Assert.InRange(new FileInfo(pack).Length, 1, 2_000_000);
 
@@ -41,6 +57,11 @@ public sealed class PreviewLanguagePackTests : IDisposable
         Assert.Empty(Texts.Warnings);
         Assert.Equal(name, Assert.Single(Texts.Languages, l => l.Code == code).NativeName);
         foreach (var (key, value) in translations) Assert.Equal(value, Texts.T(key));
+        foreach (string key in BundledLanguagePackCompletenessTests.KnownMissingKeys)
+        {
+            Assert.Null(Texts.Own(key));
+            Assert.Equal(BuiltInCatalog.English[key], Texts.T(key));
+        }
         // Blank saved-search sentinels deliberately fall back: schema1 rejects
         // empty translations, and adding visible filler would change the UI.
         Assert.Equal("", Texts.T("savedSearch.prompt.None"));

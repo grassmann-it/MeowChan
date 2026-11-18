@@ -223,6 +223,9 @@ internal static class Program
         session.StateChanged += ObserveSession;
         try
         {
+            // Durable work binds a fresh profile even with session restoration disabled.
+            // Start performs recovery/restore before Add may activate a producer.
+            await session.StartAsync(lease).WaitAsync(TimeSpan.FromSeconds(10));
             AdmissionResult admission = await session.AddAsync("https://demo.invalid/demo/thread/1");
             if (admission.Status != AdmissionStatus.Added || admission.Thread is not DemoThread thread)
                 throw new InvalidOperationException("The custom provider's thread was not admitted.");

@@ -1,0 +1,15 @@
+{
+  "id": 3001,
+  "created_at": "2025-02-03T04:05:06.000Z",
+  "score": 1,
+  "rating": "q",
+  "image_width": 800,
+  "image_height": 600,
+  "fav_count": 1,
+  "file_ext": "png",
+  "file_size": 55555,
+  "is_banned": true,
+  "is_deleted": false,
+  "tag_string_general": "restricted_example",
+  "preview_file_url": "https://cdn.donmai.us/180x180/restricted-preview.jpg"
+}

@@ -32,7 +32,7 @@ internal static class DiagnosticEvidenceChecks
         "diagnostics.observed.operation", "diagnostics.observed.evidence", "diagnostics.observed.next",
         "diagnostics.observed.thread", "diagnostics.observed.media", "diagnostics.observed.watchUrl",
         "diagnostics.observed.mediaItem", "diagnostics.observed.http403", "diagnostics.observed.http404",
-        "diagnostics.observed.media404", "diagnostics.observed.checkSource",
+        "diagnostics.observed.media404", "diagnostics.observed.checkSourceRetry", "check.action",
         "diagnostics.includeWaiting", "diagnostics.copyPrivacy"
     ];
 
@@ -85,10 +85,9 @@ internal static class DiagnosticEvidenceChecks
             await SettleAsync(fixture);
             DataGrid grid = Named<DataGrid>(page, "DiagnosticsGrid");
             TextBox details = Named<TextBox>(page, "DiagnosticDetails");
-            TextBlock privacy = Named<TextBlock>(page, "DiagnosticCopyPrivacy");
             CheckBox waiting = Named<CheckBox>(page, "DiagnosticIncludeWaiting");
             CheckBox problems = Named<CheckBox>(page, "DiagnosticProblemsOnly");
-            Require(waiting.Content is TextBlock, "Waiting option must retain a wrapping TextBlock.");
+            Require(waiting.Content is TextBlock, "Waiting option must retain its TextBlock.");
             var waitingLabel = (TextBlock)waiting.Content!;
             Require(waiting.IsChecked != true && problems.IsChecked != true, "Diagnostic filters did not start opt-out.");
             RequireRows(grid, (RefusedWatch, DiagnosticKind.Check), (MissingWatch, DiagnosticKind.Media),
@@ -182,9 +181,12 @@ internal static class DiagnosticEvidenceChecks
                 TextPresenter refreshed = details.GetVisualDescendants().OfType<TextPresenter>().Single();
                 Require(refreshed.Text == details.Text && Flatten(refreshed.TextLayout) == WithoutNewlines(details.Text!),
                     "Already-open detail presenter did not render the new language: " + code);
-                Require(privacy.Text == catalog["diagnostics.copyPrivacy"] && waitingLabel.Text == catalog["diagnostics.includeWaiting"]
+                // SM3: the privacy note is no page line any more; it is the help (tooltip and accessible help) of the copy buttons.
+                Require(waitingLabel.Text == catalog["diagnostics.includeWaiting"]
                     && AutomationProperties.GetName(waiting) == catalog["diagnostics.includeWaiting"]
-                    && AutomationProperties.GetHelpText(Named<Button>(page, "CopyDiagnosticButton")) == catalog["diagnostics.copyPrivacy"],
+                    && AutomationProperties.GetHelpText(Named<Button>(page, "CopyDiagnosticButton")) == catalog["diagnostics.copyPrivacy"]
+                    && ToolTip.GetTip(Named<Button>(page, "CopyDiagnosticButton")) as string == catalog["diagnostics.copyPrivacy"]
+                    && AutomationProperties.GetHelpText(Named<Button>(page, "CopySessionFeedbackButton")) == catalog["diagnostics.copyPrivacy"],
                     "Open-page notice/checkbox/accessibility language is stale: " + code);
                 RequireRows(grid, (RefusedWatch, DiagnosticKind.Check), (MissingWatch, DiagnosticKind.Media),
                     (RequestWatch, DiagnosticKind.Request), (PendingWatch, DiagnosticKind.PendingWork));
@@ -203,11 +205,9 @@ internal static class DiagnosticEvidenceChecks
                 await WaitAsync(() => Math.Abs(fixture.ClientSize.Width - 640) <= 1
                     && Math.Abs(fixture.ClientSize.Height - 480) <= 1, "640x480 native client");
                 await SettleAsync(fixture);
-                CheckLabel(fixture, privacy, catalog["diagnostics.copyPrivacy"]);
                 await RevealAsync(fixture, waiting);
                 CheckLabel(fixture, waitingLabel, catalog["diagnostics.includeWaiting"]);
-                Require(waitingLabel.TextWrapping == TextWrapping.Wrap && privacy.TextWrapping == TextWrapping.Wrap,
-                    "Compact waiting/privacy text no longer wraps.");
+                Require(waitingLabel.TextWrapping == TextWrapping.NoWrap, "The short waiting label must not wrap (aligned filter row).");
                 await CheckDetailsAsync(fixture, page, MissingWatch, DiagnosticKind.Media, catalog);
                 Require(checks.SequenceEqual(new[] { RefusedWatch }) && media.SequenceEqual(new[] { MissingWatch }) && opens == 0,
                     "Language/layout/copy dispatched further retry or navigation work.");
@@ -250,7 +250,8 @@ internal static class DiagnosticEvidenceChecks
         string http = kind == DiagnosticKind.Media ? "Http · HTTP 404" : "Http · HTTP 403";
         string[] expected = [operation, catalog["diagnostics.observed.evidence"] + ":", fact, http, raw,
             catalog["diagnostics.observed.watchUrl"] + ": " + WatchUrl(watch),
-            catalog["diagnostics.observed.next"] + ": " + catalog["diagnostics.observed.checkSource"]];
+            catalog["diagnostics.observed.next"] + ": "
+                + string.Format(Texts.Culture, catalog["diagnostics.observed.checkSourceRetry"], catalog["check.action"])];
         foreach (string fragment in expected)
             Require(details.Text!.Contains(fragment, StringComparison.Ordinal), "Missing actual detail fragment: " + fragment);
         Require(!details.Text!.Contains(catalog[kind == DiagnosticKind.Media ? "diagnostics.observed.http403" : "diagnostics.observed.media404"], StringComparison.Ordinal),
@@ -277,7 +278,6 @@ internal static class DiagnosticEvidenceChecks
                 Require(VisibleRect(window, presenter, glyph), "Observed detail glyph remains clipped: " + fragment);
             }
         }
-        CheckLabel(window, Named<TextBlock>(page, "DiagnosticCopyPrivacy"), catalog["diagnostics.copyPrivacy"]);
     }
 
     private static async Task<DiagnosticEntry> SelectAsync(Window window, DiagnosticsPage page, long watch, DiagnosticKind kind)

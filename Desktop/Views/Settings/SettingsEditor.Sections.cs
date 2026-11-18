@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using System.Collections.Generic;
 using System.Linq;
 using Avalonia.VisualTree;
+using Avalonia.LogicalTree;
 using Avalonia.Controls;
 using Avalonia.Automation;
 using Avalonia.Layout;
@@ -29,10 +30,11 @@ public partial class SettingsEditor
         yield return ("settings.updates", SettingsUpdatesPage);
         yield return ("settings.notifications", SettingsNotificationsSection);
         yield return ("settings.behavior", SettingsBehaviorPage);
+        yield return ("settings.workviews", SettingsWorkViewsPage);
         yield return ("settings.shortcuts", ShortcutsEditor);
     }
 
-    private void SelectCategory(string id)
+    private void SelectCategory(string id, bool resetWorkViewOverview = true)
     {
         if (!CategoryPages().Any(item => item.Id == id)) return;
         bool changed = _selectedCategoryId != id;
@@ -43,6 +45,10 @@ public partial class SettingsEditor
             bool selected = Equals(button.Tag, id);
             button.IsChecked = selected;
         }
+        if (id == "settings.workviews") EnsureWorkViewOverview();
+        if (id == "settings.worker-budgets") EnsureMediaFolders();
+        // A regular category entry is not WV12 Details: leave no stale diff, page or text restriction behind.
+        if (id == "settings.workviews" && resetWorkViewOverview) _workViewOverview?.SetDifferenceFilter(null);
         if (changed) SettingsScrollViewer.Offset = default;
     }
 
@@ -50,7 +56,9 @@ public partial class SettingsEditor
     {
         foreach (var item in CategoryPages())
         {
-            if (!ReferenceEquals(input, item.Page) && !input.GetVisualAncestors().Contains(item.Page)) continue;
+            // Logical as well as visual: a collapsed group's content may not have a visual parent yet.
+            if (!ReferenceEquals(input, item.Page) && !input.GetVisualAncestors().Contains(item.Page)
+                && !input.GetLogicalAncestors().Contains(item.Page)) continue;
             SelectCategory(item.Id);
             return;
         }
@@ -163,9 +171,23 @@ public partial class SettingsEditor
             button.Click += (_, _) => SettingsSections.Navigate(section.Id);
             SettingsCategoryLinks.Children.Add(button);
         }
-        SelectCategory(_selectedCategoryId);
+        // Rebuilding labels must not turn an already-open WV12 Details visit into a normal entry.
+        SelectCategory(_selectedCategoryId, resetWorkViewOverview: false);
         if (focused != null && SettingsCategories.IsVisible)
             SettingsCategoryLinks.Children.OfType<Button>().FirstOrDefault(button => Equals(button.Tag, focused))?.Focus();
+    }
+
+    // Scroll to the complete section header, not the title TextBlock. This keeps
+    // adjacent actions (especially Reset) visible after a category jump.
+    private static Control SectionHeaderTarget(Control target)
+    {
+        Grid? visualHeader = target.GetVisualAncestors().OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("settings-section-header"));
+        if (visualHeader != null) return visualHeader;
+
+        Grid? logicalHeader = target.GetLogicalAncestors().OfType<Grid>()
+            .FirstOrDefault(grid => grid.Classes.Contains("settings-section-header"));
+        return logicalHeader ?? target;
     }
 
     private void RefreshSectionNavigation()
@@ -173,20 +195,22 @@ public partial class SettingsEditor
         if (_sectionNavigation == null || _isClosed) return;
         var sections = new List<SectionDescriptor>
         {
-            new("settings.interface", InterfaceTitle, () => SettingsInterfaceHeading, () => SelectCategory("settings.interface")),
-            new("settings.reading-media", ReadingMediaTitle, () => SettingsReadingMediaHeading, () => SelectCategory("settings.reading-media")),
-            new("settings.downloads", DownloadsTitle, () => SettingsDownloadsHeading, () => SelectCategory("settings.downloads")),
-            new("settings.worker-budgets", AdvancedBudgetsLabel, () => SettingsWorkerBudgetsPageTitle,
-                () => { SelectCategory("settings.worker-budgets"); SettingsWorkerBudgetsHeading.IsExpanded = true; }),
-            new("settings.updates", UpdatesTitle, () => SettingsUpdatesHeading, () => SelectCategory("settings.updates"))
+            new("settings.interface", InterfaceTitle, () => SectionHeaderTarget(SettingsInterfaceHeading), () => SelectCategory("settings.interface"), () => SettingsInterfaceHeading),
+            new("settings.reading-media", ReadingMediaTitle, () => SectionHeaderTarget(SettingsReadingMediaHeading), () => SelectCategory("settings.reading-media"), () => SettingsReadingMediaHeading),
+            new("settings.downloads", DownloadsTitle, () => SectionHeaderTarget(SettingsDownloadsHeading), () => SelectCategory("settings.downloads"), () => SettingsDownloadsHeading),
+            new("settings.worker-budgets", StorageLimitsLabel, () => SectionHeaderTarget(SettingsWorkerBudgetsPageTitle),
+                () => { SelectCategory("settings.worker-budgets"); SettingsLimitsGroup.IsExpanded = true; SettingsWorkerBudgetsHeading.IsExpanded = true; }, () => SettingsWorkerBudgetsPageTitle),
+            new("settings.updates", UpdatesTitle, () => SectionHeaderTarget(SettingsUpdatesHeading), () => SelectCategory("settings.updates"), () => SettingsUpdatesHeading)
         };
         AddOptional("settings.notifications", "SettingsNotificationsHeading");
-        sections.Add(new("settings.behavior", BehaviorTitle, () => SettingsBehaviorHeading, () => SelectCategory("settings.behavior")));
+        sections.Add(new("settings.behavior", BehaviorTitle, () => SectionHeaderTarget(SettingsBehaviorHeading), () => SelectCategory("settings.behavior"), () => SettingsBehaviorHeading));
+        sections.Add(new("settings.workviews", WorkViewsTitle, () => SectionHeaderTarget(SettingsWorkViewsHeading), () => SelectCategory("settings.workviews"), () => SettingsWorkViewsHeading));
         AddOptional("settings.shortcuts", "ShortcutsEditor");
         _sectionNavigation.SetSections(sections);
         SettingsSections.Refresh();
         SettingsSections.IsVisible = !SettingsCategories.IsVisible;
         RefreshCategoryLinks(sections);
+        SearchLanguageRefreshed();
 
         void AddOptional(string id, string name)
         {
@@ -198,9 +222,15 @@ public partial class SettingsEditor
             {
                 Control? current = this.FindControl<Control>(name);
                 return name == "ShortcutsEditor"
+                    ? SectionHeaderTarget((current as MeowChan.Desktop.Commands.ShortcutEditor)?.SectionHeading ?? current)
+                    : SectionHeaderTarget(current);
+            }, () => SelectCategory(id), () =>
+            {
+                Control? current = this.FindControl<Control>(name);
+                return name == "ShortcutsEditor"
                     ? (current as MeowChan.Desktop.Commands.ShortcutEditor)?.SectionHeading ?? current
                     : current;
-            }, () => SelectCategory(id)));
+            }));
         }
     }
 }

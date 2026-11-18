@@ -179,7 +179,7 @@ public sealed class PostBookmarkPrivateBatchTests
         foreach (PostBookmark[] values in invalid)
             Opaque(Assert.Throws<InvalidDataException>(() => Prepare(store, values)), temp.Path);
         Assert.Throws<InvalidDataException>(() => store.PrepareAdditiveBatch(Operation, PlanHash, null!));
-        Assert.Throws<InvalidDataException>(() => Prepare(store, new PostBookmark[PostBookmarkStore.MaximumEntries + 1]));
+        Assert.Throws<InvalidDataException>(() => Prepare(store, new PostBookmark[PostBookmarkStore.DefaultEntries + 1]));
         Assert.False(File.Exists(store.Path));
     }
 
@@ -445,7 +445,7 @@ public sealed class PostBookmarkPrivateBatchTests
         var store = new PostBookmarkStore(temp.Path, lease); Legacy(store.Path, long.MaxValue);
         byte[] maxRevision = File.ReadAllBytes(store.Path);
         Assert.Throws<InvalidDataException>(() => Prepare(store, Entry())); Assert.Equal(maxRevision, File.ReadAllBytes(store.Path));
-        Legacy(store.Path, 4, Enumerable.Range(0, PostBookmarkStore.MaximumEntries).Select(i => Entry(i.ToString(), "")).ToArray());
+        Legacy(store.Path, 4, Enumerable.Range(0, PostBookmarkStore.DefaultEntries).Select(i => Entry(i.ToString(), "")).ToArray());
         byte[] maxEntries = File.ReadAllBytes(store.Path);
         Assert.Throws<InvalidDataException>(() => Prepare(store, Entry("new", "")));
         Assert.False(Prepare(store, Entry("0", "")).HasChanges);

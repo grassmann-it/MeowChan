@@ -177,7 +177,7 @@ public sealed class NativeTextImportFenceTests
         string db = Path.Combine(profile.Path, "archive.db");
         string before = Snapshot(db);
         await using ArchiveCatalog upgraded = await ArchiveCatalog.OpenAsync(profile.Path, lease);
-        Assert.Equal(12L, Scalar(db, "PRAGMA user_version"));
+        Assert.Equal(13L, Scalar(db, "PRAGMA user_version"));
         Assert.Equal(before, Snapshot(db, excludeImport: true));
         Assert.Equal(0L, Scalar(db, "SELECT count(*) FROM archive_posts WHERE attachments_were_null IS NOT 0"));
         Assert.Equal(1L, Scalar(db, "SELECT count(*) FROM archive_import_fence"));

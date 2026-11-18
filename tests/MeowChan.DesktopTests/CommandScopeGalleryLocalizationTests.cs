@@ -68,12 +68,14 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
     {
         var expected = new (string Key, string English, string German, string Spanish, string French, string Russian)[]
         {
-            ("command.scope.gallery-open.reader", "Large reader post area · current thread", "Beitragsbereich im großen Reader · aktuell gelesener Thread", "Área de publicaciones del lector grande · hilo actual", "Zone de publications du grand lecteur · fil actuel", "Область сообщений в большом просмотрщике · текущий тред"),
-            ("command.scope.export-open-html.reader", "Current reader thread · outside inputs and dialogs", "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen", "Hilo actual del lector · fuera de entradas y diálogos", "Fil actuel du lecteur · hors des champs de saisie et des dialogues", "Текущий тред в просмотрщике · вне полей ввода и диалогов"),
+            ("command.scope.gallery-open.reader", "Large reader post area · current thread", "Post-Bereich im großen Reader · aktuell gelesener Thread", "Área de publicaciones del lector grande · hilo actual", "Zone des messages du grand lecteur · fil actuel", "Область постов в развёрнутой читалке · текущий тред"),
+            ("command.scope.export-open-html.reader", "Current reader thread · outside inputs and dialogs", "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen", "Hilo actual del lector · fuera de entradas y diálogos", "Fil actuel du lecteur · hors des champs de saisie et des dialogues", "Текущий тред в читалке · вне полей ввода и диалогов"),
+            ("command.scope.reader.expand", "In the thread list: Enter", "In der Threadliste: Enter", "En la lista de hilos: Enter", "Dans la liste des fils : Enter", "В списке тредов: Enter"),
+            ("command.scope.reader.find", "With the focus in the reader", "Mit Fokus im Reader", "Con el foco en el lector", "Avec le focus dans le lecteur", "Когда фокус в читалке"),
             ("command.scope.archive.select-page", "Results list · this page only", "Ergebnisliste · nur diese Seite", "Lista de resultados · solo esta página", "Liste des résultats · cette page uniquement", "Список результатов · только эта страница"),
             ("command.scope.archive.page-navigation", "Results-list focus · within page boundaries", "Fokus in der Ergebnisliste · innerhalb der Seitengrenzen", "Foco en la lista de resultados · dentro de los límites de página", "Focus sur la liste des résultats · dans les limites des pages", "Фокус в списке результатов · в пределах страниц"),
-            ("command.scope.selection.select-all", "Focused downloads list", "Fokussierte Downloadliste", "Lista de descargas enfocada", "Liste des téléchargements ciblée", "Сфокусированный список загрузок"),
-            ("command.scope.menu.context-open", "Focused downloads, archive or plugin list", "Fokussierte Download-, Archiv- oder Pluginliste", "Lista de descargas, archivo o plugins enfocada", "Liste ciblée des téléchargements, archives ou plugins", "Сфокусированный список загрузок, архива или плагинов"),
+            ("command.scope.selection.select-all", "Focused downloads list", "Fokussierte Downloadliste", "Lista de descargas enfocada", "Liste des téléchargements ciblée", "Список загрузок в фокусе"),
+            ("command.scope.menu.context-open", "Focused downloads, archive or plugin list", "Fokussierte Download-, Archiv- oder Pluginliste", "Lista de descargas, archivo o complementos enfocada", "Liste ciblée des téléchargements, de l’archive ou des extensions", "Список загрузок, архива или плагинов в фокусе"),
             ("command.scope.watch.import-clipboard", "Downloads · URL input pastes text", "Downloads · URL-Eingabe fügt Text ein", "Descargas · la entrada de URL pega texto", "Téléchargements · le champ URL colle le texte", "Загрузки · поле URL вставляет текст"),
             ("command.scope.input.focus-download-search", "Downloads · local list", "Downloads · lokale Liste", "Descargas · lista local", "Téléchargements · liste locale", "Загрузки · локальный список"),
             ("command.scope.input.focus-search", "Archive · search results", "Archiv · Treffer durchsuchen", "Archivo · resultados de búsqueda", "Archives · résultats de recherche", "Архив · результаты поиска"),
@@ -108,7 +110,8 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
             Texts.SetLanguage(language);
             string label = CommandCatalog.Label("archive.select-page");
             string? shortcut = CommandCatalog.ShortcutDisplay("archive.select-page");
-            Assert.Equal(label + (shortcut is null ? "" : " · " + shortcut) + " · " + suffix,
+            // HB1: the hint is the second line of the tooltip, the key stays on the first.
+            Assert.Equal(label + (shortcut is null ? "" : " · " + shortcut) + "\n" + suffix,
                 CommandBindings.Tooltip("archive.select-page"));
         }
     }
@@ -137,11 +140,11 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Close", "Fit", "Post", "Favorite", "Export", "Full screen")]
-    [InlineData("de", "Schließen", "Einpassen", "Beitrag", "Favorit", "Export", "Vollbild")]
-    [InlineData("es", "Cerrar", "Ajustar", "Publicación", "Favorito", "Exportar", "Pantalla completa")]
-    [InlineData("fr", "Fermer", "Ajuster", "Message", "Favori", "Exporter", "Plein écran")]
-    [InlineData("ru", "Закрыть", "Вписать", "Пост", "Избранное", "Экспорт", "Полный экран")]
+    [InlineData("en", "Close", "Fit", "Post", "Favorite", "Original", "Full screen")]
+    [InlineData("de", "Schließen", "Einpassen", "Post", "Favorit", "Original", "Vollbild")]
+    [InlineData("es", "Cerrar", "Ajustar", "Publicación", "Favorito", "Original", "Pantalla completa")]
+    [InlineData("fr", "Fermer", "Ajuster", "Message", "Favori", "Original", "Plein écran")]
+    [InlineData("ru", "Закрыть", "Вписать", "Пост", "Избранное", "Оригинал", "Полный экран")]
     public void GalleryCompactSelectorsStayLocalizedWhileFullCommandTitlesRemainSeparate(string language,
         string close, string fit, string context, string favorite, string export, string fullscreen)
     {

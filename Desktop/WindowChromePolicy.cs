@@ -17,4 +17,11 @@ internal static class WindowChromePolicy
 
     internal static string MaximizeLabel(WindowState state) =>
         state == WindowState.Maximized ? "window.restore" : "window.maximize";
+
+    // Small modal prompts drop minimize (a minimized modal strands its blocked owner);
+    // the window's own CanMinimize and the window manager's shortcuts stay as they are.
+    internal static bool ShowsMinimize(WindowChromeKind kind) => kind == WindowChromeKind.Window;
+
+    // Fixed-size windows offer neither the button nor the double-click.
+    internal static bool ShowsMaximize(bool canResize) => canResize;
 }

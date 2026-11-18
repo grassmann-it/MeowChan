@@ -5,6 +5,7 @@ using System.Text.Json.Nodes;
 using MeowChan.Archive;
 using MeowChan.Interfaces;
 using MeowChan.Transfer;
+using MeowChan.Testing;
 
 namespace MeowChan.Tests.Transfer;
 
@@ -164,7 +165,10 @@ public sealed class NativeTransferImportStageAdversarialTests
             "missing" => missing,
             "file" => workspace.Sentinel,
             // The relative path resolves to a real directory, so existence alone cannot pass it.
-            _ => Path.GetRelativePath(Environment.CurrentDirectory, workspace.Staging)
+            // GetRelativePath returns a rooted path across Windows volumes (runner temp is
+            // commonly C: while the checkout is D:), so use the current directory in that case.
+            _ => Path.GetRelativePath(Environment.CurrentDirectory, workspace.Staging) is string relative
+                && !Path.IsPathFullyQualified(relative) ? relative : "."
         };
         using NonseekableSource source = new(Package());
 
@@ -241,7 +245,7 @@ public sealed class NativeTransferImportStageAdversarialTests
         }
     }
 
-    [Fact]
+    [NonWindowsDirectoryRenameFact]
     public async Task CancelAfterParentRedirectReportsRetainedStageWithoutFollowingLinkOrLeakingPaths()
     {
         using Workspace workspace = new();
@@ -283,7 +287,7 @@ public sealed class NativeTransferImportStageAdversarialTests
         workspace.AssertOnlyCallerFiles();
     }
 
-    [Fact]
+    [NonWindowsDirectoryRenameFact]
     public async Task DisposeAfterParentRedirectReportsRetentionAndNeverDeletesSameNamedLinkTargetFile()
     {
         using Workspace workspace = new();
@@ -710,7 +714,7 @@ public sealed class NativeTransferImportStageAdversarialTests
 
     private sealed class Workspace : IDisposable
     {
-        internal string Root { get; } = Path.Combine(Path.GetTempPath(), "meowchan-stage-adversarial-" + Guid.NewGuid().ToString("N"));
+        internal string Root { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-stage-adversarial-");
         internal string Staging { get; }
         internal string Sentinel { get; }
         internal string Nested { get; }

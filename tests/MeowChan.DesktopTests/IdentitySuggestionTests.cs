@@ -173,4 +173,21 @@ public sealed class IdentitySuggestionTests
         Assert.Equal("a", IdentitySuggestions.InputIdentity(" a ", candidate));
     }
 
+    [Fact]
+    public void EnterResolvesHighlightedThenExactThenSingleCandidateOtherwiseFreeText()
+    {
+        IdentitySuggestion chan = new("4chan", null, "4chan"), eight = new("8chan", null, "8chan"), padded = new(" A ", null, " A ");
+        Assert.Same(eight, IdentitySuggestions.Resolve("4ch", eight, [chan]));
+        Assert.Same(chan, IdentitySuggestions.Resolve("4ch", null, [chan]));
+        Assert.Same(chan, IdentitySuggestions.Resolve("4CHAN", null, [chan, new("4chan-mirror", null, "4chan-mirror")]));
+        Assert.Same(padded, IdentitySuggestions.Resolve(" A ", null, [padded, new("A", null, "A")]));
+        Assert.Equal("a", IdentitySuggestions.Resolve("a", null, [new("A", null, "A"), new("a", null, "a")])!.Value);
+        Assert.Null(IdentitySuggestions.Resolve("ch", null, [chan, eight]));
+        Assert.Null(IdentitySuggestions.Resolve("unknown", null, []));
+        Assert.Null(IdentitySuggestions.Resolve("  ", null, [chan]));
+        // The same board name in two sources is ambiguous: the typed text stays free (all sources or the chosen scope).
+        Assert.Null(IdentitySuggestions.Resolve("g", null, [new("g", "4chan", "g · 4chan"), new("g", "8chan", "g · 8chan")]));
+        Assert.Equal("8chan", IdentitySuggestions.Resolve("g", null, [new("g", "8chan", "g · 8chan")])!.Source);
+    }
+
 }

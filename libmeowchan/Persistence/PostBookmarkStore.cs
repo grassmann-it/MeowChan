@@ -56,7 +56,8 @@ internal sealed class PostBookmarkConflictException : IOException
 /// <summary>Explicit local references and user notes. No content copies, history or backup files.</summary>
 internal sealed partial class PostBookmarkStore
 {
-    internal const int MaximumEntries = 10_000;
+    /// <summary>Default bookmark limit. The limit is a setting; reads accept up to <see cref="ProfileStoreLimits.BookmarkCeiling"/>.</summary>
+    internal const int DefaultEntries = ProfileStoreLimits.DefaultBookmarks;
     internal const int MaximumNoteCodepoints = 8_000;
     internal const int MaximumDocumentBytes = 32 * 1024 * 1024;
     private readonly ProfileLease _lease;
@@ -238,7 +239,10 @@ internal sealed partial class PostBookmarkStore
         if (current.Revision != expectedRevision) throw new PostBookmarkConflictException();
         List<PostBookmark> entries = current.Bookmarks.ToList();
         change(entries);
-        if (entries.Count > MaximumEntries) throw new InvalidDataException("At most 10,000 post bookmarks are supported.");
+        // Only growth is refused: with the limit lowered below the saved count, notes and removals still work.
+        if (entries.Count > _lease.StoreLimits.Bookmarks && entries.Count > current.Bookmarks.Count)
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.Bookmarks, _lease.StoreLimits.Bookmarks,
+                "The post bookmark limit is reached.");
         PostBookmarkSnapshot next = new(checked(current.Revision + 1), Array.AsReadOnly(entries.ToArray()));
         byte[] bytes = Serialize(next);
         if (bytes.Length > MaximumDocumentBytes) throw new InvalidDataException("Post bookmarks exceed 32 MiB.");
@@ -319,7 +323,7 @@ internal sealed partial class PostBookmarkStore
                 ? PrivateStoreOperationMarker.Parse(root.GetProperty("operationMarker"),
                     NativePrivateApplyStoreKind.PostBookmarksAndNotes) : null;
             JsonElement items = root.GetProperty("bookmarks");
-            if (items.ValueKind != JsonValueKind.Array || items.GetArrayLength() > MaximumEntries)
+            if (items.ValueKind != JsonValueKind.Array || items.GetArrayLength() > ProfileStoreLimits.BookmarkCeiling)
                 throw new InvalidDataException("Invalid post-bookmark list.");
             List<PostBookmark> entries = new();
             HashSet<PostBookmarkKey> seen = new();

@@ -6,8 +6,6 @@ namespace MeowChan.DesktopTests;
 public sealed class Release102PlaybackTests
 {
     [Theory]
-    [InlineData("gallery.slideshow-toggle")]
-    [InlineData("gallery.overlay-toggle")]
     [InlineData("gallery.overlay-autohide-toggle")]
     [InlineData("gallery.post-overlay-toggle")]
     public void NewActionsHaveNoDefaultsAndCanBeBoundWithoutInventingAnotherRouter(string id)
@@ -20,6 +18,20 @@ public sealed class Release102PlaybackTests
             Assert.DoesNotContain(effective.Issues, issue => issue.BlocksSave);
             Assert.Single(effective.For(id));
             Assert.Equal(CommandScope.Gallery, CommandCatalog.Get(id).Scope);
+        }
+    }
+
+    [Fact]
+    public void SlideshowHasTheShiftDDefaultAndCanStillBeRebound()
+    {
+        // UX-LEDGER-17: Shift+D starts the slideshow; D marks tagging entries done. Saved bindings still replace the default.
+        Assert.Contains(CommandCatalog.Get("gallery.slideshow-toggle").DefaultGestures, gesture => gesture.Key == "D" && gesture.Modifiers.SequenceEqual(new[] { "Shift" }));
+        var section = new ShortcutBindingsSection().Set("gallery.slideshow-toggle", [ShortcutGesture.Parse("Primary+Shift+F9")]);
+        foreach (var platform in Enum.GetValues<ShortcutPlatform>())
+        {
+            var effective = EffectiveShortcutBindings.Build(section, platform);
+            Assert.DoesNotContain(effective.Issues, issue => issue.BlocksSave);
+            Assert.Single(effective.For("gallery.slideshow-toggle"));
         }
     }
 

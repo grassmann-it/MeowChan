@@ -73,7 +73,7 @@ internal static class R08dPresentationChecks
                 "Offline Feather search did not expose its complete local MIT text and revision.");
             Program.CaptureWindow(about, "smoke-r08d-about-licenses.png");
         }
-        finally { Click(about.FindControl<Button>("CloseButton")!); }
+        finally { about.Close(); }
         await Program.WaitUntilAsync(() => !about.IsVisible);
         Click(window.FindControl<Button>("DownloadsNavigationButton")!);
         await Program.WaitUntilAsync(() => !window.SettingsPageVisible);
@@ -96,7 +96,7 @@ internal static class R08dPresentationChecks
                     ThreadSourceState.Archived, DateTimeOffset.UtcNow, profile,
                     new[] { new CapturedPost("808", 0, PostFieldPresence.All, Html: "<p>Offline reader fixture</p>") }));
 
-            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
             ContentControl host = window.FindControl<ContentControl>("ArchivePageHost")!;
             await Program.WaitUntilAsync(() => host.IsEffectivelyVisible);
             object? retained = host.Content;
@@ -133,6 +133,10 @@ internal static class R08dPresentationChecks
                 Button table = fixture.FindControl<Button>("ArchiveLayoutTable")!;
                 Button favorites = fixture.FindControl<Button>("ArchiveFavoritesOverview")!;
                 ActionToolBar actions = fixture.FindControl<ActionToolBar>("ArchiveResultActions")!;
+                // Archive view toggle on the 8-dip rhythm: 8 below "Filters and sorting", 8 above the first card, one control size.
+                if (actions.Margin.Top != 8 || fixture.FindControl<Grid>("ArchiveListPane")!.RowSpacing != 8
+                    || list.MinHeight != 32 || table.MinHeight != 32 || list.Padding != table.Padding)
+                    throw new InvalidOperationException("The archive view toggle is off the 8-dip rhythm: " + actions.Margin + " " + list.Padding + " " + table.Padding);
                 bool ActionHit(Button button)
                 {
                     TopLevel? root = TopLevel.GetTopLevel(button);
@@ -156,8 +160,19 @@ internal static class R08dPresentationChecks
                 }));
                 window.UpdateLayout();
                 TraceActions("before favorites reveal");
-                await Program.WaitUntilAsync(() => FitsWindow(window, list) && FitsWindow(window, table)
-                    && ReferenceEquals(TopLevel.GetTopLevel(list), window) && ReferenceEquals(TopLevel.GetTopLevel(table), window));
+                await Program.WaitUntilAsync(() =>
+                {
+                    // End-docked toolbar items can require a second native arrange pass after
+                    // the hosted archive fixture is activated. Drive that pass while polling;
+                    // otherwise a slow CI compositor can observe the old detached presentation
+                    // for the whole wait even though no product state is wrong.
+                    window.UpdateLayout();
+                    return FitsWindow(window, list) && FitsWindow(window, table)
+                        && ReferenceEquals(TopLevel.GetTopLevel(list), window)
+                        && ReferenceEquals(TopLevel.GetTopLevel(table), window);
+                }, () => $"list={list.Bounds}/{list.IsEffectivelyVisible}/{TopLevel.GetTopLevel(list)?.GetType().Name}; "
+                    + $"table={table.Bounds}/{table.IsEffectivelyVisible}/{TopLevel.GetTopLevel(table)?.GetType().Name}; "
+                    + $"overflow={actions.OverflowHost?.Children.Count}");
                 Require(actions.OverflowHost?.Children.Contains(list) != true && actions.OverflowHost?.Children.Contains(table) != true,
                     "The archive layout choices were not direct toolbar actions.");
                 bool favoritesOverflow = actions.OverflowHost?.Children.Contains(favorites) == true;
@@ -200,19 +215,26 @@ internal static class R08dPresentationChecks
                 Button read = fixture.FindControl<Button>("ArchiveReadPosts")!;
                 await Program.WaitUntilAsync(() => read.IsEffectivelyEnabled);
                 Click(read);
-                await Program.WaitUntilAsync(() => fixture.CurrentThread?.Summary.Id == id
-                    && fixture.FindControl<Button>("ArchiveReaderFullscreen")!.IsEffectivelyVisible);
+                await Program.WaitUntilAsync(() => fixture.CurrentThread?.Summary.Id == id);
                 Button full = fixture.FindControl<Button>("ArchiveReaderFullscreen")!;
+                ActionToolBar readerBar = fixture.FindControl<ActionToolBar>("ReaderToolbar")!;
+                // Review 15.11.: full screen ends the reader bar while it fits and is the first action to move under More; the action
+                // is checked where the user finds it, on the bar or in the opened More popup.
+                bool fullUnderMore = readerBar.OverflowHost?.Children.Contains(full) == true;
+                if (fullUnderMore) readerBar.More!.IsChecked = true;
+                await Program.WaitUntilAsync(() => { window.UpdateLayout(); return full.IsAttachedToVisualTree() && full.Bounds.Width > 0; },
+                    () => "Full screen is shown neither on the reader bar nor in the opened More popup.");
                 Require(full.IsEnabled && full.Bounds.Width > 0
                     && full.Content is StackPanel fullPanel && fullPanel.Children.Count == 2
                     && fullPanel.Children[0] is Control
                     && fullPanel.Children[1] is TextBlock fullLabel && !string.IsNullOrWhiteSpace(fullLabel.Text)
                     && !string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(full)),
                     "The reader's visible OS full-screen action is missing.");
+                if (fullUnderMore) readerBar.More!.IsChecked = false;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window,
                     wide.Client.Width, wide.Client.Height));
                 Button back = fixture.FindControl<Button>("ArchiveBackButton")!;
-                Require(FitsWindow(window, full) && (!back.IsVisible || FitsWindow(window, back)),
+                Require(FitsWindowOrNoOverflow(window, readerBar) && (!back.IsVisible || FitsWindow(window, back)),
                     "The reader's native full-screen or back action overflows the fitted wide viewport.");
                 Console.WriteLine($"SMOKE archive native viewport: requested={wide.Client}; actual={window.Bounds.Size}; "
                     + $"workingArea={screen.WorkingArea}; scale={window.RenderScaling}; "
@@ -225,7 +247,7 @@ internal static class R08dPresentationChecks
                 {
                     window.UpdateLayout();
                     return PresentationChecks.MatchesRequestedSize(window, 760, 500)
-                        && FitsWindow(window, full) && FitsWindow(window, back);
+                        && FitsWindowOrNoOverflow(window, readerBar) && FitsWindow(window, back);
                 });
                 Program.CaptureWindow(window, "smoke-r08d-reader-narrow.png");
                 Click(fixture.FindControl<Button>("ArchiveBackButton")!);
@@ -246,6 +268,17 @@ internal static class R08dPresentationChecks
 
     private static void Click(Button button) => SmokeActionClick.Execute(button);
     private static void Click(MenuItem item) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    private static bool FitsWindowOrNoOverflow(Window window, ActionToolBar toolbar)
+    {
+        // ActionToolBar hides More when no action was reduced. On a wide reader the
+        // fullscreen action is deliberately direct, so requiring the hidden toggle
+        // to fit would assert a control that has no viewport contract. When More is
+        // present, keep the strict physical viewport assertion.
+        if (toolbar.More?.IsEffectivelyVisible != true)
+            return toolbar.OverflowHost?.Children.Count == 0;
+        return FitsWindow(window, toolbar.More);
+    }
+
     private static bool FitsWindow(Window window, Control control)
     {
         Point? origin = control.TranslatePoint(default, window);

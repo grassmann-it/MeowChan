@@ -70,6 +70,27 @@ internal sealed partial class DesktopSessionHost
         });
     }
 
+    /// <summary>The own switch of a family site, or null for a source without one (or before the session is ready).</summary>
+    internal bool? GetChanSiteEnabled(string pluginOwnerId, string sourceId) => Plugins?.ChanSiteEnabled(pluginOwnerId, sourceId);
+
+    /// <summary>Turns one site of an engine-family chan plugin on or off (the plugin stays the master switch).</summary>
+    internal Task<bool> SetChanSiteEnabledAsync(string sourceId, bool enabled)
+        => RunInteractiveAsync(nameof(SetChanSiteEnabledAsync), sourceId, () => SetChanSiteEnabledAdmittedCoreAsync(sourceId, enabled));
+
+    private async Task<bool> SetChanSiteEnabledAdmittedCoreAsync(string sourceId, bool enabled)
+    {
+        bool changed;
+        await _commands.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            EnsureReady();
+            changed = Plugins!.SetChanSiteEnabled(sourceId, enabled);
+        }
+        finally { _commands.Release(); }
+        SignalChanged();
+        return changed;
+    }
+
     internal void RetireSourceMediaIntegrityPolicies()
     {
         SourceMediaIntegrityPolicyService[] policies;

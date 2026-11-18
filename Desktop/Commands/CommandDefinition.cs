@@ -15,8 +15,15 @@ public sealed record CommandDefinition(
     IReadOnlyList<string> Contexts,
     IReadOnlyList<string>? ActiveContexts = null)
 {
-    public bool IsImplemented => Id is not ("post.copy-link" or "post.open-source" or "viewer.focus-mode"
-        or "table.reset-layout" or "admission.monitor-all");
+    public bool IsImplemented => Id is not ("post.open-source" or "viewer.focus-mode"
+        or "table.reset-layout" or "admission.monitor-all"
+        // Audit 16.11.: no control and no handler carries this one. The About window has no lone Close button (× and Escape close it);
+        // a key bound to it ran nothing, so it is listed as unavailable until wired. ("gallery.context-close" is wired by the gallery audit.)
+        or "about.close") && !IsAwaitingHandler;
+    /// <summary>Registered and given a default gesture ahead of its handler (quick tagging, <see cref="QuickTagCommands"/>): the
+    /// command is listed as unavailable, its default stays inactive and raises no issue until the package that wires the
+    /// handler adds the id to the wired list of <see cref="QuickTagCommands"/>.</summary>
+    public bool IsAwaitingHandler => QuickTagCommands.AwaitingHandler.Contains(Id);
     public IReadOnlyList<ShortcutGesture> DefaultGestures => EffectiveShortcutBindings.Defaults(this);
     public IReadOnlyList<string> ExecutionContexts => EffectiveShortcutBindings.ExecutionContexts(Id);
     public string Label => CommandCatalog.Label(Id);

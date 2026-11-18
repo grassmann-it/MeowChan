@@ -2,6 +2,17 @@
   "version": 1,
   "dependencies": {
     "net10.0": {
+      "Avalonia.Headless": {
+        "type": "Direct",
+        "requested": "[12.1.4, )",
+        "resolved": "12.1.4",
+        "contentHash": "XsVJaOc2OXDAMJ66eSnclm3YvfuVdiPay0zJUP0+fqoGoFv4XgPxvM2pMbwwt5VRVDyTSHHDpT0YGdg61ZCk/g==",
+        "dependencies": {
+          "Avalonia": "12.1.4",
+          "Avalonia.Fonts.Inter": "12.1.4",
+          "Avalonia.HarfBuzz": "12.1.4"
+        }
+      },
       "Microsoft.NET.Test.Sdk": {
         "type": "Direct",
         "requested": "[17.12.0, )",
@@ -503,7 +514,7 @@
           "Irihi.Ursa": "[2.2.0, )",
           "Irihi.Ursa.Themes.Semi": "[2.2.0, )",
           "LibVLCSharp.Avalonia": "[3.10.2, )",
-          "MeowChan.PluginHost": "[1.0.2, )",
+          "MeowChan.PluginHost": "[1.1.0, )",
           "Semi.Avalonia": "[12.1.0.1, )",
           "Semi.Avalonia.DataGrid": "[12.1.0.1, )",
           "Serilog": "[4.0.2, )",
@@ -513,14 +524,14 @@
           "Tmds.DBus.Protocol": "[0.94.1, )",
           "VideoLAN.LibVLC.Mac": "[3.1.3.2, )",
           "VideoLAN.LibVLC.Windows": "[3.0.24, )",
-          "libmeowchan": "[1.0.2, )"
+          "libmeowchan": "[1.1.0, )"
         }
       },
       "meowchan.pluginhost": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )",
-          "libmeowchan": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.0, )",
+          "libmeowchan": "[1.1.0, )"
         }
       },
       "meowchan.pluginsdk": {

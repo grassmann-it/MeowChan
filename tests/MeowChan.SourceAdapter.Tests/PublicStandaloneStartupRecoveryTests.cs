@@ -522,7 +522,8 @@ public sealed class PublicStandaloneStartupRecoveryTests
         using SqliteConnection connection = Open(DatabasePath(profile), SqliteOpenMode.ReadOnly);
         using var version = connection.CreateCommand();
         version.CommandText = "PRAGMA user_version";
-        Assert.Equal(11L, (long)version.ExecuteScalar()!);
+        // Schema 13 added captured image dimensions; these fixtures start at 8 and migrate forward.
+        Assert.Equal(13L, (long)version.ExecuteScalar()!);
         version.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name LIKE 'local_%'";
         Assert.Equal(5L, (long)version.ExecuteScalar()!);
     }

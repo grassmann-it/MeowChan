@@ -81,7 +81,7 @@ internal sealed class TemplateRivalWalkthrough : StackPanel
     private void Render()
     {
         Rows.Text = string.Join(Environment.NewLine, State.Select(board =>
-            $"{board.Id}: types={board.Types}; limit={board.Megabytes}MB; enabled={board.Enabled}; filter={board.Filter}"));
+            $"{board.Id}: types={board.Types}; limit={board.Megabytes}MiB; enabled={board.Enabled}; filter={board.Filter}"));
         RenderPreview();
     }
     private void RenderPreview()

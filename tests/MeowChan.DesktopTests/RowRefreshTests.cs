@@ -62,7 +62,7 @@ public sealed class RowRefreshTests
         Assert.Same(copy, row.Snapshot);
         row.UpdateSnapshot(entry with { Snapshot = copy with { LastCheckFailure = new(FailureKind.Network, "Offline") } });
         Assert.Equal(1, invalidations);
-        Assert.Equal("Offline", row.ErrorDetails);
+        Assert.EndsWith("Offline", row.ErrorDetails); // the inspector text ends with the raw message (ap3)
         row.UpdateSnapshot(entry with { BoardName = "Renamed board" });
         Assert.Equal(2, invalidations);
         Assert.Equal("Renamed board", row.NiceName);

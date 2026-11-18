@@ -39,6 +39,7 @@ def make_ico(png):
     return struct.pack("<HHHBBBBHHII", 0, 1, 1, 0, 0, 0, 0, 1, 32, len(png), 22) + png
 
 
+@unittest.skipIf(os.name == "nt", "macOS packaging fixture uses POSIX package-root semantics")
 class MacosPackagingTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="meowchan packaging fixtures ")
@@ -382,6 +383,37 @@ int main(int argc, char **argv) {
             self.assertTrue(entry.issym())
             self.assertEqual("libAvaloniaNative.dylib", entry.linkname)
 
+    def test_nested_internal_native_symbolic_link_is_preserved(self):
+        native = self.publish / "libvlc" / "osx-arm64" / "lib"
+        native.mkdir(parents=True)
+        (native / "libvlccore.dylib").write_bytes(b"native core")
+        self.symlink("libvlccore.dylib", native / "libvlccore-alias.dylib")
+        bundle, _ = self.package(archive_path=self.archive)
+        link = bundle / "Contents" / "MacOS" / "libvlc" / "osx-arm64" / "lib" / "libvlccore-alias.dylib"
+        self.assertTrue(link.is_symlink())
+        self.assertEqual("libvlccore.dylib", os.readlink(link))
+        with tarfile.open(self.archive, "r:gz") as archive:
+            entry = archive.getmember("MeowChan.app/Contents/MacOS/libvlc/osx-arm64/lib/libvlccore-alias.dylib")
+            self.assertTrue(entry.issym())
+            self.assertEqual("libvlccore.dylib", entry.linkname)
+
+    def test_signed_bundle_accepts_internal_file_aliases(self):
+        self.symlink("libAvaloniaNative.dylib", self.publish / "native-alias.dylib")
+        nested = self.publish / "libvlc" / "osx-arm64" / "lib"
+        nested.mkdir(parents=True)
+        (nested / "libvlccore.dylib").write_bytes(b"native core")
+        self.symlink("libvlccore.dylib", nested / "libvlccore-alias.dylib")
+        signer = mock.Mock()
+        with mock.patch.object(packaging.sys, 'platform', 'darwin'), mock.patch.object(packaging.shutil, 'which', return_value=None), mock.patch.object(packaging, 'signing_module', return_value=signer):
+            bundle, archive = self.package(runtime='osx-arm64', sign_adhoc=True,
+                                           archive_path=self.output / "signed.tar.gz")
+        self.assertTrue((bundle / "Contents/Resources/application/native-alias.dylib").is_symlink())
+        self.assertEqual("libAvaloniaNative.dylib", os.readlink(bundle / "Contents/Resources/application/native-alias.dylib"))
+        nested_link = bundle / "Contents/Resources/application/libvlc/osx-arm64/lib/libvlccore-alias.dylib"
+        self.assertTrue(nested_link.is_symlink())
+        self.assertEqual("libvlccore.dylib", os.readlink(nested_link))
+        self.assertIsNotNone(archive)
+
     def test_executable_must_not_be_a_symbolic_link(self):
         executable = self.publish / "MeowChan"
         executable.rename(self.publish / "real-apphost")
@@ -487,6 +519,39 @@ int main(int argc, char **argv) {
         self.assertIn("candidate baseline", result.stdout)
         self.assertIn("native launch verification remains required", result.stdout)
         self.assertTrue(self.archive.is_file())
+
+
+class MacosDmgCreateRetryTests(unittest.TestCase):
+    def setUp(self):
+        spec = importlib.util.spec_from_file_location('meowchan_macos_dmg_retry', SCRIPT.with_name('package-macos-dmg.py'))
+        self.dmg = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(self.dmg)
+
+    def test_transient_hdiutil_create_failure_retries_from_a_clean_target(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            staged = Path(temporary) / 'candidate.dmg'
+            results = iter([SimpleNamespace(returncode=1, stdout='', stderr='hdiutil: create failed - Resource busy'),
+                            SimpleNamespace(returncode=0, stdout='', stderr='')])
+            def run(command, **_):
+                self.assertFalse(staged.exists(), 'A retry must not reuse a partial image.')
+                result = next(results)
+                if result.returncode:
+                    staged.write_bytes(b'partial')
+                return result
+            waits = []
+            with mock.patch.object(self.dmg.subprocess, 'run', side_effect=run) as called:
+                self.dmg.create_image(Path(temporary) / 'volume', staged, sleep=waits.append)
+            self.assertEqual(2, called.call_count)
+            self.assertEqual([15], waits)
+            self.assertIn('UDZO', called.call_args.args[0])
+
+    def test_persistent_hdiutil_create_failure_still_fails_after_bounded_attempts(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            failed = SimpleNamespace(returncode=1, stdout='', stderr='hdiutil: create failed')
+            with mock.patch.object(self.dmg.subprocess, 'run', return_value=failed) as called:
+                with self.assertRaises(subprocess.CalledProcessError):
+                    self.dmg.create_image(Path(temporary) / 'volume', Path(temporary) / 'candidate.dmg', sleep=lambda _: None)
+            self.assertEqual(self.dmg.CREATE_ATTEMPTS, called.call_count)
 
 
 if __name__ == "__main__":

@@ -291,7 +291,7 @@ public sealed class SessionFeedbackTests
         FeedbackToastContent content = new("Title", a.Summary, a, toast => store.Dismiss(toast.Entry!));
         Assert.Same(a, content.Entry);
         Assert.Equal("FeedbackToastDismissButton", content.DismissButton.Name);
-        Assert.Equal("×", content.DismissButton.Content);
+        Assert.Equal(MeowChan.Desktop.Controls.WorkspaceIcons.Close, MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(content.DismissButton.Content));
         Assert.Equal(Texts.T("feedback.dismiss"), AutomationProperties.GetName(content.DismissButton));
         Assert.Equal(Texts.T("feedback.dismiss"), ToolTip.GetTip(content.DismissButton));
         Assert.False(store.IsDismissed(a)); // Publication alone is not acknowledgement.

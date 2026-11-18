@@ -143,10 +143,13 @@ internal static class NativeFeatureCheckpoint
             throw new InvalidOperationException("The production shortcut section is unavailable in active Settings.");
         settings.GoToSection("settings.shortcuts");
         await Program.WaitUntilAsync(() => editor.SectionHeading.IsFocused && InViewport(editor.SectionHeading));
-        ListBox actions = editor.GetVisualDescendants().OfType<ListBox>().Single();
-        TextBox search = editor.GetVisualDescendants().OfType<TextBox>().First();
+        // The table lives in the one shortcuts window (KS2); the Settings card opens it on every area.
+        var shortcuts = editor.OpenWindow() ?? throw new InvalidOperationException("The shortcut card could not open the shortcuts window.");
+        await Program.WaitUntilAsync(() => shortcuts.IsVisible && shortcuts.Editor.ActionList.IsEffectivelyVisible);
+        ListBox actions = shortcuts.Editor.ActionList;
+        TextBox search = shortcuts.Editor.SearchInput;
         LogShortcutSurface("section-ready", settings, editor, search, actions);
-        actions.SelectedIndex = 0;
+        actions.SelectedItem = actions.Items.OfType<ListBoxItem>().First(item => item.Tag is string);
         search.BringIntoView();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
         bool focusAccepted = search.Focus();
@@ -156,9 +159,9 @@ internal static class NativeFeatureCheckpoint
             // A 210-DIP scrollable ListBox cannot fit as a whole in the measured
             // 202-DIP Settings viewport. Require the real selected row instead,
             // fully inside both its list presenter and the outer Settings clip.
-            await Program.WaitUntilAsync(() => search.IsFocused && InViewport(editor.SectionHeading) && InViewport(search)
+            await Program.WaitUntilAsync(() => search.IsFocused && InViewport(search)
                 && InViewport(actions, requireFullBounds: false) && SelectedActionInViewport(actions)
-                && ReferenceEquals(TopLevel.GetTopLevel(search), TopLevel.GetTopLevel(settings)));
+                && ReferenceEquals(TopLevel.GetTopLevel(search), shortcuts));
         }
         catch (TimeoutException)
         {
@@ -169,15 +172,16 @@ internal static class NativeFeatureCheckpoint
         Console.WriteLine($"URSA NATIVE shortcut surface ready: language={Texts.Language}; "
             + $"editor={editor.Bounds}; search={search.Bounds}; actions={actions.Bounds}; focus={search.IsFocused}; real-section=settings.shortcuts");
         ListBoxItem returnTarget = (ListBoxItem)actions.SelectedItem!;
-        await HoldAsync("shortcuts", editor, search, search, actions);
+        await HoldAsync("shortcuts", shortcuts.Editor, search, search, actions);
         LogShortcutSurface("observer-complete", settings, editor, search, actions);
         if (editor.IsDirty != dirty || editor.Draft.Raw.GetRawText() != raw || ShortcutService.IsCapturing)
             throw new InvalidOperationException("Native shortcut cancel changed draft or left capture active.");
         if (!ReferenceEquals(actions.SelectedItem, returnTarget) || !returnTarget.IsFocused
-            || !ReferenceEquals(TopLevel.GetTopLevel(settings)?.FocusManager?.GetFocusedElement(), returnTarget)
-            || !ReferenceEquals(TopLevel.GetTopLevel(returnTarget), TopLevel.GetTopLevel(settings))
+            || !ReferenceEquals(shortcuts.FocusManager?.GetFocusedElement(), returnTarget)
+            || !ReferenceEquals(TopLevel.GetTopLevel(returnTarget), shortcuts)
             || !SelectedActionInViewport(actions))
             throw new InvalidOperationException("Native shortcut Escape did not restore focus and viewport to the original selected action.");
+        shortcuts.CloseWithoutAsking();
     }
 
     internal static async Task ShortcutContextsAsync(SettingsEditor settings)
@@ -185,7 +189,8 @@ internal static class NativeFeatureCheckpoint
         MainWindow window = TopLevel.GetTopLevel(settings) as MainWindow
             ?? throw new InvalidOperationException("Native shortcut context requires its real owner window.");
         ShortcutEditor editor = settings.FindControl<ShortcutEditor>("ShortcutsEditor")!;
-        TextBox search = editor.GetVisualDescendants().OfType<TextBox>().First();
+        // A real text input of the Settings page (the shortcut table moved into its own window, KS2).
+        TextBox search = settings.GetVisualDescendants().OfType<TextBox>().First(text => text.Name == "SettingsSearchBox");
         Button pause = window.FindControl<Button>("PauseButton")!;
         KeyGesture gesture = CommandBindings.Gesture("session.pause")
             ?? throw new InvalidOperationException("The fresh fixture has no pause shortcut.");
@@ -201,6 +206,7 @@ internal static class NativeFeatureCheckpoint
         bool dirty = editor.IsDirty;
         string raw = editor.Draft.Raw.GetRawText();
         string? searchText = search.Text;
+        Exception? failureBeforeCleanup = null;
         try
         {
             search.BringIntoView();
@@ -228,11 +234,15 @@ internal static class NativeFeatureCheckpoint
             Console.WriteLine("NATIVE SHORTCUT CONTEXT PASS " + Texts.Language
                 + ": actualScale=" + window.RenderScaling + "; real Ctrl+Shift+P suppressed in text and active on normal control; native Tab/Shift+Tab exact return. Isolated pause restored separately.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            // Cleanup uses the Host API, not another claimed native input event.
-            if (window.SessionHost.IsPaused != paused) await window.SessionHost.SetPausedAsync(paused);
-            await Program.WaitUntilAsync(() => !window.SessionHost.IsPauseTransitioning && pause.IsEffectivelyEnabled);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                // Cleanup uses the Host API, not another claimed native input event.
+                if (window.SessionHost.IsPaused != paused) await window.SessionHost.SetPausedAsync(paused);
+                await Program.WaitUntilAsync(() => !window.SessionHost.IsPauseTransitioning && pause.IsEffectivelyEnabled);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in NativeFeatureCheckpoint: " + exception));
         }
     }
 

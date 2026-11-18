@@ -76,7 +76,7 @@ public sealed class FirstRunEffectiveLimitInteractionRegressionTests : IDisposab
     [InlineData(1, 48, 1)]
     [InlineData(12, 48, 12)]
     [InlineData(64, 48, 48)]
-    [InlineData(256, 300, 256)]
+    [InlineData(256, 256, 256)] // the largest parallel-download setting is 256 (Config.MaxParallelDownloadsMaximum)
     public void SavedCustomCapDrivesControlPreviewForRequestsAboveAndBelowCap(int cap, int requested, int effective)
     {
         using TempDirectory directory = new();
@@ -95,9 +95,11 @@ public sealed class FirstRunEffectiveLimitInteractionRegressionTests : IDisposab
         int otherRequest = cap == 1 ? 1 : cap - 1;
         fixture.EnterParallel(otherRequest.ToString(CultureInfo.InvariantCulture));
         fixture.AssertSummary(otherRequest, otherRequest, cap);
-        fixture.EnterParallel((cap + 7).ToString(CultureInfo.InvariantCulture));
-        fixture.AssertSummary(cap, cap + 7, cap);
-        Assert.Equal((cap + 7).ToString(CultureInfo.InvariantCulture), fixture.Parallel.Text);
+        // The setting itself is capped at Config.MaxParallelDownloadsMaximum (256); a request above that is refused, not previewed.
+        int above = Math.Min(cap + 7, Config.MaxParallelDownloadsMaximum);
+        fixture.EnterParallel(above.ToString(CultureInfo.InvariantCulture));
+        fixture.AssertSummary(cap, above, cap);
+        Assert.Equal(above.ToString(CultureInfo.InvariantCulture), fixture.Parallel.Text);
         Assert.Equal(cap, fixture.Baseline.ParallelDownloadsSafetyLimit);
         Assert.Equal(requested, fixture.Baseline.MaxParallelDownloads);
         Assert.Equal(cap, loaded.ParallelDownloadsSafetyLimit);
@@ -175,6 +177,11 @@ public sealed class FirstRunEffectiveLimitInteractionRegressionTests : IDisposab
     private static string Expected(string key, params object[] args)
     {
         var entry = FirstRunLimitCatalog.Entries.Single(entry => entry.Key == key);
+        // A count of exactly one selects the singular text of the plural-aware path.
+        var singular = args.Length > 0 && Convert.ToInt64(args[0], CultureInfo.InvariantCulture) == 1
+            ? MeowChan.Desktop.Localization.CountCatalog.Entries.Cast<(string Key, string English, string German)?>().FirstOrDefault(e => e!.Value.Key == key + ".one")
+            : null;
+        if (singular is { } one) entry = one;
         return string.Format(Texts.Culture, Texts.Language == "de" ? entry.German : entry.English, args);
     }
 

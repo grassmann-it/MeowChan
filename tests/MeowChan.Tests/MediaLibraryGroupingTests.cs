@@ -138,4 +138,64 @@ public sealed class MediaLibraryGroupingTests
         Assert.Equal(10, window.Count);
         Assert.Same(byThread[4].Entry, window[start]);
     }
+
+    // Equal bytes: group x in threads a, b, c; group y in d, e; a single f. By thread (newest capture first): f, e, d, c, b, a.
+    private static MediaLibraryEntry[] ThreeKinds() =>
+    [
+        Entry("a", "1", 'a', 1), Entry("b", "1", 'a', 2), Entry("c", "1", 'a', 3),
+        Entry("d", "1", 'b', 4), Entry("e", "1", 'b', 5), Entry("f", "1", 'c', 6)
+    ];
+
+    [Fact]
+    public void ReferencesPlacesATileByTheNumberOfOccurrencesOfItsBytesAndAReversedDirectionMirrorsIt()
+    {
+        MediaLibraryEntry[] all = ThreeKinds();
+
+        IReadOnlyList<MediaLibraryTile> most = MediaLibraryGrouping.Build(all, all, MediaLibrarySort.References, includeMissing: false);
+        Assert.Equal(new[] { "c", "e", "f" }, Threads(most.Select(tile => tile.Entry)));
+        Assert.Equal(new[] { 3, 2, 1 }, most.Select(tile => tile.Occurrences.Count));
+
+        IReadOnlyList<MediaLibraryTile> fewest = MediaLibraryGrouping.Build(all, all, MediaLibrarySort.References, false,
+            direction: MediaLibrarySortDirection.Reversed);
+        // The tile is placed by its first passing occurrence in the walked order, so a mirrored walk shows the other occurrence of a group.
+        Assert.Equal(new[] { "f", "d", "a" }, Threads(fewest.Select(tile => tile.Entry)));
+        Assert.Equal(new[] { 1, 2, 3 }, fewest.Select(tile => tile.Occurrences.Count));
+    }
+
+    [Fact]
+    public void ReferencesCountsEveryOccurrenceEvenWhenAFilterHidTheOthers()
+    {
+        MediaLibraryEntry[] all = ThreeKinds();
+        MediaLibraryEntry[] passing = [all[0], all[3]]; // a (group of three) and d (group of two), the rest filtered away
+
+        IReadOnlyList<MediaLibraryTile> tiles = MediaLibraryGrouping.Build(all, passing, MediaLibrarySort.References, false);
+
+        // Counted among the two passing entries both would tie and thread order would put d first.
+        Assert.Equal(new[] { "a", "d" }, Threads(tiles.Select(tile => tile.Entry)));
+        Assert.Equal(new[] { 3, 2 }, tiles.Select(tile => tile.Occurrences.Count));
+    }
+
+    [Fact]
+    public void SortAndDirectionNeverChangeWhichTilesThereAreOrWhatTheyHold()
+    {
+        MediaLibraryEntry[] all = ThreeKinds();
+        foreach (MediaLibrarySort sort in Enum.GetValues<MediaLibrarySort>())
+            foreach (MediaLibrarySortDirection direction in Enum.GetValues<MediaLibrarySortDirection>())
+            {
+                IReadOnlyList<MediaLibraryTile> tiles = MediaLibraryGrouping.Build(all, all, sort, false, 3, null, direction);
+                Assert.Equal(3, tiles.Count);
+                Assert.Equal(new[] { 1, 2, 3 }, tiles.Select(tile => tile.Occurrences.Count).OrderBy(count => count));
+                Assert.All(tiles, tile => Assert.Contains(tile.Entry, tile.Occurrences));
+                Assert.Equal(new[] { "a", "b", "c" }, Threads(tiles.Single(tile => tile.Occurrences.Count == 3).Occurrences.OrderBy(entry => entry.Thread.Thread)));
+            }
+    }
+
+    [Fact]
+    public void ADefaultDirectionAndNoUserOrderGiveWhatTheOldSignatureGave()
+    {
+        MediaLibraryEntry[] all = ThreeKinds();
+        foreach (MediaLibrarySort sort in new[] { MediaLibrarySort.ByThread, MediaLibrarySort.Newest, MediaLibrarySort.Random })
+            Assert.Equal(Threads(MediaLibraryGrouping.Build(all, all, sort, false, 9).Select(tile => tile.Entry)),
+                Threads(MediaLibraryGrouping.Build(all, all, sort, false, 9, null, MediaLibrarySortDirection.Default, null).Select(tile => tile.Entry)));
+    }
 }

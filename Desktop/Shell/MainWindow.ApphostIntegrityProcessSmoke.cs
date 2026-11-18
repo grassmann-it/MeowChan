@@ -1,3 +1,5 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.IO;
 using System.Linq;
@@ -73,10 +75,9 @@ public partial class MainWindow
                 "Fresh production authority differs from the preceding durable grant/revoke.");
             if (fixture.Phase == "acquire")
             {
-                string[] defaultOff = { "meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan", "meowchan.source.leftypol", "meowchan.source.2ch", "meowchan.source.uboachan", "meowchan.source.zzzchan", "meowchan.source.sushichan" };
-                RequireWorkflow(installed.Plugins.Count == 16 && plugins.Sources.Count == 11
-                    && installed.Plugins.All(plugin => plugin.Enabled == !defaultOff.Contains(plugin.PluginId, StringComparer.Ordinal)),
-                    "Fresh delivered default/inventory differs.");
+                RequireApphostBundledInventory(plugins, installed);
+                RequireWorkflow(installed.Plugins.All(plugin => plugin.Enabled == !ApphostDefaultOffPluginIds.Contains(plugin.PluginId, StringComparer.Ordinal)),
+                    "Fresh delivered defaults differ.");
                 RequireWorkflow(_session.GetSourceMediaIntegrityPolicies().All(row => !row.IsGranted), "Fresh profile not strict.");
                 RequireWorkflow(fixture.Http.Requests.IsEmpty && plugins.Runtime.GetSnapshots().Count == 0
                     && _session.GetThreadWorkSnapshots().Count == 0, "Fresh disabled source started work before consent.");
@@ -272,3 +273,5 @@ public partial class MainWindow
     }
     private static string PolicyHash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 }
+
+#endif

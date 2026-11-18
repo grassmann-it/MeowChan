@@ -10,7 +10,7 @@ using Avalonia.VisualTree;
 
 namespace MeowChan.Desktop;
 
-public sealed record SectionDescriptor(string Id, string Title, Func<Control?> ResolveTarget, Action? Open = null);
+public sealed record SectionDescriptor(string Id, string Title, Func<Control?> ResolveTarget, Action? Open = null, Func<Control?>? ResolveFocus = null);
 
 /// <summary>Ephemeral navigation only: never owns or rebuilds a form or its draft.</summary>
 public sealed class SectionNavigationController : IDisposable
@@ -66,9 +66,14 @@ public sealed class SectionNavigationController : IDisposable
             if (point == null) { TargetUnavailable?.Invoke(); return; }
             double maximum = Math.Max(0, _scroll.Extent.Height - _scroll.Viewport.Height);
             _scroll.Offset = new Vector(_scroll.Offset.X, Math.Clamp(_scroll.Offset.Y + point.Value.Y, 0, maximum));
-            target.Focusable = true;
-            AutomationProperties.SetName(target, section.Title);
-            target.Focus(NavigationMethod.Directional);
+            Control focusTarget = section.ResolveFocus?.Invoke() ?? target;
+            if (!focusTarget.IsEffectivelyVisible) { TargetUnavailable?.Invoke(); return; }
+            focusTarget.Focusable = true;
+            // A plain text heading stays focusable for keyboard and screen-reader navigation, but a focus ring around it reads
+            // like an empty input; the scroll position already shows where the jump landed.
+            if (focusTarget is TextBlock) focusTarget.FocusAdorner = null;
+            AutomationProperties.SetName(focusTarget, section.Title);
+            focusTarget.Focus(NavigationMethod.Directional);
             Navigated?.Invoke();
         }, DispatcherPriority.Loaded);
     }

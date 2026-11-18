@@ -14,16 +14,45 @@ The adapter reads catalog `threads[]` and full thread `threads[0].posts[]`;
 post IDs are lossless decimal identities. `comment` is inert HTML. `files:null`
 is unknown, while `files:[]` explicitly supplies an empty attachment observation.
 Attachment IDs depend on post identity and slot, never names or redirect hosts.
-Hex MD5 is validated and converted to the SDK's 16-byte Base64 expectation.
+A stated hex MD5 is validated for format (a malformed value still fails the whole
+observation) but is not passed on: see "Integrity" below.
 `closed`, `endless` and `is_closed` are not treated as proven archive/end signals.
 
 The approved NW-01 contract preserves numeric `size` as `ProviderSizeHint` with
 its original JSON numeric spelling, provider label `Кб` and explicitly
 `Unspecified` precision. `ExpectedSize` remains null: no exact byte length or
-acceptance range is invented. The provider MD5 is still passed to the central
-strict integrity check; this adapter grants no mismatch exception. Experimental
-maturity is informational. New-source default-off activation is handled by the
-shared delivery/activation integration, not by Describe.
+acceptance range is invented. Experimental maturity is informational. New-source
+default-off activation is handled by the shared delivery/activation integration,
+not by Describe.
+
+## Integrity
+
+`ExpectedMd5` is always null (since 11.11.2026). Three live stability runs showed that for
+current 2ch files both the `md5` field and the Кб `size` describe a different file than the
+bytes 2ch serves; 2ch apparently re-encodes after upload. The MD5 is therefore not an
+integrity expectation. The stability contract (`docs/plugins/source-stability.md`, S2)
+treats 2ch like 7chan: `integrityBasis: "none"`, meaning the HTTP `Content-Length` equals
+the received bytes, the file decodes, and it reopens offline after a restart. The host's
+strict experimental lock for 2ch is unchanged; with no expectation there is nothing to
+grant or to mismatch.
+
+Consequences for archives made before this change: the attachment revision key hashes the
+reported metadata, so the first re-check of an already archived thread gives each
+attachment a new key. Each original is downloaded **once more** on that first re-check
+(into the same asset, no duplicate tile, nothing superseded); favorites and ratings are
+keyed by bytes and are unaffected; private media tags are carried over to the new key by
+the host (`MediaTagKeyCarryOver`) when the bytes are identical. The old tag assignment is
+kept next to the new one, so the tag manager counts distinct files, not assignments, and
+removing a tag from a file removes it under every key of that file (it cannot come back).
+A stop between the media commit and the tag write is repaired by a background pass after
+the next start (tagged threads only) and by the next capture of the thread. Threads that
+are no longer re-checked keep their old keys and stay readable unchanged.
+
+Stickers (`sticker` set, path `/stickers/{pack}/{name}`) are served outside the
+board's `src` tree and carry an empty `md5`. They become attachments on `.hk` with
+no checksum expectation; every other file still needs a board `src` path, and its
+`md5` field, when present, must be well-formed (an empty or malformed one fails) even
+though it is no longer compared.
 
 ## Evidence and limits
 
@@ -37,7 +66,7 @@ These are Python HTTP observations, not runtime/plugin-worker or download tests.
 Synthetic tests cover multiple attachments, null/empty files, escaping, foreign
 paths/endpoints, hash conversion, status/304/cancellation/size boundaries and
 lossless identities. The final approved size-hint/SHA1 mappings compiled and passed all **53 combined
-synthetic cases** on 2026-10-25, with no skips or errors. The focused run had two
+synthetic cases** on 2026-10-25 (the MD5 mapping in that run was replaced by the Integrity section above), with no skips or errors. The focused run had two
 nullable warnings in existing test assertions; plugin projects emitted none.
 `makaba-uboachan-focused-tests/binding03.json` outside the checkout binds source,
 TRX and log bytes. The earlier46-case run covered the temporary fail-closed

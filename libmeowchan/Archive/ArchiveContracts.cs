@@ -20,6 +20,10 @@ public sealed record CapturedAttachment(int Position, string? MediaId, string Va
     string? Url = null, string? OriginalFileName = null, string? PlannedPath = null,
     long? ExpectedSize = null, string? ExpectedMd5 = null, bool IsDeleted = false)
 {
+    /// <summary>Provider-reported pixel width. Null is retained for legacy or non-image captures.</summary>
+    public int? Width { get; init; }
+    /// <summary>Provider-reported pixel height. Null is retained for legacy or non-image captures.</summary>
+    public int? Height { get; init; }
     public string? ExpectedSha256 { get; init; }
     public string? ExpectedSha1 { get; init; }
     public MeowChan.Storage.MediaProviderSizeHint? ProviderSizeHint { get; init; }
@@ -53,7 +57,33 @@ public sealed record ArchiveThreadSummary(ResourceId Id, string Url, string Titl
     ThreadSourceState SourceState, bool CaptureEnabled, DateTimeOffset FirstSeenAt,
     DateTimeOffset? LastCapturedAt, int PostCount, long Revision);
 
-public sealed record ArchiveThreadPage(IReadOnlyList<ArchiveThreadSummary> Items, int TotalCount, int Offset);
+public sealed record ArchiveThreadPage(IReadOnlyList<ArchiveThreadSummary> Items, int TotalCount, int Offset)
+{
+    /// <summary>
+    /// For a relevance-sorted search with a text: the match tier of each item (parallel to <see cref="Items"/>); else null.
+    /// The tier is kept out of <see cref="ArchiveThreadSummary"/> so summaries stay comparable with fresh catalog reads.
+    /// </summary>
+    public IReadOnlyList<ArchiveSearchMatchTier>? MatchTiers { get; init; }
+
+    /// <summary>With <see cref="MatchTiers"/>: the number of matches of the whole result per tier, indexed by tier.</summary>
+    public IReadOnlyList<int>? MatchTierCounts { get; init; }
+
+    /// <summary>A page of an already frozen, ordered ranked result (tiers kept when the result has them).</summary>
+    internal static ArchiveThreadPage FromRanked(IReadOnlyList<ArchiveRankedThread> all, int offset, int limit, bool tiered)
+    {
+        ArchiveRankedThread[] page = all.Skip(offset).Take(limit).ToArray();
+        int[] counts = new int[3];
+        if (tiered) foreach (ArchiveRankedThread item in all) counts[(int)item.Tier!.Value]++;
+        return new ArchiveThreadPage(Array.AsReadOnly(page.Select(item => item.Summary).ToArray()), all.Count, offset)
+        {
+            MatchTiers = tiered ? Array.AsReadOnly(page.Select(item => item.Tier!.Value).ToArray()) : null,
+            MatchTierCounts = tiered ? Array.AsReadOnly(counts) : null
+        };
+    }
+}
+
+/// <summary>One frozen search match with its tier (null unless the search ranks by tier).</summary>
+internal sealed record ArchiveRankedThread(ArchiveThreadSummary Summary, ArchiveSearchMatchTier? Tier);
 
 /// <summary>Metadata captured before a thread is removed from the catalog. Media files remain the caller's responsibility.</summary>
 public sealed record ArchiveDeletedThread(ArchiveThreadSummary Summary, IReadOnlyList<string> MediaDirectories);
@@ -83,13 +113,22 @@ public sealed class ArchivedThreadView
     public IReadOnlyList<CapturedPost> GetPosts(int offset = 0, int limit = 100)
     {
         ArchiveValidation.ValidatePage(offset, limit);
-        return Array.AsReadOnly(_posts.Skip(offset).Take(limit).ToArray());
+        int count = offset >= _posts.Length ? 0 : Math.Min(limit, _posts.Length - offset);
+        return Array.AsReadOnly(count == 0 ? Array.Empty<CapturedPost>() : _posts.AsSpan(offset, count).ToArray());
     }
     /// <summary>Zero-based index in this immutable read, or -1 when the post was not captured.</summary>
     public int FindPostIndex(string postId)
     {
         ArgumentNullException.ThrowIfNull(postId);
-        return Array.FindIndex(_posts, post => post.PostId == postId);
+        // One lookup table per immutable read, built on first use: the reader asks per scroll and per quote.
+        return (_postIndex ??= new Lazy<Dictionary<string, int>>(BuildPostIndex)).Value.TryGetValue(postId, out int index) ? index : -1;
+    }
+    private Lazy<Dictionary<string, int>>? _postIndex;
+    private Dictionary<string, int> BuildPostIndex()
+    {
+        Dictionary<string, int> index = new(_posts.Length, StringComparer.Ordinal);
+        for (int position = 0; position < _posts.Length; position++) index.TryAdd(_posts[position].PostId, position); // First one wins, as before.
+        return index;
     }
     internal IReadOnlyList<CapturedPost> Posts => _posts;
 }
@@ -129,6 +168,8 @@ public static class ArchiveCaptureMerge
             {
                 if (attachment.IsDeleted && attachment.MediaId == null && merged.TryGetValue(attachment.Position, out CapturedAttachment? old))
                     merged[attachment.Position] = old with { IsDeleted = true };
+                else if (merged.TryGetValue(attachment.Position, out CapturedAttachment? oldAttachment))
+                    merged[attachment.Position] = PreserveDimensions(oldAttachment, attachment);
                 else merged[attachment.Position] = attachment;
             }
             // Null is an observation, not deletion of already known attachment metadata.
@@ -142,6 +183,18 @@ public static class ArchiveCaptureMerge
             Has(PostFieldPresence.Html) ? next.Html : previous.Html,
             Has(PostFieldPresence.IsDeleted) ? next.IsDeleted : previous.IsDeleted,
             attachments == null ? null : Array.AsReadOnly(attachments.ToArray()));
+    }
+
+    private static CapturedAttachment PreserveDimensions(CapturedAttachment previous, CapturedAttachment next)
+    {
+        // Dimensions are optional provider observations. A later legacy/partial capture must
+        // not erase dimensions already recorded for the same media occurrence; fresh values
+        // still replace them. Do not carry dimensions across a changed media identity.
+        if (!string.Equals(previous.MediaId, next.MediaId, StringComparison.Ordinal)
+            || !string.Equals(previous.Variant, next.Variant, StringComparison.Ordinal)
+            || !string.Equals(previous.Url, next.Url, StringComparison.Ordinal))
+            return next;
+        return next with { Width = next.Width ?? previous.Width, Height = next.Height ?? previous.Height };
     }
 
     internal static CapturedPost CopyPost(CapturedPost post)

@@ -42,7 +42,7 @@ internal static class ExperimentalActivationChecks
         await using DesktopSessionHost host = new(profile, providers: null,
             updateSessionFactory: (path, settings) => new UpdateSession(path, settings, http.Client(), disableEnvironment: () => "1"),
             pluginTransportFactory: http.Client);
-        MainWindow window = new(host);
+        await using MainWindow window = new(host);
         window.Show(parent);
         TaskCompletionSource<ExperimentalSourceActivationResult>? pending = null;
         string settings = Path.Combine(profile, "settings.json"), retainedSettings = settings + ".activation-retained";
@@ -68,11 +68,13 @@ internal static class ExperimentalActivationChecks
                 });
                 Task<ExperimentalActivationDecision?> result = modal.ShowDialog<ExperimentalActivationDecision?>(window);
                 modal.Width = modal.MinWidth; modal.Height = modal.MinHeight;
-                TextBlock warningStatus = C<TextBlock>(modal, "ActivationStatus");
+                // UX103 P7: the warning text scrolls in the dialog frame body; the failure has its
+                // own error strip outside it, hidden until a failure exists.
+                ScrollViewer warningBody = C<ScrollViewer>(modal, "DialogFrameBody");
                 void ObserveMinimumLayout(string stage)
                 {
-                    ScrollViewer? scroll = warningStatus.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
-                    var presenter = warningStatus.GetVisualAncestors().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
+                    ScrollViewer? scroll = warningBody;
+                    var presenter = warningBody.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
                     Console.WriteLine("EXPERIMENTAL_WARNING_MINIMUM_LAYOUT " + JsonSerializer.Serialize(new
                     {
                         stage, cell, requestedWidth = modal.MinWidth, requestedHeight = modal.MinHeight,
@@ -92,8 +94,8 @@ internal static class ExperimentalActivationChecks
                     // and its Click must wait for native client size and matching layout.
                     await Program.WaitUntilAsync(() =>
                     {
-                        var warningScroll = warningStatus.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
-                        var warningPresenter = warningStatus.GetVisualAncestors().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
+                        var warningScroll = warningBody;
+                        var warningPresenter = warningBody.GetVisualDescendants().OfType<Avalonia.Controls.Presenters.ScrollContentPresenter>().FirstOrDefault();
                         return modal.IsVisible && C<Button>(modal, "ActivationConfirm").IsEnabled
                         && warningScroll != null && warningPresenter != null
                         && Math.Abs(modal.ClientSize.Width - modal.MinWidth) <= 1
@@ -122,7 +124,9 @@ internal static class ExperimentalActivationChecks
                 await Program.WaitUntilAsync(() => C<TextBlock>(modal, "ActivationStatus").IsEffectivelyVisible
                     && C<Button>(modal, "ActivationConfirm").IsEnabled);
                 TextBlock partialStatus = C<TextBlock>(modal, "ActivationStatus");
-                ScrollViewer statusViewport = partialStatus.GetVisualAncestors().OfType<ScrollViewer>().First();
+                // UX103 P7: the error strip's own viewport was never templated while hidden, so
+                // take it from the logical tree; its presenter is read after natural layout below.
+                ScrollViewer statusViewport = (ScrollViewer)partialStatus.Parent!;
                 void ObservePartialLayout(string stage) => Console.WriteLine("EXPERIMENTAL_PARTIAL_LAYOUT " + JsonSerializer.Serialize(new
                 {
                     stage, cell, statusText = partialStatus.Text, statusBounds = partialStatus.Bounds.ToString(),
@@ -165,9 +169,22 @@ internal static class ExperimentalActivationChecks
                         && InWindow(modal, statusPresenter) && statusPresenter.IsMeasureValid && statusPresenter.IsArrangeValid
                         && partialStatus.IsMeasureValid && partialStatus.IsArrangeValid
                         && rect.Width > 0 && rect.Height > 0 && rect.X >= -1 && rect.Y >= -1
-                        && rect.Right <= statusPresenter.Bounds.Width + 1 && rect.Bottom <= statusPresenter.Bounds.Height + 1;
+                        && rect.Right <= statusPresenter.Bounds.Width + 1
+                        // UX103 P7: the failure lives in the fixed error strip, which scrolls on its own
+                        // (bounded height) instead of pushing the actions away. The whole text must be
+                        // inside the strip's scroll extent; its end is proven reachable below.
+                        && (rect.Bottom <= statusPresenter.Bounds.Height + 1
+                            || rect.Height <= statusViewport.Extent.Height + 1 && statusViewport.Extent.Height > statusViewport.Viewport.Height);
                 }
-                try { await Program.WaitUntilAsync(FullStatusVisible); }
+                try
+                {
+                    await Program.WaitUntilAsync(FullStatusVisible);
+                    Vector start = statusViewport.Offset;
+                    statusViewport.Offset = new Vector(start.X, Math.Max(0, statusViewport.Extent.Height - statusViewport.Viewport.Height));
+                    await Program.WaitUntilAsync(() => statusPresenter.IsArrangeValid && StatusRect().Bottom <= statusPresenter.Bounds.Height + 1);
+                    statusViewport.Offset = start;
+                    await Program.WaitUntilAsync(FullStatusVisible);
+                }
                 finally
                 {
                     Rect rect = StatusRect();
@@ -199,6 +216,7 @@ internal static class ExperimentalActivationChecks
                 { cell, actualScale = modal.RenderScaling, warningMinimum = modal.Bounds.ToString(), syntheticPartialSave = true, explicitRetryCalls = calls }));
             }
         }
+        Exception? failureBeforeCleanup = null;
         try
         {
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
@@ -356,18 +374,23 @@ internal static class ExperimentalActivationChecks
             Console.WriteLine("EXPERIMENTAL_ACTIVATION_GUI PASS: real URL controls, disabled no-work warning/cancel/Escape, explicit Host consent, deterministic worker metadata/media, mixed batch and strict later URL; EN/DE Dark/Light warning and synthetic partial/retry presentation at actual scale " + expectedScale
                 + ". Routed actions are synthetic; no physical/native input or live-source acceptance is claimed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (File.Exists(retainedSettings))
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                if (Directory.Exists(settings)) Directory.Delete(settings);
-                File.Move(retainedSettings, settings);
-            }
-            pending?.TrySetResult(new(ExperimentalSourceActivationStatus.GrantFailed, null, null, "Fixture cleanup"));
-            foreach (var modal in Dialogs().ToArray()) modal.Close();
-            window.Close();
-            await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Stopped);
-            Texts.SetLanguage(original.Language); Application.Current.RequestedThemeVariant = originalTheme;
+                if (File.Exists(retainedSettings))
+                {
+                    if (Directory.Exists(settings)) Directory.Delete(settings);
+                    File.Move(retainedSettings, settings);
+                }
+                pending?.TrySetResult(new(ExperimentalSourceActivationStatus.GrantFailed, null, null, "Fixture cleanup"));
+                foreach (var modal in Dialogs().ToArray()) modal.Close();
+                window.Close();
+                await window.DisposeAsync();
+                await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Stopped);
+                Texts.SetLanguage(original.Language); Application.Current.RequestedThemeVariant = originalTheme;
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
         }
     }
 
@@ -376,7 +399,7 @@ internal static class ExperimentalActivationChecks
     {
         TextBox input = C<TextBox>(window, "UrlInput");
         Button add = C<Button>(window, "AddUrlButton"), laterChoice = C<Button>(window, "PauseButton");
-        foreach (string scenario in new[] { "add-button", "later-focus", "later-null", "owner-hide" })
+        foreach (string scenario in new[] { "add-button", "later-focus", "later-null", "owner-hide", "text-away-back" })
         {
             input.Text = ThreadUrl;
             Require(input.Focus(), "The guarded cancel fixture could not focus its original URL editor.");
@@ -393,6 +416,13 @@ internal static class ExperimentalActivationChecks
                     if (scenario == "later-null") window.FocusManager!.Focus(null);
                 }
                 else if (scenario == "owner-hide") window.Hide();
+                else if (scenario == "text-away-back")
+                {
+                    // Editing away and back is a newer user decision: it permanently ends the focus return, even
+                    // though the text ends up exactly as submitted (what used to be proved on the Sources field).
+                    input.Text = ThreadUrl + "#later";
+                    input.Text = ThreadUrl;
+                }
             };
             Click(C<Button>(modal, "ActivationCancel"));
             await Program.WaitUntilAsync(() => !modal.IsVisible && add.IsEnabled);
@@ -409,6 +439,8 @@ internal static class ExperimentalActivationChecks
             else if (scenario == "later-null")
                 Require(laterChoiceFocused && window.FocusManager?.GetFocusedElement() == null && !input.IsFocused,
                     "Canceled admission reclaimed focus after a later choice subsequently moved to null.");
+            else if (scenario == "text-away-back")
+                Require(!input.IsFocused, "Canceled admission restored its input after the text was edited away and back.");
             else
             {
                 Require(!window.IsVisible && !input.IsFocused, "Canceled admission restored its input after the owner was hidden.");
@@ -418,222 +450,6 @@ internal static class ExperimentalActivationChecks
             Console.WriteLine("EXPERIMENTAL_CANCEL_FOCUS_GUARD " + JsonSerializer.Serialize(new
             { scenario, laterChoiceFocused, inputFocused = input.IsFocused, ownerVisible = window.IsVisible,
                 focusedName = (window.FocusManager?.GetFocusedElement() as Control)?.Name }));
-        }
-    }
-
-    private static async Task CheckSourcesModalFocusGuardsAsync(MainWindow window, SourcesPage sources,
-        DesktopSessionHost host, ApphostIntegrityProcessSmoke.FixtureHttp http)
-    {
-        TextBox editor = C<TextBox>(sources, "SourceUrlInput");
-        Button add = C<Button>(sources, "SourceAddButton"), laterChoice = C<Button>(sources, "SourcePluginButton");
-        ContentControl pageHost = C<ContentControl>(window, "SourcesPageHost");
-        bool RetainsExactControl(Control control) => window.IsActive && control.IsFocused
-            && ReferenceEquals(window.FocusManager?.GetFocusedElement(), control)
-            && control.IsEffectivelyEnabled && control.IsEffectivelyVisible && control.IsMeasureValid && control.IsArrangeValid
-            && ReferenceEquals(TopLevel.GetTopLevel(control), window) && InWindow(window, control);
-        foreach (string scenario in new[] { "add-button", "later-focus", "later-null", "owner-hide", "source-change", "detach", "text-away-back" })
-        {
-            sources.SelectSource(Source);
-            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
-            editor.Text = ThreadUrl; editor.BringIntoView();
-            Require(editor.Focus(), "The Sources modal guard fixture could not focus its actual editor.");
-            if (scenario == "add-button")
-                Require(add.Focus() && add.IsFocused, "The real Sources Add-button focus origin was not established before busy disable.");
-            bool ownerDeactivated = false, laterChoiceFocused = false, nullChoiceEstablished = false;
-            List<string> focusTransitions = new();
-            List<object> textClaimTransitions = new();
-            object? textFocusClaim = null;
-            bool textClaimInitiallyLive = false, textAwayStarted = false, textAwayCancelled = false, textBackCancelled = false;
-            bool textClaimStayedCancelled = true, nativeHistoricalEditorFocus = false, rejectedTextIntervalFocus = false;
-            const System.Reflection.BindingFlags claimFields = System.Reflection.BindingFlags.Instance
-                | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
-            Delegate? CurrentTextCancel() => typeof(SourcesPage).GetField("_cancelSubmitFocusRestore", claimFields)?.GetValue(sources) as Delegate;
-            object? ReadTextClaim(string name) => textFocusClaim?.GetType().GetField(name, claimFields)?.GetValue(textFocusClaim);
-            bool TextClaimCancelled() => textFocusClaim != null && CurrentTextCancel() == null
-                && ReadTextClaim("observing") is false && ReadTextClaim("newerInput") is true;
-            void ObserveTextClaim(string stage, object? eventSource = null, bool focusStack = false)
-            {
-                if (scenario != "text-away-back") return;
-                Delegate? cancel = CurrentTextCancel();
-                textFocusClaim ??= cancel?.Target;
-                var focused = window.FocusManager?.GetFocusedElement();
-                if (textAwayCancelled && !TextClaimCancelled()) textClaimStayedCancelled = false;
-                string? synchronousFocusStack = focusStack ? new System.Diagnostics.StackTrace(true).ToString() : null;
-                if (focusStack && textAwayStarted)
-                {
-                    int scopeFrame = synchronousFocusStack!.IndexOf("Avalonia.Input.FocusManager.SetFocusScope(", StringComparison.Ordinal);
-                    int activationFrame = synchronousFocusStack.IndexOf("Avalonia.Controls.WindowBase.HandleActivated(", StringComparison.Ordinal);
-                    bool nativeActivation = scopeFrame >= 0 && activationFrame > scopeFrame
-                        && !synchronousFocusStack.Contains("MeowChan.SourcesPage", StringComparison.Ordinal)
-                        && !synchronousFocusStack.Contains("RestoreInputOrAwaitOwnerActivation", StringComparison.Ordinal);
-                    bool exactNativeEditor = TextClaimCancelled() && nativeActivation && ReferenceEquals(eventSource, editor)
-                        && ReferenceEquals(focused, editor) && editor.IsFocused;
-                    nativeHistoricalEditorFocus |= exactNativeEditor;
-                    // Even a later null final state must not hide a transient
-                    // product restore or any unrelated focus after cancellation.
-                    rejectedTextIntervalFocus |= !exactNativeEditor;
-                }
-                textClaimTransitions.Add(new
-                {
-                    sequence = textClaimTransitions.Count, stage, editor.Text,
-                    ownerActive = window.IsActive, sources.IsBusy, editor.IsEnabled, editor.IsFocused,
-                    focusedType = focused?.GetType().FullName, focusedName = (focused as Control)?.Name,
-                    focusedIsEditor = ReferenceEquals(focused, editor), eventSourceType = eventSource?.GetType().FullName,
-                    eventSourceName = (eventSource as Control)?.Name, cancelDelegatePresent = cancel != null,
-                    claimType = textFocusClaim?.GetType().FullName,
-                    availableClaimFields = textFocusClaim?.GetType().GetFields(claimFields).Select(field => field.Name).ToArray(),
-                    observing = ReadTextClaim("observing"), newerInput = ReadTextClaim("newerInput"),
-                    admissionModalPresent = ReadTextClaim("admissionModal") != null, sawAdmissionModal = ReadTextClaim("sawAdmissionModal"),
-                    modalOwnerDeactivated = ReadTextClaim("modalOwnerDeactivated"),
-                    awaitingAdmissionOwnerActivation = ReadTextClaim("awaitingAdmissionOwnerActivation"),
-                    ownerActivationPending = ReadTextClaim("ownerActivation") != null,
-                    // The synchronous focus stack distinguishes native activation
-                    // focus from a product callback's explicit editor.Focus().
-                    synchronousFocusStack,
-                    passiveReflectionOnly = true
-                });
-            }
-            void ObserveTextBeforeProduct(object? sender, AvaloniaPropertyChangedEventArgs args)
-            { if (args.Property == TextBox.TextProperty) ObserveTextClaim("text-property-before-product"); }
-            void ObserveTextAfterProduct(object? sender, AvaloniaPropertyChangedEventArgs args)
-            { if (args.Property == TextBox.TextProperty) ObserveTextClaim("text-property-after-product"); }
-            string FocusState() => $"editor={editor.IsFocused};add={add.IsFocused};current={(window.FocusManager?.GetFocusedElement() as Control)?.Name};busy={sources.IsBusy};owner-active={window.IsActive}";
-            void ObserveDeactivated(object? sender, EventArgs args)
-            { ownerDeactivated = true; focusTransitions.Add("owner-deactivated:" + FocusState()); ObserveTextClaim("owner-deactivated-before-product"); }
-            void ObserveActivated(object? sender, EventArgs args)
-            { focusTransitions.Add("owner-activated:" + FocusState()); ObserveTextClaim("owner-activated-before-product"); }
-            void ObserveFocus(object? sender, Avalonia.Input.FocusChangedEventArgs args)
-            { focusTransitions.Add("got-focus:" + (args.Source as Control)?.Name + ";" + FocusState()); ObserveTextClaim("owner-got-focus", args.Source, focusStack: true); }
-            void ObserveBusy(object? sender, EventArgs args)
-            { focusTransitions.Add("busy-changed:" + FocusState()); ObserveTextClaim("busy-changed"); }
-            void ObserveEnabled(object? sender, AvaloniaPropertyChangedEventArgs args)
-            {
-                if (args.Property == InputElement.IsEnabledProperty)
-                    focusTransitions.Add($"enabled-changed:{(sender as Control)?.Name};editor-enabled={editor.IsEnabled};add-enabled={add.IsEnabled};" + FocusState());
-            }
-            focusTransitions.Add("before-submit:" + FocusState());
-            window.Activated += ObserveActivated;
-            window.AddHandler(InputElement.GotFocusEvent, ObserveFocus, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
-            sources.BusyChanged += ObserveBusy;
-            editor.PropertyChanged += ObserveEnabled; add.PropertyChanged += ObserveEnabled;
-            if (scenario == "text-away-back") editor.PropertyChanged += ObserveTextBeforeProduct;
-            window.Deactivated += ObserveDeactivated;
-            try
-            {
-                if (scenario == "add-button") Click(add);
-                else editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-                ExperimentalActivationDialog modal = await WaitDialogAsync();
-                if (scenario == "text-away-back") editor.PropertyChanged += ObserveTextAfterProduct;
-                ObserveTextClaim("modal-open");
-                modal.Activate();
-                await Program.WaitUntilAsync(() => modal.IsActive && !window.IsActive && ownerDeactivated);
-                modal.Closed += (_, _) =>
-                {
-                    focusTransitions.Add("modal-closed:" + FocusState());
-                    ObserveTextClaim("modal-closed-after-product");
-                    if (scenario is "later-focus" or "later-null")
-                    {
-                        laterChoiceFocused = laterChoice.Focus() && laterChoice.IsFocused;
-                        if (scenario == "later-null")
-                        {
-                            window.FocusManager!.Focus(null);
-                            nullChoiceEstablished = window.FocusManager.GetFocusedElement() == null;
-                            focusTransitions.Add("null-choice-established=" + nullChoiceEstablished + ";" + FocusState());
-                            Console.WriteLine("EXPERIMENTAL_SOURCES_NULL_PREMISE " + JsonSerializer.Serialize(new
-                            { scenario, nullChoiceEstablished, laterChoiceFocused, ownerActive = window.IsActive,
-                                focusedName = (window.FocusManager.GetFocusedElement() as Control)?.Name }));
-                        }
-                    }
-                    else if (scenario == "owner-hide") window.Hide();
-                    else if (scenario == "source-change") { sources.SelectSource("kohlchan"); sources.SelectSource(Source); }
-                    else if (scenario == "detach") { pageHost.Content = null; pageHost.Content = sources; }
-                    else if (scenario == "text-away-back")
-                    {
-                        ObserveTextClaim("before-text-away");
-                        textClaimInitiallyLive = textFocusClaim != null && ReferenceEquals(CurrentTextCancel()?.Target, textFocusClaim)
-                            && ReadTextClaim("observing") is true && ReadTextClaim("newerInput") is false;
-                        textAwayStarted = true;
-                        editor.Text = ThreadUrl + "#later";
-                        textAwayCancelled = TextClaimCancelled();
-                        ObserveTextClaim("after-text-away-before-text-back");
-                        editor.Text = ThreadUrl;
-                        textBackCancelled = TextClaimCancelled();
-                        ObserveTextClaim("after-text-back");
-                    }
-                };
-                Click(C<Button>(modal, "ActivationCancel"));
-                await Program.WaitUntilAsync(() => !modal.IsVisible && !sources.IsBusy && editor.IsEnabled);
-                if (scenario != "owner-hide") await Program.WaitUntilAsync(() => window.IsActive
-                    && editor.IsMeasureValid && editor.IsArrangeValid && add.IsMeasureValid && add.IsArrangeValid
-                    && (scenario != "add-button" || RetainsExactControl(editor) || RetainsExactControl(add)));
-                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
-                Require(editor.Text == ThreadUrl && http.Requests.IsEmpty && http.Unexpected == 0
-                    && host.GetThreadWorkSnapshots().Count == 0 && !Policy(host).IsActive && !Policy(host).IsGranted,
-                    "A canceled Sources modal changed policy, original input or work.");
-                Console.WriteLine("EXPERIMENTAL_SOURCES_FOCUS_DIAGNOSIS " + JsonSerializer.Serialize(new
-                {
-                    scenario, ownerDeactivated, laterChoiceFocused, nullChoiceEstablished, editorFocused = editor.IsFocused, addFocused = add.IsFocused,
-                    editorKeyboardFocusWithin = editor.IsKeyboardFocusWithin, addKeyboardFocusWithin = add.IsKeyboardFocusWithin,
-                    focusedType = window.FocusManager?.GetFocusedElement()?.GetType().FullName,
-                    focusedName = (window.FocusManager?.GetFocusedElement() as Control)?.Name,
-                    ownerActive = window.IsActive, ownerVisible = window.IsVisible, ownerEnabled = window.IsEnabled,
-                    editorEnabled = editor.IsEnabled, addEnabled = add.IsEnabled, sourcesBusy = sources.IsBusy,
-                    originalText = ThreadUrl, currentText = editor.Text,
-                    sourceHeading = C<TextBlock>(sources, "SourceHeading").Text,
-                    requests = http.Requests.Count, watches = host.GetThreadWorkSnapshots().Count,
-                    policyActive = Policy(host).IsActive, policyGranted = Policy(host).IsGranted,
-                    transitions = focusTransitions.ToArray(), textClaimTransitions = textClaimTransitions.ToArray()
-                }));
-                Program.CaptureWindow(window, $"smoke-experimental-sources-focus-{scenario}-before-guard.png");
-                if (scenario == "add-button")
-                    Require(RetainsExactControl(editor) || RetainsExactControl(add),
-                        "Sources Add-button cancel lost both its retained URL editor and its actual original active trigger.");
-                else if (scenario == "later-focus")
-                    Require(laterChoiceFocused && laterChoice.IsFocused && !editor.IsFocused,
-                        "Sources modal cancel stole a later deliberate control focus.");
-                else if (scenario == "later-null")
-                    Require(laterChoiceFocused && nullChoiceEstablished && !editor.IsFocused
-                        && !ReferenceEquals(window.FocusManager?.GetFocusedElement(), editor)
-                        && (window.FocusManager?.GetFocusedElement() == null || RetainsExactControl(laterChoice)),
-                        "Sources modal cancel overrode a later null choice with its editor or an unrelated/inactive focus target.");
-                else if (scenario == "text-away-back")
-                {
-                    Require(textClaimInitiallyLive && textAwayCancelled && textBackCancelled
-                        && textClaimStayedCancelled && TextClaimCancelled(),
-                        "Text-away/back did not synchronously and permanently cancel its exact original live submit claim.");
-                    Require(!rejectedTextIntervalFocus && window.IsActive
-                        && (window.FocusManager?.GetFocusedElement() == null && !editor.IsFocused
-                            || RetainsExactControl(editor) && nativeHistoricalEditorFocus),
-                        "Text-away/back allowed an unproved, unrelated or product-driven focus after its claim was canceled.");
-                }
-                else
-                    Require(!editor.IsFocused, "Sources restored focus after a later " + scenario + " invalidated the submit scope.");
-                if (scenario == "owner-hide")
-                {
-                    Require(!window.IsVisible, "Sources modal cancellation reopened a deliberately hidden owner.");
-                    window.Show(); window.Activate();
-                    await Program.WaitUntilAsync(() => window.IsVisible && window.IsActive);
-                }
-                Console.WriteLine("EXPERIMENTAL_SOURCES_FOCUS_GUARD " + JsonSerializer.Serialize(new
-                { scenario, ownerDeactivated, laterChoiceFocused, editorFocused = editor.IsFocused,
-                    ownerActive = window.IsActive, focusedName = (window.FocusManager?.GetFocusedElement() as Control)?.Name }));
-            }
-            finally
-            {
-                if (scenario == "text-away-back")
-                {
-                    ObserveTextClaim("probe-finally-before-observer-cleanup");
-                    Console.WriteLine("EXPERIMENTAL_SOURCES_TEXT_CLAIM_DIAGNOSIS " + JsonSerializer.Serialize(new
-                    { scenario, textClaimTransitions = textClaimTransitions.ToArray() }));
-                }
-                editor.PropertyChanged -= ObserveTextBeforeProduct;
-                editor.PropertyChanged -= ObserveTextAfterProduct;
-                window.Deactivated -= ObserveDeactivated;
-                window.Activated -= ObserveActivated;
-                window.RemoveHandler(InputElement.GotFocusEvent, ObserveFocus);
-                sources.BusyChanged -= ObserveBusy;
-                editor.PropertyChanged -= ObserveEnabled; add.PropertyChanged -= ObserveEnabled;
-            }
         }
     }
 
@@ -648,9 +464,10 @@ internal static class ExperimentalActivationChecks
         await using DesktopSessionHost host = new(profile, providers: null,
             updateSessionFactory: (path, settings) => new UpdateSession(path, settings, http.Client(), disableEnvironment: () => "1"),
             pluginTransportFactory: http.Client);
-        MainWindow window = new(host);
+        await using MainWindow window = new(host);
         window.Show(owner);
         string settings = Path.Combine(profile, "settings.json"), retainedSettings = settings + ".edge-retained";
+        Exception? failureBeforeCleanup = null;
         try
         {
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(45));
@@ -672,158 +489,81 @@ internal static class ExperimentalActivationChecks
                 await Program.WaitUntilAsync(() => !modal.IsVisible);
             }
 
-            // Submit through the real Sources page, including its owner-deactivation
-            // guard. Record actual focus separately: native modal restoration and
-            // physical keyboard/IME acceptance are not inferred from routed Enter.
-            window.FindControl<MenuItem>("SourcesMenuItem")!.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(MenuItem.ClickEvent));
+            // The Sources page admits nothing itself any more: its button hands over to Downloads and focuses the URL
+            // field there. Experimental activation hangs off SubmitInputAsync, so the owner-deactivation observation
+            // that used to run on the Sources field now runs on the Downloads field that button leads to. Record actual
+            // focus separately: native modal restoration and physical keyboard/IME acceptance are not inferred from routed Enter.
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
             SourcesPage sources = (SourcesPage)C<ContentControl>(window, "SourcesPageHost").Content!;
+            // SelectSource is a silent no-op until the page has loaded its rows, and the page then falls back to
+            // its first row. Wait for the real condition (the source row exists), then require the selection.
+            const System.Reflection.BindingFlags pageFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            await Program.WaitUntilAsync(() => typeof(SourcesPage).GetField("_rows", pageFlags)!.GetValue(sources)
+                is IReadOnlyList<SourceRow> rows && rows.Any(row => row.Id == Source));
             sources.SelectSource(Source);
             await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
-            TextBox sourceInput = C<TextBox>(sources, "SourceUrlInput");
-            sourceInput.Text = ThreadUrl; sourceInput.BringIntoView();
-            Require(sourceInput.Focus(), "The productive Sources editor could not receive focus before its modal.");
-            bool sourceOwnerDeactivated = false;
-            bool sourceModalClosed = false;
-            object? focusClaim = null;
-            List<object> sourceTransitions = new();
-            const System.Reflection.BindingFlags privateFields = System.Reflection.BindingFlags.Instance
-                | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
-            object? PageField(string name) => typeof(SourcesPage).GetField(name, privateFields)?.GetValue(sources);
-            object? ClaimField(string name) => focusClaim?.GetType().GetField(name, privateFields)?.GetValue(focusClaim);
-            void ObserveSource(string stage, object? eventSource = null, object? originalSource = null)
-            {
-                // Read only the current exact submit closure. Retain it after the
-                // product clears its delegate so cancellation remains observable.
-                Delegate? cancel = PageField("_cancelSubmitFocusRestore") as Delegate;
-                focusClaim ??= cancel?.Target;
-                var focused = window.FocusManager?.GetFocusedElement();
-                Window? claimedModal = ClaimField("admissionModal") as Window;
-                bool? observing = ClaimField("observing") as bool?;
-                bool? newerInput = ClaimField("newerInput") as bool?;
-                string guardPrediction = stage.StartsWith("owner-got-focus", StringComparison.Ordinal)
-                    ? "OnNewFocus unconditionally cancels while handler is attached"
-                    : stage.StartsWith("owner-deactivated", StringComparison.Ordinal) && claimedModal == null
-                        ? "OnOwnerDeactivated cancels if admissionModal is null"
-                        : "no event cancellation inferred";
-                sourceTransitions.Add(new
-                {
-                    sequence = sourceTransitions.Count, stage, sourceModalClosed,
-                    focusedType = focused?.GetType().FullName, focusedName = (focused as Control)?.Name,
-                    focusedIsEditor = ReferenceEquals(focused, sourceInput), sourceInput.IsFocused,
-                    eventSourceType = eventSource?.GetType().FullName, eventSourceName = (eventSource as Control)?.Name,
-                    originalSourceType = originalSource?.GetType().FullName, originalSourceName = (originalSource as Control)?.Name,
-                    ownerActive = window.IsActive, ownerVisible = window.IsVisible, ownerEnabled = window.IsEnabled,
-                    editorEnabled = sourceInput.IsEnabled, editorEffectiveEnabled = sourceInput.IsEffectivelyEnabled,
-                    editorVisible = sourceInput.IsEffectivelyVisible, sourceInput.IsMeasureValid, sourceInput.IsArrangeValid,
-                    editorBounds = sourceInput.Bounds.ToString(), sources.IsBusy, sourceInput.Text,
-                    selectedId = PageField("_selectedId") as string, selectionRevision = PageField("_sourceSelectionRevision"),
-                    claimType = focusClaim?.GetType().FullName, cancelDelegatePresent = cancel != null,
-                    claimFields = focusClaim?.GetType().GetFields(privateFields).Select(field => field.Name).ToArray(),
-                    observing, newerInput, sawAdmissionModal = ClaimField("sawAdmissionModal"),
-                    admissionModalPresent = claimedModal != null, admissionModalVisible = claimedModal?.IsVisible,
-                    admissionModalActive = claimedModal?.IsActive, ownerActivationPending = ClaimField("ownerActivation") != null,
-                    guardPrediction, diagnosticInferenceOnly = true
-                });
-            }
-            void ObserveDeactivation(object? sender, EventArgs args)
-            { sourceOwnerDeactivated = true; ObserveSource("owner-deactivated-before-product"); }
-            void ObserveActivation(object? sender, EventArgs args) => ObserveSource("owner-activated-before-product");
-            void ObserveFocus(object? sender, FocusChangedEventArgs args) => ObserveSource("owner-got-focus-before-product", args.Source,
-                args.GetType().GetProperty("OriginalSource")?.GetValue(args));
-            void ObservePostFocus(object? sender, FocusChangedEventArgs args) => ObserveSource("owner-got-focus-after-product", args.Source,
-                args.GetType().GetProperty("OriginalSource")?.GetValue(args));
-            void ObservePostDeactivation(object? sender, EventArgs args) => ObserveSource("owner-deactivated-after-product");
-            void ObserveBusy(object? sender, EventArgs args) => ObserveSource("busy-changed");
-            void ObserveEditorProperty(object? sender, AvaloniaPropertyChangedEventArgs args)
-            {
-                if (args.Property == InputElement.IsEnabledProperty || args.Property == TextBox.TextProperty)
-                    ObserveSource("editor-property:" + args.Property.Name);
-            }
-            window.Deactivated += ObserveDeactivation;
-            window.Activated += ObserveActivation;
-            window.AddHandler(InputElement.GotFocusEvent, ObserveFocus, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
-            sources.BusyChanged += ObserveBusy;
-            sourceInput.PropertyChanged += ObserveEditorProperty;
-            ObserveSource("before-submit");
+            Require(typeof(SourcesPage).GetField("_selectedId", pageFlags)!.GetValue(sources) as string == Source,
+                "The Sources page did not select the experimental source before its hand-off.");
+            Button handoff = C<Button>(sources, "SourceAddToDownloadsButton");
+            Require(handoff.IsEffectivelyEnabled, "The Sources hand-off to Downloads is not available for the experimental source.");
+            Click(handoff);
+            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads && input.IsFocused);
+            Require(string.IsNullOrEmpty(input.Text) && http.Requests.IsEmpty && host.GetThreadWorkSnapshots().Count == 0
+                && !Policy(host).IsActive && !Policy(host).IsGranted,
+                "The Sources hand-off prefilled the Downloads field or changed policy, requests or work before any link was entered.");
+            input.Text = ThreadUrl; input.BringIntoView();
+            Require(input.Focus(), "The Downloads editor reached from Sources could not receive focus before its modal.");
+            bool handoffOwnerDeactivated = false;
+            void ObserveHandoffDeactivation(object? sender, EventArgs args) => handoffOwnerDeactivated = true;
+            window.Deactivated += ObserveHandoffDeactivation;
             try
             {
-                sourceInput.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
-                ExperimentalActivationDialog sourceModal = await WaitDialogAsync();
-                window.AddHandler(InputElement.GotFocusEvent, ObservePostFocus, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
-                window.Deactivated += ObservePostDeactivation;
-                sourceModal.Closing += (_, args) => ObserveSource("modal-closing:cancel=" + args.Cancel);
-                sourceModal.Closed += (_, _) => { sourceModalClosed = true; ObserveSource("modal-closed-after-product"); };
-                sourceModal.Deactivated += (_, _) => ObserveSource("modal-deactivated-after-product");
-                ObserveSource("modal-open");
-                Require(sources.IsBusy && !sourceInput.IsEnabled, "The productive Sources submit did not keep its busy input guard during the modal.");
+                input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+                ExperimentalActivationDialog handoffModal = await WaitDialogAsync();
                 // This follow-up must traverse the actual native Window events;
                 // a rapid routed Cancel before WM activation cannot prove them.
-                sourceModal.Activate();
+                handoffModal.Activate();
                 try
                 {
-                    await Program.WaitUntilAsync(() => sourceModal.IsActive && !window.IsActive && sourceOwnerDeactivated);
+                    await Program.WaitUntilAsync(() => handoffModal.IsActive && !window.IsActive && handoffOwnerDeactivated);
                 }
                 finally
                 {
-                    Console.WriteLine("EXPERIMENTAL_SOURCES_ACTIVE_MODAL_TRANSITION " + JsonSerializer.Serialize(new
-                    { modalActive = sourceModal.IsActive, ownerActive = window.IsActive, sourceOwnerDeactivated,
-                        modalVisible = sourceModal.IsVisible, editorFocused = sourceInput.IsFocused,
-                        actualScale = sourceModal.RenderScaling, nativeWindowEventsOnly = true }));
-                    Program.CaptureWindow(sourceModal, $"smoke-experimental-{scale}-sources-active-modal-before-cancel.png");
+                    Console.WriteLine("EXPERIMENTAL_HANDOFF_ACTIVE_MODAL_TRANSITION " + JsonSerializer.Serialize(new
+                    { modalActive = handoffModal.IsActive, ownerActive = window.IsActive, handoffOwnerDeactivated,
+                        modalVisible = handoffModal.IsVisible, editorFocused = input.IsFocused,
+                        actualScale = handoffModal.RenderScaling, nativeWindowEventsOnly = true }));
+                    Program.CaptureWindow(handoffModal, $"smoke-experimental-{scale}-handoff-active-modal-before-cancel.png");
                 }
-                Click(C<Button>(sourceModal, "ActivationCancel"));
-                await Program.WaitUntilAsync(() => !sourceModal.IsVisible && !sources.IsBusy && sourceInput.IsEnabled);
-                ObserveSource("before-owner-editor-readiness");
+                Click(C<Button>(handoffModal, "ActivationCancel"));
+                await Program.WaitUntilAsync(() => !handoffModal.IsVisible && add.IsEnabled);
                 try
                 {
-                    // Strengthen the same existing 5s owner-ready phase; an
-                    // active owner alone does not prove the Enter focus contract.
-                    await Program.WaitUntilAsync(() => window.IsActive && sourceInput.IsFocused
-                        && ReferenceEquals(window.FocusManager?.GetFocusedElement(), sourceInput)
-                        && sourceInput.IsEffectivelyEnabled && sourceInput.IsEffectivelyVisible
-                        && sourceInput.IsMeasureValid && sourceInput.IsArrangeValid
-                        && ReferenceEquals(TopLevel.GetTopLevel(sourceInput), window) && InWindow(window, sourceInput));
+                    await Program.WaitUntilAsync(() => window.IsActive && input.IsFocused
+                        && ReferenceEquals(window.FocusManager?.GetFocusedElement(), input)
+                        && input.IsEffectivelyEnabled && input.IsEffectivelyVisible
+                        && input.IsMeasureValid && input.IsArrangeValid
+                        && ReferenceEquals(TopLevel.GetTopLevel(input), window) && InWindow(window, input));
                 }
                 finally
                 {
-                    ObserveSource("after-owner-editor-readiness-before-capture");
-                    Console.WriteLine("EXPERIMENTAL_SOURCES_ENTER_DIAGNOSIS " + JsonSerializer.Serialize(new
-                    { sourceOwnerDeactivated, transitions = sourceTransitions.ToArray(),
+                    Console.WriteLine("EXPERIMENTAL_HANDOFF_ENTER_DIAGNOSIS " + JsonSerializer.Serialize(new
+                    { handoffOwnerDeactivated, editorFocused = input.IsFocused, ownerActive = window.IsActive,
+                        focusedName = (window.FocusManager?.GetFocusedElement() as Control)?.Name,
                         requests = http.Requests.Count, unexpected = http.Unexpected, watches = host.GetThreadWorkSnapshots().Count,
-                        policyActive = Policy(host).IsActive, policyGranted = Policy(host).IsGranted,
-                        originalSourcePropertyAvailable = typeof(FocusChangedEventArgs).GetProperty("OriginalSource") != null,
-                        passiveReflectionOnly = true }));
-                    // Capture updates layout, so it follows the passive oracle or
-                    // its hard timeout and cannot satisfy that oracle retroactively.
-                    Program.CaptureWindow(window, $"smoke-experimental-{scale}-sources-enter-before-focus-guard.png");
+                        policyActive = Policy(host).IsActive, policyGranted = Policy(host).IsGranted }));
+                    Program.CaptureWindow(window, $"smoke-experimental-{scale}-handoff-enter-before-focus-guard.png");
                 }
                 await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
-                Require(sourceInput.Text == ThreadUrl && !Policy(host).IsActive && !Policy(host).IsGranted
+                Require(input.Text == ThreadUrl && !Policy(host).IsActive && !Policy(host).IsGranted
                     && http.Requests.IsEmpty && host.GetThreadWorkSnapshots().Count == 0,
-                    "The Sources modal cancel changed its retained text, policy or work.");
-                Require(sourceOwnerDeactivated && window.IsActive && sourceInput.IsFocused
-                    && ReferenceEquals(window.FocusManager?.GetFocusedElement(), sourceInput),
-                    "Sources did not restore its retained editor after the actual owned-modal deactivation/cancel transition.");
-                Program.CaptureWindow(window, $"smoke-experimental-{scale}-sources-modal-focus.png");
-                Console.WriteLine("EXPERIMENTAL_SOURCES_MODAL_OBSERVATION " + JsonSerializer.Serialize(new
-                { sourceOwnerDeactivated, editorFocused = sourceInput.IsFocused, ownerActive = window.IsActive,
-                    focusedControl = (window.FocusManager?.GetFocusedElement() as Control)?.Name,
-                    focusRequirementClosed = sourceInput.IsFocused, routedInputOnly = true }));
+                    "The Downloads modal cancel after the Sources hand-off changed its retained text, policy or work.");
+                Require(handoffOwnerDeactivated && window.IsActive && input.IsFocused
+                    && ReferenceEquals(window.FocusManager?.GetFocusedElement(), input),
+                    "Downloads did not restore its retained editor after the actual owned-modal deactivation/cancel transition.");
+                Program.CaptureWindow(window, $"smoke-experimental-{scale}-handoff-modal-focus.png");
             }
-            finally
-            {
-                ObserveSource("probe-finally-before-detach");
-                Console.WriteLine("EXPERIMENTAL_SOURCES_ENTER_FINAL_DIAGNOSIS " + JsonSerializer.Serialize(new
-                { sourceOwnerDeactivated, transitions = sourceTransitions.ToArray(), passiveReflectionOnly = true }));
-                window.Deactivated -= ObserveDeactivation;
-                window.Deactivated -= ObservePostDeactivation;
-                window.Activated -= ObserveActivation;
-                window.RemoveHandler(InputElement.GotFocusEvent, ObserveFocus);
-                window.RemoveHandler(InputElement.GotFocusEvent, ObservePostFocus);
-                sources.BusyChanged -= ObserveBusy;
-                sourceInput.PropertyChanged -= ObserveEditorProperty;
-            }
-            await CheckSourcesModalFocusGuardsAsync(window, sources, host, http);
+            finally { window.Deactivated -= ObserveHandoffDeactivation; }
             Click(C<Button>(window, "DownloadsNavigationButton"));
 
             // Invalidate the selected delivered build while its actual URL modal
@@ -914,6 +654,13 @@ internal static class ExperimentalActivationChecks
             Require(stopping.IsVisible && host.State == DesktopSessionState.Stopped, "Shutdown did not leave the captured modal testable.");
             stopping.Closed += (_, _) => window.Close();
             await RejectStaleAsync(stopping);
+            // StopAsync above sealed the profile's final writes, so the window's own shutdown cannot confirm its
+            // preferences. By design (MainWindow.CloseApplicationAsync) it then leaves an inert, disposed window
+            // for acknowledgement and the SECOND close request exits directly. Wait for that settled state.
+            const System.Reflection.BindingFlags shellFlags = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic;
+            bool Shell(string field) => (bool)typeof(MainWindow).GetField(field, shellFlags)!.GetValue(window)!;
+            await Program.WaitUntilAsync(() => !window.IsVisible || Shell("_allowClose") && !Shell("_shutdownRunning"));
+            if (window.IsVisible) window.Close();
             await Program.WaitUntilAsync(() => !window.IsVisible);
             Require(!input.IsFocused, "A late canceled modal restored focus while its owner was closing.");
             Require((await host.Plugins.ProfileStore.ReadAsync()).Revision == saved.Revision
@@ -923,17 +670,22 @@ internal static class ExperimentalActivationChecks
                 "Late confirmation after real shutdown changed durable consent or redirected into the other session.");
             Console.WriteLine("EXPERIMENTAL_OPEN_DIALOG_EDGES PASS: real selected-build invalidation, foreign-Host target rejection, existing strict Watch during partial consent and real StopAsync before late confirm; no in-place owner/session replacement or native-focus acceptance is claimed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (File.Exists(retainedSettings))
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                if (Directory.Exists(settings)) Directory.Delete(settings);
-                File.Move(retainedSettings, settings);
-            }
-            foreach (var modal in Dialogs().ToArray()) modal.Close();
-            window.Close();
-            await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
-            await Program.WaitUntilAsync(() => !window.IsVisible);
+                if (File.Exists(retainedSettings))
+                {
+                    if (Directory.Exists(settings)) Directory.Delete(settings);
+                    File.Move(retainedSettings, settings);
+                }
+                foreach (var modal in Dialogs().ToArray()) modal.Close();
+                window.Close();
+                await window.DisposeAsync();
+                await host.StopAsync().WaitAsync(TimeSpan.FromSeconds(45));
+                await Program.WaitUntilAsync(() => !window.IsVisible);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ExperimentalActivationChecks: " + exception));
         }
     }
 

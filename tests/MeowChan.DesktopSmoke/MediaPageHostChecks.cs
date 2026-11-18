@@ -5,6 +5,8 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -22,8 +24,9 @@ internal static partial class MediaPageChecks
     {
         new Config { DownloadsPaused = true, SaveUrlsOnExit = false, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Simple" }.SaveConfig(profile);
         await SeedAsync(profile);
-        DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
-        MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        await using DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
+        await using MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        Exception? failureBeforeCleanup = null;
         try
         {
             shell.Show(owner);
@@ -58,8 +61,8 @@ internal static partial class MediaPageChecks
             async Task OpenMenuAndEditTagsAsync()
             {
                 page.Grid.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
-                MenuItem edit = page.Grid.ContextMenu!.Items.OfType<MenuItem>().Single(item => item.Header as string == Texts.T("media.tags.edit"));
-                Require(edit.IsEnabled, "Edit media tags must be offered for a bound tile.");
+                MenuItem edit = page.Grid.ContextMenu!.Items.OfType<MenuItem>().Single(item => item.Header as string == CommandCatalog.Label("media.rating.edit"));
+                Require(edit.IsEnabled, "Rate and tag must be offered for a bound tile.");
                 // A real pointer click on the entry: it runs the command and then closes the menu like a user's click does.
                 await UntilAsync(() => edit.IsEffectivelyVisible && TopLevel.GetTopLevel(edit) != null);
                 TopLevel root = TopLevel.GetTopLevel(edit)!;
@@ -80,6 +83,10 @@ internal static partial class MediaPageChecks
             Require(page.Grid.SelectedItem is MediaLibraryTileRow { Entry.PostId: "100" }, "The click did not select A's bound tile.");
             Require(Tags("100") == string.Empty, "The bound tile must start without media tags.");
             await OpenMenuAndEditTagsAsync();
+            // TP3 (E5): "Tag…" opens the quick tag popover on the tile; "Advanced…" in it opens the dialog for the same file.
+            await UntilAsync(() => shell.MediaPageTagPopover is { IsOpen: true, Surface: not null });
+            Require(shell.MediaPageTagWindow == null, "The right-click entry opened the dialog instead of the popover.");
+            shell.MediaPageTagPopover!.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => shell.MediaPageTagWindow?.IsVisible == true);
             MediaTagDialog dialog = shell.MediaPageTagWindow!;
             PrivateMediaTagTarget target = MediaLibraryFilterEngine.TagTarget(Row("100").Entry)!;
@@ -89,8 +96,8 @@ internal static partial class MediaPageChecks
             dialog.Input.Text = "from_page";
             dialog.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
             await IdleAsync(dialog);
-            Button offered = dialog.AvailablePanel.Children.OfType<Button>().Single(button => (button.Content as TextBlock)?.Text == "+ existing" || button.Content?.ToString() == "+ existing");
-            offered.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            TagToggleRow offered = await GalleryMediaTagChecks.PressSpaceAsync(dialog, "existing");
+            Require(offered.State == TagToggleState.All, "Space did not add the existing tag.");
             await IdleAsync(dialog);
             Require(Row("100").State!.MediaTags.Count == 0, "The tile must not change while the dialog is still open.");
             dialog.Input.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
@@ -117,7 +124,7 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => RefusalCount() == 1);
             Require(Refusals().Single().Summary == Texts.T("media.galleryFailed"), "A changed file is refused with the failure notice: " + Refusals().Single().Summary);
             Require(shell.FindControl<TextBlock>("ShellActionError")!.Text == Texts.T("media.galleryFailed")
-                && shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible, "The refusal is not shown in the shell banner.");
+                && shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible, "The refusal is not shown in the shell banner.");
             Require(shell.MediaPageTagWindow == null && !shell.OwnedWindows.OfType<MediaTagDialog>().Any(), "A changed file must not open the tag dialog.");
             await UntilAsync(FocusInGrid);
             // 2b. B's file lost its binding to the post: still there, but unbound.
@@ -127,7 +134,7 @@ internal static partial class MediaPageChecks
             await OpenMenuAndEditTagsAsync();
             await UntilAsync(() => RefusalCount() == 2);
             string unboundNotice = string.Join(" | ", Refusals().Select(entry => entry.Summary + " x" + entry.Count));
-            Require(Refusals().All(entry => entry.Summary == Texts.T("media.galleryFailed") || entry.Summary == Texts.T("tags.media.unbound")), "Unexpected refusal text: " + unboundNotice);
+            Require(Refusals().All(entry => entry.Summary == Texts.T("media.galleryFailed") || entry.Summary == Texts.T("tags.media.boundElsewhere")), "Unexpected refusal text: " + unboundNotice);
             Require(shell.MediaPageTagWindow == null && !shell.OwnedWindows.OfType<MediaTagDialog>().Any(), "An unbound file must not open the tag dialog.");
             await UntilAsync(FocusInGrid);
             Require(session.GetPrivateTagSnapshot().Snapshot!.Revision == revision && Tags("200") == string.Empty && RefusalCount() == 2
@@ -150,24 +157,13 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => favorite.IsEffectivelyEnabled);
             favorite.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => session.GetFavorites().Count == 1);
-            Button rating = viewer.GetGalleryVisualDescendants().OfType<Button>().First(button => button.Name == "GalleryRating");
-            await UntilAsync(() => rating.IsEffectivelyEnabled);
-            rating.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await UntilAsync(() => shell.OwnedWindows.OfType<MediaRatingDialog>().Any(window => window.IsVisible));
-            MediaRatingDialog ratingDialog = shell.OwnedWindows.OfType<MediaRatingDialog>().Single();
-            Ursa.Controls.Rating editor = C<Ursa.Controls.Rating>(ratingDialog, "MediaRatingEditor");
-            await UntilAsync(() => editor.IsEffectivelyEnabled);
-            for (int guard = 0; editor.Value < 3 && guard < 8; guard++)
-            {
-                editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
-                await Task.Yield();
-            }
-            Require(editor.Value == 3, "The rating draft did not reach 3.");
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+            // Review 15.11.: no rating button or dialog; Shift+3 rates the shown medium through the viewer's own key router.
+            await UntilAsync(() => viewer.CaptureState().Key != null);
+            KeyGesture three = CommandBindings.Gesture("media.rating.set-3")!;
+            KeyEventArgs rate = new() { RoutedEvent = InputElement.KeyDownEvent, Key = three.Key, KeyModifiers = three.KeyModifiers, Source = viewer };
+            viewer.RaiseEvent(rate);
+            Require(rate.Handled, "The rating key was not routed by the gallery.");
             await UntilAsync(() => session.GetMediaRatings().Count == 1 && session.GetMediaRatings()[0].Value == 3);
-            await UntilAsync(() => editor.IsEnabled);
-            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
-            await UntilAsync(() => !ratingDialog.IsVisible);
             // The gallery is an overlay: until it closes, the page still shows what it read before.
             Require(Row("100").State!.Favorite == MediaLibraryFlag.No && Row("100").State!.UserRating == null,
                 "The page must not change under the open gallery (the refresh belongs to the close).");
@@ -177,20 +173,24 @@ internal static partial class MediaPageChecks
             await shell.GalleryCleanupTask.WaitAsync(Deadline);
             Require(Row("100").State!.Favorite == MediaLibraryFlag.Yes && Row("100").State!.UserRating == 3,
                 "Closing the gallery did not refresh the page's own state: " + Row("100").State!.Favorite + "/" + Row("100").State!.UserRating);
-            Require(Row("100").DetailWithState.Contains('★') && Row("100").DetailWithState.Contains("3/5"), "The tile line does not show the new favorite and rating.");
+            Require(Row("100").DetailWithState.Contains(Texts.T("command.gallery.favorite.compact")) && Row("100").DetailWithState.Contains("3/5"), "The tile line does not show the new favorite and rating.");
             MediaLibraryTileView after = await TileViewAsync("100");
             await UntilAsync(() => ToolTip.GetTip(after) is string tip && tip.Contains(Texts.T("media.state.rating", Texts.T("media.state.ratingValue", 3))));
             await UntilAsync(FocusInGrid);
             Require(page.Grid.SelectedItem is MediaLibraryTileRow { Entry.PostId: "100" }, "The tile selection was lost by closing the gallery.");
             Console.WriteLine("SMOKE media page host [en]: real main window -> Medien page -> tile -> Edit media tags (real dialog, two tags, tile shows them after refresh, focus on grid); changed and unbound file refused with a notice and nothing written; gallery from the page -> favorite and rating changed there -> close -> tile shows both, focus on grid.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
-            shell.Close();
-            await UntilAsync(() => !shell.IsVisible);
-            await shell.GalleryCleanupTask;
-            owner.Activate();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
+                shell.Close();
+                await UntilAsync(() => !shell.IsVisible);
+                await shell.GalleryCleanupTask;
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaPageHostChecks: " + exception));
         }
     }
 

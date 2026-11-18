@@ -98,8 +98,9 @@ public sealed class ReaderGroupStoreTests
         Assert.Equal(ReaderGroupsLoadState.Ready, loaded.State);
         Assert.True(loaded.CanWrite);
         Assert.True(ReaderGroupsValidation.SameGroups(saved.Groups, loaded.Snapshot!.Groups));
-        await Assert.ThrowsAsync<InvalidOperationException>(() => store.SaveAsync(saved with
+        ProfileBackupBlockedException blocked = await Assert.ThrowsAsync<ProfileBackupBlockedException>(() => store.SaveAsync(saved with
             { Groups = [saved.Groups[0] with { Name = "must not replace backup" }] }, saved.Revision));
+        Assert.Equal(("reader-groups.json.bak", ProfileBackupBlockReason.NewerVersion), (blocked.FileName, blocked.Reason));
         Assert.Equal(primary, File.ReadAllBytes(path));
         Assert.Equal(future, File.ReadAllText(path + ".bak"));
         Assert.Empty(Directory.GetFiles(directory.Path, ".reader-groups.json.*.tmp"));
@@ -130,7 +131,7 @@ public sealed class ReaderGroupStoreTests
         ResourceId[] limit = Enumerable.Range(0, 1000).Select(index => A with { Thread = index.ToString() }).ToArray();
         ReaderGroupsValidation.Copy(Snapshot(limit));
         Assert.Throws<InvalidDataException>(() => ReaderGroupsValidation.Copy(Snapshot(limit.Append(B).ToArray())));
-        ReaderGroupsSnapshot maximum = new(1, 0, Enumerable.Range(0, 500).Select(_ => new ReaderGroup(Guid.NewGuid(), "same", Array.Empty<ResourceId>())).ToArray());
+        ReaderGroupsSnapshot maximum = new(1, 0, Enumerable.Range(0, ProfileStoreLimits.ReaderGroupCeiling).Select(_ => new ReaderGroup(Guid.NewGuid(), "same", Array.Empty<ResourceId>())).ToArray());
         ReaderGroupsValidation.Copy(maximum);
         ReaderGroupsSnapshot total = new(1, 0, Enumerable.Range(0, 20).Select(_ => new ReaderGroup(Guid.NewGuid(), "same", limit)).ToArray());
         ReaderGroupsValidation.Copy(total);
@@ -150,7 +151,8 @@ public sealed class ReaderGroupStoreTests
         Directory.CreateDirectory(path + ".bak");
         Exception? failure = await Record.ExceptionAsync(() => store.SaveAsync(first with
             { Groups = [first.Groups[0] with { Name = "cannot publish" }] }, first.Revision));
-        Assert.True(failure is IOException or UnauthorizedAccessException);
+        // The directory cannot be read as a backup, so the save is refused before it rotates anything (typed, naming the file).
+        Assert.Equal(ProfileBackupBlockReason.Unreadable, Assert.IsType<ProfileBackupBlockedException>(failure).Reason);
         Assert.Equal(original, File.ReadAllText(path));
         Assert.Equal(first.Revision, (await store.LoadAsync()).Snapshot!.Revision);
         Assert.Empty(Directory.GetFiles(directory.Path, ".reader-groups.json.*.tmp"));

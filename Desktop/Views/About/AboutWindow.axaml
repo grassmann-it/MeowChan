@@ -1,44 +1,65 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:desktop="clr-namespace:MeowChan.Desktop"
+        xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
         x:Class="MeowChan.AboutWindow"
         Title="About MeowChan"
-        Icon="avares://MeowChan/Assets/meowchan.png"
-        Width="800" Height="660" MinWidth="440" MinHeight="400"
-        WindowStartupLocation="CenterOwner"
-        WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="48"
+        WindowDecorations="BorderOnly" ExtendClientAreaToDecorationsHint="True" ExtendClientAreaTitleBarHeightHint="{x:Static desktop:WorkspaceMetrics.TitleBarHeight}"
         Background="{DynamicResource Workspace.Background}"
         Foreground="{DynamicResource Workspace.Text}">
     <Window.Styles>
         <Style Selector="TextBlock"><Setter Property="TextWrapping" Value="Wrap"/></Style>
     </Window.Styles>
-    <Grid RowDefinitions="48,*" Background="{DynamicResource Workspace.Background}">
+    <Grid RowDefinitions="Auto,*" Background="{DynamicResource Workspace.Background}">
         <desktop:WindowChromeBar x:Name="AppCaption" />
-        <Grid Grid.Row="1" RowDefinitions="Auto,*,Auto">
-        <Grid ColumnDefinitions="72,*" ColumnSpacing="16" Margin="16,16,16,12">
-            <Image x:Name="CatLogo" Width="72" Height="72" Source="avares://MeowChan/Assets/meowchan.png" Stretch="Uniform"/>
-            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="4">
-                <TextBlock FontSize="26" FontWeight="SemiBold"><Run Text="Meow" Foreground="{DynamicResource Workspace.Text}"/><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}"/></TextBlock>
-                <WrapPanel ItemSpacing="12" LineSpacing="4">
-                    <SelectableTextBlock x:Name="VersionText" VerticalAlignment="Center"/>
-                    <Button x:Name="CopyVersionButton" Classes="subtle" Click="OnCopyVersionClick"/>
+        <!-- UX103 P7 dialog frame: fixed header, local error strip, body, fixed footer. Each tab
+             keeps its own scrolling (licenses list/text side by side), so the body region itself does
+             not scroll vertically; that avoids a second scroll around the tabs. No inner Tab cycle:
+             the window cycle keeps the caption buttons reachable. -->
+        <Grid Grid.Row="1" RowDefinitions="Auto,Auto,*">
+        <Border x:Name="DialogFrameHeader" Padding="16,16,16,12">
+        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.16}">
+            <!-- Orange and grey cat together, in either theme; one accessible name for the pair. -->
+            <StackPanel x:Name="CatLogoPair" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center"
+                        AutomationProperties.AccessibilityView="Content">
+                <Image x:Name="CatLogo" Width="72" Height="72" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+                <Image x:Name="CatLogoDark" Width="72" Height="72" Stretch="Uniform" AutomationProperties.AccessibilityView="Raw"/>
+            </StackPanel>
+            <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}">
+                <TextBlock FontSize="{StaticResource Workspace.Text.Title}" FontWeight="SemiBold"><Run Text="Meow" Foreground="{DynamicResource Workspace.Text}"/><Run Text="Chan" Foreground="{DynamicResource Workspace.Accent}"/></TextBlock>
+                <WrapPanel ItemSpacing="{StaticResource Workspace.Space.12}" LineSpacing="{StaticResource Workspace.Space.4}">
+                    <SelectableTextBlock x:Name="VersionText" Classes="workspace-meta" VerticalAlignment="Center"/>
+                    <Button x:Name="CopyVersionButton" Classes="link" Click="OnCopyVersionClick"/>
                 </WrapPanel>
             </StackPanel>
         </Grid>
-        <TabControl x:Name="AboutTabs" Grid.Row="1" Margin="16,0">
+        </Border>
+        <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="16,0,16,8"
+                IsVisible="{Binding #LinkErrorText.Text, Converter={x:Static StringConverters.IsNotNullOrEmpty}}">
+            <Border Classes="workspace-error">
+                <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+                    <SelectableTextBlock x:Name="LinkErrorText" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive"/>
+                </ScrollViewer>
+            </Border>
+        </Border>
+        <ScrollViewer x:Name="DialogFrameBody" Grid.Row="2" VerticalScrollBarVisibility="Disabled" HorizontalScrollBarVisibility="Disabled">
+        <TabControl x:Name="AboutTabs" Margin="16,0,16,12">
             <TabItem x:Name="AboutTab">
                 <ScrollViewer x:Name="AboutScrollViewer" VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16" Margin="12">
-                        <TextBlock x:Name="DescriptionText" FontSize="15" TextWrapping="Wrap"/>
+                    <StackPanel Spacing="{StaticResource Workspace.Space.16}" Margin="12">
+                        <TextBlock x:Name="TaglineText" Classes="muted" FontStyle="Italic" TextWrapping="Wrap"/>
+                        <TextBlock x:Name="DescriptionText" TextWrapping="Wrap"/>
                         <TextBlock x:Name="AuthorText"/>
                         <Border x:Name="UpdateSection" Classes="workspace-section">
-                            <StackPanel Spacing="8">
-                                <TextBlock x:Name="UpdatesTitle" Classes="section-title" />
+                            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
+                                    <TextBlock x:Name="UpdatesTitle" Classes="section-title" VerticalAlignment="Center" />
+                                    <Button x:Name="CheckUpdatesButton" Grid.Column="1" HorizontalAlignment="Right" Click="OnCheckUpdatesClick" />
+                                </Grid>
                                 <TextBlock x:Name="UpdateStatusText" AutomationProperties.LiveSetting="Polite" />
                                 <TextBlock x:Name="LastUpdateCheckText" Classes="workspace-help" />
-                                <Button x:Name="CheckUpdatesButton" HorizontalAlignment="Left" Click="OnCheckUpdatesClick" />
                                 <TextBlock x:Name="AvailableUpdateText" AutomationProperties.LiveSetting="Polite" />
-                                <WrapPanel x:Name="UpdateActions" ItemSpacing="8" LineSpacing="8">
+                                <WrapPanel x:Name="UpdateActions" ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
                                     <Button x:Name="UpdateReleaseButton" Classes="link" Click="OnUpdateReleaseClick" />
                                     <Button x:Name="UpdateDownloadButton" Classes="link" Click="OnUpdateDownloadClick" />
                                     <Button x:Name="SkipUpdateButton" Classes="link" Click="OnSkipUpdateClick" />
@@ -48,41 +69,64 @@
                                 <TextBlock x:Name="UpdateActionErrorText" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Border>
-                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
                             <Button x:Name="ProjectLink" Classes="link" Tag="https://github.com/grassmann-it/MeowChan" Click="OnLinkClick"/>
                             <Button x:Name="AuthorLink" Classes="link" Tag="https://github.com/grassmann-it" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="LicenseText"/>
-                        <StackPanel Spacing="6" Margin="0,8,0,0">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0">
                             <TextBlock x:Name="SupportTitle" Classes="section-title"/>
                             <TextBlock x:Name="SupportDescription"/>
                             <Button x:Name="DonationLink" Classes="link" HorizontalAlignment="Left"
                                     Tag="https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ" Click="OnLinkClick"/>
                         </StackPanel>
+                        <Border x:Name="CommunitySection" Classes="workspace-section">
+                            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                                <TextBlock x:Name="CommunityTitle" Classes="section-title"/>
+                                <TextBlock x:Name="CommunityDescription"/>
+                                <WrapPanel x:Name="CommunityLinks" ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
+                                    <Button x:Name="ContributeLink" Classes="link"
+                                            Tag="https://github.com/grassmann-it/MeowChan/pulls" Click="OnLinkClick"/>
+                                    <Button x:Name="ReportIssueLink" Classes="link"
+                                            Tag="https://github.com/grassmann-it/MeowChan/issues/new" Click="OnLinkClick"/>
+                                    <Button x:Name="TranslationLink" Classes="link"
+                                            Tag="https://github.com/grassmann-it/MeowChan/blob/main/Desktop/Localization/README.md" Click="OnLinkClick"/>
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
             <TabItem x:Name="CreditsTab">
                 <ScrollViewer VerticalScrollBarVisibility="Auto">
-                    <StackPanel Spacing="16" Margin="12">
+                    <StackPanel Spacing="{StaticResource Workspace.Space.16}" Margin="12">
                         <TextBlock x:Name="HistoryText"/>
-                        <WrapPanel ItemSpacing="8" LineSpacing="8">
+                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
                             <Button Content="YChan" Classes="link" Tag="https://sourceforge.net/projects/ychan/" Click="OnLinkClick"/>
                             <Button Content="Issung / GChan" Classes="link" Tag="https://github.com/Issung/GChan" Click="OnLinkClick"/>
                         </WrapPanel>
                         <TextBlock x:Name="VideoCreditsText"/>
                         <TextBlock x:Name="UICreditsText"/>
                         <TextBlock x:Name="IconsText"/>
+                        <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                            <TextBlock x:Name="PhotoCreditText"/>
+                            <WrapPanel ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.8}">
+                                <Button x:Name="PhotoCreditLink" Classes="link"
+                                        Tag="https://webentwicklung-huxel.de/" Click="OnLinkClick"/>
+                                <Button x:Name="PhotoCreditFlickrLink" Classes="link" Content="Flickr"
+                                        Tag="https://flickr.com/people/204852984@N05/" Click="OnLinkClick"/>
+                            </WrapPanel>
+                        </StackPanel>
                     </StackPanel>
                 </ScrollViewer>
             </TabItem>
             <TabItem x:Name="LicensesTab">
-                <Grid RowDefinitions="Auto,Auto,*" Margin="8" RowSpacing="8">
-                    <TextBox x:Name="LicenseSearchBox" Grid.Row="0" TextChanged="OnLicenseSearchChanged"/>
+                <Grid RowDefinitions="Auto,Auto,*" Margin="8" RowSpacing="{StaticResource Workspace.Space.8}">
+                    <controls:SearchBox x:Name="LicenseSearchBox" Grid.Row="0" TextChanged="OnLicenseSearchChanged"/>
                     <TextBlock x:Name="LicenseHintText" Grid.Row="1" Classes="workspace-help"/>
-                    <Grid Grid.Row="2" ColumnDefinitions="*,2*" ColumnSpacing="8">
+                    <Grid Grid.Row="2" ColumnDefinitions="*,2*" ColumnSpacing="{StaticResource Workspace.Space.8}">
                         <ListBox x:Name="LicenseList" SelectionChanged="OnLicenseSelectionChanged"/>
-                        <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="8">
+                        <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="{StaticResource Workspace.Space.8}">
                             <Expander x:Name="LicenseMetadataExpander" HorizontalAlignment="Stretch" MaxHeight="140">
                                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                     <SelectableTextBlock x:Name="LicenseMetadataText" TextWrapping="Wrap"/>
@@ -95,12 +139,7 @@
                 </Grid>
             </TabItem>
         </TabControl>
-        <Border Grid.Row="2" Classes="workspace-dialog-footer" Margin="0,12,0,0">
-            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="12">
-                <SelectableTextBlock x:Name="LinkErrorText" VerticalAlignment="Center" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive"/>
-                <Button x:Name="CloseButton" Grid.Column="1" MinWidth="96" IsCancel="True" Click="OnCloseButtonClick"/>
-            </Grid>
-        </Border>
+        </ScrollViewer>
         </Grid>
     </Grid>
 </Window>

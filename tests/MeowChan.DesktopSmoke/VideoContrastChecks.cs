@@ -116,6 +116,7 @@ internal static class VideoContrastChecks
             TextBlock time = player.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Text?.Contains(" / ") == true);
             Check(window, viewer, time, theme, "time", failures);
             await GalleryFocusChecks.CheckVideoAsync(window, viewer, player, theme);
+            if (theme == ThemeVariant.Light) await VideoZoomRotateChecks.RunAsync(window, viewer, player, theme);
             if (theme == ThemeVariant.Light) await GalleryCaptionChecks.RunAsync(window, viewer, video: true);
             TextBlock status = player.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "GalleryVideoStatus");
             if (!ReferenceEquals(player, viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single())
@@ -126,8 +127,18 @@ internal static class VideoContrastChecks
                 throw new InvalidOperationException("The real video timeline is unavailable or has changed its range.");
             Console.WriteLine("SMOKE video before end seek: " + JsonSerializer.Serialize(new
                 { theme = theme.ToString(), status.Text, playback = await player.InspectPlaybackAsync(), targetPermille = 900 }));
-            // The shared fixture is twelve seconds long. Exercise the real timeline
-            // before waiting for its real EndReached event; keep the five-second guard.
+            // The shared fixture is twelve seconds long and plays in real time while the focus and caption checks
+            // above run. On a loaded machine it can already have ended; a seek then would only replay a finished
+            // clip and the wait below would be satisfied by the stale ended text. Start the user's replay first so
+            // the seek and the real EndReached event below always belong to a live playback.
+            if ((await player.InspectPlaybackAsync()).State == "Ended")
+            {
+                Button replay = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryVideoPlayPause");
+                replay.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitNativeAsync(player, evidence => evidence.State == "Playing" && evidence.Time < 6000);
+                await Program.WaitUntilAsync(() => status.Text != Texts.T("gallery.video.ended"));
+            }
+            // Exercise the real timeline before waiting for its real EndReached event; keep the five-second guard.
             seek.Focus();
             seek.Value = 900;
             try { await Program.WaitUntilAsync(() => status.Text == "Playback ended."); }
@@ -177,8 +188,18 @@ internal static class VideoContrastChecks
             Console.WriteLine("SMOKE native video repeat evidence: " + JsonSerializer.Serialize(new { theme = theme.ToString(), repeated, finalEnd }));
             await GalleryToolbarContrastChecks.RunAsync(window, viewer, theme, failures);
             Button next = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryNext");
-            next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await Program.WaitUntilAsync(() => status.Text?.StartsWith("Video playback is unavailable", StringComparison.Ordinal) == true);
+            // A failed decode shows the short central wording; the specific cause is a diagnostics-only
+            // notice (never on-screen text), so both are asserted.
+            List<GalleryDiagnosticNotice> notices = new();
+            viewer.DiagnosticNotice += notices.Add;
+            try
+            {
+                next.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => status.Text == Texts.T("gallery.mediaUnavailable"));
+                await Program.WaitUntilAsync(() => notices.Any(notice => notice.MediaUnavailable
+                    && notice.Message.StartsWith(Texts.T("gallery.video.error.decode"), StringComparison.Ordinal)));
+            }
+            finally { viewer.DiagnosticNotice -= notices.Add; }
             Check(window, viewer, status, theme, "error", failures);
             Button close = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryClose");
             close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

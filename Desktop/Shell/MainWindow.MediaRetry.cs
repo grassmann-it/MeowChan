@@ -25,8 +25,8 @@ public partial class MainWindow
         try
         {
             int accepted = await _session.RetryMissingMediaAsync(row.WatchId);
-            ShowNotification(Texts.T("notification.session"), Texts.T(accepted == 0 ? "work.retryNone"
-                : _session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", accepted),
+            ShowNotification(Texts.T("notification.session"), accepted == 0 ? Texts.T(RetryNoneKey(new[] { row.WatchId }))
+                : Texts.Count(_session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", accepted),
                 NotificationType.Information, context: row.WatchId.ToString(), operation: "media.retry");
         }
         catch (Exception exception)

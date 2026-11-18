@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Legal;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Updates;
 using System.Threading.Tasks;
 using MeowChan.Desktop.Localization;
@@ -24,6 +25,8 @@ public partial class AboutWindow : Window
     private readonly OfflineLegalCatalog _legal;
     private bool _closed;
     private AboutActionError? _actionError;
+    // The photographer's and the business name are proper names: never translated.
+    internal const string PhotoCreditName = "Alexander Huxel · Webentwicklung Huxel";
 
     public AboutWindow() : this(null) { }
 
@@ -32,8 +35,17 @@ public partial class AboutWindow : Window
         _updates = updates;
         _openBrowser = openBrowser ?? ExternalLauncher.OpenAsync;
         InitializeComponent();
+        WindowChrome.Apply(this);
+        // Modals plan MD3: a modal dialog on the L step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: true);
+        AppCaption.Kind = MeowChan.Desktop.Controls.DialogWindow.KindFor(modal: true);
         AppCaption.Attach(this);
-        Opened += (_, _) => { MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this); MeowChan.Desktop.Commands.CommandBindings.BindExisting(CloseButton, "about.close"); };
+        ThemeLogo.Follow(this);
+        // Documentation/credits pair: both cats side by side in either theme; only the window icon follows the theme.
+        ThemeLogo.ShowPair(CatLogo, CatLogoDark);
+        Opened += (_, _) => MeowChan.Desktop.Commands.LegacyCommandAdapters.Register(this);
+        // Modals plan MD2: no lone Close button; × in the title bar and Escape (the dialog policy) close it.
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this);
         Assembly assembly = typeof(AboutWindow).Assembly;
         string? informationalVersion = assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
         _version = informationalVersion?.Split('+', 2)[0] ?? assembly.GetName().Version?.ToString() ?? Texts.T("about.unknownVersion");
@@ -58,9 +70,15 @@ public partial class AboutWindow : Window
         AboutTab.Header = Texts.T("about.tab.about");
         CreditsTab.Header = Texts.T("about.tab.credits");
         LicensesTab.Header = Texts.T("about.tab.licenses");
-        AutomationProperties.SetName(CatLogo, Texts.T("about.logoDescription"));
+        AutomationProperties.SetName(CatLogoPair, Texts.T("about.logoDescription"));
+        // Each cat is named by tooltip (and a name for tools); the images stay out of the accessibility tree.
+        AutomationProperties.SetName(CatLogo, Texts.T("about.logoSimba"));
+        ToolTip.SetTip(CatLogo, Texts.T("about.logoSimba"));
+        AutomationProperties.SetName(CatLogoDark, Texts.T("about.logoMila"));
+        ToolTip.SetTip(CatLogoDark, Texts.T("about.logoMila"));
         VersionText.Text = Texts.T("shell.version", _version);
         CopyVersionButton.Content = Texts.T("about.copyVersion");
+        TaglineText.Text = Texts.T("shell.subtitle");
         DescriptionText.Text = Texts.T("about.description");
         AuthorText.Text = Texts.T("about.author");
         ProjectLink.Content = Texts.T("about.project");
@@ -68,15 +86,29 @@ public partial class AboutWindow : Window
         SupportTitle.Text = Texts.T("about.supportTitle");
         SupportDescription.Text = Texts.T("about.supportDescription");
         DonationLink.Content = Texts.T("about.donate");
+        CommunityTitle.Text = Texts.T("about.communityTitle");
+        CommunityDescription.Text = Texts.T("about.communityDescription");
+        ContributeLink.Content = Texts.T("about.contribute");
+        ReportIssueLink.Content = Texts.T("about.reportIssue");
+        TranslationLink.Content = Texts.T("about.translation");
+        AutomationProperties.SetName(ContributeLink, Texts.T("about.contribute"));
+        AutomationProperties.SetName(ReportIssueLink, Texts.T("about.reportIssue"));
+        AutomationProperties.SetName(TranslationLink, Texts.T("about.translation"));
         HistoryText.Text = Texts.T("about.history");
         VideoCreditsText.Text = Texts.T("about.videoCredits");
         UICreditsText.Text = Texts.T("about.uiCredits");
         IconsText.Text = Texts.T("about.featherCredits");
+        PhotoCreditText.Text = Texts.T("about.photoCredit", PhotoCreditName);
+        PhotoCreditLink.Content = PhotoCreditName;
+        AutomationProperties.SetName(PhotoCreditFlickrLink, Texts.T("about.photoCreditFlickr", PhotoCreditName));
         LicenseText.Text = Texts.T("about.license");
         LicenseSearchBox.PlaceholderText = Texts.T("about.licenseSearch");
+        // The placeholder vanishes while typing and the list and text box have no label of their own.
+        AutomationProperties.SetName(LicenseSearchBox, Texts.T("about.licenseSearch"));
+        AutomationProperties.SetName(LicenseList, Texts.T("about.licenseList"));
+        AutomationProperties.SetName(LicenseFullText, Texts.T("about.licenseText"));
         LicenseMetadataExpander.Header = Texts.T("about.sources");
         LicenseHintText.Text = _legal.Error is null ? Texts.T("about.licenseHint") : Texts.T("about.licenseReadFailed", _legal.Error);
-        CloseButton.Content = Texts.T("action.close");
         LinkErrorText.Text = _actionError?.Render() ?? string.Empty;
         UpdateSelection();
         RefreshUpdates();
@@ -180,7 +212,8 @@ public partial class AboutWindow : Window
         if (_updates == null) return;
         UpdateView view = _updates.View;
         UpdatesTitle.Text = Texts.T("updates.title");
-        CheckUpdatesButton.Content = Texts.T(view.IsChecking ? "updates.checking" : "updates.check");
+        CommandBindings.ApplyLabeled(CheckUpdatesButton, "updates.check",
+            Texts.T(view.IsChecking ? "updates.checking" : "updates.check"));
         CheckUpdatesButton.IsEnabled = !view.IsChecking && !view.EnvironmentDisabled;
         UpdateStatusText.Text = UpdatePresentation.Status(view);
         UpdateStatusText.IsVisible = !string.IsNullOrEmpty(UpdateStatusText.Text);
@@ -239,6 +272,4 @@ public partial class AboutWindow : Window
         catch (Exception error) { Log.Warning(error, "Could not skip update."); _updateActionFailed = true; }
         if (!_closed) RefreshUpdates();
     }
-
-    private void OnCloseButtonClick(object? sender, RoutedEventArgs e) => Close();
 }

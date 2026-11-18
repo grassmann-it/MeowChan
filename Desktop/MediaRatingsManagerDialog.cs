@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Ratings;
 
@@ -36,7 +37,7 @@ internal sealed class MediaRatingsManagerDialog : Window
     }
     private readonly DesktopSessionHost _host;
     private IReadOnlyList<MediaRatingEntry> _entries = Array.Empty<MediaRatingEntry>();
-    private readonly TextBox _search = new() { Name = "MediaRatingsSearch" };
+    private readonly MeowChan.Desktop.Controls.SearchBox _search = new() { Name = "MediaRatingsSearch" };
     private readonly ListBox _list = new() { Name = "MediaRatingsList" };
     private readonly TextBox _identity = new() { Name = "MediaRatingsIdentity", IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _summary = new() { Name = "MediaRatingsSummary", TextWrapping = TextWrapping.Wrap };
@@ -54,8 +55,8 @@ internal sealed class MediaRatingsManagerDialog : Window
     internal MediaRatingsManagerDialog(DesktopSessionHost host)
     {
         _host = host; Title = CommandCatalog.Label("media.rating.manage"); Name = "MediaRatingsManager";
-        Width = 700; Height = 500; MinWidth = 340; MinHeight = 300;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD2: a modal list dialog on the form step (fitted to the screen); the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
         _remove = CommandBindings.CreateButton("media.rating.remove-selected", BeginRemove, () => !_busy && _frozen == null && _list.SelectedItem is Row);
         _remove.Name = "MediaRatingsRemove"; _remove.IsEnabled = false;
         _search.PlaceholderText = MediaRatingText.Catalog("media.rating.search");
@@ -83,7 +84,7 @@ internal sealed class MediaRatingsManagerDialog : Window
         };
         _confirm.Content = MediaRatingText.Catalog("media.rating.removeThis");
         _cancel.Content = MediaRatingText.Catalog("media.rating.cancel");
-        _close.Content = MediaRatingText.Catalog("media.rating.close");
+        _close.Content = Texts.T("action.close");
         _confirm.Click += async (_, _) => await ConfirmAsync();
         _cancel.Click += (_, _) => EndConfirmation();
         _close.Click += (_, _) => Close();
@@ -92,15 +93,18 @@ internal sealed class MediaRatingsManagerDialog : Window
         _identity.MaxHeight = 120;
         ScrollViewer.SetHorizontalScrollBarVisibility(_list, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
         ScrollViewer.SetVerticalScrollBarVisibility(_identity, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
-        StackPanel detail = new() { Spacing = 8, Children = { _identity, _error } };
-        WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        foreach (Button button in new[] { _remove, _confirm, _cancel, _close }) buttons.Children.Add(button);
-        Border footer = new() { Child = buttons, Margin = new Thickness(-16, 0, -16, -16) };
-        footer.Classes.Add("workspace-dialog-footer");
+        // Close is the primary slot (right-most); Remove, its confirmation and Cancel come before it.
+        Border buttons = DialogFooter.Build(_close, new Control[] { _remove, _confirm, _cancel });
+        // UX103 P7: search draft and summary fixed on top, the load/remove error in the local
+        // strip below them, list plus selected identity in the body, and the actions in the footer.
+        // The list scrolls itself, so the body only bounds it and keeps the identity in view.
         StackPanel header = new() { Spacing = 8, Children = { _search, _summary } };
-        Grid grid = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,*,Auto,Auto"), RowSpacing = 12 };
-        grid.Children.Add(header); grid.Children.Add(_list); Grid.SetRow(_list, 1);
-        grid.Children.Add(detail); Grid.SetRow(detail, 2); grid.Children.Add(footer); Grid.SetRow(footer, 3); Content = grid;
+        Grid body = new() { Margin = new Thickness(16, 0, 16, 16), RowDefinitions = new RowDefinitions("*,Auto"), RowSpacing = 12 };
+        body.Children.Add(_list); body.Children.Add(_identity); Grid.SetRow(_identity, 1);
+        Grid frame = DialogFrame.Build(header, body, buttons, DialogFrame.ErrorStrip(_error));
+        frame.Children.OfType<ScrollViewer>().Single(child => child.Name == DialogFrame.BodyName).VerticalScrollBarVisibility =
+            Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled;
+        DialogWindow.Frame(this, frame, modal: true);
         CommandRouter router = new(this);
         router.Register(new("media.rating.remove-selected", this, () => IsVisible, () => !_busy && _frozen == null && _list.SelectedItem is Row, BeginRemove, Priority: 300));
         KeyDown += (_, e) => router.Route(e);
@@ -108,7 +112,11 @@ internal sealed class MediaRatingsManagerDialog : Window
         Texts.Changed += OnLanguageChanged;
         ApplyTexts();
         Closing += (_, e) => e.Cancel = _busy;
-        KeyDown += (_, e) => { if (e.Key != Key.Escape) return; e.Handled = true; if (_busy) return; if (_frozen != null) EndConfirmation(); else Close(); };
+        DialogEscape.Attach(this, () =>
+        {
+            if (_busy || _frozen == null) return false;
+            EndConfirmation(); return true;
+        }, isBusy: () => _busy);
         Opened += (_, _) => { Reload(); _search.Focus(); };
     }
     private void OnLanguageChanged(object? sender, EventArgs args)
@@ -127,7 +135,7 @@ internal sealed class MediaRatingsManagerDialog : Window
         CommandBindings.Apply(_remove, "media.rating.remove-selected");
         _confirm.Content = MediaRatingText.Catalog("media.rating.removeThis");
         _cancel.Content = MediaRatingText.Catalog("media.rating.cancel");
-        _close.Content = MediaRatingText.Catalog("media.rating.close");
+        _close.Content = Texts.T("action.close");
         // Refresh presentations in place: no refilter, reload, selection or focus changes.
         foreach (Row row in _list.Items.OfType<Row>()) row.RefreshTexts();
         RefreshSummary();

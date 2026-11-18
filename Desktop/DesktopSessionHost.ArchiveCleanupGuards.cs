@@ -54,11 +54,14 @@ internal sealed partial class DesktopSessionHost
             foreach (ResourceId id in groups.Snapshot.Groups.SelectMany(group => group.Members))
                 Protect(id, ArchiveCleanupReason.ReaderGroup);
             // Own tags protect like every other deliberate private mark, for the thread and for its media.
-            PrivateTagStoreSnapshot tags = new PrivateTagStore(ProfileDirectory, _profileLease).ReadSnapshot();
+            PrivateTagStoreSnapshot tags = new PrivateTagStore(ProfileDirectory, _profileLease, _privateTagLimits).ReadSnapshot();
             foreach (PrivateThreadTagAssignment assignment in tags.ThreadAssignments)
                 Protect(assignment.Thread, ArchiveCleanupReason.PrivateTag);
             foreach (PrivateMediaTagAssignment assignment in tags.MediaAssignments)
                 Protect(assignment.Target.Reference.Resource, ArchiveCleanupReason.PrivateTag);
+            // A tagged loose file protects the thread that owns its occurrence. An untagged registration does not.
+            foreach (ResourceId owner in PrivateTagStore.LocalAssignmentOwners(tags))
+                Protect(owner, ArchiveCleanupReason.PrivateTag);
             byte[]? positionBytes = ReadCleanupOptionalFile("reading-position.json", 16384, token);
             if (positionBytes != null)
             {
@@ -124,6 +127,12 @@ internal sealed partial class DesktopSessionHost
                     // Validate BOTH primary and backup with the canonical parser;
                     // do not widen the generic schema-1 protection check below.
                     FavoriteStore.ValidateDocumentBytes(bytes);
+                    continue;
+                }
+                if (name == PrivateTagStore.FileName)
+                {
+                    // v1, the local-media v2 or the alias v3: the store's own strict parser decides, for primary and backup.
+                    PrivateTagStore.ValidateDocumentBytes(bytes);
                     continue;
                 }
                 using JsonDocument document = JsonDocument.Parse(CleanupUtf8.GetString(bytes));

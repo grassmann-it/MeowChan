@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
-using MeowChan.Plugins.Examples.Uboachan;
+using MeowChan.Plugins.Examples.VichanFamily;
 
 namespace MeowChan.ExamplePlugins.Tests;
 
@@ -14,18 +14,18 @@ public sealed class UboachanPluginTests
          {"no":124,"resto":123,"com":""},
          {"no":125,"resto":123,"extra_files":[{"tim":"extra-only","ext":".jpg","md5":"AAAAAAAAAAAAAAAAAAAAAA=="}]}]}
         """;
-    private static MakabaUboachanHarness Harness(string body = Thread, int status = 200) => new(new UboachanPlugin(), body, status);
+    private static MakabaUboachanHarness Harness(string body = Thread, int status = 200) => new(new VichanFamilyPlugin(), body, status, "uboachan");
 
     [Fact]
     public void PassiveDescriptionHasDistinctIdentityAndOnlyItsHost()
     {
-        var description = new UboachanPlugin().Describe(); var source = Assert.Single(description.Sources);
-        Assert.Equal("meowchan.source.uboachan", description.PluginId); Assert.Equal("uboachan", source.SourceId);
+        var description = new VichanFamilyPlugin().Describe(); var source = Assert.Single(description.Sources, s => s.SourceId == "uboachan");
+        Assert.Equal(VichanFamilyPlugin.PluginId, description.PluginId); Assert.Equal("uboachan", source.SourceId);
         Assert.Equal(SourceMaturity.Experimental, source.Maturity);
         Assert.Empty(SdkValidation.ValidateDescription(description)); Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
         Assert.Equal(new HttpHostDeclaration("uboachan.net", HttpHostPurpose.Metadata | HttpHostPurpose.OriginalMedia), Assert.Single(source.HttpHosts));
-        Assert.Single(typeof(UboachanPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
-        Assert.DoesNotContain(typeof(UboachanPlugin).Assembly.GetReferencedAssemblies(), a => a.Name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
+        Assert.Single(typeof(VichanFamilyPlugin).Assembly.GetExportedTypes(), t => typeof(IPlugin).IsAssignableFrom(t));
+        Assert.DoesNotContain(typeof(VichanFamilyPlugin).Assembly.GetReferencedAssemblies(), a => a.Name is "libmeowchan" or "MeowChan.PluginHost" or "Avalonia");
     }
 
     [Fact]
@@ -58,6 +58,48 @@ public sealed class UboachanPluginTests
         Assert.Equal(sha1, copy.Snapshot.Posts[0].Attachments![1].ExpectedSha1);
         Assert.Equal(files[0].ExpectedMd5, copy.Snapshot.Posts[0].Attachments![0].ExpectedMd5);
         Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, copy, h.Source));
+    }
+
+    // Shape of a thread whose removed file stays in the JSON as ext:"deleted" with an empty token (vichan convention).
+    private const string DeletedFileThread = """
+        {"posts":[
+         {"no":123,"resto":0,"time":1700000000,"name":"Anonymous","com":"post 1","sticky":0,"locked":0,"cyclical":"0",
+          "last_modified":1700000100,"tn_h":191,"tn_w":255,"h":600,"w":800,"fsize":1000,"ext":".png","tim":"1700000000001",
+          "filename":"a","md5":"AAAAAAAAAAAAAAAAAAAAAA==","omitted_posts":0,"omitted_images":0},
+         {"no":124,"resto":123,"time":1700000100,"name":"Anonymous","com":"post 2","sticky":0,"locked":0,"cyclical":"0",
+          "last_modified":1700000100,"tn_h":106,"tn_w":128,"h":361,"w":481,"fsize":2000,"ext":"deleted","tim":"",
+          "filename":"a","md5":"AAAAAAAAAAAAAAAAAAAAAA=="},
+         {"no":125,"resto":123,"com":"post 3","tim":"1700000000002","ext":".jpg","fsize":3000,"md5":"AAAAAAAAAAAAAAAAAAAAAA==",
+          "extra_files":[{"ext":"deleted","tim":"","filename":"b","fsize":4000,"md5":"AAAAAAAAAAAAAAAAAAAAAA=="},
+                         {"tim":"1700000000003","ext":".png","filename":"c","fsize":5000,"md5":"AAAAAAAAAAAAAAAAAAAAAA=="}]}]}
+        """;
+
+    [Fact]
+    public async Task DeletedFileMarkerBecomesADeletionMarkerNotAFailure()
+    {
+        var h = Harness(DeletedFileThread); var result = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, result, h.Source));
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(result)), h.Source));
+        Assert.Equal("123-0", Assert.Single(result.Snapshot.Posts[0].Attachments!).MediaId);
+        var removed = Assert.Single(result.Snapshot.Posts[1].Attachments!);
+        Assert.True(removed.IsDeleted); Assert.Null(removed.MediaId); Assert.Null(removed.Url); Assert.Null(removed.ExpectedMd5);
+        Assert.True(result.Snapshot.Posts[1].Fields.HasFlag(SourceFieldPresence.Attachments));
+        // Slots keep their position, so a removed file never shifts the identity of a live sibling.
+        var mixed = result.Snapshot.Posts[2].Attachments!;
+        Assert.Equal(new[] { 0, 1, 2 }, mixed.Select(a => a.Position));
+        Assert.Equal(new[] { false, true, false }, mixed.Select(a => a.IsDeleted));
+        Assert.Equal(new[] { "125-0", null, "125-2" }, mixed.Select(a => a.MediaId));
+        Assert.Equal("https://uboachan.net/demo/src/1700000000003.png", mixed[2].Url!.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("deleted", "1700000000001")][InlineData("deleted ", "")][InlineData("Deleted", "")][InlineData(".png", "")]
+    public async Task OnlyTheExactDeletionMarkerSkipsTheMediaChecks(string ext, string token)
+    {
+        var root = JsonNode.Parse(DeletedFileThread)!; root["posts"]![1]!["ext"] = ext; root["posts"]![1]!["tim"] = token;
+        var result = await Harness(root.ToJsonString()).ReadThread();
+        if (ext == "deleted") Assert.True(Assert.IsType<ThreadSnapshot>(result).Snapshot.Posts[1].Attachments![0].IsDeleted);
+        else Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(result).Failure.Code);
     }
 
     [Theory]

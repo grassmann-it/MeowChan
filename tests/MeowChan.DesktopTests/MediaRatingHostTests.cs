@@ -21,7 +21,7 @@ public sealed class MediaRatingHostTests
             Assert.Equal(Key, result.Key); Assert.Equal(4, result.Value); Assert.Equal(4, host.GetMediaRating(Key));
             Assert.Null(host.GetMediaRating(Key with { Variant = "thumbnail" }));
             Directory.CreateDirectory(Path.Combine(temp.Path, "media-ratings.json.bak"));
-            await Assert.ThrowsAsync<InvalidDataException>(() => host.SetMediaRatingAsync(Key, 2));
+            await Assert.ThrowsAsync<ProfileBackupBlockedException>(() => host.SetMediaRatingAsync(Key, 2));
             Assert.Equal(4, host.GetMediaRating(Key));
             Directory.Delete(Path.Combine(temp.Path, "media-ratings.json.bak"));
             await host.SetMediaRatingAsync(Key, 2);

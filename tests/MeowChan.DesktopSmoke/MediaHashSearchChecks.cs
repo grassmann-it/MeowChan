@@ -274,7 +274,7 @@ internal static class MediaHashSearchChecks
     {
         foreach (string code in new[] { "en", "de", "es" })
         foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
-        foreach (var size in new[] { new Size(760, 640), new Size(360, 360) })
+        foreach (var size in new[] { new Size(760, 640), new Size(480, 400) }) // list step: preferred and minimum (modals plan MD2)
         {
             Texts.SetLanguage(code);
             Application.Current!.RequestedThemeVariant = theme;
@@ -348,7 +348,7 @@ internal static class MediaHashSearchChecks
             string label = RowText(rows[index]);
             Require(label == MediaHashSearchDialog.RowLabel(asset) && label.Contains(asset.AssetId, StringComparison.Ordinal)
                 && label.Contains(asset.MediaIdentifier, StringComparison.Ordinal) && label.Contains(asset.Variant, StringComparison.Ordinal),
-                "Full IDs/variant/captured IsCurrent not preserved in row text.");
+                "Full IDs and variant not preserved in row text.");
         }
         Console.WriteLine(Marker + "PAGE_EXACT_OK offset=" + offset + " count=" + count + " total=" + Matches + " no_dedup_same_object_refs");
     }

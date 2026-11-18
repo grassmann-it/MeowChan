@@ -12,6 +12,7 @@ internal static class WindowMinimumChecks
         string originalMode = window.SessionHost.Config.WorkspaceMode;
         WindowState originalState = window.WindowState;
         Size originalSize = window.Bounds.Size;
+        Exception? failureBeforeCleanup = null;
         try
         {
             window.WindowState = WindowState.Normal;
@@ -75,16 +76,20 @@ internal static class WindowMinimumChecks
                 Console.WriteLine($"SMOKE minimum {mode}: native floor={minimum}, actual={window.ClientSize}, recovered after stale 320×240 floor.");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await PresentationChecks.SwitchModeAsync(window, originalMode);
-            window.WindowState = WindowState.Normal;
-            window.Width = originalSize.Width;
-            window.Height = originalSize.Height;
-            window.WindowState = originalState;
-            await Program.WaitUntilAsync(() => window.WindowState == originalState
-                && (originalState != WindowState.Normal ||
-                    (Near(window.Bounds.Width, originalSize.Width) && Near(window.Bounds.Height, originalSize.Height))));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await PresentationChecks.SwitchModeAsync(window, originalMode);
+                window.WindowState = WindowState.Normal;
+                window.Width = originalSize.Width;
+                window.Height = originalSize.Height;
+                window.WindowState = originalState;
+                await Program.WaitUntilAsync(() => window.WindowState == originalState
+                    && (originalState != WindowState.Normal ||
+                        (Near(window.Bounds.Width, originalSize.Width) && Near(window.Bounds.Height, originalSize.Height))));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in WindowMinimumChecks: " + exception));
         }
     }
 

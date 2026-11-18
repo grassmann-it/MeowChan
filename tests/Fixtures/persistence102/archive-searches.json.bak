@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "revision": 3,
+  "searches": [
+    {
+      "id": "1a0251a0-0000-4000-8000-000000000001",
+      "name": "plain text and source",
+      "definition": {"schemaVersion":1,"text":"retained","sources":["4chan"],"boards":[],"sourceStates":[],"captureEnabled":null,"hasPosts":null,"sort":"latest-capture","workFilter":"all","dateRange":null}
+    },
+    {
+      "id": "1a0251a0-0000-4000-8000-000000000002",
+      "name": "board in every source",
+      "definition": {"schemaVersion":1,"text":"reply","sources":[],"boards":[{"source":null,"board":"a"},{"source":"8kun","board":"g"}],"sourceStates":["archived","not-found"],"captureEnabled":null,"hasPosts":null,"sort":"latest-capture","workFilter":"all","dateRange":null}
+    },
+    {
+      "id": "1a0251a0-0000-4000-8000-000000000003",
+      "name": "everything set",
+      "definition": {"schemaVersion":1,"text":"caf\u00E9 \u0022quoted\u0022 \\ \uD83D\uDE00","sources":["4chan","8kun"],"boards":[],"sourceStates":[],"captureEnabled":true,"hasPosts":false,"sort":"title","workFilter":"watching","dateRange":{"basis":"first-seen","startDate":"2026-01-02","endDate":"2026-03-04","timeZoneId":"UTC"}}
+    }
+  ]
+}

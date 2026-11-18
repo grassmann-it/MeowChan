@@ -24,7 +24,7 @@ internal static class ArchiveExportStatusLanguageRefreshChecks
     private static readonly (string Code, string Start, string Working)[] Languages =
     [
         ("en", "Export", "Preparing export…"),
-        ("de", "Exportieren", "Export wird vorbereitet …"),
+        ("de", "Exportieren", "Export wird vorbereitet…"),
         ("es", "Exportar", "Preparando exportación…"),
         ("fr", "Exporter", "Préparation de l’export…"),
         ("ru", "Экспортировать", "Подготовка экспорта…")
@@ -347,11 +347,11 @@ internal static class ArchiveExportStatusLanguageRefreshChecks
                 && ReferenceEquals(error, Need<TextBlock>(page, "ArchiveExportError"))
                 && status.Text == expectedStatus() && error.Text == expectedError(), scenario + "/" + cell.Code + ": stale outcome text or replaced controls.");
             Require(status.IsEffectivelyVisible && Need<Border>(page, "ArchiveExportDialog").IsEffectivelyVisible
-                && Need<Ursa.Controls.Banner>(page, "ArchiveExportErrorBanner").IsVisible == (expectedError().Length > 0)
+                && Need<MeowChan.Desktop.Controls.WorkspaceBanner>(page, "ArchiveExportErrorBanner").IsVisible == (expectedError().Length > 0)
                 && (expectedError().Length == 0 || error.IsEffectivelyVisible), scenario + ": outcome visibility mismatch.");
             Require(Equals(Need<Button>(page, "ArchiveExportClose").Content, Texts.T(running ? "archive.exportCancel" : "action.close"))
                 && Need<TextBlock>(page, "ArchiveExportTargetLabel").Text == Texts.T("export.target")
-                && Need<TextBlock>(page, "ArchiveExportOptionsLabel").Text == Texts.T("export.options"), scenario + ": live labels stale.");
+                && Equals(Need<CheckBox>(page, "ArchiveExportMedia").Content, Texts.T("archive.exportMedia")), scenario + ": live labels stale.");
             Require(page.IsExportRunning == running && Volatile.Read(ref boundary.Calls) == calls
                 && ReferenceEquals(single, page.LastExport) && ReferenceEquals(collection, page.LastCollectionExport)
                 && Need<TextBox>(page, "ArchiveExportDestination").Text == destination

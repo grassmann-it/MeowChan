@@ -131,12 +131,14 @@ class PrereleaseFixtures(unittest.TestCase):
         for rid in ('linux-x64', 'linux-arm64'):
             self.make_linux(rid)
         self.make_nuget()
+        self.split_acceptance()
 
     def git(self, *args):
         return subprocess.check_output(['git', '-C', str(self.repo), *args], text=True)
 
     def workflow(self, rid):
-        return {'passed': True, 'completed': True, 'declaredSourceCommit': self.source,
+        return {'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False,
+                'passed': True, 'completed': True, 'declaredSourceCommit': self.source,
                 'declaredRuntime': rid, 'scales': [{'passed': True, 'phases': [
                     {'phase': phase, 'passed': True, 'assemblyInformationalVersion': self.version + '+' + self.source}
                     for phase in A.PHASES]}]}
@@ -231,6 +233,69 @@ class PrereleaseFixtures(unittest.TestCase):
             'passed': True, 'completed': True, 'sourceCommit': self.source, 'runtime': rid,
             'manifestSha256': A.digest(manifest), 'scenarios': rows})
 
+    def split_acceptance(self):
+        # Synthetic split artifacts are deliberately byte-distinct. Existing failure
+        # tests keep all their assertions but now mutate the executed Debug evidence.
+        windows = self.root / 'native-media-candidate-win-x64'
+        shutil.copytree(windows / 'media-evidence', windows / 'acceptance-media-evidence')
+        shutil.copytree(windows / 'media-packages', windows / 'acceptance-media-packages')
+        archive = windows / 'acceptance-media-packages/MeowChan-win-x64.zip'
+        with zipfile.ZipFile(archive, 'a') as package:
+            package.writestr('non-shipping-debug-fixture', b'Debug')
+        path = windows / 'acceptance-media-evidence/workflow/workflow.json'
+        workflow = json.loads(path.read_text())
+        workflow['archiveBinding']['sha256'] = A.digest(archive)
+        record(path, workflow)
+        record(windows / 'acceptance-media-evidence/playback/playback.json',
+               {'passed': True, 'acceptanceConfiguration': 'Debug', 'shippingArtifactExecuted': False})
+        mac = self.root / ('macos-paired-candidate-' + self.source)
+        for rid in ('osx-arm64', 'osx-x64'):
+            archive = mac / 'evidence' / rid / f'MeowChan-{self.version}-{rid}.zip'
+            debug = archive.parent / 'debug-acceptance' / archive.name
+            debug.parent.mkdir()
+            shutil.copyfile(archive, debug)
+            with zipfile.ZipFile(debug, 'a') as package:
+                package.writestr('non-shipping-debug-fixture', b'Debug')
+            path = mac / f'{rid}-native-validation.json'
+            value = json.loads(path.read_text())
+            value['acceptanceConfiguration'] = 'Debug'
+            value['debugAcceptance'] = {'inventory_zip_sha256': A.digest(debug)}
+            value['workflow']['archiveBinding']['sha256'] = A.digest(debug)
+            record(path, value)
+        self.mac_checksums()
+        for rid in ('linux-x64', 'linux-arm64'):
+            root = self.root / ('linux-distribution-candidate-' + rid)
+            shutil.copytree(root / 'linux-packages', root / 'acceptance-linux-packages')
+            path = root / 'acceptance-linux-packages' / (rid + '-package-manifest.json')
+            manifest = json.loads(path.read_text())
+            for artifact in manifest['artifacts']:
+                package = path.parent / artifact['file']
+                package.write_bytes(package.read_bytes() + b'Debug')
+                artifact.update(sha256=A.digest(package), bytes=package.stat().st_size)
+            record(path, manifest)
+            evidence = root / 'linux-evidence/distributions'
+            shutil.copytree(evidence, root / 'linux-evidence/release-layouts')
+            layout_path = root / 'linux-evidence/release-layouts/linux-distribution-gates.json'
+            layouts = json.loads(layout_path.read_text())
+            layouts.update(configuration='Release', layoutOnly=True)
+            for row in layouts['scenarios']:
+                scenario_path = layout_path.parent / row['scenario'] / 'scenario.json'
+                proof = json.loads(scenario_path.read_text())
+                proof.update(configuration='Release', layoutOnly=True)
+                record(scenario_path, proof)
+                row['reportSha256'] = A.digest(scenario_path)
+            record(layout_path, layouts)
+            gate_path = evidence / 'linux-distribution-gates.json'
+            gates = json.loads(gate_path.read_text())
+            gates.update(configuration='Debug', layoutOnly=False, manifestSha256=A.digest(path))
+            for row in gates['scenarios']:
+                scenario_path = evidence / row['scenario'] / 'scenario.json'
+                proof = json.loads(scenario_path.read_text())
+                proof['manifestSha256'] = A.digest(path)
+                record(scenario_path, proof)
+                row['reportSha256'] = A.digest(scenario_path)
+            record(gate_path, gates)
+
     def make_nuget(self):
         for package_id in A.PACKAGE_IDS:
             path = self.root / 'library-package-candidate' / f'{package_id}.{self.version}.nupkg'
@@ -262,8 +327,41 @@ class PrereleaseFixtures(unittest.TestCase):
             self.assertEqual(A.digest(self.output / row['file']), row['sha256'])
             self.assertEqual(None if row['file'] == A.retained.BASE_NAME else self.source, row['source_commit'])
 
+    def test_inventory_explicitly_disclaims_release_execution(self):
+        self.assemble()
+        inventory = json.loads((self.output / 'candidate-inventory.json').read_text())
+        self.assertEqual('Debug', inventory['acceptance_configuration'])
+        self.assertIs(False, inventory['shipping_binary_execution_claim'])
+
+    def test_windows_release_zip_cannot_replace_debug_execution_binding(self):
+        root = self.root / 'native-media-candidate-win-x64'
+        path = root / 'acceptance-media-evidence/workflow/workflow.json'
+        value = json.loads(path.read_text())
+        value['archiveBinding']['sha256'] = A.digest(root / 'media-packages/MeowChan-win-x64.zip')
+        record(path, value)
+        self.reject('SHA-256 mismatch')
+
+    def test_linux_debug_archive_bytes_are_verified_independently(self):
+        path = next((self.root / 'linux-distribution-candidate-linux-x64/acceptance-linux-packages').glob('*.AppImage'))
+        write(path, b'changed acceptance artifact')
+        self.reject('Linux Debug acceptance asset length mismatch')
+
+    def test_linux_release_layout_evidence_cannot_be_tampered(self):
+        path = self.root / 'linux-distribution-candidate-linux-x64/linux-evidence/release-layouts/system-vlc/scenario.json'
+        write(path, '{}')
+        self.reject('SHA-256 mismatch')
+
+    def test_mac_release_zip_cannot_replace_debug_execution_binding(self):
+        root = self.root / ('macos-paired-candidate-' + self.source)
+        path = root / 'osx-arm64-native-validation.json'
+        value = json.loads(path.read_text())
+        value['workflow']['archiveBinding']['sha256'] = value['inventory_zip_sha256']
+        record(path, value)
+        self.mac_checksums()
+        self.reject('Mac native workflow differs')
+
     def test_old_binary_cannot_be_renamed_with_current_declarations(self):
-        path = self.root / 'native-media-candidate-win-x64/media-evidence/workflow/workflow.json'
+        path = self.root / 'native-media-candidate-win-x64/acceptance-media-evidence/workflow/workflow.json'
         value = json.loads(path.read_text())
         value['scales'][0]['phases'][0]['assemblyInformationalVersion'] = '0.9.0+' + self.source
         record(path, value)
@@ -428,10 +526,73 @@ class StableFixtures(PrereleaseFixtures):
 
 
 class CandidateWorkflowFixtures(unittest.TestCase):
+    # Independent expected matrix: full/gui-only use all existing GUI workers;
+    # focused selectors retain one native primary and four non-macOS lanes.
+    NON_MAC_MATRIX = tuple(
+        {'os': platform, 'lane': 'lane-' + lane, 'full': lane == 'a'}
+        for platform in ('ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022')
+        for lane in 'abcd')
+    VALIDATE_MATRIX = NON_MAC_MATRIX + tuple(
+        {'os': platform, 'lane': 'native' if shard == 1 else f'native-{shard:02}',
+         'full': shard == 1, 'mac_shard': shard}
+        for platform in ('macos-15', 'macos-15-intel') for shard in range(1, 9))
+    FOCUSED_MATRIX = NON_MAC_MATRIX + tuple(
+        {'os': platform, 'lane': 'native', 'full': True, 'mac_shard': 1}
+        for platform in ('macos-15', 'macos-15-intel'))
+    # Explicit contract, not derived from the production planner under test.
+    DEDICATED_OWNERS = {
+        'first_run': (2, 2), 'preference_startup': (3, 1),
+        'scoped_diagnostics': (4, 4), 'reader_media': (7, 4),
+        'gallery_features': (8, 2), 'media_input': (2, 3), 'tray_lifecycle': (3, 1),
+    }
+
+    def matrix(self, scenario='all', event='workflow_dispatch'):
+        from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
+        rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event)
+        expected = self.VALIDATE_MATRIX if event != 'workflow_dispatch' or scenario in ('all', 'gui-only') else self.FOCUSED_MATRIX
+        self.assertEqual(list(expected), rows)
+        return rows
+
+    @staticmethod
+    def runner(matrix):
+        os = ('macOS' if matrix['os'].startswith('macos-') else
+              'Windows' if matrix['os'].startswith('windows-') else 'Linux')
+        arch = 'ARM64' if matrix['os'] in ('ubuntu-24.04-arm', 'macos-15') else 'X64'
+        return os, arch
+
+    def scene_expected(self, identifier, matrix, scenario, event='workflow_dispatch', mode='validate'):
+        os, arch = self.runner(matrix)
+        full = matrix['full']
+        if event != 'workflow_dispatch':
+            scenario = 'all'
+        focused = {'gallery-errors': 'gallery_errors', 'gallery-features': 'gallery_features',
+                   'gif-playback': 'gif_playback', 'media-input': 'media_input', 'selection': 'smoke_normal',
+                   'tray-lifecycle': 'tray_lifecycle'}
+        if scenario in focused:
+            return full and identifier == focused[scenario]
+        self.assertIn(scenario, ('all', 'gui-only'))
+        if identifier == 'smoke_normal':
+            return True  # Every distributed worker owns a disjoint scene subset.
+        if identifier in ('gallery_errors', 'gif_playback'):
+            return False  # Split families are in smoke_normal, not duplicated here.
+        if identifier in self.DEDICATED_OWNERS:
+            native, other = self.DEDICATED_OWNERS[identifier]
+            owner = matrix['mac_shard'] == native if os == 'macOS' else matrix['lane'] == 'lane-' + 'abcd'[other - 1]
+            return owner and (scenario == 'all' or identifier not in ('media_input', 'tray_lifecycle'))
+        if identifier == 'smoke_plugins':
+            return full and os == 'Linux'
+        if identifier == 'smoke_1_1_registry':
+            return full and os == 'Linux' and arch == 'X64' and event == 'workflow_dispatch' and mode in ('prerelease-candidate', 'stable-candidate')
+        if identifier == 'upgrade_replay':
+            return full and scenario == 'all'
+        if identifier == 'tray_host':
+            return full and os == 'Linux' and scenario == 'all'
+        self.fail('Unmodelled GUI step: ' + identifier)
+
     @classmethod
     def setUpClass(cls):
         cls.workflow = (ROOT / '.github/workflows/dotnet-desktop.yml').read_text()
-        cls.jobs = dict(re.findall(r'^  ([a-z][a-z-]+):\n(.*?)(?=^  [a-z][a-z-]+:|\Z)',
+        cls.jobs = dict(re.findall(r'^  ([a-z][a-z0-9-]+):\n(.*?)(?=^  [a-z][a-z0-9-]+:|\Z)',
                                    cls.workflow.split('\njobs:\n', 1)[1], re.M | re.S))
 
     def condition(self, job, mode, scenario='all', platform='all', event='workflow_dispatch'):
@@ -439,26 +600,102 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         return self.evaluate(expression, mode, scenario, platform, event)
 
     def evaluate(self, expression, mode='validate', scenario='all', platform='all',
-                 event='workflow_dispatch'):
-        for key, value in {'github.event_name': event, 'inputs.mode': mode,
-                           'inputs.scenario': scenario, 'inputs.platform': platform}.items():
+                 event='workflow_dispatch', matrix=None):
+        symbols = {'github.event_name': event, 'inputs.mode': mode,
+                   'inputs.scenario': scenario, 'inputs.platform': platform}
+        if matrix is not None:
+            symbols.update({'matrix.mac_shard': None})  # Missing Actions property is null, not an undefined symbol.
+            symbols.update({f'matrix.{key}': value for key, value in matrix.items()})
+        for key, value in symbols.items():
             expression = expression.replace(key, repr(value))
+        expression = expression.strip()
+        if expression.startswith('${{') and expression.endswith('}}'):
+            expression = expression[3:-2].strip()
+        # GitHub evaluates always() to true even when an upstream need failed.
+        expression = expression.replace('always()', 'True')
         expression = expression.replace('&&', ' and ').replace('||', ' or ')
         expression = re.sub(r'!(?!=)', ' not ', expression)
         return eval(expression, {'__builtins__': {}}, {})
 
     def test_both_candidate_modes_reach_every_same_run_dependency(self):
-        required = ('validate', 'library-package', 'macos-package', 'package-media',
-                    'linux-distribution', 'macos-source-candidate', 'current-source-inventory')
+        required = ('validate', 'macos-offline-gate', 'desktop-offline-gate',
+                    'library-package', 'macos-package', 'package-media',
+                    'linux-distribution', 'macos-source-candidate', 'current-source-inventory', 'ap04-upgrade')
         for mode in ('prerelease-candidate', 'stable-candidate'):
             for job in required:
                 with self.subTest(mode=mode, job=job):
                     self.assertTrue(self.condition(job, mode))
-        self.assertIn('needs: [validate, library-package, macos-source-candidate]',
+        self.assertIn('needs: [validate, library-package, linux-distribution, macos-source-candidate]',
                       self.jobs['current-source-inventory'])
         self.assertIn('needs: [macos-package, package-media, linux-distribution]',
                       self.jobs['macos-source-candidate'])
         self.assertIn('needs: validate', self.jobs['library-package'])
+
+    def test_portable_coverage_gate_only_accepts_complete_nonmac_validation_scope(self):
+        job = self.jobs['desktop-offline-gate']
+        self.assertIn('    needs: validate\n', job)
+        self.assertIn('always()', re.search(r'^    if: (.+)$', job, re.M)[1])
+        platforms = ('', 'all', 'ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022',
+                     'macos-15', 'macos-15-intel')
+        modes = ('validate', 'prerelease-candidate', 'stable-candidate', 'offline-retest',
+                 'package-media', 'linux-distribution', 'macos-package', 'macos-diagnose', 'homebrew-macos')
+        scenarios = ('all', 'gui-only', 'selection', 'gallery-errors', 'gallery-features', 'gif-playback', 'media-input', 'tray-lifecycle')
+        for mode in modes:
+            for scenario in scenarios:
+                for platform in platforms:
+                    expected = (mode in ('validate', 'prerelease-candidate', 'stable-candidate')
+                                and scenario == 'all'
+                                and platform in ('', 'all', 'ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022'))
+                    with self.subTest(mode=mode, scenario=scenario, platform=platform):
+                        self.assertEqual(expected, self.condition('desktop-offline-gate', mode, scenario, platform))
+        for event in ('push', 'pull_request'):
+            self.assertTrue(self.condition('desktop-offline-gate', '', scenario='', platform='', event=event))
+        self.assertIn('pattern: desktop-offline-*', job)
+        self.assertIn('scripts/desktop-test-shards.py', job)
+        self.assertIn('--input artifacts/desktop-offline-inputs --source "$(git rev-parse HEAD)"', job)
+        self.assertIn('platforms=(--platform ubuntu-24.04 --platform ubuntu-24.04-arm --platform windows-2022)', job)
+        self.assertIn('platforms=(--platform "${{ inputs.platform }}")', job)
+        self.assertIn('if-no-files-found: error', job)
+
+    def test_candidate_admission_requires_portable_coverage_success_not_just_matrix_success(self):
+        job = self.jobs['release-candidate-gate']
+        expected = ['validate', 'macos-offline-gate', 'desktop-offline-gate', 'library-package',
+                    'macos-package', 'package-media', 'linux-distribution',
+                    'macos-source-candidate', 'current-source-inventory', 'ap04-upgrade']
+        dependencies = re.search(r'^    needs: \[(.+)\]$', job, re.M)[1].split(', ')
+        required = re.search(r'--required ([a-z0-9,-]+)', job)[1].split(',')
+        self.assertEqual(expected, dependencies)
+        self.assertEqual(expected, required)
+        self.assertIn('scripts/aggregate-release-gates.py needs', job)
+        self.assertIn('RELEASE_NEEDS: ${{ toJSON(needs) }}', job)
+        self.assertIn('--json-env RELEASE_NEEDS', job)
+        self.assertIn('always()', re.search(r'^    if: (.+)$', job, re.M)[1])
+        for mode in ('prerelease-candidate', 'stable-candidate'):
+            self.assertTrue(self.condition('release-candidate-gate', mode))
+            for event in ('push', 'pull_request'):
+                self.assertFalse(self.condition('release-candidate-gate', mode, event=event))
+        for mode in ('validate', 'offline-retest', 'package-media', 'macos-diagnose'):
+            self.assertFalse(self.condition('release-candidate-gate', mode))
+
+        spec = importlib.util.spec_from_file_location('candidate_gate', ROOT / 'scripts/aggregate-release-gates.py')
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        success = {name: {'result': 'success'} for name in dependencies}
+        self.assertTrue(gate.needs_gate(success, required)['passed'])
+        # Exercise the real aggregator with the actual workflow's required list.
+        # Existing validation/package successes cannot mask any missing or failed
+        # coverage dependency, including a deliberately skipped partial retest.
+        for dependency in dependencies:
+            for status in ('missing', 'failure', 'cancelled', 'skipped', 'malformed'):
+                needs = dict(success)
+                if status == 'missing':
+                    needs.pop(dependency)
+                else:
+                    needs[dependency] = None if status == 'malformed' else {'result': status}
+                with self.subTest(dependency=dependency, status=status):
+                    report = gate.needs_gate(needs, required)
+                    self.assertFalse(report['passed'])
+                    self.assertEqual([dependency], list(report['failures']))
 
     def test_diagnostic_and_partial_modes_cannot_stage_candidates(self):
         for mode in ('validate', 'package-media', 'linux-distribution', 'macos-package',
@@ -468,8 +705,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             self.assertFalse(self.condition('library-package', mode, scenario='selection'))
             self.assertFalse(self.condition('current-source-inventory', mode, event='push'))
         guard = re.search(r'name: Require the complete current-source candidate matrix\n'
+                          r'(?:        (?:id:|continue-on-error:|#)[^\n]*\n)*'
                           r'        if: [^\n]+\n        shell: bash\n        run: \|\n(.*?)'
-                          r'(?=      -)', self.jobs['validate'], re.S).group(1)
+                          r'(?=      -)', self.jobs['validate'], re.M | re.S).group(1)
         bash = workflow_bash()
         for platform, scenario, expected in (('all', 'all', 0), ('windows-2022', 'all', 1),
                                                ('all', 'selection', 1), ('all', 'gallery-errors', 1),
@@ -479,19 +717,21 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                                                ('all', 'gif-playback', 1),
                                                ('macos-15', 'gif-playback', 1),
                                                ('all', 'media-input', 1),
-                                               ('windows-2022', 'media-input', 1)):
+                                               ('windows-2022', 'media-input', 1),
+                                               ('all', 'tray-lifecycle', 1),
+                                               ('macos-15-intel', 'tray-lifecycle', 1)):
             command = guard.replace('${{ inputs.platform }}', platform).replace('${{ inputs.scenario }}', scenario)
             with self.subTest(platform=platform, scenario=scenario):
                 result = subprocess.run([bash, '-e', '-c', command], capture_output=True, text=True)
                 self.assertEqual(expected, result.returncode, result.stdout + result.stderr)
 
-    def test_package_fixture_step_stops_at_first_failure_on_every_platform(self):
+    def test_package_fixture_step_collects_all_failures_on_every_platform(self):
         body = re.search(r'^      - name: Check package layout fixtures\n(.*?)(?=^      - )',
                          self.jobs['validate'], re.M | re.S).group(1)
         self.assertIn('        shell: bash\n', body)
         condition = re.search(r'^        if: (.+)$', body, re.M).group(1)
         for scenario, expected in (('all', True), ('media-input', True), ('gui-only', False)):
-            self.assertEqual(expected, self.evaluate(condition, scenario=scenario))
+            self.assertEqual(expected, self.evaluate(condition, scenario=scenario, matrix={'full': True}))
         command = body.split('        run: |\n', 1)[1]
         self.assertIn('set -euo pipefail', command)
         # Run the real extracted multi-command shape with a fake failing Python.
@@ -499,7 +739,20 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         script = 'python() { echo attempted; return 17; }\n' + command
         result = subprocess.run([workflow_bash(), '-c', script], capture_output=True, text=True)
         self.assertEqual(17, result.returncode, result.stdout + result.stderr)
-        self.assertEqual(['attempted'], result.stdout.splitlines())
+        suite_count = command.count('python -m unittest discover')
+        self.assertGreater(suite_count, 1)
+        self.assertEqual(['attempted'] * suite_count, result.stdout.splitlines())
+
+        # One early failure must survive all later successful suites.
+        script = 'count=0; python() { count=$((count + 1)); echo attempted; if [[ $count == 2 ]]; then return 17; fi; return 0; }\n' + command
+        result = subprocess.run([workflow_bash(), '-c', script], capture_output=True, text=True)
+        self.assertEqual(17, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(['attempted'] * suite_count, result.stdout.splitlines())
+
+        script = 'python() { echo attempted; return 0; }\n' + command
+        result = subprocess.run([workflow_bash(), '-c', script], capture_output=True, text=True)
+        self.assertEqual(0, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(['attempted'] * suite_count, result.stdout.splitlines())
 
     def test_gallery_selectors_isolate_existing_scenes_but_retain_preparation_and_evidence(self):
         steps = dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)',
@@ -509,48 +762,57 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             'gallery-features': 'Exercise changed gallery features on the actual platform',
             'gif-playback': 'Exercise GIF playback and ownership on the actual platform',
             'media-input': 'Exercise real OS media input (not synthetic routed keys)',
+            'tray-lifecycle': 'Exercise tray lifecycle separately on the disposable runner',
         }
         gallery = selectors['gallery-errors']
         scenes = {name: body for name, body in steps.items()
                   if 'scripts/run-desktop-smoke.py' in body
+                  or 'scripts/run-gui-ci-scenes.py' in body
                   or 'scripts/test-media-interaction-smoke.py' in body
                   or name.startswith('Replay genuine')}
         self.assertGreater(len(scenes), 10)
-        startup = 'Exercise native graphical startup and fallback paths'
-        full_only = {
-            'Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections',
-            'Exercise real OS media input (not synthetic routed keys)',
-            'Exercise tray lifecycle separately on the disposable runner',
-            'Check native Linux tray host lifecycle on private DBus',
-        }
-        for os in ('Windows', 'Linux', 'macOS'):
+        self.assertIn('Exercise native graphical startup and fallback paths', scenes)
+        scene_ids = {name: re.search(r'^        id: (\S+)', body, re.M)[1] for name, body in scenes.items()}
+        self.assertEqual(set(scene_ids.values()), set(self.DEDICATED_OWNERS) | {
+            'smoke_normal', 'smoke_plugins', 'smoke_1_1_registry', 'upgrade_replay',
+            'gif_playback', 'gallery_errors', 'tray_host'})
+        for event in ('workflow_dispatch', 'push', 'pull_request'):
             for scenario in ('all', 'gui-only', 'selection', *selectors):
-                for name, body in scenes.items():
-                    condition = re.search(r'^        if: (.+)$', body, re.M)
-                    expression = condition.group(1) if condition else 'True'
-                    expression = expression.replace('runner.os', repr(os))
-                    if scenario in selectors:
-                        expected = name == selectors[scenario]
-                    elif scenario == 'selection':
-                        expected = name == startup
-                    else:
-                        expected = scenario == 'all' or name not in full_only
-                        if name == 'Check native Linux tray host lifecycle on private DBus':
-                            expected = expected and os == 'Linux'
-                    with self.subTest(os=os, scenario=scenario, scene=name):
-                        self.assertEqual(expected, self.evaluate(expression, scenario=scenario))
-                        self.assertEqual(
-                            name != 'Check native Linux tray host lifecycle on private DBus' or os == 'Linux',
-                            self.evaluate(expression, event='push'))
-        for name in ('Record SDK and source commit',
-                     'Restore graphical harness with reviewed dependencies',
+                for matrix in self.matrix(scenario, event):
+                    os, arch = self.runner(matrix)
+                    for name, body in scenes.items():
+                        condition = re.search(r'^        if: (.+)$', body, re.M)
+                        expression = condition.group(1) if condition else 'True'
+                        expression = expression.replace('runner.os', repr(os)).replace('runner.arch', repr(arch))
+                        mode = 'prerelease-candidate' if scenario == 'all' else 'validate'
+                        expected = self.scene_expected(scene_ids[name], matrix, scenario, event, mode)
+                        with self.subTest(os=matrix['os'], lane=matrix['lane'], event=event,
+                                          scenario=scenario, scene=name):
+                            self.assertEqual(expected, self.evaluate(
+                                expression, mode=mode, scenario=scenario, event=event, matrix=matrix))
+        self.assertNotRegex(steps['Record SDK and source commit'], r'^        if:')
+        for name in ('Restore graphical harness with reviewed dependencies',
                      'Retain exact graphical harness dependency graph',
                      'Build graphical harness',
                      'Verify plugin delivery in desktop and transitive harness outputs'):
-            self.assertNotRegex(steps[name], r'^        if:', name)
+            expression = re.search(r'^        if: (.+)$', steps[name], re.M)[1]
+            for event in ('workflow_dispatch', 'push', 'pull_request'):
+                for scenario in ('all', 'gui-only', 'selection', *selectors):
+                    for row in self.matrix(scenario, event):
+                        expected = row['full'] or event != 'workflow_dispatch' or scenario in ('all', 'gui-only')
+                        with self.subTest(preparation=name, scenario=scenario, event=event, row=row):
+                            self.assertEqual(expected, self.evaluate(expression, scenario=scenario,
+                                                                     event=event, matrix=row))
         self.assertIn("MEOWCHAN_GALLERY_ERROR_ONLY: '1'", steps[gallery])
         self.assertIn('--mode normal --timeout 300 --output artifacts/closure-gallery-errors',
                       steps[gallery])
+        self.assertIn('if [[ "$RUNNER_OS" == Linux ]]; then', steps[gallery])
+        self.assertIn('scripts/with-private-null-audio.py --report artifacts/private-audio/gallery-errors.json --', steps[gallery])
+        self.assertIn('env MEOWCHAN_GALLERY_ERROR_ONLY=1 MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1', steps[gallery])
+        self.assertEqual(2, steps[gallery].count('--mode normal --timeout 300 --output artifacts/closure-gallery-errors'))
+        self.assertIn('--allow-native-desktop --mode normal', steps[gallery])
+        registry = (ROOT / 'tests/MeowChan.DesktopSmoke/SmokeScenarios.cs').read_text()
+        self.assertRegex(registry, r'Root\("gallery-error"[^\n]+NightlyEnvironment = \[Video, FunctionalAudio\]')
         self.assertIn('artifacts/closure-gallery-errors/**', self.jobs['validate'])
         self.assertIn('artifacts/build-evidence/**', self.jobs['validate'])
         self.assertIn("if: always()", self.jobs['validate'])
@@ -570,18 +832,124 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         for scenario in selectors:
             self.assertIn(f'          - {scenario}\n', self.workflow)
         self.assertIn('default: all', self.workflow.split('      scenario:', 1)[1].split('permissions:', 1)[0])
-        matrix = re.search(r'^        os: (.+)$', self.jobs['validate'], re.M).group(1)
-        self.assertIn("format('[\"{0}\"]', inputs.platform)", matrix)
-        self.assertNotIn('inputs.scenario', matrix)
+        matrix = re.search(r'^      matrix: (.+)$', self.jobs['validate'], re.M).group(1)
+        self.assertIn('fromJSON(', matrix)
+        self.assertIn('\"include\"', matrix)
+        # Full validation now expands eight native macOS shards. Focused GUI
+        # selectors must still retain the original machine set and preparation.
+        from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
+        matrix_contract = DotnetDesktopWorkflowContractTests()
+        for scenario in selectors:
+            rows = matrix_contract.matrix(scenario=scenario)
+            self.assertEqual(14, len(rows))
+            native = [row for row in rows if row['os'].startswith('macos-')]
+            self.assertEqual({'macos-15', 'macos-15-intel'}, {row['os'] for row in native})
+            self.assertTrue(all(row['full'] and row['mac_shard'] == 1 for row in native))
         for scenario in selectors:
             for platform in ('all', 'ubuntu-24.04', 'windows-2022', 'macos-15'):
                 self.assertTrue(self.condition('validate', 'validate', scenario, platform))
                 for job in self.jobs:
                     if job != 'validate':
                         with self.subTest(scenario=scenario, platform=platform, job=job):
-                            self.assertFalse(self.condition(job, 'validate', scenario, platform))
+                            # The workflow-wide outcome gate intentionally also runs on
+                            # focused retests; only unrelated workload jobs must skip.
+                            self.assertEqual(job == 'full-sweep-aggregate',
+                                             self.condition(job, 'validate', scenario, platform))
             for mode in ('prerelease-candidate', 'stable-candidate'):
                 self.assertFalse(self.condition('library-package', mode, scenario=scenario))
+
+    def test_distributed_gui_inventory_has_exact_once_coverage_and_matching_required_gates(self):
+        def load(name):
+            spec = importlib.util.spec_from_file_location(name.replace('-', '_'), ROOT / 'scripts' / (name + '.py'))
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            return module
+
+        runner = load('run-gui-ci-scenes')
+        plan = load('gui-ci-plan')
+        gate = load('compute-validation-required')
+        # Independent, complete inventory: deletion/duplication in the runner or
+        # planner must fail, even if its own self-reported coverage says PASS.
+        families = {
+            'NORMAL': ['normal-core', 'normal-grid', 'normal-settings-page', 'normal-diagnostics',
+                       'sources-page', 'normal-board-admission', 'pause-controls', 'rules-page', 'settings-core'],
+            'MODES': ['locked-profile', 'no-tray', 'tray-failure', 'download-session', 'selection'],
+            'READER': ['reader-navigation', 'reader-owned-navigation', 'reader-gallery-roundtrip',
+                       'reader-list-gallery-return', 'reader-returns', 'reader-stability',
+                       'reader-groups', 'gallery-close', 'video-lifecycle', 'window-minimum'],
+            'GIF': ['gif-playback-core', 'gif-successors', 'gif-verified-failures', 'gif-reader-association', 'gif-ownership'],
+            'GALLERY_ERRORS': ['gallery-errors-retirement-clip', 'gallery-errors-layout-roots',
+                               'gallery-errors-notifications', 'gallery-errors-failure-reader-return'],
+        }
+        for family, expected in families.items():
+            self.assertEqual(expected, getattr(runner, family), family)
+        inventory = sum(families.values(), [])
+        self.assertEqual(33, len(inventory))
+        self.assertEqual(len(inventory), len(set(inventory)))
+        self.assertEqual(families['READER'], runner.reader_baseline([{'id': name} for name in inventory]))
+        for missing in families['READER']:
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                runner.reader_baseline([{'id': name} for name in inventory if name != missing])
+        for workers, column in ((8, 0), (4, 1)):
+            self.assertEqual({name: owners[column] for name, owners in self.DEDICATED_OWNERS.items()},
+                             plan.owners(workers))
+            shards = [plan.scenes_for(inventory, shard, workers) for shard in range(1, workers + 1)]
+            self.assertTrue(all(shards), 'No distributed worker may silently lose its scene subset')
+            self.assertCountEqual(inventory, sum(shards, []))  # multiplicity, not just set equality
+            self.assertEqual(33, len(set(sum(shards, []))))
+
+        bodies = dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)',
+                                 self.jobs['validate'], re.M | re.S))
+        scenes = {re.search(r'^        id: (\S+)', body, re.M)[1]: body
+                  for name, body in bodies.items()
+                  if any(script in body for script in ('scripts/run-gui-ci-scenes.py',
+                         'scripts/run-desktop-smoke.py', 'scripts/test-media-interaction-smoke.py'))
+                  or name.startswith('Replay genuine')}
+        for event, scenario, mode in (
+                ('push', 'all', 'validate'), ('pull_request', 'all', 'validate'),
+                ('workflow_dispatch', 'all', 'validate'),
+                ('workflow_dispatch', 'all', 'prerelease-candidate'),
+                ('workflow_dispatch', 'all', 'stable-candidate'),
+                ('workflow_dispatch', 'gui-only', 'validate')):
+            rows = self.matrix(scenario, event)
+            for platform in {row['os'] for row in rows}:
+                actual_coverage = []
+                dedicated_coverage = []
+                for row in (row for row in rows if row['os'] == platform):
+                    os, arch = self.runner(row)
+                    shard = row['mac_shard'] if os == 'macOS' else 'abcd'.index(row['lane'][-1]) + 1
+                    workers = 8 if os == 'macOS' else 4
+                    selected = set()
+                    for identifier, body in scenes.items():
+                        expression = re.search(r'^        if: (.+)$', body, re.M)[1]
+                        expression = expression.replace('runner.os', repr(os)).replace('runner.arch', repr(arch))
+                        if self.evaluate(expression, event=event, scenario=scenario, mode=mode, matrix=row):
+                            selected.add(identifier)
+                    required = plan.overlay(gate.required_steps(event, mode, scenario, row['lane'], os, arch),
+                                            shard, os, scenario)
+                    with self.subTest(platform=platform, shard=shard, event=event, scenario=scenario, mode=mode):
+                        self.assertEqual(selected, set(required) & scenes.keys(),
+                                         'Selected GUI steps and final required gates diverged')
+                        self.assertTrue(set(plan.PREREQUISITES).issubset(required))
+                        self.assertIn('linux_setup' if os == 'Linux' else 'prepare_desktop', required)
+                        self.assertNotIn('gallery_errors', required)
+                        self.assertNotIn('gif_playback', required)
+                    if 'smoke_normal' in selected:
+                        actual_coverage.extend(plan.scenes_for(inventory, shard, workers))
+                    dedicated_coverage.extend(selected & self.DEDICATED_OWNERS.keys())
+                with self.subTest(platform=platform, event=event, scenario=scenario, mode=mode):
+                    self.assertCountEqual(inventory, actual_coverage)
+                    self.assertCountEqual([name for name in self.DEDICATED_OWNERS
+                                           if scenario == 'all' or name not in ('media_input', 'tray_lifecycle')],
+                                          dedicated_coverage)
+        # Keep real collector dispatch and final fail-closed aggregation connected.
+        self.assertIn('scripts/run-gui-ci-scenes.py', scenes['smoke_normal'])
+        self.assertIn('matrix.mac_shard', scenes['smoke_normal'])
+        self.assertIn('--workers {1}', scenes['smoke_normal'])
+        final_gate = bodies['Fail validation after collecting all evidence']
+        self.assertIn('scripts/gui-ci-plan.py --required "$required_csv"', final_gate)
+        self.assertIn('scripts/aggregate-release-gates.py steps', final_gate)
+        self.assertIn('--required "$required_csv"', final_gate)
 
     def test_downloads_stay_in_current_run_and_candidate_channel_is_explicit(self):
         job = self.jobs['current-source-inventory']
@@ -589,7 +957,9 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn("pattern: '*candidate*'", download)
         for cross_run_option in ('run-id:', 'github-token:', 'repository:'):
             self.assertNotIn(cross_run_option, download)
-        self.assertNotIn('always()', job)
+        # Candidate verification remains an evidence-producing dependent, even
+        # when an earlier candidate job failed.
+        self.assertIn('always()', job)
         self.assertIn('--run-id "$GITHUB_RUN_ID"', job)
         self.assertIn('--source-commit "$GITHUB_SHA"', job)
         self.assertIn('channel=prerelease', job)

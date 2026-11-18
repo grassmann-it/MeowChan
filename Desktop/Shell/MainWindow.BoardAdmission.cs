@@ -6,7 +6,9 @@ using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using MeowChan.Admission;
+using MeowChan.Booru;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using Serilog;
 
@@ -20,7 +22,7 @@ public partial class MainWindow
         if (urls.Count == 0) return new(new Dictionary<string, BoardAdmissionPolicy>(), !_config.ShowBoardAdmissionWizard);
         if (!_config.ShowBoardAdmissionWizard && !forceWizard)
             return DirectBoardAdmissions(urls, _session.GetBoardAdmissionPolicy);
-        var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync, _config.ShowBoardAdmissionWizard);
+        var dialog = new BoardAdmissionWindow(urls, _session.GetBoardAdmissionPolicy, _session.PreviewBoardAdmissionAsync, _config.ShowBoardAdmissionWizard, ConfiguredWorkView);
         return await dialog.ShowDialog<BoardAdmissionSelection?>(this);
     }
 
@@ -28,17 +30,20 @@ public partial class MainWindow
         => new(urls.Distinct(StringComparer.Ordinal).ToDictionary(url => url,
             url => new BoardAdmissionPolicy(Array.Empty<ThreadTextRule>(), readPolicy(url).Exceptions), StringComparer.Ordinal), true);
 
-    private async Task<bool> SubmitAdmissionBatchAsync(string? input, Action<Window>? observeExperimentalModal = null)
+    private async Task<bool> SubmitAdmissionBatchAsync(string? input)
     {
         _admissionBatchCanceled = false;
+        _admissionBooruOpened = false;
         var entries = new List<string>();
         await AddInput.SubmitAsync(input, ReadClipboardAsync, url => { entries.Add(url); return Task.CompletedTask; });
-        IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, observeExperimentalModal);
+        // Danbooru addresses are read as text first: they never reach the chan registry, its logs or the board dialog.
+        IReadOnlyDictionary<int, DanbooruAddress> booru = RecognizeBooruAddresses(entries);
+        IReadOnlyDictionary<int, string> skipped = await FilterExperimentalAdmissionsAsync(entries, booru.Keys);
         var boardUrls = new HashSet<string>(StringComparer.Ordinal);
         for (int index = 0; index < entries.Count; index++)
         {
             if (_isClosing) throw new OperationCanceledException();
-            if (skipped.ContainsKey(index)) continue;
+            if (skipped.ContainsKey(index) || booru.ContainsKey(index)) continue;
             // Sequential reads keep a large paste within the finite host admission budget.
             if (await _session.ClassifyAdmissionAsync(entries[index]) is { IsBoard: true, AlreadyWatching: false } target)
                 boardUrls.Add(target.Url);
@@ -58,6 +63,7 @@ public partial class MainWindow
             await _session.ApplySettingsAsync(candidate);
         }
         bool allAccepted = skipped.Count == 0;
+        BooruAddressBatch booruPlan = BooruAddressBatch.Plan(booru.Where(item => item.Value.Kind != DanbooruAddressKind.Post).Select(item => item.Key));
         for (int index = 0; index < entries.Count; index++)
         {
             string url = entries[index];
@@ -68,6 +74,17 @@ public partial class MainWindow
                 _admissionBatchCanceled = true;
                 continue;
             }
+            if (booru.TryGetValue(index, out DanbooruAddress? address))
+            {
+                if (booruPlan.Ignored.Contains(index))
+                {
+                    ReportIgnoredBooruSearch(address);
+                    allAccepted = false;
+                    continue;
+                }
+                allAccepted &= await AdmitBooruAddressAsync(url, address, index == booruPlan.SearchIndex ? booruPlan.Ignored.Count : 0);
+                continue;
+            }
             DesktopAdmissionResult? result;
             BoardAdmissionTarget? target = await _session.ClassifyAdmissionAsync(url);
             if (target is { IsBoard: true, AlreadyWatching: false } && selection.Policies.TryGetValue(target.Url, out BoardAdmissionPolicy? policy))
@@ -75,7 +92,7 @@ public partial class MainWindow
                 try
                 {
                     result = await _session.ApplyBoardAdmissionAsync(target.Url, policy, selection.Reactivations?.GetValueOrDefault(target.Url));
-                    _admissionResults.Add(new AdmissionFeedback(url, result.Status, null));
+                    _admissionResults.Add(new AdmissionFeedback(url, result.Status, null, WatchId: result.WatchId));
                 }
                 catch (Exception exception)
                 {
@@ -94,9 +111,10 @@ public partial class MainWindow
     private async Task OpenBoardAdmissionAsync(BoardRow board)
     {
         if (!_restoreCompleted || _isClosing || _importing || _applyingPreferences) return;
-        _importing = true; UpdateInteractionState();
+        _importing = true;
         try
         {
+            UpdateInteractionState();
             var selection = await SelectBoardAdmissionsAsync(new[] { board.Url }, forceWizard: true);
             if (selection == null || _isClosing) return;
             await _session.ApplyBoardAdmissionAsync(board.Url, selection.Policies[board.Url], selection.Reactivations?.GetValueOrDefault(board.Url));
@@ -108,7 +126,7 @@ public partial class MainWindow
         }
         catch (Exception exception)
         {
-            ShowNotification(Texts.T("notification.error"), exception.Message, NotificationType.Error, context: board.Url, operation: "board.admission");
+            ShowNotification(Texts.T("notification.error"), Texts.T("boardAdmission.applyFailed", exception.Message), NotificationType.Error, context: board.Url, operation: "board.admission");
         }
         finally { _importing = false; UpdateInteractionState(); }
     }

@@ -3,10 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using Serilog;
 
 namespace MeowChan;
@@ -16,45 +19,70 @@ public partial class MainWindow
     private void LocalizeDownloadsColumnsButton()
     {
         if (!_workspaceInitialized) return;
-        CommandBindings.Apply(WorkspaceControl<Button>("DownloadsColumnsButton"), "table.choose-columns", iconWithLabel: true);
+        CommandBindings.Apply(DownloadsColumnsButton, "table.choose-columns", iconWithLabel: true);
     }
 
     private void OnDownloadsColumnsClick(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        string gridName = WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1
-            ? "BoardsDataGrid" : "ThreadsDataGrid";
+        ContextMenu menu = BuildDownloadColumnsMenu(DownloadsTabs.SelectedIndex == 1 ? "BoardsDataGrid" : "ThreadsDataGrid");
+        button.ContextMenu = menu;
+        // The menu is built for the table of the tab shown now; a later right-click on the button must not reopen it for another tab.
+        menu.Closed += (_, _) => { if (ReferenceEquals(button.ContextMenu, menu)) button.ContextMenu = null; };
+        menu.Open(button);
+    }
+
+    // A right-click on a column header of either downloads table opens the same column menu as the "Columns" button; the keyboard
+    // reaches it through that button. Rows keep their own menu (MainWindow.Selection.cs).
+    private void InitializeDownloadHeaderMenus()
+    {
+        foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
+        {
+            DataGrid grid = WorkspaceControl<DataGrid>(gridName);
+            grid.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent, (_, e) =>
+            {
+                // The button is the offer of the work view: where it is hidden, the header does not bring the choice back.
+                if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed || _isClosing || !_restoreCompleted || !DownloadsColumnsButton.IsVisible) return;
+                if ((e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() is not { } header) return;
+                e.Handled = true;
+                ContextMenu menu = BuildDownloadColumnsMenu(gridName);
+                header.ContextMenu = menu;
+                menu.Closed += (_, _) => { if (ReferenceEquals(header.ContextMenu, menu)) header.ContextMenu = null; };
+                menu.Open(header);
+            }, Avalonia.Interactivity.RoutingStrategies.Tunnel, handledEventsToo: true);
+        }
+    }
+
+    /// <summary>The column menu of a downloads table: one switch per offered column (the last visible one cannot be hidden), then the reset.</summary>
+    internal ContextMenu BuildDownloadColumnsMenu(string gridName)
+    {
         DataGrid grid = WorkspaceControl<DataGrid>(gridName);
         string mode = _config.WorkspaceMode;
-        ContextMenu menu = new();
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        List<(string Key, string? Help)> help = new();
         foreach (DataGridColumn column in grid.Columns)
         {
-            if (IsAdvancedWorkColumn(column) && mode != "Advanced") continue;
+            if (!WorkViewPolicy.ColumnOffered(WorkViewPolicy.DownloadColumnId(gridName, column.SortMemberPath), ConfiguredWorkView)) continue;
             string key = gridName + "." + column.SortMemberPath;
-            MenuItem item = new()
-            {
-                Header = column.Header,
-                ToggleType = MenuItemToggleType.CheckBox,
-                IsChecked = column.IsVisible,
-                IsEnabled = !column.IsVisible || CanHideDownloadColumn(gridName, column.SortMemberPath,
-                    grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray())
-            };
-            if (IsAdvancedWorkColumn(column))
-            {
-                string help = Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint");
-                ToolTip.SetTip(item, help);
-                Avalonia.Automation.AutomationProperties.SetHelpText(item, help);
-            }
             bool visible = column.IsVisible;
-            item.Click += async (_, _) => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode);
-            menu.Items.Add(item);
+            bool available = !visible || CanHideDownloadColumn(gridName, column.SortMemberPath,
+                grid.Columns.Where(candidate => candidate.IsVisible).Select(candidate => candidate.SortMemberPath).ToArray());
+            builder.Check(key, column.Header?.ToString() ?? key, visible,
+                async () => await SetDownloadColumnVisibleAsync(gridName, key, !visible, mode), available: available);
+            if (IsAdvancedWorkColumn(column))
+                help.Add((key, Texts.T(column.SortMemberPath == nameof(ThreadRow.MissingMedia) ? "column.missingMediaHint" : "column.earliestRetryHint")));
         }
-        menu.Items.Add(new Separator());
-        MenuItem reset = new() { Header = Texts.T("archive.columnsReset") };
-        reset.Click += async (_, _) => await ResetDownloadColumnsAsync(gridName, mode);
-        menu.Items.Add(reset);
-        button.ContextMenu = menu;
-        menu.Open(button);
+        builder.Section().Item("archive.columnsReset", Texts.T("archive.columnsReset"),
+            () => _ = ResetDownloadColumnsAsync(gridName, mode));
+        help.Add(("archive.columnsReset", Texts.T("archive.columnsReset.hint")));
+        ContextMenu menu = builder.Build()!;
+        foreach ((string key, string? text) in help)
+        {
+            if (menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, key)) is not { } item || text == null) continue;
+            ToolTip.SetTip(item, text);
+            Avalonia.Automation.AutomationProperties.SetHelpText(item, text);
+        }
+        return menu;
     }
 
     private async Task SetDownloadColumnVisibleAsync(string gridName, string key, bool visible, string mode)
@@ -148,7 +176,7 @@ public partial class MainWindow
                 if (_config.ColumnWidths.TryGetValue(key, out double width))
                     column.Width = new DataGridLength(width);
                 else if (gridName == "ThreadsDataGrid" && column.SortMemberPath == nameof(ThreadRow.Completion))
-                    column.Width = new DataGridLength(_config.WorkspaceMode == "Advanced" ? 140 : 300);
+                    column.Width = new DataGridLength(WorkViewDensity.DownloadCompletionWidth(ConfiguredWorkView));
                 else if (_defaultColumnWidths.TryGetValue(key, out DataGridLength defaultWidth))
                     column.Width = defaultWidth;
             }

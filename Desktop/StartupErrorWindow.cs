@@ -1,78 +1,53 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
-using Avalonia.Platform;
 using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using System;
-using System.IO;
 
 namespace MeowChan.Desktop;
 
 /// <summary>Keeps profile and initialization failures visible even when MainWindow cannot be created.</summary>
 public sealed class StartupErrorWindow : Window
 {
-    private readonly TextBlock _heading;
+    private readonly Border _errorPanel;
     private readonly Button _exitButton;
     private bool _closed;
 
     public StartupErrorWindow(string message)
     {
-        using Stream iconStream = AssetLoader.Open(new Uri("avares://MeowChan/Assets/meowchan.png"));
-        Icon = new WindowIcon(iconStream);
-        Width = 560;
-        Height = 360;
-        MinWidth = 340;
-        MinHeight = 240;
+        // Can open before MainWindow applies the saved theme; the variant in effect now decides.
+        ThemeLogo.Follow(this);
+        // Modals plan MD3: ownerless and modeless (the error must stay reachable from the taskbar), on the S step.
+        DialogWindow.Configure(this, DialogSize.S, modal: false);
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
-        _heading = new TextBlock
-        {
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(16, 16, 16, 12)
-        };
-        _heading.Classes.Add("page-title");
         SelectableTextBlock detail = new SelectableTextBlock
         {
+            Name = "StartupErrorMessage",
             Text = message,
             TextWrapping = TextWrapping.Wrap
         };
         detail.Classes.Add("workspace-error");
-        ScrollViewer scroll = new ScrollViewer
-        {
-            Content = detail,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        };
-        Border errorPanel = new Border
+        // The failure is the window's whole subject, so it is the scrolling body rather than
+        // a capped local strip; heading and exit stay fixed around it.
+        _errorPanel = new Border
         {
             Margin = new Thickness(16, 0, 16, 16),
-            Child = scroll
+            Child = detail
         };
-        errorPanel.Classes.Add("workspace-section");
-        _exitButton = new Button
-        {
-            HorizontalAlignment = HorizontalAlignment.Right,
-            MinWidth = 96,
-            IsCancel = true
-        };
+        _errorPanel.Classes.Add("workspace-section");
+        _exitButton = new Button { Name = "StartupErrorExit" };
         _exitButton.Click += (_, _) => Close();
-        Border footer = new() { Child = _exitButton };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new Grid
-        {
-            RowDefinitions = new RowDefinitions("Auto,*,Auto")
-        };
-        layout.Children.Add(_heading);
-        Grid.SetRow(errorPanel, 1);
-        layout.Children.Add(errorPanel);
-        Grid.SetRow(footer, 2);
-        layout.Children.Add(footer);
-        Content = layout;
+        // No owner: keeps minimize so the error stays reachable from the taskbar. The title stands in the title bar only.
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, _errorPanel, DialogFooter.Build(_exitButton)), modal: false);
+        DialogEscape.Attach(this);
 
         // Texts has built-in English before Initialize, including for profile startup failures.
         ApplyTexts();
@@ -87,8 +62,11 @@ public sealed class StartupErrorWindow : Window
     private void ApplyTexts()
     {
         Title = Texts.T("startup.title");
-        _heading.Text = Title;
         _exitButton.Content = Texts.T("action.exit");
+        // The title stands in the title bar only, so the region that carries the failure is named after it;
+        // the failure text itself keeps the name of its own text.
+        AutomationProperties.SetName(_errorPanel, Title);
+        AutomationProperties.SetName(_exitButton, Texts.T("action.exit"));
     }
 
     private void OnTextsChanged(object? sender, EventArgs e)

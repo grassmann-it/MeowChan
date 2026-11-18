@@ -1,0 +1,58 @@
+using System;
+using System.Linq;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using MeowChan.Desktop.Stats;
+
+namespace MeowChan;
+
+public partial class MainWindow
+{
+    private void InitializeStatisticsPage()
+    {
+        // The header gets a recent-window scale, not a peak from the entire retained page history.
+        TransferSpeedGraph.SampleIntervalMs = () => _session.IoStats.Options.SampleIntervalMs;
+        TransferDiskGraph.SampleIntervalMs = () => _session.IoStats.Options.SampleIntervalMs;
+        _statisticsPage = new StatisticsPage();
+        _statisticsPage.Attach(_session.IoStats, SourceDisplayName);
+        _statisticsPage.DiagnosticsRequested += OnStatisticsDiagnosticsRequested;
+        _statusPage?.AttachStatistics(_statisticsPage); // the statistics segment of the Status page
+        InitializeHeaderIoMenu(); // right-click / Menu key on the header display (MainWindow.HeaderMenu.cs)
+    }
+
+    // An error count of the statistics table leads to the diagnostics segment: the source's problems (the source filter set,
+    // "Only problems" on), or for the total row every source's. Where the window cannot navigate, nothing changes.
+    private void OnStatisticsDiagnosticsRequested(string? sourceId)
+    {
+        if (!ShowStatus(StatusSegment.Diagnostics, sourceId)) return;
+        _diagnosticsPage?.FilterSource(sourceId); // null clears an earlier source choice
+        _diagnosticsPage?.SetProblemsOnly(true);
+    }
+
+    // The display name of a source id for the table; null for ids no provider announces (they show as written).
+    private string? SourceDisplayName(string sourceId) =>
+        _session.GetProviderDescriptors().FirstOrDefault(provider => provider.SourceId == sourceId)?.DisplayName;
+
+    /// <summary>The statistics segment of the Status page. False while the window cannot navigate (no restored session, busy editors).</summary>
+    internal bool ShowStatistics()
+    {
+        // The shell header remains available while Gallery or the detached large Reader covers the workspace.
+        // Remove that covering surface first; otherwise StatusPageHost changes underneath it and the click
+        // appears to do nothing. The ordinary close path still preserves the originating context.
+        if (_gallery != null) CloseGallery(restoreOrigin: false);
+        if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+        return ShowStatus(StatusSegment.Statistics);
+    }
+
+    private void ShowStatisticsPage(bool focusContent = true)
+    {
+        if (_statisticsPage == null) return;
+        _statisticsPage.Apply(_session.IoStats.Snapshot());
+        // After layout, so the focus lands on a control that is already visible.
+        if (focusContent)
+            Dispatcher.UIThread.Post(() => { if (!_isClosing && StatisticsSegmentShown) _statisticsPage?.FocusContent(); }, DispatcherPriority.Input);
+    }
+
+    // The header graph leads to the statistics segment of the Status page.
+    private void OnTransferSpeedClick(object? sender, RoutedEventArgs e) => ShowStatistics();
+}

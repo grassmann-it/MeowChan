@@ -3,6 +3,7 @@ using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
@@ -170,10 +171,13 @@ internal static class ArchiveCleanupChecks
     {
         DesktopSessionHost host = owner.SessionHost; string profile = host.ProfileDirectory;
         var before = host.GetView(); bool paused = host.IsPaused;
-        var protectedBefore = Durable(profile);
         string keep = Path.Combine(Media(profile, "104"), "asset0.bin"); byte[] keepBytes = await File.ReadAllBytesAsync(keep);
         Click(owner.FindControl<Button>("ArchiveNavigationButton")!);
         await Program.WaitUntilAsync(() => !owner.ArchivePage.IsBusy);
+        // Visiting the Archive answers the one-time Archive hint and stores that preference (4b79032e, AP1): it is the visit, not
+        // the cleanup, so the durable baseline is taken once that write has landed.
+        await Program.WaitUntilAsync(() => HintSeenStored(profile), () => "Archive hint preference not stored yet");
+        var protectedBefore = Durable(profile);
         Button entry = owner.ArchivePage.FindControl<Button>("ArchiveCleanupOpen")
             ?? throw new InvalidOperationException("Archive cleanup entry is missing.");
         Require(entry.IsVisible && entry.IsEnabled, "Archive cleanup entry is unavailable.");
@@ -183,8 +187,18 @@ internal static class ArchiveCleanupChecks
         Capture(dialog, "real-preview"); Click(dialog, "Close");
         await Program.WaitUntilAsync(() => !owner.OwnedWindows.Contains(dialog));
         Require(File.Exists(Path.Combine(Media(profile, "102"), "asset0.bin")), "Closing preview deleted real media.");
-        await Program.WaitUntilAsync(() => entry.IsEnabled && ReferenceEquals(owner.FocusManager?.GetFocusedElement(), entry));
-        await CheckFocusAsync(owner, entry, "entry-return");
+        // Focus returns to the entry while it is on the header bar; a view or a narrow window that moved it under the bar's "More"
+        // returns focus to that "More" instead (A19, ArchivePage.ActionOriginFocusTarget), never to the hidden entry.
+        ActionToolBar header = entry.GetLogicalAncestors().OfType<ActionToolBar>().First();
+        bool direct = entry.GetVisualAncestors().Contains(header) && ReferenceEquals(TopLevel.GetTopLevel(entry), owner);
+        Control returnTarget = direct ? entry : header.More ?? throw new InvalidOperationException("The overflowed entry has no More.");
+        Require(ReferenceEquals(owner.ArchivePage.ActionOriginFocusTarget(entry), returnTarget), "The page names another focus target for the entry.");
+        Console.WriteLine("SMOKE archive cleanup entry " + (direct ? "on the header bar" : "under More") + "; focus returns to " + returnTarget.Name + ".");
+        await Program.WaitUntilAsync(() => entry.IsEnabled && ReferenceEquals(owner.FocusManager?.GetFocusedElement(), returnTarget),
+            () => "entry enabled " + entry.IsEnabled + ", visible " + entry.IsEffectivelyVisible + ", direct " + direct + ", focused "
+                + (owner.FocusManager?.GetFocusedElement() is Control focused ? focused.GetType().Name + "#" + focused.Name : "none")
+                + ", owner active " + owner.IsActive);
+        await CheckFocusAsync(owner, returnTarget, "entry-return");
         Click(entry); await Program.WaitUntilAsync(() => owner.OwnedWindows.OfType<ArchiveCleanupDialog>().Any());
         dialog = owner.OwnedWindows.OfType<ArchiveCleanupDialog>().Single(); await Ready(dialog);
         await SearchAsync(dialog, "100", [Id("100")]); Click(dialog, "SelectShown"); await SearchAsync(dialog, "102", [Id("102")]); Click(dialog, "SelectShown");
@@ -201,7 +215,9 @@ internal static class ArchiveCleanupChecks
         Require(await File.ReadAllTextAsync(Path.Combine(MediaRoot(profile), "export", "index.html")) == "retained export", "Export changed.");
         Require(host.IsPaused == paused && before.Threads.SequenceEqual(host.GetView().Threads) && before.Boards.SequenceEqual(host.GetView().Boards), "Cleanup changed global pause or watches.");
         var after = Durable(profile);
-        Require(protectedBefore.Keys.Order().SequenceEqual(after.Keys.Order()) && protectedBefore.All(pair => pair.Value.SequenceEqual(after[pair.Key])), "Cleanup changed durable watches/suppression/protection/settings.");
+        Require(protectedBefore.Keys.Order().SequenceEqual(after.Keys.Order()) && protectedBefore.All(pair => pair.Value.SequenceEqual(after[pair.Key])),
+            "Cleanup changed durable watches/suppression/protection/settings: " + string.Join(", ", protectedBefore.Keys.Union(after.Keys)
+                .Where(key => !protectedBefore.TryGetValue(key, out byte[]? old) || !after.TryGetValue(key, out byte[]? now) || !old.SequenceEqual(now))));
         await using (ArchiveReader reopened = await ArchiveReader.OpenAsync(profile))
         {
             Require(await reopened.ReadThreadAsync(Id("100")) == null && await reopened.ReadThreadAsync(Id("102")) == null, "Fresh reader retained deleted catalog rows.");
@@ -212,7 +228,12 @@ internal static class ArchiveCleanupChecks
         Capture(dialog, "real-result");
         Evidence.Add(new { stage = "real-private-deletion", deleted = new[] { "100", "102" }, retained = new[] { "101", "103", "104", "105" }, globalPause = host.IsPaused,
             unchangedFiles = after.Keys.Order().ToArray(), freshCatalogReader = true, retainedExport = true, protectedMediaSha256 = Convert.ToHexString(SHA256.HashData(keepBytes)) });
-        Click(dialog, "Close"); await Program.WaitUntilAsync(() => !owner.OwnedWindows.Contains(dialog)); await Program.WaitUntilAsync(() => entry.IsEnabled && ReferenceEquals(owner.FocusManager?.GetFocusedElement(), entry)); await CheckFocusAsync(owner, entry, "real-result-return");
+        Click(dialog, "Close"); await Program.WaitUntilAsync(() => !owner.OwnedWindows.Contains(dialog));
+        // The completed cleanup reloads the list; the return target is the same rule as above, read again for the new layout.
+        Control resultTarget = owner.ArchivePage.ActionOriginFocusTarget(entry) ?? entry;
+        await Program.WaitUntilAsync(() => entry.IsEnabled && ReferenceEquals(owner.FocusManager?.GetFocusedElement(), resultTarget),
+            () => "expected " + resultTarget.Name + ", focused " + ((owner.FocusManager?.GetFocusedElement() as Control)?.Name ?? "none"));
+        await CheckFocusAsync(owner, resultTarget, "real-result-return");
     }
 
     private static Task Show(ArchiveCleanupDialog dialog, Window owner)
@@ -225,6 +246,18 @@ internal static class ArchiveCleanupChecks
     private static ArchiveCleanupExecutionPlan Plan(ArchiveCleanupPreview preview, IReadOnlyCollection<ResourceId> ids)
         => new(preview, ids.ToArray(), preview.Rows.Where(row => ids.Contains(row.Id)).ToArray(),
             new Dictionary<ResourceId, IReadOnlyList<ArchiveCleanupDirectoryFiles>>(), []);
+    // Read-only: the stored settings file, not Config.LoadConfig (which may repair or rewrite it while the host owns the profile).
+    private static bool HintSeenStored(string profile)
+    {
+        try
+        {
+            using JsonDocument settings = JsonDocument.Parse(File.ReadAllText(Path.Combine(profile, "settings.json")));
+            return settings.RootElement.EnumerateObject().Any(property => property.NameEquals(nameof(Config.ArchiveBridgeHintSeen))
+                && property.Value.ValueKind == JsonValueKind.True);
+        }
+        catch (Exception error) when (error is IOException or JsonException) { return false; }
+    }
+
     private static Dictionary<string, byte[]> Durable(string profile)
     {
         var files = Directory.EnumerateFiles(profile).Where(path =>

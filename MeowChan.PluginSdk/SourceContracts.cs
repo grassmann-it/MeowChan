@@ -60,6 +60,10 @@ public sealed record SourceAttachment(int Position, string? MediaId, string Vari
     long? ExpectedSize = null, string? ExpectedMd5 = null, string? ExpectedSha256 = null,
     string? MimeType = null, bool IsDeleted = false)
 {
+    /// <summary>Provider-reported pixel width. Null is retained for legacy or non-image captures.</summary>
+    public int? Width { get; init; }
+    /// <summary>Provider-reported pixel height. Null is retained for legacy or non-image captures.</summary>
+    public int? Height { get; init; }
     /// <summary>Provider checksum, base64 of exactly 20 bytes. Never a local content identity.</summary>
     public string? ExpectedSha1 { get; init; }
     /// <summary>A non-authoritative provider size annotation, never an exact byte expectation.</summary>

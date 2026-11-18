@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using MeowChan.Archive;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Testing;
 using MeowChan.Transfer;
 using Xunit.Abstractions;
 
@@ -93,7 +94,7 @@ public sealed class DiskFullFixtureTheoryAttribute : TheoryAttribute
         string? root = Environment.GetEnvironmentVariable("MEOWCHAN_FS_FIXTURE_ROOT");
         if (string.IsNullOrEmpty(root))
             Skip = "Requires MEOWCHAN_FS_FIXTURE_ROOT, a small dedicated filesystem; no real disk-full coverage is claimed without it.";
-        else if (!Path.GetFullPath(Path.GetTempPath()).StartsWith(Path.GetFullPath(root), StringComparison.Ordinal))
+        else if (!Path.GetFullPath(TemporaryWorkspacePaths.TempRoot).StartsWith(Path.GetFullPath(root), StringComparison.Ordinal))
             Skip = "TMPDIR must point inside MEOWCHAN_FS_FIXTURE_ROOT so profile and stage live on the fixture filesystem.";
     }
 }

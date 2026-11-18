@@ -120,6 +120,22 @@ internal static class GalleryCloseChecks
             await RequireNativePlaybackAsync(viewer);
             RequireUncoveredVideoTransport(viewer);
         }
+        // macOS normally keeps the native traffic lights. In that mode the XAML
+        // WindowCloseButton is intentionally hidden, so asking for its client-space
+        // geometry reports a smoke failure even though the native close caption owns
+        // the window. The dedicated native window-chrome scenario covers that OS
+        // control; this journey must only probe the app-drawn caption when it is the
+        // active chrome policy.
+        if (!WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode))
+        {
+            if (exitFailure != null)
+                throw new InvalidOperationException("Gallery fullscreen exit failed before the native caption close handoff.", exitFailure);
+            Console.WriteLine("SMOKE gallery close: native/system caption owns the close control; app caption hit-test is not applicable.");
+            markChecksPassed();
+            window.Close();
+            return;
+        }
+
         window.UpdateLayout();
         Point center = close.TranslatePoint(new Point(close.Bounds.Width / 2, close.Bounds.Height / 2), window)
             ?? throw new InvalidOperationException("Close caption has no window position.");

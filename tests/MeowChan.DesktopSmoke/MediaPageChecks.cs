@@ -1,14 +1,18 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Gallery;
@@ -30,9 +34,10 @@ internal static partial class MediaPageChecks
     // Files named dup-* share one content on purpose; every other file gets its own bytes (a trailing note after the PNG data),
     // because the page merges equal bytes into one tile.
     // snd-*, mute-* and odd-* are real MP4 bytes with sound, real MP4 bytes without, and bytes no probe can decide.
+    // The WebM path uses the checked-in decoder fixture; the odd case stays deliberately undecodable.
     private static byte[] BytesOf(string name) => name.StartsWith("snd-", StringComparison.Ordinal) ? SoundMp4.Value
         : name.StartsWith("mute-", StringComparison.Ordinal) ? SilentMp4.Value
-        : name.StartsWith("odd-", StringComparison.Ordinal) ? [.. VideoBytes, .. System.Text.Encoding.UTF8.GetBytes(name)]
+        : name.StartsWith("odd-", StringComparison.Ordinal) ? [.. UndecodableVideoBytes, .. System.Text.Encoding.UTF8.GetBytes(name)]
         : name.EndsWith(".webm", StringComparison.Ordinal) ? VideoBytes : name.StartsWith("dup-", StringComparison.Ordinal) ? Png : [.. Png, .. System.Text.Encoding.UTF8.GetBytes(name)];
 
     private static readonly Lazy<byte[]> SoundMp4 = new(() => File.ReadAllBytes(FixturePath("tests/Fixtures/release102/playback-h264-audio.mp4")));
@@ -52,20 +57,37 @@ internal static partial class MediaPageChecks
     internal static async Task RunAsync(MainWindow owner)
     {
         string language = Texts.Language;
+        if (HeaderCaptureDirectory is { } captures)
+        {
+            // Evidence run of the header and grid stability check only (MediaPageChecks.HeaderStability.cs).
+            await HeaderStabilityAsync(owner, captures);
+            return;
+        }
         string profile = TemporaryWorkspacePaths.CreateDirectory("media-page-native-");
         try
         {
             Texts.SetLanguage("en");
+            await HeaderStabilityAsync(owner, captures: null);
             new Config().SaveConfig(profile);
             await SeedAsync(profile);
             await PageJourneyAsync(owner, profile);
+            string panelProfile = TemporaryWorkspacePaths.CreateDirectory("media-page-panel-");
+            new Config().SaveConfig(panelProfile);
+            await SeedAsync(panelProfile);
+            await PanelFollowsSelectionAsync(owner, panelProfile); // the media panel follows the selection (MediaPageChecks.Panel.cs)
+            await RatingsManagerEntryAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
+            await BackgroundPresentRacesAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-present-races-"));
+            await FilterSurfaceAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-filter-surface-"));
+            await SortToolbarAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-sort-toolbar-"));
+            await Cx03MediaFilterClosureAsync(owner);
             await OwnStateJourneyAsync(owner, profile);
             await DuplicateJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-duplicates-"));
             await SelectionJourneyAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-selection-"));
             await NavigationAsync(owner);
             await HostPathsAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-host-"));
             await ReturnPathAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-return-"));
+            await GalleryReturnPathAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-gallery-return-"));
             string videoProfile = TemporaryWorkspacePaths.CreateDirectory("media-video-native-");
             new Config().SaveConfig(videoProfile);
             await SeedVideosAsync(videoProfile);
@@ -76,7 +98,7 @@ internal static partial class MediaPageChecks
             await AudioJourneyAsync(owner, audioProfile);
             Console.WriteLine("SMOKE media sound [en]: three videos (real MP4 with sound, real MP4 without, bytes no probe can decide) are probed in the background from their headers; 'with sound' shows exactly one, 'without sound' exactly one, the undecidable one is counted as not checked and never shown or called silent; a sound choice sets the type to videos and another type drops it; reset clears it; results are cached and a second page starts from the cache.");
             Console.WriteLine("SMOKE media videos [en]: a video tile shows the local reader poster (cache keyed by verified bytes), also when it is a grouped tile; nothing fetched.");
-            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), filters (thread and media tags all/any/exclude, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
+            Console.WriteLine("SMOKE media page [en]: index build, saved/missing toggle, three orders, verified thumbnail, gallery window, show in thread, cache reuse, own state on tiles (favorite, rating, media vs thread tags, unknown wording, tag edit reload, language switch), tag chips on tiles (media and thread tag, named, fit the cell, Enter and click filter by the tag, focus back on the grid), 'N without media tags' status link (counts bound and loose files, applies the filter, removable chip, focus on the grid, thread tags do not count but the thread-tag filter still matches, combines with type, reset), filters (thread and media tags all/any/exclude, without media tags, favorites, rating, type, name, source, board, thread chip, reset, deleted tag refused), duplicates (same bytes in three threads: one tile, 'in 3 threads' hint, details with three occurrences and their own tags, jump into a thread, filter matches by one occurrence, gallery gets one entry per tile), selection (click, Ctrl+click, Shift+click, Ctrl+A, Esc, check mark on selected tiles, three tiles tagged and untagged with one occurrence of a duplicate deselected, gallery with exactly the selection, export of exactly their originals, selection kept or dropped by filters and order, actions disabled while building), export all (exactly the originals of the tiles the filter shows, independent of the selection; question above a lowered limit with confirm, cancel, Esc and dropped by a filter change; disabled with a reason without tiles and while building), navigation button in Simple and Tools menu in Barebones checked.");
         }
         finally { Texts.SetLanguage(language); }
     }
@@ -106,11 +128,11 @@ internal static partial class MediaPageChecks
             Require(page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")).SequenceEqual(new[] { "200:200", "100:100", "100:-" }),
                 "By-thread order is wrong: " + string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + entry.PostId)));
             TextBlock status = C<TextBlock>(page, "MediaStatus");
-            Require(status.Text == Texts.T("media.count", 3, 2), "Status is wrong: " + status.Text);
+            Require(status.Text == CountPhrases.MediaSummary(3, 2), "Status is wrong: " + status.Text);
 
             CheckBox missing = C<CheckBox>(page, "MediaShowMissing");
             missing.IsChecked = true;
-            Require(page.ShownEntries.Count == 4 && status.Text == Texts.T("media.countMissing", 4, 2, 1), "Missing toggle failed: " + status.Text);
+            Require(page.ShownEntries.Count == 4 && status.Text == CountPhrases.MediaSummary(4, 2, 1), "Missing toggle failed: " + status.Text);
             missing.IsChecked = false;
 
             ComboBox sort = C<ComboBox>(page, "MediaSort");
@@ -146,15 +168,22 @@ internal static partial class MediaPageChecks
         }
         finally { page.EndLifetime(); window.Close(); }
 
-        // A new page shows the cached index immediately, before its own update finishes.
+        // A new page reads the cached index in the background (the UI thread is not blocked and says so), shows it, and
+        // does not write the unchanged index back.
         MediaPage again = new(host.OpenArchiveReaderAsync, cachePath: cache);
         Window second = new() { Width = 900, Height = 700, Content = again, ShowInTaskbar = false };
         try
         {
             second.Show(owner);
+            DateTime written = File.GetLastWriteTimeUtc(cache);
             Task update = again.ActivateAsync();
-            Require(again.Snapshot != null && again.ShownEntries.Count == 3, "Cached index was not shown right away.");
+            Require(again.LoadingCache && again.Snapshot == null && C<TextBlock>(again, "MediaStatus").Text!.Contains(Texts.T("media.cache.loading")),
+                "The cached index was not loading in the background: " + C<TextBlock>(again, "MediaStatus").Text);
+            await UntilAsync(() => again.Snapshot != null);
+            Require(again.ShownEntries.Count == 3, "Cached index was not shown.");
             await update.WaitAsync(Deadline);
+            Require(again.CacheFile is { Writes: 0, SkippedWrites: 1 } && File.GetLastWriteTimeUtc(cache) == written,
+                "The unchanged index was written again.");
         }
         finally { again.EndLifetime(); second.Close(); }
     }
@@ -174,41 +203,75 @@ internal static partial class MediaPageChecks
             MediaLibraryEntry one = page.ShownEntries.Single(entry => entry.PostId == "100");
             MediaLibraryEntry two = page.ShownEntries.Single(entry => entry.PostId == "200");
 
+            // T1: before any tag the status line counts all three files as untagged (bound and loose alike). The link applies
+            // "without media tags" on top of the other filters, hides itself, hands the keyboard to the tiles and is removable as a chip.
+            Button untagged = C<Button>(page, "MediaUntaggedCount");
+            CheckBox withoutTags = C<CheckBox>(page, "MediaWithoutMediaTags");
+            Require(untagged.IsVisible && (untagged.Content as TextBlock)?.Text == Texts.T("media.untagged.count", 3)
+                && Equals(ToolTip.GetTip(untagged), Texts.T("media.untagged.hint", 3))
+                && C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaSummary(3, 2), "The status line must offer the three untagged files.");
+            Program.CaptureWindow(window, "smoke-media-untagged-link.png");
+            Require(untagged.Focus(), "The untagged count link must take keyboard focus.");
+            untagged.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(withoutTags.IsChecked == true && page.ShownEntries.Count == 3 && !untagged.IsVisible && page.FilterChips.Children.Count == 1
+                && C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 3, 3), "The untagged link did not apply its filter.");
+            await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
+            RemoveChip(page.FilterChips, 0);
+            Require(withoutTags.IsChecked == false && untagged.IsVisible && !page.FilterChips.IsVisible, "Removing the untagged chip did not widen back.");
+
             // Real stores: a thread tag on A, a media tag on B's file, a favorite on A's file, a rating on B's file.
             PrivateTagCommit rpt = await host.DefinePrivateTagAsync("rpt").WaitAsync(Deadline);
             PrivateTagCommit cute = await host.DefinePrivateTagAsync("cute").WaitAsync(Deadline);
             await host.SetThreadTagAsync(rpt.Tag, A, true).WaitAsync(Deadline);
+            // A thread tag is no media tag: the files of the tagged thread still wait for their own tags.
+            page.RefreshUserData();
+            Require((untagged.Content as TextBlock)?.Text == Texts.T("media.untagged.count", 3), "A thread tag must not count as a media tag.");
             await host.SetMediaTagAsync(cute.Tag, MediaLibraryFilterEngine.TagTarget(two)!, true).WaitAsync(Deadline);
             Require(await host.SetFavoriteAsync(new FavoriteEntry(MediaLibraryFilterEngine.AssetKey(one)!, one.Length!.Value, one.Name), true).WaitAsync(Deadline),
                 "Favorite was not stored.");
             await host.SetMediaRatingAsync(MediaLibraryFilterEngine.AssetKey(two)!, 4).WaitAsync(Deadline);
             page.RefreshUserData();
+            // Only B's file has a media tag; A's two files (one in a tagged thread, one loose) are left, also together with the type
+            // filter. Both at once: the thread-tag filter still matches those untagged files.
+            Require((untagged.Content as TextBlock)?.Text == Texts.T("media.untagged.count", 2), "Only the media tag must remove a file from the count.");
+            C<ComboBox>(page, "MediaKindFilter").SelectedIndex = (int)MediaLibraryKindFilter.Image;
+            withoutTags.IsChecked = true;
+            string Untagged() => string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")));
+            Require(Untagged() == "100:100,100:-", "Without media tags and the type filter must combine: " + Untagged());
+            page.FilterToTag(rpt.Tag.Value);
+            // C3: type, without media tags and the tag are three chips now (the type had none before).
+            Require(Untagged() == "100:100,100:-" && page.FilterChips.Children.Count == 3, "The thread tag filter must still match untagged media: " + Untagged());
+            page.ResetFilters();
+            Require(withoutTags.IsChecked == false && page.ShownEntries.Count == 3 && untagged.IsVisible, "Reset did not clear without media tags.");
 
-            ComboBox tags = C<ComboBox>(page, "MediaTagChoice"), mode = C<ComboBox>(page, "MediaTagMode");
-            Button include = C<Button>(page, "MediaTagInclude"), exclude = C<Button>(page, "MediaTagExclude");
-            Button reset = C<Button>(page, "MediaFilterReset");
+            MeowChan.Desktop.Controls.TwoWayToggle mode = C<MeowChan.Desktop.Controls.TwoWayToggle>(page, "MediaTagMode");
+            MeowChan.Desktop.Controls.TagFilterPicker addTag = C<MeowChan.Desktop.Controls.TagFilterPicker>(page, "MediaTagAdd");
             WrapPanel chips = page.FilterChips;
-            Require(tags.Items.Count == 3 && !include.IsEnabled, "Tag choice must offer both tags behind a placeholder.");
-            void Choose(string name) => tags.SelectedItem = tags.Items.Cast<object>().Single(item => item.ToString() == name);
+            Require(page.AddableTagNames.SequenceEqual(new[] { "cute", "rpt" }) && addTag.IsEnabled, "The tag popover must offer both tags: " + string.Join(",", page.AddableTagNames));
+            void Include(string name) => Require(page.AddTagFilterByName(name, include: true) == null, "Including " + name + " failed.");
+            void Exclude(string name) => Require(page.AddTagFilterByName(name, include: false) == null, "Excluding " + name + " failed.");
             string Shown() => string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")));
 
             // A thread tag reaches every file of the thread, the loose file included.
-            Choose("rpt");
-            include.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(Shown() == "100:100,100:-" && chips.Children.Count == 1 && reset.IsEnabled, "Thread tag filter failed: " + Shown());
+            Include("rpt");
+            Require(Shown() == "100:100,100:-" && chips.Children.Count == 1 && page.ActiveFilterCount > 0, "Thread tag filter failed: " + Shown());
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 2, 3), "Filtered count is wrong.");
-            Choose("cute");
-            include.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Include("cute");
             Require(page.ShownEntries.Count == 0 && C<TextBlock>(page, "MediaEmpty").IsVisible
                 && C<TextBlock>(page, "MediaEmpty").Text == Texts.T("media.filter.noMatch"), "All-of two tags must match nothing: " + Shown());
             mode.SelectedIndex = 1;
             Require(page.ShownEntries.Count == 3 && chips.Children.Count == 3, "At-least-one must match all three: " + Shown());
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(page.ShownEntries.Count == 3 && !chips.IsVisible && !reset.IsEnabled && mode.SelectedIndex == 0, "Reset did not clear the tag filter.");
-            Choose("cute");
-            exclude.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
+            Require(page.ShownEntries.Count == 3 && !chips.IsVisible && page.ActiveFilterCount == 0 && mode.SelectedIndex == 0, "Reset did not clear the tag filter.");
+            Exclude("cute");
             Require(Shown() == "100:100,100:-", "Excluding a media tag must hide only that file: " + Shown());
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // S1/M2: a tag chip carries its state and an explicit toggle; toggling moves the tag to the other list and filters again.
+            Ursa.Controls.ClosableTag cuteChip() => page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Single();
+            Require(cuteChip().Classes.Contains("chip-exclude") && ArchivePage.FilterTagLabel(cuteChip()) == Texts.T("tags.filter.excludeChip", "cute"), "An excluded tag chip must say so.");
+            Require(page.ToggleTagFilterByName("cute") == null && page.ShownEntries.Count == 1 && !cuteChip().Classes.Contains("chip-exclude")
+                && ArchivePage.FilterTagLabel(cuteChip()) == Texts.T("tags.filter.includeChip", "cute"), "Toggling an excluded tag must include it: " + Shown());
+            Require(page.ToggleTagFilterByName("cute") == null && Shown() == "100:100,100:-" && cuteChip().Classes.Contains("chip-exclude"), "Toggling back must exclude it again: " + Shown());
+            page.ResetFilters();
 
             // Favorites, rating, and both together.
             CheckBox favorites = C<CheckBox>(page, "MediaFavoritesOnly");
@@ -221,7 +284,7 @@ internal static partial class MediaPageChecks
             Require(Shown() == "200:200", "Rating filter failed: " + Shown());
             rating.SelectedIndex = 5;
             Require(page.ShownEntries.Count == 0, "No file is rated 5.");
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
 
             // Type, name, source and board.
             ComboBox kind = C<ComboBox>(page, "MediaKindFilter"), source = C<ComboBox>(page, "MediaSourceFilter"), board = C<ComboBox>(page, "MediaBoardFilter");
@@ -229,10 +292,51 @@ internal static partial class MediaPageChecks
             Require(page.ShownEntries.Count == 0, "PNG files are not GIFs.");
             kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
             Require(page.ShownEntries.Count == 3, "Image filter lost files.");
-            TextBox name = C<TextBox>(page, "MediaNameFilter");
+            SearchBox name = C<SearchBox>(page, "MediaNameFilter");
             name.Text = "  TWO ";
             await UntilAsync(() => Shown() == "200:200"); // TextChanged arrives after a dispatcher turn.
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            // Over a large index typing waits for the last keystroke: one rebuild for a burst, results unchanged.
+            page.ResetFilters();
+            page.SearchImmediateEntries = 0;
+            int presented = page.PresentCount;
+            name.Text = "t"; name.Text = "tw"; name.Text = "two";
+            Require(page.PresentCount == presented && name.IsQueryPending, "A burst of keystrokes must not rebuild the grid before the delay.");
+            await UntilAsync(() => Shown() == "200:200" && !name.IsQueryPending);
+            Require(page.PresentCount == presented + 1, "The burst must rebuild the grid once: " + (page.PresentCount - presented));
+            Require(name.ResultText == Texts.Count("search.count", 1), "The field must show the hit count: " + name.ResultText);
+            name.ClearAndFocus();
+            Require(name.Text == string.Empty && page.ShownEntries.Count == 3 && name.ResultText == null, "Clearing must apply at once.");
+            page.SearchImmediateEntries = 2000;
+            name.Text = "  TWO ";
+            await UntilAsync(() => Shown() == "200:200");
+            page.ResetFilters();
+            // A large library presents off the UI thread: the grid keeps its rows until the new ones are ready, only the newest of
+            // several requests is applied, and the selection is carried over.
+            page.BackgroundPresentEntries = 0;
+            try
+            {
+                MediaLibraryTile picked = page.Tiles[1];
+                page.Grid.Selection.Select(1);
+                int presentedInBackground = page.PresentCount;
+                object? rowsBefore = page.Grid.ItemsSource;
+                kind.SelectedIndex = (int)MediaLibraryKindFilter.Gif;
+                kind.SelectedIndex = (int)MediaLibraryKindFilter.Image;
+                Require(page.PresentCount == presentedInBackground && ReferenceEquals(page.Grid.ItemsSource, rowsBefore),
+                    "A background presentation must not change the grid before it is ready.");
+                await page.PresentTask.WaitAsync(TimeSpan.FromSeconds(30));
+                Require(page.PresentCount == presentedInBackground + 1 && page.ShownEntries.Count == 3,
+                    "Two requests in a row must apply once, with the newest filter: " + (page.PresentCount - presentedInBackground) + "/" + page.ShownEntries.Count);
+                Require(page.SelectedTiles.Count == 1 && MediaLibraryTileKey.Of(page.SelectedTiles[0]) == MediaLibraryTileKey.Of(picked),
+                    "The selection must survive a background presentation.");
+                kind.SelectedIndex = (int)MediaLibraryKindFilter.Gif;
+                await page.PresentTask.WaitAsync(TimeSpan.FromSeconds(30));
+                Require(page.ShownEntries.Count == 0 && page.SelectedTiles.Count == 0,
+                    "A filter that matches nothing must empty the grid and drop the selection.");
+                kind.SelectedIndex = 0;
+                await page.PresentTask.WaitAsync(TimeSpan.FromSeconds(30));
+                Require(page.ShownEntries.Count == 3, "Clearing the type must show everything again.");
+            }
+            finally { page.BackgroundPresentEntries = 2000; }
             Require(name.Text == string.Empty && kind.SelectedIndex == 0, "Reset did not clear name and type.");
             Require(source.Items.Count == 2 && source.Items[1]!.ToString() == "media-fixture", "Source choice must list the archived source.");
             Require(board.Items.Count == 2 && board.Items[1]!.ToString() == Texts.T("media.filter.boardOfSource", "g", "media-fixture"),
@@ -242,7 +346,7 @@ internal static partial class MediaPageChecks
                 "A board alone must filter by its source and board.");
             source.SelectedIndex = 1;
             Require(board.SelectedIndex == 1 && board.Items[1]!.ToString() == "/g/", "Choosing the board's own source must keep the board.");
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
 
             // The thread as a meta tag: the tile's thread label filters to that thread; its chip removes it.
             Button threadLink = await FindThreadLinkAsync(page, B);
@@ -252,16 +356,17 @@ internal static partial class MediaPageChecks
             Require(page.ShownEntries.Count == 3 && !chips.IsVisible, "Removing the thread chip did not widen back.");
 
             // A deleted tag in the filter is refused: explanation, empty grid, no silent widening.
-            Choose("cute");
-            include.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Include("cute");
             Require(Shown() == "200:200", "Media tag filter failed: " + Shown());
             PrivateTagLoadSnapshot before = host.GetPublishedPrivateTagSnapshot();
             await host.DeletePrivateTagAsync(cute.Tag, before.Snapshot!.Revision).WaitAsync(Deadline);
             page.RefreshUserData();
             Require(page.FilterError == Texts.T("media.filter.error.unknownTag") && page.ShownEntries.Count == 0
                 && !C<TextBlock>(page, "MediaEmpty").IsVisible, "A deleted tag must refuse the filter with an explanation.");
-            Require(((chips.Children[0] as ContentControl)?.Content as TextBlock)?.Text == Texts.T("tags.filter.includeChip", Texts.T("tags.filter.deleted")),
-                "The chip of a deleted tag must say so.");
+            // A tag chip is negatable (M2): its content is the switch and the label, read through the one chip model.
+            string deletedLabel = chips.Children[0] is Ursa.Controls.ClosableTag deletedChip ? MeowChan.Desktop.Controls.WorkspaceChips.TermChipLabel(deletedChip) : "";
+            Require(deletedLabel == Texts.T("tags.filter.includeChip", Texts.T("tags.filter.deleted")),
+                "The chip of a deleted tag must say so: " + deletedLabel);
             RemoveChip(chips, 0);
             Require(page.FilterError == null && page.ShownEntries.Count == 3, "Removing the deleted tag did not clear the refusal.");
         }
@@ -299,8 +404,49 @@ internal static partial class MediaPageChecks
                 Require(s1.MediaTags.Count == 0 && s1.ThreadTags.SequenceEqual(new[] { "rpt" }), "A thread tag must show as a thread tag only.");
                 Require(s2.Favorite == MediaLibraryFlag.No && s2.UserRating == 4 && s2.MediaTags.SequenceEqual(new[] { "keep" }) && s2.ThreadTags.Count == 0,
                     "Rating and media tag of the second file are wrong.");
-                Require(s3.TagsKnown && !s3.CanEditMediaTags && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A file without a post cannot carry media tags.");
-                Require(Row(one).DetailWithState.Contains('★') && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
+                // AP-01b: a loose file is taggable as its own local occurrence; it starts without media tags (none from its thread).
+                Require(s3.TagsKnown && s3.CanEditMediaTags && s3.TagSubject is MediaTagSubject.Local && s3.MediaTags.Count == 0
+                    && s3.ThreadTags.SequenceEqual(new[] { "rpt" }), "A loose file must be taggable as a local file and start untagged.");
+                Require(Row(one).DetailWithState.Contains(Texts.T("command.gallery.favorite.compact")) && Row(two).DetailWithState.Contains("4/5"), "The tile line must show favorite and rating.");
+
+                // T2: own tags are chips beside the thread link; a chip filters by its tag (a thread tag reaches the whole thread),
+                // a second chip narrows further, and the chip in the filter row removes it again.
+                Button chip = null!;
+                await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
+                    && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
+                Require(MediaLibraryTileView.ChipLabel(chip).Text == "keep" && Equals(ToolTip.GetTip(chip), Texts.T("media.tile.tagHint", "keep"))
+                    && chip.Classes.Contains("chip-own") && chip.Classes.Contains("chip-compact") && !MediaLibraryTileView.ChipThreadMark(chip).IsVisible
+                    && Avalonia.Automation.AutomationProperties.GetName(chip) == Texts.T("media.tile.tagHint", "keep"), "The media tag chip is not named.");
+                // The chip row shares the tile's cell; nothing is clipped or pushed under the next tile.
+                MediaLibraryTileView chipTile = chip.FindAncestorOfType<MediaLibraryTileView>()!;
+                Point? chipEnd = chip.TranslatePoint(new Point(chip.Bounds.Width, chip.Bounds.Height), chipTile);
+                Require(chipEnd is { } end && end.Y <= chipTile.Bounds.Height && end.X <= chipTile.Bounds.Width
+                    && (chipTile.Content as Control)!.DesiredSize.Height <= MediaLibraryTileView.TileHeight, "The tag chip must fit inside its tile: " + chipEnd);
+                Program.CaptureWindow(window, "smoke-media-tag-chips.png");
+                Require(chip.Focus(), "A tag chip must take keyboard focus.");
+                chip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+                Require(page.ShownEntries.SequenceEqual(new[] { two }) && page.FilterChips.Children.Count == 1, "Enter on the tag chip did not filter by it.");
+                await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
+                RemoveChip(page.FilterChips, 0);
+                // S7: Shift+Enter (like Shift+click) on a tile chip hides the media that carry the tag; its filter chip says "Without tag".
+                await UntilAsync(() => (chip = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
+                    && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == two)!) != null);
+                Require(chip.Focus(), "A tag chip must take keyboard focus for the exclusion.");
+                chip.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter, KeyModifiers = KeyModifiers.Shift });
+                Require(!page.ShownEntries.Contains(two) && page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().Single().Classes.Contains("chip-exclude"),
+                    "Shift+Enter on the tag chip did not exclude its tag.");
+                await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
+                RemoveChip(page.FilterChips, 0);
+                Button threadTag = null!;
+                await UntilAsync(() => (threadTag = page.GetVisualDescendants().OfType<Button>().FirstOrDefault(button => button.Name == "MediaTileTag"
+                    && button.IsEffectivelyVisible && button.DataContext is MediaLibraryTileRow row && row.Entry == one)!) != null);
+                Require(MediaLibraryTileView.ChipLabel(threadTag).Text == "rpt" && MediaLibraryTileView.ChipThreadMark(threadTag).IsEffectivelyVisible
+                    && threadTag.Classes.Contains("chip-thread") && Equals(ToolTip.GetTip(threadTag), Texts.T("media.tile.threadTagHint", "rpt")),
+                    "The thread tag must show as a chip as well, with its thread mark.");
+                threadTag.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Require(page.ShownEntries.Count == 2 && page.ShownEntries.All(entry => entry.Thread == A), "The thread tag chip must reach the whole thread.");
+                page.ResetFilters();
+                Require(page.ShownEntries.Count == 3, "Reset did not clear the chip filter.");
 
                 // The tile carries the same text as a tooltip and as its automation name.
                 MediaLibraryTileView tile = null!;
@@ -316,13 +462,13 @@ internal static partial class MediaPageChecks
                 await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>().Any(view => view.DataContext is MediaLibraryTileRow row && row.Entry == two
                     && ToolTip.GetTip(view) is string en && en.Contains("Your rating: 4 of 5")));
 
-                // The tag command is offered for a bound file only.
+                // The tag command is offered for bound and loose files alike, each for exactly its own file.
                 page.Grid.SelectedItem = Row(loose);
                 await page.EditSelectedTagsAsync();
-                Require(edited.Count == 0, "A file without a post must not open the tag editor.");
+                Require(edited.SequenceEqual(new[] { loose }), "A loose file must open the tag editor for itself.");
                 page.Grid.SelectedItem = Row(two);
                 await page.EditSelectedTagsAsync();
-                Require(edited.SequenceEqual(new[] { two }), "The tag editor got the wrong file.");
+                Require(edited.SequenceEqual(new[] { loose, two }), "The tag editor got the wrong file.");
 
                 // A tag change through the host command shows at once after a refresh of the own data.
                 extra = (await host.DefinePrivateTagAsync("extra").WaitAsync(Deadline)).Tag;
@@ -377,7 +523,7 @@ internal static partial class MediaPageChecks
             MediaLibraryTile group = page.Tiles.Single(tile => tile.IsGroup);
             Require(group.Occurrences.Count == 3 && group.ThreadCount == 3 && group.Occurrences.Select(entry => entry.Thread.Thread).Order().SequenceEqual(new[] { "300", "400", "500" }),
                 "The group must know its three occurrences in three threads.");
-            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.count", 2, 3), "Status counts tiles: " + C<TextBlock>(page, "MediaStatus").Text);
+            Require(C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaSummary(2, 3), "Status counts tiles: " + C<TextBlock>(page, "MediaStatus").Text);
 
             // Tags per occurrence: a media tag on the file in 400, a thread tag on 500, nothing in 300.
             MediaLibraryEntry in300 = group.Occurrences.Single(entry => entry.Thread.Thread == "300");
@@ -417,14 +563,12 @@ internal static partial class MediaPageChecks
             Require(threads[0].Thread == in400.Thread && threads[0].PostId == in400.PostId, "Show in thread jumped to the wrong occurrence.");
 
             // A filter matches a group by one occurrence; the tile still lists all of them.
-            ComboBox choice = C<ComboBox>(page, "MediaTagChoice");
-            choice.SelectedItem = choice.Items.Cast<object>().Single(item => item.ToString() == "cute");
-            C<Button>(page, "MediaTagInclude").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(page.AddTagFilterByName("cute", include: true) == null, "Including cute failed.");
             Require(page.Tiles.Count == 1 && page.Tiles[0].Occurrences.Count == 3 && page.Tiles[0].ThreadCount == 3 && page.Tiles[0].Entry == in400,
                 "A media tag on one occurrence must keep the whole group, shown by the matching occurrence.");
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 2), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
             Require(((await FindDuplicatesHintAsync(page)).Content as TextBlock)?.Text == Texts.T("media.tile.inThreads", 3), "The hint counts all occurrences, not only matching ones.");
-            C<Button>(page, "MediaFilterReset").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
 
             // Favorite state of the group tile counts all three saved occurrences: unknown/none/some.
             MediaLibraryTile shared = page.Tiles.Single(tile => tile.IsGroup);
@@ -450,6 +594,8 @@ internal static partial class MediaPageChecks
             grid.SelectedIndex = 0;
             await page.OpenSelectedAsync();
             Require(opened.Count == 1 && opened[0].Window.Count == 2, "Gallery window must hold one entry per tile.");
+            // Interaction audit: double click and Enter on a tile open the same gallery window (MediaPageChecks.TileActivation.cs).
+            await TileActivationParityAsync(page, window, opened);
         }
         finally { page.EndLifetime(); window.Close(); }
     }
@@ -477,8 +623,9 @@ internal static partial class MediaPageChecks
         {
             ReadUserData = () => UserData(host),
             OpenGallery = (window, start) => { opened.Add((window, start)); return Task.CompletedTask; },
-            TagServices = new(host.GetPublishedPrivateTagSnapshot, host.DefinePrivateTagAsync,
-                (tag, targets, assigned, revision, token) => host.SetMediaTagsAsync(tag, targets, assigned, revision, token)),
+            TagServices = new(host.GetPublishedPrivateTagSnapshot,
+                (name, subjects, revision, token) => host.DefineAndSetMediaSubjectTagsAsync(name, subjects, revision, token),
+                (tag, subjects, assigned, revision, token) => host.SetMediaSubjectTagsAsync(tag, subjects, assigned, revision, token)),
             ExportOriginals = async (assets, unavailable, scope) =>
             {
                 scopes.Add(scope);
@@ -506,20 +653,27 @@ internal static partial class MediaPageChecks
             bool Marked(int index) => page.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(item => item.DataContext is MediaLibraryTileRow row && row.Index == index)
                 ?.GetVisualDescendants().OfType<Border>().FirstOrDefault(border => border.Name == "MediaTileSelected")?.IsVisible == true;
 
-            // Nothing selected: every action is disabled and says why.
-            Require(bar.Text == Texts.T("media.selection.none") && !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled && !clear.IsEnabled,
+            // Nothing selected: the action row is not shown at all (no hint row, no greyed-out actions); its actions are still disabled and say why.
+            Control selectionRow = C<Control>(page, "MediaSelectionRow");
+            Require(!selectionRow.IsVisible && !bar.IsEffectivelyVisible && !tag.IsEffectivelyVisible && bar.Text == string.Empty && !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled && !clear.IsEnabled,
                 "Without a selection the actions must be disabled.");
             Require(ToolTip.GetTip(tag) as string == Texts.T("media.selection.reason.none"), "A disabled action must give its reason.");
 
             // Plain click selects one, Shift+click a range, Escape clears, Ctrl+A takes every shown tile.
             await ClickTileAsync(page, window, 0);
             Require(Selected().SequenceEqual(["sel-z.png"]) && bar.Text == Texts.T("media.selection.count", 1), "A plain click must select one tile: " + string.Join(",", Selected()));
+            // The row appears with the first selected tile, counter and actions on one line; the how-to is the tag action's tooltip.
+            Require(selectionRow.IsVisible && bar.IsEffectivelyVisible && tag.IsEffectivelyVisible && clear.IsEffectivelyVisible, "The action row must appear with a selection.");
+            Require(new Control[] { bar, tag, gallery, export, clear }.Select(control => (int)Math.Round(control.TranslatePoint(new Point(0, control.Bounds.Height / 2), page)!.Value.Y)).Distinct().Count() == 1,
+                "The counter and the actions must share one line.");
+            Require((ToolTip.GetTip(tag) as string)!.Contains(Texts.T("media.selection.howTo")) && (ToolTip.GetTip(tag) as string)!.Contains(Texts.T("media.selection.tag.hint")),
+                "The tag action's tooltip must carry the how-to sentence.");
             await ClickTileAsync(page, window, 2, KeyModifiers.Shift);
             Require(Selected().SequenceEqual(order[..3]) && bar.Text == Texts.T("media.selection.count", 3), "Shift+click must select the range: " + string.Join(",", Selected()));
             await UntilAsync(() => Marked(0) && Marked(1) && Marked(2) && !Marked(3));
             grid.Focus();
             grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
-            Require(Selected().Length == 0 && bar.Text == Texts.T("media.selection.none") && !gallery.IsEnabled, "Escape must clear the selection.");
+            Require(Selected().Length == 0 && !selectionRow.IsVisible && !gallery.IsEnabled, "Escape must clear the selection and hide the action row.");
             await UntilAsync(() => !Marked(0) && !Marked(1));
             grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.A, KeyModifiers = KeyModifiers.Control });
             Require(Selected().SequenceEqual(order) && bar.Text == Texts.T("media.selection.count", 4), "Ctrl+A must select every shown tile.");
@@ -547,10 +701,16 @@ internal static partial class MediaPageChecks
             MediaLibraryEntry pairIn700 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "700");
             MediaLibraryEntry pairIn800 = page.Tiles[1].Occurrences.Single(entry => entry.Thread.Thread == "800");
             ClickRaise(tag);
+            // TP3: the selection bar opens the quick tag popover over the selection (tri-state, one write); "Advanced…" lists the occurrences.
+            await UntilAsync(() => page.SelectionTagPopover is { IsOpen: true, Surface: not null });
+            Require(page.SelectionTagPopover!.Surface!.Session.IsSelection && page.SelectionTagWindow == null, "The selection tag popover is not over the selection.");
+            page.SelectionTagPopover.Surface.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => page.SelectionTagWindow != null);
             MediaSelectionTagDialog dialog = (MediaSelectionTagDialog)page.SelectionTagWindow!;
             await UntilAsync(() => dialog.OccurrenceBoxes.Count == 4);
             Require(dialog.OccurrenceBoxes.All(box => box.IsChecked == true) && dialog.Session.Chosen.Count == 4, "Every occurrence must be ticked by default.");
+            Require(dialog.OccurrenceBoxes.Select(box => box.Name).Distinct(StringComparer.Ordinal).Count() == 4,
+                "The occurrence check boxes share an automation id: " + string.Join(",", dialog.OccurrenceBoxes.Select(box => box.Name)));
             CheckBox box700 = dialog.OccurrenceBoxes.Single(box => ((box.Content as TextBlock)?.Text ?? string.Empty).Contains("dup-700.png"));
             box700.IsChecked = false;
             await UntilAsync(() => dialog.Session.Chosen.Count == 3 && dialog.Session.Chosen.All(candidate => candidate.Entry != pairIn700));
@@ -565,16 +725,38 @@ internal static partial class MediaPageChecks
                 "The tag must be on the three chosen occurrences.");
             Require(NamesOn(pairIn700).Length == 0 && NamesOn(Single("sel-z.png")).Length == 0, "The deselected occurrence and the unselected tile must stay untagged.");
             Require(stored.ThreadAssignments.Count == 0, "Media tags must not tag threads.");
-            await UntilAsync(() => dialog.RemovablePanel.Children.OfType<Button>().Count() == 1 && dialog.Status.Text == string.Empty);
+            TagToggleRow? PickedRow() => dialog.TagList.Rows.SingleOrDefault(row => row.Tag?.Name.Display == "picked");
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.All, Carriers: 3, Total: 3 } && dialog.Status.Text == string.Empty);
+            Require(dialog.TagList.Rows.Count(row => !row.IsHeader && row.State != TagToggleState.None) == 1
+                && dialog.Surface.Notice.Text == Texts.T("tags.dialog.addedMany", "picked", 3) && dialog.UndoButton.IsVisible,
+                "The selection list must show the new tag on all three ticked occurrences, with an undo.");
+            // Ticking the fourth occurrence again makes the row partial ("some"), unticking makes it whole again; no write.
+            box700.IsChecked = true;
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.Some, Carriers: 3, Total: 4 });
+            Require(PickedRow()!.IsChecked == null && PickedRow()!.CountText == Texts.T("tags.dialog.carriers", 3, 4), "A partial tag must show the indeterminate state.");
+            Program.CaptureWindow(dialog, "smoke-media-selection-tags-partial.png");
+            box700.IsChecked = false;
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.All, Total: 3 });
+            Require(host.GetPublishedPrivateTagSnapshot().Snapshot!.MediaAssignments.Count == 3, "Ticking must not write.");
 
             // The deselected occurrence gets the tag on its own; removing it again from the chosen ones leaves that one alone.
             PrivateTagCommit picked = await host.DefinePrivateTagAsync("picked").WaitAsync(Deadline);
             await host.SetMediaTagAsync(picked.Tag, TargetOf(pairIn700)!, true).WaitAsync(Deadline);
             dialog.Session.Reload(); // The modal dialog has no other writer; the test is one.
             await UntilAsync(() => dialog.Session.Snapshot!.MediaAssignments.Count == 4);
-            Button chip = dialog.RemovablePanel.Children.OfType<Button>().Single();
-            Require(((chip.Content as TextBlock)?.Text ?? string.Empty).Contains("(3)"), "The tag must be offered for removal on the three chosen files only.");
-            ClickRaise(chip);
+            await UntilAsync(() => PickedRow() is { State: TagToggleState.All, Carriers: 3, Total: 3 });
+            dialog.TagList.ToggleForTests(PickedRow()!);
+            await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 1 && !dialog.Session.Busy);
+            // One undo gives the tag back to exactly the three it was taken from, whatever is ticked now.
+            box700.IsChecked = true;
+            await UntilAsync(() => dialog.Session.Chosen.Count == 4);
+            ClickRaise(dialog.UndoButton);
+            await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 4 && !dialog.Session.Busy);
+            Require(!dialog.UndoButton.IsVisible && dialog.Surface.Notice.Text == Texts.T("tags.dialog.undone") && PickedRow() is { State: TagToggleState.All, Total: 4 },
+                "Undo must restore the removed tag once.");
+            box700.IsChecked = false;
+            await UntilAsync(() => dialog.Session.Chosen.Count == 3 && PickedRow() is { State: TagToggleState.All, Total: 3 });
+            dialog.TagList.ToggleForTests(PickedRow()!);
             await UntilAsync(() => host.GetPublishedPrivateTagSnapshot().Snapshot?.MediaAssignments.Count == 1);
             Require(NamesOn(pairIn700).SequenceEqual(["picked"]) && NamesOn(pairIn800).Length == 0 && NamesOn(Single("sel-b.png")).Length == 0 && NamesOn(Single("sel-a.png")).Length == 0,
                 "Removing must reach only the chosen occurrences that had the tag.");
@@ -621,7 +803,7 @@ internal static partial class MediaPageChecks
             ClickRaise(C<Button>(page, "MediaShuffle"));
             Require(Selected().Order().SequenceEqual(["sel-a.png", "sel-b.png"]), "Shuffling must keep the shown selected tiles.");
             C<ComboBox>(page, "MediaSort").SelectedIndex = 0;
-            ClickRaise(C<Button>(page, "MediaFilterReset"));
+            page.ResetFilters();
             await UntilAsync(() => page.Tiles.Count == 4);
             Require(Selected().SequenceEqual(["sel-b.png", "sel-a.png"]), "A tile that dropped out must not come back selected: " + string.Join(",", Selected()));
             await UntilAsync(() => !Marked(0) && !Marked(1) && Marked(2) && Marked(3));
@@ -630,8 +812,15 @@ internal static partial class MediaPageChecks
             holding = true;
             ClickRaise(C<Button>(page, "MediaRefresh"));
             await UntilAsync(() => !tag.IsEnabled && !gallery.IsEnabled && !export.IsEnabled);
-            Require(ToolTip.GetTip(export) as string == Texts.T("media.selection.reason.building") && bar.Text!.Contains(Texts.T("media.selection.reason.building"))
-                && Selected().Length == 2, "Actions must be disabled with a reason while the index is rebuilt.");
+            // UX review 17.11.2026: the reason stands after the last action (muted, cut with its full text as tooltip), the counter alone before them.
+            TextBlock reason = C<TextBlock>(page, "MediaSelectionReason");
+            page.UpdateLayout(); // the reason was just shown: lay it out before reading where it stands
+            Require(ToolTip.GetTip(export) as string == Texts.T("media.selection.reason.building") && reason.IsEffectivelyVisible
+                && reason.Text == Texts.T("media.selection.reason.building") && ToolTip.GetTip(reason) as string == reason.Text
+                && reason.TranslatePoint(default, page)!.Value.X >= clear.TranslatePoint(default, page)!.Value.X + clear.Bounds.Width
+                && bar.Text == Texts.T("media.selection.count", 2) && Selected().Length == 2, "Actions must be disabled with a reason while the index is rebuilt: tip '"
+                + ToolTip.GetTip(export) + "', reason '" + reason.Text + "' shown " + reason.IsEffectivelyVisible + " at " + reason.TranslatePoint(default, page)
+                + " (clear ends at " + (clear.TranslatePoint(default, page)!.Value.X + clear.Bounds.Width) + "), counter '" + bar.Text + "', selected " + Selected().Length);
             holding = false;
             hold.SetResult();
             await page.BuildTask.WaitAsync(Deadline);
@@ -664,7 +853,8 @@ internal static partial class MediaPageChecks
             ClickRaise(exportAll);
             await UntilAsync(() => page.ExportAllAsking);
             TextBlock ask = C<TextBlock>(page, "MediaExportAllConfirmText");
-            Require(ask.Text!.Contains('3') && ask.Text.Contains(" MB") && exported.Count == done, "The question must name the count and the size and start nothing: " + ask.Text);
+            // The three seeded originals are a few hundred bytes: the one size text (SizeText) names them in bytes, never "0 MiB".
+            Require(ask.Text!.Contains('3') && ask.Text.Contains(" B)") && exported.Count == done, "The question must name the count and the size and start nothing: " + ask.Text);
             ClickRaise(C<Button>(page, "MediaExportAllConfirmNo"));
             Require(!page.ExportAllAsking && exported.Count == done, "Cancel must close the question without exporting.");
             ClickRaise(exportAll);
@@ -693,7 +883,7 @@ internal static partial class MediaPageChecks
             name.Text = "no-such-file";
             await UntilAsync(() => page.Tiles.Count == 0);
             Require(!exportAll.IsEnabled && ToolTip.GetTip(exportAll) as string == Texts.T("media.exportAll.reason.none"), "Export all must say why it is disabled without tiles.");
-            ClickRaise(C<Button>(page, "MediaFilterReset"));
+            page.ResetFilters();
             await UntilAsync(() => page.Tiles.Count == 4 && exportAll.IsEnabled);
             holding = true;
             hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -729,7 +919,9 @@ internal static partial class MediaPageChecks
             item = page.GetVisualDescendants().OfType<ListBoxItem>().FirstOrDefault(candidate => candidate.DataContext is MediaLibraryTileRow row && row.Index == index);
             if (item is { IsEffectivelyVisible: true } && item.Bounds.Width > 0
                 && item.TranslatePoint(new Point(item.Bounds.Width / 2, 55), window) is { } at
-                && window.InputHitTest(at) is InputElement found && found.GetSelfAndVisualAncestors().Contains(item))
+                && window.InputHitTest(at) is InputElement found && found.GetSelfAndVisualAncestors().Contains(item)
+                // A container still moving to its row reports a stale position; the point must land on the preview, not on a link below it.
+                && item.IsArrangeValid && !found.GetSelfAndVisualAncestors().TakeWhile(visual => visual != item).OfType<Button>().Any())
             { point = at; hit = found; break; }
             if (DateTime.UtcNow >= deadline) throw new TimeoutException("Tile " + index + " never became hit-testable.");
             await Task.Delay(20);
@@ -812,15 +1004,71 @@ internal static partial class MediaPageChecks
             await page.BuildTask.WaitAsync(Deadline);
             Require(media.Classes.Contains("selected") && !archive.Classes.Contains("selected"), "Media navigation is not marked as selected.");
             Require(C<TextBlock>(page, "MediaEmpty").IsVisible, "An empty archive must say that there are no saved media.");
+            // The empty state is the sentence and one primary action (like the empty Downloads list): no filters, counters, selection row or other actions.
+            Button goDownloads = C<Button>(page, "MediaGoDownloads");
+            Require(goDownloads.IsEffectivelyVisible && AutomationProperties.GetName(goDownloads) == Texts.T("nav.goDownloads"),
+                "The empty media page did not offer a labelled Downloads button.");
+            Require(!C<Avalonia.Controls.Primitives.ToggleButton>(page, "MediaFilters").IsEffectivelyVisible && !C<ComboBox>(page, "MediaSort").IsEffectivelyVisible
+                && !C<TextBlock>(page, "MediaStatus").IsEffectivelyVisible && !C<Control>(page, "MediaSelectionRow").IsEffectivelyVisible
+                && !C<Button>(page, "MediaExportAll").IsEffectivelyVisible && !C<Button>(page, "MediaRefresh").IsEffectivelyVisible,
+                "The empty media page must not show filters, counters or actions.");
+            Program.CaptureWindow(owner, "smoke-empty-media.png");
+            owner.FindControl<Button>("ArchiveNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            ContentControl archiveHost = owner.FindControl<ContentControl>("ArchivePageHost")!;
+            await UntilAsync(() => !host.IsVisible && archiveHost.IsVisible);
+            Button archiveGo = C<Button>(owner.ArchivePage, "ArchiveGoDownloads");
+            await UntilAsync(() => archiveGo.IsEffectivelyVisible);
+            Require(AutomationProperties.GetName(archiveGo) == Texts.T("nav.goDownloads")
+                && !C<Button>(owner.ArchivePage, "ArchiveResetFilters").IsVisible,
+                "The empty archive did not offer a labelled Go to Downloads button instead of Reset filters.");
+            await UntilAsync(() => !owner.ArchivePage.IsBusy);
+            owner.UpdateLayout();
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Program.CaptureWindow(owner, "smoke-empty-archive.png");
+            archiveGo.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => !archiveHost.IsVisible && owner.FindControl<Control>("WorkspaceBody")!.IsVisible);
+            Button importEmpty = C<Button>(owner, "ThreadsEmptyImportButton");
+            await UntilAsync(() => importEmpty.IsEffectivelyVisible);
+            Require(AutomationProperties.GetName(importEmpty) == CommandCatalog.Label("watch.import-clipboard"),
+                "The empty Downloads list did not offer the clipboard import under its command name.");
+            Program.CaptureWindow(owner, "smoke-empty-downloads.png");
+            media.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => host.IsVisible);
+            await page.BuildTask.WaitAsync(Deadline);
+            goDownloads.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => !host.IsVisible && owner.FindControl<Control>("WorkspaceBody")!.IsVisible);
             archive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !host.IsVisible && owner.FindControl<ContentControl>("ArchivePageHost")!.IsVisible);
-            // Barebones moves Media into the Tools menu, next to Archive.
+            // Barebones reapplies the navigation registry; Media may stay direct or move to the current Tools menu.
             await PresentationChecks.SwitchModeAsync(owner, "Barebones");
-            Button tools = owner.FindControl<Button>("ToolsNavigationButton")!;
-            await UntilAsync(() => !media.IsVisible && tools.IsVisible);
-            MenuItem item = ((MenuFlyout)tools.Flyout!).Items.OfType<MenuItem>().Single(entry => entry.Tag as string == "nav.media");
-            Require(item.IsVisible, "Media is missing from the Tools menu in Barebones.");
-            item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            // Switching workspace mode rebuilds the navigation template. Do not inspect the
+            // Simple-mode button captured above: it is detached and retains its old visibility.
+            Button? currentMedia = null;
+            MenuItem? currentMediaItem = null;
+            await UntilAsync(() =>
+            {
+                // The shell keeps one registered Media button and one registered
+                // Tools flyout, but a mode change reapplies their placement. Resolve
+                // both from the current namescope on every probe; never reuse the
+                // Simple-mode button or menu from before the rebuild.
+                Button? media = owner.FindControl<Button>("MediaNavigationButton");
+                Button? tools = owner.FindControl<Button>("ToolsNavigationButton");
+                MenuFlyout? flyout = tools?.Flyout as MenuFlyout;
+                MenuItem? item = flyout?.Items.OfType<MenuItem>().SingleOrDefault(entry => entry.Tag as string == "nav.media");
+                bool direct = media is { IsVisible: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true };
+                bool overflow = tools is { IsVisible: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
+                    && item is { IsVisible: true, IsEnabled: true };
+                if (direct == overflow) return false; // exactly one current route must expose Media
+                currentMedia = direct ? media : null;
+                currentMediaItem = overflow ? item : null;
+                return true;
+            });
+            Require(currentMedia != null || currentMediaItem != null,
+                "Current Barebones navigation exposed neither a direct Media target nor its Tools-menu target.");
+            if (currentMedia is { } directMedia)
+                directMedia.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            else
+                currentMediaItem!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
             await UntilAsync(() => host.IsVisible);
             owner.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !host.IsVisible);
@@ -828,7 +1076,7 @@ internal static partial class MediaPageChecks
         finally { await PresentationChecks.SwitchModeAsync(owner, mode); }
     }
 
-    private static async Task SeedAsync(string profile)
+    internal static async Task SeedAsync(string profile)
     {
         string a = Path.Combine(profile, "media", "a"), b = Path.Combine(profile, "media", "b");
         CapturedAttachment boundA = await WriteAsync(a, A, ("one.png", "m1", "100"), ("loose.png", "m9", null));
@@ -864,7 +1112,8 @@ internal static partial class MediaPageChecks
         }
     }
 
-    private static readonly byte[] VideoBytes = [0x1A, 0x45, 0xDF, 0xA3, 1, 2, 3, 4, 5, 6, 7, 8];
+    private static readonly byte[] VideoBytes = File.ReadAllBytes(FixturePath("tests/Fixtures/gallery-playback-vp8.webm"));
+    private static readonly byte[] UndecodableVideoBytes = [0x1A, 0x45, 0xDF, 0xA3, 1, 2, 3, 4, 5, 6, 7, 8];
 
     // Two threads hold the same video bytes (one byte group). Only the poster the reader would have generated exists.
     private static async Task SeedVideosAsync(string profile)
@@ -914,7 +1163,6 @@ internal static partial class MediaPageChecks
             await page.ActivateAsync().WaitAsync(Deadline);
             Require(page.Tiles.Count == 3 && page.Tiles.All(tile => tile.Entry.Kind == SavedMediaKind.Video), "Audio fixture must give three video tiles.");
             ComboBox sound = C<ComboBox>(page, "MediaSoundFilter"), kind = C<ComboBox>(page, "MediaKindFilter");
-            Button reset = C<Button>(page, "MediaFilterReset");
             TextBlock note = C<TextBlock>(page, "MediaAudioNote");
             string Shown() => string.Join(",", page.ShownEntries.Select(entry => entry.Name));
 
@@ -930,7 +1178,7 @@ internal static partial class MediaPageChecks
 
             // Mit Ton: one video, the undecidable one is counted and not shown; the type follows to Videos.
             sound.SelectedIndex = 1;
-            Require(Shown() == "snd-900.mp4" && kind.SelectedIndex == (int)MediaLibraryKindFilter.Video && reset.IsEnabled, "With sound must show only the sound video: " + Shown());
+            Require(Shown() == "snd-900.mp4" && kind.SelectedIndex == (int)MediaLibraryKindFilter.Video && page.ActiveFilterCount > 0, "With sound must show only the sound video: " + Shown());
             Require(note.IsVisible && note.Text == Texts.T("media.audio.unknown", 1) && page.UncheckedVideos == 1, "The undecidable video must be counted: " + note.Text);
             Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 3), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
             sound.SelectedIndex = 2;
@@ -945,8 +1193,8 @@ internal static partial class MediaPageChecks
             sound.SelectedIndex = 0;
             Require(page.ShownEntries.Count == 3 && !note.IsVisible, "Sound 'egal' must show all three again.");
             sound.SelectedIndex = 2;
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(sound.SelectedIndex == 0 && kind.SelectedIndex == 0 && page.ShownEntries.Count == 3 && !reset.IsEnabled, "Reset must clear the sound choice.");
+            page.ResetFilters();
+            Require(sound.SelectedIndex == 0 && kind.SelectedIndex == 0 && page.ShownEntries.Count == 3 && page.ActiveFilterCount == 0, "Reset must clear the sound choice.");
         }
         finally { page.EndLifetime(); window.Close(); }
 
@@ -957,9 +1205,18 @@ internal static partial class MediaPageChecks
         {
             second.Show(owner);
             again.IsAvailable = true;
-            await again.ActivateAsync().WaitAsync(Deadline);
+            // The stored results do not wait for the first previews: with a long grace they are still there at once.
+            TimeSpan grace = MediaPage.AudioScanGrace;
+            MediaPage.AudioScanGrace = TimeSpan.FromSeconds(12);
+            System.Diagnostics.Stopwatch storedIn = System.Diagnostics.Stopwatch.StartNew();
+            try
+            {
+                await again.ActivateAsync().WaitAsync(Deadline);
+                await UntilAsync(() => again.AudioResults.Count == 3);
+                Require(storedIn.Elapsed < TimeSpan.FromSeconds(6), "The stored sound results must not wait for the first previews: " + storedIn.Elapsed);
+            }
+            finally { MediaPage.AudioScanGrace = grace; }
             await again.AudioScanTask.WaitAsync(Deadline);
-            await UntilAsync(() => again.AudioResults.Count == 3);
             C<ComboBox>(again, "MediaSoundFilter").SelectedIndex = 1;
             Require(again.ShownEntries.Count == 1 && again.ShownEntries[0].Name == "snd-900.mp4", "The cached results must filter again.");
         }
@@ -1025,18 +1282,31 @@ internal static partial class MediaPageChecks
         return first!;
     }
 
+    // The filter fields live in a surface that is hidden until opened; before its first open its scroll viewer has no
+    // template yet, so they are found through the logical tree.
     private static T C<T>(Control root, string name) where T : Control =>
         root.GetVisualDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
+        ?? root.GetLogicalDescendants().OfType<T>().FirstOrDefault(control => control.Name == name)
         ?? throw new InvalidOperationException("Missing control " + name);
 
-    private static async Task UntilAsync(Func<bool> condition)
+    private static async Task UntilAsync(Func<bool> condition,
+        [System.Runtime.CompilerServices.CallerMemberName] string caller = "",
+        [System.Runtime.CompilerServices.CallerLineNumber] int line = 0,
+        [System.Runtime.CompilerServices.CallerArgumentExpression(nameof(condition))] string expression = "")
     {
-        DateTime deadline = DateTime.UtcNow + Deadline;
+        System.Diagnostics.Stopwatch elapsed = System.Diagnostics.Stopwatch.StartNew();
+        long probes = 0;
+        Console.WriteLine($"SMOKE media wait START {caller}:{line}: {expression}");
         while (!condition())
         {
-            if (DateTime.UtcNow >= deadline) throw new TimeoutException("Media page UI event deadline.");
+            probes++;
+            if (elapsed.Elapsed >= Deadline) throw new TimeoutException($"Media page UI event deadline: {caller}:{line} after {elapsed.Elapsed.TotalMilliseconds:F0} ms, {probes} probes: {expression}");
+            // Avoid millions of dispatcher probes when a condition never becomes true;
+            // leave time for native input, layout and timers between probes.
+            await Task.Delay(20);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         }
+        Console.WriteLine($"SMOKE media wait PASS {caller}:{line}: {elapsed.Elapsed.TotalMilliseconds:F0} ms, {probes} probes");
     }
 
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

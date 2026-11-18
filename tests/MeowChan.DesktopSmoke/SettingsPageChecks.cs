@@ -37,8 +37,13 @@ internal static class SettingsPageChecks
         string file = Path.Combine(Config.GetConfigDirectory(), "settings.json");
         string original = File.ReadAllText(file);
         string draftPath = Path.Combine(Config.GetConfigDirectory(), "draft-downloads");
+        Exception? failureBeforeCleanup = null;
         try
         {
+            // Always cover the wrapped->flat Downloads transition, even if another scene
+            // left the shell in Advanced (where the old regression never reparented it).
+            await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            original = File.ReadAllText(file);
             urls.Text = "https://unsupported.invalid/retained-page-input";
             Navigate(window, true);
             await Program.WaitUntilAsync(() => editor.IsEffectivelyVisible && editor.Bounds.Width > 0);
@@ -48,7 +53,10 @@ internal static class SettingsPageChecks
             Require(!window.OwnedWindows.OfType<SettingsWindow>().Any(), "Settings navigation opened a modal window.");
             await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
             NumericUpDown timer = editor.FindControl<NumericUpDown>("RecheckTimerInput")!;
-            timer.Text = "invalid draft";
+            TextBox nativeTimer = SettingsSectionChecks.NumericEditingSurface(editor, timer);
+            Require(nativeTimer.Focus(), "Could not focus the native numeric editor.");
+            nativeTimer.Text = "invalid draft";
+            Require(timer.Text == "invalid draft", "Native text input did not reach the numeric draft.");
             editor.DownloadPath = draftPath;
             editor.SelectedWorkspaceMode = editor.WorkspaceChoices.Single(choice => choice.Value == "Barebones");
             string raw = timer.Text!;
@@ -80,15 +88,22 @@ internal static class SettingsPageChecks
             editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == initial.Theme);
             Click(window.FindControl<Button>("ThemeToggleButton")!);
             string nextTheme = initial.Theme == "Dark" ? "Light" : "Dark";
-            await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == nextTheme && !editor.IsBusy && editor.IsAvailable);
+            // The file write precedes the editor's UI-thread projection of the committed theme, so wait for
+            // the field being synchronized too; only then does an unrelated field mismatch mean a lost draft.
+            await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == nextTheme && !editor.IsBusy && editor.IsAvailable
+                && editor.SelectedTheme?.Value == nextTheme);
             Require(editor.SelectedTheme?.Value == nextTheme && editor.SelectedWorkspaceMode?.Value == "Barebones"
                 && timer.Text == raw && editor.DownloadPath == draftPath && editor.HasError,
-                "A footer theme commit overwrote unrelated draft fields or invalid text.");
-            string nextMode = initial.WorkspaceMode == "Simple" ? "Advanced" : "Simple";
+                "A footer theme commit overwrote unrelated draft fields or invalid text: "
+                + $"theme={editor.SelectedTheme?.Value} (want {nextTheme}), mode={editor.SelectedWorkspaceMode?.Value}, "
+                + $"timer='{timer.Text}' (want '{raw}'), path='{editor.DownloadPath}', hasError={editor.HasError}.");
+            string nextMode = "Simple";
             await PresentationChecks.SwitchModeAsync(window, nextMode);
             Require(editor.SelectedWorkspaceMode?.Value == nextMode && editor.SelectedTheme?.Value == nextTheme
                 && timer.Text == raw && editor.DownloadPath == draftPath,
-                "A footer view commit failed to synchronize only its field.");
+                "A footer view commit failed to synchronize only its field: "
+                + $"mode={editor.SelectedWorkspaceMode?.Value}, theme={editor.SelectedTheme?.Value}, timer='{timer.Text}' (want '{raw}').");
+            await CheckRawDraftTransitionsAsync(window, editor, timer, raw, draftPath, nextTheme, initial.RecheckTimer);
             Program.CaptureWindow(window, "smoke-settings-page-light.png");
 
             string backup = file + ".page-fixture";
@@ -131,19 +146,64 @@ internal static class SettingsPageChecks
             Require(!window.SettingsPageVisible && urls.IsFocused && urls.Text == "https://unsupported.invalid/retained-page-input",
                 "The URL shortcut failed to navigate and retain the pending input.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            Navigate(window, true);
-            editor.CancelChanges();
-            editor.RecheckTimer = initial.RecheckTimer;
-            editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == initial.Theme);
-            editor.SelectedWorkspaceMode = editor.WorkspaceChoices.Single(choice => choice.Value == initial.WorkspaceMode);
-            Click(editor.FindControl<Button>("SaveSettingsButton")!);
-            await Program.WaitUntilAsync(() => !editor.IsBusy && editor.IsAvailable);
-            Require(!editor.HasError, "Restoring the page fixture failed.");
-            Navigate(window, false);
-            urls.Text = initialUrls;
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Navigate(window, true);
+                editor.CancelChanges();
+                editor.RecheckTimer = initial.RecheckTimer;
+                editor.SelectedTheme = editor.ThemeChoices.Single(choice => choice.Value == initial.Theme);
+                editor.SelectedWorkspaceMode = editor.WorkspaceChoices.Single(choice => choice.Value == initial.WorkspaceMode);
+                Click(editor.FindControl<Button>("SaveSettingsButton")!);
+                await Program.WaitUntilAsync(() => !editor.IsBusy && editor.IsAvailable);
+                Require(!editor.HasError, "Restoring the page fixture failed.");
+                Navigate(window, false);
+                urls.Text = initialUrls;
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
+    }
+
+    private static async Task CheckRawDraftTransitionsAsync(MainWindow window, SettingsEditor editor,
+        NumericUpDown timer, string raw, string draftPath, string theme, int initialTimer)
+    {
+        int saves = 0;
+        void OnSaved(object? sender, EventArgs args) => saves++;
+        editor.Saved += OnSaved;
+        try
+        {
+            // Reverse the move, repeat it, and include the Advanced path. The retained
+            // control and its actual template TextBox must agree after native layout/focus.
+            foreach (string mode in new[] { "Barebones", "Advanced", "Barebones", "Simple" })
+            {
+                await PresentationChecks.SwitchModeAsync(window, mode);
+                Require(ReferenceEquals(editor.FindControl<NumericUpDown>("RecheckTimerInput"), timer)
+                    && timer.Text == raw && editor.RecheckTimer == initialTimer && timer.Value == initialTimer
+                    && editor.DownloadPath == draftPath && editor.HasError
+                    && editor.SelectedWorkspaceMode?.Value == mode && editor.SelectedTheme?.Value == theme,
+                    $"Work-view {mode} lost the raw draft, bound value or validation: '{timer.Text}'.");
+                await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
+                timer.ApplyTemplate();
+                TextBox native = timer.GetVisualDescendants().OfType<TextBox>().Single(text => text.Name == "PART_TextBox");
+                Require(native.Text == raw && native.Focus(), $"Work-view {mode} lost native editor text/focus.");
+                Require(editor.FindControl<Button>("SaveSettingsButton")!.Focus(), "Could not blur the numeric editor.");
+                Require(native.Text == raw && timer.Text == raw, "Native blur replaced rejected numeric text.");
+                string file = Path.Combine(Config.GetConfigDirectory(), "settings.json");
+                string before = File.ReadAllText(file);
+                Click(editor.FindControl<Button>("SaveSettingsButton")!);
+                await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
+                await RequireErrorVisibleAsync(editor, "RecheckTimerInput");
+                string after = File.ReadAllText(file);
+                Require(timer.Text == raw && native.Text == raw && after == before && saves == 0,
+                    $"Work-view {mode} accepted/reset an invalid draft or caused a settings save: " +
+                    $"timer='{timer.Text}', native='{native.Text}', raw='{raw}', fileUnchanged={after == before}, saves={saves}, hasError={editor.HasError}.");
+                Config persisted = Config.LoadConfig();
+                Require(persisted.RecheckTimer == initialTimer && persisted.DownloadPath != draftPath,
+                    "A footer view commit persisted unrelated draft fields.");
+            }
+        }
+        finally { editor.Saved -= OnSaved; }
     }
 
     internal static Task RunFooterOverlapDiagnosticAsync(MainWindow window) => CheckSmallLayoutAsync(window, footerOnly: true);
@@ -155,6 +215,7 @@ internal static class SettingsPageChecks
         double height = window.Height;
         WindowState state = window.WindowState;
         SettingsEditor editor = window.SettingsEditor;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Navigate(window, true);
@@ -207,16 +268,74 @@ internal static class SettingsPageChecks
                     Click(editor.FindControl<Button>("CancelSettingsButton")!);
                 }
             }
+            if (footerOnly) await CheckAdvancedMinimumWithBannerAsync(window, editor);
+        }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                Texts.SetLanguage(initial.Language);
+                await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
+                window.Width = width;
+                window.Height = height;
+                window.WindowState = state;
+                editor.CancelChanges();
+                Navigate(window, false);
+                // The next capture must not show a layout taken while the restored size is still in flight
+                // (UX round 2 #1: the old "top" capture showed the page overflowing mid-resize).
+                if (state == WindowState.Normal)
+                    await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
+        }
+    }
+
+    // UX round 2 #1: Advanced at 760 x 500 with a retained shell error banner and the long Downloads
+    // section. The page body scrolls; the Save/Discard footer stays above the status bar.
+    private static async Task CheckAdvancedMinimumWithBannerAsync(MainWindow window, SettingsEditor editor)
+    {
+        MeowChan.Desktop.Controls.WorkspaceBanner banner = window.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!;
+        TextBlock bannerText = window.FindControl<TextBlock>("ShellActionError")!;
+        bool bannerVisible = banner.IsVisible;
+        string? bannerMessage = bannerText.Text;
+        try
+        {
+            // The sequence of the full settings smoke: leave the page at the Barebones minimum and switch
+            // to Advanced (a larger minimum) while the page is hidden, then come back.
+            Navigate(window, false);
+            await PresentationChecks.SwitchModeAsync(window, "Advanced");
+            window.Width = 760;
+            window.Height = 500;
+            Navigate(window, true);
+            await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
+                && PresentationChecks.MatchesRequestedSize(window, 760, 500));
+            banner.IsVisible = true;
+            bannerText.Text = "Retained error for the settings minimum-size layout";
+            foreach (string language in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(language);
+                await SettingsSectionChecks.OpenAsync(editor, "settings.downloads");
+                ScrollViewer body = editor.FindControl<ScrollViewer>("SettingsScrollViewer")!;
+                body.Offset = new Vector(0, 0);
+                Border footer = editor.FindControl<Grid>("SettingsFooter")!.Parent as Border
+                    ?? throw new InvalidOperationException("The settings footer lost its border.");
+                Border status = (Border)window.FindControl<TextBlock>("WorkspaceStatus")!.Parent!.Parent!;
+                await Program.WaitUntilAsync(() => InViewport(window, editor.FindControl<Button>("SaveSettingsButton")!)
+                    && InViewport(window, editor.FindControl<Button>("CancelSettingsButton")!));
+                window.UpdateLayout();
+                double Bottom(Control control) => control.TranslatePoint(new Point(0, control.Bounds.Height), window)!.Value.Y;
+                double Top(Control control) => control.TranslatePoint(default, window)!.Value.Y;
+                Program.CaptureWindow(window, $"smoke-settings-page-advanced-minimum-banner-{language}.png");
+                Require(Bottom(body) <= Top(footer) + 1 && Bottom(footer) <= Top(status) + 1 && Bottom(editor) <= Top(status) + 1,
+                    $"Settings page overflowed at 760x500: body bottom {Bottom(body)}, footer {Top(footer)}-{Bottom(footer)}, "
+                    + $"editor bottom {Bottom(editor)}, status top {Top(status)}.");
+                Require(body.Extent.Height > body.Viewport.Height, "The minimum-size Downloads section did not need the body to scroll.");
+            }
         }
         finally
         {
-            Texts.SetLanguage(initial.Language);
-            await PresentationChecks.SwitchModeAsync(window, initial.WorkspaceMode);
-            window.Width = width;
-            window.Height = height;
-            window.WindowState = state;
-            editor.CancelChanges();
-            Navigate(window, false);
+            bannerText.Text = bannerMessage;
+            banner.IsVisible = bannerVisible;
         }
     }
 
@@ -262,6 +381,7 @@ internal static class SettingsPageChecks
 
     internal static async Task RunLateSaveFailureAsync(MainWindow owner)
     {
+        await CheckPendingSaveAsync(owner);
         await CheckPendingSaveAsync(owner, failShutdownSave: true);
         Console.WriteLine("SMOKE settings late save failure: shutdown released the profile, retained the last committed settings and emitted no ended-editor events.");
     }
@@ -271,11 +391,14 @@ internal static class SettingsPageChecks
         string profile = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-page-save-" + Guid.NewGuid().ToString("N"));
         SeedProfile(profile);
         GateStore? store = null;
-        DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>(), (directory, lease) =>
+        await using DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>(), (directory, lease) =>
             store = new GateStore(new SessionStore(directory, lease)));
-        MainWindow window = new MainWindow(host);
+        await using MainWindow window = new MainWindow(host);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
         window.Show(owner);
         TaskCompletionSource? pending = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -328,12 +451,16 @@ internal static class SettingsPageChecks
                 previousBusy = editor.IsBusy; previousAvailable = editor.IsAvailable; previousTimer = editor.RecheckTimer;
             };
             window.Close();
-            Require(window.IsVisible, "Shutdown did not wait for the accepted settings commit.");
+            // Bounded shutdown hides immediately, but must not close or release the owner of the accepted write.
+            Require(!window.IsVisible && !closed && host.State == DesktopSessionState.Stopping
+                && !host.IsProfileReleased && !pending.Task.IsCompleted,
+                "Shutdown did not retain the owner of the accepted settings commit.");
+            RequireLeaseHeld(profile);
             if (failShutdownSave)
                 pending.SetException(new IOException("Synthetic accepted settings save failure after shutdown began."));
             else
                 pending.SetResult();
-            await Program.WaitUntilAsync(() => !window.IsVisible && !editor.IsBusy);
+            await Program.WaitUntilAsync(() => closed && !editor.IsBusy);
             int expectedRecheckTimer = failShutdownSave ? 120 : 121;
             Console.WriteLine("SMOKE pending settings shutdown: " + System.Text.Json.JsonSerializer.Serialize(new
             {
@@ -348,12 +475,23 @@ internal static class SettingsPageChecks
                 "Shutdown changed the ended editor or did not preserve the accepted save outcome.");
             using ProfileLease lease = ProfileLease.Acquire(profile);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending?.TrySetResult();
-            if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
-            Directory.Delete(profile, true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                pending?.TrySetResult();
+                if (!closed) { window.Close(); await Program.WaitUntilAsync(() => closed); }
+                Directory.Delete(profile, true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
+    }
+
+    private static void RequireLeaseHeld(string profile)
+    {
+        try { using ProfileLease unexpected = ProfileLease.Acquire(profile); }
+        catch (IOException) { return; }
+        throw new InvalidOperationException("Shutdown released the profile while an accepted settings commit was held.");
     }
 
     private static async Task CheckPickerCloseAsync(MainWindow owner)
@@ -365,9 +503,12 @@ internal static class SettingsPageChecks
         AvaloniaLocator.CurrentMutable.Bind<IStorageProviderFactory>().ToConstant(new SettingsChecks.FixtureStorageProviderFactory(provider));
         TaskCompletionSource<IReadOnlyList<Avalonia.Platform.Storage.IStorageFolder>> pending = new TaskCompletionSource<IReadOnlyList<Avalonia.Platform.Storage.IStorageFolder>>(TaskCreationOptions.RunContinuationsAsynchronously);
         provider.Result = pending.Task;
-        DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-        MainWindow window = new MainWindow(host);
+        await using DesktopSessionHost host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
+        await using MainWindow window = new MainWindow(host);
+        bool closed = false;
+        window.Closed += (_, _) => closed = true;
         window.Show(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -384,20 +525,24 @@ internal static class SettingsPageChecks
             Require(provider.PickerCalls == 1 && window.SettingsPageVisible
                 && !window.FindControl<Button>("ThemeToggleButton")!.IsEnabled, "Picker allowed duplicate work or navigation.");
             window.Close();
-            await Program.WaitUntilAsync(() => !window.IsVisible);
+            await Program.WaitUntilAsync(() => closed);
             bool lateUpdate = false;
             editor.PropertyChanged += (_, _) => lateUpdate = true;
-            SettingsChecks.FixtureStorageFolder selected = new SettingsChecks.FixtureStorageFolder(new Uri(Path.Combine(profile, "late-picker")));
+            using SettingsChecks.FixtureStorageFolder selected = new SettingsChecks.FixtureStorageFolder(new Uri(Path.Combine(profile, "late-picker")));
             pending.SetResult(new Avalonia.Platform.Storage.IStorageFolder[] { selected });
             await Program.WaitUntilAsync(() => !editor.IsBusy && selected.Disposed);
             Require(!lateUpdate && editor.DownloadPath == path, "A late picker result modified the ended editor.");
             using ProfileLease lease = ProfileLease.Acquire(profile);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            pending.TrySetResult(Array.Empty<Avalonia.Platform.Storage.IStorageFolder>());
-            if (window.IsVisible) { window.Close(); await Program.WaitUntilAsync(() => !window.IsVisible); }
-            Directory.Delete(profile, true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                pending.TrySetResult(Array.Empty<Avalonia.Platform.Storage.IStorageFolder>());
+                if (!closed) { window.Close(); await Program.WaitUntilAsync(() => closed); }
+                Directory.Delete(profile, true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in SettingsPageChecks: " + exception));
         }
     }
 
@@ -429,12 +574,12 @@ internal static class SettingsPageChecks
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 
-    private sealed class GateStore : ISessionStore
+    private sealed class GateStore : IAdmittedSessionStore
     {
-        private readonly ISessionStore _inner;
+        private readonly SessionStore _inner;
         private TaskCompletionSource? _pending;
         public int Calls { get; private set; }
-        internal GateStore(ISessionStore inner) => _inner = inner;
+        internal GateStore(SessionStore inner) => _inner = inner;
         internal TaskCompletionSource Arm() => _pending = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         public Task<SessionLoadResult> LoadAsync(CancellationToken cancellationToken = default) => _inner.LoadAsync(cancellationToken);
         public async Task SaveAsync(SessionSnapshot snapshot, CancellationToken cancellationToken = default)
@@ -444,6 +589,15 @@ internal static class SettingsPageChecks
             _pending = null;
             if (pending != null) await pending.Task.WaitAsync(cancellationToken);
             await _inner.SaveAsync(snapshot, cancellationToken);
+        }
+        // Production saves under the command's admission; forward it so shutdown can finish an accepted commit.
+        public async Task SaveAdmittedAsync(SessionSnapshot snapshot, ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
+        {
+            Calls++;
+            TaskCompletionSource? pending = _pending;
+            _pending = null;
+            if (pending != null) await pending.Task.WaitAsync(cancellationToken);
+            await _inner.SaveAdmittedAsync(snapshot, admission, cancellationToken);
         }
     }
 }

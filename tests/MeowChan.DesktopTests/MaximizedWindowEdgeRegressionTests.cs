@@ -49,7 +49,7 @@ public sealed class MaximizedWindowEdgeRegressionTests
         // BorderOnly retains the native frame; None is not a seam repair.
         Assert.Equal("BorderOnly", (string?)window.Attribute("WindowDecorations"));
         Assert.Equal("True", (string?)window.Attribute("ExtendClientAreaToDecorationsHint"));
-        Assert.Equal("48", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
+        Assert.Equal("{x:Static desktop:WorkspaceMetrics.TitleBarHeight}", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
         Assert.Null(window.Attribute("CanResize"));
         Assert.Null(window.Attribute("CanMaximize"));
         Assert.Null(window.Attribute("CanMinimize"));
@@ -85,7 +85,7 @@ public sealed class MaximizedWindowEdgeRegressionTests
         // Geometry.Parse in the real control needs a rendering backend. Inspect
         // its construction contract instead of bootstrapping a fake native window.
         string bar = File.ReadAllText(Source("Desktop/WindowChromeBar.cs"));
-        Assert.Contains("Height = 48;", bar);
+        Assert.Contains("Height = WorkspaceMetrics.TitleBarHeight;", bar);
         Assert.Contains("new Border { BorderThickness = new Thickness(0, 0, 0, 1) }", bar);
         Assert.Contains("new Grid { ColumnDefinitions = new ColumnDefinitions(\"*,Auto\"), Background = Brushes.Transparent }", bar);
         Assert.Contains("WindowDecorationProperties.SetElementRole(header, WindowDecorationsElementRole.User);", bar);

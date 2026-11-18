@@ -26,7 +26,6 @@ public partial class ArchivePage
     internal long ArchiveMediaCountScansSkippedWhileObscured { get; private set; }
     internal long ArchiveMediaCountScanStarts => _archiveMediaCounts?.Starts ?? 0;
     internal long ArchiveMediaCountScanCancellations => _archiveMediaCounts?.Cancellations ?? 0;
-    internal long ArchiveMediaCountFollowUpReplacements => _archiveMediaCounts?.Replacements ?? 0;
     internal long ArchiveMediaCountApplications { get; private set; }
     internal long ArchiveMediaCountStaleResults { get; private set; }
 
@@ -36,9 +35,10 @@ public partial class ArchivePage
         if (_obscuredByGallery == obscured) return;
         _obscuredByGallery = obscured;
         ArchiveAttachmentView.SetLoadingSuspended(this, obscured);
+        if (obscured) _ = PauseInlineVideos(); // R10: the gallery's video is the one that plays
         ReaderCoverageChanged();
         if (obscured) CancelArchiveMediaCounts();
-        else NotifyArchiveMediaCountsChanged();
+        else { NotifyArchiveMediaCountsChanged(); ResumeMediaSidebar(); }
     }
 
     private IReadOnlyDictionary<string, MediaCountWorkStamp> _archiveMediaCountWork = new Dictionary<string, MediaCountWorkStamp>();
@@ -66,7 +66,22 @@ public partial class ArchivePage
             if (change.Property == IsVisibleProperty) ObserveArchiveMediaCountVisibility();
         };
         // Layout catches effective ancestor visibility. The edge check avoids ordinary layout work.
-        LayoutUpdated += (_, _) => ObserveArchiveMediaCountVisibility();
+        bool subscribed = false;
+        void OnMediaCountLayoutUpdated(object? sender, EventArgs e) => ObserveArchiveMediaCountVisibility();
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            this.LayoutUpdated += OnMediaCountLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            this.LayoutUpdated -= OnMediaCountLayoutUpdated;
+            subscribed = false;
+        }
+        this.AttachedToVisualTree += SubscribeLayout;
+        this.DetachedFromVisualTree += UnsubscribeLayout;
     }
     private void ObserveArchiveMediaCountVisibility()
     {
@@ -176,6 +191,15 @@ public partial class ArchivePage
                 foreach (ArchiveThreadRow row in request.Rows) row.SetMediaCount(new(null, Error: error.Message), request.Work.GetValueOrDefault(row.Summary.Url));
             PerformanceDiagnostics.Record("archive.counts", "failed", request.Id, revision: request.Revision);
         }
+    }
+
+    // EndLifetime closes request admission first. A cancelled filesystem call may still own the gate.
+    private async Task DisposeArchiveMediaCountsAsync()
+    {
+        CancelArchiveMediaCounts();
+        try { await ArchiveMediaCountTask; }
+        catch { /* The scan reports its own errors. Cleanup must still run. */ }
+        finally { _archiveMediaCountGate.Dispose(); }
     }
 
     private void CancelArchiveMediaCounts()

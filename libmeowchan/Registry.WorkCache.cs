@@ -3,7 +3,9 @@ namespace MeowChan;
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.IO;
 using System.Linq;
+using System.Text.Json;
 using System.Threading;
 using MeowChan.Persistence;
 using MeowChan.Diagnostics;
@@ -40,7 +42,7 @@ public sealed partial class Registry
         => new(resource, new ThreadWorkSnapshot(resource.Url, resource.Intent, resource.Source,
             resource.EndObservedAt, resource.CapturePending, Array.AsReadOnly(media.ToArray())));
 
-    private void RefreshWorkCache()
+    private void RefreshWorkCache(List<string>? warnings = null)
     {
         if (_workStore == null) return;
         WorkStateAccess access = WorkStateAccess.For(_workStore);
@@ -51,13 +53,22 @@ public sealed partial class Registry
         {
             Dictionary<string, WorkCacheEntry> next = full ? new(StringComparer.Ordinal) : new(_workCacheEntries, StringComparer.Ordinal);
             // Full reconstruction is explicit: startup/recovery, unknown invalidation or bounded-set overflow.
-            if (full) urls = _workStore.LoadResources().Where(resource => resource.IsThread).Select(resource => resource.Url).ToArray();
+            if (full) urls = access.LoadReadableResources().Resources.Where(resource => resource.IsThread).Select(resource => resource.Url).ToArray();
             foreach (string url in urls)
             {
                 using IDisposable fence = access.Enter(url);
-                WorkResource? resource = access.FindResource(url);
-                if (resource == null || !resource.IsThread) next.Remove(url);
-                else next[url] = CreateWorkCacheEntry(resource, _workStore.LoadMedia(url, resource.Generation));
+                try
+                {
+                    WorkResource? resource = access.FindResource(url);
+                    if (resource == null || !resource.IsThread) next.Remove(url);
+                    else next[url] = CreateWorkCacheEntry(resource, _workStore.LoadMedia(url, resource.Generation));
+                }
+                catch (Exception exception) when (exception is InvalidDataException or JsonException)
+                {
+                    // An unreadable row hides only its own watch. The row stays for the strict readers.
+                    next.Remove(url);
+                    warnings?.Add($"Could not read durable work for '{url}' ({exception.Message}); its journal entry was retained.");
+                }
             }
             _workCacheEntries = next;
             PublishWorkCache();

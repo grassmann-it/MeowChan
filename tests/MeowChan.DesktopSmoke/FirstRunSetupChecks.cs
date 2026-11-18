@@ -168,6 +168,7 @@ internal static class FirstRunSetupChecks
             return Task.FromResult(new FirstRunSetupCommitResult(true));
         }, probe);
         Task<FirstRunSetupRunResult> showing = window.ShowAsync(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.IsVisible);
@@ -223,12 +224,16 @@ internal static class FirstRunSetupChecks
             Console.WriteLine("SMOKE setup raw draft: immediate " + (accept ? "Accept" : "Check")
                 + "; held probe + queued unchanged TextChanged; actual change=" + changeDuringProbe + "; snapshot/revision/persistence assertions held.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release.Set();
-            await Program.WaitUntilAsync(() => !window.IsWorking);
-            if (window.IsVisible) window.Close();
-            await showing.WaitAsync(TimeSpan.FromSeconds(5));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                release.Set();
+                await Program.WaitUntilAsync(() => !window.IsWorking);
+                if (window.IsVisible) window.Close();
+                await showing.WaitAsync(TimeSpan.FromSeconds(5));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FirstRunSetupChecks: " + exception));
         }
         if (!accept || changeDuringProbe)
         {
@@ -287,6 +292,7 @@ internal static class FirstRunSetupChecks
             return completion.Task;
         }, ReadyProbe());
         Task<FirstRunSetupRunResult> showing = window.ShowAsync(parent);
+        Exception? failureBeforeCleanup = null;
         try
         {
             await Program.WaitUntilAsync(() => window.IsVisible);
@@ -306,13 +312,17 @@ internal static class FirstRunSetupChecks
                 "Owner-close rewrote or lost an already durable completion snapshot.");
             Console.WriteLine("SMOKE setup owner close: child closes without a cycle; admitted commit remains observed; late confirmed activation warning reconciles as completed, no retired UI write.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            completion.TrySetResult(new(false));
-            await Program.WaitUntilAsync(() => !window.IsCommitting);
-            if (window.IsVisible) window.Close();
-            if (parent.IsVisible) parent.Close();
-            await showing.WaitAsync(TimeSpan.FromSeconds(5));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                completion.TrySetResult(new(false));
+                await Program.WaitUntilAsync(() => !window.IsCommitting);
+                if (window.IsVisible) window.Close();
+                if (parent.IsVisible) parent.Close();
+                await showing.WaitAsync(TimeSpan.FromSeconds(5));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FirstRunSetupChecks: " + exception));
         }
     }
 

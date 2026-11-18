@@ -57,7 +57,7 @@ internal static class BoardAdmissionContractChecks
         }, showWizard: true);
         Task<BoardAdmissionSelection?> result = modal.ShowDialog<BoardAdmissionSelection?>(owner);
         await Program.WaitUntilAsync(() => Find<Button>(modal, "BoardAdmissionApply").IsEnabled);
-        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == Texts.T("wizard.batchSummary", 2, 2, 2),
+        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == BoardAdmissionWindow.BatchReadyText(2, 2, 2),
             "Joint summary did not use both loaded catalog drafts.");
         foreach (int index in new[] { 0, 1 })
         {
@@ -79,7 +79,7 @@ internal static class BoardAdmissionContractChecks
         Require(Find<TextBox>(modal, "BoardAdmissionRuleText").Text == "dog", "Clearing the first board changed another board's rule.");
         await SelectTabAsync(modal, 0);
         Require(!modal.GetVisualDescendants().OfType<TextBox>().Any(text => text.Name == "BoardAdmissionRuleText"), "Tab switch restored cleared rules.");
-        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == Texts.T("wizard.batchSummary", 2, 2, 4),
+        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == BoardAdmissionWindow.BatchReadyText(2, 2, 4),
             "Joint summary did not follow the per-board explicit reactivations.");
         Click(Find<Button>(modal, "BoardAdmissionApply"));
         BoardAdmissionSelection accepted = await result ?? throw new InvalidOperationException("Explicit joint apply returned no selection.");
@@ -106,8 +106,17 @@ internal static class BoardAdmissionContractChecks
         await Program.WaitUntilAsync(() => Find<Button>(modal, "BoardAdmissionApply").IsEnabled);
         ListBox list = Find<ListBox>(modal, "BoardAdmissionPreview");
         list.ScrollIntoView(list.Items[0]!);
+        // UX round 3: a loaded board shows its count summary, not "Preview loaded", and the footer does not repeat the apply rules.
+        Require(!Find<TextBlock>(modal, "BoardAdmissionStatus").IsVisible && Find<TextBlock>(modal, "BoardAdmissionSummary").IsVisible,
+            "A loaded board kept the redundant preview-loaded line.");
+        Require(modal.GetVisualDescendants().OfType<TextBlock>().All(block => block.Text != Texts.T("wizard.applyHint")),
+            "The footer repeats the apply rules as visible text.");
         await Program.WaitUntilAsync(() => modal.GetVisualDescendants().OfType<Button>().Any(button => button.Name == "BoardAdmissionResetChoice"));
         CheckBox row = Find<CheckBox>(modal, "BoardAdmissionInclude");
+        // UX round 3: a row the rules (or a former removal) decide has no individual choice to take back, so no "Use rules again".
+        Button quietReset = Find<Button>(modal, "BoardAdmissionResetChoice");
+        Require(quietReset.Opacity == 0 && !quietReset.IsHitTestVisible && !quietReset.Focusable,
+            "A row without an individual choice offered 'Use rules again'.");
         row.IsChecked = true;
         await Program.WaitUntilAsync(() => row.IsChecked == true);
         Button reset = Find<Button>(modal, "BoardAdmissionResetChoice");
@@ -121,9 +130,9 @@ internal static class BoardAdmissionContractChecks
         Program.CaptureWindow(modal, "smoke-board-reset-minimum-" + Texts.Language + "-before.png");
         reset.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
         await Program.WaitUntilAsync(() => row.IsChecked == false);
-        Require(!result.IsCompleted && ReferenceEquals(modal.FocusManager!.GetFocusedElement(), reset), "Row reset committed the dialog or lost keyboard focus.");
-        // Reset remains reachable on an already rule-controlled row, with no new visibility rule.
-        Require(reset.IsEffectivelyVisible && reset.IsEnabled, "Reset disappeared after returning to rules.");
+        // The reset goes quiet with the choice; keyboard focus moved to the thread's own checkbox instead of getting lost.
+        Require(!result.IsCompleted && ReferenceEquals(modal.FocusManager!.GetFocusedElement(), row), "Row reset committed the dialog or lost keyboard focus.");
+        Require(reset.Opacity == 0 && !reset.IsHitTestVisible && !reset.Focusable, "Reset stayed offered after returning to rules.");
         Program.CaptureWindow(modal, "smoke-board-reset-minimum-" + Texts.Language + "-after.png");
         Click(Find<Button>(modal, "BoardAdmissionApply"));
         BoardAdmissionSelection accepted = await result ?? throw new InvalidOperationException("Reset prevented explicit joint apply.");
@@ -167,7 +176,7 @@ internal static class BoardAdmissionContractChecks
         Require(prepared.Text == "prepared while loading" && !apply.IsEnabled, "Retry discarded rules or enabled premature apply.");
         retryAttempt.SetResult(new(Other, "Empty successful fixture", Saved(Other), []));
         await Program.WaitUntilAsync(() => apply.IsEnabled);
-        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == Texts.T("wizard.batchSummary", 2, 2, 2),
+        Require(Find<TextBlock>(modal, "BoardAdmissionTotal").Text == BoardAdmissionWindow.BatchReadyText(2, 2, 2),
             "A valid empty catalog was excluded from the joint ready state.");
         Require(Find<TextBlock>(modal, "BoardAdmissionStatus").Text == Texts.T("wizard.empty")
             && prepared.Text == "prepared while loading", "Empty successful catalog was invalid or retry replaced the edited rule.");

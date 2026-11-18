@@ -303,15 +303,26 @@ internal sealed class ThreadContentContext
             int excluded = 0;
             foreach (DownloadItem item in candidates)
             {
-                CandidateMetadata metadata = new CandidateMetadata(new CandidateKey(_id, item.MediaIdentifier, item.Variant), item.DownloadUri,
-                    item.DestinationPath, item.ExpectedSize, item.ExpectedMd5, item.OriginalFileName, item.LegacyPath,
-                    Path.GetExtension(item.OriginalFileName ?? item.DestinationPath))
+                CandidateMetadata metadata;
+                try
                 {
-                    ExpectedSha256 = item.ExpectedSha256, ExpectedSha1 = item.ExpectedSha1, ProviderSizeHint = item.ProviderSizeHint,
-                    AcquisitionRevisionKey = MediaIntegrityValidation.Acquisition(item),
-                    AttachmentReferences = Array.AsReadOnly(item.AttachmentReferences.Concat(
-                        _attachmentReferences.GetValueOrDefault(MediaIntegrityValidation.Acquisition(item)) ?? Array.Empty<AttachmentRevisionReference>()).Distinct().ToArray())
-                };
+                    metadata = new CandidateMetadata(new CandidateKey(_id, item.MediaIdentifier, item.Variant), item.DownloadUri,
+                        item.DestinationPath, item.ExpectedSize, item.ExpectedMd5, item.OriginalFileName, item.LegacyPath,
+                        Path.GetExtension(item.OriginalFileName ?? item.DestinationPath))
+                    {
+                        ExpectedSha256 = item.ExpectedSha256, ExpectedSha1 = item.ExpectedSha1, ProviderSizeHint = item.ProviderSizeHint,
+                        AcquisitionRevisionKey = MediaIntegrityValidation.Acquisition(item),
+                        AttachmentReferences = Array.AsReadOnly(item.AttachmentReferences.Concat(
+                            _attachmentReferences.GetValueOrDefault(MediaIntegrityValidation.Acquisition(item)) ?? Array.Empty<AttachmentRevisionReference>()).Distinct().ToArray())
+                    };
+                }
+                // Host validation of one attachment is deterministic: skip and mark that item, never fail the thread or retry.
+                catch (ArgumentException rejected)
+                {
+                    owner.ReportRejectedMedia(item.MediaIdentifier, item.Variant, item.DestinationPath, "Rejected attachment metadata: " + rejected.Message);
+                    continue;
+                }
+                owner.ClearRejectedMedia(item.MediaIdentifier, item.Variant);
                 if (!_decisions.TryGetValue((item.MediaIdentifier, item.Variant), out CandidateDecision? decision)
                     || !SameMetadata(decision.Metadata, metadata))
                 {

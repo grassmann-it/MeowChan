@@ -12,6 +12,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
 using MeowChan.Rules;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
 public partial class RulesPage
@@ -27,6 +28,7 @@ public partial class RulesPage
         internal ExtensionTagDraft Extensions = new();
         internal MediaSizeLimitMode SizeMode;
         internal string Megabytes = "10";
+        internal ExactMebibytes? Exact;
         internal System.Globalization.CultureInfo Culture = Texts.Culture;
         internal MediaImageFilterRule Filter = MediaImageFilterRule.Inherit;
         internal PluginSettingsDraft? Parameters;
@@ -51,7 +53,7 @@ public partial class RulesPage
         if (template == null)
         {
             editor.TypesMode = _draft.TypesMode; editor.Extensions = _draft.ExtensionInput.Clone();
-            editor.SizeMode = _draft.SizeMode; editor.Megabytes = _draft.Megabytes; editor.Culture = _draft.NumberCulture;
+            editor.SizeMode = _draft.SizeMode; editor.Megabytes = _draft.Megabytes; editor.Exact = _draft.Exact; editor.Culture = _draft.NumberCulture;
             editor.Filter = _draft.ImageFilter; editor.Parameters = _draft.FilterParameters?.DeepClone(); editor.SchemaAcknowledged = _draft.FilterSchemaAcknowledged;
         }
         else
@@ -60,7 +62,7 @@ public partial class RulesPage
             editor.IncludeTypes = template.Types != null; editor.IncludeSize = template.SizeLimit != null; editor.IncludeFilter = template.ImageFilter != null;
             editor.TypesMode = template.Types?.Mode ?? MediaTypeSelectionMode.Inherit; editor.Extensions.Tags.AddRange(template.Types?.Extensions ?? Array.Empty<string>());
             editor.SizeMode = template.SizeLimit?.Mode ?? MediaSizeLimitMode.Inherit;
-            editor.Megabytes = template.SizeLimit?.Bytes is long bytes ? FormatMegabytes(bytes, editor.Culture) : "10";
+            if (template.SizeLimit?.Bytes is long bytes) { editor.Exact = ExactMebibytes.Of(bytes, editor.Culture); editor.Megabytes = editor.Exact.Value.Text; }
             editor.Filter = template.ImageFilter ?? MediaImageFilterRule.Inherit;
         }
         InitializeTemplateParameters(editor);
@@ -202,7 +204,7 @@ public partial class RulesPage
                 if (editor.Filter.SchemaVersion != editor.Parameters.Schema.Version || editor.Parameters.UnmappedValues.Count > 0)
                 {
                     panel.Children.Add(TemplateText(Texts.T("plugins.ruleSchemaChanged", editor.Filter.SchemaVersion, editor.Parameters.Schema.Version)));
-                    AddTemplateButton(panel, "plugins.acceptSchema", () => { editor.SchemaAcknowledged = true; editor.Parameters.AcknowledgeRemovedFields(); editor.ViewVersion++; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); return Task.CompletedTask; });
+                    AddTemplateButton(panel, "plugins.acceptSchema", () => { editor.SchemaAcknowledged = true; editor.Parameters.AcknowledgeRemovedFields(); editor.ViewVersion++; RefreshTemplatesPanel(); FocusTemplateEditorError(editor); return Task.CompletedTask; }, icon: "check");
                 }
                 _templateParameterEditor = new PluginSettingsEditor(editor.Parameters, "template:" + editor.Id.ToString("N"));
                 _templateParameterEditor.ShowErrors(editor.ParameterErrors);
@@ -218,9 +220,9 @@ public partial class RulesPage
         _templateEditorStaleView = TemplateText(Texts.T("templates.editorStale")); _templateEditorStaleView.Classes.Add("workspace-warning"); _templateEditorStaleView.IsVisible = _templates?.Revision != editor.Revision;
         panel.Children.Add(_templateEditorStaleView);
         WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
-        Button cancel = AddTemplateButton(actions, "templates.cancel", () => { RequestCancelTemplateEditor(); return Task.CompletedTask; });
+        Button cancel = AddTemplateButton(actions, "templates.cancel", () => { RequestCancelTemplateEditor(); return Task.CompletedTask; }, icon: "x");
         _templateEditorConfirmation = new(cancel);
-        _templateEditorSaveButton = AddTemplateButton(actions, "templates.save", async () => await SaveTemplateEditorAsync(), IsEditable && _templates?.Revision == editor.Revision);
+        _templateEditorSaveButton = AddTemplateButton(actions, "templates.save", async () => await SaveTemplateEditorAsync(), IsEditable && _templates?.Revision == editor.Revision, icon: "save");
         _templateEditorSaveButton.Classes.Add("primary");
     }
     private static void AddTemplateInclude(StackPanel panel, string key, bool value, Action<bool> set)
@@ -258,7 +260,7 @@ public partial class RulesPage
                 long? bytes = null;
                 if (editor.SizeMode == MediaSizeLimitMode.Limited)
                 {
-                    if (!TryReadMegabytes(editor.Megabytes, editor.Culture, out long parsed)) throw new RuleInputException("rules.invalidSize");
+                    if (!ExactMebibytes.TryRead(editor.Exact, editor.Megabytes, editor.Culture, out long parsed)) throw new RuleInputException("rules.invalidSize");
                     bytes = parsed;
                 }
                 size = new(editor.SizeMode, bytes);

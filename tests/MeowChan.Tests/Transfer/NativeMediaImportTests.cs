@@ -4,6 +4,7 @@ using MeowChan.Archive;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
+using MeowChan.Testing;
 using MeowChan.Transfer;
 using Microsoft.Data.Sqlite;
 
@@ -238,7 +239,7 @@ public sealed class NativeMediaImportTests
         await using ArchiveCatalog migrated = await ArchiveCatalog.OpenAsync(files.Profile, lease);
         using (SqliteConnection connection = ArchiveSql.OpenConnection(database, SqliteOpenMode.ReadOnly))
         {
-            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(13, ArchiveSql.GetPragma(connection, "user_version"));
             var fence = ArchiveSql.ReadImportFence(connection, null);
             Assert.Equal(before, new[] { fence.Instance, fence.Generation.ToString() });
         }
@@ -673,7 +674,7 @@ public sealed class NativeMediaImportTests
         .OrderBy(p => p, StringComparer.Ordinal).ToDictionary(p => Path.GetRelativePath(directory, p), p => Hash(File.ReadAllBytes(p)), StringComparer.Ordinal);
     internal sealed class Workspace : IDisposable
     {
-        private readonly string _root = Directory.CreateTempSubdirectory("meowchan-native-media-tests-").FullName;
+        private readonly string _root = TemporaryWorkspacePaths.CreateDirectory("meowchan-native-media-tests-");
         internal string Profile { get; }
         internal string StageRoot { get; }
         internal Workspace()

@@ -21,6 +21,7 @@ internal sealed class WorkerServer
     private PluginDescription? _description;
     private PluginConfiguration? _configuration;
     private Dictionary<string, string> _resources = new();
+    private string? _sdkBindingProblem;
 
     public WorkerServer(Stream input, Stream output) => _codec = new FrameCodec(input, output);
     public async Task<int> RunAsync()
@@ -74,6 +75,13 @@ internal sealed class WorkerServer
         }
     }
 
+    private IBooruSourcePlugin BooruPlugin()
+        => _plugin as IBooruSourcePlugin ?? throw new InvalidDataException("Unsupported mandatory operation: the plugin does not implement booru post search.");
+
+    private SourceDescription BooruSource(string sourceId)
+        => _description!.Sources.SingleOrDefault(source => source.SourceId == sourceId)
+            ?? throw new InvalidDataException("Request identifies an undeclared source.");
+
     private void CheckIdentity(WireEnvelope envelope)
     {
         if (envelope.WorkerInstance != _identity!.WorkerInstance || envelope.BuildRevision != _identity.BuildRevision
@@ -100,16 +108,23 @@ internal sealed class WorkerServer
                 _description = _plugin.Describe();
                 SdkValidation.ThrowIfInvalid(SdkValidation.ValidateDescription(_description));
                 if (initialize.ValidateConfiguration) SdkValidation.ThrowIfInvalid(SdkValidation.ValidateConfiguration(_description, initialize.Configuration));
-                if ((_description.Sources.Count > 0 && _plugin is not ISourcePlugin)
+                if ((_description.Sources.Any(source => !source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) && _plugin is not ISourcePlugin)
+                    || (_description.Sources.Any(source => source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) && _plugin is not IBooruSourcePlugin)
                     || (_description.Filters.Count > 0 && _plugin is not IImageFilterPlugin))
                     throw new InvalidDataException("Description capabilities do not match implemented interfaces.");
                 _configuration = initialize.Configuration;
                 _resources = initialize.ResourcePaths;
+                // Describe stays usable, but every call of a binary that does not bind to this SDK fails with one clear
+                // code instead of a MissingMethodException in whichever method happens to run first.
+                _sdkBindingProblem = PluginSdkBinding.FindMissingSdkReference(assembly, initialize.AssemblyPath);
+                if (_sdkBindingProblem is not null)
+                    Console.Error.WriteLine("Warning: the plugin was built against another MeowChan.PluginSdk: " + _sdkBindingProblem);
                 token.ThrowIfCancellationRequested();
                 await ReplyAsync(envelope, _description).ConfigureAwait(false);
                 return;
             }
             if (_plugin == null || _configuration == null) throw new InvalidDataException("Describe required.");
+            if (_sdkBindingProblem is not null) throw new PluginSdkMismatchException(_sdkBindingProblem);
             CallServices services = new(this, envelope, token);
             PluginCallContext context = new(_configuration, services, services, new Resources(_resources), new Log());
             switch (envelope.Operation)
@@ -125,6 +140,20 @@ internal sealed class WorkerServer
                     ThreadReadResult threadResult = await ((ISourcePlugin)_plugin).ReadThreadAsync(thread, context, token).ConfigureAwait(false);
                     token.ThrowIfCancellationRequested();
                     await ReplyAsync<ThreadReadResult>(envelope, threadResult).ConfigureAwait(false);
+                    break;
+                case "booru.search":
+                    BooruSearchRequest search = WireJson.Read<BooruSearchRequest>(envelope.Payload);
+                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateBooruSearchRequest(search, BooruSource(search.SourceId)));
+                    BooruSearchResult searchResult = await BooruPlugin().SearchPostsAsync(search, context, token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    await ReplyAsync<BooruSearchResult>(envelope, searchResult).ConfigureAwait(false);
+                    break;
+                case "booru.post":
+                    BooruPostRequest post = WireJson.Read<BooruPostRequest>(envelope.Payload);
+                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateBooruPostRequest(post, BooruSource(post.Post.SourceId)));
+                    BooruPostResult postResult = await BooruPlugin().ReadPostAsync(post, context, token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    await ReplyAsync<BooruPostResult>(envelope, postResult).ConfigureAwait(false);
                     break;
                 case "filter":
                     ImageFilterResult result = await ((IImageFilterPlugin)_plugin).EvaluateAsync(WireJson.Read<ImageFilterRequest>(envelope.Payload), context, token).ConfigureAwait(false);
@@ -149,8 +178,14 @@ internal sealed class WorkerServer
         }
         catch (Exception exception)
         {
-            string code = exception is OperationCanceledException ? "cancelled" : exception is FrameLimitException ? "frame-too-large" : exception is InvalidDataException ? "protocol" : "plugin-error";
-            string message = exception.Message.Length > 2048 ? exception.Message[..2048] : exception.Message;
+            string code = FailureCode(exception);
+            // An unexpected failure names its exception type, so "plugin-error" no longer hides the cause. The text is
+            // the plugin's or host's own bounded message; credentials never reach the worker (the host owns them).
+            bool named = code == "plugin-error" || code == PluginSdkBinding.MismatchCode && exception is not PluginSdkMismatchException;
+            string detail = named ? exception.GetType().FullName + ": " + exception.Message : exception.Message;
+            string message = OneLine(detail.Length > 2048 ? detail[..2048] : detail);
+            if (code is not ("cancelled" or "frame-too-large"))
+                Console.Error.WriteLine($"Warning: {envelope.Operation} failed ({code}): {message}");
             Volatile.Write(ref _completedRequestId, envelope.RequestId);
             try { await _codec.WriteAsync(envelope with { Direction = "error", Payload = WireJson.Element(new WireFailure(code, message)) }, _shutdown.Token).ConfigureAwait(false); }
             catch (Exception) when (_shutdown.IsCancellationRequested) { }
@@ -161,6 +196,21 @@ internal sealed class WorkerServer
             callCancellation.Dispose();
         }
     }
+
+    // ReplaceLineEndings keeps the length bound: every line ending becomes one space.
+    private static string OneLine(string text) => text.ReplaceLineEndings(" ");
+
+    private static string FailureCode(Exception exception) => exception switch
+    {
+        OperationCanceledException => "cancelled",
+        FrameLimitException => "frame-too-large",
+        InvalidDataException => "protocol",
+        PluginSdkMismatchException => PluginSdkBinding.MismatchCode,
+        HostServiceException => "host-service",
+        // A plugin binary that does not bind to this worker's SDK (see PluginSdkBinding) and was not caught at describe.
+        _ when PluginSdkBinding.IsBindingFailure(exception) => PluginSdkBinding.MismatchCode,
+        _ => "plugin-error"
+    };
 
     private Task ReplyAsync<T>(WireEnvelope request, T response)
     {
@@ -188,7 +238,7 @@ internal sealed class WorkerServer
                 || response.ResourceId != parent.ResourceId || response.Generation != parent.Generation
                 || response.RuleRevision != parent.RuleRevision || response.GrantRevision != parent.GrantRevision)
                 throw new InvalidDataException("Uncorrelated host-service response.");
-            if (response.Direction == "error") throw new InvalidOperationException(WireJson.Read<WireFailure>(response.Payload).Message);
+            if (response.Direction == "error") throw new HostServiceException(WireJson.Read<WireFailure>(response.Payload).Message);
             return WireJson.Read<TResponse>(response.Payload);
         }
         finally { _services.TryRemove(requestId, out _); _serviceSlots.Release(); }
@@ -211,6 +261,15 @@ internal sealed class WorkerServer
     {
         public string? ResolvePath(string logicalName) => paths.GetValueOrDefault(logicalName);
     }
+    /// <summary>The plugin binary does not bind to this worker's SDK; every call after describe reports it.</summary>
+    private sealed class PluginSdkMismatchException(string message) : Exception(message);
+
+    /// <summary>
+    /// The host answered a service call (HTTP or image) with an error. Still an InvalidOperationException, as before,
+    /// so plugins that handle that type keep working; the worker reports it as "host-service", not "plugin-error".
+    /// </summary>
+    private sealed class HostServiceException(string message) : InvalidOperationException(message);
+
     private sealed class Log : IPluginLog
     {
         public void Write(PluginLogLevel level, string message) => Console.Error.WriteLine($"{level}: {message[..Math.Min(message.Length, 2048)]}");

@@ -1,8 +1,10 @@
 """Runner safety fixtures. These checks never start Avalonia or a graphical desktop."""
+from contextlib import contextmanager
 import importlib.util
 import json
 import os
 from pathlib import Path
+import shutil
 import signal
 import subprocess
 import sys
@@ -18,6 +20,15 @@ runner = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(runner)
 
 
+@contextmanager
+def posix_signal_constants():
+    # These four tests simulate POSIX with a mocked killpg, even on Windows.
+    # Never use these fixture constants to signal a real process.
+    with mock.patch.object(runner.signal, "SIGTERM", 15, create=True), \
+            mock.patch.object(runner.signal, "SIGKILL", 9, create=True):
+        yield
+
+
 class DesktopSmokeRunnerTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix="meowchan runner fixtures ")
@@ -27,6 +38,104 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assembly.touch()
         self.output = self.root / "evidence"
         self.args = ["--assembly", str(self.assembly), "--output", str(self.output)]
+
+    @posix_signal_constants()
+    def test_posix_cleanup_platform_contracts(self):
+        for platform in ("darwin", "linux"):
+            for calls, expected in (
+                ([ProcessLookupError()], [signal.SIGTERM]),
+                ([None, ProcessLookupError()], [signal.SIGTERM, 0]),
+                ([None, None, None, None, ProcessLookupError()],
+                 [signal.SIGTERM, 0, signal.SIGKILL, 0, 0]),
+            ):
+                with self.subTest(platform=platform, expected=expected), \
+                        mock.patch.object(runner.sys, "platform", platform), \
+                        mock.patch.object(runner.os, "name", "posix"), \
+                        mock.patch.object(runner.os, "killpg", create=True, side_effect=calls) as kill, \
+                        mock.patch.object(runner.time, "monotonic", side_effect=[0, 3, 4, 5]), \
+                        mock.patch.object(runner.time, "sleep"):
+                    process = mock.Mock(pid=12345)
+                    runner.stop_owned_processes(process)
+                    self.assertEqual([mock.call(12345, sig) for sig in expected], kill.call_args_list)
+                    process.wait.assert_called_once_with(timeout=10)
+
+    @posix_signal_constants()
+    def test_eperm_requires_exited_leader_and_complete_group_inventory(self):
+        for platform in ("darwin", "linux"):
+            for poll, status, table, absent in (
+                (None, 0, "1 1\n", False),
+                (0, 0, "1 1\n99 12345\n", False),
+                (0, 0, "1 1\n99 99\n", True),
+                (0, 1, "", False),
+                (0, 0, "", False),
+                (0, 0, "bad table\n", False),
+            ):
+                with self.subTest(platform=platform, poll=poll, table=table), \
+                        mock.patch.object(runner.sys, "platform", platform), \
+                        mock.patch.object(runner.os, "name", "posix"), \
+                        mock.patch.object(runner.os, "killpg", create=True, side_effect=PermissionError(1, "denied")) as kill, \
+                        mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(
+                            returncode=status, stdout=table)) as inventory:
+                    process = mock.Mock(pid=12345)
+                    process.poll.return_value = poll
+                    if absent:
+                        runner.stop_owned_processes(process)
+                        process.wait.assert_called_once_with(timeout=10)
+                    else:
+                        with self.assertRaises(PermissionError):
+                            runner.stop_owned_processes(process)
+                        process.wait.assert_not_called()
+                    kill.assert_called_once_with(12345, signal.SIGTERM)
+                    if poll is not None:
+                        self.assertEqual(["ps", "-A", "-o", "pid=,pgid="], inventory.call_args.args[0])
+                    else:
+                        inventory.assert_not_called()
+
+    @posix_signal_constants()
+    def test_permission_denial_during_probe_or_escalation_stays_fatal(self):
+        for calls in ([None, PermissionError(1, "probe denied")],
+                      [None, None, PermissionError(1, "kill denied")]):
+            with self.subTest(calls=calls), mock.patch.object(runner.os, "name", "posix"), \
+                    mock.patch.object(runner.os, "killpg", create=True, side_effect=calls) as kill, \
+                    mock.patch.object(runner, "owned_process_group_is_empty", return_value=False), \
+                    mock.patch.object(runner.time, "monotonic", side_effect=[0, 3]):
+                with self.assertRaises(PermissionError):
+                    runner.stop_owned_processes(mock.Mock(pid=12345))
+                self.assertEqual(len(calls), kill.call_count)
+
+    def test_inventory_failure_is_not_proof_of_absence(self):
+        for error in (OSError("ps unavailable"), subprocess.TimeoutExpired("ps", 5)):
+            with self.subTest(error=error), mock.patch.object(runner.os, "name", "posix"), \
+                    mock.patch.object(runner.subprocess, "run", side_effect=error):
+                process = mock.Mock(pid=12345)
+                process.poll.return_value = 0
+                self.assertFalse(runner.owned_process_group_is_empty(process))
+
+    @posix_signal_constants()
+    def test_group_surviving_sigkill_is_cleanup_failure(self):
+        with mock.patch.object(runner.os, "name", "posix"), \
+                mock.patch.object(runner.os, "killpg", create=True) as kill, \
+                mock.patch.object(runner.time, "monotonic", side_effect=[0, 3, 4, 15]):
+            process = mock.Mock(pid=12345)
+            process.poll.return_value = 0  # Leader gone, descendant group still present.
+            with self.assertRaises(subprocess.TimeoutExpired):
+                runner.stop_owned_processes(process)
+            self.assertEqual([signal.SIGTERM, 0, signal.SIGKILL, 0],
+                             [call.args[1] for call in kill.call_args_list])
+
+    def test_windows_cleanup_checks_taskkill_and_reaps_child(self):
+        for status in (0, 1):
+            with self.subTest(status=status), mock.patch.object(runner.os, "name", "nt"), \
+                    mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=status)) as kill:
+                process = mock.Mock(pid=12345)
+                process.poll.return_value = None
+                if status:
+                    with self.assertRaises(OSError):
+                        runner.stop_owned_processes(process)
+                else:
+                    runner.stop_owned_processes(process)
+                    process.wait.assert_called_once_with(timeout=10)
+                self.assertEqual(["taskkill", "/PID", "12345", "/T", "/F"], kill.call_args.args[0])
 
     def test_fixture_children_drop_all_git_routing_and_config_overrides(self):
         environment = runner.prepare_environment({
@@ -118,6 +227,61 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertEqual("1", prepared["MEOWCHAN_DISABLE_UPDATE_CHECK"])
         self.assertEqual(":99", prepared["DISPLAY"])
 
+    def test_children_run_with_motion_off_unless_the_caller_chose(self):
+        # D1: captures and smokes must not depend on a transition; the motion smoke removes the variable inside its own process.
+        self.assertEqual("off", runner.prepare_environment({}, False, self.root)["MEOWCHAN_MOTION"])
+        self.assertEqual("on", runner.prepare_environment({"MEOWCHAN_MOTION": "on"}, False, self.root)["MEOWCHAN_MOTION"])
+
+    def long_temp_base(self):
+        """A TMPDIR whose private directory cannot hold the session bus socket."""
+        base = self.root / ("long-" + "x" * 80)
+        base.mkdir()
+        return base
+
+    @unittest.skipIf(os.name == "nt", "POSIX /tmp socket-path fixture")
+    def test_short_tmpdir_keeps_the_private_directory_where_tempfile_puts_it(self):
+        short = Path(tempfile.mkdtemp(prefix="mcs-t-", dir=runner.SHORT_DIRECTORY_BASE))
+        self.addCleanup(shutil.rmtree, short, ignore_errors=True)
+        with mock.patch.dict(os.environ, {"TMPDIR": str(short)}), mock.patch.object(tempfile, "tempdir", None):
+            directory = runner.private_working_directory(True)
+            self.addCleanup(directory.cleanup)
+            self.assertEqual(short, Path(directory.name).parent)
+            self.assertTrue(runner.socket_paths_fit(directory.name))
+
+    @unittest.skipIf(os.name == "nt", "POSIX /tmp socket-path fixture")
+    def test_long_tmpdir_moves_only_the_isolated_directory_to_a_short_base_and_cleans_it_up(self):
+        base = self.long_temp_base()
+        with mock.patch.dict(os.environ, {"TMPDIR": str(base)}), mock.patch.object(tempfile, "tempdir", None):
+            self.assertFalse(runner.socket_paths_fit(tempfile.mkdtemp(prefix="meowchan-smoke-cwd-", dir=base)))
+            native = runner.private_working_directory(False)
+            self.assertEqual(base, Path(native.name).parent)
+            native.cleanup()
+            with runner.private_working_directory(True) as name:
+                self.assertEqual(Path(runner.SHORT_DIRECTORY_BASE), Path(name).parent)
+                self.assertTrue(runner.socket_paths_fit(name))
+            self.assertFalse(Path(name).exists())
+        self.assertEqual(1, len([entry for entry in base.iterdir() if entry.name.startswith("meowchan-smoke-cwd-")]),
+                         "only the probe directory of this test is left below the long TMPDIR")
+
+    def test_unusable_short_base_is_a_clear_error_and_leaves_nothing_behind(self):
+        base = self.long_temp_base()
+        with mock.patch.dict(os.environ, {"TMPDIR": str(base)}), mock.patch.object(tempfile, "tempdir", None), \
+                mock.patch.object(runner, "SHORT_DIRECTORY_BASE", str(base)):
+            with self.assertRaisesRegex(ValueError, "too long for the private session bus"):
+                runner.private_working_directory(True)
+        self.assertEqual([], list(base.iterdir()))
+
+    @unittest.skipUnless(sys.platform.startswith("linux") and runner.shutil.which("dbus-run-session"),
+                         "needs dbus-run-session (Linux)")
+    def test_private_bus_starts_under_a_long_tmpdir_without_any_display(self):
+        base = self.long_temp_base()
+        with mock.patch.dict(os.environ, {"TMPDIR": str(base)}), mock.patch.object(tempfile, "tempdir", None), \
+                runner.private_working_directory(True) as name:
+            environment = runner.prepare_environment({"PATH": os.environ["PATH"]}, True, Path(name))
+            started = subprocess.run(["dbus-run-session", "--config-file=" + name + "/bus.conf", "--", "true"],
+                                     env=environment, capture_output=True, text=True, timeout=30)
+        self.assertEqual(0, started.returncode, started.stderr)
+
     def test_missing_tools_fail_without_starting_any_process(self):
         with mock.patch.object(runner.sys, "platform", "linux"), \
                 mock.patch.object(runner.shutil, "which", return_value=None), \
@@ -154,16 +318,18 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
             result = runner.run_mode("window-geometry", self.assembly, self.output, environment, True, 1)
         self.assertTrue(result["passed"])
 
-    def test_failure_stops_sequence_and_records_unrun_scenarios(self):
+    def test_failure_continues_sequence_and_later_pass_cannot_hide_failure(self):
         failure = {"mode": "normal", "passed": False, "status": "failed", "actual_render_scaling": 1}
+        success = {**failure, "passed": True, "status": "passed"}
         with mock.patch.object(runner.sys, "platform", "linux"), \
                 mock.patch.object(runner.shutil, "which", return_value="fixture"), \
-                mock.patch.object(runner, "run_mode", return_value=failure) as run:
+                mock.patch.object(runner, "run_mode", side_effect=[failure] + [success] * 4) as run:
             self.assertEqual(1, runner.main(self.args))
-            self.assertEqual(1, run.call_count)
+            self.assertEqual(5, run.call_count)
         result = json.loads((self.output / "results.json").read_text())
         self.assertEqual(5, len(result["results"]))
-        self.assertTrue(all(item["status"] == "skipped" for item in result["results"][1:]))
+        self.assertFalse(result["passed"])
+        self.assertTrue(all(item["status"] == "passed" for item in result["results"][1:]))
         with mock.patch.object(runner.sys, "platform", "linux"), self.assertRaises(ValueError):
             runner.main(self.args)
 
@@ -216,25 +382,250 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertFalse(result["passed"])
         self.assertFalse(result["xvfb_teardown_ignored"])
 
+    def test_scenario_id_is_derived_from_mode_and_selector_environment(self):
+        self.assertEqual("normal", runner.derived_scenario("normal", {"MEOWCHAN_VIDEO_FIXTURE": "x", "MEOWCHAN_X_ONLY": "0"}))
+        self.assertEqual("reader-ux+MEOWCHAN_GALLERY_CLOSE_ONLY",
+                         runner.derived_scenario("reader-ux", {"MEOWCHAN_GALLERY_CLOSE_ONLY": "1"}))
+        self.assertEqual("normal+MEOWCHAN_ARCHIVE_COMPARISON+MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY",
+                         runner.derived_scenario("normal", {"MEOWCHAN_ARCHIVE_COMPARISON_EXACT_IDS_ONLY": "1",
+                                                            "MEOWCHAN_ARCHIVE_COMPARISON": "1"}))
+        self.assertEqual("normal+MEOWCHAN_URSA_NATIVE_SUITE=groups",
+                         runner.derived_scenario("normal", {"MEOWCHAN_URSA_NATIVE_SUITE": "groups"}))
+        self.assertEqual("plugins", runner.derived_scenario("plugins", {"MEOWCHAN_URSA_NATIVE_SUITE": "plugins"}))
+
+    def run_with_log(self, log, environment, mode="normal", expected=None, name="scenario"):
+        def fake_process(*args, **kwargs):
+            kwargs["stdout"].write(log)
+            return mock.Mock(wait=mock.Mock(return_value=0))
+        with mock.patch.object(runner.subprocess, "Popen", side_effect=fake_process), \
+                mock.patch.object(runner, "stop_owned_processes"):
+            return runner.run_mode(mode, self.assembly, self.root / name, environment, False, 1, expected)
+
+    def test_pass_from_another_scenario_is_not_reported_as_passed(self):
+        selector = {"MEOWCHAN_READER_FIND_ONLY": "1"}
+        result = self.run_with_log("SMOKE SCENARIO: normal+MEOWCHAN_READER_FIND_ONLY\nSMOKE PASS: fixture\n", selector)
+        self.assertTrue(result["passed"])
+        self.assertEqual("normal+MEOWCHAN_READER_FIND_ONLY", result["scenario"])
+        result = self.run_with_log("SMOKE SCENARIO: normal\nSMOKE PASS: fixture\n", selector, name="fallthrough")
+        self.assertFalse(result["passed"])
+        self.assertIn("expected normal+MEOWCHAN_READER_FIND_ONLY", result["error"])
+
+    def test_explicit_scenario_is_exact_and_requires_the_line(self):
+        result = self.run_with_log("SMOKE SCENARIO: selection\nSMOKE PASS: fixture\n", {}, "selection", "selection")
+        self.assertTrue(result["passed"])
+        result = self.run_with_log("SMOKE PASS: fixture\n", {}, "selection", "selection", "missing")
+        self.assertFalse(result["passed"])
+        self.assertIn("Missing SMOKE SCENARIO", result["error"])
+        # Without --expect-scenario an assembly that predates the line keeps working.
+        self.assertTrue(self.run_with_log("SMOKE PASS: fixture\n", {}, name="older")["passed"])
+        with mock.patch.object(runner.sys, "platform", "linux"):
+            self.assertEqual("x", runner.parse_args(self.args + ["--mode", "normal", "--expect-scenario", "x"]).expect_scenario)
+            with self.assertRaises(SystemExit):
+                runner.parse_args(self.args + ["--expect-scenario", "normal"])
+
+    REGISTRY = [
+        {"id": "normal", "kind": "Mode", "mode": "normal", "environment": [], "scenario": "normal", "skip": None},
+        {"id": "gallery-error", "kind": "Root", "mode": "normal", "scenario": "normal+MEOWCHAN_GALLERY_ERROR_ONLY", "skip": None,
+         "environment": ["MEOWCHAN_GALLERY_ERROR_ONLY=1", "MEOWCHAN_VIDEO_FIXTURE={repo}/tests/Fixtures/gallery-playback-vp8.webm"]},
+        {"id": "gallery-edge", "kind": "Nested", "mode": "normal", "skip": None,
+         "scenario": "normal+MEOWCHAN_GALLERY_EDGE_ONLY+MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY",
+         "environment": ["MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY=1", runner.FUNCTIONAL_AUDIO, "MEOWCHAN_GALLERY_EDGE_ONLY=1"]},
+        {"id": "native-ime", "kind": "Root", "mode": "normal", "environment": ["MEOWCHAN_NATIVE_IME_ONLY=1"],
+         "scenario": "normal+MEOWCHAN_NATIVE_IME_ONLY", "skip": "needs its independent native driver"},
+        {"id": "broken", "kind": "Nested", "mode": "normal", "environment": ["MEOWCHAN_BROKEN_ONLY=1"],
+         "scenario": "normal", "skip": None, "error": "unknown selector MEOWCHAN_BROKEN_ONLY=1"}]
+
+    @staticmethod
+    def child_runner(*outcomes):
+        """Fake entry runners: each writes the results.json its real runner would and exits with the outcome's code."""
+        pending = iter(outcomes)
+
+        def run(command, **kwargs):
+            outcome = next(pending)
+            destination = Path(command[command.index("--output") + 1])
+            mode = command[command.index("--mode") + 1]
+            destination.mkdir(parents=True)
+            (destination / "results.json").write_text(json.dumps({"results": [{
+                "mode": mode, "passed": outcome.returncode == 0 and outcome.no_pass is not True,
+                "scenario": command[command.index("--expect-scenario") + 1], "error": None}]}))
+            return outcome
+        return run
+
+    def test_registry_is_linux_only_and_selects_its_own_modes(self):
+        with mock.patch.object(runner.sys, "platform", "linux"):
+            self.assertTrue(runner.parse_args(self.args + ["--registry", "--only", "normal"]).registry)
+            for extra in (["--mode", "normal"], ["--expect-scenario", "normal"], ["--scale", "2"], ["--native-display"]):
+                with self.assertRaises(SystemExit):
+                    runner.parse_args(self.args + ["--registry", *extra])
+            with self.assertRaises(SystemExit):
+                runner.parse_args(self.args + ["--only", "normal"])
+        with mock.patch.object(runner.sys, "platform", "darwin"), self.assertRaises(SystemExit):
+            runner.parse_args(self.args + ["--registry", "--allow-native-desktop"])
+
+    def test_registry_child_carries_exactly_its_entry_and_audio_wrapper(self):
+        repository = Path("/repo root")
+        command = runner.registry_command(self.REGISTRY[1], self.assembly, self.output / "gallery-error", 300, "openbox", repository)
+        self.assertEqual("env", command[0])
+        expected_fixture = "MEOWCHAN_VIDEO_FIXTURE=" + str(repository / "tests" / "Fixtures" / "gallery-playback-vp8.webm")
+        self.assertIn(expected_fixture, command)
+        self.assertEqual("normal+MEOWCHAN_GALLERY_ERROR_ONLY", command[command.index("--expect-scenario") + 1])
+        self.assertEqual("normal", command[command.index("--mode") + 1])
+        audio = runner.registry_command(self.REGISTRY[2], self.assembly, self.output / "gallery-edge", 300, "openbox", repository)
+        self.assertTrue(audio[1].endswith("with-private-null-audio.py"))
+        self.assertEqual(["--", "env"], audio[4:6])
+
+    def test_registry_runs_every_entry_records_skips_and_retries_only_the_window_manager_flake(self):
+        fake = self.child_runner(mock.Mock(returncode=1, stdout="RuntimeError: The isolated window manager exited during startup", stderr=""),
+                                 mock.Mock(returncode=0, stdout="", stderr=""),
+                                 mock.Mock(returncode=1, stdout="SMOKE check failed", stderr=""),
+                                 mock.Mock(returncode=0, stdout="", stderr=""))
+        environment = {"MEOWCHAN_READER_FIND_ONLY": "1", "MEOWCHAN_ARCHIVE_COMPARISON": "1", "KEEP": "1"}
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.dict(runner.os.environ, environment), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY), \
+                mock.patch.object(runner.subprocess, "run", side_effect=fake) as run:
+            self.assertEqual(1, runner.main(self.args + ["--registry"]))
+        self.assertEqual(4, run.call_count)
+        for call in run.call_args_list:
+            self.assertNotIn("MEOWCHAN_READER_FIND_ONLY", call.kwargs["env"])
+            self.assertNotIn("MEOWCHAN_ARCHIVE_COMPARISON", call.kwargs["env"])
+            self.assertEqual("1", call.kwargs["env"]["KEEP"])
+        report = json.loads((self.output / "registry.json").read_text())
+        # The failing entry does not stop the sweep; an entry the assembly rejects is a failure, not a skip.
+        self.assertEqual({"passed": 2, "failed": 2, "skipped": 1}, report["counts"])
+        self.assertEqual(["gallery-error", "broken"], report["failed"])
+        self.assertEqual(2, len(report["results"][0]["attempts"]))
+        self.assertEqual("normal", report["results"][0]["attempts"][-1]["observed_scenario"])
+        self.assertEqual("skipped", report["results"][3]["status"])
+        self.assertIn("invalid registry invocation", report["results"][4]["reason"])
+
+    def test_registry_needs_the_entry_runners_own_pass_verdict_not_only_its_exit_code(self):
+        silent = mock.Mock(returncode=0, stdout="", stderr="", no_pass=True)
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY[:1]), \
+                mock.patch.object(runner.subprocess, "run", side_effect=self.child_runner(silent)):
+            self.assertEqual(1, runner.main(self.args + ["--registry"]))
+        self.assertEqual(["normal"], json.loads((self.output / "registry.json").read_text())["failed"])
+        missing = self.root / "missing"
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY[:1]), \
+                mock.patch.object(runner.subprocess, "run", return_value=mock.Mock(returncode=0, stdout="", stderr="")):
+            self.assertEqual(1, runner.main(["--assembly", str(self.assembly), "--output", str(missing), "--registry"]))
+        self.assertEqual("no results.json from the entry runner",
+                         json.loads((missing / "registry.json").read_text())["results"][0]["attempts"][0]["error"])
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY), self.assertRaises(ValueError):
+            runner.main(self.args + ["--registry", "--only", "normal"])  # evidence directory is not fresh
+
+    def test_registry_report_survives_an_interrupted_sweep(self):
+        passed = self.child_runner(mock.Mock(returncode=0, stdout="", stderr=""))
+        calls = []
+
+        def run(command, **kwargs):
+            calls.append(command)
+            if len(calls) == 2:
+                raise KeyboardInterrupt
+            return passed(command, **kwargs)
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY[:2]), \
+                mock.patch.object(runner.subprocess, "run", side_effect=run):
+            self.assertEqual(130, runner.main(self.args + ["--registry"]))
+        report = json.loads((self.output / "registry.json").read_text())
+        self.assertEqual((False, True), (report["complete"], report["interrupted"]))
+        self.assertEqual(["normal"], [result["id"] for result in report["results"]])
+        self.assertEqual({"passed": 1, "failed": 0, "skipped": 0}, report["counts"])
+
+    def test_registry_failure_reports_the_harness_failure_line_or_the_timeout(self):
+        destination = self.root / "entry"
+        (destination / "normal").mkdir(parents=True)
+        (destination / "normal" / "output.log").write_text(
+            "SMOKE APP noise\nSMOKE FAILED: exit=0, checks=False; System.TimeoutException: at X.cs:12.\n   at Y\n")
+        (destination / "results.json").write_text(json.dumps({"results": [
+            {"mode": "normal", "passed": False, "timed_out": False, "exit_code": 1, "scenario": None, "error": None}]}))
+        self.assertEqual("SMOKE FAILED: exit=0, checks=False; System.TimeoutException: at X.cs:12.",
+                         runner.child_result(destination, "normal")["error"])
+        (destination / "results.json").write_text(json.dumps({"results": [
+            {"mode": "normal", "passed": False, "timed_out": True, "exit_code": 124, "scenario": None, "error": None}]}))
+        self.assertEqual("timed out", runner.child_result(destination, "normal")["error"])
+
+    @unittest.skipUnless(hasattr(os, "getloadavg"), "host load average is unavailable on this platform")
+    def test_results_record_host_load_and_a_timeout_on_an_overloaded_host_says_so(self):
+        self.assertEqual({"loadavg_1m", "cpus"}, set(runner.host_load()))
+        with mock.patch.object(runner.os, "getloadavg", return_value=(99.0, 1.0, 1.0)), \
+                mock.patch.object(runner.os, "cpu_count", return_value=4):
+            self.assertEqual({"loadavg_1m": 99.0, "cpus": 4}, runner.host_load())
+        with mock.patch.object(runner.os, "getloadavg", side_effect=OSError):
+            self.assertIsNone(runner.host_load()["loadavg_1m"])
+
+    def test_runs_sharing_one_assembly_bin_get_independent_copies_and_cleanup_on_failure(self):
+        self.assembly.write_text("original")
+        (self.root / "smoke-stale.json").write_text("old evidence")
+        with self.assertRaisesRegex(RuntimeError, "fixture failure"):
+            with runner.private_assembly(self.assembly) as first:
+                with runner.private_assembly(self.assembly) as second:
+                    self.assertNotEqual(first.parent, second.parent)
+                    self.assertEqual(self.assembly.read_bytes(), first.read_bytes())
+                    first.write_text("child modified its own dependency")
+                    self.assertEqual("original", second.read_text())
+                    self.assertEqual("original", self.assembly.read_text())
+                    self.assertFalse(list(first.parent.glob("smoke-*")))
+                    self.assertFalse(list(second.parent.glob(".smoke-run-*")))
+                    raise RuntimeError("fixture failure")
+        self.assertFalse(first.parent.exists())
+        self.assertFalse(second.parent.exists())
+        self.assertFalse(list(self.root.glob(".smoke-run-*")))
+
     @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
     def test_timeout_kills_only_the_owned_group_including_its_child(self):
+        self.check_timeout_group_cleanup(startup_delay=0)
+
+    @unittest.skipIf(os.name == "nt", "POSIX process-group fixture")
+    def test_timeout_group_fixture_waits_for_child_readiness_after_slow_startup(self):
+        # Longer than the app timeout: previously this killed the parent before it could write child.pid.
+        self.check_timeout_group_cleanup(startup_delay=0.75)
+
+    def check_timeout_group_cleanup(self, startup_delay):
         # A fake dotnet process forks a child that ignores TERM. No window or display is involved.
         executable = self.root / "dotnet"
         marker = self.root / "child.pid"
         executable.write_text(f"#!{sys.executable}\nimport os, signal, time\n"
+                              f"time.sleep({startup_delay!r})\n"
                               "child = os.fork()\n"
                               "if child == 0:\n"
                               " signal.signal(signal.SIGTERM, signal.SIG_IGN)\n"
+                              f" with open({str(marker) + '.tmp'!r}, 'w') as ready: ready.write(str(os.getpid()))\n"
+                              f" os.replace({str(marker) + '.tmp'!r}, {str(marker)!r})\n"
                               " while True: time.sleep(1)\n"
-                              f"open({str(marker)!r}, 'w').write(str(child))\n"
                               "while True: time.sleep(1)\n")
         executable.chmod(0o700)
         environment = os.environ.copy()
         environment["PATH"] = str(self.root) + os.pathsep + environment.get("PATH", "")
         unrelated = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(30)"], start_new_session=True)
         child = None
+        popen = subprocess.Popen
+        def start_ready(command, **kwargs):
+            nonlocal child
+            process = popen(command, **kwargs)
+            if command[0] != "dotnet":
+                return process
+            # Start the cleanup-test clock only once its TERM-resistant descendant exists.
+            # This bounds fixture startup separately; it does not extend the production app timeout.
+            try:
+                deadline = time.monotonic() + 10
+                while not marker.exists() and process.poll() is None and time.monotonic() < deadline:
+                    time.sleep(0.01)
+                self.assertTrue(marker.exists(), "Fake dotnet child did not become ready before fixture deadline")
+                child = int(marker.read_text())
+                self.assertNotEqual(child, process.pid)
+                self.assertEqual(os.getpgid(child), process.pid)
+                self.assertTrue(self.process_is_live(child))
+                return process
+            except BaseException:
+                runner.stop_owned_processes(process)
+                raise
         try:
-            result = runner.run_mode("normal", self.assembly, self.output, environment, False, 0.5)
+            with mock.patch.object(runner.subprocess, "Popen", side_effect=start_ready):
+                result = runner.run_mode("normal", self.assembly, self.output, environment, False, 0.5)
             self.assertTrue(result["timed_out"])
             self.assertEqual(124, result["exit_code"])
             self.assertFalse(result["passed"])

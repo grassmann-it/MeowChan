@@ -1,23 +1,32 @@
 # Install, edit and activate plugins
 
-These instructions describe plugin use in MeowChan 1.0. Extract the complete
-application package before starting: its worker, compiler and reference files
+These instructions describe plugin use in the MeowChan 1.1 source tree. Extract
+the complete application package before starting: its worker, compiler and reference files
 are required for the corresponding plugin operations. See
 [validation](validation.md) for the scope of packaging and native-platform checks.
 
 ## First session
 
-1. Open **Plugins** from the app menu or footer (under **Tools** in compact views). The supplied inventory contains **16 plugins**: **11 sources** and **5 image
-   filters**, with **14 editable source files**. Sources include 4chan, 8kun,
-   Lainchan and the eight experimental sources listed below; filters include
-   **Image dimensions (example)** and the four [local media filters](local-media-filters.md). Selecting an entry shows
+1. Open **Plugins** from the app menu or footer (under **More** in compact views).
+   The supplied inventory contains **20 plugins**: **15 source-plugin entries**
+   and **5 image filters**, with **17 editable example/filter source files**.
+   This includes three prebuilt official plugins (4chan, 8kun and Danbooru) and
+   21 example/filter plugins. Only example/filter `.cs` files are delivered under
+   `plugins/sources/`; official source code is available in the repository, not
+   in the application package. See the [packaging split](README.md#packaged-inventory)
+   and [official authoring steps](../../plugins/Official/README.md#authoring-and-local-builds).
+   Source entries include two blocked placeholders, **Anon Imageboards** and
+   **Guro.cx**, which register no source or URL routes. **Danbooru** is a booru
+   post-search source, not a board/thread URL source. Filters include
+   **Image dimensions (example)** and the four [local media filters](local-media-filters.md).
+   Selecting an entry shows
    its purpose, current status and available actions. Use the category selector
    for sources, image filters or all plugins. Sources → source details →
-   **Plugin settings and tests** is another route to that source's entry.
+   **Show plugin** is another route to that source's entry.
 2. Choose **Enable plugin** or **Disable plugin** to change availability now.
    These actions use the already selected valid build; manual enablement grants
-   no provider-size/MD5 exception. The eight supplied experimental sources default
-   disabled at first registration; existing saved states are retained. See
+   no provider-size/MD5 exception. The supplied experimental board/thread sources
+   default disabled at first registration; existing saved states are retained. See
    [experimental activation](#experimental-sources-and-media-checks) for their distinct checks.
    **Source and watches**
    opens the related source and its watched entries when available.
@@ -57,22 +66,53 @@ details** take you to the relevant part of that plugin. Unavailable actions show
 their reason. Enable/disable does not save a settings draft; candidate selection
 and rollback remain choices for the next start.
 
+The list shows one card per plugin, active plugins first, then disabled ones, then those
+that are unavailable or not loaded; a plugin that needs attention carries a chip. A plugin
+that comes from several files still has one card ("Files: 2"); its detail lists the files
+under **Files (n)**, and choosing one shows that file's details, build and settings. The
+count in the header counts plugins, not files. Which file is used from the next start on is
+still chosen with **Use this version next start**.
+
+The plugin's overview shows three steps: **Installed** (the file is in the plugin
+folder), **Enabled** (the plugin is switched on) and **Active** (this build is in use;
+**Active after restart** while a new or changed build waits for the next start), with one
+sentence naming the next action. The steps only display the state; they add no action, so
+approvals, confirmations and the explicit build/SDK choices stay where they are.
+
 Expand **Developer details** for technical information, **Copy technical details**
 and source editing/testing tools. Ordinary plugin use does not require opening
 this section. To add or edit a trusted `.cs` source, follow the next sections.
 
 ## Experimental sources and media checks
 
-The eight supplied Experimental sources are Kohlchan, Wizchan, Endchan,
-Leftypol, 2ch / Двач, Uboachan, ZZZchan and SushiChan. All eight start disabled
-when first registered in a profile. Existing profiles keep their saved enable/disable and permission
-choices; an upgrade does not reset them. Registration does not establish live service health; see the source-specific
-notes and dated validation evidence for tested behavior.
+The supplied experimental board/thread sources are Kohlchan, Wizchan, Endchan,
+Leftypol, 2ch / Двач, Uboachan, ZZZchan, SushiChan, 7chan, BBW-Chan,
+CapybaraChan, 8chan.moe and Fchan. They start disabled when first registered in
+a profile. Anon Imageboards and Guro.cx are blocked placeholders, not activatable
+sources; this board/thread activation flow does not apply to Danbooru post search.
+Existing profiles keep their saved enable/disable and permission choices; an
+upgrade does not reset them. Registration does not establish live service health;
+see the source-specific notes and dated validation evidence for tested behavior.
+
+Wizchan, Leftypol, Uboachan and SushiChan (with Lainchan) are sites of the
+**vichan family** plugin, ZZZchan of the **jschan family** plugin. A family
+plugin is on by default and is the master switch for all of its sites; each site
+also has its own switch (**Turn this site on/off** on the Sources page, saved in
+`chan-sources.json` in the profile). An experimental site starts off; Lainchan
+starts on. The activation confirmation below turns on only the submitted site
+(and its plugin, if that was off). When a profile from 1.0.x is first opened, each
+site takes over the on/off state of its former single-site plugin; the source IDs
+are unchanged, so watches, archives and rules keep working. The old single-site plugins then leave the plugin
+list for good: their state is kept as the site switch and in a backup file `plugin-state/state.pre-retirement-*.json`,
+and their cached builds are removed from `plugin-cache`. A bundled plugin whose build changed and that waits for a
+repair review is not running; its plugin detail and its sources show **Review bundled repairs**, which opens the review. A size/MD5 difference
+permission belongs to the plugin that owns a source, so after that upgrade a site
+starts strict again until you allow it once more on the Sources page.
 
 | Sources | Activation confirmation | Integrity behavior |
 | --- | --- | --- |
-| Kohlchan, Wizchan, Endchan, Leftypol | **Activate and allow differences** | Explicit profile/source permission can allow provider size/MD5 differences. Raw provider values and measured local values remain separate. |
-| 2ch / Двач, Uboachan, ZZZchan, SushiChan | **Activate source** | Exact provider hashes/sizes remain strict. There is no size/MD5 exception checkbox or automatic grant for these sources. 2ch's rounded size is retained as an annotation, never an exact byte expectation or a byte-limit substitute. |
+| Kohlchan, Wizchan, Endchan, Leftypol, 7chan, BBW-Chan, CapybaraChan, 8chan.moe, Fchan | **Activate and allow differences** | Explicit profile/source permission can allow provider size/MD5 differences. Raw provider values and measured local values remain separate. |
+| 2ch / Двач, Uboachan, ZZZchan, SushiChan | **Activate source** | Exact provider hashes/sizes remain strict. There is no size/MD5 exception checkbox or automatic grant for these sources. 2ch is the one source here that reports no checksum expectation: its MD5 and size describe a different file than the one it serves (checked in live runs on 11.11.2026), so the MD5 is validated for format but not compared, and the size is kept only as a rounded annotation, never an exact byte expectation or a byte-limit substitute. After an update that dropped the 2ch MD5, the first re-check of an already archived 2ch thread downloads each original once more into the same files (no duplicate tile), and your tags on those media move to the new revision; favorites and ratings are unaffected. |
 
 Experimental describes the current support status. It grants no exception.
 For the four strict sources, confirming enables the source only. URLs continue
@@ -80,8 +120,9 @@ after successful activation; closing or retrying never adds a mismatch grant.
 Provider SHA-1 always remains strict, including Uboachan SHA-1 metadata; it is
 compared separately from any MD5 metadata.
 
-The following combined permission flow applies to Kohlchan, Wizchan, Endchan and
-Leftypol:
+The following combined permission flow applies to the sources in the first table
+row (Kohlchan, Wizchan, Endchan, Leftypol, 7chan, BBW-Chan, CapybaraChan,
+8chan.moe and Fchan):
 
 When you explicitly submit a matching URL for a disabled source, a warning appears
 before that URL is fetched. Choose **Activate and allow differences**
@@ -138,11 +179,17 @@ Release readiness and broader source availability remain separate assessments.
 
 ## Install a source file
 
-1. Open **Plugins** from the application menu or footer (under **Tools** in compact views). The source detail
-   action **Plugin settings and tests** opens the same catalog for that source.
-2. Select **Open plugin folder**. The displayed directory is
-   `<active profile>/plugins`; it is independent of the media download directory.
-3. Place one complete `.cs` file directly in that directory. Include all needed
+1. Open **Plugins** from the application menu or footer (under **More** in compact views). The source detail
+   action **Show plugin** opens the same catalog for that source.
+2. Select **Add plugin…** and choose one `.cs` file. MeowChan copies it into
+   `<active profile>/plugins` after the same per-file checks the folder scan applies:
+   a single `.cs` source file that is a regular file (not a folder or link), not empty
+   and not larger than 4 MiB. It never overwrites an existing file of the same name and
+   runs nothing; the new entry is selected, and its steps say what comes next.
+   Alternatively select **Open plugin folder** and place the file there yourself (the
+   displayed directory is `<active profile>/plugins`, independent of the media download
+   directory): the result is identical, because **Add plugin…** is only a checked copy.
+3. The file must be one complete `.cs` file directly in that directory. Include all needed
    `using` directives and exactly one public, concrete plugin entry with a public
    parameterless constructor. A project file or a directory of partial sources is
    not the drop-in format.
@@ -228,6 +275,87 @@ Plugin and source settings take effect at the next app start. Image-filter
 parameters belong to their media rule and affect new decisions after that rule is
 saved. See [settings and grants](filters-and-settings.md) before enabling a filter.
 
+## Updates of bundled plugins
+
+An app update or rebuild replaces the bytes of bundled plugins. At startup the host
+compares each new bundled build with the last approved one. An **in-place update** is
+taken over automatically, without **Review bundled repairs**: the new build is the same
+manifest file in the running app's own `plugins` folder (same path, so the same
+identity), it matches the app's delivery record (checked again under the profile
+write lock), the plugin already ran there before, it is the only candidate and not
+pinned. Such an update keeps the plugin's existing rights: filter grants, the
+size/MD5 difference permission of its sources, source owner choices, settings and a
+confirmed repair. Its description may change as long as it adds nothing: no new
+source, host, host purpose, route, capability, filter, data access or file type, the
+same plugin ID, SDK version and settings forms, and no switch from blocked to
+available. Removing or narrowing is fine; names, version label, descriptions, author
+and documentation links and information texts may change. The description is
+compared field by field; anything the comparison does not recognise needs a review.
+The log records one line per update that carried rights or a description change
+over this way.
+
+A review is still required for a build from another folder (for example a worktree
+or a moved installation, since the identity follows the file path), a user-installed
+plugin, a first activation, and any description change that adds something. A build
+from another folder that would keep existing rights stays off until you review it in
+**Review bundled repairs** and explicitly authorize those rights for that exact new
+execution revision. A description change that adds capabilities, routes, hosts,
+filters or changes settings forms requires a separate, explicit decision. For a uniquely proven
+bundled target with the same source identities, **Review bundled repairs** now
+shows that review in the same dialog: compare the old and new declaration, correct
+settings in the embedded form, and acknowledge the changes. Any existing special
+rights require their own confirmation; ordinary repair cannot bypass either decision.
+
+**Save reviewed plugin for next start** records the exact reviewed build and
+validated settings without live activation. Restart the app after saving. The old
+release/configuration and the pre-selection backup remain available; nothing in
+this dialog deletes or resets the profile. Paths, execution hashes and exact JSON
+are under **Technical details** rather than obscuring the review.
+
+Missing delivery proof, conflicting source ownership, ambiguous candidates, changed
+source identities or a pinned rollback remain blockers. A stale preview must be
+reloaded; it never silently changes the build or permissions being approved.
+
+### SDK 1.0.0 to 1.1.0 transition
+
+SDK 1.1.0 adds the booru post-search contract and the metadata-only
+`PluginDescription.DeclarationStatus`; both are additive, so a bundled build that
+changes nothing but its declared SDK version from exactly `1.0.0` to exactly
+`1.1.0` is treated as follows.
+
+At startup it is activated automatically, keeping its enable state, settings, filter
+grants, restricted sources and source ownership, and without a new rights review,
+when all of these hold:
+
+- the description is byte-identical to the approved one except for `sdkVersion`
+  `1.0.0` → `1.1.0`;
+- it is the same candidate at the same path in the same delivered slot, it is the
+  only present candidate of the plugin, and the plugin is not pinned to a rollback;
+- the active or last good release is exactly the approved 1.0.0 predecessor, and no
+  different build or settings choice is pending;
+- the app's delivery record matches the current bytes, checked again under the
+  profile write lock;
+- no other plugin claims its sources, and the settings that will be activated are
+  valid for the new build;
+- if the plugin has a confirmed repair, that repair targets the 1.0.0 predecessor,
+  and a saved rights authorization (if any) still matches the current rights; the
+  saved authorization is cleared when the repair moves to the new build;
+- no 1.1.0 build has been activated for this plugin before.
+
+Without a confirmed repair, nobody reviews the rights again in this case: the new
+bytes keep existing filter grants and restricted sources. This is accepted because
+the bytes are checked against the delivery record of the same app and the
+description is otherwise unchanged.
+
+The exception applies only to this exact change and only once per plugin. Reverse
+(`1.1.0` → `1.0.0`) and unknown versions, an SDK change combined with any other
+description difference, and any later rebuild after a 1.1.0 build was activated
+(also when that build later failed to load) follow the ordinary rules above: an
+SDK version change is never accepted again without review. If the startup check refuses an
+SDK-only build, **Review bundled repairs** shows the ordinary reason (source owner
+conflict, incompatible settings or existing rights) and its confirm or authorize
+action, not a blocked description change.
+
 ## English and German labels
 
 The labels below come from the implemented [plugin localization
@@ -243,7 +371,8 @@ catalog](../../Desktop/Localization/SourcesCatalog.cs).
 | Show developer details | Entwicklerdetails anzeigen |
 | Copy technical details | Technische Details kopieren |
 | Open plugin folder | Pluginordner öffnen |
-| Plugin settings and tests | Plugineinstellungen und Tests |
+| Show plugin | Plugin anzeigen |
+| Show in Plugins | In Plugins zeigen |
 | Source, editor and test | Source, Editor und Test |
 | Open in editor | Im Editor öffnen |
 | Build and test | Bauen und testen |

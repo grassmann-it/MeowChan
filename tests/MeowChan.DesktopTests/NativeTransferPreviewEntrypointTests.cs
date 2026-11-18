@@ -28,12 +28,12 @@ public sealed class NativeTransferPreviewEntrypointTests
         Assert.Empty(factory.GetParameters());
         Assert.Equal(typeof(string), factory.ReturnType);
         Assert.NotEqual(first.Work, second.Work);
+        string physicalTempRoot = TemporaryWorkspacePaths.TempRoot;
         foreach (string work in new[] { first.Work, second.Work })
         {
             Assert.True(Path.IsPathFullyQualified(work));
             Assert.StartsWith("meowchan-transfer-preview-", Path.GetFileName(work), StringComparison.Ordinal);
-            Assert.Equal(Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath())),
-                Path.GetDirectoryName(work));
+            Assert.Equal(physicalTempRoot, Path.GetDirectoryName(work));
             Assert.Empty(Directory.GetFileSystemEntries(work));
             if (!OperatingSystem.IsWindows())
                 Assert.Equal(NativeTransferPreviewTestWorkspace.OwnerOnly, File.GetUnixFileMode(work));
@@ -175,7 +175,15 @@ internal sealed class NativeTransferPreviewTestWorkspace : IDisposable
     internal NativeTransferPreviewTestWorkspace()
     {
         SourceRoot = TemporaryWorkspacePaths.CreateDirectory("meowchan-transfer-preview-entry-source-");
-        try { Work = ArchivePage.CreateTransferPreviewWorkDirectory(); }
+        try
+        {
+            // macOS commonly exposes TMPDIR through /var -> /private/var. The
+            // production guard intentionally rejects that alias, so run this
+            // test-only factory call with the physical temp root instead of
+            // weakening RejectLinks.
+            using IDisposable physicalTempRoot = NativeTransferPreviewTestSupport.UsePhysicalTempRoot();
+            Work = ArchivePage.CreateTransferPreviewWorkDirectory();
+        }
         catch { Directory.Delete(SourceRoot, recursive: false); throw; }
     }
 
@@ -200,5 +208,54 @@ internal sealed class NativeTransferPreviewTestWorkspace : IDisposable
         File.Delete(Source);
         Directory.Delete(SourceRoot, recursive: false);
         if (Directory.Exists(Work)) Directory.Delete(Work, recursive: false);
+    }
+}
+
+internal static class NativeTransferPreviewTestSupport
+{
+    private static readonly object TempRootEnvironmentGate = new();
+
+    internal static IDisposable UsePhysicalTempRoot()
+    {
+        if (OperatingSystem.IsWindows()) return NoopScope.Instance;
+
+        Monitor.Enter(TempRootEnvironmentGate);
+        string? previous = Environment.GetEnvironmentVariable("TMPDIR");
+        bool changed = false;
+        try
+        {
+            string requested = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Path.GetTempPath()));
+            string physical = TemporaryWorkspacePaths.TempRoot;
+            changed = !string.Equals(requested, physical, StringComparison.Ordinal);
+            if (changed) Environment.SetEnvironmentVariable("TMPDIR", physical);
+            return new EnvironmentScope(previous, changed);
+        }
+        catch
+        {
+            Monitor.Exit(TempRootEnvironmentGate);
+            throw;
+        }
+    }
+
+    private sealed class EnvironmentScope(string? previous, bool changed) : IDisposable
+    {
+        private bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            try
+            {
+                if (changed) Environment.SetEnvironmentVariable("TMPDIR", previous);
+            }
+            finally { Monitor.Exit(TempRootEnvironmentGate); }
+        }
+    }
+
+    private sealed class NoopScope : IDisposable
+    {
+        internal static readonly NoopScope Instance = new();
+        public void Dispose() { }
     }
 }

@@ -34,6 +34,21 @@ public partial class MainWindow
     private readonly Dictionary<long, long> _threadFilterExclusions = new();
     private readonly Dictionary<long, long> _boardFilterExclusions = new();
     public string DownloadSearchText => this.FindControl<TextBox>("DownloadSearchInput")?.Text ?? string.Empty;
+    // This is the cardinality of the live filtered collections, never the historical cache.
+    // Only publish it after an authoritative frame AND the current query have finished applying.
+    private bool DownloadResultsCurrent => _restoreCompleted && !_isClosing && !_startupPreviewShown
+        && !_sessionRowsApplying && !DownloadSearchNeedsReconciliation
+        && _appliedSessionProjection?.View.State == DesktopSessionState.Ready
+        && _session.Projection.View.State == DesktopSessionState.Ready;
+    private string DownloadResultsPendingText => _isClosing ? Texts.T("shell.stopping")
+        : _session.Projection.View.State switch
+        {
+            DesktopSessionState.RecoveryFailed => Texts.T("shell.recoveryFailed"),
+            DesktopSessionState.Stopping or DesktopSessionState.Stopped => Texts.T("shell.stopping"),
+            _ when _startupPreviewShown => Texts.T("shell.startupPreview") + " · " + Texts.T("shell.starting"),
+            _ when _restoreCompleted => Texts.T("menu.unavailable.restoring"),
+            _ => Texts.T("shell.starting")
+        };
     public int VisibleResultCount => this.FindControl<TabControl>("DownloadsTabs")?.SelectedIndex == 1
         ? VisibleBoards.Count : VisibleThreads.Count;
     public bool CanFocusDownloadSearch => _workspaceInitialized && _selectedPage == WorkspacePage.Downloads
@@ -44,28 +59,34 @@ public partial class MainWindow
         if (!CanFocusDownloadSearch) return;
         _downloadSearchOpen = true;
         RefreshDownloadSearchPresentation();
-        TextBox input = WorkspaceControl<TextBox>("DownloadSearchInput");
+        TextBox input = DownloadSearchInput;
         input.Focus();
         input.SelectAll();
     }
 
     private void OnDownloadSearchClick(object? sender, RoutedEventArgs e) => FocusDownloadSearch();
+
+    // DL-07: the close of the open bar is a labelled "Close" with the collapse chevron, not a second ×
+    // (DownloadSearchCloseButton). Esc clears the text first (SearchBox) and closes the bar from an empty field (ExitRequested, InitializeWorkspace).
+    private void LocalizeDownloadSearchClose() => DownloadSearchCloseButton.Apply(DownloadSearchClose);
+
     private void OnDownloadSearchClose(object? sender, RoutedEventArgs e)
     {
         _downloadSearchOpen = false;
         RefreshDownloadSearchPresentation();
-        WorkspaceControl<Button>("DownloadSearchButton").Focus();
+        DownloadSearchButton.Focus();
     }
     private void OnDownloadSearchClear(object? sender, RoutedEventArgs e)
     {
-        WorkspaceControl<TextBox>("DownloadSearchInput").Text = string.Empty;
-        if (_downloadSearchOpen) WorkspaceControl<TextBox>("DownloadSearchInput").Focus();
+        DownloadSearchInput.Text = string.Empty;
+        if (_downloadSearchOpen) DownloadSearchInput.Focus();
     }
     private void OnDownloadSearchChanged(object? sender, TextChangedEventArgs e)
     {
         if (!_workspaceInitialized) return;
         _downloadFilterRevision++;
         _downloadSearchQueryRevision++;
+        RefreshDownloadSearchPresentation();
         _sessionRefresh.RequestImmediate();
     }
 
@@ -80,6 +101,8 @@ public partial class MainWindow
         _threadSearchReconciliation = null; _boardSearchReconciliation = null;
         _restoreDownloadSelection?.Dispose(); _restoreDownloadSelection = null;
         _refreshingDownloadSearch = true;
+        if (_appliedSessionProjection?.View.State != DesktopSessionState.Ready)
+            RefreshDownloadSearchPresentation();
     }
 
     private void BeginDownloadSearch(DesktopSessionProjection projection)
@@ -154,24 +177,46 @@ public partial class MainWindow
     {
         if (!_workspaceInitialized) return;
         bool active = !string.IsNullOrWhiteSpace(DownloadSearchText);
-        WorkspaceControl<Grid>("DownloadSearchBar").IsVisible = _downloadSearchOpen || active;
-        WorkspaceControl<TextBox>("DownloadSearchInput").IsVisible = _downloadSearchOpen;
-        WorkspaceControl<Button>("DownloadSearchClose").IsVisible = _downloadSearchOpen;
-        WorkspaceControl<Button>("DownloadSearchClear").IsVisible = active;
-        TextBlock summary = WorkspaceControl<TextBlock>("DownloadSearchSummary");
+        DownloadSearchBar.IsVisible = _downloadSearchOpen || active;
+        DownloadSearchInput.IsVisible = _downloadSearchOpen;
+        DownloadSearchClose.IsVisible = _downloadSearchOpen;
+        // While the field is shown its own clear button is the way to empty it; the bar button covers the folded bar.
+        DownloadSearchClear.IsVisible = active && !_downloadSearchOpen;
+        TextBlock summary = DownloadSearchSummary;
         Grid.SetColumn(summary, _downloadSearchOpen ? 1 : 0);
         Grid.SetColumnSpan(summary, _downloadSearchOpen ? 1 : 2);
         summary.MaxWidth = _downloadSearchOpen ? 120 : double.PositiveInfinity;
-        summary.Text = active && !_downloadSearchOpen ? Texts.T("downloads.searchActive", VisibleResultCount, DownloadSearchText)
-            : Texts.T("downloads.searchCount", VisibleResultCount);
+        bool current = DownloadResultsCurrent;
+        string pending = current ? string.Empty : DownloadResultsPendingText;
+        if (!current)
+        {
+            WorkspaceCounts.Text = pending;
+            ToolTip.SetTip(WorkspaceCounts, pending);
+            AutomationProperties.SetName(WorkspaceCounts, pending);
+        }
+        summary.Text = !current ? pending + (active && !_downloadSearchOpen ? " · " + DownloadSearchText : string.Empty)
+            : active && !_downloadSearchOpen ? Texts.Count("downloads.searchActive", VisibleResultCount, VisibleResultCount, DownloadSearchText)
+            : Texts.Count("downloads.searchCount", VisibleResultCount);
         ToolTip.SetTip(summary, summary.Text);
         AutomationProperties.SetName(summary, summary.Text);
-        bool boards = WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1;
-        WorkspaceControl<Grid>("ThreadsResultPanel").IsVisible = !boards;
-        WorkspaceControl<Grid>("BoardsResultPanel").IsVisible = boards;
-        WorkspaceControl<TextBlock>("ThreadsEmptyState").Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.empty");
-        WorkspaceControl<TextBlock>("BoardsEmptyState").Text = Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty");
-        TextBox input = WorkspaceControl<TextBox>("DownloadSearchInput");
+        bool boards = DownloadsTabs.SelectedIndex == 1;
+        ThreadsResultPanel.IsVisible = !boards;
+        BoardsResultPanel.IsVisible = boards;
+        // The cache is capped/truncated and has no historical board grid. Neither its membership
+        // nor an absent/broken cache can establish a session count or a failed literal search.
+        ThreadsTab.Header = current ? Texts.T("downloads.threadsCount", VisibleThreads.Count) : Texts.T("downloads.threads");
+        BoardsTab.Header = current ? Texts.T("downloads.boardsCount", VisibleBoards.Count) : Texts.T("downloads.boards");
+        ThreadsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.empty") : pending;
+        BoardsEmptyState.Text = current ? Texts.T(active ? "downloads.searchEmpty" : "downloads.boardsEmpty") : pending;
+        ThreadsEmptyState.IsVisible = _startupPreviewShown ? HistoricThreads.Count == 0 : VisibleThreads.Count == 0;
+        ThreadsEmptyPanel.IsVisible = ThreadsEmptyState.IsVisible;
+        // The next step is offered only for a truly empty, current list; not for a search without hits or a pending claim.
+        ThreadsEmptyImportButton.IsVisible = ThreadsEmptyState.IsVisible && current && !active;
+        BoardsEmptyState.IsVisible = VisibleBoards.Count == 0;
+        BoardsEmptyPanel.IsVisible = BoardsEmptyState.IsVisible;
+        BoardsEmptyImportButton.IsVisible = BoardsEmptyState.IsVisible && current && !active;
+        RefreshDownloadsToolbarEmptiness(active);
+        TextBox input = DownloadSearchInput;
         input.PlaceholderText = Texts.T("downloads.searchPlaceholder");
         AutomationProperties.SetName(input, Texts.T("downloads.searchPlaceholder"));
     }

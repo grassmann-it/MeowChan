@@ -1,7 +1,7 @@
 using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginSdk;
-using MeowChan.Plugins.Examples.Lainchan;
+using MeowChan.Plugins.Examples.VichanFamily;
 using MeowChan.Plugins.Examples.AnonImageboards;
 using MeowChan.Plugins.Examples.BbwChan;
 using MeowChan.Plugins.Examples.CapybaraChan;
@@ -18,23 +18,24 @@ public sealed class ExamplePluginTests
     [Fact]
     public void DescriptionsAreInertDistinctSdkOnlySources()
     {
-        PluginDescription[] descriptions = [new LainchanPlugin().Describe(), new KohlchanPlugin().Describe()];
+        PluginDescription[] descriptions = [new VichanFamilyPlugin().Describe(), new KohlchanPlugin().Describe()];
         Assert.Empty(SdkValidation.ValidateDescriptions(descriptions));
         Dictionary<string, string> expectedNames = new(StringComparer.Ordinal)
         { ["lainchan"] = "Lainchan", ["kohlchan"] = "Kohlchan" };
+        Assert.Equal("Kohlchan", Assert.Single(descriptions[1].Sources).Name);
+        Assert.Equal("Kohlchan", descriptions[1].Name);
         Assert.All(descriptions, description =>
         {
             Assert.Empty(description.Settings.Fields);
-            Assert.Single(description.Sources);
-            SourceDescription source = description.Sources[0];
+            // The vichan family declares several sites; Lainchan keeps its own source identity and name.
+            SourceDescription source = Assert.Single(description.Sources, item => expectedNames.ContainsKey(item.SourceId));
             Assert.Contains(source.SourceId, expectedNames.Keys);
-            Assert.Equal(expectedNames[source.SourceId], description.Name);
             Assert.Equal(expectedNames[source.SourceId], source.Name);
             Assert.Equal(PostOrderKind.DecimalPostId, source.PostOrder);
             Assert.False(source.Capabilities.HasFlag(SourceCapabilities.Previews));
             Assert.Equal("/{board}/res/{thread}.html", Assert.Single(source.Routes, route => route.Kind == SourceResourceKind.Thread).PathTemplate);
         });
-        foreach (Type type in new[] { typeof(LainchanPlugin), typeof(KohlchanPlugin) })
+        foreach (Type type in new[] { typeof(VichanFamilyPlugin), typeof(KohlchanPlugin) })
         {
             string[] references = type.Assembly.GetReferencedAssemblies().Select(reference => reference.Name!).ToArray();
             Assert.Contains("MeowChan.PluginSdk", references);
@@ -494,6 +495,84 @@ public sealed class ExamplePluginTests
         Assert.Single(Assert.IsType<ThreadSnapshot>(copy).Snapshot.Posts[0].Attachments!);
     }
 
+    [Fact]
+    public async Task SevenChanReadsUnquotedPostIdsAndCountsEachLinkedFileOnce()
+    {
+        Harness h = new("sevenchan", PluginFixture("SevenChan", "thread-unquoted-ids.html"), board: "x", thread: "300");
+        ThreadSnapshot thread = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, thread, h.Source));
+        Assert.Equal(new[] { "300", "301", "302" }, thread.Snapshot.Posts.Select(post => post.PostId));
+        Assert.Equal(new[] { 0L, 1L, 2L }, thread.Snapshot.Posts.Select(post => post.Ordinal));
+        // Name, download icon and thumbnail links of one file are a single attachment; off-site links are not media.
+        SourceAttachment first = Assert.Single(thread.Snapshot.Posts[0].Attachments!);
+        Assert.Equal("300-0", first.MediaId);
+        Assert.Equal("https://7chan.org/x/src/1000000000001.jpg", first.Url!.AbsoluteUri);
+        Assert.Equal("1000000000001.jpg", first.OriginalFileName);
+        Assert.Equal(".jpg", first.Extension);
+        // The rounded size printed after the file is an annotation, never an exact size.
+        Assert.Null(first.ExpectedSize);
+        Assert.Equal(new SourceSizeHint("355.92", "KB", SourceSizePrecision.Rounded), first.ProviderSizeHint);
+        Assert.Equal(new SourceSizeHint("208.13", "KB", SourceSizePrecision.Rounded),
+            Assert.Single(thread.Snapshot.Posts[1].Attachments!).ProviderSizeHint);
+        Assert.Equal("301-0", Assert.Single(thread.Snapshot.Posts[1].Attachments!).MediaId);
+        Assert.Null(thread.Snapshot.Posts[2].Attachments);
+        Assert.Contains("post 3", thread.Snapshot.Posts[2].Text);
+        ThreadReadResult copy = SdkJson.Deserialize<ThreadReadResult>(SdkJson.Serialize<ThreadReadResult>(thread));
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, copy, h.Source));
+    }
+
+    [Fact]
+    public async Task SevenChanNamesMultiFilePostFilesByTheirExtensionNotTheTypeAndSizeLabel()
+    {
+        Harness h = new("sevenchan", PluginFixture("SevenChan", "thread-multifile.html"), board: "x", thread: "400");
+        ThreadSnapshot thread = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, thread, h.Source));
+        IReadOnlyList<SourceAttachment> files = thread.Snapshot.Posts[0].Attachments!;
+        Assert.Equal(new[] { "Sample 'Book' One.pdf", "Sample Notes (2006).txt", "Sample_Without_Download_Name.pdf" },
+            files.Select(file => file.OriginalFileName));
+        Assert.Equal(new[] { ".pdf", ".txt", ".pdf" }, files.Select(file => file.Extension));
+        Assert.Equal("https://7chan.org/x/src/Sample_Notes_%282006%29.txt", files[1].Url!.AbsoluteUri);
+        // The host derives the stored extension from this name and refuses the whole thread's media selection when it is not 1-32 letters or digits.
+        foreach (SourceAttachment file in thread.Snapshot.Posts.SelectMany(post => post.Attachments ?? []))
+            Assert.Matches(@"^\.[A-Za-z0-9]{1,32}$", System.IO.Path.GetExtension(file.OriginalFileName!));
+        Assert.Equal("1000000000003.jpg", Assert.Single(thread.Snapshot.Posts[1].Attachments!).OriginalFileName);
+        Assert.Equal(new[] { "5.75 MB", "40.63 KB", "1.50 MB" },
+            files.Select(file => file.ProviderSizeHint!.RawValue + " " + file.ProviderSizeHint.UnitLabel));
+        Assert.All(files, file => { Assert.Null(file.ExpectedSize); Assert.Equal(SourceSizePrecision.Rounded, file.ProviderSizeHint!.Precision); });
+        Assert.Equal(new SourceSizeHint("38.33", "KB", SourceSizePrecision.Rounded),
+            Assert.Single(thread.Snapshot.Posts[1].Attachments!).ProviderSizeHint);
+    }
+
+    [Theory]
+    [InlineData("id=300x")][InlineData("id=")][InlineData("id=300\"")][InlineData("id=0300")]
+    public async Task SevenChanStillRejectsMalformedOrUnsafePostIds(string idAttribute)
+    {
+        string html = PluginFixture("SevenChan", "thread-unquoted-ids.html").Replace("id=300>", idAttribute + ">", StringComparison.Ordinal);
+        Harness h = new("sevenchan", html, board: "x", thread: "300");
+        Assert.Equal("invalid_payload", Assert.IsType<ThreadFailure>(await h.ReadThread()).Failure.Code);
+    }
+
+    [Fact]
+    public async Task SevenChanReadsThreadsLargerThanTheObservedReplyCounts()
+    {
+        string fixture = PluginFixture("SevenChan", "thread-unquoted-ids.html");
+        int open = fixture.IndexOf("<div class=\"reply\"  id=\"reply_301\">", StringComparison.Ordinal);
+        int end = fixture.IndexOf("<div class=\"reply\"  id=\"reply_302\">", StringComparison.Ordinal);
+        string reply = fixture[open..end];
+        System.Text.StringBuilder html = new(fixture[..open]);
+        for (int id = 1000; id < 1000 + 1500; id++)
+            html.Append(reply.Replace("301", id.ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal)
+                .Replace("1000000000002", (2000000000000 + id).ToString(System.Globalization.CultureInfo.InvariantCulture), StringComparison.Ordinal));
+        html.Append(fixture[end..]);
+        Harness h = new("sevenchan", html.ToString(), board: "x", thread: "300");
+        System.Diagnostics.Stopwatch watch = System.Diagnostics.Stopwatch.StartNew();
+        ThreadSnapshot thread = Assert.IsType<ThreadSnapshot>(await h.ReadThread());
+        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "Parsing took " + watch.Elapsed);
+        Assert.Equal(1502, thread.Snapshot.Posts.Count);
+        Assert.Equal(1501, thread.Snapshot.Posts.Count(post => post.Attachments?.Count == 1));
+        Assert.Empty(SdkValidation.ValidateThreadResult(h.ThreadRequest, thread, h.Source));
+    }
+
     [Theory]
     [InlineData("bbwchan", "bbw", "123", "BbwChan", "thread.json", new[] { "123", "124", "125" }, new[] { "123", "124", "125" }, SourceTextFormat.PlainText, 2)]
     [InlineData("capybarachan", "site", "101", "CapybaraChan", "media-thread.json", new[] { "101", "102" }, new[] { "101", "102" }, SourceTextFormat.Html, 1)]
@@ -732,7 +811,7 @@ public sealed class ExamplePluginTests
 
     private static ISourcePlugin CreatePlugin(string source) => source switch
     {
-        "lainchan" => new LainchanPlugin(),
+        "lainchan" => new VichanFamilyPlugin(),
         "kohlchan" => new KohlchanPlugin(),
         "sevenchan" => new SevenChanPlugin(),
         "bbwchan" => new BbwChanPlugin(),
@@ -761,7 +840,7 @@ public sealed class ExamplePluginTests
         {
             Plugin = CreatePlugin(source);
             PluginDescription description = Plugin.Describe();
-            Source = description.Sources.Count == 0 ? null! : description.Sources[0];
+            Source = description.Sources.FirstOrDefault(item => item.SourceId == source) ?? (description.Sources.Count == 0 ? null! : description.Sources[0]);
             ThreadRequest = new ThreadReadRequest(new SourceThreadId(description.Sources.Count == 0 ? source : Source.SourceId, board, thread));
             CatalogRequest = new CatalogReadRequest(new SourceBoardId(description.Sources.Count == 0 ? source : Source.SourceId, board));
             Http = new StubHttp(body, status, Validators);

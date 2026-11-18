@@ -21,11 +21,16 @@ def main() -> None:
     for codec, encoder in [('vp8', 'libvpx'), ('vp9', 'libvpx-vp9')]:
         path = OUTPUT / f'gallery-playback-{codec}.webm'
         command = ['ffmpeg', '-nostdin', '-y', '-hide_banner', '-loglevel', 'error',
-                   '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=15', '-t', '12',
-                   '-an', '-c:v', encoder, '-threads', '1', '-b:v', '48k',
-                   '-g', '15', '-deadline', 'good', '-cpu-used', '4',
-                   '-pix_fmt', 'yuv420p', '-fflags', '+bitexact', '-flags:v', '+bitexact',
-                   '-map_metadata', '-1', '-metadata', 'encoder=', str(path)]
+                   '-f', 'lavfi', '-i', 'testsrc2=size=160x90:rate=15', '-t', '12', '-an',
+                   '-c:v', encoder]
+        # The bundled macOS Intel LibVLC accepts this conservative VP8 bitrate; the
+        # former 48k stream is valid but rejects its first frame in that decoder with
+        # get_buffer() failed. Keep both fixtures video-only and deterministic.
+        bitrate = '120k' if codec == 'vp8' else '48k'
+        command += ['-threads', '1', '-b:v', bitrate,
+                    '-g', '15', '-deadline', 'good', '-cpu-used', '4',
+                    '-pix_fmt', 'yuv420p', '-fflags', '+bitexact', '-flags:v', '+bitexact',
+                    '-map_metadata', '-1', '-metadata', 'encoder=', str(path)]
         subprocess.run(command, check=True)
         files.append({'file': path.name, 'codec': codec, 'seconds': 12, 'width': 160, 'height': 90,
                       'fps': 15, 'audio': False, 'bytes': path.stat().st_size,

@@ -27,6 +27,17 @@ class WatchdogTests(unittest.TestCase):
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
 
+    def test_dotnet_command_is_single_node_and_has_vstest_hang_diagnostics(self):
+        command = watchdog.build_test_command(
+            'tests/MeowChan.Tests/MeowChan.Tests.csproj', self.root / 'core')
+        self.assertIn('-m:1', command)
+        self.assertEqual(command[command.index('--blame-hang-timeout') + 1], '2min')
+        self.assertEqual(command[command.index('--blame-hang-dump-type') + 1], 'mini')
+        self.assertIn('--blame-hang', command)
+        self.assertIn('--no-build', command)
+        self.assertIn('--no-restore', command)
+        self.assertIn('--results-directory', command)
+
     def test_real_timeout_cleanup_and_later_success_remain_distinct(self):
         failed = watchdog.run_one('failed', [sys.executable, '-c', 'raise SystemExit(7)'],
                                   self.root / 'failed', 2)
@@ -137,6 +148,37 @@ class WatchdogTests(unittest.TestCase):
                     contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
                 watchdog.main()
             self.assertEqual(2, error.exception.code)
+
+    def test_candidate_budget_has_evidence_based_headroom_and_stays_bounded(self):
+        # Run 43806146605 measured 372.16s (core) and 788.56s (desktop) on
+        # macOS Intel. Keep a small fixed margin, not an unbounded retry path.
+        self.assertEqual(390, watchdog.CANDIDATE_CORE_TIMEOUT)
+        self.assertEqual(810, watchdog.CANDIDATE_DESKTOP_TIMEOUT)
+        self.assertGreater(watchdog.CANDIDATE_CORE_TIMEOUT, 372.16)
+        self.assertGreater(watchdog.CANDIDATE_DESKTOP_TIMEOUT, 788.56)
+        self.assertLessEqual(
+            watchdog.CANDIDATE_CORE_TIMEOUT + watchdog.CANDIDATE_DESKTOP_TIMEOUT,
+            20 * 60,
+        )
+
+    def test_candidate_validation_uses_the_evidence_based_defaults(self):
+        calls = []
+
+        def run(name, command, output, timeout):
+            calls.append((name, timeout))
+            return dict(name=name, exit_code=0, timeout=False,
+                        cleanup=dict(complete=True))
+
+        with mock.patch.object(
+                sys, 'argv', [str(SCRIPT), '--output', str(self.root),
+                              '--candidate-validation']), \
+                mock.patch.object(watchdog, 'run_one', side_effect=run), \
+                contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(0, watchdog.main())
+        self.assertEqual([
+            ('core', watchdog.CANDIDATE_CORE_TIMEOUT),
+            ('desktop', watchdog.CANDIDATE_DESKTOP_TIMEOUT),
+        ], calls)
 
     def test_watchdog_and_system_groups_are_never_signalled(self):
         with mock.patch.object(watchdog.os, 'getpgrp', return_value=321), \

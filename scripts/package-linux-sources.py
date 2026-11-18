@@ -35,6 +35,27 @@ BINDING_INPUT = {
     "sha256": "262bc5bbaadc127ded92c2e7155c4f07c0c4b1cfedb5b4f02d53dba93a0b6878",
     "kind": "LGPL-managed-binding-and-Avalonia-adapter",
 }
+# A stalled mirror connection must fail and retry instead of silently consuming the job budget.
+APT_NETWORK_BOUNDS = ("-o", "Acquire::http::Timeout=60", "-o", "Acquire::https::Timeout=60", "-o", "Acquire::Retries=3")
+FETCH_ATTEMPTS = 3
+FETCH_TIMEOUT_SECONDS = 900
+
+
+def fetch_bounded(command: list[str], folder: Path) -> str:
+    """Run one apt source command with a hard deadline, retrying from an empty collector-owned folder."""
+    for attempt in range(1, FETCH_ATTEMPTS + 1):
+        try:
+            return common.run(*command, cwd=folder, timeout=FETCH_TIMEOUT_SECONDS)
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError) as error:
+            if attempt == FETCH_ATTEMPTS:
+                raise
+            print(f"Source fetch attempt {attempt}/{FETCH_ATTEMPTS} failed ({type(error).__name__}); retrying: {' '.join(command)}", flush=True)
+            for entry in folder.iterdir():
+                if entry.is_dir() and not entry.is_symlink():
+                    shutil.rmtree(entry)
+                else:
+                    entry.unlink()
+    raise AssertionError("unreachable")
 
 
 def assignments(values: list[str]) -> dict[str, Path]:
@@ -116,13 +137,13 @@ def collect(manifests: dict[str, Path], output: Path, cache: Path, commit: str) 
             # Never delete/reuse pre-existing caller cache contents.
             folder.mkdir()
             common.reserve(cache, 512 * 1024 ** 2)
-            command = ["apt-get", "source", "--download-only", "--only-source", "--yes", f"{name}={version}"]
-            uris = common.run(*command[:2], "--print-uris", *command[2:], cwd=folder)
+            command = ["apt-get", "source", "--download-only", "--only-source", "--yes", *APT_NETWORK_BOUNDS, f"{name}={version}"]
+            uris = fetch_bounded(command[:2] + ["--print-uris"] + command[2:], folder)
             sizes = re.findall(r"^'[^']+'\s+\S+\s+(\d+)\s+\S+\s*$", uris, re.M)
             if not sizes:
                 raise ValueError(f"Could not bound exact source download size for {name}={version}.")
             common.reserve(cache, sum(map(int, sizes)) * 2 + 16 * 1024 ** 2)
-            log = common.run(*command, cwd=folder)
+            log = fetch_bounded(command, folder)
             (folder / "download.log").write_text(log)
             descriptors = list(folder.glob("*.dsc"))
             if len(descriptors) != 1:

@@ -7,8 +7,8 @@ internal static class FirstRunLimitCatalog
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("setup.parallelRequested", "Requested parallel downloads (whole number)", "Gewünschte parallele Downloads (ganze Zahl)"),
-        ("setup.parallelEffective", "Effective limit after acceptance: {0} simultaneous media transfers (requested: {1}; safety cap: {2}).", "Wirksames Limit nach Übernahme: {0} gleichzeitige Mediendateitransfers (gewünscht: {1}; Ressourcenobergrenze: {2})."),
-        ("setup.parallelEffectiveInvalid", "Effective limit unavailable: enter a valid whole parallel count. Safety cap: {0}.", "Wirksames Limit nicht verfügbar: eine gültige ganze Parallelanzahl eingeben. Ressourcenobergrenze: {0}."),
-        ("setup.parallelSafetyHint", "The requested parallel count and the safety cap (media transfer resource limit) are separate; the smaller value applies. The cap limits open media transfers, not watched threads or queued files. Setup keeps the saved cap unchanged. Change both later in Settings → Downloads; source and bandwidth limits still apply.", "Gewünschte Parallelanzahl und Ressourcenobergrenze für Mediendownloads sind getrennte Werte; der kleinere gilt. Die Obergrenze begrenzt offene Mediendateitransfers, nicht beobachtete Threads oder wartende Dateien. Die Einrichtung lässt die gespeicherte Obergrenze unverändert. Beide Werte sind später unter Einstellungen → Downloads änderbar; Quellen- und Bandbreitenlimits gelten weiterhin."),
+        ("setup.parallelEffective", "Up to {0} files download at the same time (you asked for {1}; upper limit {2}).", "Es laden bis zu {0} Dateien gleichzeitig (gewünscht: {1}; Obergrenze: {2})."),
+        ("setup.parallelEffectiveInvalid", "Enter a whole number of parallel downloads. Upper limit: {0}.", "Gib eine ganze Zahl paralleler Downloads ein. Obergrenze: {0}."),
+        ("setup.parallelSafetyHint", "The smaller of your number and the upper limit for simultaneous files applies. You can change both later under Settings → Downloads.", "Es gilt der kleinere Wert aus deiner Angabe und der Obergrenze für gleichzeitige Dateien. Beides kannst du später unter Einstellungen → Downloads ändern."),
     };
 }

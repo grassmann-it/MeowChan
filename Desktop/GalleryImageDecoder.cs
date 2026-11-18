@@ -71,24 +71,46 @@ internal static class GalleryImageDecoder
     {
         using SKManagedStream managed = new(stream, disposeManagedStream: false);
         using SKCodec? codec = SKCodec.Create(managed);
-        if (codec == null) throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
-        GalleryImageInfo info = new(codec.Info.Width, codec.Info.Height, codec.EncodedFormat.ToString(),
+        if (codec == null) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.unsupported"));
+        PixelSize shown = ImageOrientation.DisplaySize(codec); // as displayed: width and height exchanged for a rotated photo
+        GalleryImageInfo info = new(shown.Width, shown.Height, codec.EncodedFormat.ToString(),
             codec.EncodedFormat == SKEncodedImageFormat.Gif || codec.FrameCount > 1);
         if (info.Width <= 0 || info.Height <= 0 || info.Pixels > maximumPixels)
-            throw new InvalidDataException(GalleryViewerText.Get("Image exceeds the safe pixel limit.", "Das Bild überschreitet die sichere Pixelgrenze."));
+            throw new InvalidDataException(Localization.Texts.T("gallery.image.error.pixelLimit"));
         return info;
     }
 
+    // Foreground decodes (the shown image) waiting for the single decoder; background decodes (preloading) let them go first.
+    private static int _foregroundWaiting;
+
     internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeAsync(GalleryEntry entry,
-        GalleryDecodeRequest request, CancellationToken cancellationToken) => Task.Run(async () =>
+        GalleryDecodeRequest request, CancellationToken cancellationToken) => DecodeCoreAsync(entry, request, background: false, cancellationToken);
+
+    /// <summary>
+    /// A decode for the preloader: it starts only while no decode of the shown image is waiting, does not report to
+    /// <see cref="DecodeStarted"/> and never queues ahead of a foreground decode. A decode already running is not interrupted.
+    /// </summary>
+    internal static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeBackgroundAsync(GalleryEntry entry,
+        GalleryDecodeRequest request, CancellationToken cancellationToken) => DecodeCoreAsync(entry, request, background: true, cancellationToken);
+
+    private static Task<(Bitmap Bitmap, GalleryImageInfo Info)> DecodeCoreAsync(GalleryEntry entry,
+        GalleryDecodeRequest request, bool background, CancellationToken cancellationToken) => Task.Run(async () =>
     {
-        using (PerformanceDiagnostics.Measure("gallery.decoder.gate-wait", asset: entry.Asset.AssetId))
-            await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (background)
+        {
+            while (Volatile.Read(ref _foregroundWaiting) > 0) await Task.Delay(20, cancellationToken).ConfigureAwait(false);
+        }
+        else Interlocked.Increment(ref _foregroundWaiting);
         try
         {
-            DecodeStarted?.Invoke(request);
-            if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(GalleryViewerText.Get(
-                "Image exceeds the 64 MiB file limit.", "Das Bild überschreitet die Dateigrenze von 64 MiB."));
+            using (PerformanceDiagnostics.Measure("gallery.decoder.gate-wait", asset: entry.Asset.AssetId))
+                await Gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+        finally { if (!background) Interlocked.Decrement(ref _foregroundWaiting); }
+        try
+        {
+            if (!background) DecodeStarted?.Invoke(request);
+            if (entry.Asset.Length > MaximumBytes) throw new InvalidDataException(Localization.Texts.T("gallery.image.error.fileLimit"));
             await using Stream stream = await entry.Manifest.OpenVerifiedReadAsync(entry.Asset.AssetId, cancellationToken).ConfigureAwait(false);
             GalleryImageInfo info;
             using (PerformanceDiagnostics.Measure("gallery.decoder.inspect", asset: entry.Asset.AssetId))
@@ -100,7 +122,7 @@ internal static class GalleryImageDecoder
             Bitmap bitmap;
             using (PerformanceDiagnostics.Measure(request is GalleryDecodeRequest.Original
                 ? "gallery.decoder.original" : "gallery.decoder.fit", asset: entry.Asset.AssetId))
-                bitmap = request is GalleryDecodeRequest.Original ? new Bitmap(stream) : DecodeFit(stream, target);
+                bitmap = request is GalleryDecodeRequest.Original ? ImageOrientation.DecodeOriginal(stream) : DecodeFit(stream, target);
             PerformanceDiagnostics.Record("gallery.decoder.pixels", "decoded", asset: entry.Asset.AssetId,
                 value: (long)bitmap.PixelSize.Width * bitmap.PixelSize.Height);
             if (cancellationToken.IsCancellationRequested) { bitmap.Dispose(); cancellationToken.ThrowIfCancellationRequested(); }
@@ -116,29 +138,10 @@ internal static class GalleryImageDecoder
     internal static Bitmap DecodeFit(Stream stream, PixelSize target)
     {
         using SKManagedStream managed = new(stream, disposeManagedStream: false);
-        using SKCodec codec = SKCodec.Create(managed) ?? throw new InvalidDataException(
-            GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
-        SKSizeI supported = codec.GetScaledDimensions(Math.Min((float)target.Width / codec.Info.Width,
-            (float)target.Height / codec.Info.Height));
-        using SKBitmap decoded = SKBitmap.Decode(codec,
-            new SKImageInfo(supported.Width, supported.Height, SKColorType.Bgra8888, SKAlphaType.Premul))
-            ?? throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
-        if (decoded.Width == target.Width && decoded.Height == target.Height)
-            return CopyPixels(decoded);
-        using SKBitmap scaled = decoded.Resize(new SKImageInfo(target.Width, target.Height,
-            SKColorType.Bgra8888, SKAlphaType.Premul), new SKSamplingOptions(SKCubicResampler.Mitchell))
-            ?? throw new InvalidDataException(GalleryViewerText.Get("Unsupported or damaged image.", "Nicht unterstütztes oder beschädigtes Bild."));
-        return CopyPixels(scaled);
+        using SKCodec codec = ImageOrientation.OpenCodec(managed);
+        return ImageOrientation.DecodeScaled(codec, target); // target is the displayed size; a rotated photo is moved upright
     }
 
-    private static Bitmap CopyPixels(SKBitmap bitmap) => new(PixelFormats.Bgra8888, AlphaFormat.Premul,
-        bitmap.GetPixels(), new PixelSize(bitmap.Width, bitmap.Height), new Vector(96, 96), bitmap.RowBytes);
-
-}
-
-internal static class GalleryViewerText
-{
-    internal static string Get(string english, string german) => Localization.Texts.Language == "de" ? german : english;
 }
 
 /// <summary>Scale is physical display pixels per source pixel; pan is in device-independent units.</summary>
@@ -148,8 +151,15 @@ internal static class GalleryGeometry
         ? Math.Exp(Math.Clamp(delta, -4, 4) * Math.Log(1.1)) : 1;
     internal static double ClampZoom(double requested, double fit) =>
         Math.Clamp(double.IsFinite(requested) ? requested : fit, fit, Math.Max(16, fit));
-    internal static double Fit(int width, int height, double viewportWidth, double viewportHeight, double displayScale) =>
-        Math.Min(Math.Max(1, viewportWidth) * displayScale / width, Math.Max(1, viewportHeight) * displayScale / height);
+    /// <summary>
+    /// The scale that fits the image into the viewport. <paramref name="maxUpscale"/> (physical pixels per source pixel, null =
+    /// no limit) only caps an enlargement: it never reduces a fit that shrinks the image, and never goes below 1.
+    /// </summary>
+    internal static double Fit(int width, int height, double viewportWidth, double viewportHeight, double displayScale, double? maxUpscale = null)
+    {
+        double fit = Math.Min(Math.Max(1, viewportWidth) * displayScale / width, Math.Max(1, viewportHeight) * displayScale / height);
+        return maxUpscale is { } cap && double.IsFinite(cap) ? Math.Min(fit, Math.Max(1, cap)) : fit;
+    }
     internal static double Pan(double pan, int sourcePixels, double physicalZoom, double displayScale, double viewport) =>
         Math.Clamp(pan, -Math.Max(0, (sourcePixels * physicalZoom / displayScale - viewport) / 2),
             Math.Max(0, (sourcePixels * physicalZoom / displayScale - viewport) / 2));

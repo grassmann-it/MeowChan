@@ -40,7 +40,7 @@ internal static class ReaderShortcutContextChecks
                 return;
             }
             window.Width = 1440; window.Height = 920;
-            Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
             ArchivePage page = window.ArchivePage;
             await Program.WaitUntilAsync(() => !page.IsBusy);
             Click(page.FindControl<Button>("ArchiveLayoutTable")!);
@@ -88,7 +88,12 @@ internal static class ReaderShortcutContextChecks
             page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader mixed navigation";
             await page.ApplySearchAsync();
             page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
-            Click(page.FindControl<Button>("ArchiveReadPosts")!);
+            Button readPosts = page.FindControl<Button>("ArchiveReadPosts")!;
+            await Program.WaitUntilAsync(() => !page.IsBusy
+                && page.CurrentThread?.Summary.Id.Thread == "9998"
+                && readPosts.IsEffectivelyEnabled,
+                () => $"Reader shortcut fixture was not ready: busy={page.IsBusy}, thread={page.CurrentThread?.Summary.Id.Thread ?? "<null>"}, enabled={readPosts.IsEffectivelyEnabled}.");
+            Click(readPosts);
             await Program.WaitUntilAsync(() => window.FindControl<ContentControl>("ReaderHost")!.IsVisible
                 && !page.IsBusy && page.CurrentThread?.Summary.Id.Thread == "9998");
             await page.MediaLoadTask;
@@ -175,6 +180,8 @@ internal static class ReaderShortcutContextChecks
         int opens = 0;
         GalleryEntryKey? target = null;
         page.OpenGallery = (_, key, _) => { opens++; target = key; return Task.CompletedTask; };
+        // Enter on a post follows "Clicking a medium" (sidebar by default); this check is about the gallery path.
+        ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery);
         ReaderBodyTextBlock Body() => posts.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single(body =>
             body.GetVisualAncestors().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, posts.SelectedItem)));
         try
@@ -202,7 +209,7 @@ internal static class ReaderShortcutContextChecks
                 check(opens == before, "text-only-selected-post-" + key, null);
             }
         }
-        finally { page.OpenGallery = previous; }
+        finally { page.OpenGallery = previous; ReaderSmokeSetup.Restore(page, mediaBefore); }
     }
 
     private static KeyEventArgs Press(Control source, Key key)

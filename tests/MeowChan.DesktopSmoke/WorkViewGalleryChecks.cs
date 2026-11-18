@@ -1,0 +1,179 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
+using MeowChan.Desktop;
+using MeowChan.Desktop.WorkViews;
+
+namespace MeowChan.DesktopSmoke;
+
+/// <summary>
+/// Gallery cells of the work-views smoke (WV4, work-views-gallery). The gallery stays open while the matrix switches the view, so
+/// every cell also proves the change of view at run time. Per cell: the movable tools sit on the bar or under More as the policy
+/// says, the "where am I" line follows its gate, the way back stands first at the top left with the star directly right of it,
+/// the post panel never lies under that pair, and a menu opened and closed returns focus to More.
+/// </summary>
+internal static class WorkViewGalleryChecks
+{
+    private static GalleryViewer Viewer(MainWindow window) =>
+        window.FindControl<ContentControl>("GalleryHost")?.Content as GalleryViewer
+        ?? throw new InvalidOperationException("The gallery is not open.");
+
+    private static Control Tool(GalleryViewer viewer, string id) =>
+        viewer.WorkViewControl(id) ?? throw new InvalidOperationException($"gallery: no control is registered for {id}.");
+
+    /// <summary>No orphaned row: every control-backed row of the gallery is registered by this viewer (the transport only exists for a video).</summary>
+    internal static void CheckRegistrations(MainWindow window)
+    {
+        GalleryViewer viewer = Viewer(window);
+        HashSet<string> registered = viewer.RegisteredWorkViewIds.ToHashSet(StringComparer.Ordinal);
+        string[] orphaned = WorkViewPolicy.Entries
+            .Where(entry => entry.Page == WorkViewPage.Gallery && entry.Kind is WorkViewKind.Action or WorkViewKind.Element
+                && entry.Id is not ("gallery.video.transport" or "gallery.video.player-menu") && !registered.Contains(entry.Id)).Select(entry => entry.Id).ToArray();
+        if (orphaned.Length > 0)
+            throw new InvalidOperationException("gallery: work-view rows without a registered control: " + string.Join(", ", orphaned));
+        Console.WriteLine($"SMOKE work-views registrations: gallery: {registered.Count} ids registered, no orphaned policy row.");
+    }
+
+    internal static async Task CheckAsync(MainWindow window, WorkView view, string viewName)
+    {
+        GalleryViewer viewer = Viewer(window);
+        string scene = $"gallery/{viewName}";
+        if (viewer.CurrentWorkView != view)
+            throw new InvalidOperationException($"{scene}: the viewer is laid out for {viewer.CurrentWorkView}.");
+        CheckTools(viewer, view, scene);
+        CheckScope(viewer, view, scene);
+        CheckTopRow(viewer, scene);
+        await CheckPostPanelBelowTopRowAsync(window, viewer, scene);
+        await CheckMoreAsync(window, viewer, view, scene);
+        Console.WriteLine($"SMOKE work-views gallery {viewName}: bar=[{string.Join(", ", viewer.ToolbarToolIds)}]; More=[{string.Join(", ", viewer.MenuToolIds)}].");
+    }
+
+    // The fixture shows no slideshow, so the policy's own answer for the view, narrowed by the width (G1, GalleryChromePlan), is the expectation.
+    private static void CheckTools(GalleryViewer viewer, WorkView view, string scene)
+    {
+        string[] expected = viewer.ChromePlan.BarToolIds.ToArray();
+        if (expected.Except(WorkViewPolicy.GalleryBarToolIds(view)).Any())
+            throw new InvalidOperationException($"{scene}: the chrome plan puts [{string.Join(", ", expected)}] on the bar, more than the view offers.");
+        if (!viewer.ToolbarToolIds.SequenceEqual(expected))
+            throw new InvalidOperationException($"{scene}: the bar holds [{string.Join(", ", viewer.ToolbarToolIds)}], the policy says [{string.Join(", ", expected)}].");
+        foreach (string id in WorkViewPolicy.GalleryMovableToolIds)
+        {
+            Control control = Tool(viewer, id);
+            bool onBar = expected.Contains(id);
+            // A control of a rule that only applies to a slideshow (the seconds number) is not shown outside one.
+            bool shown = onBar ? viewer.WorkViewToolGroup.Children.Contains(control) || id == "gallery.toolbar.slideshow" : control is not Button || viewer.OverflowItems.Contains((Button)control);
+            if (!shown)
+                throw new InvalidOperationException($"{scene}: {id} is not where the policy puts it ({(onBar ? "bar" : "More")}).");
+            if (control is Button button && onBar && !button.IsEffectivelyVisible)
+                throw new InvalidOperationException($"{scene}: {id} is on the bar but not visible.");
+            if (control is Button inMenu && !onBar && inMenu.IsEffectivelyVisible && !viewer.IsOverflowOpen)
+                throw new InvalidOperationException($"{scene}: {id} belongs under More but shows on the surface.");
+        }
+        if (viewer.WorkViewToolGroup.IsVisible != (viewer.WorkViewToolGroup.Children.Count > 0 && !viewer.IsMediaFocus))
+            throw new InvalidOperationException($"{scene}: the tool group is {(viewer.WorkViewToolGroup.IsVisible ? "shown" : "hidden")} for {viewer.WorkViewToolGroup.Children.Count} tools.");
+    }
+
+    private static void CheckScope(GalleryViewer viewer, WorkView view, string scene)
+    {
+        Control scope = Tool(viewer, "gallery.info.scope");
+        bool expected = WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve("gallery.info.scope", view));
+        if (scope.IsVisible != expected)
+            throw new InvalidOperationException($"{scene}: the scope line is {(scope.IsVisible ? "shown" : "hidden")}, the policy says {WorkViewPolicy.Resolve("gallery.info.scope", view)}.");
+        // The position between the arrows is never reduced.
+        if (!Tool(viewer, "gallery.position").IsVisible) throw new InvalidOperationException($"{scene}: the position is hidden.");
+    }
+
+    // Tom's rule of 14.11.: the way back first at the top left edge, the star directly right of it as a pair, the other actions apart from both.
+    private static void CheckTopRow(GalleryViewer viewer, string scene)
+    {
+        Control back = Tool(viewer, "gallery.back");
+        Point? backOrigin = back.TranslatePoint(default, viewer);
+        if (!back.IsEffectivelyVisible || backOrigin is not { } origin || origin.X < 0 || origin.X > 24 || origin.Y > 24 || origin.Y < 0)
+            throw new InvalidOperationException($"{scene}: the way back is not at the top left edge ({backOrigin}, {back.Bounds.Size} in {viewer.Bounds.Size}).");
+        Control star = Tool(viewer, "gallery.favorite.indicator");
+        if (star.IsVisible && star.TranslatePoint(default, viewer) is { } starOrigin)
+        {
+            double gap = starOrigin.X - (origin.X + back.Bounds.Width);
+            if (gap < 0 || gap > 24 || Math.Abs(starOrigin.Y - origin.Y) > 16)
+                throw new InvalidOperationException($"{scene}: the star is not directly right of the way back (gap {gap:0.#}, rows {starOrigin.Y:0.#}/{origin.Y:0.#}).");
+        }
+        // Nothing else of the viewer's toolbar stands in the top row beside the two.
+        foreach (Control tool in new[] { Tool(viewer, "gallery.nav.previous"), Tool(viewer, "gallery.nav.next"), Tool(viewer, "gallery.favorite"), Tool(viewer, "gallery.toolbar.more") })
+            if (tool.IsEffectivelyVisible && tool.TranslatePoint(default, viewer) is { } point && point.Y < origin.Y + back.Bounds.Height + 8
+                && point.X < origin.X + back.Bounds.Width + 40 + (star.IsVisible ? star.Bounds.Width + 24 : 0))
+                throw new InvalidOperationException($"{scene}: {tool.Name} shares the top row with the way back.");
+    }
+
+    // The post panel (and the tag panel slot that will share it) never lies under the way back and the star at the left: it starts below
+    // them where it reaches them horizontally (narrow viewer) and at the top otherwise.
+    private static async Task CheckPostPanelBelowTopRowAsync(MainWindow window, GalleryViewer viewer, string scene)
+    {
+        ToggleButton toggle = (ToggleButton)Tool(viewer, "gallery.toolbar.post-panel");
+        Border panel = (Border)Tool(viewer, "gallery.post-panel");
+        bool wasOpen = toggle.IsChecked == true;
+        if (!wasOpen) toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Exception? failureBeforeCleanup = null;
+        try
+        {
+            await Program.WaitUntilAsync(() => panel.IsVisible && panel.Bounds.Height > 0);
+            for (int pass = 0; pass < 2; pass++)
+                await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, Avalonia.Threading.DispatcherPriority.Background);
+            Control back = Tool(viewer, "gallery.back");
+            double backBottom = back.TranslatePoint(new Point(0, back.Bounds.Height), viewer)?.Y ?? 0;
+            double panelTop = panel.TranslatePoint(default, viewer)?.Y ?? 0;
+            double backRight = back.TranslatePoint(new Point(back.Bounds.Width, 0), viewer)?.X ?? 0;
+            double panelLeft = panel.TranslatePoint(default, viewer)?.X ?? 0;
+            if (panelTop < backBottom - 0.5 && panelLeft < backRight + 0.5)
+                throw new InvalidOperationException($"{scene}: the post panel starts at {panelTop:0.#} under the way back (bottom {backBottom:0.#}, panel left {panelLeft:0.#}, back right {backRight:0.#}).");
+            // V2: the host's head has the segment "Post | Tags" on the left and the × alone at the right edge; the post shows.
+            ToggleButton post = (ToggleButton)Tool(viewer, "gallery.panel.post"), tags = (ToggleButton)Tool(viewer, "gallery.panel.tags");
+            Button close = viewer.SidePanel.CloseButton;
+            if (!post.IsEffectivelyVisible || !tags.IsEffectivelyVisible || post.IsChecked != true || tags.IsChecked == true)
+                throw new InvalidOperationException($"{scene}: the panel segment does not show Post (post={post.IsChecked}, tags={tags.IsChecked}).");
+            double tagsRight = tags.TranslatePoint(new Point(tags.Bounds.Width, 0), viewer)?.X ?? 0;
+            double closeLeft = close.TranslatePoint(default, viewer)?.X ?? 0, closeRight = closeLeft + close.Bounds.Width;
+            double panelRight = panel.TranslatePoint(new Point(panel.Bounds.Width, 0), viewer)?.X ?? 0;
+            if (close.Name != "GalleryReturnImage" || !close.IsEffectivelyVisible || closeLeft - tagsRight < 24 || panelRight - closeRight > 24)
+                throw new InvalidOperationException($"{scene}: the × is not alone at the right edge of the panel head (tags end {tagsRight:0.#}, × {closeLeft:0.#}–{closeRight:0.#}, panel end {panelRight:0.#}).");
+            if (panel.Bounds.Width < MeowChan.Config.GalleryPanelWidthMinimum - 24.5 || panel.Bounds.Width > MeowChan.Config.GalleryPanelWidthMaximum + 0.5)
+                throw new InvalidOperationException($"{scene}: the panel width {panel.Bounds.Width:0.#} is outside its limits.");
+        }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                if (!wasOpen && toggle.IsChecked == true) toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await Program.WaitUntilAsync(() => wasOpen || !panel.IsVisible);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in WorkViewGalleryChecks: " + exception));
+        }
+    }
+
+    // More opens with the rows of its tools (in policy order among the policy's menu tools) and, closed again, keeps the keyboard on More (A19).
+    private static async Task CheckMoreAsync(MainWindow window, GalleryViewer viewer, WorkView view, string scene)
+    {
+        Button more = viewer.OverflowButton;
+        more.Focus(NavigationMethod.Tab);
+        viewer.SetOverflowOpen(true);
+        await Program.WaitUntilAsync(() => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsEffectivelyVisible);
+        foreach (string id in viewer.MenuToolIds)
+            if (Tool(viewer, id) is Button row && !viewer.OverflowItems.Contains(row))
+                throw new InvalidOperationException($"{scene}: {id} is not a row of More.");
+        foreach (string id in viewer.ToolbarToolIds)
+            if (Tool(viewer, id) is Button { Tag: not null } moved && viewer.OverflowItems.Contains(moved))
+                throw new InvalidOperationException($"{scene}: {id} is on the bar and also a row of More.");
+        viewer.SetOverflowOpen(false);
+        await Program.WaitUntilAsync(() => !viewer.IsOverflowOpen);
+        await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, Avalonia.Threading.DispatcherPriority.Background);
+        if (!more.IsKeyboardFocusWithin)
+            throw new InvalidOperationException($"{scene}: focus did not return to More after the menu closed.");
+        // A19 for the dialogs: a reduced command's dialog returns to More, a command on the bar returns to its own origin.
+        Control? target = viewer.FocusReturnTarget(null, "media.tags.edit");
+        bool reduced = WorkViewPolicy.GalleryCommandReduced("media.tags.edit", view);
+        if (reduced != ReferenceEquals(target, more))
+            throw new InvalidOperationException($"{scene}: the tags dialog would return focus to {(target == null ? "nothing" : target.Name)}, reduced={reduced}.");
+    }
+}

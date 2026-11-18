@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using MeowChan.Boards.FourChan;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -22,6 +23,7 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>The normal application with a caller-owned offline transport, selected only by the smoke executable.</summary>
 internal sealed class DownloadSessionSmokeApp : App
 {
+    internal static DownloadSessionSmokeApp? Fixture { get; private set; }
     private readonly HttpClient _client;
     internal DownloadSessionTransport Transport { get; } = new DownloadSessionTransport();
 
@@ -35,6 +37,18 @@ internal sealed class DownloadSessionSmokeApp : App
     }
 
     internal MainWindow CreateRestoredWindow() => CreateMainWindow();
+    internal MainWindow CreateFixtureWindow() => CreateMainWindow();
+    internal static void Install()
+    {
+        Fixture = new DownloadSessionSmokeApp();
+        App.SmokeMainWindowFactory = Fixture.CreateFixtureWindow;
+    }
+    internal static void Uninstall()
+    {
+        Fixture?.DisposeFixture();
+        Fixture = null;
+        App.SmokeMainWindowFactory = null;
+    }
     internal void DisposeFixture()
     {
         Transport.AllowMedia();
@@ -48,8 +62,8 @@ internal static class DownloadSessionChecks
 
     internal static async Task RunAsync(MainWindow initial, IClassicDesktopStyleApplicationLifetime desktop)
     {
-        DownloadSessionSmokeApp app = Application.Current as DownloadSessionSmokeApp
-            ?? throw new InvalidOperationException("The offline download fixture application was not selected.");
+        DownloadSessionSmokeApp app = DownloadSessionSmokeApp.Fixture
+            ?? throw new InvalidOperationException("The offline download fixture was not installed.");
         MainWindow current = initial;
         int geometryChanges = 0;
         void TraceGeometryChange(object? sender, AvaloniaPropertyChangedEventArgs change)
@@ -74,7 +88,7 @@ internal static class DownloadSessionChecks
         {
             Require(Config.LoadConfig(profile).WorkspaceMode == "Barebones"
                 && (initial.FindControl<ComboBox>("WorkspaceModeComboBox")!.SelectedItem as ComboBoxItem)?.Tag as string == "Barebones",
-                "The new download profile did not start in Barebones view.");
+                "The seeded download profile did not start in Barebones view.");
             // Exercise the existing Simple-to-Barebones transition explicitly.
             TraceLayout(initial, "before Simple mode");
             await PresentationChecks.SwitchModeAsync(initial, "Simple");
@@ -166,8 +180,13 @@ internal static class DownloadSessionChecks
             await Program.WaitUntilAsync(() => retained.CompletedMedia == 1 && retained.Active == 0 && retained.Queued == 0);
             Require(initial.SessionHost.ReceivedMediaBytes == DownloadSessionTransport.Payload.Length,
                 "Session transfer telemetry did not count the actual media response body.");
+            // This fixture owns its transport, so the network meter is bypassed on purpose; the media store still counts
+            // the file it wrote, and the header graph shows that as the disk write rate.
             await Program.WaitUntilAsync(() => initial.FindControl<TextBlock>("TransferSpeedLabel")!.Text is string speed
-                && speed.StartsWith("↓ ", StringComparison.Ordinal) && speed != "↓ 0 B/s");
+                && speed.EndsWith("/s", StringComparison.Ordinal)
+                && StatisticsChecks.HeaderWordIs(initial, "TransferDownMark", "stats.header.down")
+                && StatisticsChecks.HeaderWordIs(initial, "TransferUpMark", "stats.header.up")
+                && initial.FindControl<TextBlock>("TransferDiskLabel")!.Text is string disk && disk.EndsWith("/s", StringComparison.Ordinal) && !string.Equals(disk, "0 B/s", StringComparison.Ordinal));
             Require(initial.SettingsPageVisible && settings.DownloadPath == settingsDraft,
                 "A background download discarded the settings page or its draft.");
             Click(initial.FindControl<Button>("DownloadsNavigationButton")!);

@@ -58,10 +58,12 @@ internal static class MediaLibraryAudioScanner
     /// and returns the map with the new answers. <paramref name="open"/> gives a stream for an occurrence or null
     /// when its file is unavailable; the next occurrence of the same bytes is then tried. Progress and the growing
     /// map are reported at most every <see cref="ReportInterval"/>; the map is saved to <paramref name="cachePath"/>
-    /// now and then and at the end, also when cancelled (then <see cref="OperationCanceledException"/> follows).
+    /// now and then and at the end, also when cancelled (then <see cref="OperationCanceledException"/> follows), within
+    /// <paramref name="cacheLimits"/> (default: the default limits).
     /// </summary>
     internal static MediaAudioMap Scan(MediaLibrarySnapshot snapshot, MediaAudioMap known, Func<MediaLibraryEntry, Stream?> open,
-        Action<MediaAudioMap, MediaAudioScanProgress>? report = null, string? cachePath = null, CancellationToken cancellationToken = default)
+        Action<MediaAudioMap, MediaAudioScanProgress>? report = null, string? cachePath = null, CancellationToken cancellationToken = default,
+        MediaAudioCacheLimits? cacheLimits = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(known);
@@ -93,7 +95,7 @@ internal static class MediaLibraryAudioScanner
                 if (changed && cachePath != null && now - lastSave >= SaveInterval)
                 {
                     map = Merge(map, fresh);
-                    TrySave(cachePath, map);
+                    TrySave(cachePath, map, cacheLimits);
                     lastSave = now;
                     changed = false;
                 }
@@ -105,7 +107,7 @@ internal static class MediaLibraryAudioScanner
         finally
         {
             // Also on cancellation: what was learned so far is kept.
-            if (changed && cachePath != null) TrySave(cachePath, Merge(map, fresh));
+            if (changed && cachePath != null) TrySave(cachePath, Merge(map, fresh), cacheLimits);
         }
     }
 
@@ -133,9 +135,9 @@ internal static class MediaLibraryAudioScanner
         return merged;
     }
 
-    private static void TrySave(string path, MediaAudioMap map)
+    private static void TrySave(string path, MediaAudioMap map, MediaAudioCacheLimits? limits)
     {
-        try { MediaAudioCache.Save(path, map); }
+        try { MediaAudioCache.Save(path, map, limits); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException) { } // A cache is optional.
     }
 }

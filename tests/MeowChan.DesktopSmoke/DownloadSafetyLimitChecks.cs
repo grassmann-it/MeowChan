@@ -26,8 +26,10 @@ internal static class DownloadSafetyLimitChecks
         MainWindow? shell = null;
         try
         {
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using DesktopSessionHost ownedHost = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHost;
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             await Program.WaitUntilAsync(() => shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -70,10 +72,13 @@ internal static class DownloadSafetyLimitChecks
                 "Footer does not explain effective media transfers separately from watched threads.");
             Program.CaptureWindow(shell, "smoke-download-safety-limit.png");
             await CloseAsync(shell);
+            await shell.DisposeAsync();
             await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             shell = null; host = null;
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using DesktopSessionHost ownedHostSecond = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHostSecond;
+            await using MainWindow ownedShellSecond = new(host);
+            shell = ownedShellSecond;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             await host.CaptureProjectionAsync().WaitAsync(TimeSpan.FromSeconds(15));

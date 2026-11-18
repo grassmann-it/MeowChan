@@ -29,7 +29,7 @@ internal static class ShowcaseCaptures
         await ResizeAsync(window, 1440, 920);
         await CaptureDownloadsAsync(window);
 
-        window.FindControl<MenuItem>("ArchiveMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<ListBox>("ArchiveThreads")!.ItemCount > 0);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = ShowcaseData.Search;
@@ -111,7 +111,7 @@ internal static class ShowcaseCaptures
         window.FindControl<MenuItem>("AboutMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
         await Program.WaitUntilAsync(() => window.OwnedWindows.OfType<AboutWindow>().Any(about => about.IsVisible));
         AboutWindow about = window.OwnedWindows.OfType<AboutWindow>().Single();
-        await Program.WaitUntilAsync(() => about.FindControl<Image>("CatLogo")!.Source != null && about.Bounds.Width > 0);
+        await Program.WaitUntilAsync(() => about.FindControl<Image>("CatLogo")!.Source != null && about.FindControl<Image>("CatLogoDark")!.Source != null && about.Bounds.Width > 0);
         Button donate = about.FindControl<Button>("DonationLink")!;
         if (!donate.IsEffectivelyVisible || donate.Tag?.ToString() != "https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ")
             throw new InvalidOperationException("The visible About support link does not match the project donation destination.");
@@ -124,7 +124,7 @@ internal static class ShowcaseCaptures
         licenseSearch.Text = "Feather";
         await Program.WaitUntilAsync(() => about.FindControl<TextBox>("LicenseFullText")!.Text?.Contains("Cole Bemis") == true);
         await CaptureAsync(about, "v0.9.0-about-licenses.png");
-        Click(about.FindControl<Button>("CloseButton")!);
+        about.Close();
         Console.WriteLine("SHOWCASE final UI scenes captured: downloads, gallery/post context/favorite, reader and replies, archive/media, HTML export, favorites/original export, settings, rules, About/support/credits/offline licenses.");
     }
 
@@ -252,6 +252,22 @@ internal static class ShowcaseCaptures
         await page.MediaLoadTask;
         await page.FocusPostAsync(ShowcaseData.Hero.Thread!);
         Rect? previousImage = null;
+        string ReaderState()
+        {
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            ArchiveAttachmentView? first = reader.GetVisualDescendants().OfType<ArchiveAttachmentView>()
+                .FirstOrDefault(view => view.IsEffectivelyVisible && view.DataContext is ArchiveAttachmentRow);
+            ScrollViewer viewport = posts.GetVisualDescendants().OfType<ScrollViewer>().Single();
+            ArchivePostRow? opening = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault();
+            SelectableTextBlock? body = reader.GetVisualDescendants().OfType<SelectableTextBlock>()
+                .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == opening?.Body);
+            return "pane in reader " + page.FindControl<Grid>("ArchiveReaderPane")!.GetVisualAncestors().Contains(reader)
+                + ", attachment " + (first == null ? "none" : "bitmap " + (first.Thumbnail.Source as Bitmap)?.PixelSize + " bounds " + first.Thumbnail.Bounds
+                    + " fits " + FitsInViewport(first.Thumbnail, viewport))
+                + ", body " + (body == null ? "none" : "fits " + FitsInViewport(body, viewport))
+                + ", next post " + page.FindControl<Button>("ReaderNextPost")!.IsEnabled + ", next thread " + page.FindControl<Button>("ReaderNextThread")!.IsEnabled
+                + ", status line " + page.FindControl<Control>("ReaderStatusLine")!.IsEffectivelyVisible;
+        }
         await Program.WaitUntilAsync(() =>
         {
             window.UpdateLayout();
@@ -262,13 +278,13 @@ internal static class ShowcaseCaptures
             ArchivePostRow? opening = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault();
             SelectableTextBlock? body = reader.GetVisualDescendants().OfType<SelectableTextBlock>()
                 .FirstOrDefault(text => text.IsEffectivelyVisible && text.Text == opening?.Body);
-            if (page.FindControl<Grid>("ArchiveReaderPane")!.Parent != reader
+            if (!ReaderUxChecks.HostsLargeReader(reader, page)
                 || first?.Thumbnail.Source is not Bitmap bitmap || bitmap.PixelSize.Width <= 240
                 || first.Thumbnail.Bounds.Width < 240 || first.Thumbnail.Bounds.Height < 160 || body == null
                 || !FitsInViewport(first.Thumbnail, viewport) || !FitsInViewport(body, viewport)
                 || !page.FindControl<Button>("ReaderNextPost")!.IsEnabled
                 || !page.FindControl<Button>("ReaderNextThread")!.IsEnabled
-                || !page.FindControl<CheckBox>("ReaderFollowLive")!.IsEffectivelyVisible)
+                || !page.FindControl<Control>("ReaderStatusLine")!.IsEffectivelyVisible)
             { previousImage = null; return false; }
             Point? origin = first.Thumbnail.TranslatePoint(default, reader);
             if (origin == null) return false;
@@ -276,17 +292,16 @@ internal static class ShowcaseCaptures
             bool stable = previousImage == image;
             previousImage = image;
             return stable;
-        });
+        }, ReaderState);
         await CaptureAsync(window, "v0.9.0-reader.png");
         ListBox postsList = page.FindControl<ListBox>("ArchivePosts")!;
         ArchivePostRow openingPost = postsList.ItemsSource!.Cast<ArchivePostRow>().First();
-        Expander replies = reader.GetVisualDescendants().OfType<Expander>()
-            .First(expander => ReferenceEquals(expander.DataContext, openingPost));
-        replies.IsExpanded = true;
+        ListBoxItem replies = reader.GetVisualDescendants().OfType<ListBoxItem>()
+            .First(item => ReferenceEquals(item.DataContext, openingPost));
+        replies.GetVisualDescendants().OfType<Button>().First(button => button.Classes.Contains("reader-reply-toggle"))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await Program.WaitUntilAsync(() => openingPost.RepliesLoaded && openingPost.Replies.Count > 0
             && replies.IsEffectivelyVisible);
-        // Avalonia's Expander animates its reveal after the reply data is loaded.
-        // Capturing when only the first button appears clips later replies.
         await Task.Delay(350);
         replies.BringIntoView();
         ScrollViewer repliesViewport = postsList.GetVisualDescendants().OfType<ScrollViewer>().Single();
@@ -297,7 +312,7 @@ internal static class ShowcaseCaptures
         {
             window.UpdateLayout();
             Button[] buttons = replies.GetVisualDescendants().OfType<Button>()
-                .Where(button => button.DataContext is ArchiveQuoteRow).ToArray();
+                .Where(button => button.Classes.Contains("reader-reply-card")).ToArray();
             if (buttons.Length != openingPost.Replies.Count ||
                 buttons.Any(button => !button.IsEffectivelyVisible || button.Bounds.Width <= 0 || button.Bounds.Height <= 0
                     || !FitsInside(button, replies) || !FitsInViewport(button, repliesViewport)))
@@ -467,12 +482,13 @@ internal static class ShowcaseCaptures
         settings.FindControl<ScrollViewer>("SettingsScrollViewer")!.Offset = default;
         await CaptureAsync(window, "v0.9.0-settings.png");
 
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         RulesPage rules = window.RulesPage;
         await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Rules && rules.IsEditable);
         rules.EditScope(MediaRuleScope.Global);
         rules.FindControl<ScrollViewer>("RulesScroll")!.Offset = default;
-        await Program.WaitUntilAsync(() => rules.FindControl<TextBlock>("RuleEffectiveTypes")!.IsEffectivelyVisible);
+        // Overview first: EditScope opens the wizard at its settings step (the effective values are step 3).
+        await Program.WaitUntilAsync(() => rules.FindControl<CheckBox>("RuleEnabledInput")!.IsEffectivelyVisible);
         await CaptureAsync(window, "v0.9.0-rules.png");
     }
 

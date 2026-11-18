@@ -64,7 +64,11 @@ internal static class PluginContentPresentation
 
     internal static string DescribeStatus(PluginEntryPresentation presentation)
     {
-        List<string> labels = new() { Texts.T("plugins.state.plugin", DescribeAvailability(presentation.Availability)) };
+        // A running build that cannot bind to this SDK is not "active" in any useful sense; a confirmed build only waits for a restart.
+        string availability = presentation.HasSdkMismatch ? Texts.T("plugins.state.sdkMismatch")
+            : presentation.IsConfirmedForNextStart ? Texts.T("plugins.state.confirmedNextStart")
+            : DescribeAvailability(presentation.Availability);
+        List<string> labels = new() { Texts.T("plugins.state.plugin", availability) };
         if (presentation.IsActiveCandidate) labels.Add(Texts.T("plugins.candidate.current"));
         else if (presentation.HasChangedCandidateBuild) labels.Add(Texts.T("plugins.changedBuild"));
         else if (presentation.IsSelectedCandidate) labels.Add(Texts.T("plugins.candidate.selected"));
@@ -74,20 +78,25 @@ internal static class PluginContentPresentation
             labels.Add(presentation.IsPendingCandidateBuild
                 ? DescribePending(presentation.PendingKind) : Texts.T("plugins.candidate.otherPending"));
         if (presentation.IsRollbackPinned) labels.Add(Texts.T("plugins.rollbackPinned"));
-        if (presentation.CandidateMissing || presentation.HasWorkerProblem || !string.IsNullOrEmpty(presentation.CandidateProblem) ||
-            !string.IsNullOrEmpty(presentation.ActivationProblem)) labels.Add(Texts.T("plugins.problem"));
+        if (presentation.HasAutomaticSdkTransition) labels.Add(Texts.T("plugins.sdkTransition.automaticStatus"));
+        else if (presentation.HasExplicitlyReviewedSdkTransition)
+            labels.Add(Texts.T("plugins.sdkTransition.reviewedStatus"));
+        if (presentation.CandidateMissing || presentation.HasWorkerProblem || presentation.HasSdkMismatch || !string.IsNullOrEmpty(presentation.CandidateProblem) ||
+            !string.IsNullOrEmpty(presentation.VisibleActivationProblem)) labels.Add(Texts.T("plugins.problem"));
         return string.Join(" · ", labels);
     }
 
     internal static string DescribeStatusHint(PluginEntryPresentation presentation)
     {
         List<string> hints = new();
+        if (presentation.HasSdkMismatch) hints.Add(SdkMismatchHint());
+        else if (presentation.IsConfirmedForNextStart) hints.Add(Texts.T("plugins.confirmedNextStartHint"));
         if (presentation.Active is { } active && !presentation.IsActiveCandidate)
             hints.Add(Texts.T("plugins.activeVersionHint", active.Description.PluginVersion));
         if (presentation.Worker is { } worker && worker.State is not ("ready" or "idle"))
             hints.Add(Texts.T("plugins.runtimeState", DescribeWorkerState(worker.State)));
         if (presentation.CandidateMissing) hints.Add(Texts.T("plugins.missing"));
-        if (!string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.ActivationProblem))
+        if (!string.IsNullOrEmpty(presentation.CandidateProblem) || !string.IsNullOrEmpty(presentation.VisibleActivationProblem))
             hints.Add(Texts.T("plugins.problemHint"));
         if (presentation.HasCandidateConflict) hints.Add(Texts.T("plugins.candidateConflict"));
         if (presentation.HasChangedCandidateBuild && !presentation.IsPendingCandidateBuild)
@@ -106,9 +115,19 @@ internal static class PluginContentPresentation
                 PluginPendingKind.Configuration => "plugins.pending.configurationHint",
                 _ => "plugins.pending.unknown"
             }));
-        if (presentation.IsRollbackPinned) hints.Add(Texts.T("plugins.rollbackPinnedHint"));
+        if (presentation.IsPinnedReleaseUpdatedInPlace && presentation.Active is { } updated)
+            hints.Add(Texts.T("plugins.pinnedReleaseUpdatedHint", updated.Description.PluginVersion));
+        else if (presentation.IsRollbackPinned) hints.Add(Texts.T("plugins.rollbackPinnedHint"));
+        if (presentation.HasAutomaticSdkTransition && presentation.AutomaticSdkTransition is { } transition)
+            hints.Add(Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion,
+                transition.ExecutionRevision));
+        else if (presentation.HasExplicitlyReviewedSdkTransition && presentation.AutomaticSdkTransition is { } reviewed)
+            hints.Add(Texts.T("plugins.sdkTransition.reviewedHint", reviewed.ExecutionRevision));
         return string.Join("\n", hints);
     }
+
+    /// <summary>What the sdk-mismatch state means and the whole route out of it (the review dialog's shared name, confirm, restart).</summary>
+    internal static string SdkMismatchHint() => Texts.T("plugins.sdkMismatchHint", Texts.T("plugins.repair.review"));
 
     internal static string DescribeWorkerState(string? state) => Texts.T(state switch
     {
@@ -135,12 +154,14 @@ internal static class PluginContentPresentation
             (SourceCapabilities.BoardCatalog, "plugins.capability.boardCatalog"),
             (SourceCapabilities.PostCapture, "plugins.capability.postCapture"),
             (SourceCapabilities.OriginalMedia, "plugins.capability.originalMedia"),
-            (SourceCapabilities.Previews, "plugins.capability.previews")
+            (SourceCapabilities.Previews, "plugins.capability.previews"),
+            (SourceCapabilities.PostSearch, "plugins.capability.postSearch")
         })
             if ((capabilities & flag) != 0) labels.Add(Texts.T(key));
 
         const SourceCapabilities known = SourceCapabilities.ThreadRead | SourceCapabilities.BoardCatalog |
-            SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews;
+            SourceCapabilities.PostCapture | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews |
+            SourceCapabilities.PostSearch;
         SourceCapabilities unknown = capabilities & ~known;
         if (unknown != SourceCapabilities.None)
             labels.Add(Texts.T("plugins.capability.unknown", "0x" + ((int)unknown).ToString("X", CultureInfo.InvariantCulture)));

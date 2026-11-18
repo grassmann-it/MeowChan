@@ -112,7 +112,7 @@ internal static partial class SavedArchiveSearchChecks
             if (gate != null) await gate.Task; // Ignore cancellation to test late publication guards.
             if (fail) throw new IOException("Injected saved Apply catalog failure");
             return await ArchiveReader.OpenAsync(profile);
-        }, (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true };
+        }, (_, _) => Task.CompletedTask, _ => { }) { IsAvailable = true, ArchiveColumnModePreference = "Advanced" };
         var window = new Window { Width = 900, Height = 700, Content = tested, Title = "Saved Apply contract fixture" };
         SavedArchiveSearchesDialog? dialog = null;
         Task? closed = null;
@@ -176,7 +176,7 @@ internal static partial class SavedArchiveSearchChecks
             }
             async Task<(SavedArchiveSearchesDialog Dialog, Task Closed)> OpenManagerAsync()
             {
-                var candidate = new SavedArchiveSearchesDialog(owner.SessionHost, tested) { Width = 650, Height = 510 };
+                var candidate = new SavedArchiveSearchesDialog(owner.SessionHost, tested);
                 Task completion = candidate.ShowDialog(window);
                 await Program.WaitUntilAsync(() => candidate.IsVisible && Control<Button>(candidate, "SavedSearchReload").IsEnabled);
                 Select(candidate, Names[0], log);

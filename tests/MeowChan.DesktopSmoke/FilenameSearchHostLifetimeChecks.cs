@@ -5,6 +5,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
@@ -57,26 +58,26 @@ internal static class FilenameSearchHostLifetimeChecks
             "Competing-command baseline was already disabled.");
         // FNH-P2-02: real host-backed manager admission must work before filename owns it.
         // Open/close both actual managers without saving, applying, or substituting a store/Show.
-        await CheckSavedSearchBaselineAsync("ArchiveSavedSearches", saveCurrent: false);
-        await CheckSavedSearchBaselineAsync("ArchiveSaveSearch", saveCurrent: true);
-        Require(f.C<Button>("ArchiveReaderGroups").IsEnabled && f.C<Button>("ArchiveReaderGroupsEmpty").IsEnabled
+        await CheckSavedSearchBaselineAsync(saveCurrent: false);
+        await CheckSavedSearchBaselineAsync(saveCurrent: true);
+        Require(f.C<Button>("ArchiveReaderGroups").IsEnabled
             && f.BookmarksEntry.Command?.CanExecute(null) == true,
             "Reader-group/bookmark manager baseline was already ineligible.");
         Dispatch(f.C<Button>("ArchiveReaderGroups"));
-        Dispatch(f.C<Button>("ArchiveReaderGroupsEmpty"));
         f.BookmarksEntry.Command!.Execute(null); // Command-only button: RaiseEvent alone cannot dispatch ICommand.
-        Require(f.ReaderGroups == 2 && f.PostBookmarkManagers == 1,
+        Require(f.ReaderGroups == 1 && f.PostBookmarkManagers == 1,
             "Actual reader-group/bookmark entries did not reach their instance callbacks before reservation.");
-        Click(f.C<Button>("ReaderFindOpen"));
+        // AP2: the product entry is the reader find bar in the File name scope; its Search button is the origin.
+        UnifiedSearchEntry.ReaderScope(f.Page, SearchScope.FileName);
         await f.Page.ThreadFindTask.WaitAsync(Deadline);
-        Require(f.C<StackPanel>("ReaderFindBar").IsVisible, "Find baseline never opened.");
+        Require(f.C<StackPanel>("ReaderFindBar").IsVisible && f.Origin.IsEffectivelyVisible, "Find baseline never opened.");
 
         // Click handler enters the real host synchronously. No UI turn or await precedes this oracle.
         Click(f.Origin);
         Task run = f.Page.FilenameSearchTask;
         Require(f.Shows == 1 && f.ReservedAtShow && f.Page.IsFilenameSearchOpen
             && f.Page.IsReaderDialogOpen && !run.IsCompleted
-            && !f.C<StackPanel>("ReaderFindBar").IsVisible,
+            && f.C<SearchScopeChip>("ReaderFindScope").Scope == SearchScope.FileName,
             "Filename host did not own/refresh the reservation before its first Show await.");
         FilenameSearchDialog dialog = await f.Shown.Task.WaitAsync(Deadline);
         await CheckCompetitorsAsync("visible-show");
@@ -102,7 +103,7 @@ internal static class FilenameSearchHostLifetimeChecks
             && !f.C<Border>("ArchiveExportDialog").IsVisible
             && f.C<Button>("ArchiveCleanupOpen").IsEnabled && f.C<Button>("ArchiveTransferPreview").IsEnabled
             && f.C<Button>("ArchiveResultsExport").Command?.CanExecute(null) == true
-            && f.C<Button>("ArchiveSavedSearches").IsEnabled && f.C<Button>("ArchiveSaveSearch").IsEnabled
+            && f.SavedSearches.IsEnabled && f.SaveSearch.IsEnabled
             && f.Page.CanSaveCurrentSearch && f.BookmarksEntry.Command?.CanExecute(null) == true,
             "Real drain did not release exactly its own reservation and restore action eligibility.");
 
@@ -115,15 +116,17 @@ internal static class FilenameSearchHostLifetimeChecks
         await retry.WaitAsync(Deadline);
         Console.WriteLine("SMOKE filename-host-lifetime modal: sync owner before await; direct repeat/URLtext/HTML(single,batch,all)/cleanup/preview/find/reader/gallery/fullscreen blocked through real drain; fresh retry checked.");
 
-        async Task CheckSavedSearchBaselineAsync(string entry, bool saveCurrent)
+        // AP2: the saved-search entries are the split button (manager) and its "Save applied search…" menu entry.
+        bool EntryEnabled(bool saveCurrent) => saveCurrent ? f.SaveSearch.IsEnabled : f.SavedSearches.IsEnabled;
+        async Task CheckSavedSearchBaselineAsync(bool saveCurrent)
         {
-            Require(f.Page.CanSaveCurrentSearch && f.C<Button>(entry).IsEnabled
+            Require(f.Page.CanSaveCurrentSearch && EntryEnabled(saveCurrent)
                 && !f.Window.OwnedWindows.Any(window => window.IsVisible),
                 "Saved-search baseline was not eligible without a filename reservation.");
             SavedArchiveSearchesDialog? manager = null;
             try
             {
-                Dispatch(f.C<Button>(entry)); // Actual XAML Click handler, not OpenSavedSearchesAsync or a Show seam.
+                f.DispatchSavedSearch(saveCurrent); // Actual split Click / menu entry command, not OpenSavedSearchesAsync or a Show seam.
                 await UntilAsync(() => f.Window.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Any(window => window.IsVisible));
                 manager = f.Window.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Single(window => window.IsVisible);
                 Require(ReferenceEquals(manager.Owner, f.Window)
@@ -135,12 +138,11 @@ internal static class FilenameSearchHostLifetimeChecks
                         && D<TextBox>(shown, "SavedSearchName").IsEnabled
                         && D<Button>(shown, "SavedSearchConfirm").IsEnabled
                     : D<Button>(shown, "SavedSearchReload").IsEnabled);
-                Require(!f.C<Button>(entry).IsEnabled
-                    && !f.C<Button>("ArchiveFilenameSearchOpen").IsEnabled && !f.Origin.IsEnabled,
+                Require(!EntryEnabled(saveCurrent) && !f.Origin.IsEnabled,
                     "Actual saved-search manager did not hold page/reverse-filename admission.");
                 Click(D<Button>(shown, "SavedSearchClose"));
                 await UntilAsync(() => !shown.IsVisible && f.Window.IsEnabled
-                    && f.C<Button>("ArchiveSavedSearches").IsEnabled && f.C<Button>("ArchiveSaveSearch").IsEnabled);
+                    && f.SavedSearches.IsEnabled && f.SaveSearch.IsEnabled);
                 Require(!f.Window.OwnedWindows.Contains(shown), "Baseline saved-search window remained owned after Close.");
             }
             finally
@@ -155,13 +157,12 @@ internal static class FilenameSearchHostLifetimeChecks
             int reads = Volatile.Read(ref f.Readers), shows = f.Shows;
             int groups = f.ReaderGroups, bookmarks = f.PostBookmarkManagers;
             string? error = f.C<TextBlock>("ArchiveErrorText").Text;
-            Require(!f.C<Button>("ReaderFilenameSearchOpen").IsEnabled
-                && !f.C<Button>("ArchiveFilenameSearchOpen").IsEnabled
+            Require(!f.Origin.IsEnabled && !f.C<Button>("ReaderFindSearch").IsEnabled
                 && !f.C<Button>("ArchiveCleanupOpen").IsEnabled
                 && !f.C<Button>("ArchiveTransferPreview").IsEnabled
                 && !f.C<Button>("ArchiveResultsExport").IsEnabled
                 && f.C<Button>("ArchiveResultsExport").Command?.CanExecute(null) == false
-                && !f.C<Button>("ArchiveSavedSearches").IsEnabled && !f.C<Button>("ArchiveSaveSearch").IsEnabled
+                && !f.SavedSearches.IsEnabled && !f.SaveSearch.IsEnabled
                 && !f.Page.CanSaveCurrentSearch && f.BookmarksEntry.Command?.CanExecute(null) == false,
                 "Actual competing action eligibility ignores the filename owner.");
             await f.Page.OpenFilenameSearchAsync(f.Origin).WaitAsync(Deadline);
@@ -178,11 +179,13 @@ internal static class FilenameSearchHostLifetimeChecks
             foreach (string name in new[] { "ReaderFindOpen", "ArchiveReadPosts", "ArchiveCloseReader",
                 "ArchiveReaderFullscreen", "ArchiveOpenGallery" })
                 Dispatch(f.C<Button>(name));
+            // R2: the Thread menu's entries run through the same guards (none enabled while the filename search is open).
+            Require(f.Page.BuildReaderThreadMenu().Items.OfType<MenuItem>().All(item => !item.IsEnabled),
+                "A Thread menu entry stayed enabled behind the filename search.");
             f.C<Button>("ArchiveResultsGallery").Command?.Execute(null);
-            Dispatch(f.C<Button>("ArchiveSavedSearches"));
-            Dispatch(f.C<Button>("ArchiveSaveSearch"));
+            f.DispatchSavedSearch(saveCurrent: false);
+            f.DispatchSavedSearch(saveCurrent: true);
             Dispatch(f.C<Button>("ArchiveReaderGroups"));
-            Dispatch(f.C<Button>("ArchiveReaderGroupsEmpty"));
             f.BookmarksEntry.Command!.Execute(null); // Force real DelegateCommand admission despite disabled appearance.
             Require(!f.Window.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Any(window => window.IsVisible)
                 && f.ReaderGroups == groups && f.PostBookmarkManagers == bookmarks,
@@ -192,7 +195,7 @@ internal static class FilenameSearchHostLifetimeChecks
                 && Volatile.Read(ref f.Readers) == reads && f.UrlReads == 0 && f.UrlShows == 0
                 && f.PreviewRoots == 0 && f.PreviewShows == 0 && f.ExternalActions == 0
                 && !f.Page.IsArchiveCleanupOpen && !f.C<Border>("ArchiveExportDialog").IsVisible
-                && !f.C<StackPanel>("ReaderFindBar").IsVisible
+                && f.C<SearchScopeChip>("ReaderFindScope").Scope == SearchScope.FileName // forced find entry refused
                 && !f.Window.OwnedWindows.OfType<SavedArchiveSearchesDialog>().Any()
                 && f.Window.OwnedWindows.All(window => ReferenceEquals(window, dialog))
                 && f.ReaderGroups == groups && f.PostBookmarkManagers == bookmarks
@@ -334,6 +337,7 @@ internal static class FilenameSearchHostLifetimeChecks
         Task? run = null;
         FilenameSearchDialog? dialog = null;
         WindowState before = owner.WindowState;
+        Exception? failureBeforeCleanup = null;
         try
         {
             Require(owner.IsEnabled && !owner.OwnedWindows.Any(window => window.IsVisible)
@@ -346,7 +350,7 @@ internal static class FilenameSearchHostLifetimeChecks
             await UntilAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Archive
                 && D<ContentControl>(owner, "ArchivePageHost").IsVisible && page.IsEffectivelyVisible
                 && !page.IsBusy && page.AppliedSearchSpec != null
-                && D<Button>(page, "ArchiveFilenameSearchOpen").IsEnabled);
+                && page.FilenameSearchEligibleForTests);
             Require(ReferenceEquals(owner.ArchivePage, page)
                 && ReferenceEquals(D<ContentControl>(owner, "ArchivePageHost").Content, page)
                 && ReferenceEquals(TopLevel.GetTopLevel(page), owner),
@@ -388,24 +392,33 @@ internal static class FilenameSearchHostLifetimeChecks
             Console.WriteLine("SMOKE filename-host-lifetime FNH-P2-01 root-shell: actual ArchiveNavigationButton -> existing root ArchivePage; native Close + held actual Show return; enabled owner/no visible OwnedWindow; actual FullscreenButton and direct ToggleFullscreen preserve WindowState; fullscreen-source="
                 + FullscreenAdmissionBasisSha256);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            release.TrySetResult(true);
-            try
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                if (dialog is { IsVisible: true }) dialog.Close();
-                if (run != null) await run.WaitAsync(Deadline); // Includes the REAL host finally/Terminate join.
-                if (nativeShow != null) await nativeShow.WaitAsync(Deadline);
-            }
-            finally
-            {
-                page.FilenameSearchShowForTests = previousShow;
-                // Restore only AFTER the negative assertions and real host join; never use state assignment as their oracle.
-                if (owner.WindowState != before) owner.WindowState = before;
-                Dispatch(D<Button>(owner, "DownloadsNavigationButton"));
-                await UntilAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Downloads
-                    && D<Grid>(owner, "WorkspaceBody").IsVisible && !page.IsEffectivelyVisible);
-            }
+                release.TrySetResult(true);
+                Exception? innerFailureBeforeCleanup = null;
+                try
+                {
+                    if (dialog is { IsVisible: true }) dialog.Close();
+                    if (run != null) await run.WaitAsync(Deadline); // Includes the REAL host finally/Terminate join.
+                    if (nativeShow != null) await nativeShow.WaitAsync(Deadline);
+                }
+                catch (Exception thrown) { innerFailureBeforeCleanup = thrown; throw; }
+                finally
+                {
+                    await SmokeCleanup.RunAsync(innerFailureBeforeCleanup, async () =>
+                    {
+                        page.FilenameSearchShowForTests = previousShow;
+                        // Restore only AFTER the negative assertions and real host join; never use state assignment as their oracle.
+                        if (owner.WindowState != before) owner.WindowState = before;
+                        Dispatch(D<Button>(owner, "DownloadsNavigationButton"));
+                        await UntilAsync(() => owner.SelectedPage == MainWindow.WorkspacePage.Downloads
+                            && D<Grid>(owner, "WorkspaceBody").IsVisible && !page.IsEffectivelyVisible);
+                    }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FilenameSearchHostLifetimeChecks: " + exception));
+                }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FilenameSearchHostLifetimeChecks: " + exception));
         }
         Require(!page.IsFilenameSearchOpen && !page.IsReaderDialogOpen && page.FilenameSearchWindow == null,
             "Root shell cleanup did not join and release the actual filename reservation.");
@@ -512,7 +525,16 @@ internal static class FilenameSearchHostLifetimeChecks
         internal TaskCompletionSource<bool> ShowReturned { get; private set; } = Signal<bool>();
         internal Task<ArchiveFilenameHit?>? NativeShow { get; private set; }
         internal Task? ShowFailure;
-        internal Button Origin => C<Button>("ReaderFilenameSearchOpen");
+        // AP2: the reader find bar in the File name scope is the product entry; its Search button is the origin.
+        internal Button Origin => C<Button>("ReaderFindSearch");
+        internal SplitButton SavedSearches => C<SplitButton>("ArchiveSavedSearches");
+        internal MenuItem SaveSearch => Page.SaveCurrentSearchMenuItem;
+        internal void DispatchSavedSearch(bool saveCurrent)
+        {
+            // Forced like a routed click: the real handler must guard, not the enabled appearance.
+            if (saveCurrent) SaveSearch.Command!.Execute(null);
+            else SavedSearches.RaiseEvent(new RoutedEventArgs(SplitButton.ClickEvent));
+        }
         internal Button BookmarksEntry => C<ActionToolBar>("ArchiveResultActions").Items.OfType<Button>()
             .Single(button => button.Name == "ArchivePostBookmarks");
 
@@ -527,7 +549,7 @@ internal static class FilenameSearchHostLifetimeChecks
                     // Existing manifest seam isolates unrelated reader projection. Never open media files.
                     return Task.FromResult(new MediaAssetSnapshot(directory, MediaManifestStatus.Missing, null, null,
                         Array.Empty<MediaAssetReference>()));
-                }) { ArchiveLayoutPreference = "Table" };
+                }) { ArchiveLayoutPreference = "Table", ArchiveColumnModePreference = "Advanced" };
             Page.ReadArchiveMediaInventoryAsync = (_, _) => Task.FromResult(new ArchiveThreadMediaCount(null));
             Page.AttachArchiveCleanup(owner.SessionHost);
             Page.AttachSavedSearches(owner.SessionHost);
@@ -579,6 +601,8 @@ internal static class FilenameSearchHostLifetimeChecks
                 await f.Page.MediaLoadTask.WaitAsync(Deadline);
                 await counts.Task.WaitAsync(Deadline);
                 await TurnAsync();
+                UnifiedSearchEntry.ReaderScope(f.Page, SearchScope.FileName);
+                await f.Page.ThreadFindTask.WaitAsync(Deadline);
                 f.Window.UpdateLayout();
                 Require(f.Window.IsVisible && f.Page.IsEffectivelyVisible && f.Page.CurrentThread?.Summary.Id == Baseline
                     && f.Window.TryGetPlatformHandle()?.Handle is nint handle && handle != 0
@@ -623,8 +647,8 @@ internal static class FilenameSearchHostLifetimeChecks
                 Dispatcher.UIThread.VerifyAccess();
                 Shows++;
                 ReservedAtShow = Page.IsFilenameSearchOpen && Page.IsReaderDialogOpen
-                    && !C<Button>("ReaderFilenameSearchOpen").IsEnabled
-                    && !C<Button>("ArchiveFilenameSearchOpen").IsEnabled;
+                    && !C<Button>("SearchArchiveButton").IsEnabled
+                    && !C<Button>("ReaderFindSearch").IsEnabled;
                 Require(ReferenceEquals(window, Window), "Host used another or fabricated modal owner.");
                 NativeShow = dialog.ShowDialog<ArchiveFilenameHit?>(window);
                 Require(dialog.IsVisible && ReferenceEquals(dialog.Owner, Window)

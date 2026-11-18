@@ -16,11 +16,13 @@ using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
 public partial class MainWindow
 {
+    private readonly PlaybackArbitrationGate _playbackGate = new();
     private GalleryViewer? _gallery;
     private Task _galleryCleanupTask = Task.CompletedTask;
     // Only actual stop/detach drains own native input/drawable lifetime; preference failures do not.
@@ -60,18 +62,32 @@ public partial class MainWindow
     private bool _galleryLargeReaderOrigin;
     private GalleryViewerState? _galleryReturnState;
     private WorkspacePage _galleryOriginPage;
+    // F4/F7: where a gallery opened on the Media page closes back to (selection, view, the opened tile), taken while the page is still in front.
+    private MediaLibraryReturnPoint? _galleryMediaReturn;
+
+    // Direct archive list/media-menu delegates share the same contract as the specialized wrappers.
+    // Downloads, Favorites and Media retain their existing independent entry contracts.
+    private Func<bool>? ArchiveGalleryHandoffGuard() => _selectedPage == WorkspacePage.Archive || _largeReaderOpen
+        ? _archivePage?.CaptureGalleryHandoffGuard() : null;
+
+    // A revoked Archive handoff can retain its guard until native cleanup drains.
+    // Like the fallback guard, it belongs to Archive/reader requests, not independent Downloads opens.
+    private Func<bool>? ArchiveReaderMediaActivationGuard() => _selectedPage == WorkspacePage.Archive || _largeReaderOpen
+        ? _archivePage?.ReaderMediaActivationGuard : null;
 
     internal async Task OpenGalleryAsync(ResourceId id, GalleryEntryKey? start = null, Control? origin = null)
     {
-        Func<bool>? readerRequest = _archivePage?.ReaderMediaActivationGuard;
+        Func<bool>? activationRequest = ArchiveReaderMediaActivationGuard();
+        Func<bool>? readerRequest = activationRequest ?? ArchiveGalleryHandoffGuard();
         if (readerRequest?.Invoke() == false) return;
-        if (readerRequest == null && _gallerySuspended && _largeReaderOpen && start != null)
+        if (activationRequest == null && _gallerySuspended && _largeReaderOpen && start != null)
         {
             int existing = _galleryEntries.FindIndex(entry => entry.EntryKey == start);
             if (existing >= 0)
             {
                 _galleryIndex = existing;
                 await ShowGalleryEntryAsync();
+                if (readerRequest?.Invoke() == false) return;
                 ReturnToGallery();
                 return;
             }
@@ -81,11 +97,15 @@ public partial class MainWindow
         await StartGalleryAsync(Array.AsReadOnly(new[] { id }), origin, stillRequested: readerRequest);
     }
 
-    internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null)
+    internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null,
+        Func<bool>? stillRequested = null)
     {
+        stillRequested ??= _archivePage?.GallerySelectionGuard ?? ArchiveGalleryHandoffGuard();
+        if (stillRequested?.Invoke() == false) return;
         _galleryStart = null;
         _galleryAllVersions = true;
-        await StartGalleryAsync(Array.Empty<ResourceId>(), origin, entries, start);
+        // StartGalleryAsync rechecks this after retiring native media, alongside its own request revision.
+        await StartGalleryAsync(Array.Empty<ResourceId>(), origin, entries, start, stillRequested: stillRequested);
     }
 
     private async Task OpenFavoritesGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Action completed)
@@ -100,6 +120,8 @@ public partial class MainWindow
 
     internal async Task OpenSearchGalleryAsync(ArchiveSearchRequest query, int workFilter = 0, Control? origin = null)
     {
+        Func<bool>? stillRequested = _archivePage?.GallerySelectionGuard ?? ArchiveGalleryHandoffGuard();
+        if (stillRequested?.Invoke() == false) return;
         // Freeze the work projection with the query before asynchronous selection begins.
         IReadOnlySet<string>? eligibleUrls = MeowChan.ArchivePage.CaptureExportWorkUrls(workFilter, _session.GetThreadWorkSnapshots());
         _galleryStart = null;
@@ -108,18 +130,39 @@ public partial class MainWindow
         {
             await using ArchiveReader reader = await _session.OpenArchiveReaderAsync(token);
             return await MeowChan.ArchivePage.ResolveExportResultIdsAsync(reader, query, eligibleUrls, token);
-        });
+        }, stillRequested: stillRequested);
     }
+
+    internal GalleryReturnTarget GalleryReturnTargetFor(Control? origin, bool readerOrigin, WorkspacePage originPage) =>
+        // Reader-origin is authoritative: a stale or reused media control must never relabel a reader gallery.
+        readerOrigin ? GalleryReturnTarget.Thread
+        : originPage == WorkspacePage.Media || origin != null && ReferenceEquals(origin, _mediaPage?.Grid)
+            ? GalleryReturnTarget.Media
+        : originPage switch
+        {
+            WorkspacePage.Archive => GalleryReturnTarget.Archive,
+            WorkspacePage.Downloads => GalleryReturnTarget.Downloads,
+            WorkspacePage.Media => GalleryReturnTarget.Media,
+            // QW6: the queue walk started on the Tagging page (its "Start/Continue" button, a row's "Continue here") returns there.
+            WorkspacePage.Tagging => GalleryReturnTarget.Tagging,
+            _ => GalleryReturnTarget.None
+        };
 
     private async Task StartGalleryAsync(IReadOnlyList<ResourceId> ids, Control? origin,
         IReadOnlyList<GalleryEntry>? frozenEntries = null, GalleryEntryKey? entryStart = null,
         Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null, Func<bool>? stillRequested = null)
     {
         if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
+        await _playbackGate.EnterGalleryAsync(() => Task.WhenAll(
+            _archivePage?.ReleaseInlineVideos() ?? Task.CompletedTask,
+            _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask));
+        if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
         WorkspacePage originPage = _selectedPage;
-        CloseGallery(restoreOrigin: false);
+        // Retiring the previous viewer is an internal handoff, not a user cancellation.
+        // Navigation/explicit close still invalidate the page request while cleanup is held.
+        CloseGalleryCore(restoreOrigin: false, cancelPendingOpen: false);
         int request = ++_galleryRequest;
         // Keep a retiring video's native drawable attached until VLC has
         // stopped. A new viewer must not replace that host prematurely.
@@ -128,6 +171,7 @@ public partial class MainWindow
             || stillRequested?.Invoke() == false) return;
         _galleryOrigin = origin;
         _galleryOriginPage = originPage;
+        _galleryMediaReturn = CaptureGalleryMediaReturn(GalleryReturnTargetFor(origin, readerOrigin, originPage));
         _galleryReaderOrigin = readerOrigin;
         _galleryLargeReaderOrigin = largeReaderOrigin;
         _galleryRestoreOrigin = _archivePage?.CaptureGalleryOrigin();
@@ -148,7 +192,11 @@ public partial class MainWindow
             _galleryIndex = Math.Max(0, start);
         }
         _galleryCancellation = new CancellationTokenSource();
-        _gallery = new GalleryViewer();
+        // The gallery's way back names where closing returns to: the Medien grid (CloseGallery focuses the tile), the thread
+        // in the reader, or the Archive/Downloads list it was opened from.
+        _gallery = new GalleryViewer { ReturnTarget = GalleryReturnTargetFor(origin, readerOrigin, originPage), ProviderContext = BooruGalleryContext };
+        ConfigureGalleryScrubPreview();
+        _gallery.ApplyWorkView(ConfiguredWorkView); // WV4: the toolbar and "More" of the gallery follow the window's work view
         UpdateMediaReturn(); // the gallery owns the way back while it is open
         GalleryViewer diagnosticOwner = _gallery;
         _gallery.DiagnosticNotice += notice =>
@@ -165,25 +213,33 @@ public partial class MainWindow
         ApplyGalleryPreferences();
         WireGalleryActions();
         _gallery.FullscreenRequested += ToggleFullscreen;
+        _gallery.ShortcutHelpRequested += context => { if (!_isClosing) ShowShellHelp(context); };
         _gallery.ShellKeyRequested += OnShellKeyDown;
         GalleryViewer preferenceOwner = _gallery;
         _gallery.ContextOpenChanged += open =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(open, null); };
+        _gallery.PanelWidthChanged += width =>
+        { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPanelWidth(width); };
         _gallery.VideoVolumeChanged += volume =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPreference(null, volume); };
         _gallery.PlaybackPreferencesChanged += preferences =>
         { if (ReferenceEquals(_gallery, preferenceOwner) && !_isClosing) QueueGalleryPlaybackPreference(preferences); };
+        _gallery.WheelModeChanged += mode => OnGalleryWheelModeChanged(preferenceOwner, mode);
+        _gallery.LayoutChoiceChanged += (mode, choice) => OnGalleryLayoutChoiceChanged(preferenceOwner, mode, choice);
+        _gallery.LayoutResetPerformed += (mode, previous) => OnGalleryLayoutReset(preferenceOwner, mode, previous);
         _gallery.CloseRequested += () => CloseGallery();
-        _gallery.ReadPostsRequested += () => _ = ReadEmptyGalleryPostsAsync();
-        _gallery.MoveRequested += delta => _ = MoveGalleryAsync(delta);
-        _gallery.ReadPostRequested += entry => _ = ReadGalleryPostAsync(entry);
-        _gallery.QuoteRequested += quote => _ = ReadGalleryQuoteAsync(quote);
+        _gallery.TaggingModeRequested += tag => { if (ReferenceEquals(_gallery, preferenceOwner)) SwitchGalleryTagging(tag); };
+        // Open actions nobody awaits (interaction audit): a failure is logged and shown, never an unobserved task (OpenActions).
+        _gallery.ReadPostsRequested += () => OpenActions.Start(ReadEmptyGalleryPostsAsync, "gallery.readPosts");
+        _gallery.MoveRequested += delta => OpenActions.Start(() => MoveGalleryAsync(delta), "gallery.move");
+        _gallery.ReadPostRequested += entry => OpenActions.Start(() => ReadGalleryPostAsync(entry), "gallery.readPost");
+        _gallery.QuoteRequested += quote => OpenActions.Start(() => ReadGalleryQuoteAsync(quote), "gallery.readQuote");
         _gallery.AssociationRequested += entry =>
         {
             int position = _galleryEntries.FindIndex(item => item.EntryKey == entry.EntryKey);
-            if (position >= 0) _galleryIndex = position;
+            if (position >= 0) { _galleryIndex = position; RefreshGalleryMediaTags(); }
         };
-        ContentControl host = this.FindControl<ContentControl>("GalleryHost")!;
+        ContentControl host = GalleryHost;
         host.Content = _gallery;
         host.IsVisible = true;
         HideFeedbackForGallery();
@@ -210,7 +266,7 @@ public partial class MainWindow
             {
                 if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
                 {
-                    Task failure = resolvingViewer.SetMediaUnavailable(exception.Message, mediaGeneration);
+                    Task failure = resolvingViewer.SetMediaUnavailable(UserFacingError.Report(exception, "Resolving the gallery media"), mediaGeneration);
                     TrackNativeGalleryCleanup(failure);
                     await failure;
                 }
@@ -313,7 +369,7 @@ public partial class MainWindow
         {
             if (request == _galleryRequest && ReferenceEquals(_gallery, resolvingViewer))
             {
-                Task failure = resolvingViewer.SetMediaUnavailable(exception.Message, mediaGeneration);
+                Task failure = resolvingViewer.SetMediaUnavailable(UserFacingError.Report(exception, "Resolving the gallery media"), mediaGeneration);
                 TrackNativeGalleryCleanup(failure);
                 await failure;
             }
@@ -331,7 +387,13 @@ public partial class MainWindow
     private void UpdateGalleryScope()
     {
         ResourceId? thread = _galleryThreads.FirstOrDefault() ?? _galleryEntries.FirstOrDefault()?.Key.Thread;
-        string scope = _galleryResultsScope
+        int providerPosts = _galleryEntries.Select(entry => entry.Key.Thread).Where(BooruMediaIdentity.IsBooruThread).Distinct().Count();
+        // Downloaded provider posts are no chan thread: a window of them is named by its source, a mixed one is a result list.
+        string scope = providerPosts > 0 && !_galleryResultsScope
+            ? providerPosts == _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count()
+                ? Texts.Count("booru.media.gallery.scope", providerPosts)
+                : Texts.T("gallery.results") + " · " + _galleryEntries.Select(entry => entry.Key.Thread).Distinct().Count() + " " + Texts.T("gallery.threads")
+            : _galleryResultsScope
             ? Texts.T("gallery.results") + " · " + _galleryThreads.Count + " " + Texts.T("gallery.threads")
             : Texts.T("gallery.thread") + " · " + (thread == null ? string.Empty
                 : thread.Source + " /" + thread.Board + "/ · " + thread.Thread);
@@ -341,8 +403,13 @@ public partial class MainWindow
     private async Task ReadEmptyGalleryPostsAsync()
     {
         ResourceId? thread = _galleryThreads.FirstOrDefault();
-        if (thread == null || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        if (thread == null) return;
+        int request = _galleryRequest;
+        // F1: the gallery stays open (and says so) for a thread the archive does not hold, before anything is suspended.
+        if (!await ArchiveHoldsJumpTargetAsync(thread, () => request == _galleryRequest && _gallery != null && !_isClosing)) return;
+        if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         OpenGalleryReader();
+        if (!_largeReaderOpen) return;
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(thread);
     }
@@ -354,7 +421,8 @@ public partial class MainWindow
     {
         if (_gallery == null || _galleryCancellation == null || _galleryResolvingRequest == _galleryRequest) return;
         if (delta < 0 && _galleryIndex == 0) return;
-        _galleryIndex += delta;
+        // A sum of wheel steps never overshoots the ends: not before the first entry, not past the one-past-the-last place that loads the next thread.
+        _galleryIndex = delta < 0 ? Math.Max(0, _galleryIndex + delta) : Math.Min(_galleryIndex + delta, Math.Max(_galleryEntries.Count, _galleryIndex + 1));
         if (_galleryIndex >= _galleryEntries.Count) await ResolveNextGalleryEntryAsync(_galleryRequest);
         else await ShowGalleryEntryAsync();
     }
@@ -364,6 +432,7 @@ public partial class MainWindow
         GalleryViewer? viewer = _gallery;
         if (viewer == null || _galleryCancellation == null || _galleryIndex >= _galleryEntries.Count) return;
         UpdateGalleryPosition();
+        CancelGalleryPreload(); // the user moved on: whatever was decoding around the previous image stops
         GalleryEntry entry = _galleryEntries[_galleryIndex];
         Task showing = viewer.ShowAsync(entry, _galleryEntries, _galleryAssociationsRevision, _galleryCancellation.Token);
         // Selection is admitted synchronously; read its saved favorite before slow decoding
@@ -372,7 +441,10 @@ public partial class MainWindow
             RefreshGalleryFavorite();
         await showing;
         if (ReferenceEquals(_gallery, viewer) && _galleryIndex < _galleryEntries.Count && _galleryEntries[_galleryIndex].EntryKey == entry.EntryKey)
+        {
             RefreshGalleryFavorite();
+            StartGalleryPreload(viewer);
+        }
     }
 
     private void UpdateGalleryPosition()
@@ -386,7 +458,8 @@ public partial class MainWindow
         // MoveGalleryAsync cannot accept navigation while resolving. Do not
         // expose enabled arrows before that guard is released after decoding.
         bool ready = _galleryResolvingRequest != _galleryRequest;
-        _gallery.SetPosition((_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
+        // The tagging mode names the place in the whole queue ("Queue 12 of 200") instead of the place in the walk's list (PT3).
+        _gallery.SetPosition(TaggingPositionText(_galleryEntries[_galleryIndex]) ?? (_galleryIndex + 1) + (_galleryThreadIndex < _galleryThreads.Count
             ? " · " + Texts.T("gallery.more") : " / " + _galleryEntries.Count),
             ready && _galleryIndex > 0,
             ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count));
@@ -394,9 +467,14 @@ public partial class MainWindow
 
     private async Task ReadGalleryPostAsync(GalleryEntry entry)
     {
-        if (entry.Post == null || !NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        if (entry.Post == null) return;
         int request = _galleryRequest;
+        // F1: the gallery stays open (and says so) for a thread the archive does not hold, before anything is suspended.
+        if (!await ArchiveHoldsJumpTargetAsync(entry.Key.Thread, () => request == _galleryRequest && _gallery != null && !_isClosing)) return;
+        if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
+        request = _galleryRequest;
         OpenGalleryReader();
+        if (!_largeReaderOpen) return;
         SuspendGallery();
         await ArchivePage.LoadThreadAsync(entry.Key.Thread);
         if (request == _galleryRequest && _gallerySuspended && _gallery != null)
@@ -407,6 +485,7 @@ public partial class MainWindow
     {
         if (!NavigateWorkspace(WorkspacePage.Archive, activateArchive: false)) return;
         OpenGalleryReader();
+        if (!_largeReaderOpen) return;
         SuspendGallery();
         await ArchivePage.NavigateQuoteAsync(new ArchiveQuoteRow(quote));
     }
@@ -415,6 +494,7 @@ public partial class MainWindow
     {
         if (_largeReaderOpen) return;
         OpenLargeReader();
+        if (!_largeReaderOpen) return;
         ArchivePage.SetReaderScope(_galleryThreads.Count > 0 ? _galleryThreads
             : _galleryEntries.Select(entry => entry.Key.Thread).Distinct().ToArray());
     }
@@ -427,7 +507,7 @@ public partial class MainWindow
         TrackNativeGalleryCleanup(_gallery.SuspendMediaAsync());
         _gallerySuspended = true;
         _galleryVisitedReader = true;
-        this.FindControl<ContentControl>("GalleryHost")!.IsVisible = false;
+        GalleryHost.IsVisible = false;
         UpdateGalleryFullscreenPresentation();
         ArchivePage.GalleryReturn = ReturnToGallery;
         ArchivePage.ShowGalleryReturn(true);
@@ -440,7 +520,7 @@ public partial class MainWindow
         if (!_gallerySuspended || _gallery == null) return;
         _gallerySuspended = false;
         ArchivePage.ShowGalleryReturn(false);
-        this.FindControl<ContentControl>("GalleryHost")!.IsVisible = true;
+        GalleryHost.IsVisible = true;
         HideFeedbackForGallery();
         UpdateGalleryFullscreenPresentation();
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);
@@ -450,27 +530,37 @@ public partial class MainWindow
         _gallery.Focus();
     }
 
-    private void CloseGallery(bool restoreOrigin = true)
+    private void CloseGallery(bool restoreOrigin = true) => CloseGalleryCore(restoreOrigin, cancelPendingOpen: true);
+
+    private void CloseGalleryCore(bool restoreOrigin, bool cancelPendingOpen)
     {
-        _archivePage?.CancelPendingGalleryOpen();
+        GalleryReturnTarget closingTarget = _gallery?.ReturnTarget ?? GalleryReturnTarget.None;
+        TagQueueKey? lastTagged = EndGalleryTagging(persist: true); // the tagging mode ends with its gallery and keeps the resume point (PT3)
+        if (cancelPendingOpen) _archivePage?.CancelPendingGalleryOpen();
         TrackGalleryCleanup(FlushGalleryPreferencesAsync());
         GalleryEntry? current = _galleryIndex >= 0 && _galleryIndex < _galleryEntries.Count ? _galleryEntries[_galleryIndex] : null;
         bool followReader = restoreOrigin && _galleryReaderOrigin;
         bool restorePage = restoreOrigin && _galleryVisitedReader;
+        MediaLibraryReturnPoint? mediaReturn = _galleryMediaReturn;
+        _galleryMediaReturn = null;
         Action? restore = _galleryRestoreOrigin;
         Action? completed = _galleryCompleted;
         _galleryCompleted = null;
         _gallerySuspended = false;
         _galleryVisitedReader = false;
         if (_archivePage != null) { _archivePage.ShowGalleryReturn(false); _archivePage.GalleryReturn = null; }
+        CancelGalleryPreload();
         ++_galleryRequest;
         _galleryCancellation?.Cancel(); _galleryCancellation?.Dispose(); _galleryCancellation = null;
         GalleryViewer? retiring = _gallery;
+        CloseGalleryLayoutToast(); // GL3: the undo of "Reset layout" belongs to the gallery that closes
         _gallery = null;
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
         if (host != null) host.IsVisible = false;
         UpdateGalleryFullscreenPresentation();
+        if (cancelPendingOpen) _playbackGate.ExitGallery();
         if (retiring != null) TrackNativeGalleryCleanup(StopAndDetachGalleryAsync(retiring, host));
+        if (_isClosing) TrackGalleryCleanup(DisposeGalleryScrubPreviewAsync());
         _galleryRestoreOrigin = null;
         if (followReader)
         {
@@ -487,24 +577,48 @@ public partial class MainWindow
             (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
         }
         else if (restoreOrigin) (_archivePage == null ? _galleryOrigin : _archivePage.GalleryOriginFocusTarget(_galleryOrigin))?.Focus();
-        Control? closedOrigin = _galleryOrigin;
         _galleryOrigin = null;
         _galleryResolvingRequest = -1;
         RefreshMediaPageUserData();
-        // The media grid itself cannot take focus; its selected tile does, once the refreshed tiles are laid out.
-        if (restoreOrigin && !_isClosing && closedOrigin != null && ReferenceEquals(closedOrigin, _mediaPage?.Grid)) _mediaPage.FocusGrid();
+        // The media grid itself cannot take focus; its selected tile does, once the refreshed tiles are laid out. Keyed on the way back the
+        // gallery named, not on its origin control: a tag-queue walk from the page's header has none (F7). The activation of a page that the
+        // reader had replaced (and the refresh of own state just above) rebuilds and swaps the rows after a single focus, which resets focus and
+        // scroll; the page's own return restores now and once more after that presentation, as "Back to media" does (F4).
+        if (restoreOrigin && !_isClosing && closingTarget == GalleryReturnTarget.Media && _mediaPage != null && _selectedPage == WorkspacePage.Media)
+        {
+            if (mediaReturn != null) StartMediaPageReturn(mediaReturn, "gallery.mediaReturn");
+            else _mediaPage.FocusGrid();
+        }
         if (restoreOrigin && !_isClosing) completed?.Invoke();
         UpdateMediaReturn();
+        if (restoreOrigin && closingTarget == GalleryReturnTarget.Tagging) ReturnToTaggingPage(lastTagged);
+    }
+
+    private MediaLibraryReturnPoint? CaptureGalleryMediaReturn(GalleryReturnTarget target)
+    {
+        // The grid's own entry has already ended a pending second restore (OpenMediaLibraryGalleryAsync); ending it here as well would also
+        // revoke a Booru handoff that still guards this open.
+        if (target != GalleryReturnTarget.Media || _mediaPage == null || _selectedPage != WorkspacePage.Media) return null;
+        return _mediaPage.CaptureGalleryReturnPoint();
+    }
+
+    // The restore runs on after the navigation and nobody awaits it: OpenActions logs and shows a failure instead of dropping it (F8).
+    // MediaReturnTask is that observed run, for the smokes that wait for the second restore.
+    private void StartMediaPageReturn(MediaLibraryReturnPoint point, string operation)
+    {
+        MediaPage page = _mediaPage!;
+        MediaReturnTask = OpenActions.StartObserved(() => page.ReturnToAsync(point), operation);
     }
 
     private void UpdateGalleryFullscreenPresentation()
     {
-        ContentControl host = WorkspaceControl<ContentControl>("GalleryHost");
+        ContentControl host = GalleryHost;
         bool immersive = WindowState == WindowState.FullScreen
             && _gallery != null && !_gallerySuspended && host.IsVisible;
         // The shell caption is client content, so native fullscreen cannot hide it.
         // Span its existing row without changing the underlying page/reader layout.
-        WorkspaceControl<Border>("WorkspaceTitleBarFrame").IsVisible = !immersive;
+        _galleryImmersive = immersive;
+        UpdateMediaFocusChrome(); // the media focus mode gives the chrome back while a gallery is open (it applies the title bar as well)
         Grid.SetRow(host, immersive ? 0 : 1);
         Grid.SetRowSpan(host, immersive ? 4 : 3);
         RefreshReadingResumePresentation();
@@ -531,6 +645,7 @@ public partial class MainWindow
             _galleryReaderAdorners.Clear();
         }
         _archivePage?.SetObscuredByGallery(covers);
+        _mediaPage?.SetObscuredByGallery(covers);
         if (!covers && _sessionDirtyWhileCovered && !_isClosing)
         {
             _sessionDirtyWhileCovered = false;
@@ -546,7 +661,7 @@ public partial class MainWindow
         // ReaderHost. Keeping the covered reader in the tree must not leave its
         // disabled-button masks above the gallery, intercepting native clicks.
         // Include late-created adorners without touching gallery/notification UI.
-        Control reader = WorkspaceControl<ContentControl>("ReaderHost");
+        Control reader = ReaderHost;
         _galleryReaderAdorners.Update(reader, _archivePage,
             this.GetVisualDescendants().OfType<AdornerLayer>().SelectMany(layer => layer.Children));
     }
@@ -586,7 +701,10 @@ internal sealed class ReaderGalleryAdornerCoverage
                 ReferenceEquals(ancestor, reader) || ReferenceEquals(ancestor, archive))) continue;
             // A disposable priority override preserves bindings/styles/local values,
             // including an adorner that was already hidden before gallery entry.
-            _hidden.Add(adorner, adorner.SetValue(Visual.IsVisibleProperty, false, BindingPriority.Animation));
+            // SetValue's nullable result also covers non-reversible local values;
+            // retain each actual override until Clear, never just for this update.
+            if (adorner.SetValue(Visual.IsVisibleProperty, false, BindingPriority.Animation) is { } visibility)
+                _hidden.Add(adorner, visibility);
         }
     }
 

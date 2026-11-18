@@ -19,6 +19,14 @@ public sealed record GalleryEntry(GalleryAssetKey Key, MediaAssetSnapshot Manife
     public GalleryEntryKey EntryKey => new(Key, Post?.PostId, Attachment?.Position);
     public string ThreadUrl { get; init; } = string.Empty;
     public ResolvedMediaAttachment? AttachmentResolution { get; init; }
+
+    /// <summary>
+    /// True when this entry is a loose view of its file (unassigned, or associated with a post only by the legacy
+    /// metadata match) and no entry of the same build shows the same manifest asset bound to a post version. Only
+    /// such entries can carry a local (occurrence) media tag; a file with a bound view stays in the bound namespace.
+    /// Set by <see cref="GallerySelection.Build"/>; an entry made elsewhere is never locally taggable.
+    /// </summary>
+    internal bool LocalTagEligible { get; init; }
 }
 
 public sealed record GalleryThreadResult(IReadOnlyList<GalleryEntry> Entries, IReadOnlyList<string> Warnings);
@@ -63,6 +71,31 @@ public static class GallerySelection
             if (represented.Add(key)) entries.Add(new GalleryEntry(key, manifest, asset, null, null,
                 !asset.IsCurrent, true) { ThreadUrl = thread.Summary.Url });
         }
+        // A file shown bound to a post version anywhere in this thread belongs to the bound tag namespace;
+        // its other (legacy) views must not open a second, local namespace for the same manifest asset.
+        // A damaged manifest hides bindings (the resolver refuses), so then nothing is offered as loose.
+        HashSet<GalleryAssetKey> bound = entries.Where(entry => entry.AttachmentResolution is { IsLegacy: false })
+            .Select(entry => entry.Key).ToHashSet();
+        bool reliable = snapshots.All(snapshot => snapshot.Status != MediaManifestStatus.Corrupt);
+        for (int index = 0; reliable && index < entries.Count; index++)
+            if (entries[index].AttachmentResolution is null or { IsLegacy: true } && !bound.Contains(entries[index].Key))
+                entries[index] = entries[index] with { LocalTagEligible = true };
+
+        // The archive menu opens a whole thread, so its first gallery item must be the first
+        // post's first saved medium. Keep that invariant even when manifests arrive in a
+        // different order or a legacy binding was appended after the loose-file pass.
+        // Unassigned files remain useful, but come after post-bound entries.
+        entries.Sort((left, right) =>
+        {
+            int leftPost = left.Post == null ? int.MaxValue : thread.FindPostIndex(left.Post.PostId);
+            int rightPost = right.Post == null ? int.MaxValue : thread.FindPostIndex(right.Post.PostId);
+            int comparison = leftPost.CompareTo(rightPost);
+            if (comparison != 0) return comparison;
+            comparison = (left.Attachment?.Position ?? int.MaxValue).CompareTo(right.Attachment?.Position ?? int.MaxValue);
+            if (comparison != 0) return comparison;
+            comparison = string.Compare(left.Asset.AssetId, right.Asset.AssetId, StringComparison.Ordinal);
+            return comparison != 0 ? comparison : string.Compare(left.Key.Directory, right.Key.Directory, StringComparison.Ordinal);
+        });
         return new GalleryThreadResult(Array.AsReadOnly(entries.ToArray()), Array.AsReadOnly(warnings.ToArray()));
 
         void AppendPost(CapturedPost post)

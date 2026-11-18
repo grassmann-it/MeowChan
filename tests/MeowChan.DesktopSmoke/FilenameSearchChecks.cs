@@ -90,10 +90,10 @@ internal static class FilenameSearchChecks
                     }
                     else query.RaiseEvent(new TextInputEventArgs
                     { RoutedEvent = InputElement.TextInputEvent, Text = text });
-                    await PumpAsync();
+                    await SmokeDispatcher.SettleAsync();
                 }
                 // Only empty reset uses .Text; all payload insertion uses the control pipeline.
-                query.Text = ""; await PumpAsync();
+                query.Text = ""; await SmokeDispatcher.SettleAsync();
                 string ascii = new('a', 511);
                 await InsertAsync(ascii); await UntilAsync(() => query.Text == ascii);
                 query.CaretIndex = ascii.Length;
@@ -108,7 +108,7 @@ internal static class FilenameSearchChecks
                     && Volatile.Read(ref factories) == before, "513-unit text was truncated or handed to reader.");
 
                 // Replace one selected ASCII unit in an actual 512-unit control value.
-                query.Text = ""; await PumpAsync();
+                query.Text = ""; await SmokeDispatcher.SettleAsync();
                 string boundary = new('a', 512);
                 await InsertAsync(boundary); await UntilAsync(() => query.Text == boundary);
                 query.SelectionStart = 511; query.SelectionEnd = 512;
@@ -118,7 +118,7 @@ internal static class FilenameSearchChecks
                 Require(WellFormed(query.Text!) && Volatile.Read(ref factories) == before,
                     "Selection replacement split Unicode or acquired a reader for overlength text.");
                 // Replace two ASCII units: exactly 512 UTF16 units, including the intact pair.
-                query.Text = ""; await PumpAsync();
+                query.Text = ""; await SmokeDispatcher.SettleAsync();
                 await InsertAsync(boundary); await UntilAsync(() => query.Text == boundary);
                 query.SelectionStart = 510; query.SelectionEnd = 512;
                 string replaced = new string('a', 510) + "😀";
@@ -127,7 +127,7 @@ internal static class FilenameSearchChecks
                 Require(dialog.Session.Current.Text == replaced && WellFormed(replaced)
                     && Volatile.Read(ref factories) == before + 1, "Valid selection replacement changed at handoff.");
 
-                query.Text = ""; await PumpAsync();
+                query.Text = ""; await SmokeDispatcher.SettleAsync();
                 string emojis = string.Concat(Enumerable.Repeat("😀", 256));
                 await InsertAsync(emojis); await UntilAsync(() => query.Text == emojis);
                 await ClickAsync(input, dialog, "FilenameSearchSubmit"); await ReadyAsync(dialog, 0, 0, 0);
@@ -196,7 +196,7 @@ internal static class FilenameSearchChecks
             Require(C<WindowChromeBar>(dialog, "FilenameSearchChrome").Bounds.Height == 48
                 && dialog.WindowDecorations == WindowDecorations.BorderOnly, "Not app-owned chrome.");
             query.Text = Needle;
-            await PumpAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(Volatile.Read(ref factories) == 0 && list.Items.Count == 0,
                 "Construction/TextChanged implicitly searched.");
             using var input = new MediaNativeInput(dialog);
@@ -207,11 +207,11 @@ internal static class FilenameSearchChecks
             Require(Volatile.Read(ref factories) == 1, "Explicit Enter did not issue exactly one reader request.");
             Require(!shown.IsCompleted && !C<Button>(dialog, "FilenameSearchSelect").IsEnabled,
                 "Search automatically selected/returned a hit.");
-            query.Text = " " + Needle + " "; await PumpAsync();
+            query.Text = " " + Needle + " "; await SmokeDispatcher.SettleAsync();
             Require(Volatile.Read(ref factories) == 1 && list.Items.Count == 0, "Query edit implicitly searched or retained rows.");
             await ClickAsync(input, dialog, "FilenameSearchSubmit"); await ReadyAsync(dialog, 0, 0, 0);
             Require(query.Text == " " + Needle + " ", "Actual search trimmed the literal input.");
-            query.Text = Needle; await PumpAsync();
+            query.Text = Needle; await SmokeDispatcher.SettleAsync();
             Require(Volatile.Read(ref factories) == 2, "Second edit implicitly searched.");
             await ClickAsync(input, dialog, "FilenameSearchSubmit"); await ReadyAsync(dialog, 0, 100, Total);
             Require(Volatile.Read(ref factories) == 3, "Explicit search clicks did not each issue one request.");
@@ -232,7 +232,7 @@ internal static class FilenameSearchChecks
             await ClickAsync(input, dialog, "FilenameSearchPrevious"); await ReadyAsync(dialog, 0, 100, Total);
             Console.WriteLine("SMOKE filename-search paging: real synthetic DB205, 100/100/5 rows, count+rows, exact identities, previous/end checked.");
 
-            list.SelectedIndex = 0; list.ScrollIntoView(list.SelectedItem!); await PumpAsync();
+            list.SelectedIndex = 0; list.ScrollIntoView(list.SelectedItem!); await SmokeDispatcher.SettleAsync();
             ArchiveFilenameHit exact = dialog.Session.Current.Rows[0];
             Require(C<Button>(dialog, "FilenameSearchSelect").IsEnabled, "Explicit list selection did not enable return.");
             int beforeLanguages = Volatile.Read(ref factories);
@@ -240,7 +240,7 @@ internal static class FilenameSearchChecks
             {
                 Texts.SetLanguage(language);
                 await UntilAsync(() => dialog.Title == ShippedFilenameText("filename.search.title", language));
-                await PumpAsync();
+                await SmokeDispatcher.SettleAsync();
                 Require(query.Text == Needle && Volatile.Read(ref factories) == beforeLanguages,
                     "Language refresh changed query or issued a new search.");
                 Require(ReferenceEquals(exact, dialog.Session.Current.Rows[0]) && list.SelectedIndex == 0
@@ -257,20 +257,20 @@ internal static class FilenameSearchChecks
             {
                 dialog.RequestedThemeVariant = theme;
                 await UntilAsync(() => dialog.ActualThemeVariant == theme);
-                await PumpAsync();
+                await SmokeDispatcher.SettleAsync();
                 Require(dialog.Background is ISolidColorBrush { Color.A: 255 }, "Dialog theme background unresolved/nonopaque.");
-                foreach ((double width, double height) in new[] { (820d, 680d), (520d, 600d), (360d, 520d) })
+                foreach ((double width, double height) in new[] { (760d, 640d), (520d, 600d), (480d, 520d) }) // list step: preferred, between, minimum width (modals plan MD2)
                 {
-                    dialog.Width = width; dialog.Height = height; await PumpAsync();
+                    dialog.Width = width; dialog.Height = height; await SmokeDispatcher.SettleAsync();
                     CheckLayout(dialog);
                 }
             }
-            dialog.Width = 820; dialog.Height = 680; await PumpAsync();
+            dialog.Width = 760; dialog.Height = 640; await SmokeDispatcher.SettleAsync();
             Require(query.Focus(), "Cannot focus input before native Tab check.");
             await input.KeyAsync(MediaNativeInput.Tab);
             Require(C<Button>(dialog, "FilenameSearchSubmit").IsFocused,
                 "Native Tab did not navigate query → Search.");
-            Console.WriteLine("SMOKE filename-search layout-keyboard: Light/Dark, 820x680/520x600/360x520 client control reachability, native Enter/Tab checked; no minimum380 claim.");
+            Console.WriteLine("SMOKE filename-search layout-keyboard: Light/Dark, 760x640/520x600/480x520 client control reachability, native Enter/Tab checked; no minimum380 claim.");
             await ClickAsync(input, dialog, "FilenameSearchSelect");
             ArchiveFilenameHit? returned = await shown.WaitAsync(Deadline);
             Require(ReferenceEquals(exact, returned), "ShowDialog nullable return is not the exact selected ArchiveFilenameHit.");
@@ -349,7 +349,7 @@ internal static class FilenameSearchChecks
             else
             {
                 await UntilAsync(() => !dialog.Session.Current.Busy);
-                await PumpAsync();
+                await SmokeDispatcher.SettleAsync();
                 Require(dialog.Session.Current.Total == 0 && C<ListBox>(dialog, "FilenameSearchResults").Items.Count == 0
                     && (cancel ? dialog.Session.Current.StatusKey == "filename.search.canceled"
                         : dialog.Session.Current.Text == "w19-no-such-name" && dialog.Session.Current.StatusKey == "filename.search.ready"),
@@ -359,7 +359,7 @@ internal static class FilenameSearchChecks
                 await dialog.TerminateAsync().WaitAsync(Deadline);
             }
             string oldTitle = dialog.Title ?? "";
-            Texts.SetLanguage(Texts.Language == "de" ? "en" : "de"); await PumpAsync();
+            Texts.SetLanguage(Texts.Language == "de" ? "en" : "de"); await SmokeDispatcher.SettleAsync();
             Require(dialog.Title == oldTitle && dialog.Session.Current.Rows.IsEmpty,
                 "Closed dialog responded to language/late completion.");
             Console.WriteLine(close
@@ -394,7 +394,7 @@ internal static class FilenameSearchChecks
     private static async Task VisibleAsync(FilenameSearchDialog dialog)
     {
         await UntilAsync(() => dialog.IsVisible && dialog.TryGetPlatformHandle()?.Handle is nint h && h != 0);
-        await PumpAsync();
+        await SmokeDispatcher.SettleAsync();
         Require(dialog.ClientSize.Width > 0 && dialog.ClientSize.Height > 0, "Native dialog has no client layout.");
     }
     private static async Task ReadyAsync(FilenameSearchDialog dialog, int offset, int count, long total)
@@ -415,7 +415,7 @@ internal static class FilenameSearchChecks
     private static async Task CheckRenderedFirstAsync(FilenameSearchDialog dialog, ArchiveFilenameHit hit)
     {
         var list = C<ListBox>(dialog, "FilenameSearchResults");
-        list.ScrollIntoView(list.Items[0]!); await PumpAsync();
+        list.ScrollIntoView(list.Items[0]!); await SmokeDispatcher.SettleAsync();
         string label = FilenameSearchDialog.DescribeHit(hit, (key, args) => FilenameSearchCatalog.T(key, args));
         await UntilAsync(() => list.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == label));
         Require(label.Contains(hit.OriginalName, StringComparison.Ordinal) && label.Contains(hit.Thread.Source, StringComparison.Ordinal)
@@ -484,11 +484,6 @@ internal static class FilenameSearchChecks
             : throw new InvalidOperationException("Wrong actual filename dialog control type: " + name);
     }
     private static TaskCompletionSource<T> Signal<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private static async Task PumpAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
     private static async Task UntilAsync(Func<bool> condition)
     {
         DateTime end = DateTime.UtcNow + Deadline;

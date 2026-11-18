@@ -19,12 +19,13 @@ internal static class GalleryWorkloadChecks
         GalleryViewer viewer = new();
         Window host = new() { Width = 1100, Height = 700, Content = viewer, Title = "PF05 gallery workload" };
         string language = Texts.Language;
+        Exception? failureBeforeCleanup = null;
         try
         {
             host.Show(owner);
             host.Activate();
             await Program.WaitUntilAsync(() => host.IsActive);
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             GalleryEntry first = saved with
             {
                 Asset = saved.Asset with { OriginalFileName = "context-only.pdf" },
@@ -37,7 +38,7 @@ internal static class GalleryWorkloadChecks
             Require(viewer.ContextBuildCount == 0 && viewer.AssociationIndexBuildCount == 1,
                 "Closed context navigation rebuilt controls or reindexed an unchanged mapping.");
             Click(Control<Button>(viewer, "GalleryToggleContext"));
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(viewer.ContextBuildCount == 1 && Text(viewer).Contains("second mapping"),
                 "Opening context did not materialize only the newest entry.");
             Button obsoleteRead = Control<Button>(viewer, "GalleryReadPost");
@@ -48,7 +49,7 @@ internal static class GalleryWorkloadChecks
             GalleryEntry revised = second with { Post = second.Post! with { Html = "revised mapping" } };
             long builds = viewer.ContextBuildCount;
             await viewer.ShowAsync(revised, new[] { first, revised }, 2, CancellationToken.None);
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(viewer.ContextBuildCount == builds + 1 && viewer.AssociationIndexBuildCount == 2,
                 "A combined entry/mapping handoff rebuilt the old context or missed its revision.");
             Require(Text(viewer).Contains("revised mapping") && !Text(viewer).Contains("second mapping"),
@@ -65,7 +66,7 @@ internal static class GalleryWorkloadChecks
                 "Context-action focus was lost before localization. " + DescribeFocus(host));
             Texts.SetLanguage(language == "de" ? "en" : "de");
             await owner.ArchivePage.ReaderLocalizationTask;
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(viewer.ContextBuildCount == builds + 1,
                 $"Open-context localization expected one rebuild, observed {viewer.ContextBuildCount - builds}.");
             Require(Control<Button>(viewer, "GalleryReadPost").IsKeyboardFocusWithin,
@@ -78,7 +79,7 @@ internal static class GalleryWorkloadChecks
             await viewer.ShowAsync(first, new[] { first, revised }, 2, CancellationToken.None);
             Require(viewer.ContextBuildCount == builds, "Closed context was rebuilt by language or navigation changes.");
             Click(Control<Button>(viewer, "GalleryToggleContext"));
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             Require(viewer.ContextBuildCount == builds + 1 && Text(viewer).Contains("first mapping"),
                 "Reopening context retained obsolete language/entry data.");
             ComboBox selector = Control<ComboBox>(viewer, "GalleryPostAssociation");
@@ -101,7 +102,7 @@ internal static class GalleryWorkloadChecks
                     string message = "PF05 favorite write failure; media focus=" + mediaFocus;
                     int count = reports.Count;
                     viewer.SetFavoriteError(message);
-                    await SettleAsync();
+                    await SmokeDispatcher.SettleAsync();
                     Require(reports.Count == count + 1
                         && reports[^1] is { Operation: "favorite", Revision: 2, MediaUnavailable: false } notice
                         && ReferenceEquals(notice.Entry, revised) && notice.Message == message,
@@ -147,20 +148,24 @@ internal static class GalleryWorkloadChecks
             await viewer.StopAsync();
             await CheckThumbnailOwnershipAsync(host, saved);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await viewer.StopAsync();
-            host.Close();
-            Texts.SetLanguage(language);
-            await owner.ArchivePage.ReaderLocalizationTask;
-            // Closing an owned native window does not synchronously reactivate its owner.
-            // Drain language/layout work before handing later shell commands back to it.
-            await SettleAsync();
-            owner.Activate();
-            await Program.WaitUntilAsync(() => !host.IsVisible && owner.IsActive);
-            await SettleAsync();
-            Require(owner.IsActive && Texts.Language == language,
-                "The workload fixture did not restore its owner's native activation/language. " + DescribeFocus(owner));
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await viewer.StopAsync();
+                host.Close();
+                Texts.SetLanguage(language);
+                await owner.ArchivePage.ReaderLocalizationTask;
+                // Closing an owned native window does not synchronously reactivate its owner.
+                // Drain language/layout work before handing later shell commands back to it.
+                await SmokeDispatcher.SettleAsync();
+                owner.Activate();
+                await Program.WaitUntilAsync(() => !host.IsVisible && owner.IsActive);
+                await SmokeDispatcher.SettleAsync();
+                Require(owner.IsActive && Texts.Language == language,
+                    "The workload fixture did not restore its owner's native activation/language. " + DescribeFocus(owner));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryWorkloadChecks: " + exception));
         }
     }
 
@@ -184,7 +189,7 @@ internal static class GalleryWorkloadChecks
         };
         ArchiveAttachmentView.SetLoadingSuspended(panel, true);
         view.DataContext = Row();
-        await SettleAsync();
+        await SmokeDispatcher.SettleAsync();
         Require(loads == 0, "A covered attachment admitted new thumbnail work.");
         ArchiveAttachmentView.SetLoadingSuspended(panel, false);
         await Program.WaitUntilAsync(() => loads == 1);
@@ -192,11 +197,11 @@ internal static class GalleryWorkloadChecks
         Require(executing.IsCancellationRequested, "Coverage did not cancel a queued/running thumbnail cooperatively.");
         ArchiveAttachmentView.SetLoadingSuspended(panel, false);
         view.DataContext = Row();
-        await SettleAsync();
+        await SmokeDispatcher.SettleAsync();
         Require(loads == 1, "A replacement thumbnail started before the native owner actually returned.");
         release.SetResult(new Bitmap(saved.Asset.Path));
         await Program.WaitUntilAsync(() => loads == 2 && view.Thumbnail.Source is Bitmap);
-        await SettleAsync();
+        await SmokeDispatcher.SettleAsync();
         Require(loads == 2, "Uncovering did not coalesce to exactly one current thumbnail demand.");
 
         // Cancel a waiter before it enters the backend decoder. Releasing its queue slot while
@@ -217,7 +222,7 @@ internal static class GalleryWorkloadChecks
         await Program.WaitUntilAsync(() => waiters == 1);
         ArchiveAttachmentView.SetLoadingSuspended(panel, true);
         allowDecode.SetResult();
-        await SettleAsync();
+        await SmokeDispatcher.SettleAsync();
         Require(nativeDecodes == 0, "A covered thumbnail waiter entered the backend decoder.");
         ArchiveAttachmentView.SetLoadingSuspended(panel, false);
         await Program.WaitUntilAsync(() => nativeDecodes == 1 && view.Thumbnail.Source is Bitmap);
@@ -239,7 +244,7 @@ internal static class GalleryWorkloadChecks
         // Remove the failed view before any retry: detached late results must still be released.
         host.Content = null;
         timedOut.SetResult(new Bitmap(saved.Asset.Path));
-        await SettleAsync();
+        await SmokeDispatcher.SettleAsync();
         Require(timeoutLoads == 1 && view.Thumbnail.Source == null, "Detaching retained/restarted a late thumbnail.");
     }
 
@@ -259,11 +264,6 @@ internal static class GalleryWorkloadChecks
     private static T Control<T>(GalleryViewer viewer, string name) where T : Control =>
         viewer.GetGalleryVisualDescendants().OfType<T>().Single(value => value.Name == name);
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-    private static async Task SettleAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
     private static void Require(bool condition, string message)
     { if (!condition) throw new InvalidOperationException(message); }
 }

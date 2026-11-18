@@ -109,12 +109,12 @@ internal static class FirstRunSetupCoordinator
     {
         bytesPerSecond = 0; count = 0;
         if (!decimal.TryParse(bandwidthMiB, NumberStyles.Number, culture, out decimal rate) || rate <= 0 ||
-            !decimal.TryParse(parallel, NumberStyles.Number, culture, out decimal jobs) || jobs < 1 ||
-            jobs > int.MaxValue || decimal.Truncate(jobs) != jobs) return false;
+            !decimal.TryParse(parallel, NumberStyles.Number, culture, out decimal jobs) || jobs < Config.MaxParallelDownloadsMinimum ||
+            jobs > Config.MaxParallelDownloadsMaximum || decimal.Truncate(jobs) != jobs) return false;
         try
         {
             decimal bytes = rate * 1024m * 1024m;
-            if (bytes < 1 || bytes > long.MaxValue) return false;
+            if (bytes < 1 || bytes > Config.BandwidthLimiterMaximumBytes) return false;
             bytesPerSecond = checked((long)bytes);
             count = decimal.ToInt32(jobs);
             return true;

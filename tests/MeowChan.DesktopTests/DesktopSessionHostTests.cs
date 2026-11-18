@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using MeowChan.Boards.FourChan;
 using MeowChan.Desktop;
+using MeowChan.Gallery;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.Storage;
@@ -91,6 +92,42 @@ public sealed class DesktopSessionHostTests
             Assert.True(saved.WindowMaximized);
             Assert.Equal(340, saved.ColumnWidths["archive.title"]);
             Assert.Equal(Path.Combine(directory.Path, "exports"), saved.LastExportDirectory);
+        }
+        finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
+    }
+
+    [Fact]
+    public async Task TheMediaOrderIsSavedAsADirectPreferenceSurvivesAnOldSettingsDraftAndRestart()
+    {
+        using TempDirectory directory = new();
+        new Config().SaveConfig(directory.Path);
+        DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>(), (_, _) => new ControlledStore());
+        try
+        {
+            await host.StartAsync().WaitAsync(Timeout);
+            Assert.Equal("ByThread", host.Config.MediaSort);
+            Assert.Equal("Default", host.Config.MediaSortDirection);
+            Config draft = host.Config.Clone();
+            draft.RecheckTimer = 120;
+            // What the media page saves when the user picks "Size" and flips the direction.
+            await host.SaveViewPreferencesAsync(config =>
+            {
+                config.MediaSort = MediaSortPreference.Format(MediaLibrarySort.Size);
+                config.MediaSortDirection = MediaSortPreference.Format(MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed);
+            }).WaitAsync(Timeout);
+
+            // A settings draft taken before the choice does not bring the old order back.
+            await host.ApplySettingsAsync(draft).WaitAsync(Timeout);
+
+            Config saved = Config.LoadConfig(directory.Path);
+            Assert.Equal(120, saved.RecheckTimer);
+            Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), MediaSortPreference.Restore(saved.MediaSort, saved.MediaSortDirection));
+
+            // The random order is not kept: choosing it leaves the last other choice (Size, reversed) in the settings for the next start.
+            await host.SaveViewPreferencesAsync(config =>
+                Assert.False(MediaSortPreference.Remember(config, MediaLibrarySort.Random, MediaLibrarySortDirection.Reversed))).WaitAsync(Timeout);
+            saved = Config.LoadConfig(directory.Path);
+            Assert.Equal((MediaLibrarySort.Size, MediaLibrarySortDirection.Reversed), MediaSortPreference.Restore(saved.MediaSort, saved.MediaSortDirection));
         }
         finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
     }

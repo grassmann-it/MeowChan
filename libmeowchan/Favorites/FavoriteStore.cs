@@ -50,8 +50,10 @@ internal sealed class FavoriteStoreSnapshot
 /// <summary>Profile-owned favorite identities. Reads perform no media discovery or file checks.</summary>
 public sealed partial class FavoriteStore
 {
-    internal const int MaximumBytes = 8_000_000;
-    internal const int MaximumEntries = 50_000;
+    /// <summary>Default size limit of the file (the limit is a setting; reads accept up to <see cref="ProfileStoreLimits.FavoriteFileCeilingBytes"/>).</summary>
+    internal const int MaximumBytes = ProfileStoreLimits.DefaultFavoriteFileBytes;
+    /// <summary>Default entry limit (the limit is a setting; reads accept up to <see cref="ProfileStoreLimits.FavoriteEntryCeiling"/>).</summary>
+    internal const int MaximumEntries = ProfileStoreLimits.DefaultFavoriteEntries;
     private sealed record Document(int Version, List<FavoriteEntry> Entries, Guid? InstanceId, long Revision,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PrivateStoreOperationMarker? OperationMarker = null);
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
@@ -125,8 +127,9 @@ public sealed partial class FavoriteStore
         }
         if (favorite)
         {
-            if (document.Entries.Count >= MaximumEntries)
-                throw new InvalidDataException("The favorites index has reached its entry limit.");
+            if (document.Entries.Count >= _lease.StoreLimits.FavoriteEntries)
+                throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteEntries, _lease.StoreLimits.FavoriteEntries,
+                    "The favorites index has reached its entry limit.");
             document.Entries.Add(entry);
         }
         else document.Entries.RemoveAt(index);
@@ -192,8 +195,10 @@ public sealed partial class FavoriteStore
             Revision = checked(document.Revision + 1)
         };
         string json = JsonSerializer.Serialize(document);
-        if (StrictUtf8.GetByteCount(json) > MaximumBytes)
-            throw new InvalidDataException("The favorites index has reached its size limit.");
+        int written = StrictUtf8.GetByteCount(json);
+        if (written > _lease.StoreLimits.FavoriteFileBytes && written > ProfileStoreLimits.FileLength(_path))
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteFile, _lease.StoreLimits.FavoriteFileBytes,
+                "The favorites index has reached its size limit.");
         // Never rotate away unsupported or damaged backup evidence. Keep the
         // established IO-failure contract for a directory blocking publication.
         if (Directory.Exists(_path + ".bak"))
@@ -235,7 +240,7 @@ public sealed partial class FavoriteStore
     {
         using FileStream stream = RegularProfileFile.OpenRead(path);
         long length = stream.Length;
-        if (length > MaximumBytes)
+        if (length > ProfileStoreLimits.FavoriteFileCeilingBytes)
             throw new InvalidDataException("The favorites index exceeds its size limit.");
         byte[] bytes = new byte[checked((int)length)];
         try { stream.ReadExactly(bytes); }
@@ -258,7 +263,7 @@ public sealed partial class FavoriteStore
 
     private static Document ParseDocument(byte[] bytes)
     {
-        if (bytes.Length > MaximumBytes)
+        if (bytes.Length > ProfileStoreLimits.FavoriteFileCeilingBytes)
             throw new InvalidDataException("The favorites index exceeds its size limit.");
         Document document;
         try
@@ -292,7 +297,7 @@ public sealed partial class FavoriteStore
                 throw new InvalidDataException("The favorites index version is unsupported.");
 
             JsonElement entries = root.GetProperty("Entries");
-            if (entries.ValueKind != JsonValueKind.Array || entries.GetArrayLength() > MaximumEntries)
+            if (entries.ValueKind != JsonValueKind.Array || entries.GetArrayLength() > ProfileStoreLimits.FavoriteEntryCeiling)
                 throw new InvalidDataException("The favorites index entry count is invalid.");
             List<FavoriteEntry> values = new(entries.GetArrayLength());
             HashSet<FavoriteAssetKey> seen = new();

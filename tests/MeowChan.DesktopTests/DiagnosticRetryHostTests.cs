@@ -275,13 +275,13 @@ public sealed class DiagnosticRetryHostTests
         public ValueTask DisposeAsync() { Release(); return ValueTask.CompletedTask; }
     }
 
-    private sealed class HeldCapture(DesktopSessionHost host) : IAsyncDisposable
+    private sealed class HeldCapture : IAsyncDisposable
     {
         private readonly ManualResetEventSlim _release = new();
         private Task _holder = Task.CompletedTask;
         internal static async Task<HeldCapture> AcquireAsync(DesktopSessionHost host)
         {
-            var result = new HeldCapture(host);
+            var result = new HeldCapture();
             result._holder = Task.Run(() => host.HoldCaptureLockForTest(result._release));
             try { await UntilAsync(() => host.CaptureLockHeldForTest); return result; }
             catch { result.Release(); await result.DisposeAsync(); throw; }

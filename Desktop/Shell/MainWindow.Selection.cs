@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -18,7 +19,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     internal static bool IsNativeShortcutSource(object? source) => source is Visual visual && visual.GetSelfAndVisualAncestors()
-        .Any(node => node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem);
+        .Any(node => PointerFocusReclaim.IsTextInput(node) || node is SelectableTextBlock or Button or MenuItem or Slider or TabItem);
 
     // Keep row identities through the asynchronous batch; host admission still
     // checks the exact watch/generation rather than inferring it from a URL.
@@ -36,17 +37,22 @@ public partial class MainWindow
         _threadRows.TryGetValue(row.WatchId, out ThreadRow? current) && ReferenceEquals(row, current)
         && (_appliedThreadSearchReconciliation?.Includes(row) ?? false);
 
-    private void AddUserPriorityMenus(ContextMenu menu, bool ready)
+    private void AddUserPriorityMenus(ContextMenuBuilder menu, bool ready)
     {
-        foreach (MenuItem item in CreateUserPriorityMenuItems(SelectedThreads(), ready,
-            () => !RowCommandBusy && !_selectionCommandRunning && !_sessionRowsApplying
-                && _restoreCompleted && UserPriorityAvailable(),
-            IsCurrentUserPriorityRow, (rows, high) => ApplyFrozenUserPriority(rows, high)))
+        ThreadRow[] frozen = SelectedThreads().Where(IsCurrentUserPriorityRow).DistinctBy(row => row.WatchId).ToArray();
+        bool CanExecute() => ready && !RowCommandBusy && !_selectionCommandRunning && _restoreCompleted && UserPriorityAvailable();
+        foreach (bool high in new[] { true, false })
         {
-            // Reuse the shared glyphs without registering navigation actions.
-            item.Icon = CommandBindings.Icon(Equals(item.Tag, "priority.menuHigh")
-                ? "reader.previous-post" : "reader.next-post");
-            menu.Items.Add(item);
+            ThreadRow[] affected = frozen.Where(row => row.IsHighPriority != high).ToArray();
+            if (affected.Length == 0) continue;
+            string key = high ? "priority.menuHigh" : "priority.menuNormal";
+            string label = Texts.T(key, affected.Length);
+            menu.Item(key, label, () =>
+            {
+                if (!UserPriorityAvailable()) return;
+                ThreadRow[] targets = affected.Where(row => IsUserPriorityTarget(row, high, IsCurrentUserPriorityRow)).ToArray();
+                if (targets.Length > 0) ApplyFrozenUserPriority(targets, high);
+            }, available: CanExecute(), availableWhen: CanExecute);
         }
     }
 
@@ -85,8 +91,6 @@ public partial class MainWindow
     private long? _threadLeadId;
     private long? _boardLeadId;
     private bool _selectionCommandRunning;
-    private static KeyModifiers ListCommandModifier => OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
-
     // Commands belong to the list itself. Editors, controls, popups and overlays
     // keep their native keys, including text selection and clipboard commands.
     internal static bool IsListCommandSource(object? source, Control list)
@@ -95,7 +99,7 @@ public partial class MainWindow
         foreach (Visual node in visual.GetSelfAndVisualAncestors())
         {
             if (ReferenceEquals(node, list)) return true;
-            if (node is TextBox or SelectableTextBlock or Ursa.Controls.AutoCompleteBox or ComboBox or Button or MenuItem or Slider or TabItem
+            if (PointerFocusReclaim.IsTextInput(node) || node is SelectableTextBlock or Button or MenuItem or Slider or TabItem
                 or DataGridColumnHeader) return false;
         }
         return false;
@@ -121,10 +125,17 @@ public partial class MainWindow
                 if (grid.CollectionView?.CurrentItem is BoardRow board) _boardLeadId = board.WatchId;
             };
         }
+        InitializeDownloadTypeAhead(); // audit V7 (MainWindow.MouseKeyboard.cs)
+        InitializeDownloadMiddleClick(); // audit V5 (MainWindow.MouseKeyboard.cs)
+        InitializeDownloadHeaderMenus(); // right-click on a column header (MainWindow.Columns.cs)
         ArchivePage.RemoveSelectedWatches = RemoveArchiveWatchesAsync;
         ArchivePage.DeletePermanentlyRequested = DeleteArchivePermanentlyAsync;
         ArchivePage.CanRemoveWatch = id => !_sessionRowsApplying && _threadRows.Values.Any(row => row.Snapshot.Id == id);
         ArchivePage.CheckSelectedWatches = CheckArchiveWatchesAsync;
+        // Which watches "Check now" / "Retry missing media" of the archive list (menu entries, F5 and Shift+F5) may act on: the Downloads page's own rules.
+        // Without these two the list's check entries were disabled for every thread.
+        ArchivePage.CanCheckWatch = id => ArchiveWatchRow(id) is { } row && _session.CanRequestCheck(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
+        ArchivePage.CanRetryWatch = id => ArchiveWatchRow(id)?.CanRetryMedia == true;
         ArchivePage.CopySelectedUrls = urls => CopyUrlsAsync(urls, ArchivePage.CaptureActionErrorReporter());
         ArchivePage.SelectionLeadAction = (id, action) =>
         {
@@ -132,25 +143,30 @@ public partial class MainWindow
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
             if (action == "browser") { OpenTarget(row?.Url ?? ArchivePage.ArchiveUrlFor(id), ArchivePage.CaptureActionErrorReporter()); return; }
             if (action == "folder") { string? directory = row?.DownloadDirectory ?? ArchivePage.ArchiveDirectoryFor(id); if (directory != null) OpenDirectory(directory, ArchivePage.CaptureActionErrorReporter()); return; }
-            if (action == "rules" && NavigateWorkspace(WorkspacePage.Rules))
-                _rulesPage?.EditScope(Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread!));
+            if (action == "rules")
+            {
+                // From the large reader the page behind it is not reachable: leave it first, without going back to its origin.
+                if (!_restoreCompleted || WorkspaceCommandBusy) return;
+                if (_largeReaderOpen && _gallery == null) CloseLargeReader(restoreOrigin: false);
+                if (NavigateWorkspace(WorkspacePage.Rules))
+                    _rulesPage?.EditScope(Rules.MediaRuleScope.ForThread(id.Source, id.Board, id.Thread!));
+            }
         };
+        ArchivePage.ShowThreadInMediaRequested = ShowThreadInMedia; // QW-A #7: the archive list's and the reader's thread menus
+        ArchivePage.ShowThreadsInMediaRequested = ShowThreadsInMedia; // several threads at once: a selection, or all results of the search
         ArchivePage.SelectionDetailsRequested = id =>
         {
             if (_sessionRowsApplying) return;
             ThreadRow? row = _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
-            if (row != null) OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
+            if (row == null) return;
+            // From the large reader (its "Thread" menu) the Downloads page behind it is not reachable: leave the reader first.
+            if (_largeReaderOpen && _gallery == null && _restoreCompleted && !WorkspaceCommandBusy) CloseLargeReader(restoreOrigin: false);
+            OpenDiagnosticWatch(new DiagnosticTarget(DiagnosticTargetKind.Thread, row.WatchId));
         };
     }
 
-    internal static void NormalizeSelectionMenu(ContextMenu menu)
-    {
-        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
-        {
-            if (item.Tag is string key && item.Classes.Contains("localized")) item.Header = Texts.T(key);
-
-        }
-    }
+    private ThreadRow? ArchiveWatchRow(ResourceId id) =>
+        _sessionRowsApplying ? null : _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id);
 
     private DataGrid DownloadList(bool boards) => this.FindControl<DataGrid>(boards ? "BoardsDataGrid" : "ThreadsDataGrid")!;
     internal ThreadRow[] SelectedThreadsForTests() => SelectedThreads();
@@ -165,6 +181,11 @@ public partial class MainWindow
     private BoardRow? LeadBoard => _sessionRowsApplying || SelectedBoards().Length == 0 ? null
         : SelectedBoards().FirstOrDefault(row => row.WatchId == _boardLeadId) ?? SelectedBoards().FirstOrDefault();
 
+    /// <summary>The press landed on a column header of a downloads table (and on no row).</summary>
+    internal static bool IsDownloadColumnHeaderSource(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().OfType<DataGridColumnHeader>().Any()
+        && !visual.GetSelfAndVisualAncestors().OfType<DataGridRow>().Any();
+
     private void SelectDownloadContextRow(object? sender, PointerPressedEventArgs e)
     {
         if (_sessionRowsApplying) { e.Handled = true; return; }
@@ -176,6 +197,13 @@ public partial class MainWindow
         if (item is BoardRow board) _boardLeadId = board.WatchId;
         if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
         _downloadPointerContextHandled.Add(grid);
+        if (IsDownloadColumnHeaderSource(e.Source))
+        {
+            // A column header is no empty area: its own menu (MainWindow.Columns.cs, registered after this handler) opens over the selection, which
+            // stays. The release ContextRequested stays swallowed (the flag above), and the row menu of the table closes.
+            grid.ContextMenu?.Close();
+            return;
+        }
         if (item == null)
         {
             grid.SelectedItems.Clear();
@@ -185,16 +213,44 @@ public partial class MainWindow
         else
         {
             if (!grid.SelectedItems.Contains(item)) grid.SelectedItem = item;
-            grid.Focus();
-            if (grid.ContextMenu is ContextMenu menu)
-            {
-                // ContextMenu.Open(control) bypasses Opening in Avalonia 12.
-                BuildDownloadMenu(grid, menu);
-                if (menu.ItemCount > 0) menu.Open(grid);
-            }
+            // DataGridRow itself is not focusable on every backend. Prefer the
+            // clicked cell (or a visible cell for a row-sourced request), so the
+            // handled press cannot strand keyboard input on the previous row.
+            DataGridCell? cell = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridCell>().FirstOrDefault()
+                ?? hit?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
+            // Native DataGrid cells default to non-focusable too. Opt in only
+            // the pointer target, not every cell through a shared style.
+            if (cell != null) cell.Focusable = true;
+            if (cell?.Focus(NavigationMethod.Pointer) != true && hit?.Focus() != true) grid.Focus();
+            // The handler is registered in the tunnel phase. Avalonia's DataGrid applies the
+            // selection in its later class/bubble handling, so composing the menu here reads
+            // the previous selection and can disable the single-thread Read command. Open it
+            // after the pointer route has finished, once SelectedItems and the
+            // search reconciliation are authoritative. Background is deliberate:
+            // DataGrid commits selection at Input and the row projection follows
+            // it on the next UI turn.
+            object contextItem = item;
+            Dispatcher.UIThread.Post(() => OpenDownloadContextMenu(grid, contextItem), DispatcherPriority.Background);
         }
         e.Handled = true;
         RefreshWorkspace();
+    }
+
+    private void OpenDownloadContextMenu(DataGrid grid, object contextItem)
+    {
+        if (_sessionRowsApplying || _isClosing || !grid.IsEffectivelyVisible || !grid.IsEffectivelyEnabled
+            || grid.ItemsSource is not System.Collections.IEnumerable items || !items.Cast<object>().Contains(contextItem)) return;
+        if (!grid.SelectedItems.Contains(contextItem))
+        {
+            // A right-click on an unselected row means “this row”; preserve an existing
+            // multi-selection only when it already contains the pointer target.
+            grid.SelectedItems.Clear();
+            grid.SelectedItems.Add(contextItem);
+        }
+        if (grid.ContextMenu is not ContextMenu menu || grid.SelectedItems.Count == 0) return;
+        // ContextMenu.Open(control) bypasses Opening in Avalonia 12.
+        BuildDownloadMenu(grid, menu);
+        if (menu.ItemCount > 0) menu.Open(grid);
     }
 
     private readonly HashSet<Control> _downloadPointerContextHandled = new();
@@ -209,17 +265,28 @@ public partial class MainWindow
         // Positionless keyboard requests keep Avalonia's native ContextMenu/Shift+F10 behavior.
     }
 
+    /// <summary>
+    /// <see cref="CommandBindings.Matches"/> in the Downloads context. The Downloads lists are no page with a <see cref="MeowChan.Desktop.Controls.KeyContextHost"/>:
+    /// asked without a context, a default that a saved binding took away only in another context of the same command (a saved Archive command on F5 against
+    /// "Check now", which also runs here) counts as yielded everywhere and went dead on these lists. The scope covers this one synchronous question, never an await.
+    /// </summary>
+    internal static bool DownloadsMatches(KeyEventArgs e, string id)
+    {
+        using var context = EffectiveShortcutBindings.EnterKeyContext("downloads");
+        return CommandBindings.Matches(e, id);
+    }
+
     private async void OnDownloadListKeyDown(object? sender, KeyEventArgs e)
     {
         if (_sessionRowsApplying && sender is DataGrid sliceGrid && IsListCommandSource(e.Source, sliceGrid)
             && (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown
-                || CommandBindings.Matches(e, "selection.select-all")))
+                || DownloadsMatches(e, "selection.select-all")))
         { e.Handled = true; return; }
         if (sender is not DataGrid grid || e.Handled || !IsListCommandSource(e.Source, grid)
             || _largeReaderOpen || (_gallery != null && !_gallerySuspended) || !IsEnabled
             || _selectedPage != WorkspacePage.Downloads || RowCommandBusy || _selectionCommandRunning) return;
         bool boards = ReferenceEquals(grid, DownloadList(true));
-        if (CommandBindings.Matches(e, "menu.context-open"))
+        if (DownloadsMatches(e, "menu.context-open"))
         {
             e.Handled = true;
             if (grid.ContextMenu is ContextMenu menu && grid.SelectedItems.Count > 0)
@@ -240,40 +307,49 @@ public partial class MainWindow
             return;
         }
         KeyModifiers mods = e.KeyModifiers;
-        if (CommandBindings.Matches(e, "selection.select-all"))
+        if (DownloadsMatches(e, "selection.select-all"))
         {
             e.Handled = true; grid.SelectAll(); return;
         }
-        if (CommandBindings.Matches(e, "selection.copy-links"))
+        if (DownloadsMatches(e, "selection.copy-links"))
         {
             e.Handled = true; await CopyUrlsAsync(boards ? SelectedBoards().Select(row => row.Url).ToArray() : SelectedThreads().Select(row => row.Url).ToArray()); return;
         }
-        if (CommandBindings.Matches(e, "export.open-html-dialog") && !boards)
+        if (DownloadsMatches(e, "export.open-html-dialog") && !boards)
         { e.Handled = true; await ExportDownloadSelectionAsync(grid); return; }
-        if (CommandBindings.Matches(e, "watch.remove"))
+        if (DownloadsMatches(e, "watch.remove"))
         { e.Handled = true; await RemoveDownloadSelectionAsync(boards); return; }
-        if (CommandBindings.Matches(e, "thread.details"))
+        if (DownloadsMatches(e, "thread.details"))
         { e.Handled = true; OpenWorkspaceDetails(); return; }
-        if (CommandBindings.Matches(e, "thread.read") || CommandBindings.Matches(e, "gallery.open"))
+        // Revision 19: "Show in Media" (Alt+M), like the thread menu entry: every selected thread (as one thread set when there are several);
+        // boards have no media of their own.
+        if (!boards && DownloadsMatches(e, "thread.show-in-media"))
+        {
+            e.Handled = true;
+            if (LeadThread is ThreadRow row) ShowSelectedThreadsInMedia(SelectedThreads().Select(selected => selected.Snapshot.Id).ToArray(), row.Snapshot.Id, row.Title);
+            return;
+        }
+        if (DownloadsMatches(e, "thread.read") || DownloadsMatches(e, "gallery.open"))
         {
             e.Handled = true;
             if (boards) OpenWorkspaceDetails();
             else if (LeadThread is ThreadRow row)
             {
-                if (CommandBindings.Matches(e, "gallery.open")) await OpenGalleryAsync(row.Snapshot.Id, origin: grid);
-                else if (grid.SelectedItems.Count == 1 && SelectedThreads().Length == 1) await OpenDownloadReaderAsync(row.Snapshot.Id, grid);
+                if (!DownloadsMatches(e, "thread.read") && DownloadsMatches(e, "gallery.open")) await OpenActions.RunAsync(() => OpenGalleryAsync(row.Snapshot.Id, origin: grid), "downloads.list.gallery");
+                else if (SelectedThreads().Length == 1)
+                    await OpenActions.RunAsync(() => OpenDownloadReaderAsync(row.Snapshot.Id, grid), "downloads.list.read");
             }
             return;
         }
-        if (CommandBindings.Matches(e, "watch.check") || CommandBindings.Matches(e, "watch.retry-media"))
-        { e.Handled = true; await CheckDownloadSelectionAsync(boards, CommandBindings.Matches(e, "watch.retry-media")); return; }
-        if (boards && CommandBindings.Matches(e, "board.filters"))
+        if (DownloadsMatches(e, "watch.check") || DownloadsMatches(e, "watch.retry-media"))
+        { e.Handled = true; await CheckDownloadSelectionAsync(boards, DownloadsMatches(e, "watch.retry-media")); return; }
+        if (boards && DownloadsMatches(e, "board.filters"))
         { e.Handled = true; if (LeadBoard is BoardRow row) await OpenBoardAdmissionAsync(row); return; }
-        if (CommandBindings.Matches(e, "rules.edit-scope"))
+        if (DownloadsMatches(e, "rules.edit-scope"))
         { e.Handled = true; OnEditSelectionRules(sender, new RoutedEventArgs()); return; }
-        if (CommandBindings.Matches(e, "location.open-folder"))
+        if (DownloadsMatches(e, "location.open-folder"))
         { e.Handled = true; if (boards) OnOpenBoardDirectoryClick(sender, new RoutedEventArgs()); else OnOpenThreadDirectoryClick(sender, new RoutedEventArgs()); return; }
-        if (CommandBindings.Matches(e, "location.open-source"))
+        if (DownloadsMatches(e, "location.open-source"))
         { e.Handled = true; if (boards) OnOpenBoardInBrowserClick(sender, new RoutedEventArgs()); else OnOpenThreadInBrowserClick(sender, new RoutedEventArgs()); }
     }
 
@@ -292,7 +368,7 @@ public partial class MainWindow
                 catch (Exception error) { failures.Add(error.Message); }
             }
             if (failures.Count > 0) ShowNotification(Texts.T("notification.error"),
-                Texts.T("selection.failed", failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error, context: string.Join(",", frozen), operation: "selection.command");
+                Texts.Count("selection.failed", frozen.Count, failures.Count, frozen.Count, string.Join("; ", failures.Distinct())), NotificationType.Error, context: string.Join(",", frozen), operation: "selection.command");
         }
         finally { _selectionCommandRunning = false; RefreshWorkspace(); }
     }
@@ -300,14 +376,71 @@ public partial class MainWindow
     private Task RemoveDownloadSelectionAsync(bool boards)
     {
         long[] ids = boards ? SelectedBoards().Select(row => row.WatchId).ToArray() : SelectedThreads().Select(row => row.WatchId).ToArray();
-        return RunSelectionCommandAsync(ids, id => RemoveVisibleDownloadWatchAsync(id, boards));
+        return RemoveWatchesWithUndoAsync(ids, boards, id => RemoveVisibleDownloadWatchAsync(id, boards));
     }
 
-    private Task RemoveVisibleDownloadWatchAsync(long id, bool boards)
+    // Removing a watch is deliberately light (no confirmation), so the way back is an undo toast. The
+    // addresses are remembered before the removal; only watches that were really removed are offered.
+    private async Task RemoveWatchesWithUndoAsync(IReadOnlyList<long> ids, bool boards, Func<long, Task<bool>> remove)
     {
-        if (_sessionRowsApplying) return Task.CompletedTask;
-        if (boards ? !SelectedBoards().Any(row => row.WatchId == id) : !SelectedThreads().Any(row => row.WatchId == id)) return Task.CompletedTask;
-        return boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id);
+        List<string> removed = new();
+        await RunSelectionCommandAsync(ids, async id =>
+        {
+            string? url = boards ? (_boardRows.TryGetValue(id, out BoardRow? board) ? board.Url : null)
+                : _threadRows.TryGetValue(id, out ThreadRow? thread) ? thread.Url : null;
+            if (await remove(id) && url != null) removed.Add(url);
+        });
+        if (removed.Count > 0 && !_isClosing) ShowWatchRemovedToast(new WatchRemovalUndo(removed, ReadmitRemovedWatchesAsync));
+    }
+
+    // The undo is an action, not information (DL-03): it is offered whatever the popup settings say. Several watches removed at once
+    // (selection, Ctrl+A, Delete) share one undo for all of them. The app has no key for it, so the toast button is the way.
+    private void ShowWatchRemovedToast(WatchRemovalUndo undo) => ShowEssentialActionNotification(
+        Texts.T("notification.session"), Texts.T("watch.removed", undo.Count), NotificationType.Information,
+        new[] { new FeedbackToastAction(Texts.T("watch.undo"), () => UndoWatchRemovalAsync(undo), "rotate-ccw") }, operation: "watch.removed");
+
+    private async Task UndoWatchRemovalAsync(WatchRemovalUndo undo)
+    {
+        WatchUndoOutcome outcome = await undo.RunAsync();
+        if (_isClosing) return;
+        switch (outcome)
+        {
+            case WatchUndoOutcome.Restored:
+                ShowNotification(Texts.T("notification.session"), Texts.T("watch.undoDone", undo.Restored), NotificationType.Information, operation: "watch.undo");
+                break;
+            case WatchUndoOutcome.Partial:
+                ShowNotification(Texts.T("notification.session"), Texts.T("watch.undoPartial", undo.Count - undo.Restored, undo.Count), NotificationType.Warning, operation: "watch.undo");
+                break;
+            default:
+                ShowNotification(Texts.T("notification.session"), Texts.T("watch.undoUnavailable"), NotificationType.Warning, operation: "watch.undo");
+                break;
+        }
+    }
+
+    // The same admission as the Add row, so the result is the normal URL report. Null: it could not start.
+    private async Task<int?> ReadmitRemovedWatchesAsync(string text)
+    {
+        if (!_restoreCompleted || _isClosing || _importing || WorkspaceCommandBusy) return null;
+        _importing = true;
+        _admissionIsUndo = true;
+        try
+        {
+            UpdateInteractionState();
+            await SubmitInputAsync(text);
+            return _admissionResults.Count(item => item.Status is AdmissionStatus.Added or AdmissionStatus.AlreadyPresent);
+        }
+        finally { _admissionIsUndo = false; _importing = false; UpdateInteractionState(); }
+    }
+
+    private async Task<bool> RemoveVisibleDownloadWatchAsync(long id, bool boards)
+    {
+        if (_sessionRowsApplying) return false;
+        // The caller freezes the selection before executing a batch. Do not re-check the live
+        // selection here: removing the first row updates the grid and can clear/coerce the
+        // remaining selected items while the frozen batch is still being processed.
+        if (boards ? !_boardRows.ContainsKey(id) : !_threadRows.ContainsKey(id)) return false;
+        await (boards ? _session.RemoveBoardAsync(id) : _session.RemoveThreadAsync(id));
+        return true;
     }
 
     private bool IsCurrentDownloadTarget(DiagnosticTarget target) => target.Kind == DiagnosticTargetKind.Board
@@ -348,16 +481,23 @@ public partial class MainWindow
             if (frozen.Length > 1) text += " · " + responses.Count + "/" + frozen.Length;
             ShowNotification(Texts.T("notification.session"), text, NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.check");
         }
-        if (retried) ShowNotification(Texts.T("notification.session"), Texts.T(acceptedMedia == 0 ? "work.retryNone"
-            : _session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
+        if (retried) ShowNotification(Texts.T("notification.session"), acceptedMedia == 0
+            ? Texts.T(RetryNoneKey(frozen.Where(target => target.Kind == DiagnosticTargetKind.Thread).Select(target => target.WatchId)))
+            : Texts.Count(_session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
             NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.media-retry");
     }
+
+    // The reason is read from the current row after the host declined, so the toast names what is true now.
+    private string RetryNoneKey(IEnumerable<long> watchIds) => RetryNoneClassifier.KeyFor(RetryNoneClassifier.Combine(
+        watchIds.Select(id => _threadRows.TryGetValue(id, out ThreadRow? row)
+            ? RetryNoneClassifier.Classify(row.Snapshot.Work, watchExists: true)
+            : RetryNoneReason.Removed)));
 
     private Task RemoveArchiveWatchesAsync(IReadOnlyList<ResourceId> ids)
     {
         long[] watchIds = ids.Select(id => _threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id)?.WatchId)
             .OfType<long>().Distinct().ToArray();
-        return RunSelectionCommandAsync(watchIds, _session.RemoveThreadAsync);
+        return RemoveWatchesWithUndoAsync(watchIds, boards: false, async id => { await _session.RemoveThreadAsync(id); return true; });
     }
     private Task CheckArchiveWatchesAsync(IReadOnlyList<ResourceId> ids, bool retry)
     {
@@ -369,9 +509,10 @@ public partial class MainWindow
     private async Task OpenDownloadReaderAsync(ResourceId id, Control? origin)
     {
         if (_sessionRowsApplying) return;
+        // A row with nothing captured has no reader to open: Enter and a double click say why instead of showing an empty one (DL-01).
+        if (ReportNothingCaptured(_threadRows.Values.FirstOrDefault(row => row.Snapshot.Id == id))) return;
         ResourceId[] scope = DownloadList(false).CollectionView.Cast<ThreadRow>().Where(row => !row.IsHistorical).Select(row => row.Snapshot.Id).ToArray();
-        OpenLargeReader(origin, scope);
-        await ArchivePage.LoadThreadAsync(id);
+        await ArchivePage.OpenReaderOnThreadAsync(id, () => OpenLargeReader(origin, scope));
     }
 
     private async Task ExportDownloadSelectionAsync(Control? origin)
@@ -388,14 +529,14 @@ public partial class MainWindow
         long[] threads = SelectedThreads().Select(row => row.WatchId).ToArray();
         long[] boards = SelectedBoards().Select(row => row.WatchId).ToArray();
         long? threadLead = _threadLeadId, boardLead = _boardLeadId;
-        int tab = this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex;
+        int tab = DownloadsTabs.SelectedIndex;
         long filterRevision = _downloadFilterRevision;
         var scrolls = new[] { DownloadList(false), DownloadList(true) }.Select(grid => grid.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault()).ToArray();
         Vector[] offsets = scrolls.Select(scroll => scroll?.Offset ?? default).ToArray();
         return () =>
         {
             if (_isClosing || !NavigateWorkspace(WorkspacePage.Downloads, activateArchive: false)) return;
-            this.FindControl<TabControl>("DownloadsTabs")!.SelectedIndex = tab;
+            DownloadsTabs.SelectedIndex = tab;
             DownloadList(false).SelectedItems.Clear(); DownloadList(true).SelectedItems.Clear();
             foreach (long id in threads) if (_threadFilterExclusions.GetValueOrDefault(id) <= filterRevision && _threadRows.TryGetValue(id, out ThreadRow? row) && VisibleThreads.Contains(row)) DownloadList(false).SelectedItems.Add(row);
             foreach (long id in boards) if (_boardFilterExclusions.GetValueOrDefault(id) <= filterRevision && _boardRows.TryGetValue(id, out BoardRow? row) && VisibleBoards.Contains(row)) DownloadList(true).SelectedItems.Add(row);
@@ -407,12 +548,4 @@ public partial class MainWindow
             }, DispatcherPriority.Loaded);
         };
     }
-
-    private async void OnExportDownloadSelection(object? sender, RoutedEventArgs e) => await ExportDownloadSelectionAsync(DownloadList(false));
-    private async void OnReadDownloadSelection(object? sender, RoutedEventArgs e)
-    { if (SelectedThreads().Length == 1 && LeadThread is ThreadRow row) await OpenDownloadReaderAsync(row.Snapshot.Id, DownloadList(false)); }
-    private async void OnGalleryDownloadSelection(object? sender, RoutedEventArgs e)
-    { if (LeadThread is ThreadRow row) await OpenGalleryAsync(row.Snapshot.Id, origin: DownloadList(false)); }
-    private async void OnBoardAdmissionSelection(object? sender, RoutedEventArgs e)
-    { if (LeadBoard is BoardRow row) await OpenBoardAdmissionAsync(row); }
 }

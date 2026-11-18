@@ -36,7 +36,17 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
     public override async Task checkThreadAsync(DownloadQueue queue, CancellationToken cancellationToken = default)
     {
         await _readGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { await CheckCoreAsync(queue, cancellationToken).ConfigureAwait(false); }
+        try
+        {
+            // Before the base check marks the thread "Checking": a switched-off source is an expected state, so the
+            // thread neither flips through Checking/Error nor reaches the worker. Terminal threads never read the source.
+            if (SourceState == ThreadSourceState.Active && !Source.Enabled) throw Unavailable(null);
+            try { await CheckCoreAsync(queue, cancellationToken).ConfigureAwait(false); }
+            // Disabled while this check was already running: its lifetime cancelled (or refused) the read.
+            catch (PluginWorkerException exception) when (exception.Code == "source_unavailable") { throw Unavailable(exception); }
+            catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested && !Source.Enabled)
+            { throw Unavailable(exception); }
+        }
         finally
         {
             // History is retired before this clear; the gate still excludes a successor.
@@ -44,6 +54,12 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
             _readGate.Release();
         }
     }
+
+    private static SourceUnavailableException Unavailable(Exception? inner) =>
+        new("The source plugin is disabled or unavailable.", inner);
+
+    protected override Task WaitForSourceAvailableAsync(CancellationToken cancellationToken) =>
+        Source.WaitUntilAvailableAsync(cancellationToken);
 
     private async Task CheckCoreAsync(DownloadQueue queue, CancellationToken token)
     {
@@ -148,23 +164,30 @@ internal sealed class PluginSourceThread(PluginSourceBoard board, string threadI
                     // Original source identities remain byte-for-byte compatible with 0.9.
                     string mediaId = attachment.MediaId;
                     string extension = attachment.Extension ?? Path.GetExtension(attachment.Url.AbsolutePath);
-                    destination = StorageLayout.GetPluginMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, mediaId, extension, attachment.Variant);
-                    string? legacy = attachment.Variant != "original" ? null : Source.Name switch
+                    try { destination = StorageLayout.GetPluginMediaPath(OutputDirectory, Source.Name, Board.BoardCode, ThreadId, mediaId, extension, attachment.Variant); }
+                    // Host validation of one attachment is deterministic: skip and mark that item, never fail the snapshot.
+                    // Corrected metadata on a later poll is cleared by content selection (ThreadContentRuntime).
+                    catch (ArgumentException rejected) { ReportRejectedMedia(mediaId, attachment.Variant, null, "Rejected attachment metadata: " + rejected.Message); }
+                    if (destination != null)
                     {
-                        "4chan" => LegacyPath(attachment.OriginalFileName),
-                        "8kun" => LegacyPath(mediaId + extension),
-                        _ => null
-                    };
-                    string acquisitionKey = MediaRevisionKeys.CreateAcquisitionKey(resource, provider!);
-                    if (!references.TryGetValue(acquisitionKey, out List<AttachmentRevisionReference>? acquisitionReferences))
-                        references[acquisitionKey] = acquisitionReferences = new();
-                    acquisitionReferences.Add(new(resource, post.PostId, attachment.Position, attachmentRevisionKey!));
-                    candidates[MediaKey(mediaId, attachment.Variant)] = (attachment, destination, legacy, acquisitionKey);
+                        string? legacy = attachment.Variant != "original" ? null : Source.Name switch
+                        {
+                            "4chan" => LegacyPath(attachment.OriginalFileName),
+                            "8kun" => LegacyPath(mediaId + extension),
+                            _ => null
+                        };
+                        string acquisitionKey = MediaRevisionKeys.CreateAcquisitionKey(resource, provider!);
+                        if (!references.TryGetValue(acquisitionKey, out List<AttachmentRevisionReference>? acquisitionReferences))
+                            references[acquisitionKey] = acquisitionReferences = new();
+                        acquisitionReferences.Add(new(resource, post.PostId, attachment.Position, attachmentRevisionKey!));
+                        candidates[MediaKey(mediaId, attachment.Variant)] = (attachment, destination, legacy, acquisitionKey);
+                    }
                 }
                 attachments.Add(new CapturedAttachment(attachment.Position, attachment.MediaId, attachment.Variant,
                     attachment.Url?.AbsoluteUri, attachment.OriginalFileName, destination, attachment.ExpectedSize,
                     attachment.ExpectedMd5, attachment.IsDeleted)
                 {
+                    Width = attachment.Width, Height = attachment.Height,
                     ExpectedSha256 = attachment.ExpectedSha256, ExpectedSha1 = attachment.ExpectedSha1, ProviderSizeHint = Hint(attachment.ProviderSizeHint),
                     AttachmentRevisionKey = attachmentRevisionKey
                 });

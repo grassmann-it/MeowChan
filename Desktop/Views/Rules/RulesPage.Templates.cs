@@ -33,10 +33,11 @@ public partial class RulesPage
     private bool _renderingTemplates;
     private ComboBox? _templateList;
     private TextBlock? _templateCatalogErrorView, _templateCatalogWarningView, _templateEmptyView, _templateUndoView;
-    private TextBlock? _templateTitleView, _templateHintView, _templatePreviewHeading;
+    private TextBlock? _templateHintView, _templatePreviewHeading;
     private Button? _templateReloadButton;
     private readonly Dictionary<string, Button> _templateActionButtons = new();
     private StackPanel? _templatePreviewHost, _templateEditorHost;
+    private WrapPanel? _templateSelectionActions;
     private string? _templateListPresentation;
     private TemplatePreview? _renderedTemplatePreview;
     private string? _renderedPreviewLanguage;
@@ -62,18 +63,19 @@ public partial class RulesPage
     internal void AttachTemplateServices(Func<Task<RuleTemplateLoadResult>> load, Func<IEnumerable<RuleTemplate>, string, Task<RuleTemplateSet>> save)
     { _loadTemplates = load; _saveTemplates = save; RefreshTemplatesPanel(); if (IsEditable) _ = LoadTemplatesAsync(); }
     internal bool IsTemplateDecisionOpen => _templateEditor != null || _templatePreview != null || _templateDeleteConfirmation?.IsOpen == true;
-    internal bool IsRuleConfirmationOpen => _discardConfirmation.IsOpen
+    internal bool IsRuleConfirmationOpen => _discardConfirmation.IsOpen || IsOverviewConfirmationOpen
         || _templateDeleteConfirmation?.IsOpen == true || _templateEditorConfirmation?.IsOpen == true;
     internal bool TryDismissRuleDecision()
     {
         if (_templateEditorConfirmation?.IsOpen == true) { _templateEditorConfirmation.Close(true); return true; }
         if (_templateDeleteConfirmation?.IsOpen == true) { _templateDeleteConfirmation.Close(true); return true; }
         if (_discardConfirmation.IsOpen) { _discardConfirmation.Close(true); return true; }
+        if (_overviewConfirmations.FirstOrDefault(confirmation => confirmation.IsOpen) is { } overview) { overview.Close(true); return true; }
         if (_templateEditor != null) { RequestCancelTemplateEditor(); return true; }
         if (_templatePreview != null) { CancelTemplatePreview(); return true; }
         return false;
     }
-    internal bool CanExecuteTemplateCommand(string id) => IsEditable && !_templateLoading && !_templateApplyBusy && !IsRuleConfirmationOpen && (id switch
+    internal bool CanExecuteTemplateCommand(string id) => IsEditable && _wizard.IsOpen && _wizard.HasScope && !_templateLoading && !_templateApplyBusy && !IsRuleConfirmationOpen && (id switch
     {
         "rules.template-create" => _templates != null && _templateEditor == null,
         "rules.template-edit" or "rules.template-delete" or "rules.template-preview" => _templates != null && _selectedTemplate != null && _templateEditor == null,
@@ -84,6 +86,8 @@ public partial class RulesPage
     internal async Task ExecuteTemplateCommandAsync(string id)
     {
         if (!CanExecuteTemplateCommand(id)) return;
+        // The templates helper lives in step 2; a shortcut from step 1 or 3 shows it first.
+        if (_wizard.Step != RuleWizardStep.Settings) ShowWizardStep(RuleWizardStep.Settings, focus: false);
         switch (id)
         {
             case "rules.template-create": OpenTemplateEditor(null); break;
@@ -115,6 +119,7 @@ public partial class RulesPage
     {
         _ruleDecisionGeneration++;
         _discardConfirmation.Close(); _templateDeleteConfirmation?.Close(); _templateEditorConfirmation?.Close();
+        foreach (DraftDiscardConfirmation confirmation in _overviewConfirmations) confirmation.Close();
         _templatePreview = null;
     }
     private RuleTemplate? SelectedTemplate() => _templates?.Templates.FirstOrDefault(t => t.Id == _selectedTemplate);
@@ -142,10 +147,11 @@ public partial class RulesPage
             // Replacing focused controls here used to strand keyboard focus on a detached element.
             if (_templateList == null)
             {
-                _templateTitleView = TemplateText(string.Empty, true); panel.Children.Add(_templateTitleView);
-                _templateHintView = TemplateText(string.Empty); panel.Children.Add(_templateHintView);
-                WrapPanel top = new() { ItemSpacing = 8, LineSpacing = 6 }; panel.Children.Add(top);
-                _templateReloadButton = AddTemplateButton(top, "templates.reload", async () => await LoadTemplatesAsync());
+                // The title is the header of the block's expander (RuleTemplatesHeader). Like the rows above the block, its hint is
+                // the label cell on the left and the list with its actions sits in the 280 dip control column (built below).
+                _templateHintView = TemplateText(string.Empty); _templateHintView.Classes.Add("workspace-help");
+                StackPanel column = new() { Spacing = 8 };
+                panel.Children.Add(RuleRow(column, _templateHintView));
                 _templateCatalogErrorView = TemplateText(string.Empty); _templateCatalogErrorView.Classes.Add("workspace-error"); _templateCatalogErrorView.Name = "RuleTemplateCatalogError";
                 _templateCatalogErrorView.Focusable = true; panel.Children.Add(_templateCatalogErrorView);
                 _templateCatalogWarningView = TemplateText(string.Empty); _templateCatalogWarningView.Classes.Add("workspace-warning"); panel.Children.Add(_templateCatalogWarningView);
@@ -157,20 +163,27 @@ public partial class RulesPage
                     _selectedTemplate = (_templateList.SelectedItem as TemplateChoice)?.Id;
                     _templatePreview = null; RefreshTemplatesPanel();
                 };
-                panel.Children.Add(_templateList);
-                WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
-                foreach (string id in new[] { "create", "edit", "delete", "preview", "undo-apply" })
+                // The list, then the actions that need no selection (create, reload), then those of the selected template (preview
+                // first, then edit and delete), which appear only with a selection; undo only while it is available.
+                column.Children.Add(_templateList);
+                WrapPanel listActions = new() { ItemSpacing = 8, LineSpacing = 8 }; column.Children.Add(listActions);
+                _templateActionButtons.Add("create", AddTemplateButton(listActions, "templates.create",
+                    async () => await ExecuteTemplateCommandAsync("rules.template-create")));
+                _templateReloadButton = AddTemplateButton(listActions, "templates.reload", async () => await LoadTemplatesAsync(), icon: "refresh-cw");
+                _templateSelectionActions = new WrapPanel { ItemSpacing = 8, LineSpacing = 8 }; column.Children.Add(_templateSelectionActions);
+                foreach (string id in new[] { "preview", "edit", "delete", "undo-apply" })
                 {
                     string command = "rules.template-" + id;
-                    Button button = AddTemplateButton(actions, "templates." + id, async () => await ExecuteTemplateCommandAsync(command));
+                    Button button = AddTemplateButton(_templateSelectionActions, "templates." + id, async () => await ExecuteTemplateCommandAsync(command));
                     _templateActionButtons.Add(id, button);
-                    if (id == "delete") { button.Classes.Add("danger"); _templateDeleteConfirmation = new(button); }
+                    // Only the footer's Save rule is primary; Delete shows its red danger state only while it asks for confirmation.
+                    if (id == "delete") _templateDeleteConfirmation = new(button);
                 }
                 _templateUndoView = TemplateText(string.Empty); panel.Children.Add(_templateUndoView);
                 _templatePreviewHost = new StackPanel { Spacing = 8 }; panel.Children.Add(_templatePreviewHost);
                 _templateEditorHost = new StackPanel { Spacing = 8 }; panel.Children.Add(_templateEditorHost);
             }
-            _templateTitleView!.Text = Texts.T("templates.title"); _templateHintView!.Text = Texts.T("templates.hint");
+            _templateHintView!.Text = Texts.T("templates.hint");
             _templateReloadButton!.Content = Texts.T("templates.reload");
             _templateReloadButton.IsEnabled = !_templateLoading && IsEditable && _loadTemplates != null;
             _templateCatalogErrorView!.Text = _templateError == null ? string.Empty
@@ -192,9 +205,16 @@ public partial class RulesPage
             AutomationProperties.SetName(_templateList, Texts.T("templates.title"));
             foreach ((string id, Button button) in _templateActionButtons)
             {
-                CommandBindings.Apply(button, "rules.template-" + id);
+                CommandBindings.Apply(button, "rules.template-" + id, iconWithLabel: true);
                 button.IsEnabled = CanExecuteTemplateCommand("rules.template-" + id);
+                button.IsVisible = id switch
+                {
+                    "create" => true,
+                    "undo-apply" => _draft.TemplateUndo != null && !_draft.Stale,
+                    _ => _templates != null && _selectedTemplate != null
+                };
             }
+            _templateSelectionActions!.IsVisible = _templateActionButtons.Where(item => item.Key != "create").Any(item => item.Value.IsVisible);
             _templateUndoView!.Text = Texts.T("templates.undoUnavailable"); _templateUndoView.IsVisible = _draft.TemplateUndoInvalidated;
             if (!ReferenceEquals(_renderedTemplatePreview, _templatePreview) || _renderedPreviewLanguage != Texts.Language)
             {
@@ -212,6 +232,10 @@ public partial class RulesPage
             UpdateTemplateEditorPresentation();
         }
         finally { _renderingTemplates = false; }
+        // The block opens by itself while an editor, a preview, a confirmation or a load error needs it (R6).
+        RefreshWorkViewPresentation();
+        // The overview offers "Start from template" once the catalog has templates.
+        RefreshOverview();
     }
     private sealed record TemplateChoice(Guid Id, string Label) { public override string ToString() => Label; }
     private static TextBlock TemplateText(string text, bool heading = false)
@@ -220,9 +244,10 @@ public partial class RulesPage
         if (heading) label.Classes.Add("section-title");
         return label;
     }
-    private static Button AddTemplateButton(Panel panel, string key, Func<Task> action, bool enabled = true)
+    private static Button AddTemplateButton(Panel panel, string key, Func<Task> action, bool enabled = true, string? icon = null)
     {
         Button button = new() { Name = key.Replace('.', '-'), Content = Texts.T(key), IsEnabled = enabled };
+        if (icon != null) CommandBindings.EnsureIconBeforeText(button, icon); // The label stays the string content; the template draws the icon.
         AutomationProperties.SetName(button, Texts.T(key)); button.Click += async (_, _) => await action(); panel.Children.Add(button); return button;
     }
     private string TemplateGroups(RuleTemplate template) => string.Join(", ", new[] { template.Types == null ? null : TypesLabel,
@@ -306,16 +331,16 @@ public partial class RulesPage
         panel.Children.Add(TemplateText(Texts.T("templates.effectAfter", EffectiveDescription(preview.After))));
         panel.Children.Add(TemplateText(Texts.T("templates.replaceWarning")));
         WrapPanel actions = new(); actions.Classes.Add("workspace-actions"); panel.Children.Add(actions);
-        AddTemplateButton(actions, "templates.cancel", () => { CancelTemplatePreview(); return Task.CompletedTask; });
+        AddTemplateButton(actions, "templates.cancel", () => { CancelTemplatePreview(); return Task.CompletedTask; }, icon: "x");
         Button apply = AddTemplateButton(actions, "templates.apply",
             async () => await ExecuteTemplateCommandAsync("rules.template-apply"), CanExecuteTemplateCommand("rules.template-apply"));
-        CommandBindings.Apply(apply, "rules.template-apply");
+        CommandBindings.Apply(apply, "rules.template-apply", iconWithLabel: true);
     }
     private string OwnGroup(RuleDraft draft, string group) => group switch
     {
         "types" => TypesModeChoices[(int)draft.TypesMode] + (draft.TypesMode == MediaTypeSelectionMode.Selected
             ? ": " + (draft.ExtensionInput.Tags.Count == 0 && draft.ExtensionInput.Rest.Length == 0 ? Texts.T("rules.noMedia") : string.Join(", ", draft.ExtensionInput.Tags) + " " + draft.ExtensionInput.Rest) : ""),
-        "size" => SizeModeChoices[(int)draft.SizeMode] + (draft.SizeMode == MediaSizeLimitMode.Limited ? ": " + draft.Megabytes + " MB" : ""),
+        "size" => SizeModeChoices[(int)draft.SizeMode] + (draft.SizeMode == MediaSizeLimitMode.Limited ? ": " + Texts.T("rules.sizeValue", draft.Megabytes) : ""),
         _ => FilterOwnDescription(draft)
     };
     private static string FilterOwnDescription(RuleDraft draft)
@@ -333,7 +358,7 @@ public partial class RulesPage
             MediaRule rule = BuildDraft(draft);
             EffectiveMediaRule effect = new MediaRuleResolver(new(draft.Baseline.Revision, draft.Baseline.Rules.Where(r => r.Scope != draft.Scope).Append(rule))).Resolve(draft.Scope);
             return (effect.Types.Mode == MediaTypeSelectionMode.All ? Texts.T("rules.allTypes") : effect.Types.Extensions.Count == 0 ? Texts.T("rules.noMedia") : string.Join(", ", effect.Types.Extensions))
-                + " · " + (effect.SizeLimit.Mode == MediaSizeLimitMode.Unlimited ? Texts.T("rules.unlimited") : FormatMegabytes(effect.SizeLimit.Bytes!.Value, Texts.Culture) + " MB")
+                + " · " + (effect.SizeLimit.Mode == MediaSizeLimitMode.Unlimited ? Texts.T("rules.unlimited") : Texts.T("rules.sizeValue", FormatMegabytes(effect.SizeLimit.Bytes!.Value, Texts.Culture)))
                 + " · " + Texts.T("rules.origin", FormatOrigin(effect.TypesOrigin)) + " / " + FormatOrigin(effect.SizeLimitOrigin);
         }
         catch (RuleInputException) { return Texts.T("templates.unknownEffect"); }
@@ -341,7 +366,7 @@ public partial class RulesPage
     internal static void ReplaceTemplateGroups(RuleDraft target, RuleTemplate template)
     {
         if (template.Types is { } types) { target.TypesMode = types.Mode; target.ExtensionInput = new(); target.ExtensionInput.Tags.AddRange(types.Extensions); }
-        if (template.SizeLimit is { } size) { target.SizeMode = size.Mode; target.Megabytes = size.Bytes.HasValue ? FormatMegabytes(size.Bytes.Value, Texts.Culture) : "10"; target.NumberCulture = Texts.Culture; }
+        if (template.SizeLimit is { } size) { target.SizeMode = size.Mode; target.NumberCulture = Texts.Culture; target.Exact = null; target.Megabytes = "10"; if (size.Bytes is long limit) target.SetLimit(limit, Texts.Culture); }
         if (template.ImageFilter is { } filter)
         {
             target.ImageFilter = filter; target.LastPluginFilter = null; target.FilterParameters = null; target.BoundFilterParameters = null;

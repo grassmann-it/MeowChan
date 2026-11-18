@@ -7,6 +7,7 @@ using Avalonia.Automation;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan;
 
@@ -22,8 +23,7 @@ public partial class RulesPage
         source.Candidates = (text, _) => Task.FromResult(RuleSuggestions(false, text));
         board.Candidates = (text, _) => Task.FromResult(RuleSuggestions(true, text));
         source.TextChanged += (_, _) => { board.Dismiss(); board.RefreshSuggestions(); };
-        this.FindControl<Expander>("NewRuleScopeExpander")!.PropertyChanged += (_, e) =>
-        { if (e.Property == Expander.IsExpandedProperty && e.NewValue is true) RebuildRuleSuggestions(); };
+        // Step 1 of the wizard rebuilds the suggestions whenever it is shown (OpenNewRuleWizard, ShowWizardStep).
         this.FindControl<Button>("RuleRetrySuggestions")!.Click += (_, _) => { RebuildRuleSuggestions(); source.Focus(); source.RestartSuggestions(); };
     }
     private IdentitySuggestion[] RuleSuggestions(bool boards, string text)
@@ -48,6 +48,7 @@ public partial class RulesPage
         catch { _ruleSuggestions = null; _ruleSuggestionError = true; }
         this.FindControl<TextBlock>("RuleSuggestionsHint")!.Text = Texts.T(_ruleSuggestionError ? "suggestions.unavailable" : "suggestions.limited");
         this.FindControl<Button>("RuleRetrySuggestions")!.Content = Texts.T("suggestions.retry");
+        CommandBindings.EnsureIconBeforeText(this.FindControl<Button>("RuleRetrySuggestions")!, "refresh-cw");
         this.FindControl<Button>("RuleRetrySuggestions")!.IsVisible = _ruleSuggestionError;
         this.FindControl<IdentitySuggestionBox>("NewRuleSourceInput")!.Dismiss();
         this.FindControl<IdentitySuggestionBox>("NewRuleBoardInput")!.Dismiss();

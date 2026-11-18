@@ -86,21 +86,21 @@ public sealed class DownloadSafetyLimitInteractionRegressionTests : IDisposable
                     reloaded.MaxParallelDownloads - Math.Min(reloaded.MaxParallelDownloads, reloaded.ParallelDownloadsSafetyLimit)));
 
             // Exercise BOTH inclusive endpoints through the real settings commit. A
-            // request above 256 detects an upper cap accidentally left at default 32.
-            settingsSnapshot.MaxParallelDownloads = 300;
+            // request of 256 (the largest allowed) detects an upper cap accidentally left at default 32.
+            settingsSnapshot.MaxParallelDownloads = 256;
             settingsSnapshot.ParallelDownloadsSafetyLimit = cap;
             Assert.Equal(48, host.Config.MaxParallelDownloads);
             Assert.Equal(32, host.Config.ParallelDownloadsSafetyLimit);
             await host.ApplySettingsAsync(settingsSnapshot).WaitAsync(Timeout);
             DesktopSessionProjection applied = await host.CaptureProjectionAsync().WaitAsync(Timeout);
             Assert.False(applied.IsStale);
-            Assert.Equal((300, cap, 0, 300 - cap), applied.MediaConcurrency);
-            Assert.Equal(300, host.Config.MaxParallelDownloads);
+            Assert.Equal((256, cap, 0, 256 - cap), applied.MediaConcurrency);
+            Assert.Equal(256, host.Config.MaxParallelDownloads);
             Assert.Equal(cap, host.Config.ParallelDownloadsSafetyLimit);
 
             Config persistedBoundary = Config.LoadConfig(directory.Path);
             Assert.Null(persistedBoundary.LoadWarning);
-            Assert.Equal(300, persistedBoundary.MaxParallelDownloads);
+            Assert.Equal(256, persistedBoundary.MaxParallelDownloads);
             Assert.Equal(cap, persistedBoundary.ParallelDownloadsSafetyLimit);
 
             string settingsPath = Path.Combine(directory.Path, "settings.json");
@@ -109,7 +109,7 @@ public sealed class DownloadSafetyLimitInteractionRegressionTests : IDisposable
             {
                 Config rejected = host.Config.Clone();
                 rejected.ParallelDownloadsSafetyLimit = invalidCap;
-                rejected.MaxParallelDownloads = 600;
+                rejected.MaxParallelDownloads = 200;
                 rejected.DownloadPath = Path.Combine(directory.Path, "rejected");
                 rejected.BandwidthLimiter = 2_097_152;
                 ArgumentOutOfRangeException error = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(
@@ -119,8 +119,8 @@ public sealed class DownloadSafetyLimitInteractionRegressionTests : IDisposable
                 Assert.Equal(invalidCap, rejected.ParallelDownloadsSafetyLimit);
                 DesktopSessionProjection afterRejection = await host.CaptureProjectionAsync().WaitAsync(Timeout);
                 Assert.False(afterRejection.IsStale);
-                Assert.Equal((300, cap, 0, 300 - cap), afterRejection.MediaConcurrency);
-                Assert.Equal(300, host.Config.MaxParallelDownloads);
+                Assert.Equal((256, cap, 0, 256 - cap), afterRejection.MediaConcurrency);
+                Assert.Equal(256, host.Config.MaxParallelDownloads);
                 Assert.Equal(cap, host.Config.ParallelDownloadsSafetyLimit);
                 Assert.Equal(chosen, host.Config.DownloadPath);
                 Assert.Equal(1_048_576L, host.Config.BandwidthLimiter);
@@ -138,7 +138,7 @@ public sealed class DownloadSafetyLimitInteractionRegressionTests : IDisposable
             Config saved = Config.LoadConfig(directory.Path);
             Assert.Null(saved.LoadWarning);
             Assert.Equal(followUp.ShowBoardAdmissionWizard, saved.ShowBoardAdmissionWizard);
-            Assert.Equal(300, saved.MaxParallelDownloads);
+            Assert.Equal(256, saved.MaxParallelDownloads);
             Assert.Equal(cap, saved.ParallelDownloadsSafetyLimit);
             Assert.Equal(chosen, saved.DownloadPath);
             Assert.Equal(1_048_576L, saved.BandwidthLimiter);
@@ -154,8 +154,8 @@ public sealed class DownloadSafetyLimitInteractionRegressionTests : IDisposable
         DesktopSessionProjection restored = await restarted.CaptureProjectionAsync().WaitAsync(Timeout);
         Assert.Equal(DesktopSessionState.Ready, restarted.State);
         Assert.False(restored.IsStale);
-        Assert.Equal((300, cap, 0, 300 - cap), restored.MediaConcurrency);
-        Assert.Equal(300, restarted.Config.MaxParallelDownloads);
+        Assert.Equal((256, cap, 0, 256 - cap), restored.MediaConcurrency);
+        Assert.Equal(256, restarted.Config.MaxParallelDownloads);
         Assert.Equal(cap, restarted.Config.ParallelDownloadsSafetyLimit);
         Assert.Equal(chosen, restarted.Config.DownloadPath);
         Assert.Equal(1_048_576L, restarted.Config.BandwidthLimiter);

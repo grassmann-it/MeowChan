@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using MeowChan.Archive;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -23,10 +24,8 @@ namespace MeowChan.Desktop;
 internal sealed class InterruptedTransfersDialog : Window
 {
     private readonly IReadOnlyList<InterruptedNativeMediaOperation> _operations;
-    private readonly WindowChromeBar _chrome = new();
-    private readonly TextBlock _heading = new() { Name = "InterruptedTransfersHeading", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly TextBlock _explanation = new() { Name = "InterruptedTransfersExplanation", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
-    private readonly StackPanel _rows = new() { Name = "InterruptedTransfersRows", Spacing = 6 };
+    private readonly StackPanel _rows = new() { Name = "InterruptedTransfersRows", Spacing = 8 };
     private readonly Button _discard = new() { Name = "InterruptedTransfersDiscard" };
     private readonly Button _keep = new() { Name = "InterruptedTransfersKeep" };
     private readonly TaskCompletionSource<bool> _decision = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -36,40 +35,28 @@ internal sealed class InterruptedTransfersDialog : Window
     {
         _operations = operations ?? throw new ArgumentNullException(nameof(operations));
         Name = "InterruptedTransfersDialog";
-        Width = 640; Height = 440; MinWidth = 420; MinHeight = 300;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        // Modals plan MD2: a modal form-step dialog; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.M, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        _heading.Classes.Add("section-title");
         _explanation.Classes.Add("workspace-meta");
         AutomationProperties.SetLiveSetting(_discard, AutomationLiveSetting.Polite);
         _discard.Click += (_, _) => OnDiscard();
         _keep.Click += (_, _) => Close();
-        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading); body.Children.Add(_explanation); body.Children.Add(_rows);
-        WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Children.Add(_discard); actions.Children.Add(_keep);
-        Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
-        layout.Children.Add(_chrome);
-        ScrollViewer scroll = new() { Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
-        Content = layout;
-        Opened += (_, _) => { _chrome.Attach(this); _keep.Focus(); };
+        // Header: what is at stake; body: the interrupted operations; footer: Discard, then Keep (the safe way out) right-most.
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(_explanation);
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
+        body.Children.Add(_rows);
+        DialogWindow.Frame(this, DialogFrame.Build(header, body, DialogFooter.Build(_keep, new Control[] { _discard })), modal: true);
+        Opened += (_, _) => _keep.Focus();
         Closed += (_, _) => { Texts.Changed -= OnLanguageChanged; _decision.TrySetResult(false); };
-        AddHandler(KeyDownEvent, (_, e) =>
+        // Escape first withdraws the second press, then closes like Keep.
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_confirming) { _confirming = false; Render(); } else Close();
-        }, RoutingStrategies.Tunnel);
+            if (!_confirming) return false;
+            _confirming = false; Render(); return true;
+        });
         Texts.Changed += OnLanguageChanged;
         Render();
     }
@@ -88,24 +75,30 @@ internal sealed class InterruptedTransfersDialog : Window
 
     private void Render()
     {
-        _heading.Text = Texts.T("transfer.interrupted.title");
-        Title = _heading.Text;
+        Title = Texts.T("transfer.interrupted.title");
         _explanation.Text = Texts.T("transfer.interrupted.explanation");
         long bytes = _operations.Sum(operation => operation.CandidateBytes);
         _discard.Content = _confirming
             ? Texts.T("transfer.interrupted.confirm", _operations.Count, bytes) : Texts.T("transfer.interrupted.discard");
         _keep.Content = Texts.T("transfer.interrupted.keep");
+        // The second press renames Discard to what it will delete; the accessible names follow the visible words.
+        AutomationProperties.SetName(_discard, (string)_discard.Content);
+        AutomationProperties.SetName(_keep, (string)_keep.Content);
+        AutomationProperties.SetName(_rows, Texts.T("transfer.interrupted.list"));
         _rows.Children.Clear();
         foreach (InterruptedNativeMediaOperation operation in _operations)
         {
             string resource = operation.Resource.Source + "/" + operation.Resource.Board + "/" + operation.Resource.Thread;
             string at = operation.ImportedAtUtc.ToLocalTime().ToString("g", CultureInfo.CurrentCulture);
-            _rows.Children.Add(new TextBlock
+            TextBlock row = new()
             {
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,
                 Text = Texts.T(operation.Merge ? "transfer.interrupted.row.merge" : "transfer.interrupted.row.import",
                     resource, at, operation.CandidateBytes)
-            });
+            };
+            // Each entry is named by its own line (what, where, when, how much), never by the list.
+            AutomationProperties.SetName(row, row.Text);
+            _rows.Children.Add(row);
         }
     }
 }

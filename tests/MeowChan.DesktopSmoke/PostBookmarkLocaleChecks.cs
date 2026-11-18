@@ -31,6 +31,7 @@ internal static class PostBookmarkLocaleChecks
         const string raw = "Reason A: investigate wording.\n\nReason B: keep for another project. 🙂";
         const string sourceTitle = "Original title bleibt unverändert 🙂";
         Directory.CreateDirectory(profile);
+        Exception? failureBeforeCleanup = null;
         try
         {
             new Config { DownloadsPaused = true, SaveUrlsOnExit = false }.SaveConfig(profile);
@@ -102,17 +103,21 @@ internal static class PostBookmarkLocaleChecks
             Require(stored.SequenceEqual(after), "Status language changes modified stored bookmark bytes.");
             Console.WriteLine("SMOKE bookmark locale: available title args, 8001 raw draft/disabled Save, delayed Open failure and exact missing target relocalized EN↔DE; bookmark bytes and command guards preserved.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            releaseOpen.TrySetResult(false); dialog?.CloseForProfileEnd();
-            if (host != null) await host.DisposeAsync();
-            await owner.SessionHost.SaveViewPreferencesAsync(config => { config.Language = configLanguage; config.Theme = configTheme; });
-            ComboBox modes = owner.FindControl<ComboBox>("WorkspaceModeComboBox")!;
-            modes.SelectedItem = modes.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == mode);
-            await Program.WaitUntilAsync(() => owner.SessionHost.Config.WorkspaceMode == mode);
-            Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
-            owner.Width = width; owner.Height = height;
-            try { Directory.Delete(profile, true); } catch (IOException) { }
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                releaseOpen.TrySetResult(false); dialog?.CloseForProfileEnd();
+                if (host != null) await host.DisposeAsync();
+                await owner.SessionHost.SaveViewPreferencesAsync(config => { config.Language = configLanguage; config.Theme = configTheme; });
+                ComboBox modes = owner.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+                modes.SelectedItem = modes.Items.OfType<ComboBoxItem>().Single(item => item.Tag as string == mode);
+                await Program.WaitUntilAsync(() => owner.SessionHost.Config.WorkspaceMode == mode);
+                Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
+                owner.Width = width; owner.Height = height;
+                try { Directory.Delete(profile, true); } catch (IOException) { }
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in PostBookmarkLocaleChecks: " + exception));
         }
     }
 

@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -20,8 +19,18 @@ internal static class WindowChromeChecks
 {
     internal static async Task RunAsync(MainWindow window)
     {
-        Require(window.WindowDecorations == WindowDecorations.BorderOnly,
-            "The shell still requests an OS title bar.");
+        if (WindowChrome.Mode == WindowChromeMode.NativeCaptionButtons)
+        {
+            Require(window.WindowDecorations == WindowDecorations.Full
+                && window.ExtendClientAreaToDecorationsHint
+                && Math.Abs(window.ExtendClientAreaTitleBarHeightHint - WindowChrome.TitleBarHeight) < 0.01,
+                "The shell did not keep the native macOS title bar.");
+        }
+        else
+        {
+            Require(window.WindowDecorations == WindowDecorations.BorderOnly,
+                "The shell still requests an OS title bar.");
+        }
         PrepareIsolatedBackdrop();
         Size entryBounds = window.Bounds.Size;
         // Reader fixtures can request a canvas larger than a hosted native
@@ -53,6 +62,8 @@ internal static class WindowChromeChecks
         WindowState original = window.WindowState;
         Size originalBounds = window.Bounds.Size;
         Button maximize = window.FindControl<Button>("WindowMaximizeButton")!;
+        Exception? sequenceFailure = null;
+        string stage = "maximize caption";
         try
         {
             window.WindowState = WindowState.Normal;
@@ -61,24 +72,30 @@ internal static class WindowChromeChecks
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized
                 && AutomationProperties.GetName(maximize) == Texts.T("window.restore"));
             await WaitForMaximizedBoundsAsync(window);
+            stage = "maximized native/client/desktop edges";
             await CheckMaximizedClientEdgesAsync(window, window.FindControl<Grid>("WorkspaceRoot")!, "main");
             await CheckReachableAsync(window);
+            stage = "restore caption";
             Click(maximize);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal
                 && AutomationProperties.GetName(maximize) == Texts.T("window.maximize"));
             await WaitForNormalBoundsAsync(window, originalBounds);
             await CheckReachableAsync(window);
+            stage = "maximize header double press";
             DoublePressHeader(window);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Maximized);
             await WaitForMaximizedBoundsAsync(window);
+            stage = "header-maximized native/client/desktop edges";
             await CheckMaximizedClientEdgesAsync(window, window.FindControl<Grid>("WorkspaceRoot")!, "main");
             await CheckReachableAsync(window);
+            stage = "restore header double press";
             DoublePressHeader(window);
             await Program.WaitUntilAsync(() => window.WindowState == WindowState.Normal);
             await WaitForNormalBoundsAsync(window, originalBounds);
             await CheckReachableAsync(window);
             // A completed custom-caption restore must not constrain later normal
             // resizes. Exercise actual native geometry before minimizing.
+            stage = "normal resize after caption restore";
             Size resizedBounds = new(originalBounds.Width + 17, originalBounds.Height + 13);
             window.Width = resizedBounds.Width;
             window.Height = resizedBounds.Height;
@@ -87,47 +104,62 @@ internal static class WindowChromeChecks
             window.Height = originalBounds.Height;
             await WaitForNormalBoundsAsync(window, originalBounds);
             await CheckReachableAsync(window);
+            stage = "minimize caption";
             Click(window.FindControl<Button>("WindowMinimizeButton")!);
-            await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized);
+            // A loaded private window manager answers the iconify request late, so the wait reports what it saw.
+            await Program.WaitUntilAsync(() => window.WindowState == WindowState.Minimized,
+                () => $"state={window.WindowState}, visible={window.IsVisible}, taskbar={window.ShowInTaskbar}, bounds={window.Bounds}, load={SmokeLoad.Describe()}");
             Require(window.IsVisible && window.ShowInTaskbar, "The minimize caption stranded the window.");
         }
-        catch
+        catch (Exception exception)
         {
-            Console.WriteLine($"SMOKE caption sequence failure: original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}; frame={window.FrameSize}; area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
-            Program.CaptureWindow(window, "smoke-caption-sequence-failure.png");
+            sequenceFailure = exception;
+            Console.WriteLine($"SMOKE caption sequence failure at {stage}: {exception}; original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}; frame={window.FrameSize}; area={window.Screens.ScreenFromWindow(window)?.WorkingArea}.");
+            SmokeCleanup.Diagnose(() => Program.CaptureWindow(window, "smoke-caption-sequence-failure.png"));
             throw;
         }
         finally
         {
-            window.WindowState = original;
-            // Preserve this fixture's input geometry even when a check fails.
-            if (original == WindowState.Normal)
+            await SmokeCleanup.RunAsync(sequenceFailure, async () =>
             {
-                window.Width = originalBounds.Width;
-                window.Height = originalBounds.Height;
-            }
-            window.Activate();
-            try
-            {
+                // Use the caption restore path when leaving a maximum. Assigning
+                // Normal directly bypasses its saved client-bounds restoration;
+                // X11 can then restore frame dimensions as client dimensions.
+                if (original == WindowState.Normal && window.WindowState == WindowState.Maximized)
+                    Click(maximize);
+                else window.WindowState = original;
+                // Preserve this fixture's input geometry even when a check fails.
+                if (original == WindowState.Normal)
+                {
+                    window.Width = originalBounds.Width;
+                    window.Height = originalBounds.Height;
+                }
+                window.Activate();
                 await Program.WaitUntilAsync(() => window.WindowState == original
                     && (original != WindowState.Normal || (Math.Abs(window.Bounds.Width - originalBounds.Width) <= 1
-                        && Math.Abs(window.Bounds.Height - originalBounds.Height) <= 1)));
-            }
-            catch
+                        && Math.Abs(window.Bounds.Height - originalBounds.Height) <= 1)),
+                    () => "restore to " + original + "/" + originalBounds + "; " + Geometry(window));
+            }, cleanupFailure =>
             {
-                Console.WriteLine($"SMOKE caption restore failure: original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}.");
-                Program.CaptureWindow(window, "smoke-caption-restore-failure.png");
-                throw;
-            }
+                Console.WriteLine($"SMOKE caption restore failure (primary preserved={sequenceFailure != null}): original={original}/{originalBounds}; actual={window.WindowState}/{window.Bounds.Size}; requested={window.Width}x{window.Height}. {cleanupFailure}");
+                SmokeCleanup.Diagnose(() => Program.CaptureWindow(window, "smoke-caption-restore-failure.png"));
+            });
         }
         window.Width = entryBounds.Width;
         window.Height = entryBounds.Height;
         await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, entryBounds.Width, entryBounds.Height));
-        Console.WriteLine("SMOKE custom caption: no OS title bar; maximize/restore labels, header double-click and minimize/taskbar roundtrip passed.");
+        Console.WriteLine(WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode)
+            ? "SMOKE custom caption: no OS title bar; maximize/restore labels, header double-click and minimize/taskbar roundtrip passed."
+            : "SMOKE native macOS caption buttons: native title bar; maximize/restore, header double-click and minimize/taskbar roundtrip passed.");
     }
 
     private static Task WaitForNormalBoundsAsync(MainWindow window, Size expected) => Program.WaitUntilAsync(() =>
-        Math.Abs(window.Bounds.Width - expected.Width) <= 1 && Math.Abs(window.Bounds.Height - expected.Height) <= 1);
+        Math.Abs(window.Bounds.Width - expected.Width) <= 1 && Math.Abs(window.Bounds.Height - expected.Height) <= 1,
+        () => "normal bounds " + expected + "; " + Geometry(window));
+
+    private static string Geometry(MainWindow window) => "actual=" + window.WindowState + "/" + window.Bounds.Size
+        + "; requested=" + window.Width + "x" + window.Height + "; frame=" + window.FrameSize + "; position=" + window.Position
+        + "; scale=" + window.RenderScaling + "; area=" + window.Screens.ScreenFromWindow(window)?.WorkingArea;
 
     private static Task WaitForMaximizedBoundsAsync(MainWindow window) => Program.WaitUntilAsync(() =>
     {
@@ -135,7 +167,7 @@ internal static class WindowChromeChecks
         Avalonia.Platform.Screen? screen = window.Screens.ScreenFromWindow(window);
         return screen != null && Math.Abs(window.Bounds.Width * window.RenderScaling - screen.WorkingArea.Width) <= 2
             && Math.Abs(window.Bounds.Height * window.RenderScaling - screen.WorkingArea.Height) <= 2;
-    });
+    }, () => "maximized bounds; " + Geometry(window));
 
     // Native rectangle reads + a separately labelled renderer observation. No resizing
     // is performed here; a stable 1px uncovered right edge is a failure, not tolerance.
@@ -150,6 +182,7 @@ internal static class WindowChromeChecks
         ChromeSnapshot? previous = null;
         ChromeSnapshot? stable = null;
         int equalSamples = 0;
+        Exception? edgeFailure = null;
         try
         {
             await Program.WaitUntilAsync(() =>
@@ -178,14 +211,25 @@ internal static class WindowChromeChecks
             CheckRendererRightEdge(window, evidenceName);
             await CheckIsolatedDesktopRightEdgeAsync(sample.WorkingArea, evidenceName);
         }
+        catch (Exception exception)
+        {
+            edgeFailure = exception;
+            Console.Error.WriteLine($"SMOKE maximized edge failure ({evidenceName}): {exception}");
+            throw;
+        }
         finally
         {
-            // Diagnostic metadata is retained even when geometry/pixel assertions fail.
-            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, $"smoke-chrome-{evidenceName}-maximized.json"),
-                JsonSerializer.Serialize(new { observer = "owned native client rectangle + live Avalonia root geometry",
-                    last = previous, stable, rendererCapture = "RenderTargetBitmap, NOT compositor/OS screenshot",
-                    compositorRightEdge = "not observed by this probe" }, new JsonSerializerOptions { WriteIndented = true }));
-            Program.CaptureWindow(window, $"smoke-chrome-{evidenceName}-maximized.png");
+            // Evidence is mandatory after a passing probe, but must not replace
+            // an earlier native geometry, pixel or capture failure.
+            await SmokeCleanup.RunAsync(edgeFailure, () =>
+            {
+                File.WriteAllText(Path.Combine(AppContext.BaseDirectory, $"smoke-chrome-{evidenceName}-maximized.json"),
+                    JsonSerializer.Serialize(new { observer = "owned native client rectangle + live Avalonia root geometry",
+                        last = previous, stable, rendererCapture = "RenderTargetBitmap, NOT compositor/OS screenshot",
+                        compositorRightEdge = "not observed by this probe" }, new JsonSerializerOptions { WriteIndented = true }));
+                Program.CaptureWindow(window, $"smoke-chrome-{evidenceName}-maximized.png");
+                return Task.CompletedTask;
+            }, exception => Console.Error.WriteLine("SMOKE maximized edge evidence failure: " + exception));
         }
     }
 
@@ -266,26 +310,81 @@ internal static class WindowChromeChecks
     private static async Task CheckIsolatedDesktopRightEdgeAsync(PixelRect area, string name)
     {
         if (!OperatingSystem.IsLinux() || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1") return;
-        // import reads X11 root pixels (not RenderTargetBitmap). Let the real
-        // software renderer publish before capturing this isolated desktop.
+        // Read the asserted column directly from this private X11 root. Spawning
+        // ImageMagick for a full desktop PNG introduced an unrelated five-second
+        // process deadline (and left a timed-out child alive). That can fail even
+        // when the resulting image has no gap; the historical primary exception
+        // was lost in cleanup. Read native pixels, never a renderer or a resize.
         await Task.Delay(250);
-        string path = Path.Combine(AppContext.BaseDirectory, "smoke-chrome-" + name + "-desktop.png");
-        var start = new ProcessStartInfo("/usr/bin/import") { UseShellExecute = false };
-        foreach (string arg in new[] { "-window", "root", path }) start.ArgumentList.Add(arg);
-        using Process capture = Process.Start(start) ?? throw new InvalidOperationException("Private desktop capture unavailable.");
-        await capture.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
-        Require(capture.ExitCode == 0, "Private desktop capture failed.");
-        using SKBitmap pixels = SKBitmap.Decode(path) ?? throw new InvalidDataException("Private X11 desktop image invalid.");
-        Require(area.X >= 0 && area.Y >= 0 && area.Right <= pixels.Width && area.Bottom <= pixels.Height,
-            "Measured WorkingArea is outside captured private desktop.");
-        for (int y = area.Y; y < area.Bottom; y++)
+        nint display = XOpenDisplay(null);
+        Require(display != 0, "Private desktop capture display unavailable.");
+        nint image = 0;
+        try
         {
-            SKColor pixel = pixels.GetPixel(area.Right - 1, y);
-            Require(pixel.Red != 255 || pixel.Green != 0 || pixel.Blue != 255,
-                $"{name}: private desktop backdrop visible at maximized right edge {area.Right - 1},{y}.");
+            nint root = XDefaultRootWindow(display);
+            Require(XGetGeometry(display, root, out _, out _, out _, out uint width, out uint height, out _, out _) != 0,
+                "Private desktop geometry unavailable.");
+            Require(area.Width > 0 && area.Height > 0 && area.X >= 0 && area.Y >= 0
+                && area.Right <= width && area.Bottom <= height,
+                "Measured WorkingArea is outside captured private desktop.");
+            image = XGetImage(display, root, area.Right - 1, area.Y, 1, (uint)area.Height, nuint.MaxValue, 2); // ZPixmap
+            Require(image != 0, "Private desktop right-edge capture unavailable.");
+            XImageHeader header = Marshal.PtrToStructure<XImageHeader>(image);
+            Require(header.RedMask == 0xff0000 && header.GreenMask == 0x00ff00 && header.BlueMask == 0x0000ff,
+                "Private Xvfb capture requires the recorded TrueColor RGB masks.");
+            using var pixels = new SKBitmap(1, area.Height);
+            int? firstGap = null;
+            for (int y = 0; y < area.Height; y++)
+            {
+                nuint pixel = XGetPixel(image, 0, y);
+                var color = new SKColor((byte)(pixel >> 16), (byte)(pixel >> 8), (byte)pixel);
+                pixels.SetPixel(0, y, color);
+                if (color.Red == 255 && color.Green == 0 && color.Blue == 255) firstGap ??= area.Y + y;
+            }
+            // A one-physical-pixel-wide artifact contains the entire measured
+            // WorkingArea right edge. The separate renderer PNG remains full-size.
+            string path = Path.Combine(AppContext.BaseDirectory, "smoke-chrome-" + name + "-desktop-right-edge.png");
+            Exception? pixelFailure = null;
+            try
+            {
+                Require(firstGap == null,
+                    $"{name}: private desktop backdrop visible at maximized right edge {area.Right - 1},{firstGap}.");
+            }
+            catch (Exception exception) { pixelFailure = exception; throw; }
+            finally
+            {
+                await SmokeCleanup.RunAsync(pixelFailure, () =>
+                {
+                    using SKImage bitmap = SKImage.FromBitmap(pixels);
+                    using SKData png = bitmap.Encode(SKEncodedImageFormat.Png, 100);
+                    using FileStream output = File.Create(path);
+                    png.SaveTo(output);
+                    return Task.CompletedTask;
+                }, exception => Console.Error.WriteLine("SMOKE native right-edge evidence failure: " + exception));
+            }
+            Console.WriteLine($"SMOKE isolated X11 desktop capture: {name}, WorkingArea right column contains no magenta backdrop; actual Xvfb pixels, not native Windows/Wayland evidence; artifact={path} (1x{area.Height}).");
         }
-        Console.WriteLine($"SMOKE isolated X11 desktop capture: {name}, WorkingArea right column contains no magenta backdrop; actual Xvfb pixels, not native Windows/Wayland evidence.");
+        finally
+        {
+            if (image != 0) XDestroyImage(image);
+            XCloseDisplay(display);
+        }
     }
+
+    // Xlib XImage prefix, through its visual masks. Native unsigned long is
+    // pointer-sized on the Linux ABIs used by the private Xvfb runner.
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XImageHeader
+    {
+        public int Width, Height, XOffset, Format;
+        public nint Data;
+        public int ByteOrder, BitmapUnit, BitmapBitOrder, BitmapPad, Depth, BytesPerLine, BitsPerPixel;
+        public nuint RedMask, GreenMask, BlueMask;
+    }
+    [DllImport("libX11.so.6")] private static extern nint XGetImage(nint display, nint drawable,
+        int x, int y, uint width, uint height, nuint planeMask, int format);
+    [DllImport("libX11.so.6")] private static extern nuint XGetPixel(nint image, int x, int y);
+    [DllImport("libX11.so.6")] private static extern int XDestroyImage(nint image);
     [DllImport("libX11.so.6")] private static extern nint XDefaultRootWindow(nint display);
     [DllImport("libX11.so.6")] private static extern int XSetWindowBackground(nint display, nint window, nuint color);
     [DllImport("libX11.so.6")] private static extern int XClearWindow(nint display, nint window);
@@ -377,7 +476,10 @@ internal static class WindowChromeChecks
     internal static async Task CheckReachableAsync(MainWindow window)
     {
         window.UpdateLayout();
-        foreach (string name in new[] { "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton", "PauseButton", "ThemeToggleButton" })
+        string[] names = WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode)
+            ? new[] { "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton", "PauseButton", "ThemeToggleButton" }
+            : new[] { "PauseButton", "ThemeToggleButton" };
+        foreach (string name in names)
         {
             Button button = window.FindControl<Button>(name)!;
             Point? origin = button.TranslatePoint(default, window);

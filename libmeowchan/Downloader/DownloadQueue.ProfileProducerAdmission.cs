@@ -113,7 +113,8 @@ public partial class DownloadQueue
             _producerResumed.TrySetResult();
             PulseCapacityLocked();
             SignalScheduleLocked();
-            if (_targetPolling == null && _targets.NextCheckAt != null) _targetPolling = Task.Run(PollTargetsAsync);
+            if (_targetPolling == null && _targetPollingFailures < MaxLoopFailures && _targets.NextCheckAt != null)
+                _targetPolling = Task.Run(() => SuperviseLoopAsync(PollTargetsAsync, schedule: false));
             ready = ReserveWorkersLocked();
         }
         StartWorkers(ready);

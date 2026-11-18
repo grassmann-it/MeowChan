@@ -217,6 +217,20 @@ completed, repair and intervention states. Explicit re-add starts a new generati
 a board catalog does not silently revive a completed watch. Persistence errors must
 be surfaced by the host; never treat a failed journal commit as successful completion.
 
+**Aufbewahrung im Arbeitsjournal (Nutzerentscheidung 11.11.2026).** Einmal pro Sitzungsstart,
+vor jeder Wiederherstellung einer Beobachtung, entfernt `WorkStateStore` die `work_media`-Zeilen
+abgelöster Generationen: Zeilen, deren `generation` kleiner ist als die aktuelle Generation ihrer
+lesbaren `work_resources`-Zeile. Wiederherstellung, Arbeitscache, Warteschlange, Wiederholungen und
+Archivbereinigung lesen ausschließlich die aktuelle Generation, und Generationen steigen nur. Die
+Ressourcenzeilen selbst bleiben immer erhalten, ebenso alle Medienzeilen einer fehlenden oder
+unlesbaren Ressourcenzeile. Vor dem ersten Löschbefehl wird das Journal mit `VACUUM INTO` nach
+`work-state.before-prune.sqlite` im Profilordner kopiert (erst `….tmp`, auf Platte geschrieben,
+mit `quick_check` und Zeilenzahlen geprüft, dann umbenannt). Es gibt genau eine Sicherung; sie wird
+nur ersetzt, wenn ein späterer Start wieder etwas löscht. Schlägt die Sicherung fehl, wird nichts
+gelöscht, der Start läuft normal weiter und die Sitzung zeigt eine Warnung. Das Löschen läuft in
+einer Transaktion; ein Abbruch hinterlässt das unveränderte Journal. Das Schema (`user_version` 1)
+bleibt unverändert, ältere Versionen öffnen das Journal weiterhin.
+
 ## Local export API
 
 `ArchiveHtmlExporter.ExportAsync(reader, threadId, destination, options, progress, token)`

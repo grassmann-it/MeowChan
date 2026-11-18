@@ -10,7 +10,12 @@ internal sealed class ArchiveSearchCompiler
 {
     private readonly List<(string Name, object Value)> _parameters = [];
     internal ArchiveSearchCompiler(ArchiveSearchRequest request, string textPredicate, bool fullText)
+        : this(request, "", textPredicate, null, fullText) { }
+    internal ArchiveSearchCompiler(ArchiveSearchRequest request, string with, string textPredicate, string? tier, bool fullText)
     {
+        With = with;
+        // The tier is a result column, so ORDER BY reads it once per row instead of re-evaluating the CASE.
+        TierColumn = tier == null ? "" : "," + tier + " AS match_tier";
         ArchiveSearchSpec spec = request.Spec;
         List<string> terms = [textPredicate];
         string Bind(object value)
@@ -34,11 +39,19 @@ internal sealed class ArchiveSearchCompiler
             ArchiveThreadSort.OldestFirst => "t.first_seen_at ASC,t.source,t.board,t.thread",
             ArchiveThreadSort.Title => "meowchan_text(t.title) COLLATE meowchan_case ASC,t.source,t.board,t.thread",
             ArchiveThreadSort.LatestCapture => "COALESCE(t.last_captured_at,t.first_seen_at) DESC,t.source,t.board,t.thread",
+            // Tier first, then the latest-capture order inside each tier: a total order, so frozen pages never overlap.
+            // Without a search text there is no tier and relevance is the latest-capture order.
+            ArchiveThreadSort.Relevance => (tier == null ? "" : "match_tier ASC,") + "COALESCE(t.last_captured_at,t.first_seen_at) DESC,t.source,t.board,t.thread",
             _ => throw new ArgumentOutOfRangeException(nameof(request))
         };
         if (fullText && spec.Text.Trim().Length > 0)
             _parameters.Add(("$match", "\"" + spec.Text.Trim().Replace("\"", "\"\"", StringComparison.Ordinal) + "\""));
     }
+    /// <summary>A leading WITH clause (or empty) every statement of this search starts with.</summary>
+    internal string With { get; }
+    /// <summary>",&lt;tier&gt; AS match_tier" for a relevance search with a text, else empty; append it to the selected columns.</summary>
+    internal string TierColumn { get; }
+    internal bool Tiered => TierColumn.Length > 0;
     internal string Where { get; }
     internal string Order { get; }
     internal void Bind(SqliteCommand command)

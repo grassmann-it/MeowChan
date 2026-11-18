@@ -33,6 +33,10 @@ public partial class ArchivePage
         internal static ArchiveExportStatusText Localized(string key, params object?[] arguments) =>
             new(Line.Localized(key, arguments ?? Array.Empty<object?>()));
 
+        /// <summary>A localized status whose text depends on <paramref name="count"/> (plural forms); {0} is the count unless arguments are given.</summary>
+        internal static ArchiveExportStatusText Counted(string key, long count, params object?[] arguments) =>
+            new(Line.Counted(key, count, arguments ?? Array.Empty<object?>()));
+
         internal static ArchiveExportStatusText SingleResult(ArchiveHtmlExportResult result)
         {
             List<Line> lines = new()
@@ -83,10 +87,12 @@ public partial class ArchivePage
             internal static Line Raw(string text) => new(new[] { Segment.Raw(text) });
             internal static Line Localized(string key, params object?[] arguments) =>
                 new(new[] { Segment.Localized(key, arguments) });
+            internal static Line Counted(string key, long count, object?[] arguments) =>
+                new(new[] { Segment.Counted(key, count, arguments) });
             internal string Render() => string.Concat(Segments.Select(segment => segment.Render()));
         }
 
-        private sealed record Segment(string? RawText, string? Key, object?[] Arguments)
+        private sealed record Segment(string? RawText, string? Key, object?[] Arguments, long? Count = null)
         {
             internal static Segment Raw(string text) => new(text, null, Array.Empty<object?>());
             internal static Segment Localized(string key, object?[]? arguments)
@@ -94,7 +100,12 @@ public partial class ArchivePage
                 object?[] copied = (object?[])(arguments ?? Array.Empty<object?>()).Clone();
                 return new(null, key, copied);
             }
-            internal string Render() => RawText ?? Texts.T(Key!, Arguments);
+            internal static Segment Counted(string key, long count, object?[]? arguments)
+            {
+                object?[] copied = (object?[])(arguments ?? Array.Empty<object?>()).Clone();
+                return new(null, key, copied, count);
+            }
+            internal string Render() => RawText ?? (Count is { } count ? Texts.Count(Key!, count, Arguments) : Texts.T(Key!, Arguments));
         }
     }
 
@@ -132,6 +143,6 @@ public partial class ArchivePage
         if (_exportCard == null) return;
         string rendered = _exportErrorText.Render();
         Control<TextBlock>("ArchiveExportError").Text = rendered;
-        Control<Ursa.Controls.Banner>("ArchiveExportErrorBanner").IsVisible = !string.IsNullOrEmpty(rendered);
+        Control<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveExportErrorBanner").IsVisible = !string.IsNullOrEmpty(rendered);
     }
 }

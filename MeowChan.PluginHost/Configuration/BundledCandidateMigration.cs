@@ -25,6 +25,11 @@ public sealed record BundledCandidateRepair(string PluginId, string OldCandidate
     // across rederivation, unlike mutable/list reference equality.
     public string? PermissionReviewJson { get; init; }
     public string? PermissionFingerprint { get; init; }
+    // A separate declaration/settings decision. Ordinary repair remains fail-closed.
+    public string? ChangeReviewJson { get; init; }
+    public string? ChangeFingerprint { get; init; }
+    public bool CanReviewChanges => BlockedReason is "description-changed" or "configuration-incompatible" &&
+        NewCandidateId is not null && ChangeReviewJson is not null && ChangeFingerprint is not null;
     public bool CanReauthorize => BlockedReason == "inherited-grants" && NewCandidateId is not null &&
         PermissionReviewJson is not null && PermissionFingerprint is not null;
 }
@@ -57,18 +62,25 @@ internal sealed record BundledRepairBinding(string PluginId, string SelectedCand
     // Explicit UI consent is scoped to TargetCandidateId + TargetExecutionRevision
     // and the exact effective permissions (including filter-grant revisions).
     public string? ReauthorizedPermissionFingerprint { get; init; }
+    // Optional on legacy bindings. Material declaration consent is exact, even if a provider
+    // reports different metadata without changing its assembly/execution fingerprint.
+    public string? ReviewedDescriptionFingerprint { get; init; }
 }
 internal sealed record PreReplacementBasis(PluginReleaseSnapshot? Release, string? CandidateId,
     string? ExecutionRevision, DeliveredCandidateProvenance? Provenance, bool HasHistory)
 {
     internal bool Missing => HasHistory && ExecutionRevision is null;
 }
+// First SDK 1.1.0 executable ever activated for a delivered plugin. Active/LastGood lose it
+// after an activation failure, so this is the only proof the one-time SDK bridge was used.
+internal sealed record AcceptedSdkUpgrade(string PluginId, string ExecutionRevision);
 internal sealed record BundledProfileDocument(PluginProfileSnapshot Profile,
     IReadOnlyList<DeliveredCandidateProvenance> Provenance, IReadOnlyList<BundledRepairBinding> Bindings,
     IReadOnlyList<string> RestrictedSourceIds)
 {
     // Bind the actual first pre-selection envelope, without pretending it was v1.
     public string? ReselectionBackupSha256 { get; init; }
+    public IReadOnlyList<AcceptedSdkUpgrade> AcceptedSdkUpgrades { get; init; } = [];
 }
 
 internal static class BundledCandidateMigration
@@ -204,6 +216,8 @@ internal static class BundledCandidateMigration
                 plugin.Pending?.CandidateId == b.TargetCandidateId && plugin.Pending.ExecutionRevision == b.TargetExecutionRevision &&
                 plugin.Candidates.Any(c => c.CandidateId == b.TargetCandidateId && c.IsPresent && c.Problem is null &&
                     c.Artifact?.ExecutionRevision == b.TargetExecutionRevision &&
+                    (b.ReviewedDescriptionFingerprint is null || c.Description is not null &&
+                        DescriptionHash(c.Description) == b.ReviewedDescriptionFingerprint) &&
                     !HasUnreviewedInheritedRights(document, plugin, c, previous.ExecutionRevision != c.Artifact.ExecutionRevision)))) continue;
             if (!previous.Missing && plugin.Active is not null && document.Bindings.Any(b => b.PluginId == plugin.PluginId &&
                 b.SelectedCandidateId == selected && b.TargetCandidateId == plugin.Active.CandidateId &&
@@ -227,18 +241,34 @@ internal static class BundledCandidateMigration
                 present.Length > 1 || targets.Length > 1 || document.Profile.Plugins.SelectMany(p => p.Candidates)
                     .Count(c => c.IsPresent && document.Provenance.Any(p => p.SlotId == old.SlotId && Matches(p, c))) > 1 ? "ambiguous" :
                 target is null ? "no-proven-target" :
-                !SdkJson.Serialize(basis.Description).AsSpan().SequenceEqual(SdkJson.Serialize(target.Description!)) ? "description-changed" :
+                !SameReviewedDescription(basis.Description, target.Description!) ? "description-changed" :
                 HasOwnerConflict(document.Profile, plugin.PluginId, target.Description!) ? "source-owner-conflict" :
                 SdkValidation.ValidateConfiguration(target.Description!, basis.Configuration).Count != 0 ? "configuration-incompatible" :
                 HasInheritedRights(document, plugin, target, changed) ? "inherited-grants" : null;
             string? permissions = reason == "inherited-grants"
                 ? BundledRepairPermissionReview.Json(document, plugin, target!) : null;
+            string? changeReview = null;
+            if (reason is "description-changed" or "configuration-incompatible" &&
+                basis is not null && target?.Description is { } targetDescription &&
+                !HasOwnerConflict(document.Profile, plugin.PluginId, targetDescription) &&
+                basis.Description.Sources.Select(s => s.SourceId).Order(StringComparer.Ordinal).SequenceEqual(
+                    targetDescription.Sources.Select(s => s.SourceId).Order(StringComparer.Ordinal)))
+            {
+                // The exact retained settings and all existing rights are frozen with the declarations.
+                // A changed source identity is not a settings repair and cannot acquire an owner here.
+                var rights = SdkJson.Deserialize<BundledRepairPermissions>(Encoding.UTF8.GetBytes(
+                    BundledRepairPermissionReview.Json(document, plugin, target)));
+                changeReview = Encoding.UTF8.GetString(SdkJson.Serialize(new BundledPluginChangeReview(
+                    basis.Description, targetDescription, basis.Configuration, rights)));
+            }
             rows.Add(new(plugin.PluginId, selected, target?.CandidateId, old?.SlotId,
                 old?.CandidatePath ?? selectedCandidate?.CandidatePath, target?.CandidatePath,
                 previous.ExecutionRevision, target?.Artifact?.ExecutionRevision, changed, reason)
             {
                 PermissionReviewJson = permissions,
-                PermissionFingerprint = permissions is null ? null : BundledRepairPermissionReview.Fingerprint(permissions)
+                PermissionFingerprint = permissions is null ? null : BundledRepairPermissionReview.Fingerprint(permissions),
+                ChangeReviewJson = changeReview,
+                ChangeFingerprint = changeReview is null ? null : BundledRepairPermissionReview.Fingerprint(changeReview)
             });
         }
         return new(document.Profile.Revision, rows);
@@ -247,11 +277,78 @@ internal static class BundledCandidateMigration
     // A normal in-place app/development rebuild is not a change of plugin owner.
     // Only current host-observed delivery evidence may authorize this exception;
     // persisted inventory alone, local plugins and unproven pending history cannot.
+    // Decision #130 (16.11.2026): such an update carries the plugin's EXISTING rights over
+    // (filter grants, size/MD5 exceptions of its sources, owner choices, its repair binding)
+    // and accepts a declaration change that only removes or narrows. Both extensions need the
+    // exact same shipped manifest path and an already established release; relocation, a
+    // user-installed plugin, any new host/route/capability/filter/access/source and anything
+    // the structural comparer does not understand still require the explicit repair review.
     internal static bool CanAutomaticallyUpdateKnownBundle(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
+        IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount) =>
+        plugin.Pinned is null && CanCarryKnownBundleInPlace(document, plugin, candidate, previous, currentDelivery, presentCount, pinnedRelease: false);
+
+    // Decision #130 (17.11.2026, option C with the guardrails of option B): a pin on a bundled plugin
+    // means "stay on this release", not "stay on this exact binary". A rebuild of the pinned release is
+    // carried over only when ALL of these hold; anything else keeps the stale pin and the explicit review:
+    //  1. same plugin, same delivered slot and the exact same shipped manifest path as the pinned build,
+    //     which already ran (Active or LastGood is the pinned build) and nothing else is pending or bound;
+    //  2. the same pluginVersion (the pinned release);
+    //  3. a declaration identical to the pinned one apart from the operational post order;
+    //  4./5. exactly the unpinned in-place path's rights, owner, settings and current-delivery checks
+    //     (CanCarryKnownBundleInPlace below; the startup writer re-verifies bytes and rights after IO).
+    // The pin is never cleared: it moves to the new build, and the pinned build stays the LastGood rollback.
+    internal static bool CanAutomaticallyUpdatePinnedRelease(BundledProfileDocument document,
         PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
         IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount)
     {
-        if (currentDelivery is null || presentCount != 1 || plugin.Pinned is not null
+        if (plugin.Pinned is not { } pin || PinnedRelease(plugin) is not { } pinnedRelease
+            || candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null }
+            || previous.Missing || previous.Release is null || previous.Provenance is null) return false;
+        PluginReleaseSnapshot? established = plugin.Active ?? plugin.LastGood;
+        // 1. The pinned build itself is the trusted, established basis, and the candidate is that same file rebuilt.
+        if (established is null || plugin.SelectedCandidateId != pin.CandidateId || candidate.CandidateId != pin.CandidateId
+            || established.CandidateId != pin.CandidateId || established.ExecutionRevision != pin.ExecutionRevision
+            || previous.CandidateId != pin.CandidateId || previous.ExecutionRevision != pin.ExecutionRevision
+            || candidate.Artifact.ExecutionRevision == pin.ExecutionRevision
+            || !string.Equals(previous.Provenance.CandidatePath, candidate.CandidatePath, StringComparison.Ordinal)
+            || plugin.Pending is { } pending && (pending.CandidateId != pin.CandidateId || pending.ExecutionRevision != pin.ExecutionRevision)
+            || document.Bindings.Any(binding => binding.PluginId == plugin.PluginId)) return false;
+        // The settings carried over are exactly the ones the pinned start would activate today.
+        if (!SameJson(pinnedRelease.Configuration, plugin.Pending?.Configuration ?? previous.Release.Configuration)) return false;
+        // 2. Same release. 3. Same declaration apart from operational metadata (checked against the pin and the basis).
+        if (!string.Equals(pin.Description.PluginVersion, candidate.Description.PluginVersion, StringComparison.Ordinal)
+            || !SamePinnedBundleDescription(pin.Description, candidate.Description)
+            || !SamePinnedBundleDescription(previous.Release.Description, candidate.Description)) return false;
+        return CanCarryKnownBundleInPlace(document, plugin, candidate, previous, currentDelivery, presentCount, pinnedRelease: true);
+    }
+
+    /// <summary>The release a pinned plugin starts today: its saved settings for the pinned build, else the pin itself.</summary>
+    internal static PluginReleaseSnapshot? PinnedRelease(PluginActivationSnapshot plugin) => plugin.Pinned is not { } pin ? null
+        : plugin.Pending is { } pending && pending.CandidateId == pin.CandidateId && pending.ExecutionRevision == pin.ExecutionRevision ? pending : pin;
+
+    // A pinned bundle may be rebuilt in place without re-reviewing permissions when only the
+    // source's post ordering changed. This is operational source metadata, not a new host,
+    // route, capability, filter, or source identity. Keep the comparison fail-closed: every
+    // other declaration field, including any future SDK field, must remain byte-identical.
+    internal static bool SamePinnedBundleDescription(PluginDescription previous, PluginDescription candidate)
+    {
+        if (previous.Sources.Count != candidate.Sources.Count ||
+            !previous.Sources.Select(source => source.SourceId).SequenceEqual(
+                candidate.Sources.Select(source => source.SourceId), StringComparer.Ordinal)) return false;
+        PluginDescription normalized = candidate with
+        {
+            Sources = candidate.Sources.Select((source, index) =>
+                source with { PostOrder = previous.Sources[index].PostOrder }).ToArray()
+        };
+        return SdkJson.Serialize(previous).AsSpan().SequenceEqual(SdkJson.Serialize(normalized));
+    }
+
+    private static bool CanCarryKnownBundleInPlace(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
+        IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount, bool pinnedRelease)
+    {
+        if (currentDelivery is null || presentCount != 1
             || candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null }
             || previous.Missing || previous.Release is null || previous.Provenance is null
             || previous.CandidateId != candidate.CandidateId) return false;
@@ -291,14 +388,190 @@ internal static class BundledCandidateMigration
             || document.Bindings.Any(binding => binding.PluginId == plugin.PluginId
                 && binding.SelectedCandidateId == plugin.SelectedCandidateId
                 && binding.TargetCandidateId == candidate.CandidateId && binding.SlotId == previous.Provenance.SlotId);
-        if (!selectedIdentity || HasInheritedRights(document, plugin, candidate, changed: true)
-            || HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description)
-            || !SdkJson.Serialize(previous.Release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description))
+        bool sameDescription = SdkJson.Serialize(previous.Release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(candidate.Description));
+        bool carriesRights = HasInheritedRights(document, plugin, candidate, changed: true);
+        // A pinned release accepts only an operational (post order) declaration difference, never a narrowing.
+        bool declarationAccepted = pinnedRelease
+            ? SamePinnedBundleDescription(previous.Release.Description, candidate.Description)
+            : sameDescription || IsNonWideningDescriptionChange(previous.Release.Description, candidate.Description);
+        if (!selectedIdentity || HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description)
+            || !declarationAccepted
             || SdkValidation.ValidateConfiguration(candidate.Description, plugin.Pending?.Configuration ?? previous.Release.Configuration).Count != 0) return false;
+        // The #130 extensions (carried rights, narrowed declarations, a pinned release) apply only to the exact same
+        // shipped manifest file whose release already ran; never to a first activation or a moved file.
+        if ((carriesRights || !sameDescription || pinnedRelease) && (established is null
+            || !string.Equals(previous.Provenance.CandidatePath, candidate.CandidatePath, StringComparison.Ordinal))) return false;
         DeliveredCandidateProvenance[] currentSlot = currentDelivery
             .Where(proof => proof.SlotId == previous.Provenance.SlotId).ToArray();
+        // Matches also binds the current proof to this exact candidate path (the app's own plugins folder).
         return currentSlot.Length == 1 && Matches(currentSlot[0], candidate);
     }
+
+    /// <summary>What an automatic in-place bundled update carried over without review, or null when nothing trust-relevant was carried.</summary>
+    internal static string? DescribeInPlaceCarryOver(BundledProfileDocument document, PluginActivationSnapshot plugin,
+        PluginCandidateSnapshot candidate, PreReplacementBasis previous, bool pinnedRelease = false)
+    {
+        List<string> carried = new();
+        int grants = document.Profile.Grants.Count(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None);
+        if (grants != 0) carried.Add(grants + " filter grant(s)");
+        string[] exceptions = (candidate.Description?.Sources.Select(s => s.SourceId) ?? [])
+            .Where(id => document.RestrictedSourceIds.Contains(id, StringComparer.Ordinal)).Distinct(StringComparer.Ordinal).ToArray();
+        if (exceptions.Length != 0) carried.Add("size/MD5 exception(s) for " + string.Join(", ", exceptions));
+        string[] owners = document.Profile.SelectedSourceOwners.Where(pair => pair.Value == plugin.PluginId)
+            .Select(pair => pair.Key).Order(StringComparer.Ordinal).ToArray();
+        if (owners.Length != 0) carried.Add("source owner choice(s) for " + string.Join(", ", owners));
+        if (document.Bindings.Any(b => b.PluginId == plugin.PluginId)) carried.Add("its confirmed repair binding");
+        if (previous.Release is { } release && candidate.Description is { } description &&
+            !SdkJson.Serialize(release.Description).AsSpan().SequenceEqual(SdkJson.Serialize(description)))
+            carried.Add(pinnedRelease ? "a post-order-only declaration change" : "a narrowing-only description change");
+        return carried.Count == 0 ? null : string.Join("; ", carried);
+    }
+
+    private static readonly SourceCapabilities KnownCapabilities =
+        Enum.GetValues<SourceCapabilities>().Aggregate(SourceCapabilities.None, (all, value) => all | value);
+    private static readonly HttpHostPurpose KnownPurposes =
+        Enum.GetValues<HttpHostPurpose>().Aggregate(HttpHostPurpose.None, (all, value) => all | value);
+    private static readonly FilterDataAccess KnownAccess =
+        Enum.GetValues<FilterDataAccess>().Aggregate(FilterDataAccess.None, (all, value) => all | value);
+
+    private static bool SameJson<T>(T left, T right) => SdkJson.Serialize(left).AsSpan().SequenceEqual(SdkJson.Serialize(right));
+
+    private static bool UniqueOrdinal(IEnumerable<string?> values)
+    {
+        HashSet<string> seen = new(StringComparer.Ordinal);
+        foreach (string? value in values) if (value is null || !seen.Add(value)) return false;
+        return true;
+    }
+
+    /// <summary>Structural, fail-closed comparison of a bundled plugin's declaration across an in-place update (#130).
+    /// True only when <paramref name="candidate"/> adds nothing trust-relevant to <paramref name="previous"/>:
+    /// same plugin id, exact same SDK version, settings schemas and source base URIs; a subset of the sources,
+    /// and per source a subset of the capabilities, of the exact routes and of the host/purpose pairs; a subset
+    /// of the filters, and per filter a subset of the data access and MIME types; and no Blocked → Available
+    /// declaration. Only display text (names, version label, description, information, author and
+    /// documentation links, source maturity label) may change freely. Every other field, including fields
+    /// added to the SDK records later, must serialize byte-identically, so anything not understood here fails closed.</summary>
+    internal static bool IsNonWideningDescriptionChange(PluginDescription previous, PluginDescription candidate)
+    {
+        if (previous is null || candidate is null || previous.Sources is null || candidate.Sources is null ||
+            previous.Filters is null || candidate.Filters is null) return false;
+        if (!string.Equals(previous.PluginId, candidate.PluginId, StringComparison.Ordinal) ||
+            !string.Equals(previous.SdkVersion, candidate.SdkVersion, StringComparison.Ordinal) ||
+            !Enum.IsDefined(previous.DeclarationStatus) || !Enum.IsDefined(candidate.DeclarationStatus) ||
+            candidate.DeclarationStatus != previous.DeclarationStatus && candidate.DeclarationStatus != PluginDeclarationStatus.Blocked) return false;
+        if (previous.Sources.Any(s => s is null) || candidate.Sources.Any(s => s is null) ||
+            previous.Filters.Any(f => f is null) || candidate.Filters.Any(f => f is null) ||
+            !UniqueOrdinal(previous.Sources.Select(s => s.SourceId)) || !UniqueOrdinal(candidate.Sources.Select(s => s.SourceId)) ||
+            !UniqueOrdinal(previous.Filters.Select(f => f.Key)) || !UniqueOrdinal(candidate.Filters.Select(f => f.Key))) return false;
+        foreach (SourceDescription source in candidate.Sources)
+        {
+            SourceDescription? before = previous.Sources.FirstOrDefault(s => s.SourceId == source.SourceId);
+            if (before is null || !IsNarrowedSource(before, source)) return false;
+        }
+        foreach (FilterDescription filter in candidate.Filters)
+        {
+            FilterDescription? before = previous.Filters.FirstOrDefault(f => f.Key == filter.Key);
+            if (before is null || !IsNarrowedFilter(before, filter)) return false;
+        }
+        // Project the free display fields and the collections checked above back onto the old values;
+        // what remains (id, SDK version, plugin settings schema and any unknown field) must be identical.
+        PluginDescription projected = candidate with
+        {
+            Name = previous.Name, PluginVersion = previous.PluginVersion, Description = previous.Description,
+            Information = previous.Information, Author = previous.Author, AuthorUrl = previous.AuthorUrl,
+            DocumentationUrl = previous.DocumentationUrl, Sources = previous.Sources, Filters = previous.Filters,
+            DeclarationStatus = previous.DeclarationStatus
+        };
+        return SameJson(projected, previous);
+    }
+
+    private static bool IsNarrowedSource(SourceDescription before, SourceDescription source)
+    {
+        if (before.Routes is null || source.Routes is null || before.HttpHosts is null || source.HttpHosts is null ||
+            (before.Capabilities & ~KnownCapabilities) != 0 || (source.Capabilities & ~KnownCapabilities) != 0 ||
+            (source.Capabilities & ~before.Capabilities) != 0 ||
+            !Enum.IsDefined(before.Maturity) || !Enum.IsDefined(source.Maturity)) return false;
+        // Routes are URL patterns: each must be exactly one of the old routes (record equality, every option included).
+        if (before.Routes.Any(r => r is null) || source.Routes.Any(route => route is null || !before.Routes.Contains(route))) return false;
+        if (before.HttpHosts.Any(h => h is null || h.Host is null || (h.Purpose & ~KnownPurposes) != 0)) return false;
+        foreach (HttpHostDeclaration host in source.HttpHosts)
+        {
+            if (host is null || host.Host is null || (host.Purpose & ~KnownPurposes) != 0) return false;
+            // Same exact host (and every other field); its purposes a subset of the old ones for that host.
+            HttpHostDeclaration[] matching = before.HttpHosts.Where(old => old with { Purpose = host.Purpose } == host).ToArray();
+            HttpHostPurpose allowed = matching.Aggregate(HttpHostPurpose.None, (all, old) => all | old.Purpose);
+            if (matching.Length == 0 || (host.Purpose & ~allowed) != 0) return false;
+        }
+        SourceDescription projected = source with { Name = before.Name, Capabilities = before.Capabilities,
+            Routes = before.Routes, HttpHosts = before.HttpHosts, Maturity = before.Maturity };
+        return SameJson(projected, before);
+    }
+
+    private static bool IsNarrowedFilter(FilterDescription before, FilterDescription filter)
+    {
+        if (before.SupportedMimeTypes is null || filter.SupportedMimeTypes is null ||
+            (before.RequiredAccess & ~KnownAccess) != 0 || (filter.RequiredAccess & ~KnownAccess) != 0 ||
+            (filter.RequiredAccess & ~before.RequiredAccess) != 0 ||
+            filter.SupportedMimeTypes.Any(type => type is null || !before.SupportedMimeTypes.Contains(type, StringComparer.Ordinal))) return false;
+        FilterDescription projected = filter with { Name = before.Name, Description = before.Description,
+            RequiredAccess = before.RequiredAccess, SupportedMimeTypes = before.SupportedMimeTypes };
+        return SameJson(projected, before);
+    }
+
+    // This is not a general executable equivalence or permission reauthorization. The
+    // only supported declaration transition is the shipped SDK 1.0 -> 1.1 change.
+    internal static bool CanAutomaticallyUpgradeSdk(BundledProfileDocument document,
+        PluginActivationSnapshot plugin, PluginCandidateSnapshot? candidate, PreReplacementBasis previous,
+        IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount)
+    {
+        // One bridge per plugin: once any 1.1.0 build was activated, a failed one leaves LastGood
+        // 1.0.0 behind, which must not authorize a further rebuild to inherit rights.
+        if (currentDelivery is null || presentCount != 1 || plugin.Pinned is not null ||
+            document.AcceptedSdkUpgrades.Any(u => u.PluginId == plugin.PluginId) ||
+            candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: not null } ||
+            previous.Missing || previous.Release is null || previous.Provenance is null ||
+            previous.CandidateId != candidate.CandidateId ||
+            previous.Provenance.CandidatePath != candidate.CandidatePath) return false;
+
+        PluginReleaseSnapshot? established = plugin.Active ?? plugin.LastGood;
+        if (established is null || established.CandidateId != previous.CandidateId ||
+            established.ExecutionRevision != previous.ExecutionRevision ||
+            established.Description.SdkVersion != "1.0.0" ||
+            previous.Release.Description.SdkVersion != "1.0.0" || candidate.Description.SdkVersion != "1.1.0" ||
+            !SdkJson.Serialize(established.Description).AsSpan().SequenceEqual(SdkJson.Serialize(previous.Release.Description)) ||
+            !IsSdkOnlyUpgrade(previous.Release.Description, candidate.Description)) return false;
+
+        // Unlike the ordinary no-rights rebuild path, an unactivated confirmed target
+        // or an independent pending choice cannot establish compatibility authority.
+        if (plugin.Pending is { } pending && (pending.CandidateId != previous.CandidateId ||
+            pending.ExecutionRevision != previous.ExecutionRevision)) return false;
+        BundledRepairBinding? binding = document.Bindings.SingleOrDefault(b => b.PluginId == plugin.PluginId);
+        if (binding is null)
+        {
+            if (plugin.SelectedCandidateId != candidate.CandidateId) return false;
+        }
+        else if (binding.SelectedCandidateId != plugin.SelectedCandidateId || binding.SlotId != previous.Provenance.SlotId ||
+            binding.TargetCandidateId != established.CandidateId || binding.TargetExecutionRevision != established.ExecutionRevision ||
+            binding.ReauthorizedPermissionFingerprint is { } fingerprint && fingerprint !=
+                BundledRepairPermissionReview.Fingerprint(BundledRepairPermissionReview.Json(document, plugin, candidate))) return false;
+
+        // Validate exactly the configuration startup activates.
+        if (HasOwnerConflict(document.Profile, plugin.PluginId, candidate.Description) ||
+            SdkValidation.ValidateConfiguration(candidate.Description, plugin.Pending?.Configuration ?? previous.Release.Configuration).Count != 0) return false;
+        DeliveredCandidateProvenance[] currentSlot = currentDelivery.Where(p => p.SlotId == previous.Provenance.SlotId).ToArray();
+        return currentSlot.Length == 1 && Matches(currentSlot[0], candidate);
+    }
+
+    // The only exempt declaration change: the shipped SDK 1.0.0 -> 1.1.0 field, every other
+    // byte equal. Reverse, unknown or combined changes remain a description change.
+    internal static bool IsSdkOnlyUpgrade(PluginDescription previous, PluginDescription candidate) =>
+        previous.SdkVersion == "1.0.0" && candidate.SdkVersion == "1.1.0" &&
+        SdkJson.Serialize(previous with { SdkVersion = "1.1.0" }).AsSpan().SequenceEqual(SdkJson.Serialize(candidate));
+
+    // Shared by the repair preview and every confirmation that rederives it, so an SDK-only
+    // build reaches the ordinary owner/configuration/grant review instead of a dead end.
+    internal static bool SameReviewedDescription(PluginDescription previous, PluginDescription candidate) =>
+        SdkJson.Serialize(previous).AsSpan().SequenceEqual(SdkJson.Serialize(candidate)) || IsSdkOnlyUpgrade(previous, candidate);
 
     internal static bool HasInheritedRights(BundledProfileDocument document, PluginActivationSnapshot plugin,
         PluginCandidateSnapshot target, bool changed) => changed &&
@@ -327,8 +600,13 @@ internal static class BundledCandidateMigration
         if (document.ReselectionBackupSha256 is { } backupHash && !CompilerWire.IsHash(backupHash))
             throw new ArgumentException("Invalid new-selection backup binding.");
         if (document.Provenance is null || document.Bindings is null || document.RestrictedSourceIds is null ||
+            document.AcceptedSdkUpgrades is null || document.AcceptedSdkUpgrades.Count > MaximumEvidence ||
             document.Provenance.Count > MaximumEvidence || document.Bindings.Count > MaximumEvidence || document.RestrictedSourceIds.Count > 4096)
             throw new ArgumentException("Invalid bounded delivered provenance collections.");
+        if (document.AcceptedSdkUpgrades.GroupBy(u => u?.PluginId).Any(g => g.Count() != 1) ||
+            document.AcceptedSdkUpgrades.Any(u => u is null || string.IsNullOrWhiteSpace(u.PluginId) || u.PluginId.Length > 512 ||
+                string.IsNullOrWhiteSpace(u.ExecutionRevision) || u.ExecutionRevision.Length > 512))
+            throw new ArgumentException("Invalid accepted SDK upgrade history.");
         if (document.Provenance.GroupBy(p => (p.CandidateId, p.ExecutionRevision)).Any(g => g.Count() != 1) ||
             document.Bindings.GroupBy(b => b.PluginId).Any(g => g.Count() != 1))
             throw new ArgumentException("Duplicate delivered provenance or repair binding.");
@@ -348,7 +626,8 @@ internal static class BundledCandidateMigration
                     p.CandidateId == b.TargetCandidateId && p.ExecutionRevision == b.TargetExecutionRevision) ||
                 !document.Provenance.Any(p => p.PluginId == b.PluginId && p.SlotId == b.SlotId && p.ExecutionRevision == b.OldExecutionRevision) ||
                 string.IsNullOrWhiteSpace(b.SelectedCandidateId) ||
-                b.ReauthorizedPermissionFingerprint is { } fingerprint && !CompilerWire.IsHash(fingerprint))
+                b.ReauthorizedPermissionFingerprint is { } fingerprint && !CompilerWire.IsHash(fingerprint) ||
+                b.ReviewedDescriptionFingerprint is { } descriptionFingerprint && !CompilerWire.IsHash(descriptionFingerprint))
                 throw new ArgumentException("Unproven delivered repair binding.");
         foreach (BundledRepairBinding binding in document.Bindings.Where(b => b.OriginalRelease is not null))
         {

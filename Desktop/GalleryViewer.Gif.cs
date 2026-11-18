@@ -62,7 +62,7 @@ internal sealed partial class GalleryViewer
         _gifPlayPause.IsChecked = playing;
         _gifPlayPause.Content = CommandBindings.Icon("video.play-pause", 20, playing ? "playing" : "paused");
         string label = Texts.T(playing ? "viewer.video.pause" : "viewer.video.play") + " · GIF";
-        string tip = label + (CommandCatalog.ShortcutDisplay("video.play-pause") is string keys ? " · " + keys : "");
+        string tip = label + (CommandCatalog.ShortcutTooltipDisplay("video.play-pause", "gallery") is string keys ? " · " + keys : "");
         AutomationProperties.SetName(_gifPlayPause, label);
         AutomationProperties.SetHelpText(_gifPlayPause, tip);
         ToolTip.SetTip(_gifPlayPause, tip);

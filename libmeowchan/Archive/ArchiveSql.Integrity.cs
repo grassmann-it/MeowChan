@@ -33,6 +33,9 @@ internal static partial class ArchiveSql
         }
     }
 
+    internal static string AttachmentDimensionsColumns(SqliteConnection connection, SqliteTransaction? transaction)
+        => GetPragma(connection, "user_version", transaction) >= 13 ? ",width,height" : ",NULL,NULL";
+
     internal static string AttachmentIntegrityColumns(SqliteConnection connection, SqliteTransaction? transaction)
         => (GetPragma(connection, "user_version", transaction) >= 4 ? ",expected_sha256,attachment_revision_key" : ",NULL,NULL")
             + ExtensionIntegrityColumns(connection, transaction);

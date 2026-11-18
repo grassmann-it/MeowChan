@@ -21,12 +21,14 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
     public const double CellWidth = 190;
     /// <summary>Default cell height (archive tiles). A page with taller tiles sets <c>ItemHeight</c>; layout, virtualization and paging follow it.</summary>
     public const double CellHeight = 210;
+    private bool _layoutSubscribed;
     private bool _inLayout;
     private bool _scrolling;
     private Rect _viewport;
     private (int Index, double Offset)? _resizeAnchor;
     private int _restoreGeneration;
     private bool _resizeRestorePosted;
+    private int? _heldIndex;
     private ItemsControl? _inputOwner;
 
     public MediaTilePanel()
@@ -36,7 +38,6 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
         UniformItemHeight = true;
         CacheLength = .5;
         AddHandler(KeyDownEvent, OnPageKeyDown, RoutingStrategies.Bubble);
-        LayoutUpdated += OnLayoutUpdated;
         EffectiveViewportChanged += (_, e) =>
         {
             _viewport = e.EffectiveViewport;
@@ -45,6 +46,23 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
     }
 
     public event EventHandler? ViewportChanged;
+
+    private double _columnWidth = CellWidth;
+
+    /// <summary>
+    /// The width of one cell (default <see cref="CellWidth"/>). A page with another tile size (MP5, the media page's Layout menu) sets it;
+    /// the columns and the cell width follow at the next layout, the items are not touched.
+    /// </summary>
+    public double ColumnWidth
+    {
+        get => _columnWidth;
+        set
+        {
+            if (!double.IsFinite(value) || value < 1 || _columnWidth == value) return;
+            _columnWidth = value;
+            InvalidateMeasure();
+        }
+    }
 
     private void OnPageKeyDown(object? sender, KeyEventArgs e)
     {
@@ -73,14 +91,14 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
             if (double.IsFinite(availableSize.Width))
             {
                 double width = Math.Max(1, availableSize.Width);
-                int columns = Math.Max(1, (int)Math.Floor(width / CellWidth));
+                int columns = Math.Max(1, (int)Math.Floor(width / _columnWidth));
                 if (!_scrolling && Columns != columns && _resizeAnchor is null && CaptureAnchor() is { } anchor)
                 {
                     _resizeAnchor = anchor;
                     ++_restoreGeneration;
                 }
                 if (Columns != columns) SetCurrentValue(ColumnsProperty, columns);
-                double cellWidth = Math.Min(CellWidth, width);
+                double cellWidth = Math.Min(_columnWidth, width);
                 if (ItemWidth != cellWidth) SetCurrentValue(ItemWidthProperty, cellWidth);
             }
             return base.MeasureOverride(availableSize);
@@ -162,6 +180,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
+        if (!_layoutSubscribed) { LayoutUpdated += OnLayoutUpdated; _layoutSubscribed = true; }
         _inputOwner = ItemsControl;
         // The scrollbar is outside the panel but inside its owning ListBox.
         // Cancel queued restoration before fresh user scroll/selection input.
@@ -186,6 +205,7 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
+        if (_layoutSubscribed) { LayoutUpdated -= OnLayoutUpdated; _layoutSubscribed = false; }
         _inputOwner?.RemoveHandler(PointerPressedEvent, OnUserInput);
         _inputOwner?.RemoveHandler(PointerReleasedEvent, OnUserInput);
         _inputOwner?.RemoveHandler(PointerMovedEvent, OnPointerMoved);
@@ -200,6 +220,11 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
 
     protected override Control? ScrollIntoView(int index)
     {
+        if (_heldIndex == index)
+        {
+            _heldIndex = null;
+            return index >= 0 && index < Items.Count ? ContainerFromIndex(index) : null;
+        }
         if (_inLayout || _scrolling || index < 0 || index >= Items.Count || !IsEffectivelyVisible) return null;
         CancelResizeRestore();
         _scrolling = true;
@@ -217,6 +242,20 @@ public sealed class MediaTilePanel : VirtualizingUniformGrid
             return ContainerFromIndex(index);
         }
         finally { _scrolling = false; }
+    }
+
+    /// <summary>
+    /// Lets the owning list's own scroll to its selection anchor at <paramref name="anchor"/> pass without effect, once, until the dispatcher is idle
+    /// again. A page that swaps the rows and carries the selection over (SelectingItemsControl queues a scroll to the anchor whenever the anchor's
+    /// position changed) and puts the view back itself (<see cref="RestoreAnchor"/>) calls it after the swap; any other scroll, and a later
+    /// click or key, scrolls as usual.
+    /// </summary>
+    public void HoldScrollIntoView(int anchor)
+    {
+        if (anchor < 0) return;
+        bool posted = _heldIndex != null;
+        _heldIndex = anchor;
+        if (!posted) Dispatcher.UIThread.Post(() => _heldIndex = null, DispatcherPriority.Background);
     }
 
     public (int Index, double Offset)? CaptureAnchor()

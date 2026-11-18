@@ -79,6 +79,8 @@ public static class PluginOriginalMediaHttp
                     using HttpRequestMessage hop = new(request.Method, uri)
                     { Version = request.Version, VersionPolicy = request.VersionPolicy };
                     foreach (var header in request.Headers) hop.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                    hop.Headers.AcceptEncoding.Clear();
+                    hop.Headers.AcceptEncoding.Add(new System.Net.Http.Headers.StringWithQualityHeaderValue("identity"));
                     foreach (var option in request.Options) hop.Options.Set(new HttpRequestOptionsKey<object?>(option.Key), option.Value);
                     hop.Options.Set(RequestPolicyHandler.BudgetStartedKey, (Action)StartBudget);
                     HttpResponseMessage response = await _client.SendAsync(hop, HttpCompletionOption.ResponseHeadersRead, linked.Token).ConfigureAwait(false);
@@ -87,7 +89,13 @@ public static class PluginOriginalMediaHttp
                         linked.Token.ThrowIfCancellationRequested();
                         if ((response.RequestMessage?.RequestUri ?? uri) != uri)
                             throw new HttpRequestException("Original-media transport followed an unvalidated redirect.");
-                        if ((int)response.StatusCode is not (301 or 302 or 303 or 307 or 308)) return response;
+                        if ((int)response.StatusCode is not (301 or 302 or 303 or 307 or 308))
+                        {
+                            if (response.Content.Headers.ContentEncoding.Any(encoding =>
+                                    !string.Equals(encoding, "identity", StringComparison.OrdinalIgnoreCase)))
+                                throw new HttpRequestException("Original-media responses must use identity content encoding.");
+                            return response;
+                        }
                         if (redirect == MaximumRedirects || response.Headers.Location == null)
                             throw new HttpRequestException("Original-media redirect limit exceeded or Location missing.");
                         Uri next;

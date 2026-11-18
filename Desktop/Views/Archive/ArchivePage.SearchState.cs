@@ -12,14 +12,14 @@ public partial class ArchivePage
 {
     // Editor controls are the draft; a load is frozen before the first await, and
     // the applied request changes only together with the complete rendered page.
+    // ReloadShownThread: a committed page reads the thread the reader shows again (a refresh). A jump that loads its own thread right after
+    // the list (ArchivePage.ThreadReveal.cs) turns it off.
     private sealed record ListLoad(ArchiveSearchRequest Request, int Offset,
-        IReadOnlyDictionary<string, ThreadWorkSnapshot> Work, Action? AfterCommit = null);
+        IReadOnlyDictionary<string, ThreadWorkSnapshot> Work, Action? AfterCommit = null, bool ReloadShownThread = true);
     private ArchiveSearchRequest? _appliedSearch;
     private ListLoad? _runningList;
     private IReadOnlyDictionary<string, ThreadWorkSnapshot> _appliedWork = new Dictionary<string, ThreadWorkSnapshot>();
     private ListLoad? _retryList;
-    internal bool CanApplySearch => CanRead && !_busy && !_ended;
-    internal bool CanSaveAppliedSearch => CanApplySearch && _appliedSearch != null;
     internal bool IsSearchLoading => _runningList != null;
     internal ArchiveSearchSpec? AppliedSearchSpec => _appliedSearch?.Spec;
     internal event Action? AppliedSearchChanged;
@@ -69,8 +69,11 @@ public partial class ArchivePage
             field == "board" ? spec.Boards.Where(item => BoardKey(item) != value) : spec.Boards,
             field == "state" ? spec.SourceStates.Where(item => item.ToString() != value) : spec.SourceStates,
             field == "capture" ? null : spec.CaptureEnabled, field == "posts" ? null : spec.HasPosts,
-            spec.Sort, field == "work" ? MeowChan.Archive.ArchiveWorkFilter.All : spec.WorkFilter,
-            field == "date" ? null : spec.DateRange).WithTags(CopyTagFilter(spec.Tags, field, value));
+            // Removing the text chip moves a default Relevance order back to the default without text (DefaultSortFor).
+            field == "text" ? SortAfterTextChange(spec.Sort, spec.Text, "") : spec.Sort,
+            field == "work" ? MeowChan.Archive.ArchiveWorkFilter.All : spec.WorkFilter,
+            field == "date" ? null : spec.DateRange).WithTags(CopyTagFilter(spec.Tags, field, value))
+            .WithScope(field == "scope" ? MeowChan.Archive.ArchiveSearchScope.AllPosts : spec.Scope);
     private static string BoardKey(ArchiveBoardConstraint board) =>
         (board.Source == null ? "*" : board.Source.Length + ":" + board.Source) + "/" + board.Board;
 }

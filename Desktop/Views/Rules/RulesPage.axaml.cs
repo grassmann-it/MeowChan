@@ -12,14 +12,20 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
 using MeowChan.Rules;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
 public sealed record RuleScopeChoice(MediaRuleScope Scope, string Label);
 
-public partial class RulesPage : UserControl, INotifyPropertyChanged
+public sealed partial class RulesPage : UserControl, INotifyPropertyChanged, IAsyncDisposable
 {
-    private const decimal BytesPerMegabyte = 1_000_000m;
+    // The limit is typed in MiB, like every other size of the app (1 MiB = 1024 * 1024 bytes); the rule stores whole bytes.
+    private const decimal BytesPerMebibyte = 1_048_576m;
+    // Layout threshold, not a user limit: below this window height (dip) the one-sentence subtitle gives way to the form
+    // and moves into the title's tooltip and help text. The minimum window (500 dip) otherwise keeps barely 150 dip of form.
+    internal const double SubtitleMinWindowHeight = 600;
+    private bool _subtitleHidden;
     private readonly Func<MediaRuleSet> _getRules;
     private readonly Func<IEnumerable<MediaRule>, string, Task<MediaRuleSet>> _saveRules;
     private readonly Dictionary<MediaRuleScope, RuleDraft> _drafts = new Dictionary<MediaRuleScope, RuleDraft>();
@@ -34,6 +40,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private bool _busy;
     private bool _ended;
     private string? _validationKey;
+    private string? _saveRejectedKey;
     private string? _operationErrorKey;
     private string? _operationErrorDetail;
     private string? _statusKey;
@@ -52,18 +59,26 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     {
         _getRules = getRules ?? throw new ArgumentNullException(nameof(getRules));
         _saveRules = saveRules ?? throw new ArgumentNullException(nameof(saveRules));
+        // Every key of the page runs in the "rules" context (S3 P2-4): a default that a saved binding took away only elsewhere (a partial yield) stays
+        // active here (EffectiveShortcutBindings.EnterKeyContext).
+        _pageKeyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "rules");
         InitializeComponent();
+        InitializeWorkViewPresentation();
         InitializeRuleSuggestions();
+        InitializeRuleRowEdges();
         _drafts.Add(_draft.Scope, _draft);
         RuleExtensionsInput.Edited += DraftChanged;
+        // The empty state is placed in the scroll viewport's free height; the viewport changes with the window and the footer bar.
+        RulesScroll.PropertyChanged += (_, e) => { if (e.Property == ScrollViewer.ViewportProperty) ApplyOverviewEmptyLayout(); };
         _discardConfirmation = new(DiscardRuleButton);
         KeyDown += (_, e) =>
         {
             if (e.Handled || e.Key != Avalonia.Input.Key.Escape || e.KeyModifiers != Avalonia.Input.KeyModifiers.None
                 || Desktop.Commands.ShortcutService.IsCapturing) return;
-            if (e.Source is Avalonia.Visual source && source.GetSelfAndVisualAncestors().Any(v =>
-                v is ComboBox { IsDropDownOpen: true } or Ursa.Controls.AutoCompleteBox)) return;
+            if (EscapeBelongsToSuggestions(e.Source)) return;
             if (TryDismissRuleDecision()) e.Handled = true;
+            // Esc leaves the wizard for the overview (the draft stays); open decisions above are dismissed first.
+            else if (_wizard.IsOpen && IsEditable) { CloseWizard(); e.Handled = true; }
         };
         RefreshChoiceLabels();
         RefreshConfirmedRules();
@@ -72,6 +87,12 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         SynchronizeModeSelections();
         Texts.Changed += OnLanguageChanged;
     }
+
+    // Escape dismisses a suggestion surface, not an ordinary editor. Preserve wizard Escape
+    // from text/number fields and closed selectors rather than treating every text input alike.
+    internal static bool EscapeBelongsToSuggestions(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().Any(node => PointerFocusReclaim.IsTextInput(node)
+            && node is not (TextBox or NumericUpDown or ComboBox { IsDropDownOpen: false }));
 
     public bool IsAvailable
     {
@@ -86,16 +107,34 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     }
     public bool IsBusy => _busy;
     public bool IsEditable => !_ended && _available && _hasConfirmed && !_busy;
-    public bool CanSave => IsEditable && _draft.Dirty && !_draft.Stale && _preview != null;
+    // Save stays available while a field is invalid: the click validates, moves focus to the first invalid
+    // field and explains in the footer. A silently disabled button gave no reason and no way to the field.
+    public bool CanSave => IsEditable && _draft.Dirty && !_draft.Stale;
     public bool HasPreview => _preview != null && !_draft.Stale;
     public bool HasValidationError => _draft.Stale || _validationKey != null;
+    /// <summary>The banner below "Effective after saving" is only for errors that belong to no single field.</summary>
+    public bool HasValidationBanner => _draft.Stale || (_validationKey != null && !HasExtensionsError && !HasMegabytesError);
+    public bool HasPreviewBlocked => !_draft.Stale && FieldErrorLabel != null;
+    public string PreviewBlockedLabel => FieldErrorLabel is { } label ? Texts.T("rules.previewBlocked", label) : string.Empty;
+    public string GoToFieldLabel => Texts.T("rules.goToField");
     public string? ValidationMessage => _draft.Stale ? Texts.T("rules.stale") : _validationKey == null ? null : Texts.T(_validationKey);
     public string? ErrorMessage => _operationErrorKey == null ? null : Texts.T(_operationErrorKey, _operationErrorDetail);
     public bool HasError => ErrorMessage != null;
     public bool HasStatus => !HasError;
-    public string StatusMessage => Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _busy ? "rules.saving"
+    public string StatusMessage => !_wizard.IsOpen ? OverviewStatusMessage
+        // Step 1 has no draft yet; its saved-rules count lives in "Rules and drafts", so the footer only speaks for unavailable or saving.
+        : !_wizard.HasScope ? (!_available || !_hasConfirmed ? Texts.T("rules.unavailable") : _busy ? Texts.T("rules.saving") : string.Empty)
+        : SaveRejected && InvalidFieldLabel is { } invalid ? Texts.T("rules.saveRejected", invalid)
+        : Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _busy ? "rules.saving"
         : _draft.Stale ? "rules.stale" : _statusKey ?? (_draft.Dirty ? "rules.unsaved" :
             FindRule(_confirmed, _draft.Scope) == null ? "rules.inherited" : "rules.confirmed"));
+    // A refused save is announced assertively once; ordinary status changes stay polite.
+    public Avalonia.Automation.AutomationLiveSetting StatusLiveSetting => SaveRejected && InvalidFieldLabel != null
+        ? Avalonia.Automation.AutomationLiveSetting.Assertive : Avalonia.Automation.AutomationLiveSetting.Polite;
+    private bool SaveRejected => IsEditable && !_draft.Stale && _saveRejectedKey != null && _saveRejectedKey == _validationKey;
+    /// <summary>Name of the field the current validation error belongs to, or null for errors without a field.</summary>
+    private string? InvalidFieldLabel => FieldErrorLabel ?? (_validationKey == "plugins.invalidFilterSettings" ? Texts.T("plugins.ruleFilter") : null);
+    private string? FieldErrorLabel => HasExtensionsError ? ExtensionsLabel : HasMegabytesError ? MegabytesLabel : null;
 
     public IReadOnlyList<RuleScopeChoice> ScopeChoices { get; private set; } = Array.Empty<RuleScopeChoice>();
     public IReadOnlyList<string> ScopeKindChoices { get; private set; } = Array.Empty<string>();
@@ -115,11 +154,37 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public int NewScopeKind
     {
         get => _newScopeKind;
-        set { if (_refreshingChoiceLabels || value < 0 || value > 3 || _newScopeKind == value) return; _newScopeKind = value; RaiseAll(); }
+        set { if (_refreshingChoiceLabels || value < 0 || value > 3 || _newScopeKind == value) return; _newScopeKind = value; ClearInvalidScopeParts(); RaiseAll(); }
     }
-    public string NewSourceId { get => _newSourceId; set { _newSourceId = value ?? string.Empty; Raise(nameof(NewSourceId)); } }
-    public string NewBoardId { get => _newBoardId; set { _newBoardId = value ?? string.Empty; Raise(nameof(NewBoardId)); } }
-    public string NewThreadId { get => _newThreadId; set { _newThreadId = value ?? string.Empty; Raise(nameof(NewThreadId)); } }
+    public string NewSourceId { get => _newSourceId; set { _newSourceId = value ?? string.Empty; NewScopePartChanged(NewRuleSourceInput, nameof(NewSourceId)); } }
+    public string NewBoardId { get => _newBoardId; set { _newBoardId = value ?? string.Empty; NewScopePartChanged(NewRuleBoardInput, nameof(NewBoardId)); } }
+    public string NewThreadId { get => _newThreadId; set { _newThreadId = value ?? string.Empty; NewScopePartChanged(NewRuleThreadInput, nameof(NewThreadId)); } }
+
+    /// <summary>
+    /// One rule per scope: Next on a scope that already has a saved rule opens that rule for editing. Step 1 says so while the
+    /// entered scope (complete and valid) matches a saved rule, before Next is pressed.
+    /// </summary>
+    public bool HasExistingScopeRule => _wizard.IsOpen && !_wizard.HasScope && TryEnteredScope(out MediaRuleScope? scope) && FindRule(_confirmed, scope!) != null;
+    public string ExistingScopeRuleNote => Texts.T("rules.wizard.scopeExists");
+
+    private void NewScopePartChanged(Control? input, string property)
+    {
+        // Typing into a field marked by a refused Next clears its mark; the footer error stays until the next attempt.
+        input?.Classes.Remove(InvalidClass);
+        Raise(property);
+        Raise(nameof(HasExistingScopeRule));
+    }
+
+    /// <summary>The scope the step-1 fields describe, when every needed part is present and valid (no exception, no side effects).</summary>
+    private bool TryEnteredScope(out MediaRuleScope? scope)
+    {
+        scope = null;
+        string source = _newSourceId.Trim(), board = _newBoardId.Trim(), thread = _newThreadId.Trim();
+        if ((NeedsSource && InvalidScopePart(source)) || (NeedsBoard && InvalidScopePart(board)) || (NeedsThread && InvalidScopePart(thread))) return false;
+        try { scope = new MediaRuleScope((MediaRuleScopeKind)_newScopeKind, NeedsSource ? source : null, NeedsBoard ? board : null, NeedsThread ? thread : null); }
+        catch (ArgumentException) { return false; }
+        return true;
+    }
     public bool NeedsSource => NewScopeKind >= 1;
     public bool NeedsBoard => NewScopeKind >= 2;
     public bool NeedsThread => NewScopeKind >= 3;
@@ -161,18 +226,17 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             DraftChanged();
         }
     }
-    public string ExtensionsError => _draft.TypesMode == MediaTypeSelectionMode.Selected && _validationKey == "rules.invalidTypes" ? Texts.T("rules.invalidTypes") : string.Empty;
+    public bool HasExtensionsError => _draft.TypesMode == MediaTypeSelectionMode.Selected && _validationKey == "rules.invalidTypes";
+    public string ExtensionsError => HasExtensionsError ? Texts.T("rules.invalidTypes") : string.Empty;
     public bool HasMegabytesError => _draft.SizeMode == MediaSizeLimitMode.Limited && _validationKey == "rules.invalidSize";
     public string MegabytesError => HasMegabytesError ? Texts.T("rules.invalidSize") : string.Empty;
-    public string DraftStateLabel => Texts.T(!_available || !_hasConfirmed ? "rules.unavailable" : _draft.Stale ? "rules.stale" : _draft.Dirty ? "rules.unsaved" :
-        FindRule(_confirmed, _draft.Scope) == null ? "rules.inherited" : "rules.confirmed");
     public bool HasTypeSelection => _draft.TypesMode == MediaTypeSelectionMode.Selected;
     public bool HasSizeLimit => _draft.SizeMode == MediaSizeLimitMode.Limited;
 
     public string Title => Texts.T("nav.rules");
     public string Subtitle => Texts.T("rules.subtitle");
     public string SavedScopesLabel => Texts.T("rules.savedScopes");
-    public string ScopeCountLabel => Texts.T("rules.changedScopes", _confirmed.Rules.Count);
+    public string ScopeCountLabel => Texts.Count("rules.changedScopes", _confirmed.Rules.Count);
     public string OpenLabel => Texts.T("rules.open");
     public string NewScopeLabel => Texts.T("rules.newScope");
     public string ScopeKindLabel => Texts.T("rules.scopeKind");
@@ -180,7 +244,6 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string BoardIdLabel => Texts.T("rules.boardId");
     public string ThreadIdLabel => Texts.T("rules.threadId");
     public string IdentityHint => Texts.T("rules.identityHint");
-    public string EditingLabel => Texts.T("rules.editing", FormatScope(_draft.Scope));
     public string EnabledLabel => Texts.T("rules.enabled");
     public string EnabledHint => Texts.T("rules.enabledHint");
     public string TypesLabel => Texts.T("rules.types");
@@ -202,13 +265,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     public string SizeOriginLabel => _preview == null ? string.Empty : Texts.T("rules.origin", FormatOrigin(_preview.SizeLimitOrigin));
 
     public MediaRuleScope ActiveScope => _draft.Scope;
-    public MediaRuleScope? ParentScope => _draft.Scope.Kind switch
-    {
-        MediaRuleScopeKind.Thread => MediaRuleScope.ForBoard(_draft.Scope.Source!, _draft.Scope.Board!),
-        MediaRuleScopeKind.Board => MediaRuleScope.ForSource(_draft.Scope.Source!),
-        MediaRuleScopeKind.Source => MediaRuleScope.Global,
-        _ => null
-    };
+    public MediaRuleScope? ParentScope => ParentOf(_draft.Scope);
     public bool CanOpenParent => IsEditable && ParentScope != null;
     public bool CanOpenTypesOrigin => IsEditable && _preview?.TypesOrigin.Scope != null;
     public bool CanOpenSizeOrigin => IsEditable && _preview?.SizeLimitOrigin.Scope != null;
@@ -242,11 +299,21 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RuleEnabledInput.BringIntoView();
     }
 
+    private readonly IDisposable _pageKeyContext;
+
+    public ValueTask DisposeAsync()
+    {
+        EndLifetime();
+        return ValueTask.CompletedTask;
+    }
+
     public void EndLifetime()
     {
         if (_ended) return;
         _discardConfirmation.Close(); _templateDeleteConfirmation?.Close(); _templateEditorConfirmation?.Close();
+        foreach (Desktop.Controls.DraftDiscardConfirmation confirmation in _overviewConfirmations) confirmation.Close();
         _ended = true;
+        _pageKeyContext.Dispose();
         EndRuleSuggestions();
         IsEnabled = false;
         _available = false;
@@ -274,13 +341,21 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RaiseAll();
     }
 
-    /// <summary>Opens the same retained editor from a thread, board or source context action.</summary>
+    /// <summary>Opens the same retained editor (wizard step 2) from a thread, board or source context action or the overview.</summary>
     public void EditScope(MediaRuleScope scope)
     {
         ArgumentNullException.ThrowIfNull(scope);
-        if (_ended || _busy) return;
+        if (!SelectScope(scope)) return;
+        EnterWizardForScope();
+        RaiseAll();
+    }
+
+    /// <summary>Makes <paramref name="scope"/>'s retained draft the current one (creating it from the saved rule) without opening the wizard.</summary>
+    private bool SelectScope(MediaRuleScope scope)
+    {
+        if (_ended || _busy) return false;
         RefreshConfirmedRules();
-        if (!_hasConfirmed) return;
+        if (!_hasConfirmed) return false;
         if (!_drafts.TryGetValue(scope, out RuleDraft? draft))
         {
             draft = new RuleDraft(scope, _confirmed);
@@ -289,11 +364,11 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         DeactivateRuleDecisions();
         _draft = draft;
         _selectedScope = null;
-        _statusKey = null;
+        _statusKey = null; _saveRejectedKey = null; _overviewStatus = null;
         ClearOperationError();
         UpdatePreview();
         RefreshScopeChoices();
-        RaiseAll();
+        return _draft.Scope == scope;
     }
 
     private void AcceptConfirmed(MediaRuleSet confirmed)
@@ -359,7 +434,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         long? maximum = null;
         if (draft.SizeMode == MediaSizeLimitMode.Limited)
         {
-            if (!TryReadMegabytes(draft.Megabytes, draft.NumberCulture, out long bytes))
+            if (!draft.TryReadBytes(out long bytes))
                 throw new RuleInputException("rules.invalidSize");
             maximum = bytes;
         }
@@ -374,43 +449,51 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             return false;
         try
         {
-            decimal value = megabytes * BytesPerMegabyte;
-            if (value > long.MaxValue || decimal.Truncate(value) != value) return false;
+            decimal value = Math.Round(megabytes * BytesPerMebibyte, 0, MidpointRounding.AwayFromZero);
+            if (value > long.MaxValue) return false;
             bytes = decimal.ToInt64(value);
             return true;
         }
         catch (OverflowException) { return false; }
     }
 
-    internal async Task SaveCurrentAsync()
+    /// <summary>Saves the current draft. True only when the catalog took it; a refusal or failure stays in the editor.</summary>
+    internal async Task<bool> SaveCurrentAsync()
     {
-        if (!IsEditable) return;
+        if (!IsEditable) return false;
         RuleExtensionsInput.FlushPendingText();
         RefreshConfirmedRules();
-        if (!IsEditable || _draft.Stale) return;
+        if (!IsEditable || _draft.Stale) return false;
         MediaRule rule;
         try { rule = BuildDraft(); }
-        catch (RuleInputException exception) { _validationKey = exception.Key; RaiseAll(); if (exception.Key == "plugins.invalidFilterSettings") FocusFilterSettingError(); else if (exception.Key == "rules.invalidTypes") RuleExtensionsInput.FocusInput(); return; }
-        if (!_draft.Dirty) return;
+        catch (RuleInputException exception)
+        {
+            _validationKey = exception.Key; _saveRejectedKey = exception.Key; RaiseAll();
+            if (exception.Key == "plugins.invalidFilterSettings") FocusFilterSettingError(); else FocusInvalidField();
+            return false;
+        }
+        if (!_draft.Dirty) return false;
         MediaRule[] proposed = _draft.Baseline.Rules.Where(item => item.Scope != _draft.Scope).Append(rule).ToArray();
         string revision = _draft.Baseline.Revision;
         MediaRuleScope scope = _draft.Scope;
         ClearOperationError();
         _statusKey = null;
+        bool saveSucceeded = false;
         SetBusy(true);
         try
         {
-            if (!await ValidateRuleFilterAsync(rule)) return;
+            if (!await ValidateRuleFilterAsync(rule)) return false;
             MediaRuleSet saved = await _saveRules(proposed, revision);
-            if (_ended) return;
+            if (_ended) return false;
             _drafts[scope] = new RuleDraft(scope, saved);
             _draft = _drafts[scope];
             AcceptConfirmed(saved);
-            _statusKey = "rules.saved";
+            _statusKey = "rules.saved"; _saveRejectedKey = null;
+            saveSucceeded = true;
         }
         catch (Exception exception)
         {
-            if (_ended) return;
+            if (_ended) return false;
             _operationErrorKey = "rules.saveFailed";
             _operationErrorDetail = exception.Message;
             try { AcceptConfirmed(_getRules()); } catch (Exception) { }
@@ -420,6 +503,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             SetBusy(false);
             if (!_ended) { UpdatePreview(); RefreshScopeChoices(); RaiseAll(); }
         }
+        return saveSucceeded;
     }
 
     internal void DiscardCurrentDraft()
@@ -431,7 +515,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             AcceptConfirmed(_getRules());
             _drafts[scope] = new RuleDraft(scope, _confirmed);
             _draft = _drafts[scope];
-            _statusKey = null;
+            _statusKey = null; _saveRejectedKey = null;
             ClearOperationError();
             UpdatePreview();
             RefreshScopeChoices();
@@ -440,12 +524,57 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         RaiseAll();
     }
 
-    private async void OnSaveRule(object? sender, RoutedEventArgs e) => await SaveCurrentAsync();
+    private async void OnSaveRule(object? sender, RoutedEventArgs e) => await SaveAndReturnToOverviewAsync();
+    private void OnGoToInvalidField(object? sender, RoutedEventArgs e) => FocusInvalidField();
+
+    /// <summary>Moves focus to the field the current error belongs to. A disabled rule cannot take focus in its fields, so the
+    /// checkbox that enables them receives it instead.</summary>
+    private void FocusInvalidField()
+    {
+        if (_wizard.IsOpen && _wizard.Step != RuleWizardStep.Settings && (HasExtensionsError || HasMegabytesError))
+        {
+            // The fields live in step 2: show it, then focus once its controls are laid out.
+            ShowWizardStep(RuleWizardStep.Settings, focus: false);
+            RuleDraft draft = _draft;
+            Dispatcher.UIThread.Post(() => { if (!_ended && ReferenceEquals(draft, _draft)) FocusInvalidFieldNow(); }, DispatcherPriority.Loaded);
+            return;
+        }
+        FocusInvalidFieldNow();
+    }
+
+    private void FocusInvalidFieldNow()
+    {
+        if (HasExtensionsError && RuleExtensionsInput.IsEffectivelyEnabled) RuleExtensionsInput.FocusInput();
+        else if (HasMegabytesError && RuleMegabytesInput.IsEffectivelyEnabled) { RuleMegabytesInput.Focus(); RuleMegabytesInput.BringIntoView(); }
+        else if (HasExtensionsError || HasMegabytesError) { RuleEnabledInput.Focus(); RuleEnabledInput.BringIntoView(); }
+    }
     private void OnDiscardDraft(object? sender, RoutedEventArgs e) => RequestDiscardCurrentDraft();
     private void OnOpenSavedScope(object? sender, RoutedEventArgs e)
     {
-        if (IsEditable && _selectedScope != null) EditScope(_selectedScope.Scope);
+        if (IsEditable && _selectedScope != null) OpenRuleFromOverview(_selectedScope.Scope);
     }
+    private const string InvalidClass = "workspace-invalid";
+
+    private void ClearInvalidScopeParts()
+    {
+        foreach (Control? input in new Control?[] { NewRuleSourceInput, NewRuleBoardInput, NewRuleThreadInput }) input?.Classes.Remove(InvalidClass);
+    }
+
+    /// <summary>A refused Next marks each missing or invalid ID field and moves focus to the first; the footer names the problem.</summary>
+    private void MarkInvalidScopeParts()
+    {
+        (bool Needed, string Value, Control Input)[] parts =
+        {
+            (NeedsSource, _newSourceId.Trim(), NewRuleSourceInput), (NeedsBoard, _newBoardId.Trim(), NewRuleBoardInput),
+            (NeedsThread, _newThreadId.Trim(), NewRuleThreadInput)
+        };
+        Control[] invalid = parts.Where(part => part.Needed && InvalidScopePart(part.Value)).Select(part => part.Input).ToArray();
+        // A part the scope itself refused (no single field to blame) marks every needed field.
+        if (invalid.Length == 0) invalid = parts.Where(part => part.Needed).Select(part => part.Input).ToArray();
+        foreach (var (_, _, input) in parts) input.Classes.Set(InvalidClass, invalid.Contains(input));
+        if (invalid.Length > 0) FocusTemplateControl(invalid[0], () => _wizard.IsOpen && _wizard.Step == RuleWizardStep.Scope);
+    }
+
     private void OnOpenNewScope(object? sender, RoutedEventArgs e)
     {
         if (!IsEditable) return;
@@ -458,11 +587,14 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
                 throw new ArgumentException();
             MediaRuleScope scope = new MediaRuleScope((MediaRuleScopeKind)_newScopeKind,
                 NeedsSource ? source : null, NeedsBoard ? board : null, NeedsThread ? thread : null);
+            ClearInvalidScopeParts();
             EditScope(scope);
-            NewRuleScopeExpander.IsExpanded = false;
+            if (_draft.Scope != scope) return;
+            _wizardReturnScope = scope;
             if (FindRule(_confirmed, scope) == null) DraftChanged();
+            FocusFirstWizardField();
         }
-        catch (ArgumentException) { _operationErrorKey = "rules.invalidScope"; _operationErrorDetail = null; RaiseAll(); }
+        catch (ArgumentException) { _operationErrorKey = "rules.invalidScope"; _operationErrorDetail = null; RaiseAll(); MarkInvalidScopeParts(); }
     }
 
     private static bool InvalidScopePart(string value) => string.IsNullOrWhiteSpace(value) || value.Contains("://", StringComparison.Ordinal)
@@ -522,11 +654,7 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             foreach (RuleDraft draft in _drafts.Values)
             {
                 draft.ReformatInitialNumber(Texts.Culture);
-                if (TryReadMegabytes(draft.Megabytes, draft.NumberCulture, out long bytes))
-                {
-                    draft.Megabytes = FormatMegabytes(bytes, Texts.Culture);
-                    draft.NumberCulture = Texts.Culture;
-                }
+                if (draft.TryReadBytes(out long bytes)) draft.SetLimit(bytes, Texts.Culture);
             }
             ReformatTemplateEditor();
             RefreshChoiceLabels();
@@ -542,13 +670,13 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
     private void ApplyCommandIcons()
     {
         CommandBindings.ApplyLabeled(OpenSavedRuleButton, "rules.open-scope", OpenLabel);
-        CommandBindings.ApplyLabeled(OpenNewRuleScopeButton, "rules.open-scope", OpenLabel);
         CommandBindings.ApplyLabeled(DiscardRuleButton, "rules.discard", DiscardLabel);
         CommandBindings.ApplyLabeled(SaveRuleButton, "rules.save", SaveLabel);
         CommandBindings.ApplyLabeled(OpenParentRuleButton, "rules.open-parent", CommandCatalog.Label("rules.open-parent"));
         CommandBindings.ApplyLabeled(OpenTypesOriginButton, "rules.open-origin", CommandCatalog.Label("rules.open-origin"));
         CommandBindings.ApplyLabeled(OpenSizeOriginButton, "rules.open-origin", CommandCatalog.Label("rules.open-origin"));
         RefreshOriginActionLabels();
+        ApplyWizardLabels();
     }
 
     private void OnRulesSizeChanged(object? sender, SizeChangedEventArgs e)
@@ -556,20 +684,76 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         double width = Math.Min(880, Math.Max(0, e.NewSize.Width - 60));
         RulesContent.Width = width;
         RulesHeader.Width = width;
-        bool narrow = width < 700;
-        foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
-        {
-            row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
-            row.ColumnSpacing = narrow ? 0 : 32;
-            row.RowSpacing = narrow ? 6 : 0;
-            Control editor = row.Children[1];
-            Grid.SetColumn(editor, narrow ? 0 : 1);
-            Grid.SetRow(editor, narrow ? 1 : 0);
-        }
+        // The footer content shares the 880 dip column of the body: status starts and the buttons end on its edges.
+        RulesFooter.Width = width;
+        _subtitleHidden = (TopLevel.GetTopLevel(this)?.ClientSize.Height ?? e.NewSize.Height) < SubtitleMinWindowHeight;
+        RefreshSubtitlePresentation();
+        bool narrowChanged = _narrowRules != width < 700;
+        _narrowRules = width < 700;
+        bool narrow = _narrowRules;
+        ApplyRuleRowLayout();
+        if (narrowChanged) RefreshOverview();
         Grid.SetColumn(RulesFooterActions, narrow ? 0 : 1);
         Grid.SetRow(RulesFooterActions, narrow ? 1 : 0);
         Grid.SetColumnSpan(RulesFooterActions, narrow ? 2 : 1);
         Grid.SetColumnSpan(RulesFooter.Children[0], narrow ? 2 : 1);
+    }
+
+    private bool _narrowRules;
+
+    // The rows of the scope and settings cards come and go with the scope kind and the modes; the last visible one carries no divider.
+    private void InitializeRuleRowEdges()
+    {
+        foreach (StackPanel rows in new[] { NewRuleScopeRows, RuleSettingsRows })
+            foreach (Control row in rows.Children)
+                row.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) MarkLastRuleRows(rows); };
+        MarkLastRuleRows(NewRuleScopeRows);
+        MarkLastRuleRows(RuleSettingsRows);
+    }
+
+    private static void MarkLastRuleRows(StackPanel rows)
+    {
+        Control? last = rows.Children.LastOrDefault(child => child.IsVisible);
+        foreach (Control row in rows.Children) row.Classes.Set("rule-row-last", ReferenceEquals(row, last));
+    }
+    // Rows inside a folded block exist only once it opened, so this also runs when a block opens.
+    private void ApplyRuleRowLayout()
+    {
+        if (_ended) return;
+        foreach (Grid row in RulesContent.GetVisualDescendants().OfType<Grid>().Where(row => row.Classes.Contains("rule-row")))
+            ApplyRuleRowLayout(row);
+    }
+
+    // The wide row keeps the Settings form gap (Workspace.Form.Gap, 24 dip) between label and control; the stacked row puts the
+    // label (and its hint) 8 dip above the control, the gap between a label and its field.
+    private void ApplyRuleRowLayout(Grid row)
+    {
+        bool narrow = _narrowRules;
+        double gap = this.TryFindResource("Workspace.Form.Gap", out object? token) && token is double value ? value : 24;
+        row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
+        row.ColumnSpacing = narrow ? 0 : gap;
+        row.RowSpacing = narrow ? 8 : 0;
+        row.Classes.Set("rule-row-stacked", narrow);
+        Control editor = row.Children[1];
+        Grid.SetColumn(editor, narrow ? 0 : 1);
+        Grid.SetRow(editor, narrow ? 1 : 0);
+    }
+
+    /// <summary>
+    /// The code-built twin of a rule row in the markup (folded blocks build their content in code): the label cell on the left,
+    /// <paramref name="editor"/> in the 280 dip control column, laid out for the current width.
+    /// </summary>
+    private Grid RuleRow(Control editor, params Control[] labelCell)
+    {
+        StackPanel cell = new();
+        cell.Classes.Add("rule-label");
+        foreach (Control child in labelCell) cell.Children.Add(child);
+        Grid row = new() { ColumnDefinitions = new ColumnDefinitions("*,280"), RowDefinitions = new RowDefinitions("Auto,Auto") };
+        row.Classes.Add("rule-row");
+        row.Children.Add(cell);
+        row.Children.Add(editor);
+        ApplyRuleRowLayout(row);
+        return row;
     }
 
     private void SetBusy(bool busy)
@@ -586,11 +770,24 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         Raise(string.Empty);
         SynchronizeModeSelections();
         RuleMegabytesInput.Classes.Set("workspace-invalid", HasMegabytesError);
+        RuleExtensionsInput.Classes.Set("workspace-invalid", HasExtensionsError);
         RefreshOriginActionLabels();
+        RefreshSubtitlePresentation();
         RefreshFilterEditor();
         RuleExtensionsInput.Bind(_draft.ExtensionInput);
         RefreshBreadcrumb();
         RefreshTemplatesPanel();
+        RefreshWizardPresentation();
+        RefreshWorkViewPresentation();
+        RefreshOverview();
+    }
+    private void RefreshSubtitlePresentation()
+    {
+        if (_ended) return;
+        RulesSubtitle.IsVisible = !_subtitleHidden;
+        // A hidden element leaves the accessibility tree, so the sentence stays reachable at the title.
+        ToolTip.SetTip(RulesTitle, _subtitleHidden ? Subtitle : null);
+        Avalonia.Automation.AutomationProperties.SetHelpText(RulesTitle, _subtitleHidden ? Subtitle : string.Empty);
     }
     private void RefreshOriginActionLabels()
     {
@@ -619,7 +816,28 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         finally { _refreshingChoiceLabels = refreshing; }
     }
     private void Raise(string property) { if (!_ended) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property)); }
-    private static string FormatMegabytes(long bytes, CultureInfo culture) => (bytes / BytesPerMegabyte).ToString("0.######", culture);
+    internal static string FormatMebibytes(long bytes, CultureInfo culture) => FormatMegabytes(bytes, culture);
+    private static string FormatMegabytes(long bytes, CultureInfo culture)
+    {
+        decimal mebibytes = bytes / BytesPerMebibyte;
+        // The display is rounded to three decimals (an old 11 MB rule reads 10.49 MiB, not 10.49041748046875). A limit
+        // below 0.0005 MiB would round to 0, which means "empty files only", so it keeps six. The rounding is display
+        // only: an untouched field keeps its exact byte count (ExactMebibytes), so opening and saving never moves it.
+        decimal shown = Math.Round(mebibytes, 3, MidpointRounding.AwayFromZero);
+        if (shown == 0 && bytes > 0) return Math.Round(mebibytes, 6, MidpointRounding.AwayFromZero).ToString("0.######", culture);
+        return shown.ToString("0.###", culture);
+    }
+
+    /// <summary>A byte limit with the rounded text shown for it. While the field still holds that text (and the number format), the byte count is exact.</summary>
+    internal readonly record struct ExactMebibytes(long Bytes, string Text, string Culture)
+    {
+        internal static ExactMebibytes Of(long bytes, CultureInfo culture) => new(bytes, FormatMegabytes(bytes, culture), culture.Name);
+        internal static bool TryRead(ExactMebibytes? exact, string text, CultureInfo culture, out long bytes)
+        {
+            if (exact is { } known && known.Text == text && known.Culture == culture.Name) { bytes = known.Bytes; return true; }
+            return TryReadMegabytes(text, culture, out bytes);
+        }
+    }
     private static string FormatOrigin(MediaRuleOrigin origin) => origin.Scope == null ? Texts.T("rules.builtin") : FormatScope(origin.Scope);
     private static string FormatScope(MediaRuleScope scope) => MeowChan.Desktop.Plugins.PluginGrantPresentation.ScopeLabel(scope);
     private static MediaRule? FindRule(MediaRuleSet set, MediaRuleScope scope) => set.Rules.FirstOrDefault(rule => rule.Scope == scope);
@@ -639,7 +857,15 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
         internal MeowChan.Desktop.Controls.ExtensionTagDraft ExtensionInput { get; set; } = new();
         internal MediaSizeLimitMode SizeMode { get; set; }
         internal string Megabytes { get; set; }
+        internal ExactMebibytes? Exact { get; set; }
         internal CultureInfo NumberCulture { get; set; }
+        internal bool TryReadBytes(out long bytes) => ExactMebibytes.TryRead(Exact, Megabytes, NumberCulture, out bytes);
+        internal void SetLimit(long bytes, CultureInfo culture)
+        {
+            NumberCulture = culture;
+            Exact = ExactMebibytes.Of(bytes, culture);
+            Megabytes = Exact.Value.Text;
+        }
         internal MediaImageFilterRule ImageFilter { get; set; }
         internal bool FilterSchemaAcknowledged { get; set; }
         internal System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.FieldValidationError> FilterValidationErrors { get; set; } = Array.Empty<MeowChan.PluginSdk.FieldValidationError>();
@@ -659,7 +885,8 @@ public partial class RulesPage : UserControl, INotifyPropertyChanged
             ExtensionInput.Tags.AddRange(rule.Types.Extensions);
             SizeMode = rule.SizeLimit.Mode;
             NumberCulture = Texts.Culture;
-            Megabytes = rule.SizeLimit.Bytes.HasValue ? FormatMegabytes(rule.SizeLimit.Bytes.Value, NumberCulture) : "10";
+            Megabytes = "10";
+            if (rule.SizeLimit.Bytes is long limit) SetLimit(limit, NumberCulture);
             CaptureInitial();
         }
     }

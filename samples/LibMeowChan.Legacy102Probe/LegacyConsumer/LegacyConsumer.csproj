@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>LegacyCore102Consumer</AssemblyName>
+    <RootNamespace>LibMeowChan.Legacy102Probe.LegacyConsumer</RootNamespace>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <EnableDefaultCompileItems>true</EnableDefaultCompileItems>
+    <IsPackable>false</IsPackable>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+  <Target Name="ValidateLegacyProbeAssemblyInputs" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(CoreAssemblyPath)' == ''" Text="CoreAssemblyPath must be an absolute path to the released libmeowchan.dll." />
+    <Error Condition="'$(CoreAssemblyPath)' != '' and !$([System.IO.Path]::IsPathFullyQualified('$(CoreAssemblyPath)'))" Text="CoreAssemblyPath must be absolute: $(CoreAssemblyPath)" />
+    <Error Condition="'$(CoreAssemblyPath)' != '' and !Exists('$(CoreAssemblyPath)')" Text="CoreAssemblyPath does not exist: $(CoreAssemblyPath)" />
+    <Error Condition="'$(ProbeDependencyDirectory)' != '' and !Exists('$(ProbeDependencyDirectory)')" Text="ProbeDependencyDirectory does not exist: $(ProbeDependencyDirectory)" />
+  </Target>
+
+  <ItemGroup>
+    <Reference Include="libmeowchan">
+      <HintPath>$(CoreAssemblyPath)</HintPath>
+      <Private>true</Private>
+    </Reference>
+
+    <!-- Optional runtime/compile siblings are local files only. Never let the
+         dependency directory override the explicitly requested CoreAssemblyPath. -->
+    <ProbeDependencyAssembly Include="$(ProbeDependencyDirectory)\*.dll"
+                             Condition="'$(ProbeDependencyDirectory)' != ''"
+                             Exclude="$(ProbeDependencyDirectory)\libmeowchan.dll" />
+    <Reference Include="@(ProbeDependencyAssembly)"
+               Condition="'@(ProbeDependencyAssembly)' != ''">
+      <Private>true</Private>
+    </Reference>
+    <None Include="$(ProbeDependencyDirectory)\**\*"
+          Condition="'$(ProbeDependencyDirectory)' != ''"
+          Exclude="$(ProbeDependencyDirectory)\libmeowchan.dll;$(ProbeDependencyDirectory)\**\*.dll"
+          CopyToOutputDirectory="PreserveNewest"
+          LinkBase="probe-dependencies" />
+  </ItemGroup>
+</Project>

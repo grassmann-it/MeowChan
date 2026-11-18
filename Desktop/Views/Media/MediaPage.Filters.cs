@@ -5,9 +5,15 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using MeowChan.Archive;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -18,66 +24,153 @@ namespace MeowChan;
 // explanation; it is never dropped, because that would silently show more than asked for.
 public sealed partial class MediaPage
 {
-    private readonly TextBox _nameFilter = new() { Name = "MediaNameFilter", MinWidth = 180, MaxLength = MediaLibraryFilter.MaximumNameLength };
-    private readonly ComboBox _kindFilter = new() { Name = "MediaKindFilter", MinWidth = 130 };
-    private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter", MinWidth = 130 };
-    private readonly ComboBox _boardFilter = new() { Name = "MediaBoardFilter", MinWidth = 130 };
+    private int _tagFilterTagsPerList = ArchiveTagFilter.DefaultTagsPerList;
+    internal int ArchiveTagFilterTagsPerListPreference
+    {
+        get => _tagFilterTagsPerList;
+        set => _tagFilterTagsPerList = Math.Clamp(value, ArchiveTagFilter.MinimumTagsPerList, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+    }
+
+    // Over a large index every keystroke would filter, sort and group again on the UI thread: the name waits 200 ms
+    // after the last edit. Up to SearchImmediateEntries entries filtering is cheap and follows every keystroke.
+    private static readonly TimeSpan NameFilterDebounce = TimeSpan.FromMilliseconds(200);
+    private int _searchImmediateEntries = 2000;
+    internal int SearchImmediateEntries { get => _searchImmediateEntries; set { _searchImmediateEntries = value; UpdateSearchResult(); } }
+    private readonly SearchBox _nameFilter = new() { Name = "MediaNameFilter", MinWidth = 180, MaxLength = MediaLibraryFilter.MaximumNameLength };
+    private readonly SearchScopeChip _searchScope = new() { Name = "MediaSearchScope", Scopes = new[] { SearchScope.Media } };
+    private readonly SearchCarryOffer _searchCarryOffer = new() { Name = "MediaSearchCarryOffer" };
+    private readonly ComboBox _kindFilter = new() { Name = "MediaKindFilter" };
+    private readonly ComboBox _sourceFilter = new() { Name = "MediaSourceFilter" };
+    private readonly ComboBox _boardFilter = new() { Name = "MediaBoardFilter" };
     private readonly CheckBox _favoritesOnly = new() { Name = "MediaFavoritesOnly" };
-    private readonly ComboBox _minRating = new() { Name = "MediaMinRating", MinWidth = 130 };
-    private readonly ComboBox _tagChoice = new() { Name = "MediaTagChoice", MinWidth = 160 };
-    private readonly Button _tagInclude = new() { Name = "MediaTagInclude" };
-    private readonly Button _tagExclude = new() { Name = "MediaTagExclude" };
-    private readonly ComboBox _tagMode = new() { Name = "MediaTagMode", MinWidth = 160 };
-    private readonly Button _filterReset = new() { Name = "MediaFilterReset" };
-    private readonly WrapPanel _filterChips = new() { Name = "MediaFilterChips", ItemSpacing = 6, LineSpacing = 6 };
+    private readonly CheckBox _withoutMediaTags = new() { Name = "MediaWithoutMediaTags" };
+    private readonly ComboBox _minRating = new() { Name = "MediaMinRating" };
+    // The tag part of the surface: one "Add tag…" popover with search; the tags in the filter are the chips of the header row.
+    private readonly TagFilterPicker _tagAdd = new() { Name = "MediaTagAdd" };
+    // The tag mode is a switch "all | any" beside the tag button (M5); index 0 = every included tag, 1 = at least one.
+    private readonly TwoWayToggle _tagMode = new() { Name = "MediaTagMode" };
+    private readonly WrapPanel _filterChips = new() { Name = "MediaFilterChips", ItemSpacing = 8, LineSpacing = 8 };
     private readonly TextBlock _filterError = new() { Name = "MediaFilterError", TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
-    private readonly List<Guid> _includeTags = new();
-    private readonly List<Guid> _excludeTags = new();
-    private (ResourceId Thread, string Title)? _threadFilter;
+    private readonly Button _filterRetry = new() { Name = "MediaFilterRetry", Classes = { "link" }, IsVisible = false };
+    private string? _filterErrorKey;
+    // M2: the term set is the one truth of the filter. The section's combos and check boxes show it (SyncFilterControls) and write
+    // it (EditTerms); the chips and the "+ Filter" picker read and write it the same way. Two parts stay outside the set: the
+    // file name lives in the search field (it filters live and debounced) and joins the set when the filter is read, and the tag
+    // mode (all / at least one) is a property of the tag terms, not a term.
+    private readonly List<MediaFilterTerm> _terms = new();
+    // Where the words of the search text are looked for (the in: token, the row under the field). It belongs to the text, not to the set:
+    // it survives an empty box and goes with "Reset filters", the clear mark of the field and the name chip (MediaPage.Breakdown.cs).
+    private MediaTextFields _textScope = MediaTextFields.All;
+    private string? _threadTitle;
     private MediaLibraryUserData _userData = MediaLibraryUserData.Unavailable;
+    // T1: which occurrences lack media tags, decided once per index and tag state; the status line counts the tiles among the matches.
+    private MediaLibraryUntagged? _untagged;
+    private int? _untaggedTiles;
+    private readonly TextBlock _untaggedText = new() { TextWrapping = Avalonia.Media.TextWrapping.NoWrap };
+    private readonly Button _untaggedLink = new() { Name = "MediaUntaggedCount", Padding = new Thickness(0), MinHeight = 0, BorderThickness = new Thickness(0),
+        Classes = { "link" }, IsVisible = false, VerticalAlignment = VerticalAlignment.Center };
     private MediaLibrarySnapshot? _optionsFor;
     private bool _filterFailed;
     private bool _filterActive;
     private Window? _owner;
 
-    private sealed record Choice(string? Value, string Label) { public override string ToString() => Label; }
-    private sealed record BoardChoice(string? Source, string? Board, string Label) { public override string ToString() => Label; }
-    private sealed record TagOption(Guid? Id, string Label) { public override string ToString() => Label; }
+    // Summary: the entry a combo shows while the set holds more than one value of its field ("2 types", "Excluded: 1"); it adds nothing.
+    private sealed record Choice(string? Value, string Label, bool Summary = false) { public override string ToString() => Label; }
+    private sealed record BoardChoice(string? Source, string? Board, string Label, bool Summary = false) { public override string ToString() => Label; }
 
     /// <summary>Reads the profile's own tags, favorites and ratings; null parts are unavailable.</summary>
     internal Func<MediaLibraryUserData>? ReadUserData { get; set; }
     internal string? FilterError => _filterError.IsVisible ? _filterError.Text : null;
+    internal Button FilterRetryButton => _filterRetry;
     internal WrapPanel FilterChips => _filterChips;
+
+    /// <summary>The filter as terms, in chip order: the set plus the file name typed in the search field (tests and smokes).</summary>
+    internal IReadOnlyList<MediaFilterTerm> FilterTerms => MediaFilterTermSet.Ordered(AllTerms());
+
+    private IEnumerable<MediaFilterTerm> AllTerms()
+    {
+        foreach (MediaFilterTerm term in _terms) yield return term;
+        // A text without a word (white space, an empty phrase "") is no filter: no term, no chip, and no scope (the scope survives
+        // an empty box in _textScope; it is a term again as soon as the box holds words).
+        if (!MediaLibraryFilter.HasText(_nameFilter.Text)) yield break;
+        if (_textScope != MediaTextFields.All) yield return MediaFilterTerm.In(_textScope);
+        yield return MediaFilterTerm.Name(_nameFilter.Text!);
+    }
+
+    private bool HasField(MediaFilterField field) => _terms.Any(term => term.Field == field);
+    private MediaFilterTerm? Included(MediaFilterField field) => _terms.FirstOrDefault(term => term.Field == field && !term.Exclude);
+    private IEnumerable<Guid> TagTerms(bool exclude) =>
+        _terms.Where(term => term.Field == MediaFilterField.Tag && term.Exclude == exclude).Select(term => Guid.Parse(term.Value));
+    private bool HasTag(Guid id) => MediaFilterTermSet.Contains(_terms, MediaFilterTerm.Tag(id));
+    private IReadOnlySet<TagId> UsedTags() => _terms.Where(term => term.Field == MediaFilterField.Tag).Select(term => new TagId(Guid.Parse(term.Value))).ToHashSet();
+
+    /// <summary>Replaces the set by <paramref name="change"/>'s result, mirrors it into the section and filters again.</summary>
+    private void EditTerms(Func<IReadOnlyList<MediaFilterTerm>, IReadOnlyList<MediaFilterTerm>> change)
+    {
+        IReadOnlyList<MediaFilterTerm> next = change(_terms.ToArray());
+        _terms.Clear(); _terms.AddRange(next);
+        if (!HasField(MediaFilterField.Thread)) _threadTitle = null;
+        SyncFilterControls();
+        RenderTagOptions();
+        FilterEdited();
+    }
+
+    // Whether the set with the file name still makes one filter (ToFilter refuses e.g. every type excluded).
+    private bool IsValidFilter(IEnumerable<MediaFilterTerm> terms)
+    {
+        // The scope of the text is kept outside the set (_textScope); a set that brings its own (a query being admitted) wins over it.
+        IReadOnlyList<MediaFilterTerm> given = terms as IReadOnlyList<MediaFilterTerm> ?? terms.ToArray();
+        bool scoped = given.Any(term => term.Field == MediaFilterField.In);
+        try { _ = MediaFilterTerms.ToFilter(given.Concat(AllTerms().Where(term => term.Field == MediaFilterField.Name || (term.Field == MediaFilterField.In && !scoped)))); return true; }
+        catch (ArgumentException) { return false; }
+    }
 
     private Control BuildFilterRow()
     {
-        WrapPanel row = new() { ItemSpacing = 8, LineSpacing = 6 };
-        foreach (Control control in new Control[] { _nameFilter, _kindFilter, _soundFilter, _sourceFilter, _boardFilter, _favoritesOnly, _minRating,
-            _tagChoice, _tagInclude, _tagExclude, _tagMode, _filterReset, _audioNote })
-        { control.VerticalAlignment = VerticalAlignment.Center; row.Children.Add(control); }
+        Control row = BuildFilterFields(); // the grid of the fields (MediaPage.FilterGrid.cs)
+        InstallFilterHandoffInterruption();
         AutomationProperties.SetLiveSetting(_filterError, AutomationLiveSetting.Assertive);
-        _filterReset.IsEnabled = false;
-        _tagInclude.IsEnabled = _tagExclude.IsEnabled = false;
-        _nameFilter.TextChanged += (_, _) => FilterEdited();
-        foreach (ComboBox combo in new[] { _boardFilter, _minRating, _tagMode })
-            combo.SelectionChanged += (_, _) => FilterEdited();
-        // A sound choice implies videos: it sets the type to Videos, and choosing another type drops the sound choice.
+        _filterRetry.Click += (_, _) => RetryFilterData();
+        _tagAdd.Snapshot = () => _userData.TagSnapshot;
+        _tagAdd.Used = UsedTags;
+        _tagAdd.Picked = (id, exclude) => TryIncludeOrExclude(id, !exclude);
+        _nameFilter.QueryChanged += (_, _) => { if (!_lifetime.IsCancellationRequested) { ClearQueryHint(); FilterEdited(); } };
+        _searchScope.CarryActions = SearchCarryActions;
+        _tagMode.SelectionChanged += (_, _) => FilterEdited();
+        // The fields write the term set; a sound choice implies videos (MediaFilterTermSet), and another type drops the sound.
         _kindFilter.SelectionChanged += (_, _) =>
         {
-            if (!_localizing && SoundFilterActive && _kindFilter.SelectedIndex != (int)MediaLibraryKindFilter.Video) SetSelection(_soundFilter, 0);
-            FilterEdited();
+            int index = _kindFilter.SelectedIndex;
+            if (_localizing || index is < 0 or > (int)MediaLibraryKindFilter.Other) return; // the "2 types" summary adds nothing
+            EditTerms(terms => index == 0 ? MediaFilterTermSet.WithTypes(terms) : MediaFilterTermSet.WithTypes(terms, (MediaLibraryKindFilter)index));
         };
         _soundFilter.SelectionChanged += (_, _) =>
         {
-            if (!_localizing && SoundFilterActive) SetSelection(_kindFilter, (int)MediaLibraryKindFilter.Video);
-            FilterEdited();
+            if (_localizing || _soundFilter.SelectedIndex < 0) return;
+            EditTerms(terms => _soundFilter.SelectedIndex == 0 ? MediaFilterTermSet.WithoutField(terms, MediaFilterField.Sound)
+                : MediaFilterTermSet.With(terms, MediaFilterTerm.Sound((MediaLibrarySoundFilter)_soundFilter.SelectedIndex)));
         };
-        _sourceFilter.SelectionChanged += (_, _) => { if (_localizing) return; RenderBoardOptions(); FilterEdited(); };
-        _favoritesOnly.IsCheckedChanged += (_, _) => FilterEdited();
-        _tagChoice.SelectionChanged += (_, _) => UpdateTagButtons();
-        _tagInclude.Click += (_, _) => AddTag(include: true);
-        _tagExclude.Click += (_, _) => AddTag(include: false);
-        _filterReset.Click += (_, _) => ResetFilters();
+        _sourceFilter.SelectionChanged += (_, _) =>
+        {
+            if (_localizing || _sourceFilter.SelectedItem is not Choice { Summary: false } choice) return;
+            EditTerms(terms => choice.Value == null ? MediaFilterTermSet.WithoutField(terms, MediaFilterField.Source, exclude: false)
+                : MediaFilterTermSet.With(terms, MediaFilterTerm.Source(choice.Value)));
+        };
+        _boardFilter.SelectionChanged += (_, _) =>
+        {
+            if (_localizing || _boardFilter.SelectedItem is not BoardChoice { Summary: false } choice) return;
+            EditTerms(terms => choice is { Board: { } board, Source: { } source } ? MediaFilterTermSet.With(terms, MediaFilterTerm.Board(source, board))
+                : MediaFilterTermSet.WithoutField(terms, MediaFilterField.Board, exclude: false));
+        };
+        _minRating.SelectionChanged += (_, _) =>
+        {
+            if (_localizing || _minRating.SelectedIndex < 0) return;
+            EditTerms(terms => _minRating.SelectedIndex == 0 ? MediaFilterTermSet.WithoutField(terms, MediaFilterField.Rating)
+                : MediaFilterTermSet.With(terms, MediaFilterTerm.Rating(_minRating.SelectedIndex)));
+        };
+        WireFlag(_favoritesOnly, MediaFilterField.Favorite);
+        WireFlag(_withoutMediaTags, MediaFilterField.Untagged);
+        WireFlag(_missing, MediaFilterField.Missing);
         AttachedToVisualTree += (_, _) =>
         {
             _owner = TopLevel.GetTopLevel(this) as Window;
@@ -94,8 +187,29 @@ public sealed partial class MediaPage
     private void FilterEdited()
     {
         if (_localizing) return;
+        NoteBooruHandoffInteraction();
+        PresentEditedFilters();
+    }
+
+    // The Booru reset is an expected programmatic edit, not user takeover. It shares the same rendering
+    // transaction, without advancing the interaction revision captured before the handoff.
+    private void PresentEditedFilters()
+    {
+        // This pass reads the name as typed; a debounced run for the same text would only repeat it.
+        _nameFilter.CancelPendingQuery();
         RenderFilterChips();
         Present();
+    }
+
+    private void InstallFilterHandoffInterruption()
+    {
+        // TextChanged is deferred until rendering: IME/accessibility/paste must revoke the handoff now,
+        // even while QueryChanged is debounced. Programmatic term/control synchronization is _localizing.
+        _nameFilter.TextChanging += (_, _) => NoteBooruHandoffInteraction();
+        // Click can be delivered by accessibility/commands without a page pointer/key event. These
+        // actions change the ordering, not the filter terms, so they do not go through FilterEdited.
+        _sortDirection.Click += (_, _) => NoteBooruHandoffInteraction();
+        _shuffle.Click += (_, _) => NoteBooruHandoffInteraction();
     }
 
     // Coming back from the gallery (favorite, rating or tag changed there) re-reads the own data.
@@ -115,68 +229,137 @@ public sealed partial class MediaPage
         _userData = next;
         RenderTagOptions();
         RenderFilterChips();
-        if (_snapshot != null) Present();
+        if (_snapshot != null) Present(keepView: true); // PF-05: a favorite, rating or tag changed, not the query: the view stays
     }
 
-    /// <summary>The filter the controls describe. Throws ArgumentException for an invalid combination.</summary>
-    internal MediaLibraryFilter CurrentFilter()
+    private void WireFlag(CheckBox box, MediaFilterField field) => box.IsCheckedChanged += (_, _) =>
     {
-        BoardChoice? board = _boardFilter.SelectedItem as BoardChoice;
-        string? source = (_sourceFilter.SelectedItem as Choice)?.Value ?? board?.Source;
-        return new MediaLibraryFilter(
-            ArchiveTagFilter.OrNull(_includeTags, _excludeTags, _tagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All),
-            (MediaLibraryKindFilter)Math.Clamp(_kindFilter.SelectedIndex, 0, (int)MediaLibraryKindFilter.Other),
-            _favoritesOnly.IsChecked == true, _minRating.SelectedIndex > 0 ? _minRating.SelectedIndex : null,
-            source, board?.Board, _nameFilter.Text, _threadFilter?.Thread,
-            (MediaLibrarySoundFilter)Math.Clamp(_soundFilter.SelectedIndex, 0, (int)MediaLibrarySoundFilter.WithoutSound));
-    }
+        if (_localizing) return;
+        EditTerms(terms => box.IsChecked == true ? MediaFilterTermSet.With(terms, MediaFilterTerm.Flag(field)) : MediaFilterTermSet.WithoutField(terms, field));
+    };
 
-    /// <summary>Entries that pass the filter; empty with an explanation when the filter cannot be applied.</summary>
-    private IReadOnlyList<MediaLibraryEntry> ApplyFilter(IReadOnlyList<MediaLibraryEntry> entries)
+    /// <summary>The filter the terms describe. Throws ArgumentException for an invalid combination.</summary>
+    internal MediaLibraryFilter CurrentFilter() =>
+        MediaFilterTerms.ToFilter(AllTerms(), _tagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All);
+
+    /// <summary>Shows the term set in the section's fields, without their change reactions.</summary>
+    private void SyncFilterControls()
     {
-        if (!ReferenceEquals(_optionsFor, _snapshot)) RenderSourceOptions();
-        string? error = null;
-        IReadOnlyList<MediaLibraryEntry> passing;
-        _audioUnknown = 0;
+        bool localizing = _localizing;
+        _localizing = true;
         try
         {
-            MediaLibraryFilter filter = CurrentFilter();
-            _filterActive = !filter.IsEmpty;
-            MediaLibraryFilterResult result = MediaLibraryFilterEngine.Evaluate(entries, filter, _userData, _audio);
-            passing = result.Passing;
-            _audioUnknown = result.UnknownSoundVideos;
+            RenderKindOptions();
+            _soundFilter.SelectedIndex = _terms.FirstOrDefault(term => term.Field == MediaFilterField.Sound)?.Value switch { "with" => 1, "without" => 2, _ => 0 };
+            _minRating.SelectedIndex = Included(MediaFilterField.Rating) is { } rating ? int.Parse(rating.Value, System.Globalization.CultureInfo.InvariantCulture) : 0;
+            _favoritesOnly.IsChecked = HasField(MediaFilterField.Favorite);
+            _withoutMediaTags.IsChecked = HasField(MediaFilterField.Untagged);
+            _missing.IsChecked = HasField(MediaFilterField.Missing);
+            RenderSourceOptions();
         }
-        catch (MediaLibraryFilterException exception)
+        finally { _localizing = localizing; }
+    }
+
+    // The type combo: All types, the four types, and while the set holds anything else than one included type a summary
+    // ("2 types", "3 types" for "without videos") that stays selected until the user picks a single type again.
+    private void RenderKindOptions()
+    {
+        List<string> items = new[] { "media.filter.anyKind", "media.filter.kind.image", "media.filter.kind.gif", "media.filter.kind.video", "media.filter.kind.other" }
+            .Select(key => Texts.T(key)).ToList();
+        MediaFilterTerm[] types = _terms.Where(term => term.Field == MediaFilterField.Type).ToArray();
+        int index = 0;
+        if (types.Length == 1 && !types[0].Exclude && MediaFilterTerm.TypeOf(types[0].Value) is { } kind) index = (int)kind;
+        else if (types.Length > 0)
         {
-            error = Texts.T(exception.Error switch
-            {
-                MediaLibraryFilterError.UnknownTag => "media.filter.error.unknownTag",
-                MediaLibraryFilterError.TagsUnavailable => "media.filter.error.tags",
-                MediaLibraryFilterError.FavoritesUnavailable => "media.filter.error.favorites",
-                _ => "media.filter.error.ratings"
-            });
-            passing = Array.Empty<MediaLibraryEntry>();
+            items.Add(Texts.Count("media.filter.kind.count", MediaFilterTermSet.ShownKinds(types)?.Count ?? 0));
+            index = items.Count - 1;
         }
-        catch (ArgumentException)
+        bool localizing = _localizing;
+        _localizing = true;
+        try
         {
-            error = Texts.T("media.filter.error.invalid");
-            _filterActive = true;
-            passing = Array.Empty<MediaLibraryEntry>();
+            if (_kindFilter.ItemsSource is not IEnumerable<string> shown || !shown.SequenceEqual(items)) _kindFilter.ItemsSource = items.ToArray();
+            _kindFilter.SelectedIndex = index;
         }
-        _filterFailed = error != null;
-        _filterError.Text = error;
-        _filterError.IsVisible = error != null;
-        _filterReset.IsEnabled = _filterActive;
-        UpdateAudioNote();
-        return passing;
+        finally { _localizing = localizing; }
+    }
+
+    /// <summary>The "N without media tags" link of the status line: shown while it would narrow the matches to untagged media.</summary>
+    private Control BuildStatusRow(TextBlock status)
+    {
+        _untaggedLink.Content = _untaggedText;
+        _untaggedLink.Click += (_, _) => ShowUntagged();
+        // One line is as high as a button (Workspace.Size.Control, 32): the selection actions swap with this line in the same place (MediaPage.Selection.cs).
+        // The minimum line height centres a one-line text in that height; a status that needs two lines (a narrow window, a long language) gets
+        // both: a WrapPanel's ItemHeight measured it into one line's height and its second line vanished (narrow-window sweep, 16.11.2026).
+        MinLineWrapPanel row = new() { ItemSpacing = 8, LineSpacing = 2 };
+        row[!Layoutable.MinHeightProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Size.Control");
+        row[!MinLineWrapPanel.MinLineHeightProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Size.Control");
+        status.VerticalAlignment = VerticalAlignment.Center;
+        row.Children.Add(status); row.Children.Add(_untaggedLink);
+        return row;
+    }
+
+    private void UpdateUntaggedLink()
+    {
+        int count = _untaggedTiles ?? 0;
+        bool shown = _snapshot != null && !_filterFailed && count > 0;
+        WorkViewGate.Apply(_untaggedLink, _workView, shown); // the view may leave the count out (Barebones); state is `shown`
+        if (!shown) return;
+        _untaggedText.Text = Texts.T("media.untagged.count", count);
+        string hint = Texts.Count("media.untagged.hint", count);
+        ToolTip.SetTip(_untaggedLink, hint);
+        AutomationProperties.SetName(_untaggedLink, hint);
+    }
+
+    /// <summary>Applies "without media tags" on top of the current filters: the starting point for tagging.</summary>
+    internal void ShowUntagged()
+    {
+        bool focused = _untaggedLink.IsFocused;
+        _withoutMediaTags.IsChecked = true;
+        // The link hides once the filter is on; keyboard focus continues on the tiles to tag.
+        if (focused) FocusGrid();
+    }
+
+    /// <summary>A tag chip of a tile: only media that carry this tag, added to the tags already included.</summary>
+    internal void FilterToTag(Guid id)
+    {
+        // A shown tile never carries an excluded tag, so a chip can only be new or already included.
+        if (HasTag(id) || _userData.TagSnapshot?.Find(new TagId(id)) == null) return;
+        bool focused = FocusWithin(_grid);
+        if (!IncludeOrExclude(id, include: true)) return;
+        if (focused) FocusGrid();
+    }
+
+    /// <summary>Shift+click on a tag chip of a tile: hide the media with this tag (S7). Excluding takes the shown tile out of the grid.</summary>
+    internal void ExcludeTag(Guid id)
+    {
+        if (HasTag(id) || _userData.TagSnapshot?.Find(new TagId(id)) == null) return;
+        bool focused = FocusWithin(_grid);
+        if (!IncludeOrExclude(id, include: false)) return;
+        if (focused) FocusGrid();
     }
 
     /// <summary>Thread as a meta tag: only the media of this thread.</summary>
+    /// <summary>Shows only one import batch (or any borrowed thread identity) by its identity and title.</summary>
+    internal void FilterToThread(ResourceId thread, string title)
+    {
+        ArgumentNullException.ThrowIfNull(thread);
+        _threadTitle = string.IsNullOrWhiteSpace(title) ? "#" + thread.Thread : title;
+        EditTerms(terms => MediaFilterTermSet.With(terms, MediaFilterTerm.InThread(thread)));
+    }
+
+    /// <summary>"Show in Media" of a thread menu: the thread: chip becomes the only filter (a clean view of this thread's media).</summary>
+    internal void ShowOnlyThread(ResourceId thread, string title)
+    {
+        ResetFilters();
+        FilterToThread(thread, title);
+    }
+
     internal void FilterToThread(MediaLibraryEntry entry)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        _threadFilter = (entry.Thread, string.IsNullOrWhiteSpace(entry.ThreadTitle) ? "#" + entry.Thread.Thread : entry.ThreadTitle);
-        FilterEdited();
+        FilterToThread(entry.Thread, entry.ThreadTitle ?? string.Empty);
     }
 
     internal void ResetFilters()
@@ -184,122 +367,272 @@ public sealed partial class MediaPage
         _localizing = true;
         try
         {
-            _nameFilter.Text = string.Empty;
-            _kindFilter.SelectedIndex = 0;
-            _soundFilter.SelectedIndex = 0;
-            _sourceFilter.SelectedIndex = 0;
-            RenderBoardOptions();
-            _boardFilter.SelectedIndex = 0;
-            _favoritesOnly.IsChecked = false;
-            _minRating.SelectedIndex = 0;
+            _nameFilter.SetTextSilently(string.Empty);
+            _textScope = MediaTextFields.All;
             _tagMode.SelectedIndex = 0;
-            _includeTags.Clear(); _excludeTags.Clear();
-            _threadFilter = null;
+            _terms.Clear();
+            _threadTitle = null;
+            SyncFilterControls();
         }
         finally { _localizing = false; }
+        ClearQueryHint();
         RenderTagOptions();
         FilterEdited();
     }
 
-    private void AddTag(bool include)
+    /// <summary>Adds a tag to the filter as an inclusion or an exclusion (the popover and the tests); null when added, else why not.</summary>
+    internal string? AddTagFilter(Guid id, bool include) => TryIncludeOrExclude(id, include);
+
+    /// <summary>Test seam of the tag popover: adds the own tag with this display name; null when added, else why not.</summary>
+    internal string? AddTagFilterByName(string name, bool include) =>
+        _userData.TagSnapshot?.Tags.FirstOrDefault(tag => tag.Name.Display == name) is { } found
+            ? TryIncludeOrExclude(found.Id.Value, include) : "Unknown tag: " + name;
+
+    /// <summary>Test seam of the chip toggle: switches the own tag with this display name between include and exclude.</summary>
+    internal string? ToggleTagFilterByName(string name) =>
+        _userData.TagSnapshot?.Tags.FirstOrDefault(tag => tag.Name.Display == name) is { } found ? ToggleTagFilter(found.Id.Value) : "Unknown tag: " + name;
+
+    /// <summary>Test seam: the names the tag popover offers for an empty search, in ordinal order.</summary>
+    internal string[] AddableTagNames => TagFilterPicker.Choices(_userData.TagSnapshot, UsedTags(), null)
+        .Select(item => item.Name.Display).Order(StringComparer.Ordinal).ToArray();
+
+    private bool IncludeOrExclude(Guid id, bool include)
     {
-        if (_tagChoice.SelectedItem is not TagOption { Id: Guid id }) return;
+        string? refusal = TryIncludeOrExclude(id, include);
+        if (refusal == null) return true;
+        ShowFilterError(refusal);
+        return false;
+    }
+
+    private string? TryIncludeOrExclude(Guid id, bool include)
+    {
+        if (HasTag(id)) return null;
+        Guid[] included = TagTerms(false).ToArray(), excluded = TagTerms(true).ToArray();
+        // SP5: the configured tags-per-list limit refuses with its reason; the ceiling guards the filter itself.
+        if (ArchivePage.DraftTagRefusal(include ? included : excluded, Array.Empty<Guid>(), id,
+                ArchiveTagFilterTagsPerListPreference) is string refusal) return refusal;
         try
         {
-            _ = new ArchiveTagFilter(include ? _includeTags.Append(id) : _includeTags, include ? _excludeTags : _excludeTags.Append(id));
+            _ = new ArchiveTagFilter(include ? included.Append(id) : included, include ? excluded : excluded.Append(id),
+                ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
-        catch (ArgumentException)
+        catch (ArgumentException) { return Texts.T("coreLimits.tags.invalid"); }
+        EditTerms(terms => MediaFilterTermSet.With(terms, MediaFilterTerm.Tag(id, exclude: !include)));
+        return null;
+    }
+
+    /// <summary>
+    /// The include/exclude switch of a tag chip (its toggle, a click on its body, Enter, or its menu): moves the tag to the other list.
+    /// Null when switched (or not in the filter), else the localized reason, also shown on the error line.
+    /// </summary>
+    internal string? ToggleTagFilter(Guid id)
+    {
+        MediaFilterTerm? held = _terms.FirstOrDefault(term => term.Field == MediaFilterField.Tag && term.Value == id.ToString("D"));
+        if (held == null) return null;
+        Guid[] included = TagTerms(false).ToArray(), excluded = TagTerms(true).ToArray();
+        string? refusal = ArchivePage.DraftTagRefusal(!held.Exclude ? excluded : included, Array.Empty<Guid>(), id,
+            ArchiveTagFilterTagsPerListPreference);
+        if (refusal == null)
         {
-            _filterError.Text = Texts.T("media.filter.error.tooManyTags");
-            _filterError.IsVisible = true;
+            try
+            {
+                _ = new ArchiveTagFilter(!held.Exclude ? included.Where(tag => tag != id) : included.Append(id),
+                    !held.Exclude ? excluded.Append(id) : excluded.Where(tag => tag != id), ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+            }
+            catch (ArgumentException) { refusal = Texts.T("coreLimits.tags.invalid"); }
+        }
+        if (refusal != null)
+        {
+            ShowFilterError(refusal);
+            return refusal;
+        }
+        EditTerms(terms => MediaFilterTermSet.Toggled(terms, held));
+        return null;
+    }
+
+    /// <summary>
+    /// The include/exclude switch of any negatable chip (tag, type, source, board). Null when switched, else the localized reason
+    /// (a set that would no longer be one filter, e.g. every type excluded), also shown on the error line.
+    /// </summary>
+    internal string? ToggleFilterTerm(MediaFilterTerm term)
+    {
+        if (term.Field == MediaFilterField.Tag) return ToggleTagFilter(Guid.Parse(term.Value));
+        IReadOnlyList<MediaFilterTerm> next = MediaFilterTermSet.Toggled(_terms.ToArray(), term);
+        // MP4: a source tag that switches lists counts against the tags-per-list limit of its new list.
+        if (term.Field == MediaFilterField.SourceTag && _terms.FirstOrDefault(other => MediaFilterTermSet.Identity(other) == MediaFilterTermSet.Identity(term)) is { } held
+            && SourceTagRefusal(held.Toggled()) is { } limit)
+        {
+            ShowFilterError(limit);
+            return limit;
+        }
+        if (!IsValidFilter(next))
+        {
+            string refusal = Texts.T("media.filter.add.refused");
+            ShowFilterError(refusal);
+            return refusal;
+        }
+        EditTerms(_ => next);
+        return null;
+    }
+
+    /// <summary>
+    /// "Show only this" on a chip: drops the other terms of its field (the other tags, types, sources or boards). Null when done, else the
+    /// localized reason (a set that would no longer be one filter), also shown on the error line.
+    /// </summary>
+    internal string? ShowOnlyFilterTerm(MediaFilterTerm term)
+    {
+        IReadOnlyList<MediaFilterTerm> next = MediaFilterTermSet.OnlyThis(_terms.ToArray(), term);
+        if (!IsValidFilter(next))
+        {
+            string refusal = Texts.T("media.filter.add.refused");
+            ShowFilterError(refusal);
+            return refusal;
+        }
+        EditTerms(_ => next);
+        return null;
+    }
+
+    /// <summary>
+    /// Adds a term from the "+ Filter" picker (or a test). Null when added, else the localized reason it was refused: a tag beyond
+    /// the list limit, or a term that would not make one filter with the others.
+    /// </summary>
+    internal string? AddFilterTerm(MediaFilterTerm term)
+    {
+        if (term.Field == MediaFilterField.Tag) return TryIncludeOrExclude(Guid.Parse(term.Value), include: !term.Exclude);
+        if (term.Field == MediaFilterField.Thread && term.Resource != null)
+        {
+            FilterToThread(term.Resource, term.Value);
+            return null;
+        }
+        IReadOnlyList<MediaFilterTerm> next = MediaFilterTermSet.With(_terms.ToArray(), term);
+        if (!IsValidFilter(next)) return Texts.T("media.filter.add.refused");
+        EditTerms(_ => next);
+        return null;
+    }
+
+    /// <summary>Removes a term (a chip's close mark, Delete, or its menu).</summary>
+    private void RemoveFilterTerm(MediaFilterTerm term)
+    {
+        if (term.Field == MediaFilterField.Name)
+        {
+            _textScope = MediaTextFields.All; // the scope belongs to the text it chose the fields for
+            _nameFilter.Text = string.Empty;
+            FilterEdited(); // Text changes reach the filter after a dispatcher turn; the chip goes at once.
             return;
         }
-        (include ? _includeTags : _excludeTags).Add(id);
-        RenderTagOptions();
-        FilterEdited();
+        EditTerms(terms => MediaFilterTermSet.Without(terms, term));
     }
 
-    private string TagLabel(Guid id) => _userData.TagSnapshot?.Find(new TagId(id))?.Name.Display ?? Texts.T("tags.filter.deleted");
-
-    private void RenderFilterChips()
+    /// <summary>
+    /// What the "+ Filter" picker offers besides the own tags: every type, sound, source and board of the index, the ratings and the
+    /// three flags, without what the set already holds. Read from the index snapshot; no store access.
+    /// </summary>
+    private IReadOnlyList<FilterTermChoice> PickerChoices()
     {
-        List<(string Label, Action Remove)> chips = new();
-        chips.AddRange(_includeTags.ToArray().Select(id => (Texts.T("tags.filter.includeChip", TagLabel(id)),
-            (Action)(() => { _includeTags.Remove(id); RenderTagOptions(); FilterEdited(); }))));
-        chips.AddRange(_excludeTags.ToArray().Select(id => (Texts.T("tags.filter.excludeChip", TagLabel(id)),
-            (Action)(() => { _excludeTags.Remove(id); RenderTagOptions(); FilterEdited(); }))));
-        if (_includeTags.Count > 1 && _tagMode.SelectedIndex == 1)
-            chips.Add((Texts.T("tags.filter.anyChip"), () => { _tagMode.SelectedIndex = 0; }));
-        if (_threadFilter is { } thread)
-            chips.Add((Texts.T("media.filter.threadChip", thread.Title), () => { _threadFilter = null; FilterEdited(); }));
-        _filterChips.Children.Clear();
-        foreach ((string label, Action remove) in chips) _filterChips.Children.Add(ArchivePage.CreateFilterTag(label, remove));
-        _filterChips.IsVisible = chips.Count > 0;
+        List<FilterTermChoice> choices = new();
+        void Offer(MediaFilterTerm term, string label) { if (!MediaFilterTermSet.Contains(_terms, term)) choices.Add(new FilterTermChoice(term.Field, label, term)); }
+        foreach (MediaLibraryKindFilter kind in new[] { MediaLibraryKindFilter.Image, MediaLibraryKindFilter.Gif, MediaLibraryKindFilter.Video, MediaLibraryKindFilter.Other })
+            Offer(MediaFilterTerm.Type(kind), KindLabel(kind));
+        Offer(MediaFilterTerm.Sound(MediaLibrarySoundFilter.WithSound), Texts.T("media.filter.sound.with"));
+        Offer(MediaFilterTerm.Sound(MediaLibrarySoundFilter.WithoutSound), Texts.T("media.filter.sound.without"));
+        IReadOnlyList<MediaLibraryEntry> entries = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
+        foreach (string source in entries.Select(entry => entry.Thread.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal))
+            Offer(MediaFilterTerm.Source(source), SourceLabel(source));
+        string? included = Included(MediaFilterField.Source)?.Value;
+        foreach ((string source, string board) in entries.Select(entry => (entry.Thread.Source, entry.Thread.Board)).Distinct()
+            .Where(pair => included == null || pair.Source == included)
+            .OrderBy(pair => pair.Board, StringComparer.Ordinal).ThenBy(pair => pair.Source, StringComparer.Ordinal))
+            Offer(MediaFilterTerm.Board(source, board), BoardLabel(source, board));
+        for (int least = 1; least <= 5; least++) Offer(MediaFilterTerm.Rating(least), Texts.T("media.filter.minRating", least));
+        Offer(MediaFilterTerm.Flag(MediaFilterField.Favorite), Texts.T("media.filter.favorites"));
+        Offer(MediaFilterTerm.Flag(MediaFilterField.Untagged), Texts.T("media.filter.withoutTags"));
+        Offer(MediaFilterTerm.Flag(MediaFilterField.Missing), Texts.T("media.showMissing"));
+        if (ReadTagQueue != null) Offer(MediaFilterTerm.InQueue(), Texts.T("media.filter.queueChip")); // MP1
+        return choices;
     }
 
-    private void RenderTagOptions()
-    {
-        PrivateTagStoreSnapshot? tags = _userData.TagSnapshot;
-        HashSet<Guid> used = _includeTags.Concat(_excludeTags).ToHashSet();
-        // A tag already in the filter is not offered again, so include and exclude cannot overlap.
-        TagOption[] options = new[] { new TagOption(null, Texts.T(tags == null ? "tags.filter.unavailable"
-                : tags.Tags.Count == 0 ? "tags.filter.none" : "tags.filter.choose")) }
-            .Concat((tags?.Tags ?? Array.Empty<PrivateTagDefinition>()).Where(tag => !used.Contains(tag.Id.Value))
-                .Select(tag => new TagOption(tag.Id.Value, tag.Name.Display))).ToArray();
-        Guid? selected = (_tagChoice.SelectedItem as TagOption)?.Id;
-        bool localizing = _localizing;
-        _localizing = true;
-        try
-        {
-            _tagChoice.ItemsSource = options;
-            _tagChoice.SelectedItem = options.FirstOrDefault(option => selected != null && option.Id == selected) ?? options[0];
-        }
-        finally { _localizing = localizing; }
-        UpdateTagButtons();
-    }
+    private static string KindLabel(MediaLibraryKindFilter kind) => Texts.T("media.filter.kind." + MediaFilterTerm.TypeValue(kind));
 
-    private void UpdateTagButtons() =>
-        _tagInclude.IsEnabled = _tagExclude.IsEnabled = _tagChoice.SelectedItem is TagOption { Id: not null };
+    // A board is "/g/" while its source is the included one, else "/g/ (source)", as in the board combo.
+    private string BoardLabel(string source, string board) =>
+        Included(MediaFilterField.Source)?.Value == source ? "/" + board + "/" : Texts.T("media.filter.boardOfSource", board, source);
 
-    // Sources and boards come from the index, so only values that exist are offered.
+    private string TagLabel(Guid id) => _userData.TagSnapshot is { } tags && tags.ResolveId(new TagId(id)) is { } current
+        ? tags.Find(current)?.Name.Display ?? Texts.T("tags.filter.deleted") : Texts.T("tags.filter.deleted");
+
+    // The popovers read the tags and the filter when they open; the buttons only say whether something is left to add.
+    private void RenderTagOptions() { _tagAdd.Refresh(); _filterAdd.Refresh(); }
+
+    // Keep a selected identity even if a new index no longer contains it: dropping it would widen the results.
+    private static string UnavailableOption(string label) => label + " (" + Texts.T("mediahash.unavailable") + ")";
     private void RenderSourceOptions()
     {
         _optionsFor = _snapshot;
         IReadOnlyList<MediaLibraryEntry> entries = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
-        string? selected = (_sourceFilter.SelectedItem as Choice)?.Value;
-        Choice[] options = new[] { new Choice(null, Texts.T("media.filter.anySource")) }
+        string? selected = Included(MediaFilterField.Source)?.Value;
+        List<Choice> options = new[] { new Choice(null, Texts.T("media.filter.anySource")) }
             .Concat(entries.Select(entry => entry.Thread.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal)
-                .Select(source => new Choice(source, source))).ToArray();
+                .Select(source => new Choice(source, SourceLabel(source)))).ToList();
+        if (selected != null && !options.Any(option => option.Value == selected))
+            options.Add(new Choice(selected, UnavailableOption(SourceLabel(selected))));
+        int excluded = _terms.Count(term => term.Field == MediaFilterField.Source && term.Exclude);
+        Choice? summary = selected == null && excluded > 0 ? new Choice(null, Texts.T("media.filter.combo.excluded", excluded), Summary: true) : null;
+        if (summary != null) options.Add(summary);
         bool localizing = _localizing;
         _localizing = true;
         try
         {
             _sourceFilter.ItemsSource = options;
-            _sourceFilter.SelectedItem = options.FirstOrDefault(option => option.Value == selected) ?? options[0];
+            _sourceFilter.SelectedItem = summary ?? options.FirstOrDefault(option => option.Value == selected) ?? options[0];
         }
         finally { _localizing = localizing; }
         RenderBoardOptions();
     }
 
+    // The provider source is shown by its name; chan sources keep their identifier.
+    private static string SourceLabel(string source) => source == BooruMediaIdentity.Source ? Texts.T("booru.media.source")
+        : source == Import.ManualImportIdentity.Source ? Texts.T("import.media.source")
+        : source == FolderSources.FolderSourceIdentity.Source ? Texts.T("folderSource.media.source") : source;
+
+    // A folder source is one "board" of the folder source: it is shown by its name ("Folder: Holiday"), never by its id.
+    private string BoardLabel(string source, string board, bool withSource)
+    {
+        if (source == FolderSources.FolderSourceIdentity.Source)
+        {
+            string? name = _snapshot?.Entries.FirstOrDefault(entry => entry.Thread.Source == source && entry.Thread.Board == board)?.ThreadTitle;
+            return Texts.T("folderSource.media.board", name ?? Texts.T("folderSource.media.unknown"));
+        }
+        return withSource ? Texts.T("media.filter.boardOfSource", board, source) : "/" + board + "/";
+    }
+
     private void RenderBoardOptions()
     {
         IReadOnlyList<MediaLibraryEntry> entries = _snapshot?.Entries ?? Array.Empty<MediaLibraryEntry>();
-        string? source = (_sourceFilter.SelectedItem as Choice)?.Value;
-        BoardChoice? selected = _boardFilter.SelectedItem as BoardChoice;
-        BoardChoice[] options = new[] { new BoardChoice(null, null, Texts.T("media.filter.anyBoard")) }
+        string? source = Included(MediaFilterField.Source)?.Value;
+        BoardChoice? selected = Included(MediaFilterField.Board) is { Scope: { } boardSource } board ? new BoardChoice(boardSource, board.Value, board.Value) : null;
+        List<BoardChoice> options = new[] { new BoardChoice(null, null, Texts.T("media.filter.anyBoard")) }
             .Concat(entries.Select(entry => (entry.Thread.Source, entry.Thread.Board)).Distinct()
                 .Where(pair => source == null || pair.Source == source)
                 .OrderBy(pair => pair.Board, StringComparer.Ordinal).ThenBy(pair => pair.Source, StringComparer.Ordinal)
-                .Select(pair => new BoardChoice(pair.Source, pair.Board,
-                    source == null ? Texts.T("media.filter.boardOfSource", pair.Board, pair.Source) : "/" + pair.Board + "/")))
-            .ToArray();
+                .Select(pair => new BoardChoice(pair.Source, pair.Board, BoardLabel(pair.Source, pair.Board, source == null))))
+            .ToList();
+        if (selected is { Source: not null, Board: not null }
+            && (source == null || source == selected.Source)
+            && !options.Any(option => option.Board == selected.Board && option.Source == selected.Source))
+        {
+            string label = BoardLabel(selected.Source, selected.Board, source == null);
+            options.Add(new BoardChoice(selected.Source, selected.Board, UnavailableOption(label)));
+        }
+        int excluded = _terms.Count(term => term.Field == MediaFilterField.Board && term.Exclude);
+        BoardChoice? summary = selected == null && excluded > 0 ? new BoardChoice(null, null, Texts.T("media.filter.combo.excluded", excluded), Summary: true) : null;
+        if (summary != null) options.Add(summary);
         bool localizing = _localizing;
         _localizing = true;
         try
         {
             _boardFilter.ItemsSource = options;
-            // A board of another source no longer matches and is cleared.
-            _boardFilter.SelectedItem = options.FirstOrDefault(option => selected?.Board != null
+            // The set never holds a board of another source than the included one (MediaFilterTermSet drops it).
+            _boardFilter.SelectedItem = summary ?? options.FirstOrDefault(option => selected?.Board != null
                 && option.Board == selected.Board && option.Source == selected.Source) ?? options[0];
         }
         finally { _localizing = localizing; }
@@ -311,39 +644,99 @@ public sealed partial class MediaPage
         _localizing = true;
         try
         {
-            SetKeys(_kindFilter, "media.filter.anyKind", "media.filter.kind.image", "media.filter.kind.gif", "media.filter.kind.video", "media.filter.kind.other");
+            RenderKindOptions();
             SetTexts(_minRating, new[] { Texts.T("media.filter.anyRating") }.Concat(Enumerable.Range(1, 5).Select(value => Texts.T("media.filter.minRating", value))).ToArray());
             SetKeys(_soundFilter, "media.filter.anySound", "media.filter.sound.with", "media.filter.sound.without");
-            SetKeys(_tagMode, "tags.filter.matchAll", "tags.filter.matchAny");
         }
         finally { _localizing = localizing; }
-        _nameFilter.Watermark = Texts.T("media.filter.name");
+        _nameFilter.PlaceholderText = Texts.T("media.filter.name");
+        _filterRetry.Content = Texts.T("media.filter.retry");
+        AutomationProperties.SetName(_filterRetry, Texts.T("media.filter.retry"));
+        _queryAliases = null; // the aliases follow the language
+        _queryScopeAliases = null;
+        UpdateScopeChip();
+        RefreshBreakdown();
+        _searchScope.FieldHelpNote = Texts.T("media.query.tip").Replace("\n", " "); // the tooltip lists the syntax in lines; the help text reads as one sentence run
+        ClearQueryHint();
+        _searchCarryOffer.Localize();
+        UpdateSearchTip();
         _favoritesOnly.Content = Texts.T("media.filter.favorites");
-        _tagInclude.Content = Texts.T("tags.filter.include");
-        _tagExclude.Content = Texts.T("tags.filter.exclude");
-        _filterReset.Content = Texts.T("media.filter.reset");
+        _withoutMediaTags.Content = Texts.T("media.filter.withoutTags");
+        ToolTip.SetTip(_withoutMediaTags, Texts.T("media.filter.withoutTagsHint"));
         ToolTip.SetTip(_soundFilter, Texts.T("media.filter.sound.hint"));
-        ToolTip.SetTip(_tagInclude, Texts.T("media.filter.includeHint"));
-        ToolTip.SetTip(_tagExclude, Texts.T("media.filter.excludeHint"));
+        _tagAdd.IncludeHint = Texts.T("media.filter.includeHint");
+        _tagAdd.ExcludeHint = Texts.T("media.filter.excludeHint");
+        _tagAdd.ApplyTexts();
+        _filterAdd.ApplyTexts();
         foreach ((Control control, string key) in new (Control, string)[]
         {
             (_nameFilter, "media.filter.name"), (_kindFilter, "media.filter.kind"), (_soundFilter, "media.filter.sound"), (_sourceFilter, "media.filter.source"),
-            (_boardFilter, "media.filter.board"), (_minRating, "media.filter.rating"), (_tagChoice, "tags.filter.label"),
-            (_tagMode, "tags.filter.matchLabel"), (_tagInclude, "media.filter.includeHint"), (_tagExclude, "media.filter.excludeHint"),
+            (_boardFilter, "media.filter.board"), (_minRating, "media.filter.rating"),
+            (_tagMode, "tags.filter.matchLabel"),
             (_filterChips, "media.filter.active")
         }) AutomationProperties.SetName(control, Texts.T(key));
-        RenderSourceOptions();
+        LocalizeFilterGrid();
+        SyncFilterControls();
         RenderTagOptions();
         RenderFilterChips();
     }
 
-    // Sets another filter combo without that combo's own change reaction.
-    private void SetSelection(ComboBox combo, int index)
+    /// <summary>Primary+F: puts the caret in the file name search field at the head of the tools (AP2: the same
+    /// place as the archive field; the filter surface stays as it is).</summary>
+    internal void FocusSearch()
     {
-        bool localizing = _localizing;
-        _localizing = true;
-        try { combo.SelectedIndex = index; }
-        finally { _localizing = localizing; }
+        if (_lifetime.IsCancellationRequested) return;
+        SetFocusMode(false); // the search field is one of the rows the focus mode hides (M4): asking for it shows them again
+        void Focus()
+        {
+            if (_lifetime.IsCancellationRequested || !_nameFilter.IsEffectivelyVisible) return;
+            _nameFilter.Focus(NavigationMethod.Tab);
+            _nameFilter.SelectAll();
+        }
+        if (_nameFilter.IsEffectivelyVisible) Focus();
+        else Dispatcher.UIThread.Post(Focus, DispatcherPriority.Loaded);
+    }
+
+    internal SearchScopeChip SearchScopeChip => _searchScope;
+    internal SearchBox NameFilter => _nameFilter;
+    internal SearchCarryOffer SearchCarryOffer => _searchCarryOffer;
+
+    /// <summary>Host: show Archive and hand it this query for its File name scope.</summary>
+    internal Action<string>? SearchInArchiveRequested { get; set; }
+
+    private IEnumerable<SearchCarryAction> SearchCarryActions()
+    {
+        if (SearchInArchiveRequested == null) yield break;
+        string draft = _nameFilter.Text ?? string.Empty;
+        string? reason = draft.Length == 0 ? Texts.T("search.carry.empty") : null;
+        yield return new SearchCarryAction("MediaSearchInArchive",
+            draft.Length == 0 ? Texts.T("search.carry.toArchivePlain") : Texts.T("search.carry.toArchive", draft), reason == null,
+            () => { if (!_lifetime.IsCancellationRequested) SearchInArchiveRequested?.Invoke(draft); }, reason);
+    }
+
+    /// <summary>A query carried from Archive or the reader: an empty name field takes it at once, a different one gets an offer.</summary>
+    internal bool ReceiveCarriedSearch(string query, string source)
+    {
+        if (_lifetime.IsCancellationRequested) return false;
+        return _searchCarryOffer.Carry(source, query, _nameFilter.Text ?? string.Empty, () =>
+        {
+            if (_lifetime.IsCancellationRequested) return;
+            _textScope = MediaTextFields.All; // a carried search is a new search: it looks everywhere
+            _nameFilter.Text = query;
+            _nameFilter.FlushQuery();
+            FocusSearch();
+        });
+    }
+
+    // The shortcut in the tooltip follows the user's current binding.
+    private void UpdateSearchTip() => ToolTip.SetTip(_nameFilter, CommandBindings.Tooltip("input.focus-media-search") + "\n" + Texts.T("media.query.tip"));
+
+    // The count belongs to the text that produced it: none for an empty name or a refused filter.
+    private void UpdateSearchResult()
+    {
+        _nameFilter.Debounce = (_snapshot?.Entries.Count ?? 0) > SearchImmediateEntries ? NameFilterDebounce : TimeSpan.Zero;
+        _nameFilter.ResultText = !MediaLibraryFilter.HasText(_nameFilter.Text) || _filterFailed || _snapshot == null ? null : Texts.Count("search.count", _shown.Count);
+        RefreshBreakdown(); // the row where the text was found follows the same text and the same settled result
     }
 
     private static void SetKeys(ComboBox combo, params string[] keys) => SetTexts(combo, keys.Select(key => Texts.T(key)).ToArray());

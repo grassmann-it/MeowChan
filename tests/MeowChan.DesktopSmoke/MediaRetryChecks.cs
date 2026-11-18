@@ -43,7 +43,7 @@ internal static class MediaRetryChecks
                     throw new InvalidOperationException("A passive fixture unexpectedly enabled source checking.");
                 retry.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => retry.IsEnabled && window.GetVisualDescendants().OfType<NotificationCard>()
-                    .Any(card => card.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("work.retryNone"))));
+                    .Any(card => card.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("work.retryNoneUnavailable"))));
                 if (!row.Progress.Contains("404") || row.Completion != 0)
                     throw new InvalidOperationException("Missing media was shown as successfully saved.");
             }

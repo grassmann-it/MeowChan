@@ -33,9 +33,19 @@ internal static partial class PluginManagementChecks
     {
         if (Environment.GetEnvironmentVariable("MEOWCHAN_URSA_NATIVE_SUITE") == "plugins")
             Texts.SetLanguage(Environment.GetEnvironmentVariable("MEOWCHAN_NATIVE_INPUT_LANGUAGE") ?? "en");
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_CHANGE_REVIEW_ONLY") == "1")
+        {
+            await BundledChangeDialogChecks.RunAsync(window);
+            return;
+        }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_RESELECTION_ONLY") == "1")
         {
             await PluginReselectionChecks.RunAsync(window);
+            return;
+        }
+        if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_PAGE_CAPTURES_ONLY") == "1")
+        {
+            await PluginPageCaptureChecks.RunAsync(window);
             return;
         }
         if (Environment.GetEnvironmentVariable("MEOWCHAN_PLUGIN_UX_REVIEW") == "1"
@@ -76,9 +86,9 @@ internal static partial class PluginManagementChecks
         PluginManagementServices management = new(profile, compiler, inventory, plugins,
             (artifact, token) => runtime.DescribeAsync(launch, artifact, token),
             (artifact, settings, token) => runtime.StartAsync(launch, artifact, settings, services, testWorker: true, cancellationToken: token), PluginProbe.ReadAsync);
-        PluginsPage page = new(); page.Attach(management);
-        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!;
-        object? previous = host.Content; host.Content = page;
+        SourcesPage sources = MergedSourcesSmoke.Create(management, out PluginsPage page);
+        ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!;
+        object? previous = host.Content; host.Content = sources;
         try
         {
             OpenPlugins(window);
@@ -108,14 +118,18 @@ internal static partial class PluginManagementChecks
                 return;
             }
             await CheckSessionProductionObservationAsync(window);
-            Require(page.Selected == null && page.FindControl<SelectionList>("PluginCards")!.SelectedIndex == -1,
-                "The initial catalog selected a candidate automatically.");
+            Require(page.Selected != null && page.FindControl<SelectionList>("PluginCards")!.SelectedItem != null,
+                "The merged catalog did not automatically select its first plugin.");
+            Require((await profile.ReadAsync()).Revision == startup.Revision && production.Identity.InstanceId == productionIdentity,
+                "Passive initial selection wrote plugin configuration or replaced the production worker.");
             PluginCatalogSnapshot catalog = await management.ReadCatalogAsync(CancellationToken.None);
             Require(Equals(page.FindControl<Badge>("PluginInventoryBadge")!.Header, catalog.Diagnostics.Count),
                 "The inventory badge does not show the actual inventory diagnostic count.");
             Require(transportHandler.Requests == 0, "Selecting/refreshing a plugin fetched a site.");
+            await PluginAddChecks.RunAsync(page, profile, plugins, Path.Combine(root, "added-scratch"), () => transportHandler.Requests);
             await File.AppendAllTextAsync(source, "\n// saved source revision two\n");
             page.Select(candidateId);
+            PluginAddChecks.RequireSteps(page, new[] { PluginStepState.Done, PluginStepState.Done, PluginStepState.Done }, null, "registered, enabled and active plugin");
             await page.BuildAndTestAsync();
             PluginArtifact? testedArtifact = page.Selected?.Candidate?.Artifact;
             Require(testedArtifact != null && testedArtifact.ExecutionRevision != original.Artifact!.ExecutionRevision
@@ -125,6 +139,8 @@ internal static partial class PluginManagementChecks
             PluginProfileSnapshot tested = await profile.ReadAsync();
             Require(tested.Plugins.Single().Active!.ExecutionRevision == original.Artifact!.ExecutionRevision,
                 "Build and test replaced the active revision.");
+            PluginAddChecks.RequireSteps(page, new[] { PluginStepState.Done, PluginStepState.Done, PluginStepState.Next },
+                Texts.T("plugins.step.next.select", MeowChan.Desktop.Commands.CommandCatalog.Label("plugins.select-candidate")), "changed build after test");
             Require(production.Identity.InstanceId == productionIdentity && production.Snapshot.State != "stopped", "Test disposed the production worker.");
             Require(transportHandler.Requests == 0, "Build/describe/validation fetched a site without an explicit probe.");
             page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/42";
@@ -151,6 +167,9 @@ internal static partial class PluginManagementChecks
             {
                 await PresentationChecks.SwitchModeAsync(window, mode);
                 Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
+                // The pages refresh their localized text from a posted callback (PluginsPage.OnLanguageChanged); let it run
+                // before the merged dropdown is checked, as the geometry wait below returns at once when the size is unchanged.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 double matrixWidth = mode == "Barebones" ? 640 : 760;
                 double matrixHeight = mode == "Barebones" ? 480 : 500;
                 window.Width = matrixWidth;
@@ -168,6 +187,13 @@ internal static partial class PluginManagementChecks
                     matrixWidth, matrixHeight, requireDetails: true);
                 Require(page.FindControl<TextBlock>("PluginTestStatus")!.Text == Texts.T("plugins.probeFinished"), "Test status did not follow the selected UI language.");
                 Program.CaptureWindow(window, "smoke-plugins-" + mode.ToLowerInvariant() + "-" + language + "-" + theme.Key.ToString()!.ToLowerInvariant() + ".png");
+                // UX round 2 #3: below 900 dip the header actions sit under the title, which keeps its full width.
+                TextBlock pluginsTitle = page.FindControl<TextBlock>("PluginsTitle")!;
+                TextBlock pluginsSubtitle = page.FindControl<TextBlock>("PluginsSubtitle")!;
+                Require(Grid.GetRow(page.FindControl<WrapPanel>("PluginsHeaderActions")!) >= 1
+                    && pluginsTitle.Bounds.Width >= pluginsTitle.DesiredSize.Width - 1
+                    && pluginsSubtitle.Bounds.Width >= page.Bounds.Width * 0.6,
+                    $"Plugins header is cramped at {matrixWidth} dip: title {pluginsTitle.Bounds.Width}/{pluginsTitle.DesiredSize.Width}, subtitle {pluginsSubtitle.Bounds.Width} of {page.Bounds.Width}.");
                 page.FindControl<Button>("PluginBack")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 SelectionList list = page.FindControl<SelectionList>("PluginCards")!;
                 SelectionListItem card = (SelectionListItem)list.SelectedItem!;
@@ -175,10 +201,10 @@ internal static partial class PluginManagementChecks
                 await page.RefreshAsync(); await page.RefreshAsync();
                 Require(ReferenceEquals(card, list.SelectedItem) && card.IsFocused, "Status refresh replaced the selection container or stole focus.");
                 bool filtered = page.Selected?.IsFilter != true;
-                page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 2;
+                MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.ImageFilters);
                 Require((!filtered || list.SelectedItem == null) && !page.FindControl<ScrollViewer>("PluginDetailsPane")!.IsVisible,
                     "Filtering a source selected a replacement or kept stale details visible.");
-                page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 0;
+                MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.AllPlugins);
                 Require(ReferenceEquals(card, list.SelectedItem) && page.FindControl<Grid>("PluginListPane")!.IsVisible,
                     "Returning to the category did not restore the exact candidate or opened narrow details.");
                 Require(page.CurrentDraft!.Plugin.Text("label") == "retained draft", "Category navigation discarded the draft.");
@@ -213,11 +239,11 @@ internal static partial class PluginManagementChecks
             page.FindControl<TextBox>("PluginProbeUrl")!.Text = "https://fixture.example.test/b/thread/hang";
             Task teardownProbe = page.ProbeAsync();
             await Program.WaitUntilAsync(() => page.IsBusy);
-            page.EndLifetime();
+            sources.EndLifetime();
             string? teardownResult = page.FindControl<TextBox>("PluginProbeResult")!.Text;
             await teardownProbe.WaitAsync(TimeSpan.FromSeconds(8));
             Require(!page.IsEnabled && page.FindControl<TextBox>("PluginProbeResult")!.Text == teardownResult, "Ended page accepted a late test result or remained interactive.");
-            page = new PluginsPage(); page.Attach(management); host.Content = page;
+            sources = MergedSourcesSmoke.Create(management, out page); host.Content = sources;
             await page.ActivateAsync(); page.Select(candidateId);
             await File.WriteAllTextAsync(source, "public class Broken { public int Value => ; }");
             await page.BuildAndTestAsync();
@@ -228,7 +254,7 @@ internal static partial class PluginManagementChecks
             Program.CaptureWindow(window, "smoke-plugins-syntax-error.png");
             Console.WriteLine("PLUGIN UI PASS: real compiler + worker + host HTTP; no watch/archive/original path; retained draft/focus; EN/DE Light/Dark B/S/A minima; real test cancellation.");
         }
-        finally { page.EndLifetime(); host.Content = previous; }
+        finally { sources.EndLifetime(); host.Content = previous; }
     }
     private static async Task CheckRuleFiltersAsync(MainWindow window, PluginManagementServices management, PluginProfileStore profile, string root)
     {
@@ -237,7 +263,7 @@ internal static partial class PluginManagementChecks
         MediaRuleStore store = new(rulesDirectory, lease); await store.LoadAsync();
         MediaRule baseline = new(MediaRuleScope.Global) { ImageFilter = new(MediaImageFilterMode.Plugin, "fixture.management", "fixture-filter", "2", new Dictionary<string, string> { ["rule-label"] = "allowed" }) };
         await store.SaveAsync(new[] { baseline }, store.Current.Revision);
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!; object? retained = host.Content;
         RulesPage page = new(() => store.Current, (rules, revision) => store.SaveAsync(rules, revision)); page.AttachPluginServices(management); host.Content = page;
         try
@@ -297,7 +323,7 @@ internal static partial class PluginManagementChecks
         SelectionList list = page.FindControl<SelectionList>("PluginCards")!;
         // Category navigation leaves the explicit detail-open flag false, just as
         // directional selection does. Wide details remain available for Tab.
-        page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 1;
+        MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.AllPlugins);
         list.Focus();
         list.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Home });
         Require(page.Selected?.Key == candidateId, "Responsive fixture selected an unexpected candidate.");
@@ -347,7 +373,7 @@ internal static partial class PluginManagementChecks
             && sourceLabels.All(pair => page.CurrentDraft!.Sources[pair.Key].Text("label") == pair.Value),
             "Responsive pane navigation changed selection, raw plugin draft text, or a different scope's field.");
         field.Text = "retained draft";
-        page.FindControl<ComboBox>("PluginCategory")!.SelectedIndex = 0;
+        MergedSourcesSmoke.Filter(page, SourcesPluginsFilter.AllPlugins);
         page.Select(candidateId);
         Console.WriteLine("PLUGIN RESPONSIVE FOCUS PASS: wide detail/list to narrow and back; hidden Back repair; unrelated focus and draft retained.");
     }
@@ -479,8 +505,8 @@ internal static partial class PluginManagementChecks
         PluginManagementServices catalogServices = new(management.ProfileStore, management.Compiler, management.Inventory, management.PluginDirectory,
             management.DescribeTestAsync, management.StartTestWorkerAsync, management.ProbeAsync)
         { GetRuleScopes = () => store.Current.Rules.Select(rule => rule.Scope).ToArray() };
-        ContentControl host = window.FindControl<ContentControl>("PluginsPageHost")!; object? retained = host.Content;
-        PluginsPage catalog = new(); catalog.Attach(catalogServices); host.Content = catalog;
+        ContentControl host = window.FindControl<ContentControl>("SourcesPageHost")!; object? retained = host.Content;
+        SourcesPage catalogSources = MergedSourcesSmoke.Create(catalogServices, out PluginsPage catalog); host.Content = catalogSources;
         try
         {
             OpenPlugins(window); await catalog.ActivateAsync();
@@ -512,8 +538,8 @@ internal static partial class PluginManagementChecks
         }
         finally
         {
-            catalog.EndLifetime(); host.Content = retained;
-            window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            catalogSources.EndLifetime(); host.Content = retained;
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         }
     }
     private static async Task AtBarebonesMinimumAsync(MainWindow window, Func<Task> capture)
@@ -598,8 +624,7 @@ internal static partial class PluginManagementChecks
         Point? position = control.TranslatePoint(default, scroll);
         return position is { } point && point.Y >= -1 && point.Y + control.Bounds.Height <= scroll.Bounds.Height + 1;
     });
-    private static void OpenPlugins(MainWindow window) => window.GetLogicalDescendants().OfType<MenuItem>()
-        .First(item => Equals(item.Tag, "nav.plugins")).RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+    private static void OpenPlugins(MainWindow window) => MergedSourcesSmoke.OpenPlugins(window);
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 
     private sealed class FixtureServices : IPluginHostServices, IDisposable

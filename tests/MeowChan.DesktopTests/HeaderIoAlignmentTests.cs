@@ -1,0 +1,220 @@
+using System.Runtime.CompilerServices;
+using System.Xml.Linq;
+using Avalonia.Controls;
+using MeowChan.DesktopTests.DesignLint;
+
+namespace MeowChan.DesktopTests;
+
+public sealed class HeaderIoAlignmentTests
+{
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void WordRateMatrixUsesSolidThenDashedRowsAndResetsWithoutStaleColumns(bool firstStacked)
+    {
+        Grid grid = new() { ColumnDefinitions = new("Auto,Auto,Auto,Auto"), RowDefinitions = new("Auto,Auto") };
+        TextBlock firstWord = new(), firstValue = new(), secondWord = new(), secondValue = new();
+        foreach (bool stacked in new[] { firstStacked, !firstStacked, firstStacked })
+        {
+            MainWindow.ArrangeHeaderRates(grid, firstWord, firstValue, secondWord, secondValue, stacked);
+            Assert.Equal(stacked ? 2 : 1, grid.RowDefinitions.Count);
+            Assert.Equal(stacked ? 2 : 4, grid.ColumnDefinitions.Count);
+            Assert.Equal(0, Grid.GetRow(firstWord));
+            Assert.Equal(0, Grid.GetColumn(firstWord));
+            Assert.Equal(0, Grid.GetRow(firstValue));
+            Assert.Equal(1, Grid.GetColumn(firstValue));
+            Assert.Equal(stacked ? 1 : 0, Grid.GetRow(secondWord));
+            Assert.Equal(stacked ? 0 : 2, Grid.GetColumn(secondWord));
+            Assert.Equal(stacked ? 1 : 0, Grid.GetRow(secondValue));
+            Assert.Equal(stacked ? 1 : 3, Grid.GetColumn(secondValue));
+            Assert.Equal(4, grid.ColumnSpacing);
+            Assert.Equal(0, grid.RowSpacing);
+            Assert.Equal("HeaderIoLabel", grid.ColumnDefinitions[0].SharedSizeGroup);
+            Assert.Equal("HeaderIoRate", grid.ColumnDefinitions[1].SharedSizeGroup);
+            Assert.Equal(56, grid.ColumnDefinitions[1].MinWidth);
+            Assert.Equal(stacked ? 0 : 8, secondWord.Margin.Left);
+            if (!stacked)
+            {
+                Assert.Equal("HeaderIoLabel2", grid.ColumnDefinitions[2].SharedSizeGroup);
+                Assert.Equal("HeaderIoRate", grid.ColumnDefinitions[3].SharedSizeGroup);
+                Assert.Equal(56, grid.ColumnDefinitions[3].MinWidth);
+                Assert.Equal(12, grid.ColumnSpacing + secondWord.Margin.Left);
+            }
+        }
+    }
+
+    [Fact]
+    public void HeaderUsesTwoSharedLabelGroupsAndTwoSharedRateGroupsWithCaptionTnumValues()
+    {
+        XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement Named(string name) => document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == name);
+        Assert.Equal("True", (string?)Named("TransferLayoutGrid").Attribute("Grid.IsSharedSizeScope"));
+        foreach (string name in new[] { "TransferDownMark", "TransferUpMark", "TransferWriteMark", "TransferReadMark" })
+        {
+            XElement word = Named(name);
+            Assert.Equal("TextBlock", word.Name.LocalName);
+            Assert.Equal("muted", (string?)word.Attribute("Classes"));
+            Assert.Equal("{StaticResource Workspace.Text.Caption}", (string?)word.Attribute("FontSize"));
+            Assert.Equal("15", (string?)word.Attribute("LineHeight"));
+            Assert.Equal("Normal", (string?)word.Attribute("FontWeight"));
+            Assert.Equal("Raw", (string?)word.Attribute("AutomationProperties.AccessibilityView"));
+        }
+        foreach (string name in new[] { "TransferSpeedLabel", "TransferUploadLabel", "TransferDiskLabel", "TransferDiskReadLabel" })
+        {
+            XElement value = Named(name);
+            Assert.Equal("Right", (string?)value.Attribute("TextAlignment"));
+            Assert.Equal("tnum", (string?)value.Attribute("FontFeatures"));
+            Assert.Equal("0 B/s", (string?)value.Attribute("Text"));
+            Assert.Equal("Normal", (string?)value.Attribute("FontWeight"));
+            Assert.Equal("{StaticResource Workspace.Text.Meta}", (string?)value.Attribute("FontSize"));
+            Assert.Equal("{DynamicResource Workspace.Text}", (string?)value.Attribute("Foreground"));
+            Assert.Equal("15", (string?)value.Attribute("LineHeight"));
+            Assert.Equal("Raw", (string?)value.Attribute("AutomationProperties.AccessibilityView"));
+        }
+        foreach (string name in new[] { "TransferNetworkTitle", "TransferDiskTitle" })
+        {
+            XElement title = Named(name);
+            Assert.Equal("TextBlock", title.Name.LocalName);
+            Assert.Equal("muted", (string?)title.Attribute("Classes"));
+            Assert.Equal("Center", (string?)title.Attribute("HorizontalAlignment"));
+            Assert.Equal("Center", (string?)title.Attribute("TextAlignment"));
+            Assert.Equal("{StaticResource Workspace.Text.HeaderMetricTitle}", (string?)title.Attribute("FontSize"));
+            Assert.Equal("SemiBold", (string?)title.Attribute("FontWeight"));
+            Assert.Equal("12", (string?)title.Attribute("LineHeight"));
+            Assert.Equal("Raw", (string?)title.Attribute("AutomationProperties.AccessibilityView"));
+        }
+        foreach (string name in new[] { "TransferSpeedText", "TransferDiskText" })
+        {
+            XElement block = Named(name);
+            Assert.Equal("Grid", block.Name.LocalName);
+            Assert.Equal("0", (string?)block.Attribute("RowSpacing"));
+            Assert.Equal("{StaticResource Workspace.Space.4}", (string?)block.Attribute("ColumnSpacing"));
+            Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel");
+            Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoLabel2");
+            Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoRate"
+                && (string?)node.Attribute("MinWidth") == "56");
+        }
+        Assert.DoesNotContain(document.Descendants(), node => (string?)node.Attribute(x + "Name") is "TransferDownIcon" or "TransferUpIcon");
+        Assert.DoesNotContain(DesignLintScanner.ScanFile("Desktop/Shell/MainWindow.axaml", File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml")),
+            new double[] { 11, 12, 13, 14, 16, 20 }), violation => violation.Rule == DesignRules.GlyphIcon);
+    }
+
+    [Fact]
+    public void WideMetricBlocksKeepTheTitleAboveTheTwoRates()
+    {
+        Grid grid = new() { ColumnDefinitions = new("Auto,Auto"), RowDefinitions = new("Auto,Auto,Auto") };
+        TextBlock title = new(), firstValue = new(), secondValue = new();
+        Control firstWord = new(), secondWord = new();
+
+        MainWindow.ArrangeHeaderRates(grid, title, firstWord, firstValue, secondWord, secondValue, stacked: true);
+
+        Assert.Equal(3, grid.RowDefinitions.Count);
+        Assert.Equal(0, Grid.GetRow(title));
+        Assert.Equal(0, Grid.GetColumn(title));
+        Assert.Equal(2, Grid.GetColumnSpan(title));
+        Assert.Equal(1, Grid.GetRow(firstWord));
+        Assert.Equal(1, Grid.GetRow(firstValue));
+        Assert.Equal(2, Grid.GetRow(secondWord));
+        Assert.Equal(2, Grid.GetRow(secondValue));
+        Assert.Equal(0, Grid.GetColumn(firstWord));
+        Assert.Equal(1, Grid.GetColumn(firstValue));
+    }
+
+    // Screenshot 18.11.2026: the stacked Network/Disk titles were clipped at the top of the title bar. Title, gaps and two rate lines
+    // must leave room inside the 48 dip title bar; returning to one line restores the regular rate line height.
+    [Fact]
+    public void StackedMetricBlocksSetTheirRateLinesTightSoTheTitleFitsTheTitleBar()
+    {
+        Grid grid = new();
+        TextBlock title = new() { FontSize = 10, LineHeight = 12 }, firstValue = new() { LineHeight = 14 }, secondValue = new() { LineHeight = 14 };
+        TextBlock firstText = new() { LineHeight = 14 }, secondText = new() { LineHeight = 14 };
+        Grid firstWord = new() { Children = { firstText } }, secondWord = new() { Children = { secondText } };
+
+        MainWindow.ArrangeHeaderRates(grid, title, firstWord, firstValue, secondWord, secondValue, stacked: true);
+
+        foreach (TextBlock line in new[] { firstValue, secondValue, firstText, secondText })
+            Assert.Equal(MainWindow.StackedRateLineHeight, line.LineHeight);
+        Assert.True(title.LineHeight >= title.FontSize, "The title line box must not clip its own glyphs.");
+        double block = title.LineHeight + 2 * grid.RowSpacing + 2 * MainWindow.StackedRateLineHeight;
+        Assert.True(block + 2 * 2 <= MeowChan.Desktop.WorkspaceMetrics.TitleBarHeight,
+            $"A {block} dip block with button padding must fit the title bar.");
+
+        MainWindow.ArrangeHeaderRates(grid, title, firstWord, firstValue, secondWord, secondValue, stacked: false);
+        foreach (TextBlock line in new[] { firstValue, secondValue, firstText, secondText })
+            Assert.Equal(MainWindow.RateLineHeight, line.LineHeight);
+    }
+
+    [Fact]
+    public void FirstLayoutUsesTheRowGraphSizeAndNoIconAttachmentRemains()
+    {
+        XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement Named(string name) => document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == name);
+        Assert.Equal("128", (string?)Named("TransferSpeedGraph").Attribute("Width"));
+        Assert.Equal("14", (string?)Named("TransferSpeedGraph").Attribute("Height"));
+        Assert.Equal("128", (string?)Named("TransferDiskGraph").Attribute("Width"));
+        Assert.Equal("14", (string?)Named("TransferDiskGraph").Attribute("Height"));
+        string chrome = File.ReadAllText(Root("Desktop/Shell/MainWindow.Chrome.cs"));
+        Assert.DoesNotContain("Attach(TransferDown", chrome);
+        Assert.DoesNotContain("Attach(TransferUp", chrome);
+    }
+
+    [Theory]
+    [InlineData("TransferSpeedText", "TransferDownCell", "TransferSpeedLabel", "TransferUpCell", "TransferUploadLabel")]
+    [InlineData("TransferDiskText", "TransferReadCell", "TransferDiskReadLabel", "TransferWriteCell", "TransferDiskLabel")]
+    public void InitialMatrixOrdersTheSolidDirectionBeforeTheDashedDirection(string gridName,
+        string firstWord, string firstRate, string secondWord, string secondRate)
+    {
+        XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement grid = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == gridName);
+        XElement[] cells = grid.Elements().Where(node => node.Attribute(x + "Name") != null && (string?)node.Attribute(x + "Name") != (gridName == "TransferSpeedText" ? "TransferNetworkTitle" : "TransferDiskTitle")).ToArray();
+        Assert.Equal(new[] { firstWord, firstRate, secondWord, secondRate }, cells.Select(node => (string?)node.Attribute(x + "Name")));
+        Assert.Equal(new[] { 0, 1, 0, 1 }, cells.Select(node => (int?)node.Attribute("Grid.Column") ?? 0));
+        Assert.Equal(new[] { 1, 1, 2, 2 }, cells.Select(node => (int?)node.Attribute("Grid.Row") ?? 0));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void IconModeIsOptInAndSwitchesBackWithoutHidingTheCell(bool firstIcons)
+    {
+        Grid cell = new();
+        TextBlock word = new();
+        Control marker = new();
+        cell.Children.Add(word);
+        cell.Children.Add(marker);
+        foreach (bool icons in new[] { firstIcons, !firstIcons, firstIcons })
+        {
+            MainWindow.SetHeaderMarkerMode(word, marker, icons);
+            Assert.Equal(!icons, word.IsVisible);
+            Assert.Equal(icons, marker.IsVisible);
+            Assert.True(cell.IsVisible);
+        }
+    }
+
+    [Theory]
+    [InlineData("Down", "NetworkDown", "Workspace.Accent")]
+    [InlineData("Up", "NetworkUp", "Workspace.Accent")]
+    [InlineData("Read", "DiskRead", "Workspace.Stats.Disk")]
+    [InlineData("Write", "DiskWrite", "Workspace.Stats.Disk")]
+    public void OptionalMarkersUseGraphColoursAndKeepOneAccessibleButton(string name, string direction, string brush)
+    {
+        XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
+        XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
+        XElement cell = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == "Transfer" + name + "Cell");
+        XElement icon = cell.Elements().Single(node => node.Name.LocalName == "HeaderIoMarker");
+        Assert.Equal(direction, (string?)icon.Attribute("Direction"));
+        Assert.Equal("False", (string?)icon.Attribute("IsVisible"));
+        Assert.Equal("{DynamicResource " + brush + "}", (string?)icon.Attribute("Stroke"));
+        Assert.Equal("Raw", (string?)icon.Attribute("AutomationProperties.AccessibilityView"));
+        Assert.Equal("Raw", (string?)cell.Attribute("AutomationProperties.AccessibilityView"));
+        Assert.Equal("Transparent", (string?)cell.Attribute("Background"));
+        Assert.DoesNotContain(cell.DescendantsAndSelf().Attributes(), a => a.Name.LocalName is "Click" or "PointerPressed");
+        Assert.Equal("Button", cell.Ancestors().First(node => node.Name.LocalName == "Button").Name.LocalName);
+    }
+
+    private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
+        Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
+}

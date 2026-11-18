@@ -408,6 +408,8 @@ internal sealed class NativeMediaCandidateSelection
         w.WriteString("variant", m.Variant); w.WriteString("url", m.Url); w.WriteString("originalFileName", m.OriginalFileName);
         w.WriteString("plannedPath", m.PlannedPath);
         if (m.ExpectedSize is { } size) w.WriteNumber("expectedSize", size); else w.WriteNull("expectedSize");
+        if (m.Width is { } width) w.WriteNumber("width", width);
+        if (m.Height is { } height) w.WriteNumber("height", height);
         w.WriteString("expectedMd5", m.ExpectedMd5); w.WriteBoolean("isDeleted", m.IsDeleted);
         w.WriteString("expectedSha256", m.ExpectedSha256); w.WriteString("expectedSha1", m.ExpectedSha1);
         w.WritePropertyName("providerSizeHint");
@@ -534,8 +536,8 @@ internal sealed class NativeMediaCandidateSelection
     }
     private static CapturedAttachment ReadMetadata(JsonElement node)
     {
-        Fields(node, "position", "mediaId", "variant", "url", "originalFileName", "plannedPath", "expectedSize",
-            "expectedMd5", "isDeleted", "expectedSha256", "expectedSha1", "providerSizeHint", "attachmentRevisionKey");
+        FieldsAllowing(node, new[] { "position", "mediaId", "variant", "url", "originalFileName", "plannedPath", "expectedSize",
+            "expectedMd5", "isDeleted", "expectedSha256", "expectedSha1", "providerSizeHint", "attachmentRevisionKey" }, "width", "height");
         MediaProviderSizeHint? hint = null;
         JsonElement h = node.GetProperty("providerSizeHint");
         if (h.ValueKind != JsonValueKind.Null)
@@ -543,11 +545,12 @@ internal sealed class NativeMediaCandidateSelection
             Fields(h, "rawValue", "unitLabel", "precision");
             hint = new(Text(h, "rawValue"), Text(h, "unitLabel"), (MediaSizePrecision)Int(h, "precision"));
         }
+        int? width = OptionalDimension(node, "width"), height = OptionalDimension(node, "height");
         return new(Int(node, "position"), OptionalText(node, "mediaId"), Text(node, "variant"), OptionalText(node, "url"),
             OptionalText(node, "originalFileName"), OptionalText(node, "plannedPath"),
             node.GetProperty("expectedSize").ValueKind == JsonValueKind.Null ? null : Long(node, "expectedSize"),
             OptionalText(node, "expectedMd5"), Bool(node, "isDeleted"))
-        { ExpectedSha256 = OptionalText(node, "expectedSha256"), ExpectedSha1 = OptionalText(node, "expectedSha1"),
+        { Width = width, Height = height, ExpectedSha256 = OptionalText(node, "expectedSha256"), ExpectedSha1 = OptionalText(node, "expectedSha1"),
             ProviderSizeHint = hint, AttachmentRevisionKey = OptionalText(node, "attachmentRevisionKey") };
     }
     private static TransferOriginalByteVersion? ReadVersion(JsonElement node)
@@ -570,6 +573,24 @@ internal sealed class NativeMediaCandidateSelection
             DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal, out DateTimeOffset time)) throw Invalid();
         return new(Text(node, "kind"), time, Bool(node, "sizeMismatch"), Bool(node, "md5Mismatch"));
     }
+    private static int? OptionalDimension(JsonElement node, string name)
+    {
+        if (!node.TryGetProperty(name, out JsonElement value)) return null;
+        if (value.ValueKind != JsonValueKind.Number || !value.TryGetInt64(out long number)
+            || number <= 0 || number > int.MaxValue) throw Invalid();
+        return (int)number;
+    }
+
+    private static void FieldsAllowing(JsonElement value, string[] names, params string[] optional)
+    {
+        if (value.ValueKind != JsonValueKind.Object) throw Invalid();
+        var remaining = new HashSet<string>(names, StringComparer.Ordinal);
+        var allowedOptional = new HashSet<string>(optional, StringComparer.Ordinal);
+        foreach (JsonProperty property in value.EnumerateObject())
+            if (!remaining.Remove(property.Name) && !allowedOptional.Contains(property.Name)) throw Invalid();
+        if (remaining.Count != 0) throw Invalid();
+    }
+
     private static void Fields(JsonElement value, params string[] names)
     {
         if (value.ValueKind != JsonValueKind.Object) throw Invalid();

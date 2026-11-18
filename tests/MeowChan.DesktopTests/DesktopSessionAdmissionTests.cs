@@ -76,7 +76,7 @@ public sealed class DesktopSessionAdmissionTests
             Assert.Null(host.Projection.CaptureError);
             Assert.Equal(0, host.ProjectionStats.Failures);
             Assert.Contains("https://boards.4chan.org/g/", host.Projection.AdmissionExamples);
-            Assert.Contains("https://8kun.top/b/res/123456.html", host.Projection.AdmissionExamples);
+            Assert.Contains("https://8kun.top/board/res/123456.html", host.Projection.AdmissionExamples);
             int initialProbes = provider.SyntheticThreadProbes;
             DesktopAdmissionResult admission = await host.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Deadline);
             Assert.Equal(AdmissionStatus.Added, admission.Status);
@@ -99,7 +99,7 @@ public sealed class DesktopSessionAdmissionTests
             await restored.StartAsync().WaitAsync(Deadline);
             Assert.Null(restored.Projection.CaptureError);
             Assert.Equal("123", Assert.Single(restored.GetView().Threads).Snapshot.Id.Thread);
-            Assert.Contains("https://8kun.top/b/res/123456.html", restored.Projection.AdmissionExamples);
+            Assert.Contains("https://8kun.top/board/res/123456.html", restored.Projection.AdmissionExamples);
         }
         Assert.Equal(0, transport.Requests);
     }
@@ -135,7 +135,7 @@ public sealed class DesktopSessionAdmissionTests
     }
 
     // Exactly the customization behind the integration failures: GetBoard intentionally returns /g/
-    // even when an optional /b/thread/... example was invented. Real /g/ watches remain valid.
+    // even when an optional /board/thread/... example was invented. Real /g/ watches remain valid.
     private sealed class FixedBoardProvider : FourChanImageBoard
     {
         private int _syntheticThreadProbes;
@@ -145,7 +145,8 @@ public sealed class DesktopSessionAdmissionTests
         public override IBoard GetBoard(Uri boardUri) => Board;
         public override IThread GetThread(Uri threadUri)
         {
-            if (threadUri.AbsolutePath.StartsWith("/b/thread/", StringComparison.Ordinal))
+            if (threadUri.AbsolutePath.StartsWith("/board/thread/", StringComparison.Ordinal)
+                || threadUri.AbsolutePath.StartsWith("/b/thread/", StringComparison.Ordinal))
                 Interlocked.Increment(ref _syntheticThreadProbes);
             return base.GetThread(threadUri);
         }
@@ -296,6 +297,61 @@ public sealed class DesktopSessionAdmissionTests
         await Task.WhenAll(view, settings).WaitAsync(Deadline);
         Config saved = Config.LoadConfig(directory.Path);
         Assert.Equal(120, saved.RecheckTimer); Assert.True(saved.GalleryContextOpen);
+    }
+
+    [Fact]
+    public async Task FrozenSettingsKeepTheFilmstripBaselineSoOnlyAChangedBoxMovesTheGalleryLayout()
+    {
+        // H1 through admission: ApplySettingsAsync freezes the draft with Clone(), which must not replace the page's baseline of the box.
+        using TempDirectory directory = new();
+        await using DesktopSessionHost host = CreateHost(directory.Path);
+        await host.StartAsync().WaitAsync(Deadline);
+        GalleryLayoutChoice tag = new(Filmstrip: true, Hints: false);
+        // The gallery: L switched the View strip off, the Tag mode has its own choice; the settings page still shows the box on.
+        await host.SaveViewPreferencesAsync(config => new GalleryLayoutPreferences(new GalleryLayoutChoice(Filmstrip: false), tag).ApplyTo(config)).WaitAsync(Deadline);
+        Config stale = host.Config.Clone();
+        stale.GalleryFilmstrip = true; stale.SettingsBaselineGalleryFilmstrip = true;
+        stale.RecheckTimer = 120;
+        await host.ApplySettingsAsync(stale).WaitAsync(Deadline);
+        Config saved = Config.LoadConfig(directory.Path);
+        Assert.Equal(120, saved.RecheckTimer);
+        Assert.Equal(new GalleryLayoutPreferences(new GalleryLayoutChoice(Filmstrip: false), tag), GalleryLayoutPreferences.FromConfig(saved));
+
+        // The person switches the box off (baseline on): both modes lose the strip, even though the frozen copy's own value is off.
+        Config unticked = host.Config.Clone();
+        unticked.GalleryFilmstrip = false; unticked.SettingsBaselineGalleryFilmstrip = true;
+        Task apply = host.ApplySettingsAsync(unticked);
+        unticked.SettingsBaselineGalleryFilmstrip = false; // accepted drafts are frozen with their baseline
+        await apply.WaitAsync(Deadline);
+        GalleryLayoutPreferences result = GalleryLayoutPreferences.FromConfig(Config.LoadConfig(directory.Path));
+        Assert.False(result.View.Filmstrip);
+        Assert.Equal(tag with { Filmstrip = false }, result.Tag);
+    }
+
+    [Fact]
+    public async Task FrozenSettingsKeepTheTagListWidthBaselineSoOnlyAChangedBoxMovesTheWidth()
+    {
+        // M1 through admission: the draft is frozen with Clone(), which must keep the page's baseline of the box; a stale draft never rolls a dragged width back.
+        static int WidthOf(Config config) => MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
+        using TempDirectory directory = new();
+        await using DesktopSessionHost host = CreateHost(directory.Path);
+        await host.StartAsync().WaitAsync(Deadline);
+        Config changed = host.Config.Clone();
+        changed.MediaLayout = (MediaPageLayout.Parse(changed.MediaLayout, changed.MediaBooruMode) with { TagListWidth = 300 }).Format();
+        await host.ApplySettingsAsync(changed).WaitAsync(Deadline);
+        Assert.Equal(300, WidthOf(host.Config));
+        Assert.Equal(300, WidthOf(Config.LoadConfig(directory.Path)));
+
+        // The draft is loaded with 300 and the box stays untouched; the handle drags the list to 200 while the settings are open.
+        Config untouched = host.Config.Clone();
+        untouched.RecheckTimer = 90;
+        await host.SaveViewPreferencesAsync(config => config.MediaLayout = (MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode) with { TagListWidth = 200 }).Format()).WaitAsync(Deadline);
+        Task apply = host.ApplySettingsAsync(untouched);
+        untouched.SettingsBaselineMediaTagListWidth = 0; // accepted drafts are frozen with their baseline
+        await apply.WaitAsync(Deadline);
+        Assert.Equal(200, WidthOf(host.Config));
+        Assert.Equal(90, host.Config.RecheckTimer);
+        Assert.Equal(200, WidthOf(Config.LoadConfig(directory.Path)));
     }
 
     [Theory]

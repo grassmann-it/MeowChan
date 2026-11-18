@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
+using MeowChan.Persistence;
 using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
@@ -117,7 +118,17 @@ public sealed class MediaAssetSnapshot
     /// fail without repair or network access; external programs ignoring file sharing remain outside
     /// the store's coordination contract. Symlink files are not followed.
     /// </summary>
-    public async Task<Stream> OpenVerifiedReadAsync(string assetId, CancellationToken cancellationToken = default)
+    public Task<Stream> OpenVerifiedReadAsync(string assetId, CancellationToken cancellationToken = default) =>
+        OpenVerifiedReadCoreAsync(assetId, null, cancellationToken);
+
+    /// <summary>
+    /// Like <see cref="OpenVerifiedReadAsync"/>, but a file that <paramref name="memo"/> remembers as fully verified with the same file identity
+    /// (inode or file id, length, last write and status-change time) is not hashed again. For derived previews only; opening a file for the user keeps the full check.
+    /// </summary>
+    internal Task<Stream> OpenSessionVerifiedReadAsync(string assetId, VerifiedFileMemo? memo, CancellationToken cancellationToken = default) =>
+        OpenVerifiedReadCoreAsync(assetId, memo, cancellationToken);
+
+    private async Task<Stream> OpenVerifiedReadCoreAsync(string assetId, VerifiedFileMemo? memo, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using var verification = Diagnostics.PerformanceDiagnostics.Measure("media.original.verify", asset: assetId);
@@ -125,16 +136,30 @@ public sealed class MediaAssetSnapshot
             ?? throw new ArgumentException("The asset does not belong to this manifest snapshot.", nameof(assetId));
         if ((File.GetAttributes(asset.Path) & FileAttributes.ReparsePoint) != 0)
             throw new InvalidDataException("A recorded media asset must not be a symbolic link.");
+        // The identity is read before the bytes and again after them: a file that changes while it is hashed is not remembered, and a file
+        // whose identity cannot be read (null) never counts as verified. Windows change times are not a safe cache fence for rapid
+        // same-size rewrites: the filesystem can expose the old change time immediately after the write. Derived-preview callers
+        // therefore keep the full hash path on Windows rather than trusting the session memo shortcut.
+        bool useIdentityMemo = memo != null && !OperatingSystem.IsWindows();
+        RegularProfileFileIdentity? identity = useIdentityMemo ? RegularProfileFile.TryGetIdentity(asset.Path) : null;
         FileStream stream = new FileStream(asset.Path, FileMode.Open, FileAccess.Read, FileShare.Read,
             81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
         try
         {
             if (stream.Length != asset.Length)
                 throw new InvalidDataException("The recorded media asset has changed length.");
+            // The identity is confirmed once more after the open, so a file swapped in between is hashed like any other.
+            if (useIdentityMemo && memo!.IsVerified(asset.Path, identity, asset.Sha256) && RegularProfileFile.TryGetIdentity(asset.Path) == identity)
+            {
+                Diagnostics.PerformanceDiagnostics.Record("media.original.verify", "remembered", asset: assetId, value: asset.Length);
+                return stream;
+            }
             byte[] digest = await SHA256.HashDataAsync(stream, cancellationToken).ConfigureAwait(false);
             if (!string.Equals(Convert.ToHexString(digest), asset.Sha256, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidDataException("The recorded media asset no longer matches its committed checksum.");
             cancellationToken.ThrowIfCancellationRequested();
+            if (useIdentityMemo && identity is { } before && before.Size == asset.Length && RegularProfileFile.TryGetIdentity(asset.Path) == before)
+                memo!.Remember(asset.Path, before, asset.Sha256);
             stream.Position = 0;
             Diagnostics.PerformanceDiagnostics.Record("media.original.verify", "verified", asset: assetId, value: asset.Length);
             return stream;
@@ -155,10 +180,24 @@ public static class MediaAssetReader
     /// Missing/corrupt manifests are explicit states; unsupported versions and IO failures throw.
     /// Unknown files, including pre-existing conflict files, are not assigned to any media identity.
     /// </summary>
-    public static Task<MediaAssetSnapshot> OpenAsync(string threadDirectory, CancellationToken cancellationToken = default)
+    public static Task<MediaAssetSnapshot> OpenAsync(string threadDirectory, CancellationToken cancellationToken = default) =>
+        Open(threadDirectory, preview: false, cancellationToken);
+
+    /// <summary>
+    /// <see cref="OpenAsync"/> for a preview (media tiles, the sound check): a folder source file whose bytes were not read yet is
+    /// missing here instead of being read in full to learn its identity, so scrolling past a folder of videos reads none of them.
+    /// Every other manifest reads exactly as with <see cref="OpenAsync"/>.
+    /// </summary>
+    internal static Task<MediaAssetSnapshot> OpenForPreviewAsync(string threadDirectory, CancellationToken cancellationToken = default) =>
+        Open(threadDirectory, preview: true, cancellationToken);
+
+    private static Task<MediaAssetSnapshot> Open(string threadDirectory, bool preview, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(threadDirectory);
-        return MediaStore.ReadAssetSnapshotAsync(Path.GetFullPath(threadDirectory), cancellationToken);
+        string directory = Path.GetFullPath(threadDirectory);
+        // A folder source item has no manifest file: its catalog answers (and nothing is read from or written to a folder).
+        if (VirtualMediaManifests.TryOpen(directory, cancellationToken, out Task<MediaAssetSnapshot> virtualManifest, preview)) return virtualManifest;
+        return MediaStore.ReadAssetSnapshotAsync(directory, cancellationToken);
     }
 }
 

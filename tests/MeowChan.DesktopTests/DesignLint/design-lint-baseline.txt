@@ -1,0 +1,20 @@
+# Design-system lint baseline (UX-DESIGNSYSTEM-2026-11-13, P9): today's accepted debt.
+# rule<TAB>file<TAB>count<TAB>snippet. Generated; do not edit by hand. The tests fail on anything not listed here
+# and on entries that no longer occur. Regenerate after burning violations down:
+#   MEOWCHAN_DESIGN_LINT_UPDATE=1 dotnet test tests/MeowChan.DesktopTests --filter FullyQualifiedName~DesignLint
+control-height-literal	Desktop/GalleryViewer.Overlay.cs	1	Button Height=44
+control-height-literal	Desktop/GalleryViewer.Overlay.cs	1	Button MinHeight=44
+control-height-literal	Desktop/Shell/MainWindow.axaml	1	Button Height="34"
+control-height-literal	Desktop/Views/Admission/BoardAdmissionWindow.cs	1	Button MinHeight=32
+control-height-literal	Desktop/Views/Archive/ArchivePage.axaml	2	ToggleButton MinHeight="32"
+control-height-literal	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	TextBox MinHeight="36"
+control-height-literal	Desktop/Views/Rules/RulesPage.axaml	2	Button MinHeight="24"
+control-height-literal	Desktop/Views/Rules/RulesPage.axaml	1	TagInput style MinHeight="32"
+control-height-literal	Desktop/Views/Settings/SettingsEditor.axaml	1	ToggleButton style MinHeight="34"
+glyph-icon	Desktop/GalleryViewer.cs	1	"−(U+2212)"
+glyph-icon	Desktop/Views/Media/BooruMediaDetailsDialog.cs	1	"×(U+00D7)"
+glyph-icon	Desktop/Views/Statistics/StatisticsPage.axaml.cs	1	"−(U+2212)"
+page-inset	Desktop/Views/Media/MediaPage.cs	1	no reference to Workspace.Inset.Page
+page-inset	Desktop/Views/Settings/SettingsEditor.axaml	1	Grid no inset
+row-height-literal	Desktop/Views/Diagnostics/DiagnosticsPage.axaml	1	RowHeight="44"
+row-height-literal	Desktop/Views/Statistics/StatisticsPage.axaml	1	RowHeight="34"

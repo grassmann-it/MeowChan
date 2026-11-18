@@ -96,7 +96,7 @@ public sealed class HtmlExportActionLayoutBoundaryTests
         Assert.Contains("legacyContent.Children.Add(legacyAssociate)", dialog);
         // Finite-width chain: disabled horizontal scrolling -> vertical stack
         // -> stretch button/presenter. The legacy expander must stretch content too.
-        Assert.Contains("StackPanel historyActions = new() { Spacing = 6, HorizontalAlignment = HorizontalAlignment.Stretch }", dialog);
+        Assert.Contains("StackPanel historyActions = new() { Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch }", dialog);
         Assert.Contains("Content = legacyContent, HorizontalAlignment = HorizontalAlignment.Stretch, HorizontalContentAlignment = HorizontalAlignment.Stretch", dialog);
     }
 

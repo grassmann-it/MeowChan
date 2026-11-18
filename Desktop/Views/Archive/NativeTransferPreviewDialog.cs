@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Transfer;
 
@@ -28,11 +29,9 @@ internal sealed class NativeTransferPreviewDialog : Window
     private readonly NativeTransferPreviewSession _session;
     private readonly Func<Task<string?>> _chooseFile;
     private readonly Func<string, string> _label;
-    private readonly WindowChromeBar _chrome = new();
     private readonly Button _choose;
     private readonly Button _cancel;
     private readonly Button _close;
-    private readonly TextBlock _heading = new() { Name = "NativeTransferPreviewHeading" };
     private readonly TextBlock _source = new() { Name = "NativeTransferPreviewSource", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _state = new() { Name = "NativeTransferPreviewState", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _summary = new() { Name = "NativeTransferPreviewSummary", TextWrapping = TextWrapping.Wrap };
@@ -53,74 +52,43 @@ internal sealed class NativeTransferPreviewDialog : Window
         _label = label ?? (key => Texts.T(key));
         _display = session.Current;
         Name = "NativeTransferPreviewDialog";
-        Width = 720;
-        Height = 560;
-        MinWidth = 440;
-        MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        // Modals plan MD2: a modal list-step dialog; the title stands in the title bar only.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
 
         _choose = CreateButton("NativeTransferPreviewChoose", "transfer.preview.choose", OnChooseAsync);
         _cancel = CreateButton("NativeTransferPreviewCancel", "action.cancel", OnCancel);
         _close = CreateButton("NativeTransferPreviewClose", "action.close", () => Close());
+        MeowChan.Desktop.Controls.IconButtons.WithText(_choose, "folder"); // I1b: the file chooser carries its catalog icon before the text.
         _cancel.IsEnabled = false;
         _notice.Classes.Add("workspace-help");
         _error.Classes.Add("workspace-error");
         AutomationProperties.SetLiveSetting(_state, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
 
-        _heading.Classes.Add("section-title");
         _source.Classes.Add("workspace-meta");
         _state.Classes.Add("workspace-meta");
         _summary.Classes.Add("workspace-meta");
-        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading);
-        body.Children.Add(_source);
-        body.Children.Add(_state);
+        // Header: the chosen source (the title is in the title bar); error strip: the local read/package error; body:
+        // inventory and inventory-only notice; footer: the polite state line above Choose/Cancel and Close right-most.
+        StackPanel header = new() { Spacing = 12 };
+        header.Children.Add(_source);
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
         body.Children.Add(_summary);
         body.Children.Add(_details);
         body.Children.Add(_notice);
-        body.Children.Add(_error);
 
-        WrapPanel actions = new()
-        {
-            ItemSpacing = 8,
-            LineSpacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        actions.Children.Add(_choose);
-        actions.Children.Add(_cancel);
-        actions.Children.Add(_close);
-        Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
+        Border footer = DialogFooter.Build(_close, new Control[] { _choose, _cancel }, _state, statusAbove: true);
+        DialogWindow.Frame(this, DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error)), modal: true);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
-        layout.Children.Add(_chrome);
-        ScrollViewer scroll = new()
-        {
-            Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
-        };
-        layout.Children.Add(scroll);
-        Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer);
-        Grid.SetRow(footer, 2);
-        Content = layout;
-
-        Opened += (_, _) => _chrome.Attach(this);
         Closed += (_, _) => _ = TerminateAsync();
-        AddHandler(KeyDownEvent, (_, e) =>
+        // Escape first cancels a running read, then closes.
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_cancel.IsEnabled) OnCancel();
-            else Close();
-        }, RoutingStrategies.Tunnel);
+            if (!_cancel.IsEnabled) return false;
+            OnCancel(); return true;
+        });
         Texts.Changed += OnLanguageChanged;
         IsLanguageSubscribedForTests = true;
         ApplyLabels();
@@ -265,7 +233,6 @@ internal sealed class NativeTransferPreviewDialog : Window
         _display = snapshot;
         RefreshControls();
         Title = Label("transfer.preview.title");
-        _heading.Text = Label("transfer.preview.heading");
         _source.Text = _fileName == null ? Label("transfer.preview.noSource") : Label("transfer.preview.source", _fileName);
         _state.Text = Label(IsChoosing ? "transfer.preview.choosing" : StateKey(snapshot));
         _notice.Text = snapshot.CleanupRetained

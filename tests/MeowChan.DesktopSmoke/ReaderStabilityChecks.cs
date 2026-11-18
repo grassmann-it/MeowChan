@@ -40,22 +40,27 @@ internal static class ReaderStabilityChecks
     {
         double width = window.Width, height = window.Height;
         PixelPoint position = window.Position;
+        Exception? failureBeforeCleanup = null;
         try { await RunCoreAsync(window); }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            // Keep the following fullscreen/close scenario in its own native
-            // geometry, particularly when 2× makes our wide fixture oversized.
-            window.Width = width; window.Height = height;
-            window.Position = position;
-            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
-            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                // Keep the following fullscreen/close scenario in its own native
+                // geometry, particularly when 2× makes our wide fixture oversized.
+                window.Width = width; window.Height = height;
+                window.Position = position;
+                await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderStabilityChecks: " + exception));
         }
     }
 
     private static async Task RunCoreAsync(MainWindow window)
     {
         window.Width = 1915; window.Height = 1045;
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader mixed navigation";
@@ -63,7 +68,14 @@ internal static class ReaderStabilityChecks
         page.FindControl<ListBox>("ArchiveThreads")!.SelectedIndex = 0;
         Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
         KeyboardNavigationMode originalTab = KeyboardNavigation.GetTabNavigation(pane);
-        Click(page.FindControl<Button>("ArchiveReadPosts")!);
+        Button readPosts = page.FindControl<Button>("ArchiveReadPosts")!;
+        // Selecting a row starts the inline preview asynchronously at this width.
+        // The real Read handler refuses busy input; wait for its enabled state,
+        // rather than losing the only click while that preview is still loading.
+        await Program.WaitUntilAsync(() => !page.IsBusy && page.CurrentThread?.Summary.Id == Thread
+            && readPosts.IsEffectivelyEnabled,
+            () => $"reader selection readiness: busy={page.IsBusy}, thread={page.CurrentThread?.Summary.Id}, readEnabled={readPosts.IsEffectivelyEnabled}");
+        Click(readPosts);
         ContentControl host = window.FindControl<ContentControl>("ReaderHost")!;
         await Program.WaitUntilAsync(() => host.IsVisible && !page.IsBusy && page.CurrentThread?.Summary.Id == Thread);
         await page.MediaLoadTask;
@@ -128,6 +140,28 @@ internal static class ReaderStabilityChecks
         Require((posts.SelectedItem as ArchivePostRow)?.Id == "1020", "Rapid reader arrows lost or duplicated a navigation step.");
         Visible(posts, "1020", "wheel then rapid arrows");
 
+        // B8-R9: a jump ends when the user takes over. A wheel turn right after the jump started must not be pulled back by a
+        // later pass of the same jump.
+        await page.FocusPostAsync("1040");
+        await Flush(window);
+        ScrollViewer jumpScroll = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
+        Task userJump = page.FocusPostAsync("1002");
+        using (Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true))
+        {
+            Point point = wheelTarget.TranslatePoint(new Point(40, 40), window)!.Value;
+            wheelTarget.RaiseEvent(new PointerWheelEventArgs(wheelTarget, pointer, window, point, 0,
+                new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other),
+                KeyModifiers.None, new Vector(0, -1)));
+        }
+        double afterWheel = jumpScroll.Offset.Y;
+        await userJump;
+        await Flush(window);
+        Require(Math.Abs(jumpScroll.Offset.Y - afterWheel) <= 1,
+            $"A jump kept scrolling after the user turned the wheel (offset {afterWheel} became {jumpScroll.Offset.Y}).");
+
+        // Review 2026-11-15: a step between posts shows no intermediate frame (the presenter's scroll anchoring), and Tab scrolls.
+        await ReaderScrollFrameChecks.RunAsync(window, page, posts);
+
         // Native scopes must still own their arrows in the detached reader.
         TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
         TabItem header = tabs.GetVisualDescendants().OfType<TabItem>().First();
@@ -179,15 +213,33 @@ internal static class ReaderStabilityChecks
         await Flush(window);
         Require(KeyboardNavigation.GetTabNavigation(pane) == originalTab,
             "Attach retained the detached reader's Tab-cycle override.");
-        // A deliberately set pre-existing value must survive another lifecycle.
-        pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Continue);
-        Click(page.FindControl<Button>("ArchiveReadPosts")!);
-        await Program.WaitUntilAsync(() => host.IsVisible);
-        Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "Detached reader has no cyclic Tab scope.");
-        Click(page.FindControl<Button>("ArchiveCloseReader")!);
-        Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue,
-            "Attach lost a pre-existing local Tab value.");
-        pane.ClearValue(KeyboardNavigation.TabNavigationProperty);
+        // This lifecycle checks the pane's own override. With the sidebar shown,
+        // the enclosing frame correctly owns the cycle instead; explicitly choose
+        // pane-only layout here, after the unchanged sidebar/navigation coverage.
+        ReaderMediaPreferences previousMedia = ReaderSmokeSetup.Choose(page, sidebar: false);
+        Exception? tabFailure = null;
+        try
+        {
+            // A deliberately set pre-existing value must survive another lifecycle.
+            pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Continue);
+            Click(page.FindControl<Button>("ArchiveReadPosts")!);
+            await Program.WaitUntilAsync(() => host.IsVisible);
+            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle, "Detached reader has no cyclic Tab scope.");
+            Click(page.FindControl<Button>("ArchiveCloseReader")!);
+            Require(KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue,
+                "Attach lost a pre-existing local Tab value.");
+            pane.ClearValue(KeyboardNavigation.TabNavigationProperty);
+        }
+        catch (Exception error) { tabFailure = error; throw; }
+        finally
+        {
+            await SmokeCleanup.RunAsync(tabFailure, () =>
+            {
+                pane.ClearValue(KeyboardNavigation.TabNavigationProperty);
+                ReaderSmokeSetup.Restore(page, previousMedia);
+                return Task.CompletedTask;
+            }, error => Console.Error.WriteLine("SMOKE cleanup failed restoring reader Tab fixture: " + error));
+        }
         Console.WriteLine("SMOKE mixed reader stability: 168 variable posts, all forward/backward boundaries, settled target visibility, native scopes, pagination, selection availability, virtualized realization and reversible Tab scope passed.");
 
         async Task Navigate(Key key, string expected)

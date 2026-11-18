@@ -1,3 +1,5 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.Threading.Tasks;
 using MeowChan.Desktop;
@@ -20,3 +22,5 @@ public partial class MainWindow
             throw new InvalidOperationException("The startup window did not complete normal shutdown.");
     }
 }
+
+#endif

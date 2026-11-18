@@ -58,8 +58,6 @@ internal sealed class NativePrivateConsentDecision
 {
     private const int MaximumPackageIdBytes = 128;
     private const int MaximumSchemaBytes = 64;
-    private const int MaximumHashBytes = 64;
-    private const long MaximumPackageBytes = 2L * 1024 * 1024 * 1024;
     private readonly object? _issuer;
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
 

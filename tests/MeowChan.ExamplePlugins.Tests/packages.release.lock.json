@@ -147,19 +147,13 @@
           "MeowChan.PluginSdk": "[1.0.2, )"
         }
       },
+      "meowchan.plugin.jschanfamily": {
+        "type": "Project",
+        "dependencies": {
+          "MeowChan.PluginSdk": "[1.0.2, )"
+        }
+      },
       "meowchan.plugin.kohlchan": {
-        "type": "Project",
-        "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
-        }
-      },
-      "meowchan.plugin.lainchan": {
-        "type": "Project",
-        "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
-        }
-      },
-      "meowchan.plugin.leftypol": {
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.2, )"
@@ -171,25 +165,7 @@
           "MeowChan.PluginSdk": "[1.0.2, )"
         }
       },
-      "meowchan.plugin.sushichan": {
-        "type": "Project",
-        "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
-        }
-      },
-      "meowchan.plugin.uboachan": {
-        "type": "Project",
-        "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
-        }
-      },
-      "meowchan.plugin.wizchan": {
-        "type": "Project",
-        "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
-        }
-      },
-      "meowchan.plugin.zzzchan": {
+      "meowchan.plugin.vichanfamily": {
         "type": "Project",
         "dependencies": {
           "MeowChan.PluginSdk": "[1.0.2, )"

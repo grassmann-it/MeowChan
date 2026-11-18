@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -110,7 +111,7 @@ public partial class SettingsEditor
         try
         {
             if (!ValidateDestinationSyntax(out string? path) || !ValidateNumericDraft()) return;
-            await CheckDestinationAsync(path!, GetInteger(MinimumFreeSpaceGiB, ReserveLabel, 0, int.MaxValue));
+            await CheckDestinationAsync(path!, GetInteger(MinimumFreeSpaceGiB, ReserveLabel, Config.MinimumFreeSpaceGiBMinimum, Config.MinimumFreeSpaceGiBMaximum));
         }
         finally { IsBusy = false; }
     }
@@ -123,21 +124,66 @@ public partial class SettingsEditor
     private string FieldHelp(string field, string baseline) => _fieldHelpErrors.TryGetValue(field, out Func<string>? error) ? error() : baseline;
     public string DownloadPathHelp => FieldHelp(nameof(DownloadPathInput), PathHint);
     public string RecheckTimerHelp => FieldHelp(nameof(RecheckTimerInput), SecondsHelp);
-    public string BandwidthInputHelp => FieldHelp(nameof(BandwidthInput), BandwidthHelp);
-    public string ParallelDownloadsHelp => FieldHelp(nameof(ParallelDownloadsInput), Texts.T("settings.unitCount"));
+    public string BandwidthInputHelp => FieldHelp(nameof(BandwidthInput), BandwidthHelp + ". " + BandwidthHint);
+    public string ParallelDownloadsHelp => FieldHelp(nameof(ParallelDownloadsInput), Texts.T("settings.unitCount") + ". " + ParallelHint);
     public string ParallelDownloadsSafetyHelp => FieldHelp(nameof(ParallelDownloadsSafetyInput), ParallelSafetyHint);
     public string ReserveInputHelp => FieldHelp(nameof(ReserveInput), Texts.T("settings.unitGiB") + ". " + ReserveHint);
     public string ProductionWorkersHelp => FieldHelp(nameof(ProductionWorkersInput), Texts.T("settings.unitCount") + ". " + BudgetRestartHint);
     public string WorkerIdleMinutesHelp => FieldHelp(nameof(WorkerIdleMinutesInput), Texts.T("settings.unitMinutes") + ". " + BudgetRestartHint);
     public string SourceHeapMiBHelp => FieldHelp(nameof(SourceHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
     public string FilterHeapMiBHelp => FieldHelp(nameof(FilterHeapMiBInput), Texts.T("settings.unitMiB") + ". " + BudgetRestartHint);
+    public string BooruCatalogMiBHelp => FieldHelp(nameof(BooruCatalogMiBInput), Texts.T("settings.unitMiB") + ". " + BooruCatalogMiBHint);
+    public string BooruRetryAfterCooldownHoursHelp => FieldHelp(nameof(BooruRetryAfterCooldownHoursInput), Texts.T("settings.unitHours") + ". " + BooruRetryAfterCooldownHoursHint);
+    public string PrivateTagLimitHelp => FieldHelp(nameof(PrivateTagLimitInput), Texts.T("settings.unitCount") + ". " + PrivateTagLimitHint);
+    public string PrivateTagFileMiBHelp => FieldHelp(nameof(PrivateTagFileMiBInput), Texts.T("settings.unitMiB") + ". " + PrivateTagFileMiBHint);
+    public string MediaIndexCacheMiBHelp => FieldHelp(nameof(MediaIndexCacheMiBInput), Texts.T("settings.unitMiB") + ". " + MediaIndexCacheMiBHint);
+    public string FavoriteEntryLimitHelp => FieldHelp(nameof(FavoriteEntryLimitInput), Texts.T("settings.unitCount") + ". " + FavoriteEntryLimitHint);
+    public string FavoriteFileLimitMiBHelp => FieldHelp(nameof(FavoriteFileLimitMiBInput), Texts.T("settings.unitMiB") + ". " + FavoriteFileLimitMiBHint);
+    public string PostBookmarkLimitHelp => FieldHelp(nameof(PostBookmarkLimitInput), Texts.T("settings.unitCount") + ". " + PostBookmarkLimitHint);
+    public string SavedSearchLimitHelp => FieldHelp(nameof(SavedSearchLimitInput), Texts.T("settings.unitCount") + ". " + SavedSearchLimitHint);
+    public string ReaderGroupLimitHelp => FieldHelp(nameof(ReaderGroupLimitInput), Texts.T("settings.unitCount") + ". " + ReaderGroupLimitHint);
+    public string ProfileRegistryLimitHelp => FieldHelp(nameof(ProfileRegistryLimitInput), Texts.T("settings.unitCount") + ". " + ProfileRegistryLimitHint);
+    public string SourcesWatchPreviewRowsHelp => FieldHelp(nameof(SourcesWatchPreviewRowsInput), Texts.T("settings.unitCount") + ". " + SourcesWatchPreviewRowsHint);
+    public string ExportConfirmFilesHelp => FieldHelp(nameof(ExportConfirmFilesInput), Texts.T("settings.unitCount") + ". " + ExportConfirmFilesHint);
+    public string ExportConfirmGiBHelp => FieldHelp(nameof(ExportConfirmGiBInput), Texts.T("settings.unitGiB") + ". " + ExportConfirmGiBHint);
+    public string PosterCacheLimitMiBHelp => FieldHelp(nameof(PosterCacheLimitMiBInput), Texts.T("settings.unitMiB") + ". " + PosterCacheLimitMiBHint);
+    public string PosterCacheFileLimitHelp => FieldHelp(nameof(PosterCacheFileLimitInput), Texts.T("settings.unitCount") + ". " + PosterCacheFileLimitHint);
+    public string AudioProbeCacheLimitMiBHelp => FieldHelp(nameof(AudioProbeCacheLimitMiBInput), Texts.T("settings.unitMiB") + ". " + AudioProbeCacheLimitMiBHint);
+    public string AudioProbeCacheEntriesHelp => FieldHelp(nameof(AudioProbeCacheEntriesInput), Texts.T("settings.unitCount") + ". " + AudioProbeCacheEntriesHint);
+    public string ThumbnailCacheTilesHelp => FieldHelp(nameof(ThumbnailCacheTilesInput), Texts.T("settings.unitCount") + ". " + ThumbnailCacheTilesHint);
+    public string ClipboardUrlLimitHelp => FieldHelp(nameof(ClipboardUrlLimitInput), Texts.T("settings.unitCount") + ". " + ClipboardUrlLimitHint);
+    public string ClipboardTextLimitKiBHelp => FieldHelp(nameof(ClipboardTextLimitKiBInput), Texts.T("settings.unitKiB") + ". " + ClipboardTextLimitKiBHint);
+    public string GalleryImageCacheMiBHelp => FieldHelp(nameof(GalleryImageCacheMiBInput), Texts.T("settings.unitMiB") + ". " + GalleryImageCacheMiBHint);
+    public string GalleryPreloadAheadHelp => FieldHelp(nameof(GalleryPreloadAheadInput), Texts.T("settings.unitCount") + ". " + GalleryPreloadAheadHint);
+    public string GalleryPreloadBehindHelp => FieldHelp(nameof(GalleryPreloadBehindInput), Texts.T("settings.unitCount") + ". " + GalleryPreloadBehindHint);
+    public string ImportMaxFilesPerBatchHelp => FieldHelp(nameof(ImportMaxFilesPerBatchInput), Texts.T("settings.unitCount") + ". " + ImportMaxFilesPerBatchHint);
+    public string ImportMaxBatchGiBHelp => FieldHelp(nameof(ImportMaxBatchGiBInput), Texts.T("settings.unitGiB") + ". " + ImportMaxBatchGiBHint);
+    public string ImportMaxFileMiBHelp => FieldHelp(nameof(ImportMaxFileMiBInput), Texts.T("settings.unitMiB") + ". " + ImportMaxFileMiBHint);
+    public string ImportMaxTotalFilesHelp => FieldHelp(nameof(ImportMaxTotalFilesInput), Texts.T("settings.unitCount") + ". " + ImportMaxTotalFilesHint);
+    public string ImportMaxTagsPerBatchHelp => FieldHelp(nameof(ImportMaxTagsPerBatchInput), Texts.T("settings.unitCount") + ". " + ImportMaxTagsPerBatchHint);
+    public string ImportMaxBatchesHelp => FieldHelp(nameof(ImportMaxBatchesInput), Texts.T("settings.unitCount") + ". " + ImportMaxBatchesHint);
+    public string MediaIndexMaxEntriesHelp => FieldHelp(nameof(MediaIndexMaxEntriesInput), Texts.T("settings.unitCount") + ". " + MediaIndexMaxEntriesHint);
+    public string MediaIndexMaxThreadsHelp => FieldHelp(nameof(MediaIndexMaxThreadsInput), Texts.T("settings.unitCount") + ". " + MediaIndexMaxThreadsHint);
+    public string ImportCatalogLimitMiBHelp => FieldHelp(nameof(ImportCatalogLimitMiBInput), Texts.T("settings.unitMiB") + ". " + ImportCatalogLimitMiBHint);
 
     private void NotifyFieldHelpChanged()
     {
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
-            nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp) })
+            nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
+            nameof(BooruRetryAfterCooldownHoursHelp),
+            nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
+            nameof(ProfileRegistryLimitHelp),
+            nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesHelp), nameof(FolderSourceMaxFilesHelp), nameof(FolderSourceMaxRootsHelp), nameof(FolderSourceHashParallelismHelp), nameof(FolderSourceHashMaxFileGiBHelp), nameof(FolderSourceRescanMinutesHelp), nameof(FolderSourceCatalogLimitMiBHelp), nameof(FolderSourceGalleryHashWindowHelp), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsHelp) })
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+        NotifyStatisticsHelpChanged();
+        NotifyReaderHelpChanged();
+        NotifyTagQueueHelpChanged();
+        NotifyViewerHelpChanged();
+        NotifyQuickTagHelpChanged();
+        NotifyLimitsHelpChanged();
+        NotifyWorkViewNoticeHelpChanged();
+        NotifyShutdownLimitHelpChanged();
     }
 
     private void SetFieldErrorHelp(Control input, Func<string> message)
@@ -161,15 +207,103 @@ public partial class SettingsEditor
 
     private IEnumerable<(NumericUpDown Input, decimal? Value, string Label, string Unit, decimal Min, decimal Max, bool Integer)> NumericFields()
     {
+        foreach (var field in WorkViewNoticeNumericFields()) yield return field;
+        foreach (var field in ShutdownLimitNumericFields()) yield return field;
         yield return (RecheckTimerInput, RecheckTimer, RecheckLabel, SecondsHelp, 10, 4294967, true);
-        yield return (BandwidthInput, BandwidthLimiterMB, BandwidthLabel, BandwidthHelp, 0, long.MaxValue / (1024m * 1024m), false);
-        yield return (ParallelDownloadsInput, MaxParallelDownloads, ParallelLabel, Texts.T("settings.unitCount"), 1, int.MaxValue, true);
+        yield return (BandwidthInput, BandwidthLimiterMB, BandwidthLabel, BandwidthHelp, 0, Config.BandwidthLimiterMaximumMiB, false);
+        yield return (ParallelDownloadsInput, MaxParallelDownloads, ParallelLabel, Texts.T("settings.unitCount"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum, true);
         yield return (ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit, ParallelSafetyLabel, Texts.T("settings.unitCount"), 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit, true);
-        yield return (ReserveInput, MinimumFreeSpaceGiB, ReserveLabel, Texts.T("settings.unitGiB"), 0, int.MaxValue, true);
+        yield return (ReserveInput, MinimumFreeSpaceGiB, ReserveLabel, Texts.T("settings.unitGiB"), Config.MinimumFreeSpaceGiBMinimum, Config.MinimumFreeSpaceGiBMaximum, true);
         yield return (ProductionWorkersInput, ProductionWorkers, ProductionWorkersLabel, Texts.T("settings.unitCount"), 1, 8, true);
         yield return (WorkerIdleMinutesInput, WorkerIdleMinutes, WorkerIdleMinutesLabel, Texts.T("settings.unitMinutes"), 1, 30, true);
         yield return (SourceHeapMiBInput, SourceHeapMiB, SourceHeapMiBLabel, Texts.T("settings.unitMiB"), 128, 1024, true);
         yield return (FilterHeapMiBInput, FilterHeapMiB, FilterHeapMiBLabel, Texts.T("settings.unitMiB"), 256, 2048, true);
+        yield return (BooruCatalogMiBInput, BooruCatalogMiB, BooruCatalogMiBLabel, Texts.T("settings.unitMiB"),
+            Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB, true);
+        yield return (BooruRetryAfterCooldownHoursInput, BooruRetryAfterCooldownHours, BooruRetryAfterCooldownHoursLabel, Texts.T("settings.unitHours"),
+            Config.BooruRetryAfterCooldownMinimumHours, Config.BooruRetryAfterCooldownMaximumHours, true);
+        yield return (PrivateTagLimitInput, PrivateTagLimit, PrivateTagLimitLabel, Texts.T("settings.unitCount"),
+            Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit, true);
+        yield return (PrivateTagFileMiBInput, PrivateTagFileMiB, PrivateTagFileMiBLabel, Texts.T("settings.unitMiB"),
+            Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB, true);
+        yield return (MediaIndexCacheMiBInput, MediaIndexCacheMiB, MediaIndexCacheMiBLabel, Texts.T("settings.unitMiB"),
+            Config.MediaIndexCacheMinimumLimitMiB, Config.MediaIndexCacheMaximumLimitMiB, true);
+        yield return (FavoriteEntryLimitInput, FavoriteEntryLimit, FavoriteEntryLimitLabel, Texts.T("settings.unitCount"),
+            Config.FavoriteEntryLimitMinimum, Config.FavoriteEntryLimitMaximum, true);
+        yield return (FavoriteFileLimitMiBInput, FavoriteFileLimitMiB, FavoriteFileLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.FavoriteFileLimitMiBMinimum, Config.FavoriteFileLimitMiBMaximum, true);
+        yield return (PostBookmarkLimitInput, PostBookmarkLimit, PostBookmarkLimitLabel, Texts.T("settings.unitCount"),
+            Config.PostBookmarkLimitMinimum, Config.PostBookmarkLimitMaximum, true);
+        yield return (SavedSearchLimitInput, SavedSearchLimit, SavedSearchLimitLabel, Texts.T("settings.unitCount"),
+            Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum, true);
+        yield return (ReaderGroupLimitInput, ReaderGroupLimit, ReaderGroupLimitLabel, Texts.T("settings.unitCount"),
+            Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum, true);
+        yield return (ProfileRegistryLimitInput, ProfileRegistryLimit, ProfileRegistryLimitLabel, Texts.T("settings.unitCount"),
+            Config.ProfileRegistryLimitMinimum, Config.ProfileRegistryLimitMaximum, true);
+        yield return (SourcesWatchPreviewRowsInput, SourcesWatchPreviewRows, SourcesWatchPreviewRowsLabel, Texts.T("settings.unitCount"),
+            Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum, true);
+        yield return (ExportConfirmFilesInput, ExportConfirmFiles, ExportConfirmFilesLabel, Texts.T("settings.unitCount"),
+            Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum, true);
+        yield return (ExportConfirmGiBInput, ExportConfirmGiB, ExportConfirmGiBLabel, Texts.T("settings.unitGiB"),
+            Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum, true);
+        yield return (PosterCacheLimitMiBInput, PosterCacheLimitMiB, PosterCacheLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum, true);
+        yield return (PosterCacheFileLimitInput, PosterCacheFileLimit, PosterCacheFileLimitLabel, Texts.T("settings.unitCount"),
+            Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum, true);
+        yield return (AudioProbeCacheLimitMiBInput, AudioProbeCacheLimitMiB, AudioProbeCacheLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.AudioProbeCacheLimitMiBMinimum, Config.AudioProbeCacheLimitMiBMaximum, true);
+        yield return (AudioProbeCacheEntriesInput, AudioProbeCacheEntries, AudioProbeCacheEntriesLabel, Texts.T("settings.unitCount"),
+            Config.AudioProbeCacheEntriesMinimum, Config.AudioProbeCacheEntriesMaximum, true);
+        yield return (ThumbnailCacheTilesInput, ThumbnailCacheTiles, ThumbnailCacheTilesLabel, Texts.T("settings.unitCount"),
+            Config.ThumbnailCacheTilesMinimum, Config.ThumbnailCacheTilesMaximum, true);
+        yield return (ClipboardUrlLimitInput, ClipboardUrlLimit, ClipboardUrlLimitLabel, Texts.T("settings.unitCount"),
+            Config.ClipboardUrlLimitMinimum, Config.ClipboardUrlLimitMaximum, true);
+        yield return (ClipboardTextLimitKiBInput, ClipboardTextLimitKiB, ClipboardTextLimitKiBLabel, Texts.T("settings.unitKiB"),
+            Config.ClipboardTextLimitKiBMinimum, Config.ClipboardTextLimitKiBMaximum, true);
+        yield return (GalleryImageCacheMiBInput, GalleryImageCacheMiB, GalleryImageCacheMiBLabel, Texts.T("settings.unitMiB"),
+            Config.GalleryImageCacheMiBMinimum, Config.GalleryImageCacheMiBMaximum, true);
+        yield return (GalleryPreloadAheadInput, GalleryPreloadAhead, GalleryPreloadAheadLabel, Texts.T("settings.unitCount"),
+            Config.GalleryPreloadAheadMinimum, Config.GalleryPreloadAheadMaximum, true);
+        yield return (GalleryPreloadBehindInput, GalleryPreloadBehind, GalleryPreloadBehindLabel, Texts.T("settings.unitCount"),
+            Config.GalleryPreloadBehindMinimum, Config.GalleryPreloadBehindMaximum, true);
+        yield return (ImportMaxFilesPerBatchInput, ImportMaxFilesPerBatch, ImportMaxFilesPerBatchLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxFilesPerBatchMinimum, Config.ImportMaxFilesPerBatchMaximum, true);
+        yield return (ImportMaxBatchGiBInput, ImportMaxBatchGiB, ImportMaxBatchGiBLabel, Texts.T("settings.unitGiB"),
+            Config.ImportMaxBatchGiBMinimum, Config.ImportMaxBatchGiBMaximum, true);
+        yield return (ImportMaxFileMiBInput, ImportMaxFileMiB, ImportMaxFileMiBLabel, Texts.T("settings.unitMiB"),
+            Config.ImportMaxFileMiBMinimum, Config.ImportMaxFileMiBMaximum, true);
+        yield return (ImportMaxTotalFilesInput, ImportMaxTotalFiles, ImportMaxTotalFilesLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum, true);
+        yield return (ImportMaxTagsPerBatchInput, ImportMaxTagsPerBatch, ImportMaxTagsPerBatchLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum, true);
+        yield return (ImportMaxBatchesInput, ImportMaxBatches, ImportMaxBatchesLabel, Texts.T("settings.unitCount"),
+            Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum, true);
+        yield return (FolderSourceMaxFilesInput, FolderSourceMaxFiles, FolderSourceMaxFilesLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum, true);
+        yield return (FolderSourceMaxRootsInput, FolderSourceMaxRoots, FolderSourceMaxRootsLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum, true);
+        yield return (FolderSourceHashParallelismInput, FolderSourceHashParallelism, FolderSourceHashParallelismLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum, true);
+        yield return (FolderSourceHashMaxFileGiBInput, FolderSourceHashMaxFileGiB, FolderSourceHashMaxFileGiBLabel, Texts.T("settings.unitGiB"),
+            Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum, true);
+        yield return (FolderSourceRescanMinutesInput, FolderSourceRescanMinutes, FolderSourceRescanMinutesLabel, Texts.T("settings.unitMinutes"),
+            Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum, true);
+        yield return (FolderSourceCatalogLimitMiBInput, FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum, true);
+        yield return (FolderSourceGalleryHashWindowInput, FolderSourceGalleryHashWindow, FolderSourceGalleryHashWindowLabel, Texts.T("settings.unitCount"),
+            Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum, true);
+        yield return (MediaIndexMaxEntriesInput, MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Texts.T("settings.unitCount"),
+            Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum, true);
+        yield return (MediaIndexMaxThreadsInput, MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Texts.T("settings.unitCount"),
+            Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum, true);
+        yield return (ImportCatalogLimitMiBInput, ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Texts.T("settings.unitMiB"),
+            Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
+        foreach (var field in StatisticsNumericFields()) yield return field;
+        foreach (var field in ReaderNumericFields()) yield return field;
+        foreach (var field in TagQueueNumericFields()) yield return field;
+        foreach (var field in ViewerNumericFields()) yield return field;
+        foreach (var field in QuickTagNumericFields()) yield return field;
+        foreach (var field in LimitsNumericFields()) yield return field;
     }
 
     private void ClearFieldErrors()
@@ -192,6 +326,7 @@ public partial class SettingsEditor
 
     private static string FieldLabelWithUnit(string label, string unit)
     {
+        if (string.IsNullOrWhiteSpace(unit)) return label;
         string suffix = "(" + unit + ")";
         // Help can spell out a unit and also provide its abbreviation, e.g. MiB/s.
         int abbreviation = unit.LastIndexOf('(');
@@ -207,14 +342,9 @@ public partial class SettingsEditor
     {
         foreach (var field in NumericFields())
         {
-            string? key = null;
-            bool parsed = decimal.TryParse(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat, out decimal raw);
-            bool InvalidNumber(decimal? value) => !value.HasValue || value < field.Min || value > field.Max ||
-                (field.Integer && decimal.Truncate(value.Value) != value.Value) || (!field.Integer && value <= 0);
-            if (!parsed || DataValidationErrors.GetHasErrors(field.Input))
-                key = "settings.fieldNumber";
-            else if (InvalidNumber(raw) || InvalidNumber(field.Value))
-                key = field.Integer ? "settings.fieldInteger" : "settings.bandwidthRange";
+            if (!IsStatisticsFieldActive(field.Input)) continue;
+            string? key = NumericDraftError(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat,
+                DataValidationErrors.GetHasErrors(field.Input), field.Value, field.Min, field.Max, field.Integer);
             if (key == null) continue;
             // Keep the failure kind, but resolve the field label/unit in the current language.
             string messageKey = key;
@@ -227,6 +357,20 @@ public partial class SettingsEditor
             _firstInvalidInput ??= field.Input;
         }
         return FinishFieldValidation(focusError);
+    }
+
+    // Validate the raw draft as well as Value: a rejected edit can leave Value at
+    // its last accepted number (or a control boundary). Neither is the user's text.
+    internal static string? NumericDraftError(string? text, NumberStyles style, IFormatProvider? format,
+        bool hasBindingErrors, decimal? value, decimal minimum, decimal maximum, bool integer)
+    {
+        bool InvalidNumber(decimal? number) => !number.HasValue || number < minimum || number > maximum ||
+            (integer && decimal.Truncate(number.Value) != number.Value) || (!integer && number <= 0);
+        if (!decimal.TryParse(text, style, format, out decimal raw) || hasBindingErrors)
+            return "settings.fieldNumber";
+        return InvalidNumber(raw) || InvalidNumber(value)
+            ? integer ? "settings.fieldInteger" : "settings.bandwidthRange"
+            : null;
     }
 
     private string RenderNumericFieldError(NumericUpDown input, string key)
@@ -255,9 +399,19 @@ public partial class SettingsEditor
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
     }
 
+    // The visible field error is what explains a failed save. It can sit well below its input (hints,
+    // preview and check button in between), so a small window or large text would otherwise keep it off
+    // screen while only the input's own row was revealed.
+    private TextBlock? VisibleFieldError(Control input)
+        => input.Name != null && this.FindControl<TextBlock>(input.Name + "Error") is { IsVisible: true } error ? error : null;
+
+    private Control FieldRevealTarget(Control input) => VisibleFieldError(input) ?? input.Parent as Control ?? input;
+
     private bool FinishFieldValidation(bool focusError = true)
     {
         if (_firstInvalidInput == null) return true;
+        // R6: every field with an error opens its group, not only the first one that takes the focus.
+        SweepGroups();
         SetErrorMessage("settings.notSaved");
         SetStatusMessage("settings.unsaved");
         if (!focusError) return false;
@@ -282,6 +436,8 @@ public partial class SettingsEditor
             if (numeric != null)
                 numeric.GetVisualDescendants().OfType<TextBox>().FirstOrDefault(text => text.Name == "PART_TextBox")?.Focus();
             else first.Focus();
+            // Focusing scrolls the input itself into view; the error line must win when both cannot fit.
+            VisibleFieldError(first)?.BringIntoView();
         }, DispatcherPriority.Loaded);
         return false;
     }

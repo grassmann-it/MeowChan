@@ -55,9 +55,12 @@ public sealed class BoardRow : INotifyPropertyChanged, IDisposable
         NiceName = entry.BoardName;
         DownloadDirectory = snapshot.DownloadDirectory;
         string? request = RequestStatus.Format(snapshot.RequestProgress);
-        Status = snapshot.LastCheckFailure == null ? request ?? Texts.T("status.monitoring")
-            : request == null ? Texts.T("status.error") : Texts.T("status.error") + " · " + request;
-        ErrorDetails = snapshot.LastCheckFailure?.Message ?? string.Empty;
+        // Same headline and inspector text as threads, Diagnostics and Sources (DiagnosticFailurePresentation).
+        Status = snapshot.LastCheckFailure is not FailureInfo failure ? request ?? Texts.T("status.monitoring")
+            : Texts.T("status.error") + (request == null ? string.Empty : " · " + request)
+                + " · " + DiagnosticFailurePresentation.Headline(failure, DiagnosticOperation.Board);
+        ErrorDetails = snapshot.LastCheckFailure is FailureInfo detail
+            ? DiagnosticFailurePresentation.Inspector(detail, DiagnosticOperation.Board) : string.Empty;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(string.Empty));
     }
 

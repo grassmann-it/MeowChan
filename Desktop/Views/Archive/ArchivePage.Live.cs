@@ -1,3 +1,4 @@
+using MeowChan.Desktop.WorkViews;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
@@ -33,14 +34,19 @@ public partial class ArchivePage
         _readerUpdateTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(2) };
         _readerUpdateTimer.Tick += async (_, _) => await CheckReaderUpdatesAsync();
         _readerUpdateTimer.Start();
+        // R3: following live is "Show new posts automatically" of the settings popover (the command keeps its id and its Ctrl+Shift+L,
+        // which the shell routes to ToggleFollowLiveByShortcut); the shortcut must not also toggle through the menu's key handler.
+        RegisterViewOption("watch.follow-live", () => _followReader, () => _ = SetFollowLiveAsync(!_followReader),
+            isEnabled: () => CanChangeFollowLive, note: FollowLiveNote, shortcutViaRouter: true);
         LocalizeReaderUpdates();
     }
 
     private void LocalizeReaderUpdates()
     {
-        Control<CheckBox>("ReaderFollowLive").Content = CommandCatalog.Label("watch.follow-live");
-        ToolTip.SetTip(Control<CheckBox>("ReaderFollowLive"), Texts.T("reader.liveHint"));
-        Control<Button>("ReaderShowNewPosts").Content = CommandCatalog.Label("reader.show-new-posts");
+        ReaderShowNewPosts.Content = CommandCatalog.Label("reader.show-new-posts");
+        ToolTip.SetTip(ReaderShowNewPosts, CommandBindings.Tooltip("reader.show-new-posts"));
+        LocalizeReaderUnread();
+        LocalizeReaderLink();
         UpdateReaderUpdateControls();
     }
 
@@ -50,7 +56,6 @@ public partial class ArchivePage
         if (_liveReaderId != id)
         {
             _followReader = false;
-            Control<CheckBox>("ReaderFollowLive").IsChecked = false;
             _liveReaderId = id;
         }
         _pendingReaderUpdate = null;
@@ -61,19 +66,62 @@ public partial class ArchivePage
     private bool MayFollow(ArchiveThreadSummary? summary) => summary != null && summary.CaptureEnabled
         && summary.SourceState == ThreadSourceState.Active && CanFollowLive?.Invoke(summary.Id) == true;
 
+    /// <summary>Why following live is impossible for this thread, or null when nothing but a transient state is in the way.</summary>
+    internal static string? FollowLiveReason(ArchiveThreadSummary? summary, bool watched)
+    {
+        if (summary == null) return null;
+        if (!watched) return Texts.T("reader.live.reason.notWatched");
+        if (!summary.CaptureEnabled) return Texts.T("reader.live.reason.captureOff");
+        return summary.SourceState switch
+        {
+            ThreadSourceState.Archived => Texts.T("reader.live.reason.sourceArchived"),
+            ThreadSourceState.NotFound => Texts.T("reader.live.reason.sourceGone"),
+            _ => null
+        };
+    }
+
     private void UpdateReaderUpdateControls()
     {
         ArchiveThreadSummary? summary = _latestReaderSummary;
-        CheckBox follow = Control<CheckBox>("ReaderFollowLive");
-        follow.IsEnabled = !_busy && MayFollow(summary);
-        if (!MayFollow(summary)) { _followReader = false; follow.IsChecked = false; }
-        Control<Button>("ReaderShowNewPosts").IsVisible = _pendingReaderUpdate != null;
-        Control<Button>("ReaderShowNewPosts").IsEnabled = !_busy;
-        TextBlock notice = Control<TextBlock>("ReaderNewPostsNotice");
-        notice.IsVisible = _pendingReaderUpdate != null;
+        if (!MayFollow(summary)) _followReader = false;
+        // The status line says whether the new posts are shown automatically (the switch itself is in the settings popover, section Thread).
+        RefreshReaderSettings();
+        TextBlock liveState = ReaderLiveState;
+        liveState.Text = Texts.T("reader.live.stateOn");
+        WorkViewGate.Apply(liveState, ArchiveWorkView, _followReader);
+        // Live state: Required in every view (WorkViewPolicy.Reader), so the gate only records the state.
+        WorkViewGate.Apply(ReaderShowNewPosts, ArchiveWorkView, _pendingReaderUpdate != null);
+        ReaderShowNewPosts.IsEnabled = !_busy;
+        TextBlock notice = ReaderNewPostsNotice;
+        WorkViewGate.Apply(notice, ArchiveWorkView, _pendingReaderUpdate != null);
         int added = (_pendingReaderUpdate?.PostCount ?? 0) - (_thread?.PostCount ?? 0);
         notice.Text = _pendingReaderUpdate == null ? string.Empty
-            : added > 0 ? Texts.T("reader.newPostsCount", added) : Texts.T("reader.savedUpdate");
+            : added > 0 ? Texts.Count("reader.newPostsCount", added) : Texts.T("reader.savedUpdate");
+    }
+
+    /// <summary>Whether the open thread's new saved posts are shown without a click (session-wide, reset on a thread switch).</summary>
+    internal bool FollowLive => _followReader;
+
+    /// <summary>The switch is usable: the thread is watched with post capture on and an active source, and nothing is running.</summary>
+    internal bool CanChangeFollowLive => !_ended && !IsFilenameSearchOpen && !_busy && MayFollow(_latestReaderSummary);
+
+    /// <summary>The tip of the menu entry: what it does and the one cause that is missing right now (also shown while disabled).</summary>
+    private string FollowLiveNote()
+    {
+        ArchiveThreadSummary? summary = _latestReaderSummary;
+        string tip = Texts.T("reader.liveHint");
+        bool watched = summary != null && CanFollowLive?.Invoke(summary.Id) == true;
+        if (FollowLiveReason(summary, watched) is { } reason) tip += Environment.NewLine + reason;
+        return tip;
+    }
+
+    /// <summary>Switches "Show new posts automatically" for the open thread; refused (and off) where following is impossible.</summary>
+    internal async Task SetFollowLiveAsync(bool enabled)
+    {
+        if (_ended) return;
+        _followReader = enabled && MayFollow(_latestReaderSummary);
+        UpdateReaderUpdateControls();
+        if (_followReader) await CheckReaderUpdatesAsync();
     }
 
     // The coverage epoch also rejects a read that returns after cover -> uncover. Keep one
@@ -129,11 +177,10 @@ public partial class ArchivePage
                         if (summary == null)
                         {
                             _pendingReaderUpdate = null; _followReader = false;
-                            Control<CheckBox>("ReaderFollowLive").IsChecked = false;
                         }
                         else if (summary.Revision > _thread!.Summary.Revision && summary.PostCount > _thread.PostCount)
                             _pendingReaderUpdate = summary;
-                        if (!MayFollow(summary)) { _followReader = false; Control<CheckBox>("ReaderFollowLive").IsChecked = false; }
+                        if (!MayFollow(summary)) _followReader = false;
                         UpdateReaderUpdateControls();
                         if (_followReader && _pendingReaderUpdate != null && interaction == _readerInteractionRevision && MayRefreshReaderNow)
                             await ShowReaderUpdatesAsync(deliberate: false);
@@ -153,14 +200,17 @@ public partial class ArchivePage
     private bool MayRefreshReaderNow => !_ended && !_obscuredByGallery && ReaderShowsPosts
         && !IsReaderDialogOpen && (ReaderRefreshAllowed?.Invoke() ?? true);
 
-    private async void OnReaderFollowLiveChanged(object? sender, RoutedEventArgs e)
-    {
-        bool enabled = Control<CheckBox>("ReaderFollowLive").IsChecked == true;
-        _followReader = enabled && MayFollow(_latestReaderSummary);
-        if (_followReader) await CheckReaderUpdatesAsync();
-    }
-
     private async void OnShowReaderUpdates(object? sender, RoutedEventArgs e) => await ShowReaderUpdatesAsync();
+
+    // The two shortcuts act where the live bar is shown: when the switch or the button is not usable, nothing happens.
+    internal bool CanToggleFollowLiveByShortcut => !_ended && !IsReaderDialogOpen && ReaderStatusLine.IsEffectivelyVisible
+        && CanChangeFollowLive;
+    internal void ToggleFollowLiveByShortcut()
+    {
+        if (CanToggleFollowLiveByShortcut) _ = SetFollowLiveAsync(!_followReader);
+    }
+    internal bool CanShowNewPostsByShortcut => !_ended && !IsReaderDialogOpen && ReaderShowNewPosts.IsEffectivelyVisible
+        && ReaderShowNewPosts.IsEnabled;
 
     internal async Task ShowReaderUpdatesAsync(bool deliberate = true)
     {
@@ -172,6 +222,9 @@ public partial class ArchivePage
         // Guard the inner anchor restoration as well as the final follow target. Capturing
         // permission after LoadThreadAsync returns would already be too late for its focus write.
         using ReaderFocusIntent? focusIntent = deliberate ? null : new(this, requireRefreshAllowed: true);
+        // A manual refresh marks where the old view ended; following live keeps its position and sets no mark.
+        if (deliberate && previousCount > 0 && _thread.GetPosts(previousCount - 1, 1).FirstOrDefault() is { } lastRead)
+            _unreadMark = (id, lastRead.PostId);
         await LoadThreadAsync(id, resetPage: false, preparedThread: null, focusIntent: focusIntent);
         if (_ended || _thread?.Summary.Id != id || _thread.PostCount == 0
             || (!deliberate && (interactionRevision != _readerInteractionRevision || !MayRefreshReaderNow))) return;

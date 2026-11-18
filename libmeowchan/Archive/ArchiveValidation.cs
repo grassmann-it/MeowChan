@@ -70,6 +70,8 @@ internal static class ArchiveValidation
                 MediaIntegrityValidation.ValidateSha1(attachment.ExpectedSha1);
                 MediaIntegrityValidation.ValidateSizeHint(attachment.ProviderSizeHint);
                 if (attachment.ExpectedSize < 0) throw new ArgumentOutOfRangeException(nameof(attachment.ExpectedSize));
+                if (attachment.Width is <= 0 || attachment.Height is <= 0)
+                    throw new ArgumentOutOfRangeException(nameof(attachment), "Attachment dimensions must be positive when supplied.");
                 if (attachment.ExpectedSha256 != null && (attachment.ExpectedSha256.Length != 64
                     || attachment.ExpectedSha256.Any(character => !Uri.IsHexDigit(character))))
                     throw new ArgumentException("ExpectedSha256 must contain a hexadecimal SHA256 checksum.");

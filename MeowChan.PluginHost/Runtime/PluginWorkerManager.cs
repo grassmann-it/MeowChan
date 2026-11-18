@@ -1,3 +1,4 @@
+using MeowChan.Diagnostics;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginSdk;
 using MeowChan.PluginHost.Filters;
@@ -57,13 +58,24 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         CancellationToken cancellationToken = default)
     {
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
+        // Opt-in startup evidence (inert without an active diagnostic run): admission, inventory, start, stop.
+        PerformanceDiagnostics.Measurement span = PerformanceDiagnostics.Measure("plugin.describe.admission", asset: artifact.ExecutionRevision);
         using IDisposable process = await _tests.EnterAsync(lifetime.Token).ConfigureAwait(false);
         using IDisposable starting = await _starts.EnterAsync(lifetime.Token).ConfigureAwait(false);
+        span.Dispose();
         PluginConfiguration configuration = new("describe", new("1", []), new Dictionary<string, SettingsSnapshot>());
-        await InventoryTemporaryRootAsync(launch.WorkingDirectory, lifetime.Token).ConfigureAwait(false);
-        await using WorkerConnection connection = await WorkerConnection.StartAsync(launch, artifact, configuration,
-            NoHostServices.Instance, _options, process, lifetime.Token, describeOnly: true, sharedBudget: TemporaryBudget, workspaceQuota: WorkspaceQuota).ConfigureAwait(false);
-        return connection.Description;
+        using (PerformanceDiagnostics.Measure("plugin.describe.inventory", asset: artifact.ExecutionRevision))
+            await InventoryTemporaryRootAsync(launch.WorkingDirectory, lifetime.Token).ConfigureAwait(false);
+        WorkerConnection connection;
+        using (PerformanceDiagnostics.Measure("plugin.describe.start", asset: artifact.ExecutionRevision))
+            connection = await WorkerConnection.StartAsync(launch, artifact, configuration,
+                NoHostServices.Instance, _options, process, lifetime.Token, describeOnly: true, sharedBudget: TemporaryBudget, workspaceQuota: WorkspaceQuota).ConfigureAwait(false);
+        try { return connection.Description; }
+        finally
+        {
+            using (PerformanceDiagnostics.Measure("plugin.describe.stop", asset: artifact.ExecutionRevision))
+                await connection.DisposeAsync().ConfigureAwait(false);
+        }
     }
 
     public long GetTemporaryBytes() => TemporaryBudget.ObservedWorkerBytes;

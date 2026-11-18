@@ -24,7 +24,7 @@ plugin = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(plugin)
 workflow, desktop = plugin.workflow, plugin.desktop
 PHASES = ('acquire', 'revoke', 'deny', 'recovery')
-OWNER, SOURCE = 'meowchan.source.wizchan', 'wizchan'
+OWNER, SOURCE = 'meowchan.source.vichan', 'wizchan'
 THREAD = 'https://wizchan.org/demo/res/123.json'
 ORIGINAL = 'https://wizchan.org/demo/src/1000-0.png'
 
@@ -338,7 +338,9 @@ def run_phase(apphost, root, phase, destination, timeout, scale, closure):
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    if workflow.playback.boundary.dry_run(argv, __file__):
+        return 0
+    parser = argparse.ArgumentParser(description=__doc__ + '\nRequires a NON-SHIPPING Debug apphost. Use APPHOST --dry-run for a routing-only check.')
     parser.add_argument('apphost', type=Path)
     parser.add_argument('--archive', type=Path)
     parser.add_argument('--archive-root', type=Path)
@@ -356,6 +358,7 @@ def main(argv=None):
     if missing:
         parser.error('Isolation dependencies missing: ' + ', '.join(missing))
     apphost = args.apphost.resolve(strict=True)
+    workflow.playback.boundary.require_debug(apphost, __file__)
     if args.build_root:
         if any(value is not None for value in (args.archive, args.archive_root, args.archive_member)):
             parser.error('--build-root cannot be combined with archive arguments')
@@ -369,7 +372,7 @@ def main(argv=None):
     input_root = Path(closure['root'])
     args.evidence_dir.mkdir(parents=True, exist_ok=False)
     destination = args.evidence_dir.resolve(strict=True)
-    report = dict(schemaVersion=1, passed=False, declaredSourceCommit=args.source_commit, phases=[],
+    report = dict(acceptanceConfiguration='Debug', shippingArtifactExecuted=False, schemaVersion=1, passed=False, declaredSourceCommit=args.source_commit, phases=[],
                   declaredSourceDigest=args.source_digest,
                   driverPath=str(Path(__file__).resolve()), driverSha256=workflow.sha256(Path(__file__).resolve()),
                   scope='Actual production Host/config/plugin policy across four OS processes; controlled terminal HTTP and local exact bytes; no live or decoded-gallery proof.'

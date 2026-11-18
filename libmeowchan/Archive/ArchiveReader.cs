@@ -15,6 +15,8 @@ namespace MeowChan.Archive;
 public sealed partial class ArchiveReader : IAsyncDisposable
 {
     private int _disposed;
+    private readonly object _readGate = new();
+    private readonly HashSet<Task> _reads = new();
     private ArchiveReader(string path) { DatabasePath = path; }
     public string DatabasePath { get; }
 
@@ -67,12 +69,9 @@ public sealed partial class ArchiveReader : IAsyncDisposable
         ArchiveValidation.ValidatePage(offset, limit);
         if (request.TagMembership is { } tags)
             // Tag membership lives outside SQL: count and page come from one filtered snapshot.
-            return ReadAsync((connection, transaction) =>
-            {
-                ArchiveThreadSummary[] matches = ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken)
-                    .Where(summary => tags.Matches(summary.Id)).ToArray();
-                return new ArchiveThreadPage(Array.AsReadOnly(matches.Skip(offset).Take(limit).ToArray()), matches.Length, offset);
-            }, cancellationToken);
+            return ReadAsync((connection, transaction) => ArchiveThreadPage.FromRanked(
+                ArchiveSql.SearchRankedSummaries(connection, transaction, request, cancellationToken)
+                    .Where(item => tags.Matches(item.Summary.Id)).ToArray(), offset, limit, request.Spec.RanksByMatchTier), cancellationToken);
         return ReadAsync((connection, transaction) => ArchiveSql.SearchPage(connection, transaction, request, offset, limit, cancellationToken), cancellationToken);
     }
 
@@ -97,6 +96,21 @@ public sealed partial class ArchiveReader : IAsyncDisposable
                 ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken)
                     .Where(summary => tags.Matches(summary.Id)).ToArray()), cancellationToken);
         return ReadAsync((connection, transaction) => ArchiveSql.SearchSummaries(connection, transaction, request, cancellationToken), cancellationToken);
+    }
+
+    /// <summary>
+    /// Like <see cref="SelectThreadSummariesBySpecAsync"/>, with each match's tier when the request ranks by tier. For a
+    /// consumer that filters the frozen result itself (the desktop's work filter) and still pages and groups by tier.
+    /// </summary>
+    internal Task<IReadOnlyList<ArchiveRankedThread>> SelectRankedThreadSummariesBySpecAsync(ArchiveSearchRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.TagMembership is { } tags)
+            return ReadAsync((connection, transaction) => (IReadOnlyList<ArchiveRankedThread>)Array.AsReadOnly(
+                ArchiveSql.SearchRankedSummaries(connection, transaction, request, cancellationToken)
+                    .Where(item => tags.Matches(item.Summary.Id)).ToArray()), cancellationToken);
+        return ReadAsync((connection, transaction) => ArchiveSql.SearchRankedSummaries(connection, transaction, request, cancellationToken), cancellationToken);
     }
 
     /// <summary>Captures posts and attachment metadata in one transaction; its pages never change afterward.</summary>
@@ -168,25 +182,41 @@ public sealed partial class ArchiveReader : IAsyncDisposable
     }
 
     private Task<T> ReadAsync<T>(Func<SqliteConnection, SqliteTransaction, T> read, CancellationToken cancellationToken)
-        => Task.Run(() =>
+    {
+        lock (_readGate)
         {
-            ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-            cancellationToken.ThrowIfCancellationRequested();
-            using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
-            using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
-            ArchiveSql.ValidateSchema(connection, transaction);
-            T value;
-            try { value = read(connection, transaction); }
-            catch (Exception) when (cancellationToken.IsCancellationRequested) { throw new OperationCanceledException(cancellationToken); }
-            cancellationToken.ThrowIfCancellationRequested();
-            transaction.Commit();
-            return value;
-        }, cancellationToken);
+            ObjectDisposedException.ThrowIf(_disposed != 0, this);
+            Task<T> pending = Task.Run(() =>
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using SqliteConnection connection = ArchiveSql.OpenConnection(DatabasePath, SqliteOpenMode.ReadOnly);
+                using SqliteTransaction transaction = connection.BeginTransaction(deferred: true);
+                ArchiveSql.ValidateSchema(connection, transaction);
+                T value;
+                try { value = read(connection, transaction); }
+                catch (Exception) when (cancellationToken.IsCancellationRequested) { throw new OperationCanceledException(cancellationToken); }
+                cancellationToken.ThrowIfCancellationRequested();
+                transaction.Commit();
+                return value;
+            }, cancellationToken);
+            _reads.Add(pending);
+            _ = pending.ContinueWith(completed =>
+            {
+                lock (_readGate) _reads.Remove(completed);
+            }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            return pending;
+        }
+    }
 
-    /// <summary>Closes admission; already-running reads own their connections and may finish.</summary>
+    /// <summary>Closes admission and waits for admitted reads to release their connections.</summary>
     public ValueTask DisposeAsync()
     {
-        Interlocked.Exchange(ref _disposed, 1);
-        return ValueTask.CompletedTask;
+        lock (_readGate)
+        {
+            Volatile.Write(ref _disposed, 1);
+            // Reads report their own cancellation/failure to their callers; disposal is a resource barrier.
+            return new ValueTask(Task.WhenAll(_reads.Select(read => read.ContinueWith(
+                _ => { }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default))));
+        }
     }
 }

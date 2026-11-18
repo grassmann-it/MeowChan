@@ -9,7 +9,8 @@ public sealed partial class PluginProfileStoreTests
     {
         using SemaphoreSlim permissionGate = new(1, 1);
         string[] restrictions = [];
-        PluginProfileStore store = new(profile, static _ => true, () => restrictions, permissionGate);
+        CapturedLog log = new();
+        PluginProfileStore store = new(profile, static _ => true, () => restrictions, permissionGate) { Logger = log.Logger };
         var old = await Delivered("serialized-update", "one", source: true);
         var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
         var next = await Delivered("serialized-update", "two", source: true);
@@ -25,9 +26,12 @@ public sealed partial class PluginProfileStoreTests
         }
         finally { permissionGate.Release(); }
         state = await updating.WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Null(state.Plugins[0].Active);
+        // Since #130 the permission committed before the startup took its lease is an EXISTING right of this
+        // in-place update and is carried over; the log proves the startup read it only after the wait.
+        Assert.Equal(next.Candidate.Artifact!.ExecutionRevision, Active(state).ExecutionRevision);
         Assert.True(state.Plugins[0].Enabled);
         Assert.Equal(old.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
+        Assert.Contains("size/MD5 exception(s) for shared", Assert.Single(log.CarryOvers).RenderMessage(), StringComparison.Ordinal);
     }
 
     [Fact]

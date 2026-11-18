@@ -50,9 +50,9 @@ PLUGIN_CATEGORIES = ("audio_filter", "audio_mixer", "video_chroma", "packetizer"
 REQUIRED_PLUGINS = ("access_imem", "mkv", "mp4", "avformat", "avi", "avcodec", "vorbis", "opus", "png", "vmem", "xcb_window", "xcb_x11", "alsa", "pulse")
 
 
-def run(*args: str, cwd: Path | None = None) -> str:
+def run(*args: str, cwd: Path | None = None, timeout: float | None = None) -> str:
     try:
-        result = subprocess.run(args, cwd=cwd, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        result = subprocess.run(args, cwd=cwd, check=True, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)
     except subprocess.CalledProcessError as error:
         error.add_note((error.stderr or error.stdout or "No command diagnostics.")[-8000:])
         raise

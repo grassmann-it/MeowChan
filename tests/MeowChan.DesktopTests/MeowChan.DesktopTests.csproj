@@ -9,6 +9,7 @@
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="12.1.4" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
     <PackageReference Include="xunit" Version="2.9.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2">
@@ -19,6 +20,18 @@
   <ItemGroup>
     <ProjectReference Include="../../MeowChan.csproj" />
     <Compile Include="../../Shared/TemporaryWorkspacePaths.cs" Link="TestSupport/TemporaryWorkspacePaths.cs" />
+    <Compile Include="../MeowChan.Tests/PersistenceCorruption/DamageVariants.cs" Link="TestSupport/DamageVariants.cs" />
+    <Compile Include="../Shared/BooruCompositionFixture.cs" Link="TestSupport/BooruCompositionFixture.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/SmokeCleanup.cs" Link="TestSupport/SmokeCleanup.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/StatisticsResetContract.cs" Link="TestSupport/StatisticsResetContract.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/SmokeScenarios.cs" Link="TestSupport/SmokeScenarios.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/SmokeSelectors.cs" Link="TestSupport/SmokeSelectors.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/SmokeStartupDiagnostics.cs" Link="TestSupport/SmokeStartupDiagnostics.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/GalleryNativePointerProbe.cs" Link="TestSupport/GalleryNativePointerProbe.cs" />
+    <Compile Include="../MeowChan.DesktopSmoke/SmokeVisualTree.cs" Link="TestSupport/SmokeVisualTree.cs" />
+    <!-- These test the Debug-only acceptance harness, not product behavior; unchanged assertions run in Debug. -->
+    <Compile Include="../Shared/Apphost/ApphostAcceptanceAssertions.cs;../Shared/Apphost/ApphostPlaybackDiagnostics.cs" Condition="'$(Configuration)' != 'Debug'" />
+    <Compile Remove="Apphost*SmokeTests.cs" Condition="'$(Configuration)' != 'Debug'" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

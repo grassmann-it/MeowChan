@@ -10,6 +10,7 @@ using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Installation;
+using MeowChan.Diagnostics;
 using MeowChan.PluginSdk;
 using Serilog;
 
@@ -88,6 +89,12 @@ internal static class PluginStartupDiagnostics
     internal static void LogActivationProblem(ILogger logger, PluginActivationSnapshot activation)
     {
         if (activation.Problem is null) return;
+        // The one problem a restart never fixes: say what to do and which sources wait for it.
+        if (MeowChan.PluginHost.Configuration.PluginActivationProblems.RequiresRepairReview(activation.Problem))
+            logger.Warning("Plugin {PluginId} is not running: its bundled build waits for a repair review (Sources & Plugins, Review bundled repairs); its sources {SourceIds} stay unavailable until it is confirmed. {Problem}",
+                activation.PluginId,
+                (activation.Active?.Description ?? activation.LastGood?.Description)?.Sources.Select(source => source.SourceId).ToArray() ?? Array.Empty<string>(),
+                activation.Problem);
         logger.ForContext("PluginStartupPhase", "activation").Warning("Plugin startup activation advisory candidate {PluginStartupCandidateId} plugin {PluginStartupPluginId} declared sources {PluginStartupSourceIds} activation available {PluginStartupActivationAvailable}: {PluginStartupProblem}",
             activation.SelectedCandidateId, activation.PluginId,
             (activation.Active?.Description ?? activation.LastGood?.Description)?.Sources.Select(source => source.SourceId).ToArray() ?? Array.Empty<string>(),
@@ -98,6 +105,7 @@ internal static class PluginStartupDiagnostics
     {
         long started = Stopwatch.GetTimestamp();
         bool succeeded = false;
+        using PerformanceDiagnostics.Measurement span = Span(phase, candidate);
         try
         {
             T result = await operation().ConfigureAwait(false);
@@ -110,4 +118,35 @@ internal static class PluginStartupDiagnostics
     internal static void LogPhase(ILogger logger, string phase, string? candidate, long started, bool succeeded) =>
         logger.Debug("Plugin startup phase {PluginStartupPhase} candidate {PluginStartupCandidate} elapsed {PluginStartupElapsedMs} ms completed {PluginStartupCompleted}",
             phase, candidate, Stopwatch.GetElapsedTime(started).TotalMilliseconds, succeeded);
+
+    /// <summary>The same phase as a "plugin.startup.*" span on the report clock. Inert (no allocation) without an active run.</summary>
+    internal static PerformanceDiagnostics.Measurement Span(string phase, string? candidate = null) =>
+        PerformanceDiagnostics.Enabled ? PerformanceDiagnostics.Measure("plugin.startup." + phase, asset: candidate) : default;
+
+    /// <summary>
+    /// Process CPU (own threads, and reaped child processes such as describe workers) and the 1-minute load average
+    /// at a phase boundary, as separate "phase.*" events. Only with an active diagnostic run; never affects startup.
+    /// Children and load are Linux-only (/proc, USER_HZ 100); a failed sample is simply absent.
+    /// </summary>
+    internal static void RecordResources(string phase, string outcome)
+    {
+        if (!PerformanceDiagnostics.Enabled) return;
+        try
+        {
+            using (Process self = Process.GetCurrentProcess())
+                PerformanceDiagnostics.Record(phase + ".cpu-self-ms", outcome, value: (long)self.TotalProcessorTime.TotalMilliseconds);
+            if (!OperatingSystem.IsLinux()) return;
+            string stat = File.ReadAllText("/proc/self/stat");
+            // Fields after the parenthesized command start at field 3 (state); cutime/cstime are fields 16/17.
+            string[] fields = stat[(stat.LastIndexOf(')') + 2)..].Split(' ');
+            long children = (long.Parse(fields[13], System.Globalization.CultureInfo.InvariantCulture)
+                + long.Parse(fields[14], System.Globalization.CultureInfo.InvariantCulture)) * 10;
+            PerformanceDiagnostics.Record(phase + ".cpu-children-ms", outcome, value: children);
+            string load = File.ReadAllText("/proc/loadavg").Split(' ')[0];
+            PerformanceDiagnostics.Record(phase + ".loadavg1-milli", outcome,
+                value: (long)(double.Parse(load, System.Globalization.CultureInfo.InvariantCulture) * 1000));
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or FormatException
+            or IndexOutOfRangeException or ArgumentOutOfRangeException or InvalidOperationException or OverflowException) { }
+    }
 }

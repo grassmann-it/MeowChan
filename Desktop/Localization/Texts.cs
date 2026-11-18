@@ -22,22 +22,49 @@ public sealed record LanguageInfo(string Code, string NativeName)
 /// </summary>
 public static class Texts
 {
-    private sealed record Catalog(LanguageInfo Info, IReadOnlyDictionary<string, string> Strings);
+    // The culture is resolved once when the catalog is built, so formatting never looks it up per call.
+    private sealed record Catalog(LanguageInfo Info, IReadOnlyDictionary<string, string> Strings)
+    {
+        public CultureInfo Culture { get; } = CultureInfo.GetCultureInfo(Info.Code);
+    }
     private sealed record State(IReadOnlyDictionary<string, Catalog> Catalogs,
         IReadOnlyList<LanguageInfo> Languages, IReadOnlyList<string> Warnings, string Language);
 
-    private const int MaximumPackBytes = 2_000_000;
-    // Defensive bound for any pack, bundled or user-supplied. The built-in catalog passed 1,950 keys in
-    // 1.0.3, so the former 2,000 would have rejected the bundled packs; file size stays bounded above.
-    private const int MaximumPackKeys = 4000;
+    // Fixed technical ceilings for any pack, bundled or user-supplied. They are not user settings: they keep a
+    // malformed or hostile file from costing unbounded memory and parse time at startup. The byte ceiling is the
+    // real memory guard; the key ceiling stops a file of countless tiny entries that stays under the byte ceiling.
+    // The bundled packs hold about 2,900 keys in about 250-340 KiB, so 8,000 keys / 2 MiB leaves room for the
+    // catalog to roughly 2.7x its size. A bundled pack that exceeds a ceiling is rejected with a warning and its
+    // language silently disappears from the choice, so BundledLanguagePackTests fail once a pack passes 75 % of
+    // either ceiling, long before the loader would refuse it. Raise a ceiling together with that test's reason.
+    internal const int MaximumPackBytes = 2 * 1024 * 1024;
+    internal const int MaximumPackKeys = 8000;
+    // Every Desktop/Localization/Packs/<code>.json is embedded under this prefix (MeowChan.csproj); the file name
+    // is the language code, so a new pack needs no code change here. The pack's own "code" must match its file name.
+    internal const string BundledPackResourcePrefix = "MeowChan.Desktop.Localization.Packs.";
+    private static readonly CultureInfo EnglishCulture = CultureInfo.GetCultureInfo("en");
     private static readonly object Gate = new object();
     private static State _state = CreateBuiltIns();
 
     public static event EventHandler? Changed;
     public static string Language => Volatile.Read(ref _state).Language;
-    public static CultureInfo Culture => CultureInfo.GetCultureInfo(Language);
+    public static CultureInfo Culture
+    {
+        get
+        {
+            State state = Volatile.Read(ref _state);
+            return state.Catalogs[state.Language].Culture;
+        }
+    }
     public static IReadOnlyList<LanguageInfo> Languages => Volatile.Read(ref _state).Languages;
     public static IReadOnlyList<string> Warnings => Volatile.Read(ref _state).Warnings;
+
+    /// <summary>Language codes of the embedded packs, taken from their resource names, in ordinal order.</summary>
+    internal static IReadOnlyList<string> BundledPackCodes() => typeof(Texts).Assembly.GetManifestResourceNames()
+        .Where(name => name.StartsWith(BundledPackResourcePrefix, StringComparison.Ordinal) && name.EndsWith(".json", StringComparison.Ordinal))
+        .Select(name => name[BundledPackResourcePrefix.Length..^5])
+        .Order(StringComparer.Ordinal)
+        .ToArray();
 
     /// <summary>Reloads built-ins, bundled previews and optional user JSON packs. A missing directory is normal.</summary>
     public static void Initialize(string? directory = null) => InitializeCore(directory, includeBundles: true);
@@ -52,9 +79,9 @@ public static class Texts
         List<string> warnings = new List<string>();
         if (includeBundles)
         {
-            foreach (string code in new[] { "es", "fr", "ru" })
+            foreach (string code in BundledPackCodes())
             {
-                string resource = "MeowChan.Desktop.Localization.Packs." + code + ".json";
+                string resource = BundledPackResourcePrefix + code + ".json";
                 try
                 {
                     using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(resource)
@@ -142,28 +169,114 @@ public static class Texts
             Changed?.Invoke(null, EventArgs.Empty);
     }
 
+    /// <summary>
+    /// The text of <paramref name="key"/> in the active language only, or null when that language's catalog does not have it
+    /// (<see cref="T"/> would show English then). Used where an untranslated English text must not appear in a translated surface.
+    /// </summary>
+    internal static string? Own(string key)
+    {
+        State state = Volatile.Read(ref _state);
+        return state.Catalogs[state.Language].Strings.GetValueOrDefault(key);
+    }
+
     public static string T(string key, params object?[] arguments)
     {
         State state = Volatile.Read(ref _state);
-        string fallback = state.Catalogs["en"].Strings.GetValueOrDefault(key) ?? key;
-        string value = state.Catalogs[state.Language].Strings.GetValueOrDefault(key) ?? fallback;
+        Catalog current = state.Catalogs[state.Language];
+        // The active language first; English only when it lacks the key.
+        if (!current.Strings.TryGetValue(key, out string? value))
+            value = state.Catalogs["en"].Strings.GetValueOrDefault(key) ?? key;
         if (arguments.Length == 0)
             return value;
-
         try
         {
-            return string.Format(CultureInfo.GetCultureInfo(state.Language), value, arguments);
+            return string.Format(current.Culture, value, arguments);
         }
         catch (FormatException)
         {
             // A caller with mismatched arguments must not break the entire desktop.
-            try { return string.Format(CultureInfo.GetCultureInfo("en"), fallback, arguments); }
-            catch (FormatException) { return fallback; }
+            return FormatEnglishFallback(state.Catalogs["en"].Strings.GetValueOrDefault(key) ?? key, arguments);
         }
+    }
+
+    /// <summary>
+    /// Formats a counted text in the grammatical number of <paramref name="count"/>. The base key holds the
+    /// general plural form; <c>key.one</c> (and, where the language has them, <c>key.few</c>, <c>key.many</c>,
+    /// <c>key.two</c>, <c>key.zero</c>) hold the other forms. A missing form falls back to the base key.
+    /// Each grammatically counted noun needs its own plural decision. For independent counters,
+    /// format closed count phrases separately and join them with a non-counted template.
+    /// Without <paramref name="arguments"/>, <paramref name="count"/> is {0}; texts with several values pass them all.
+    /// </summary>
+    public static string Count(string key, long count, params object?[] arguments)
+    {
+        State state = Volatile.Read(ref _state);
+        IReadOnlyDictionary<string, string> english = state.Catalogs["en"].Strings;
+        IReadOnlyDictionary<string, string> current = state.Catalogs[state.Language].Strings;
+        // A language that lacks the base text shows the English text, so it also uses the English number rules.
+        bool own = current.ContainsKey(key);
+        string language = own ? state.Language : "en";
+        IReadOnlyDictionary<string, string> source = own ? current : english;
+        string category = PluralRules.Category(language, count);
+        string fallback = english.GetValueOrDefault(PluralRules.Variant(key, PluralRules.Category("en", count))) ?? english.GetValueOrDefault(key) ?? key;
+        string value = (category != PluralRules.Other ? source.GetValueOrDefault(PluralRules.Variant(key, category)) : null)
+            ?? source.GetValueOrDefault(key) ?? fallback;
+        return FormatSafely(state.Catalogs[state.Language].Culture, value, fallback, arguments.Length == 0 ? new object?[] { count } : arguments);
+    }
+
+    private static string FormatSafely(CultureInfo culture, string value, string fallback, object?[] arguments)
+    {
+        try
+        {
+            return string.Format(culture, value, arguments);
+        }
+        catch (FormatException)
+        {
+            // A caller with mismatched arguments must not break the entire desktop.
+            return FormatEnglishFallback(fallback, arguments);
+        }
+    }
+
+    private static string FormatEnglishFallback(string fallback, object?[] arguments)
+    {
+        try { return string.Format(EnglishCulture, fallback, arguments); }
+        catch (FormatException) { return fallback; }
     }
 
     public static bool IsValidLanguageCode(string? code) => code != null && code.Length <= 35 &&
         Regex.IsMatch(code, "^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$", RegexOptions.CultureInvariant);
+
+    // Text -> keys of the active language, built once per catalog for the settings search.
+    private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<IReadOnlyDictionary<string, string>, Dictionary<string, List<string>>> ReverseIndexes = new();
+
+    /// <summary>
+    /// The English source texts behind a text shown in the active language (empty in English, or when the text is not a
+    /// catalog value such as a formatted one). The settings search uses them so English words find a setting in any language.
+    /// </summary>
+    internal static IReadOnlyList<string> EnglishEquivalents(string? shown)
+    {
+        if (string.IsNullOrEmpty(shown)) return Array.Empty<string>();
+        State state = Volatile.Read(ref _state);
+        if (string.Equals(state.Language, "en", StringComparison.OrdinalIgnoreCase)) return Array.Empty<string>();
+        IReadOnlyDictionary<string, string> current = state.Catalogs[state.Language].Strings;
+        IReadOnlyDictionary<string, string> english = state.Catalogs["en"].Strings;
+        Dictionary<string, List<string>> reverse;
+        lock (ReverseIndexes)
+        {
+            if (!ReverseIndexes.TryGetValue(current, out reverse!))
+            {
+                reverse = new Dictionary<string, List<string>>(StringComparer.Ordinal);
+                foreach (KeyValuePair<string, string> pair in current)
+                {
+                    if (!reverse.TryGetValue(pair.Value, out List<string>? keys)) reverse[pair.Value] = keys = new List<string>(1);
+                    keys.Add(pair.Key);
+                }
+                ReverseIndexes.Add(current, reverse);
+            }
+        }
+        if (!reverse.TryGetValue(shown, out List<string>? matching)) return Array.Empty<string>();
+        return matching.Select(key => english.GetValueOrDefault(key)).OfType<string>()
+            .Where(text => !string.Equals(text, shown, StringComparison.Ordinal)).Distinct(StringComparer.Ordinal).ToArray();
+    }
 
     /// <summary>Checks the complete built-in catalogs, including formatting contracts.</summary>
     public static IReadOnlyList<string> ValidateBuiltInCatalogs()
@@ -212,7 +325,7 @@ public static class Texts
     private static Catalog ReadPack(Stream stream, IReadOnlyDictionary<string, string> english)
     {
         if (stream.Length > MaximumPackBytes)
-            throw new InvalidDataException("Language pack exceeds 2 MB.");
+            throw new InvalidDataException("Language pack exceeds 2 MiB.");
         using JsonDocument document = JsonDocument.Parse(stream, new JsonDocumentOptions { MaxDepth = 8 });
         if (document.RootElement.ValueKind != JsonValueKind.Object)
             throw new InvalidDataException("Language pack must be an object.");
@@ -251,7 +364,8 @@ public static class Texts
             string translation = entry.Value.GetString()!;
             if (string.IsNullOrWhiteSpace(translation) || translation.Length > 10_000)
                 throw new InvalidDataException("Empty or excessively long translation: " + entry.Name);
-            if (!english.TryGetValue(entry.Name, out string? fallback))
+            if (!english.TryGetValue(entry.Name, out string? fallback)
+                && !(PluralRules.BaseKey(entry.Name) is { } baseKey && english.TryGetValue(baseKey, out fallback)))
                 continue; // A newer catalog may contain keys that this version does not use.
             if (!Placeholders(fallback).SetEquals(Placeholders(translation)))
                 throw new InvalidDataException("Different placeholders or formats: " + entry.Name);

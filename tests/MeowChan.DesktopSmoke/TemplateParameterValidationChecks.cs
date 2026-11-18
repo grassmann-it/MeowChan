@@ -15,7 +15,7 @@ internal static partial class PluginManagementChecks
 {
     private static async Task CheckTemplateParameterValidationAsync(MainWindow window, PluginManagementServices management)
     {
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!;
         object? retained = host.Content;
         string language = Texts.Language;
@@ -47,7 +47,7 @@ internal static partial class PluginManagementChecks
         {
             page.IsAvailable = true; page.EditScope(MediaRuleScope.Global); await page.RefreshPluginFiltersAsync();
             await Program.WaitUntilAsync(() => page.CanExecuteTemplateCommand("rules.template-create"));
-            await page.ExecuteTemplateCommandAsync("rules.template-create"); await FlushTemplateAsync();
+            await page.ExecuteTemplateCommandAsync("rules.template-create"); await SmokeDispatcher.SettleAsync();
             Named<TextBox>("RuleTemplateName").Text = "Validated filter";
             Named<CheckBox>("templates-includeFilter").IsChecked = true;
             TextBox count = Count();
@@ -61,7 +61,7 @@ internal static partial class PluginManagementChecks
                 "Template parameter identity is not separated from the live rule parameter.");
             foreach (string nextLanguage in new[] { "de", "en" })
             {
-                Texts.SetLanguage(nextLanguage); await FlushTemplateAsync();
+                Texts.SetLanguage(nextLanguage); await SmokeDispatcher.SettleAsync();
                 count = Count();
                 Require(count.Text == "1.5" && !string.IsNullOrWhiteSpace(AutomationProperties.GetHelpText(count)),
                     "Template language rebuild lost raw text or field errors.");
@@ -88,14 +88,14 @@ internal static partial class PluginManagementChecks
             Save(); Require(page.IsBusy, "Stale worker fixture did not enter Busy.");
             count.Text = "2"; count.Text = "9";
             Button outside = window.FindControl<Button>("DownloadsNavigationButton")!; outside.Focus(NavigationMethod.Tab);
-            gate.SetResult(); await Program.WaitUntilAsync(() => !page.IsBusy); await FlushTemplateAsync();
+            gate.SetResult(); await Program.WaitUntilAsync(() => !page.IsBusy); await SmokeDispatcher.SettleAsync();
             Require(writes == 0 && outside.IsFocused && count.Text == "9" && string.IsNullOrEmpty(AutomationProperties.GetHelpText(count)),
                 "A late worker result published field errors or stole focus after the parameter generation changed.");
 
             gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
             Save(); Require(page.IsBusy, "Decision worker fixture did not enter Busy.");
             page.DeactivateRuleDecisions(); outside.Focus(NavigationMethod.Tab);
-            gate.SetResult(); await Program.WaitUntilAsync(() => !page.IsBusy); await FlushTemplateAsync();
+            gate.SetResult(); await Program.WaitUntilAsync(() => !page.IsBusy); await SmokeDispatcher.SettleAsync();
             Require(writes == 0 && outside.IsFocused && string.IsNullOrEmpty(AutomationProperties.GetHelpText(count)),
                 "A late worker result survived the rule decision generation.");
 
@@ -103,11 +103,11 @@ internal static partial class PluginManagementChecks
             await Program.WaitUntilAsync(() => !page.IsBusy && writes == 1 && page.CanExecuteTemplateCommand("rules.template-edit"));
             Require(catalog.Templates.Single().ImageFilter!.Parameters["rule-count"] == "2",
                 "Corrected template parameters did not publish exactly once.");
-            await page.ExecuteTemplateCommandAsync("rules.template-edit"); await FlushTemplateAsync();
+            await page.ExecuteTemplateCommandAsync("rules.template-edit"); await SmokeDispatcher.SettleAsync();
             count = Count(); count.Text = "9";
             gate = new(TaskCreationOptions.RunContinuationsAsynchronously); Save();
             Require(page.IsBusy, "Lifetime worker fixture did not enter Busy.");
-            outside.Focus(NavigationMethod.Tab); page.EndLifetime(); gate.TrySetResult(); await FlushTemplateAsync();
+            outside.Focus(NavigationMethod.Tab); page.EndLifetime(); gate.TrySetResult(); await SmokeDispatcher.SettleAsync();
             Require(writes == 1 && outside.IsFocused && count.Text == "9", "A cancelled template lifetime wrote or stole focus.");
             Console.WriteLine("TEMPLATE PARAMETER UI PASS: raw integer/local and real worker errors, accessible field mapping, post-Busy focus, language retention, edit/decision/lifetime guards, corrected publication.");
         }
@@ -117,11 +117,6 @@ internal static partial class PluginManagementChecks
             AutomationProperties.GetAutomationId(editor.FindField("rule-count")!)?.StartsWith("PluginField:FilterRule:template%3A", StringComparison.Ordinal) == true);
         TextBox Count() => (TextBox)Editor().FindField("rule-count")!;
         void Save() { Button save = Named<Button>("templates-save"); save.Focus(NavigationMethod.Tab); save.RaiseEvent(new RoutedEventArgs(Button.ClickEvent)); }
-    }
-    private static async Task FlushTemplateAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
     private static bool TemplateFieldFocused(Control input)
     {

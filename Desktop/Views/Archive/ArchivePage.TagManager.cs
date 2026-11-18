@@ -18,6 +18,9 @@ public partial class ArchivePage
 {
     private Func<TagId, string, long, CancellationToken, Task<PrivateTagCommit>>? _renamePrivateTag;
     private Func<TagId, long, CancellationToken, Task<PrivateTagCommit>>? _deletePrivateTag;
+    private Func<CancellationToken, Task<LocalMediaTagInspection?>>? _inspectLocalTagOrphans;
+    private Func<IReadOnlyCollection<PrivateLocalMediaTagAssignment>, long, CancellationToken, Task<PrivateTagCommit>>? _removeLocalTagOrphans;
+    private TagMergeCommands? _tagMergeCommands;
     private bool _tagManagerOpen;
     internal TagManagerDialog? TagManagerWindow { get; private set; }
     internal Task TagManagerTask { get; private set; } = Task.CompletedTask;
@@ -36,7 +39,8 @@ public partial class ArchivePage
         UpdateTagManagerActions(); UpdateHashSearchAction();
         try
         {
-            TagManagerDialog dialog = new(new TagManagerSession(_loadPrivateTags!, _renamePrivateTag!, _deletePrivateTag!))
+            TagManagerDialog dialog = new(new TagManagerSession(_loadPrivateTags!, _renamePrivateTag!, _deletePrivateTag!,
+                _inspectLocalTagOrphans, _removeLocalTagOrphans, _tagMergeCommands))
             {
                 Width = Math.Max(340, Math.Min(520, owner.ClientSize.Width - 32)),
                 Height = Math.Max(360, Math.Min(560, owner.ClientSize.Height - 32))
@@ -53,7 +57,7 @@ public partial class ArchivePage
             _tagManagerOpen = false;
             if (!_ended)
             {
-                // Renames and deletions happened in the host; show them everywhere on this page.
+                // Renames, deletions and merges happened in the host; show them everywhere on this page.
                 ReloadPrivateTags();
                 UpdatePrivateTagActions(); UpdateHashSearchAction();
                 if (origin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }) origin.Focus();

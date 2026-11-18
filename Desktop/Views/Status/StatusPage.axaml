@@ -1,0 +1,35 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wv="using:MeowChan.Desktop.WorkViews"
+             xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
+             x:Class="MeowChan.StatusPage">
+    <!-- Status: Statistics and Diagnostics as two segments of one page (plan "Diagnose und Statistik", structure A).
+         The page owns only its head (title, hint, the shared status line) and the segment bar; both segments are the
+         unchanged StatisticsPage and DiagnosticsPage, hosted below and shown one at a time like the Downloads tabs. -->
+    <Grid RowDefinitions="Auto,Auto,*">
+        <!-- The shared page head (PageHeader): the strip stands top right while it leaves the title its room, else under the title. -->
+        <controls:PageHeader x:Name="StatusPageHeader" Margin="12,12,12,0">
+            <StackPanel Classes="workspace-page-header">
+                <TextBlock x:Name="StatusTitle" Classes="page-title" Text="Status" />
+                <TextBlock x:Name="StatusHint" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <!-- One line for both segments: active, waiting, problems and, while the hub samples, the current rates.
+                 Set only when it changes; no live region, so nothing is read out every second. Trimmed lines keep the full text as tooltip. -->
+            <TextBlock x:Name="StatusStrip" wv:WorkViewElement.Id="status.strip" controls:PageHeader.Role="Actions" Classes="muted tnum"
+                       TextTrimming="CharacterEllipsis" MaxWidth="560" VerticalAlignment="Top" />
+        </controls:PageHeader>
+        <TabControl x:Name="StatusSegments" wv:WorkViewElement.Id="status.segments" Grid.Row="1" Margin="12,8,12,0" MinHeight="38" Padding="0"
+                    SelectionChanged="OnSegmentSelectionChanged">
+            <TabControl.Styles>
+                <Style Selector="TabItem"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="12,8" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /></Style>
+            </TabControl.Styles>
+            <TabItem x:Name="StatisticsSegmentTab" Header="Statistics" />
+            <TabItem x:Name="DiagnosticsSegmentTab" Header="Diagnostics" />
+        </TabControl>
+        <!-- Segment hosts are the actual content viewport. Stretch the hosted page to that viewport so its fixed action row
+             cannot be measured against a stale desired-size page (notably on native Windows after a compact resize). -->
+        <ContentControl x:Name="StatisticsPageHost" Grid.Row="2" HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+        <ContentControl x:Name="DiagnosticsPageHost" Grid.Row="2" IsVisible="False" ClipToBounds="True"
+                        HorizontalContentAlignment="Stretch" VerticalContentAlignment="Stretch" />
+    </Grid>
+</UserControl>

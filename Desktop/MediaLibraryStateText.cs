@@ -20,14 +20,15 @@ internal static class MediaLibraryStateText
         _ => Texts.T("media.group.favorite.unknown")
     };
 
-    /// <summary>Short tile text: only what is known to be set, so a quiet tile stays quiet. A grouped tile leaves the favorite to its group line.</summary>
+    /// <summary>
+    /// Short tile text: only what is known to be set, so a quiet tile stays quiet. A grouped tile leaves the favorite to its group line;
+    /// tags are not counted here because the tile shows them as chips.
+    /// </summary>
     internal static string Compact(MediaLibraryEntryState state, bool grouped = false)
     {
         List<string> parts = new();
-        if (state.Favorite == MediaLibraryFlag.Yes && !grouped) parts.Add("★");
+        if (state.Favorite == MediaLibraryFlag.Yes && !grouped) parts.Add(Texts.T("command.gallery.favorite.compact")); // a word, not a glyph: the drawn star is the tile's own toggle
         if (state.UserRating is int rating) parts.Add(rating.ToString(Texts.Culture) + "/5");
-        int tags = state.MediaTags.Count + state.ThreadTags.Count;
-        if (tags > 0) parts.Add(Texts.T("media.state.tagCount", tags));
         return string.Join(" · ", parts);
     }
 
@@ -42,7 +43,7 @@ internal static class MediaLibraryStateText
         Texts.T("media.state.rating", !state.RatingKnown ? Texts.T("media.state.unknown")
             : state.UserRating is int rating ? Texts.T("media.state.ratingValue", rating) : Texts.T("media.state.unrated")),
         Texts.T("media.state.mediaTags", !state.TagsKnown ? Texts.T("media.state.unknown")
-            : state.TagTarget == null ? Texts.T("media.state.notTaggable") : List(state.MediaTags)),
+            : state.TagSubject == null ? Texts.T("media.state.notTaggable") : List(state.MediaTags)),
         Texts.T("media.state.threadTags", state.TagsKnown ? List(state.ThreadTags) : Texts.T("media.state.unknown")));
 
     private static string List(IReadOnlyList<string> names) =>

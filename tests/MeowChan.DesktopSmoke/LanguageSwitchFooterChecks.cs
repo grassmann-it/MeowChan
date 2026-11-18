@@ -15,17 +15,13 @@ internal static class LanguageSwitchFooterChecks
 {
     private sealed record NavigationTarget(string Button, string? MenuItem, string CommandId, string LabelKey);
 
-    private static readonly NavigationTarget[] NavigationTargets =
-    [
-        new("ArchiveNavigationButton", "ArchiveMenuItem", "navigation.archive", "command.navigation.archive"),
-        new("RulesNavigationButton", "RulesMenuItem", "navigation.rules", "command.navigation.rules"),
-        new("SourcesNavigationButton", "SourcesMenuItem", "navigation.sources", "command.navigation.sources"),
-        new("PluginsNavigationButton", "PluginsMenuItem", "navigation.plugins", "command.navigation.plugins"),
-        new("DiagnosticsNavigationButton", "DiagnosticsMenuItem", "navigation.diagnostics", "command.navigation.diagnostics"),
-        new("SettingsNavigationButton", "SettingsMenuItem", "navigation.settings", "command.navigation.settings"),
-        new("DownloadsNavigationButton", null, "navigation.downloads", "command.navigation.downloads"),
-        new("ToolsNavigationButton", null, "navigation.tools-menu", "command.navigation.tools-menu")
-    ];
+    // F1: the pages are footer buttons and entries of the footer's More menu (checked in CheckToolsFlyoutAsync); the ⋯ menu has no page entries.
+    private static readonly NavigationTarget[] NavigationTargets = MainPageOrder.CommandIds.Select(id =>
+        new NavigationTarget(MainPageOrder.ControlStem(id) + "NavigationButton", null, id, "command." + id))
+        .Concat(new[] {
+            new NavigationTarget("SettingsNavigationButton", "SettingsMenuItem", "navigation.settings", "command.navigation.settings"),
+            new NavigationTarget("ToolsNavigationButton", null, "navigation.tools-menu", "command.navigation.tools-menu")
+        }).ToArray();
 
     internal static async Task RunAsync(MainWindow window)
     {
@@ -129,6 +125,9 @@ internal static class LanguageSwitchFooterChecks
                 Require(visibleLabels.Any(text => text.Text == expected),
                     $"{buttonName} kept a stale visible command label for {Texts.Language}.");
 
+            if (commandId != "navigation.settings" && commandId != "navigation.tools-menu")
+                Require(window.FindControl<MenuItem>(MainPageOrder.ControlStem(commandId) + "MenuItem") == null,
+                    $"The ⋯ menu lists the page {commandId} again; pages belong to the footer and its More menu.");
             if (menuName != null)
             {
                 MenuItem menu = window.FindControl<MenuItem>(menuName)!;
@@ -136,6 +135,15 @@ internal static class LanguageSwitchFooterChecks
                     $"{menuName} kept a stale app-menu command label for {Texts.Language}.");
             }
         }
+
+        CommandDefinition compatibility = CommandCatalog.Get("navigation.plugins");
+        Require(CommandLabel("navigation.plugins", "command.navigation.plugins").Length > 0
+            && !compatibility.Contexts.Any(context => context is "footer" or "app-menu" or "tools-menu") && compatibility.DefaultGestures.Count == 0
+            && MainPageOrder.Digit("navigation.plugins") == null && MainPageOrder.Digit("navigation.status") == FooterNavigationChecks.ExpectedDigit(window, "navigation.status")
+            && window.FindControl<Button>("PluginsNavigationButton") == null
+            && window.FindControl<MenuItem>("PluginsMenuItem") == null
+            && window.FindControl<ContentControl>("PluginsPageHost") == null,
+            "The compatibility route reappeared as a workspace or displaced the Status shortcut.");
 
         string about = CommandLabel("navigation.about", "command.navigation.about");
         Button brand = window.FindControl<Button>("BrandAboutButton")!;
@@ -153,6 +161,7 @@ internal static class LanguageSwitchFooterChecks
         menu.ShowAt(tools);
         await Program.WaitUntilAsync(() => menu.IsOpen && menu.Items.OfType<MenuItem>()
             .Any(item => item.IsEffectivelyVisible && item.Bounds.Width > 0));
+        Exception? failureBeforeCleanup = null;
         try
         {
             foreach (MenuItem item in menu.Items.OfType<MenuItem>())
@@ -165,10 +174,14 @@ internal static class LanguageSwitchFooterChecks
                     $"Tools item {tag} kept a stale command label for {Texts.Language}.");
             }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            menu.Hide();
-            await Program.WaitUntilAsync(() => !menu.IsOpen);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                menu.Hide();
+                await Program.WaitUntilAsync(() => !menu.IsOpen);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in LanguageSwitchFooterChecks: " + exception));
         }
     }
 

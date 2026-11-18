@@ -44,6 +44,7 @@ public sealed class RuleExtensionsInput : Ursa.Controls.TagInput
     private TextBox? _input;
     private bool _sync;
     private bool _restoreOnAttach;
+    private string? _placeholder;
     private readonly ObservableCollection<string> _tags = new();
     internal ExtensionTagDraft State { get; private set; } = new();
     internal event Action? Edited;
@@ -124,6 +125,7 @@ public sealed class RuleExtensionsInput : Ursa.Controls.TagInput
         _restoreOnAttach = false; // A tracked edit, including explicit empty, now owns the raw value.
         State.Rest = _input.Text ?? string.Empty;
         if (State.Rest.Contains(',')) { State.Commit(); Render(); }
+        SyncPlaceholder();
         Edited?.Invoke();
     }
     private void InputKeyDown(object? sender, KeyEventArgs e)
@@ -143,6 +145,13 @@ public sealed class RuleExtensionsInput : Ursa.Controls.TagInput
         State.Tags.Clear(); State.Tags.AddRange(_tags); Edited?.Invoke();
         _input?.Focus();
     }
+    /// <summary>The template's placeholder only knows the tag collection; hide it while unfinished text is typed over it.</summary>
+    private void SyncPlaceholder()
+    {
+        _placeholder ??= PlaceholderText;
+        string wanted = string.IsNullOrEmpty(_input?.Text) ? _placeholder ?? string.Empty : string.Empty;
+        if (PlaceholderText != wanted) PlaceholderText = wanted;
+    }
     private void Render()
     {
         _sync = true;
@@ -152,6 +161,7 @@ public sealed class RuleExtensionsInput : Ursa.Controls.TagInput
             if (_input != null) { _input.Text = State.Rest; _restoreOnAttach = false; }
         }
         finally { _sync = false; }
+        SyncPlaceholder();
         Dispatcher.UIThread.Post(() =>
         {
             foreach (var tag in this.GetVisualDescendants().OfType<Ursa.Controls.ClosableTag>())

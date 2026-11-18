@@ -1,0 +1,71 @@
+namespace MeowChan.Desktop.Localization;
+
+// The reader's "View" menu and its placeholders (plan P0). Command labels of the later packages (conversation view,
+// post filters, hide/show a post) are here too, because P0 creates every one of those commands.
+internal static class ReaderViewCatalog
+{
+    public static readonly (string Key, string English, string German)[] Entries =
+    {
+        // RL1: the gear next to "Thread" (the former "View" menu and the quick settings in one popover; a dot says a session filter is on).
+        ("reader.settings.button", "Settings", "Einstellungen"),
+        ("reader.settings.active", "A view filter is on", "Ein Ansichtsfilter ist aktiv"),
+        // R2: the "Thread" menu next to "View" (capture, check now, retry media, media rules, details, folder, source, link, watch).
+        ("reader.thread.menu", "Thread", "Thread"),
+        ("reader.thread.openFirst", "Open a thread first.", "Zuerst einen Thread öffnen."),
+        ("reader.thread.copyLink", "Copy link", "Link kopieren"),
+        ("reader.thread.bookmarksUnavailable", "Not available in the large reader.", "Im großen Reader nicht verfügbar."),
+        ("command.reader.view.hide-media", "Hide media", "Medien ausblenden"),
+        ("command.reader.view.media-only", "Only posts with media", "Nur Posts mit Medien"),
+        ("command.reader.view.conversation", "Show as conversation", "Als Gespräch zeigen"),
+        ("command.reader.view.textless-large", "Larger images in posts without text", "Größere Bilder in Posts ohne Text"),
+        ("command.reader.view.focused-enlarge", "Enlarge focused post's media", "Medien des markierten Posts vergrößern"),
+        ("command.reader.view.hover-enlarge", "Enlarge image on hover", "Bild beim Überfahren vergrößern"),
+        ("reader.view.saveFailed", "Could not save the view setting: {0}", "Die Ansichtseinstellung konnte nicht gespeichert werden: {0}"),
+        ("command.reader.post-filters", "Post filters…", "Postfilter…"),
+        ("command.reader.sidebar.toggle", "Media sidebar", "Medienleiste"),
+        ("command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts"),
+        ("command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts"),
+        ("reader.sidebar.title", "Post media", "Medien des Posts"),
+        ("reader.sidebar.close", "Close media sidebar", "Medienleiste schließen"),
+        ("reader.sidebar.open", "Open in gallery", "In der Galerie öffnen"),
+        ("reader.sidebar.position", "{0} of {1}", "{0} von {1}"),
+        ("reader.sidebar.empty", "Select a post to see its media here.", "Einen Post markieren, um seine Medien hier zu sehen."),
+        ("reader.sidebar.noMedia", "No. {0} has no media", "Nr. {0} hat keine Medien"),
+        ("reader.sidebar.threadNoMedia", "This thread has no media", "Dieser Thread hat keine Medien"),
+        ("reader.sidebar.noPosts", "No posts to show.", "Keine Posts zum Anzeigen."),
+        ("reader.sidebar.hidden", "The view hides the media of No. {0}", "Die Ansicht blendet die Medien von Nr. {0} aus"),
+        ("reader.sidebar.unavailable", "This media cannot be shown here. Open it in the gallery.", "Dieses Medium kann hier nicht angezeigt werden. In der Galerie öffnen."),
+        ("reader.sidebar.region", "Media of post No. {0}, {1} of {2}, {3}", "Medien von Post Nr. {0}, {1} von {2}, {3}"),
+        ("reader.sidebar.regionEmpty", "Post media: none", "Medien des Posts: keine"),
+        ("reader.sidebar.largeOnly", "Shown in the large reader.", "Wird im großen Reader angezeigt."),
+        ("reader.sidebar.collapsed", "Hidden while the reader is narrower than {0} px.", "Ausgeblendet, solange der Reader schmaler als {0} px ist."),
+        ("reader.sidebar.splitter", "Media sidebar width", "Breite der Medienleiste"),
+        ("reader.sidebar.loading", "Loading…", "Wird geladen…"),
+        // Several files in one post (R11): the strip's name, its items and the hint on the View menu entry.
+        ("reader.sidebar.strip", "Files of this post", "Dateien dieses Posts"),
+        ("reader.sidebar.stripItem", "File {0} of {1}: {2}", "Datei {0} von {1}: {2}"),
+        ("reader.sidebar.discover", "Press {0} to show the media of the selected post large beside the posts.", "{0} drücken, um die Medien des markierten Posts groß neben den Posts zu zeigen."),
+        ("reader.sidebar.discoverNoKey", "Shows the media of the selected post large beside the posts.", "Zeigt die Medien des markierten Posts groß neben den Posts."),
+        // Inline video (R10): the activator over a poster, the announcements and the reasons a video does not play here.
+        ("reader.video.play", "Play video here: {0}", "Video hier abspielen: {0}"),
+        ("reader.video.playHint", "{0} or a click plays the video here; {1} pauses or continues it.", "{0} oder ein Klick spielt das Video hier ab; {1} hält es an oder setzt es fort."),
+        ("reader.video.playing", "Playing: {0}", "Wird abgespielt: {0}"),
+        ("reader.video.paused", "Paused: {0}", "Angehalten: {0}"),
+        ("reader.video.unnamed", "Video", "Video"),
+        ("reader.video.tooLarge", "{0} is larger than {1}, the limit for videos in the reader. Open it in the gallery.", "{0} ist größer als {1}, die Grenze für Videos im Reader. In der Galerie öffnen."),
+        ("reader.video.failed", "The video cannot be played here: {0}", "Das Video kann hier nicht abgespielt werden: {0}"),
+        ("command.post.hide", "Hide post", "Post ausblenden"),
+        ("command.post.unhide", "Show post again", "Post wieder anzeigen"),
+        ("reader.view.preparing", "Preparing the view…", "Ansicht wird vorbereitet…"),
+        ("reader.view.hiddenCount", "{0} hidden in this view", "{0} in dieser Ansicht ausgeblendet"),
+        ("reader.view.hiddenCount.one", "{0} hidden in this view", "{0} in dieser Ansicht ausgeblendet"),
+        ("reader.view.empty", "No post matches this view.", "Kein Post passt zu dieser Ansicht."),
+        ("reader.view.stub", "No. {0} hidden · {1}", "Nr. {0} ausgeblendet · {1}"),
+        ("reader.view.show", "Show", "Anzeigen"),
+        ("reader.view.revealed", "Shown although this view hides it", "Angezeigt, obwohl diese Ansicht ihn ausblendet"),
+        ("reader.view.hideAgain", "Hide again", "Wieder ausblenden"),
+        ("reader.view.mediaHidden", "Media hidden ({0})", "Medien ausgeblendet ({0})"),
+        ("reader.view.mediaHidden.one", "Media hidden ({0})", "Medien ausgeblendet ({0})"),
+        ("reader.view.depthLabel", "Reply to No. {0}, level {1}", "Antwort auf Nr. {0}, Ebene {1}"),
+    };
+}

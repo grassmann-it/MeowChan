@@ -2,9 +2,34 @@
 """Start only inside the runner's private Xvfb/DBus session, never on the user's display."""
 import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import time
+
+
+def stop_owned_window_manager(manager: subprocess.Popen) -> None:
+    """Stop Openbox without leaving its descendants in the smoke process group."""
+    if manager.poll() is not None:
+        manager.wait(timeout=3)
+        return
+    if os.name == "nt":
+        manager.terminate()
+        manager.wait(timeout=3)
+        return
+    try:
+        os.killpg(manager.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        manager.wait(timeout=3)
+        return
+    try:
+        manager.wait(timeout=3)
+    except subprocess.TimeoutExpired:
+        try:
+            os.killpg(manager.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        manager.wait(timeout=3)
 
 
 def main() -> int:
@@ -17,7 +42,8 @@ def main() -> int:
                       '<focus><focusNew>yes</focusNew></focus>'
                       '<placement><policy>Smart</policy></placement>'
                       '</openbox_config>', encoding="utf-8")
-    manager = subprocess.Popen(["openbox", "--sm-disable", "--config-file", str(config)])
+    manager = subprocess.Popen(["openbox", "--sm-disable", "--config-file", str(config)],
+                               start_new_session=os.name != "nt")
     try:
         deadline = time.monotonic() + 5
         last_probe = "no xprop response"
@@ -48,13 +74,7 @@ def main() -> int:
             Path(exit_file).write_text(str(code), encoding="utf-8")
         return code
     finally:
-        if manager.poll() is None:
-            manager.terminate()
-            try:
-                manager.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                manager.kill()
-                manager.wait(timeout=3)
+        stop_owned_window_manager(manager)
 
 
 if __name__ == "__main__":

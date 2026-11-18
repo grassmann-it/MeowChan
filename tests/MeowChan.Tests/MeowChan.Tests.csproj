@@ -18,8 +18,11 @@
     <ProjectReference Include="../../libmeowchan/libmeowchan.csproj" />
     <Using Include="Xunit" />
     <EmbeddedResource Include="Fixtures/archive-schema-1.sql" />
+    <!-- Bytes written by the released 1.0.2 stores (tests/fixtures/persistence-v1.0.2 regenerates them). -->
+    <EmbeddedResource Include="../Fixtures/persistence102/*" LogicalName="persistence102/%(Filename)%(Extension)" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../Shared/TemporaryWorkspacePaths.cs" Link="TestSupport/TemporaryWorkspacePaths.cs" />
+    <Compile Include="../Shared/MediaScaleFixture.cs" Link="TestSupport/MediaScaleFixture.cs" />
   </ItemGroup>
 </Project>

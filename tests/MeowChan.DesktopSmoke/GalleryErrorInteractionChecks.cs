@@ -1,4 +1,9 @@
+using Avalonia;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
+using System.Text.Json;
+using MeowChan.Diagnostics;
 using System.Reflection;
 using Avalonia.Controls;
 using Avalonia.Controls.Notifications;
@@ -16,41 +21,95 @@ using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
 
-// Optional central harness entry; no shared Program edit and no execution by S2.
+// Each split entry is intended for its own fresh harness process. RunAsync remains
+// the original fail-fast, unsplit debug chain; selector wiring lives in Program.
 internal static class GalleryErrorInteractionChecks
 {
     internal static Task RunAsync(MainWindow owner) => GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner);
+    internal static Task RunRetirementClipAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.RetirementClip);
+    internal static Task RunLayoutRootsAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.LayoutRoots);
+    internal static Task RunNotificationsAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.Notifications);
+    internal static Task RunFailureReaderReturnAsync(MainWindow owner) =>
+        GalleryPlaybackFeatureChecks.RunErrorInteractionChecksAsync(owner, GalleryErrorCheckGroup.FailureReaderReturn);
 }
 
 internal static partial class GalleryPlaybackFeatureChecks
 {
-    internal static async Task RunErrorInteractionChecksAsync(MainWindow owner)
+    internal static async Task RunErrorInteractionChecksAsync(MainWindow owner,
+        GalleryErrorCheckGroup group = GalleryErrorCheckGroup.All)
     {
+        if (!Enum.IsDefined(group)) throw new ArgumentOutOfRangeException(nameof(group));
         if (OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1"
             || !OperatingSystem.IsLinux() && Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED") != "1")
             throw new InvalidOperationException("Error interaction checks require an authorized disposable native desktop.");
         string video = Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE")
             ?? throw new InvalidOperationException("Error interaction checks require the pinned synthetic video fixture.");
+        // Flush bounded existing native-operation evidence before an external watchdog
+        // can terminate a stuck cleanup. This observer never acquires the native gate.
+        using var trace = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLEANUP_TRACE") == "1"
+            ? PerformanceDiagnostics.BeginRun("gallery-errors", "local-cleanup-diagnostic", "gallery-fixture") : null;
+        long lastSequence = 0;
+        object traceSync = new();
+        void FlushTrace()
+        {
+            if (trace == null) return;
+            lock (traceSync)
+            {
+                var snapshot = trace.Snapshot();
+                var events = snapshot.Events.Where(e => e.Sequence > lastSequence
+                    && (e.Phase.StartsWith("video.cleanup", StringComparison.Ordinal)
+                        || e.Phase.StartsWith("video.native.", StringComparison.Ordinal)
+                        || e.Phase is "video.stop" or "video.show" or "video.operations.wait")).ToArray();
+                if (snapshot.Events.Length > 0) lastSequence = snapshot.Events[^1].Sequence;
+                if (events.Length > 0) Console.WriteLine("SMOKE gallery cleanup trace "
+                    + JsonSerializer.Serialize(snapshot with { Events = events }));
+            }
+        }
+        using var traceTimer = trace == null ? null : new Timer(_ => FlushTrace(), null, 2000, 2000);
         string directory = TemporaryWorkspacePaths.CreateDirectory("meowchan-gallery-errors-");
         try
         {
-            await CheckExternalTransportRetirementAsync(owner);
-            await CheckNativeClipFeedbackAsync(owner);
-            GalleryEntry clip = await AssetAsync(directory, "notice-video", "notice-video.webm",
-                await File.ReadAllBytesAsync(FindSyntheticAudioFixture(video)));
-            GalleryEntry image = await ImageAsync(directory, "notice-image", SKColors.DarkSlateBlue);
-            await CheckContextLayoutRootsAsync(owner);
-            foreach (bool overlay in new[] { false, true })
-            foreach (bool paused in new[] { false, true })
-                await CheckNotificationTransportAsync(owner, clip, overlay, paused);
-            await CheckExplicitActualFailureAsync(owner, clip);
-            await CheckImageNotificationAsync(owner, image);
-            await CheckActualMediaUnavailableAsync(owner, directory);
-            // FIX03: genuine shell/session IO and reader-return paths, not SetNotice stand-ins.
-            foreach (bool paused in new[] { false, true })
-                await CheckShellFailureAndReaderReturnAsync(owner, clip, paused);
+            bool all = group == GalleryErrorCheckGroup.All;
+            bool notifications = all || group == GalleryErrorCheckGroup.Notifications;
+            bool failures = all || group == GalleryErrorCheckGroup.FailureReaderReturn;
+            if (all || group == GalleryErrorCheckGroup.RetirementClip)
+            {
+                await CheckExternalTransportRetirementAsync(owner);
+                await CheckNativeClipFeedbackAsync(owner);
+            }
+            // Only decoder-bearing groups materialize media. Bad/missing fixtures
+            // still fail normally; never catch and continue into later checks.
+            GalleryEntry? clip = notifications || failures
+                ? await AssetAsync(directory, "notice-video", "notice-video.webm",
+                    await File.ReadAllBytesAsync(FindSyntheticAudioFixture(video))) : null;
+            GalleryEntry? image = notifications
+                ? await ImageAsync(directory, "notice-image", SKColors.DarkSlateBlue) : null;
+            if (all || group == GalleryErrorCheckGroup.LayoutRoots)
+                await CheckContextLayoutRootsAsync(owner);
+            if (notifications)
+            {
+                foreach (bool overlay in new[] { false, true })
+                foreach (bool paused in new[] { false, true })
+                    await CheckNotificationTransportAsync(owner, clip!, overlay, paused);
+            }
+            // Keep the unsplit chain's exact historical ordering, including the
+            // image notice between explicit failure and missing-media checks.
+            if (failures)
+                await CheckExplicitActualFailureAsync(owner, clip!);
+            if (notifications)
+                await CheckImageNotificationAsync(owner, image!);
+            if (failures)
+            {
+                await CheckActualMediaUnavailableAsync(owner, directory);
+                // Genuine shell/session IO and reader-return paths, not SetNotice stand-ins.
+                foreach (bool paused in new[] { false, true })
+                    await CheckShellFailureAndReaderReturnAsync(owner, clip!, paused);
+            }
         }
-        finally { Directory.Delete(directory, recursive: true); }
+        finally { traceTimer?.Change(Timeout.Infinite, Timeout.Infinite); FlushTrace(); Directory.Delete(directory, recursive: true); }
     }
 
     private static async Task CheckNativeClipFeedbackAsync(MainWindow owner)
@@ -59,7 +118,13 @@ internal static partial class GalleryPlaybackFeatureChecks
         // projection from the pinned VideoView using real roots/focus adorners.
         bool raw = Environment.GetEnvironmentVariable("MEOWCHAN_REPRO_RAW_NATIVE_CLIP") == "1";
         Grid nativeRoot = raw ? new Grid() : new NativeVideoOverlayRoot();
-        Button moved = new() { Content = "Transfer focus target", Width = 180, Height = 44 };
+        // The product's own focus ring opts out of the adorner-layer clip (AdornerLayer.IsClipEnabled=False,
+        // 7610ba31), which is exactly what keeps it from subscribing to ancestor clips. This pin reproduces the
+        // Avalonia 12.1.4 stale subscription, so it needs a ring that keeps the framework default (clip enabled),
+        // as any control outside the styled set (third-party templates, popups) still has.
+        Button moved = new() { Content = "Transfer focus target", Width = 180, Height = 44,
+            FocusAdorner = new Avalonia.Controls.Templates.FuncTemplate<Control>(() => new Border
+            { BorderBrush = Avalonia.Media.Brushes.Red, BorderThickness = new Avalonia.Thickness(2), IsHitTestVisible = false }) };
         Button other = new() { Content = "Retain focus target", Width = 180, Height = 44 };
         StackPanel controls = new(); controls.Children.Add(moved); controls.Children.Add(other);
         Window main = new() { Width = 650, Height = 500, Content = controls, Title = "Private focus-clip source" };
@@ -130,18 +195,18 @@ internal static partial class GalleryPlaybackFeatureChecks
         foreach (bool externalRoot in new[] { false, true })
         foreach (bool postOverlay in new[] { false, true })
         {
-            GalleryViewer viewer = new();
+            await using GalleryViewer viewer = new();
             viewer.Configure(contextOpen: true, showShortcutHelp: true, videoAutoplay: false,
                 videoStartMuted: true, videoVolume: 0);
             if (externalRoot) ShellErrorSet(viewer, "_nativeOverlayActive", true);
             viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayPostContext: postOverlay).WithControlsOverlay(true));
             viewer.SetInteractionAvailable(false); // Explicit reveal, held stable during sizing.
             Window window = new() { Width = 1000, Height = 700, Content = viewer,
-                Title = "Private gallery layout ownership regression" };
+                Title = "Private gallery layout ownership regression", WindowStartupLocation = WindowStartupLocation.CenterScreen };
             Window? overlay = externalRoot ? new Window
             {
                 Width = 650, Height = 500, Content = ErrorField<Grid>(viewer, "_nativeVideoOverlay"),
-                Title = "Private external gallery layout root"
+                Title = "Private external gallery layout root", WindowStartupLocation = WindowStartupLocation.CenterOwner
             } : null;
             try
             {
@@ -173,8 +238,15 @@ internal static partial class GalleryPlaybackFeatureChecks
                 Control pointerRoot = externalRoot ? ErrorField<Grid>(viewer, "_nativeVideoOverlay") : viewer;
                 using (var native = new MediaNativeInput(overlay ?? window))
                 {
-                    await native.MoveAsync(footer);
-                    await UntilAsync(() => pointerRoot.IsPointerOver,
+                    // The forced 180px footer includes transparent, unpainted space:
+                    // its center hits the viewport, not the footer (ARM 43908445672,
+                    // also reproduced with X11). Target its real painted controls,
+                    // retaining the driver's strict center hit check in this root.
+                    Border controls = Find<Border>(viewer, "GalleryOverlayControls");
+                    Require(controls.GetVisualAncestors().Contains(footer),
+                        "Closing-root pointer target is not inside the sized footer.");
+                    await EnterClosingRootAsync(native, overlay ?? window, controls, externalRoot, postOverlay);
+                    await UntilAsync(() => footer.IsPointerOver && pointerRoot.IsPointerOver,
                         "Closing-root regression did not receive real OS pointer entry.");
                 }
                 Console.WriteLine($"SMOKE gallery context root PASS: external={externalRoot}, postOverlay={postOverlay}, repeated footer sizing, own-root clearance retained; real pointer over closing root; no native playback claim");
@@ -197,11 +269,80 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
     }
 
+    private static async Task EnterClosingRootAsync(MediaNativeInput native, Window root, Control target,
+        bool externalRoot, bool postOverlay)
+    {
+        // Show/UpdateLayout do not establish native activation. In particular the
+        // second external-root case can inherit the previous case's cursor pixel.
+        // A single CGEvent at that pixel is submission, not proof of entry into
+        // the newly created NSWindow. Exercise motion across two distinct points
+        // and require native delivery, without an activation click or routed input.
+        root.Activate();
+        await UntilAsync(() => root.IsVisible && root.IsActive && root.IsArrangeValid,
+            "Closing-root native window did not become active and arranged.");
+        Point[] points = GalleryNativePointerProbe.EntryPoints(target.Bounds.Size);
+        bool primed = false;
+        foreach (Point point in new[] { points[1], points[0], points[1] })
+        {
+            PixelPoint pixel = target.PointToScreen(point);
+            var screen = root.Screens.ScreenFromPoint(pixel);
+            Visual? hit = root.InputHitTest(root.PointToClient(pixel)) as Visual;
+            Visual? localHit = target.InputHitTest(point) as Visual;
+            Console.WriteLine($"SMOKE closing-root native readiness: external={externalRoot}, postOverlay={postOverlay}, "
+                + $"position={root.Position}, client={root.ClientSize}, scale={root.RenderScaling}, active={root.IsActive}, "
+                + $"pixel={pixel}, working-area={screen?.WorkingArea}, hit={(hit as Control)?.Name ?? hit?.GetType().Name}, "
+                + $"local-hit={(localHit as Control)?.Name ?? localHit?.GetType().Name}");
+            Require(screen != null && screen.WorkingArea.Contains(pixel),
+                "Closing-root pointer target is outside the native working area.");
+            // ARM 43938129569: active, on-screen first root reported GalleryViewport
+            // here before any motion was submitted. Layout/activation do not prove
+            // the compositor's top-level hit snapshot is current. Match the shared
+            // native driver's live local-hit readiness, but never treat that as
+            // delivery: BOTH probes below must actually route through this target.
+            Require(hit?.GetSelfAndVisualAncestors().Contains(target) == true
+                || localHit?.GetSelfAndVisualAncestors().Contains(target) == true,
+                "Closing-root pointer target has no live painted hit geometry.");
+            if (!primed)
+            {
+                // Seed a known OS position, even if the runner initially left
+                // the cursor exactly at our entry pixel. Submission alone is
+                // sufficient only for this seed, never for the two probes.
+                await native.MoveAsync(target, point);
+                primed = true;
+                continue;
+            }
+            Point expected = root.PointToClient(pixel);
+            TaskCompletionSource<bool> moved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            void OnMoved(object? sender, PointerEventArgs args)
+            {
+                Point actual = args.GetPosition(root);
+                if (args.Source is Visual source && ReferenceEquals(TopLevel.GetTopLevel(source), root)
+                    && source.GetSelfAndVisualAncestors().Contains(target)
+                    && target.IsPointerOver
+                    && GalleryNativePointerProbe.IsAt(actual, expected))
+                    moved.TrySetResult(true);
+            }
+            root.AddHandler(InputElement.PointerMovedEvent, OnMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
+            try
+            {
+                await native.MoveAsync(target, point);
+                await moved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            }
+            catch (TimeoutException)
+            {
+                throw new TimeoutException($"Closing-root OS motion was not delivered: external={externalRoot}, "
+                    + $"postOverlay={postOverlay}, pixel={pixel}, position={root.Position}, active={root.IsActive}, "
+                    + $"target-over={target.IsPointerOver}; required motion source inside target subtree.");
+            }
+            finally { root.RemoveHandler(InputElement.PointerMovedEvent, OnMoved); }
+        }
+    }
+
     private static async Task CheckExternalTransportRetirementAsync(MainWindow owner)
     {
         // Two real layout roots, even on software-video platforms. This isolates
         // terminal transport ownership from codecs and native audio availability.
-        GalleryVideoPlayer player = new();
+        await using GalleryVideoPlayer player = new();
         StackPanel external = new();
         Window host = new() { Width = 700, Height = 400, Content = player,
             Title = "Private transport retirement host" };
@@ -256,11 +397,12 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private static async Task CheckNotificationTransportAsync(MainWindow owner, GalleryEntry clip, bool overlay, bool paused)
     {
+        Console.WriteLine($"SMOKE gallery notification begin: overlay={overlay}, paused={paused}");
         await using Fixture fixture = new(owner);
         await fixture.ReadyAsync();
         GalleryViewer viewer = fixture.Viewer;
         viewer.Configure(false, true, true, false, 40);
-        viewer.ConfigurePlayback(new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat).WithControlsOverlay(overlay));
+        viewer.ConfigurePlayback(new GalleryPlaybackPreferences(VideoRepeat: true).WithControlsOverlay(overlay));
         await viewer.ShowAsync(clip, CancellationToken.None).WaitAsync(Deadline);
         GalleryVideoPlayer player = Player(viewer);
         await UntilAsync(async () => HasRealFrames(await player.InspectPlaybackAsync()), "Notice fixture did not decode real frames.");
@@ -292,14 +434,31 @@ internal static partial class GalleryPlaybackFeatureChecks
         viewer.SetWarnings("synthetic provenance warning");
         viewer.SetNotice("synthetic preferences failure");
         await viewer.SetMediaUnavailable("stale shell resolution failure", viewer.MediaRequestGeneration - 1);
+        // Diagnostic updates can arrive while the retained transport is moving between
+        // the player, dock and overlay roots. Wait for that actual ownership transfer;
+        // hidden Button content (notably the rating TextBlock) is intentionally not a
+        // visual descendant until its presenter is realized.
+        await UntilAsync(async () =>
+        {
+            await LayoutAsync(fixture.Window);
+            if (TopLevel.GetTopLevel(player.TransportControl) is Window transportWindow
+                && !ReferenceEquals(transportWindow, fixture.Window))
+                await LayoutAsync(transportWindow);
+            return player.TransportControl.IsAttachedToVisualTree()
+                && TopLevel.GetTopLevel(player.TransportControl) != null
+                && ErrorField<Border>(viewer, "_infoOverlay").IsAttachedToVisualTree();
+        }, "Diagnostic info line did not settle after the native transport update.");
         Require(reports.Count == 4 && reports.All(n => n.Entry?.Key == clip.Key && !n.MediaUnavailable),
             "Notification identity/classification did not reach the central bridge.");
         Require(ReferenceEquals(focused, inputRoot.FocusManager?.GetFocusedElement()), "Notification stole focus.");
         Require(viewer.CaptureState() == selection, "Notification changed selection/context/zoom.");
         Require(!ErrorField<bool>(viewer, "_mediaFailed"), "Notification marked valid playback unavailable.");
-        Require(!Find<Control>(viewer, "GalleryFavoriteError").IsEffectivelyVisible
-            && string.IsNullOrEmpty(Find<TextBlock>(viewer, "GalleryWarnings").Text)
-            && !Find<TextBlock>(viewer, "GalleryRatingStatus").Text!.Contains("synthetic"), "Technical inline error banner survived.");
+        SelectableTextBlock favoriteError = ErrorField<SelectableTextBlock>(viewer, "_favoriteError");
+        TextBlock warnings = ErrorField<TextBlock>(viewer, "_warnings");
+        TextBlock ratingStatus = ErrorField<TextBlock>(viewer, "_ratingStatus");
+        Require(!favoriteError.IsEffectivelyVisible
+            && string.IsNullOrEmpty(warnings.Text)
+            && !ratingStatus.Text!.Contains("synthetic"), "Technical inline error banner survived.");
         if (overlay) Require(!Visible(controls), "Notification immediately revealed controls.");
         await MediaInteractionSmokeHelpers.HoldStateAsync(player, expected, "technical notification");
         var after = await player.InspectPlaybackAsync();
@@ -388,8 +547,6 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         string profile = TemporaryWorkspacePaths.CreateDirectory("meowchan-gallery-shell-errors-");
         string language = Texts.Language;
-        DesktopSessionHost? host = null;
-        MainWindow? shell = null;
         string settings = Path.Combine(profile, "settings.json");
         try
         {
@@ -402,71 +559,73 @@ internal static partial class GalleryPlaybackFeatureChecks
                 GalleryPlaybackMode = "Manual", GalleryContextOpen = false,
                 GalleryOverlayControls = false, GalleryAutoHideControls = false
             }.SaveConfig(profile);
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
-            shell.Show(owner); shell.Activate();
-            await host.StartAsync().WaitAsync(Deadline);
-            await UntilAsync(() => shell.IsActive && shell.FindControl<Button>("AddUrlButton")!.IsEnabled
-                && ShellErrorField<bool>(shell, "_windowPreferencesReady"), "Child shell did not reach real Ready.");
-            ShellErrorStopTimers(shell);
-            await ((Task)ShellErrorCall(shell, "FlushWindowPreferencesAsync")!).WaitAsync(Deadline);
-            await host.FlushPreferencesAsync().WaitAsync(Deadline);
-            // Prevent unrelated geometry writes from retrying/merging the fault under test.
-            ShellErrorSet(shell, "_windowPreferencesReady", false);
-            ShellErrorStopTimers(shell);
-            await UntilAsync(() => host.PreferenceWriteCounts.Active == 0 && host.PreferenceWriteCounts.Pending == 0,
-                "Child shell startup preferences did not drain.");
-            await shell.OpenMediaGalleryAsync([clip], clip.EntryKey).WaitAsync(Deadline);
-            GalleryViewer viewer = ShellErrorField<GalleryViewer>(shell, "_gallery");
-            GalleryVideoPlayer player = Player(viewer);
-            long? lastReadinessLog = null;
-            await UntilAsync(async () =>
+            await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+            await using MainWindow shell = new(host);
+            try
             {
-                var state = await player.InspectPlaybackAsync();
-                // Windows video chrome is hosted in its own owned native window.
-                // That valid input root can be active instead of the shell; do not
-                // misreport that focus handoff as missing audio readiness.
-                bool activeInput = shell.IsEnabled && viewer.IsEffectivelyVisible && viewer.IsEffectivelyEnabled
-                    && (shell.IsActive || shell.OwnedWindows.Any(window => viewer.OwnsOverlayWindow(window)
-                        && window.IsVisible && window.IsEnabled && window.IsActive));
-                bool decoded = HasRealFrames(state) && state.Time >= 500;
-                bool audio = state.AudioAvailable
-                    || state.AudioTracks > 0 && state.DecodedAudio > 0 && state.PlayedAudioBuffers == 0;
-                if (lastReadinessLog == null || System.Diagnostics.Stopwatch.GetElapsedTime(lastReadinessLog.Value).TotalSeconds >= 1
-                    || activeInput && decoded && audio)
+                shell.Show(owner); shell.Activate();
+                await host.StartAsync().WaitAsync(Deadline);
+                await UntilAsync(() => shell.IsActive && shell.FindControl<Button>("AddUrlButton")!.IsEnabled
+                    && ShellErrorField<bool>(shell, "_windowPreferencesReady"), "Child shell did not reach real Ready.");
+                ShellErrorStopTimers(shell);
+                await ((Task)ShellErrorCall(shell, "FlushWindowPreferencesAsync")!).WaitAsync(Deadline);
+                await host.FlushPreferencesAsync().WaitAsync(Deadline);
+                // Prevent unrelated geometry writes from retrying/merging the fault under test.
+                ShellErrorSet(shell, "_windowPreferencesReady", false);
+                ShellErrorStopTimers(shell);
+                await UntilAsync(() => host.PreferenceWriteCounts.Active == 0 && host.PreferenceWriteCounts.Pending == 0,
+                    "Child shell startup preferences did not drain.");
+                await shell.OpenMediaGalleryLaidOutAsync([clip], clip.EntryKey).WaitAsync(Deadline);
+                GalleryViewer viewer = ShellErrorField<GalleryViewer>(shell, "_gallery");
+                GalleryVideoPlayer player = Player(viewer);
+                long? lastReadinessLog = null;
+                await UntilAsync(async () =>
                 {
-                    lastReadinessLog = System.Diagnostics.Stopwatch.GetTimestamp();
-                    Console.WriteLine("SMOKE gallery-shell readiness: " + System.Text.Json.JsonSerializer.Serialize(new
+                    var state = await player.InspectPlaybackAsync();
+                    // Windows video chrome is hosted in its own owned native window.
+                    // That valid input root can be active instead of the shell; do not
+                    // misreport that focus handoff as missing audio readiness.
+                    bool activeInput = shell.IsEnabled && viewer.IsEffectivelyVisible && viewer.IsEffectivelyEnabled
+                        && (shell.IsActive || shell.OwnedWindows.Any(window => viewer.OwnsOverlayWindow(window)
+                            && window.IsVisible && window.IsEnabled && window.IsActive));
+                    bool decoded = HasRealFrames(state) && state.Time >= 500;
+                    bool audio = state.AudioAvailable
+                        || state.AudioTracks > 0 && state.DecodedAudio > 0 && state.PlayedAudioBuffers == 0;
+                    if (lastReadinessLog == null || System.Diagnostics.Stopwatch.GetElapsedTime(lastReadinessLog.Value).TotalSeconds >= 1
+                        || activeInput && decoded && audio)
                     {
-                        pausedCase = paused, shellActive = shell.IsActive, activeInput, decoded, audio,
-                        ownedRoots = shell.OwnedWindows.Select(window => new
-                        { overlay = viewer.OwnsOverlayWindow(window), window.IsActive, window.IsVisible, window.IsEnabled }).ToArray(),
-                        playback = state
-                    }));
+                        lastReadinessLog = System.Diagnostics.Stopwatch.GetTimestamp();
+                        Console.WriteLine("SMOKE gallery-shell readiness: " + System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            pausedCase = paused, shellActive = shell.IsActive, activeInput, decoded, audio,
+                            ownedRoots = shell.OwnedWindows.Select(window => new
+                            { overlay = viewer.OwnsOverlayWindow(window), window.IsActive, window.IsVisible, window.IsEnabled }).ToArray(),
+                            playback = state
+                        }));
+                    }
+                    return activeInput && decoded && audio;
+                }, "Shell fixture readiness failed; inspect gallery-shell readiness records for input ownership, video and audio evidence.");
+                if (paused)
+                {
+                    Click(Find<Button>(viewer, "GalleryVideoPlayPause"));
+                    await UntilAsync(async () => (await player.InspectPlaybackAsync()).State == "Paused", "Shell fixture did not pause.");
                 }
-                return activeInput && decoded && audio;
-            }, "Shell fixture readiness failed; inspect gallery-shell readiness records for input ownership, video and audio evidence.");
-            if (paused)
-            {
-                Click(Find<Button>(viewer, "GalleryVideoPlayPause"));
-                await UntilAsync(async () => (await player.InspectPlaybackAsync()).State == "Paused", "Shell fixture did not pause.");
+                string expected = paused ? "Paused" : "Playing";
+                await CheckRealShellPreferenceFailureAsync(shell, host, viewer, player, settings, expected);
+                await CheckRealShellReaderReturnAsync(shell, viewer, player, expected);
             }
-            string expected = paused ? "Paused" : "Playing";
-            await CheckRealShellPreferenceFailureAsync(shell, host, viewer, player, settings, expected);
-            await CheckRealShellReaderReturnAsync(shell, viewer, player, expected);
-        }
-        finally
-        {
-            // Only this newly created profile's path is faulted. Remove the owned empty
-            // directory before shutdown so final flush can retry, even after an assertion.
-            if (Directory.Exists(settings)) Directory.Delete(settings);
-            if (shell != null)
+            finally
             {
+                // Only this newly created profile's path is faulted. Remove the owned empty
+                // directory before shutdown so final flush can retry, even after an assertion.
+                if (Directory.Exists(settings)) Directory.Delete(settings);
                 ShellErrorStopTimers(shell);
                 try { await ((Task)ShellErrorCall(shell, "FlushGalleryPreferencesAsync")!).WaitAsync(Deadline); }
                 finally { await ((Task)ShellErrorCall(shell, "CloseApplicationAsync")!).WaitAsync(Deadline); }
             }
-            if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
+        }
+        finally
+        {
             Texts.SetLanguage(language);
             ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings);
             Directory.Delete(profile, recursive: true);
@@ -499,13 +658,44 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         int expectedSavedVolume = availableAudio ? 61 : 25;
         using var layoutTrace = new ShellGalleryLayoutTrace(shell, viewer);
+        async Task PresentForClickAsync(Button action)
+        {
+            bool InMorePopup() => action.GetSelfAndVisualAncestors().Contains(viewer.OverflowMenuContent);
+            // A keep-open row (Repeat video) leaves More open. Close it before clicking a toolbar action,
+            // and do not mistake the row's IsVisible state for a presented popup target.
+            if (viewer.IsOverflowOpen && !InMorePopup())
+            {
+                viewer.SetOverflowOpen(false);
+                await UntilAsync(() => !viewer.IsOverflowOpen, "Gallery More did not close before the toolbar action.");
+            }
+            if (action.IsAttachedToVisualTree() && action.IsEffectivelyVisible && action.IsEffectivelyEnabled
+                && action.Bounds.Width > 0 && action.Bounds.Height > 0) return;
+            // Rare gallery actions live in the real More flyout at this shell width. The action is under
+            // GalleryOverflowMenu -> GalleryPlaybackTools, so wait for that actual popup ancestry, not just IsVisible.
+            viewer.SetOverflowOpen(true);
+            await UntilAsync(() => viewer.IsOverflowOpen && viewer.OverflowMenuContent.IsAttachedToVisualTree()
+                && viewer.OverflowMenuContent.IsEffectivelyVisible && viewer.OverflowMenuContent.Bounds.Height > 0
+                && InMorePopup() && action.IsAttachedToVisualTree() && action.IsEffectivelyVisible
+                && action.IsEffectivelyEnabled && action.Bounds.Width > 0 && action.Bounds.Height > 0,
+                "Gallery More did not present the hidden preference action.");
+        }
         layoutTrace.Record("before repeat");
-        Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").SelectedIndex = (int)GalleryPlaybackMode.Repeat;
+        ToggleButton repeat = Find<ToggleButton>(viewer, "GalleryVideoRepeatToggle");
+        await PresentForClickAsync(repeat);
+        Click(repeat);
         layoutTrace.Record("before context");
-        Click(Find<Button>(viewer, "GalleryToggleContext"));
+        Button context = Find<Button>(viewer, "GalleryToggleContext");
+        await PresentForClickAsync(context);
+        Click(context);
         layoutTrace.Record("before overlay");
-        Click(Find<Button>(viewer, "GalleryOverlayToggle"));
+        ToggleButton overlay = Find<ToggleButton>(viewer, "GalleryOverlayToggle");
+        await PresentForClickAsync(overlay);
+        Click(overlay);
         layoutTrace.Record("after overlay");
+        // Capture after the shell's real footer/context pass has settled. CaptureState also contains
+        // fit-derived zoom, so taking it immediately after the toolbar click races the layout pass
+        // and mistakes a legitimate re-fit for error presentation rolling back gallery state.
+        await LayoutAsync(shell);
         GalleryViewerState intendedSelection = viewer.CaptureState();
         Require(intendedSelection.ContextOpen, "Actual context action did not open the gallery context.");
         Task observed = (Task)ShellErrorCall(shell, "FlushGalleryPreferencesAsync")!;
@@ -527,9 +717,9 @@ internal static partial class GalleryPlaybackFeatureChecks
             && ShellErrorField<bool?>(shell, "_desiredGalleryContext") == true,
             "Failed host draft/live desired volume or context was cleared by error observation.");
         GalleryPlaybackPreferences? desired = ShellErrorField<GalleryPlaybackPreferences?>(shell, "_desiredGalleryPlayback");
-        Require(desired is { Mode: GalleryPlaybackMode.Repeat, OverlayControls: true, AutoHideControls: true },
+        Require(desired is { Mode: GalleryPlaybackMode.Manual, VideoRepeat: true, OverlayControls: true, AutoHideControls: true },
             "Save failure rolled back desired mode/layout to the old durable snapshot.");
-        Require(host.Config.VideoVolume == 25 && host.Config.GalleryPlaybackMode == "Manual",
+        Require(host.Config.VideoVolume == 25 && host.Config.GalleryPlaybackMode == "Manual" && !host.Config.GalleryVideoRepeat,
             "A failed raw write was incorrectly published as durable success.");
         if (availableAudio)
             await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume == 61,
@@ -544,7 +734,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await HoldAsync(TimeSpan.FromMilliseconds(600), () =>
         {
             Require(viewer.CaptureState() == intendedSelection
-                && Find<ComboBox>(viewer, "GalleryPlaybackModeSelector").SelectedIndex == (int)GalleryPlaybackMode.Repeat
+                && Find<ToggleButton>(viewer, "GalleryVideoRepeatToggle").IsChecked == true
                 && Find<ToggleButton>(viewer, "GalleryOverlayToggle").IsChecked == true,
                 "Failure presentation reverted the actual gallery mode/context/layout.");
             RequireNoShellErrorPresentation(shell);
@@ -556,7 +746,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         await retriedRaw.WaitAsync(Deadline);
         await UntilAsync(() => host.PreferenceWriteCounts.Failed == 0, "Explicit shell retry did not clear the failed host draft.");
         Config saved = Config.LoadConfig(Path.GetDirectoryName(settings)!);
-        Require(retriedRaw.IsCompletedSuccessfully && saved.VideoVolume == expectedSavedVolume && saved.GalleryPlaybackMode == "Repeat"
+        Require(retriedRaw.IsCompletedSuccessfully && saved.VideoVolume == expectedSavedVolume && saved.GalleryVideoRepeat
             && saved.GalleryContextOpen && saved.GalleryOverlayControls && saved.GalleryAutoHideControls,
             "Explicit retry failed to commit the retained volume/mode/context/layout draft.");
         Require(viewer.CaptureState() == intendedSelection, "Successful retry changed gallery selection/context.");
@@ -587,7 +777,7 @@ internal static partial class GalleryPlaybackFeatureChecks
             NotificationType.Warning, "gallery-reader-fixture", operation);
         SessionFeedbackStore store = ShellErrorField<SessionFeedbackStore>(shell, "_feedback");
         await UntilAsync(() => store.Entries.Any(entry => entry.Operation == operation)
-            && shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+            && shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible
             && ShellErrorCards(shell).Any(card => card.Content is FeedbackToastContent { Entry: { } entry }
                 && entry.Operation == operation), "Real Reader warning did not produce its actual shell banner/toast.");
         SessionFeedback warning = store.Entries.Single(entry => entry.Operation == operation);
@@ -716,7 +906,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 overlay = _overlay?.Bounds.ToString(), overlayWidth = _overlay?.Width.ToString(),
                 overlayHeight = _overlay?.Height.ToString(), sizeToContent = _overlay?.SizeToContent.ToString(),
                 overlayValid = native.IsArrangeValid,
-                banner = _shell.GetVisualDescendants().OfType<Ursa.Controls.Banner>()
+                banner = _shell.GetVisualDescendants().OfType<MeowChan.Desktop.Controls.WorkspaceBanner>()
                     .FirstOrDefault(control => control.Name == "ShellActionErrorBanner")?.IsVisible
             });
             if (phase.EndsWith("layout", StringComparison.Ordinal) && state == _last) return;
@@ -744,7 +934,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         .OfType<NotificationCard>().Where(card => !card.IsClosing && !card.IsClosed).ToArray();
     private static void RequireNoShellErrorPresentation(MainWindow shell)
     {
-        Require(!shell.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible
+        Require(!shell.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible
             && !ShellErrorCards(shell).Any(card => card.Content is FeedbackToastContent { Entry: { } entry }
                 && entry.Category is FeedbackCategory.Warning or FeedbackCategory.Error),
             "Shell banner/toast overlays the active gallery after an actual shell error/return.");

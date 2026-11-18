@@ -22,7 +22,7 @@ internal sealed partial record ArchiveThreadRow(ArchiveThreadSummary Summary, Th
     public string TitleOrId => string.IsNullOrWhiteSpace(Title) ? "#" + Summary.Id.Thread : Title;
     public string Identity => Summary.Id.Source + " /" + Summary.Id.Board + "/ · " + Summary.Id.Thread;
     public string Status => Summary.LastCapturedAt == null ? Texts.T("archive.mediaOnly")
-        : Texts.T("archive.postsCount", Summary.PostCount);
+        : Texts.Count("archive.postsCount", Summary.PostCount);
     public int Posts => Summary.PostCount;
     public string SourceStatus => Texts.T(Summary.SourceState switch
     {
@@ -57,21 +57,166 @@ internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }
     public Func<string?>? FavoriteError { get; set; }
+    /// <summary>Why the star is off while <see cref="FavoriteAvailable"/> says no (still scanning, favorites unreadable); null: no specific reason.</summary>
+    public Func<FavoriteStarHold>? FavoriteHold { get; set; }
     public bool LargePreview { get; init; }
+    /// <summary>A row of the thread list (a small thumbnail in a fixed slot): one trimmed file line, the picture centred in its slot. Reader posts wrap the line.</summary>
+    public bool Compact { get; init; }
+    /// <summary>Reader image width; zero keeps the legacy list-preview default.</summary>
+    public int ThumbnailWidth { get; init; }
+    /// <summary>Height cap of the preview frame for a width that differs from the reader default (textless posts); zero keeps the default cap.</summary>
+    public int ThumbnailMaxHeight { get; init; }
+    /// <summary>Decodes the preview at explicit bounds (the enlarged focused card, the hover preview); null in the lists. The caller releases the result.</summary>
+    public Func<int, int, CancellationToken, Task<Bitmap?>>? LoadSized { get; init; }
+    /// <summary>
+    /// The saved file of this attachment as a gallery entry, for surfaces that decode through the gallery cache (the reader's media
+    /// sidebar); null result when it is not saved. Null in the lists.
+    /// </summary>
+    public Func<CancellationToken, Task<MeowChan.Gallery.GalleryEntry?>>? ResolveEntry { get; init; }
+    /// <summary>
+    /// Width over height of the picture as shown (the capture records no pixel size). The reader sets it before the row is shown from
+    /// the session's size memory or a header read of the saved file (<see cref="ReaderPreviewReservation"/>), otherwise the first loaded
+    /// thumbnail does. The preview frame follows it and keeps it when the pixels are released, so a post's height does not change when
+    /// the picture arrives or on scrolling. A change notifies <see cref="KnownAspectChanged"/> and is remembered through <see cref="RememberAspect"/>.
+    /// </summary>
+    public double? KnownAspect
+    {
+        get => _knownAspect;
+        set
+        {
+            if (Nullable.Equals(_knownAspect, value)) return;
+            _knownAspect = value;
+            if (value is double aspect) RememberAspect?.Invoke(aspect);
+            KnownAspectChanged?.Invoke();
+        }
+    }
+    private double? _knownAspect;
+    /// <summary>Raised on the UI thread when <see cref="KnownAspect"/> changes (a shown view reserves the new frame at once).</summary>
+    public event Action? KnownAspectChanged;
+    /// <summary>Stores a learned aspect in the session's size memory (set by the reader page; null elsewhere).</summary>
+    public Action<double>? RememberAspect { get; set; }
+    /// <summary>
+    /// The identity of this attachment for "Keep images expanded" (thread, post and file; set by the reader page, null elsewhere and for
+    /// an attachment without a media identity): a recycled or rebuilt post finds its expanded image again by it.
+    /// </summary>
+    public string? ExpandKey { get; set; }
+    /// <summary>
+    /// Decodes the ordinary preview ahead of time at background priority, kept in the shared preview cache like a visible one; null where
+    /// nothing is preloaded (the lists, the large reader). The caller releases the result through <see cref="MediaTileThumbnails.Release"/>.
+    /// </summary>
+    public Func<CancellationToken, Task<Bitmap?>>? PrefetchThumbnail { get; init; }
+    /// <summary>
+    /// Decodes a small preview at explicit bounds that is kept by its bytes even in the large reader (the sidebar's thumbnail strip);
+    /// null in the lists. The caller releases the result through <see cref="MediaTileThumbnails.Release"/>.
+    /// </summary>
+    public Func<int, int, CancellationToken, Task<Bitmap?>>? LoadStripThumbnail { get; init; }
     public Func<CancellationToken, Task<Bitmap?>>? LoadThumbnail { get; init; }
     public Action? OpenPreview { get; init; }
     public MediaAttachmentBinding? Binding { get; set; }
-    public string Label => (Attachment.OriginalFileName ?? Attachment.MediaId ?? Texts.T("archive.deletedAttachment"))
+    /// <summary>
+    /// The medium a thread-list row actually shows when it is not <see cref="Attachment"/> (the first medium is not saved, a later one
+    /// is); set by the row's thumbnail load. Null: <see cref="Attachment"/> itself.
+    /// </summary>
+    public CapturedAttachment? ShownAttachment { get; set; }
+    public CapturedAttachment Shown => ShownAttachment ?? Attachment;
+    public string Label => (Shown.OriginalFileName ?? Shown.MediaId ?? Texts.T("archive.deletedAttachment"))
         + (MediaProvenanceText.Summary(Binding) is { Length: > 0 } provenance ? "\n" + provenance : string.Empty);
+    // The capture records the provider's byte size but no pixel dimensions, so the line shows
+    // "name.ext (size)" when the size is known and the bare name otherwise.
+    public string FileLine => (Shown.OriginalFileName ?? Shown.MediaId ?? string.Empty)
+        + (Shown.ExpectedSize is > 0 and long size ? " (" + FileSize(size) + ")" : string.Empty);
+
+    internal static string FileSize(long bytes) => SizeText.Format(bytes);
 }
 
-internal sealed record ArchivePostRow(string Id, string Header, string Subject, string Body,
+// One header line in imageboard order: Subject · Name · Date · No. (the number copies ">>No.").
+internal sealed record ArchivePostRow(string Id, string Subject, string Body,
     IReadOnlyList<ArchiveAttachmentRow> Attachments) : System.ComponentModel.INotifyPropertyChanged
 {
     public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    public string Author { get; init; } = string.Empty;
+    public string Posted { get; init; } = string.Empty;
+    public bool IsDeleted { get; init; }
+    // Posts that follow the last one read, set on the first of them (the reading-mark line above its header).
+    public int UnreadCount { get; init; }
+    public bool HasUnreadLine => UnreadCount > 0;
+    public string UnreadLabel => Texts.Count("reader.unreadLine", UnreadCount);
+    // The opening post sits directly on the page (classic imageboard); replies are cards.
+    public bool IsOpeningPost { get; init; }
+    public bool HasSubject => Subject.Length > 0;
+    public bool HasAuthor => Author.Length > 0;
+    public bool HasPosted => Posted.Length > 0;
+    public string RemovedLabel => Texts.T("archive.deletedPost");
+    public string NumberLabel => Texts.T("reader.postNumber", Id);
+    public string QuoteReference => ">>" + Id;
+    public string CopyNumberLabel => Texts.T("reader.copyPostNumber", Id);
     public bool HasAttachments => Attachments.Count > 0;
-    public bool IsTextOnly => !HasAttachments;
+    // Hidden media read as a text-only post: the body takes the whole width and no thumbnail is loaded.
+    public bool IsTextOnly => !HasAttachments || MediaHidden;
+    /// <summary>
+    /// Effective width of this post's images when it has no text of its own (R6); 0 for every other post, which uses the list-wide
+    /// preview width. The post layout and the previews read it, so the larger image is one measured width and not a per-pass guess.
+    /// </summary>
+    public int MediaWidth { get; init; }
+    /// <summary>The images are laid out as a grid of two columns (R11); otherwise every image has a line of its own.</summary>
+    public bool MediaGrid { get; init; }
+
+    // Reader view (plan P0). Each row is built for one page of the projection and never changes afterwards.
+    /// <summary>Index in the thread read (not the shown position).</summary>
+    public int ThreadIndex { get; init; } = -1;
+    /// <summary>Indentation level of the conversation view; 0 everywhere else.</summary>
+    public int Depth { get; init; }
+    /// <summary>The shown parent in the conversation view.</summary>
+    public string? ParentId { get; init; }
+    public string DepthLabel => Depth > 0 && ParentId != null ? Texts.T("reader.view.depthLabel", ParentId, Depth) : string.Empty;
+    /// <summary>The view shows only a placeholder line with the number, the reason and Show.</summary>
+    public bool IsStub { get; init; }
+    public string StubText { get; init; } = string.Empty;
+    public string ShowStubLabel => Texts.T("reader.view.show");
+    public bool IsHighlighted { get; init; }
+    /// <summary>Shown after an explicit jump or Show although the view hides it.</summary>
+    public bool IsRevealed { get; init; }
+    public string RevealedLabel => Texts.T("reader.view.revealed");
+    public string HideAgainLabel => Texts.T("reader.view.hideAgain");
+    /// <summary>"Hide media": the media slot gives way to a short line with the number of attachments.</summary>
+    public bool MediaHidden { get; init; }
+    public bool ShowsMedia => HasAttachments && !MediaHidden;
+    public bool HasMediaHiddenLine => HasAttachments && MediaHidden;
+    public string MediaHiddenLabel => Texts.Count("reader.view.mediaHidden", Attachments.Count, Attachments.Count);
+    /// <summary>The header date's tooltip: the full date and time.</summary>
+    public string PostedFull { get; init; } = string.Empty;
+    /// <summary>The conversation view nests the replies itself, so the header's reply counter would show them twice.</summary>
+    public bool SuppressReplyToggle { get; init; }
+    // Enter on a focused post opens its media (the gallery); a deleted attachment has none to open.
+    public bool HasActivatableMedia => Attachments.Any(row => !row.Attachment.IsDeleted);
     public IReadOnlyList<ArchiveQuoteRow> Quotes { get; init; } = Array.Empty<ArchiveQuoteRow>();
+    // Spoiler, code and external-link ranges of Body (set with Quotes; empty for unformatted posts).
+    public IReadOnlyList<ArchiveTextMark> Marks { get; init; } = Array.Empty<ArchiveTextMark>();
+    private ReaderBodyDocument? _bodyDocument;
+    // Greentext, spoilers, code, links and inline >>No. over the plain Body (built once, after Quotes is set).
+    // A reference to a post that was never captured is struck through and followed by a short note.
+    public ReaderBodyDocument BodyDocument => _bodyDocument ??= ReaderBodyFormatting.Format(Body, Quotes, Marks,
+        " " + Texts.T("reader.quoteNotCaptured"));
+    private bool _expanded;
+    // Set while the row is built (the page remembers expanded posts for the session) and when the post is folded or unfolded.
+    public bool StartExpanded { init => _expanded = value; }
+    public Action<bool>? ExpandedChanged { get; init; }
+    public bool Expanded
+    {
+        get => _expanded;
+        set { if (_expanded == value) return; _expanded = value; ExpandedChanged?.Invoke(value); Changed(nameof(Expanded)); }
+    }
+    private bool _spoilersRevealed;
+    // One reveal per post and session; the recycled body control shows whatever the post says.
+    public bool SpoilersRevealed
+    {
+        get => _spoilersRevealed;
+        set { if (_spoilersRevealed == value) return; _spoilersRevealed = value; Changed(nameof(SpoilersRevealed)); }
+    }
+    // Only a reference the text does not contain keeps its visible button; the row is otherwise the
+    // keyboard/screen-reader path for the inline references and opens on keyboard focus.
+    public bool HasUnplacedQuotes => BodyDocument.HasUnplacedQuotes;
+    public string QuotesLabel => Texts.T("reader.quotedPosts");
     private int? _backlinkCount;
     private IReadOnlyList<ArchiveQuoteRow> _replies = Array.Empty<ArchiveQuoteRow>();
     private bool _repliesExpanded;
@@ -80,6 +225,12 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
     private int _repliesOffset;
     private string? _repliesError;
     public int? BacklinkCount => _backlinkCount;
+    // The header counter is the toggle for the nested reply cards below the text.
+    public bool HasBacklinks => _backlinkCount > 0;
+    // Shown for a known count above zero, and for a failed load so a local retry stays possible.
+    public bool HasReplyToggle => !SuppressReplyToggle && (HasBacklinks || HasRepliesError);
+    public string ReplyToggleLabel => Texts.T("reader.repliesToggle");
+    public string BacklinkCountLabel => Texts.T("reader.replyCount", _backlinkCount?.ToString(Texts.Culture) ?? "…");
     public string BacklinksLabel => Texts.T("archive.backlinks", Id) + " · " +
         (_backlinkCount?.ToString(Texts.Culture) ?? "…");
     // Only a confirmed, successful zero is non-interactive. Unknown/error states
@@ -92,6 +243,10 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
         get => _repliesExpanded;
         set { if (_repliesExpanded == value) return; _repliesExpanded = value; Changed(nameof(RepliesExpanded)); }
     }
+    /// <summary>The replies were opened by the "Expand replies automatically" setting, not by the reader; turning the setting off closes only these.</summary>
+    public bool RepliesAutoExpanded { get; set; }
+    /// <summary>The card of this post was realised (shown) at least once on this page; only such cards load their replies automatically.</summary>
+    public bool RepliesRealised { get; set; }
     public bool RepliesLoading => _repliesLoading;
     public bool RepliesLoaded => _repliesLoaded;
     public int RepliesOffset => _repliesOffset;
@@ -107,19 +262,19 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
     {
         _backlinkCount = count;
         Changed(nameof(BacklinkCount), nameof(BacklinksLabel), nameof(HasMoreReplies), nameof(RepliesPageLabel),
-            nameof(HasConfirmedNoReplies), nameof(CanExpandReplies));
+            nameof(HasConfirmedNoReplies), nameof(CanExpandReplies), nameof(HasBacklinks), nameof(HasReplyToggle), nameof(BacklinkCountLabel));
     }
     public void SetReplies(IReadOnlyList<ArchiveQuoteRow> replies, int total, int offset)
     {
         _replies = replies; _repliesOffset = offset; _repliesError = null; _repliesLoaded = true;
         SetBacklinkCount(total);
         Changed(nameof(Replies), nameof(RepliesOffset), nameof(RepliesLoaded), nameof(HasMoreReplies), nameof(RepliesPageLabel),
-            nameof(RepliesError), nameof(HasRepliesError));
+            nameof(RepliesError), nameof(HasRepliesError), nameof(HasReplyToggle));
     }
     public void SetRepliesLoading(bool loading)
     { _repliesLoading = loading; Changed(nameof(RepliesLoading), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies)); }
     public void SetRepliesError(string? error)
-    { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies)); }
+    { _repliesError = error; Changed(nameof(RepliesError), nameof(HasRepliesError), nameof(HasConfirmedNoReplies), nameof(CanExpandReplies), nameof(HasReplyToggle)); }
     private void Changed(params string[] names)
     {
         foreach (string name in names) PropertyChanged?.Invoke(this,
@@ -128,9 +283,29 @@ internal sealed record ArchivePostRow(string Id, string Header, string Subject, 
 }
 internal sealed record ArchiveQuoteRow(ArchiveQuote Quote, bool Backlink = false, ResourceId? ReaderThread = null)
 {
+    // The quoted post is in the open thread's identity but was never captured (checked once when the page is built).
+    public bool IsDead { get; init; }
+    // A reply of the open thread shown as a nested card: "No. 101 · name · date" and the first lines of its text.
+    public string? ReplyHeader { get; init; }
+    public string ReplyExcerpt { get; init; } = string.Empty;
+    public bool HasReplyExcerpt => ReplyExcerpt.Length > 0;
+    public string ReplyCardHeader => ReplyHeader ?? Label;
+    // 4chan and 8kun number the opening post with the thread number, so the target is exactly the opening post of its thread;
+    // other sources get no such marker. A backlink is a reply to the open post, not a reference of it, and carries no marker.
+    public bool TargetsOpeningPost => !Backlink && Quote.Target is { Thread.Source: "4chan" or "8kun" } target && target.PostId == target.Thread.Thread;
+    public bool IsCrossThread => !Backlink && Quote.Target is { } target && target.Thread != Quote.Origin.Thread;
+    // "(OP)" or "(other thread)" behind a reference; another thread's opening post is marked as the other thread only.
+    // A source that already writes such a marker into the label of its anchor keeps its own.
+    public string Marker => Choose("reader.quote.opMarker", "reader.quote.crossMarker");
+    public string MarkerAccessible => Choose("reader.quote.opAccessible", "reader.quote.crossAccessible");
+    private string Choose(string opKey, string crossKey) => IsCrossThread
+        ? Quote.Label.Contains('\u2192') || Quote.Label.Contains("(cross", StringComparison.OrdinalIgnoreCase) ? string.Empty : Texts.T(crossKey)
+        : TargetsOpeningPost && !Quote.Label.Contains("(OP)", StringComparison.OrdinalIgnoreCase) ? Texts.T(opKey) : string.Empty;
     public string AccessibleLabel => Backlink ? Quote.Origin.Thread.Source + " /" + Quote.Origin.Thread.Board + "/ "
-        + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId : Quote.Label;
-    public string Label => Backlink && ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel;
+        + Quote.Origin.Thread.Thread + " · #" + Quote.Origin.PostId
+        : MarkerAccessible is { Length: > 0 } accessible ? Quote.Label + ", " + accessible : Quote.Label;
+    public string Label => Backlink ? ReaderThread == Quote.Origin.Thread ? "#" + Quote.Origin.PostId : AccessibleLabel
+        : Marker is { Length: > 0 } marker ? Quote.Label + " " + marker : Quote.Label;
 }
 
 internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetReference Asset) : System.ComponentModel.INotifyPropertyChanged
@@ -145,8 +320,10 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }
     public Func<string?>? FavoriteError { get; set; }
+    /// <summary>Why the star is off while <see cref="FavoriteAvailable"/> says no (still scanning, favorites unreadable); null: no specific reason.</summary>
+    public Func<FavoriteStarHold>? FavoriteHold { get; set; }
     public string Name => Asset.OriginalFileName ?? System.IO.Path.GetFileName(Asset.Path);
-    public string Size => (Asset.Length / 1_000_000d).ToString("0.###", Texts.Culture) + " MB";
+    public string Size => SizeText.Format(Asset.Length);
     public string TileSummary => Size + " · " + Texts.T(Asset.IsCurrent ? "gallery.latestVersions" : "gallery.earlierVersion");
     public string Version => Asset.Sha256[..Math.Min(12, Asset.Sha256.Length)];
     public string Path => Asset.Path;
@@ -155,4 +332,31 @@ internal sealed record ArchiveAssetRow(MediaAssetSnapshot Manifest, MediaAssetRe
 internal static class ArchivePresentation
 {
     internal static string PlainText(string? html) => ArchiveText.PlainText(html);
+
+    /// <summary>
+    /// The excerpt of a post that quote previews and reply cards show: a header "&gt;&gt;No. · author · date" and the first
+    /// lines of the text (the first attachment name when the post has no text). Only the limits differ between the two.
+    /// </summary>
+    internal static (string Header, string Body) PostExcerpt(CapturedPost post, int maxLines, int maxCharacters,
+        ReaderDateStyle dateStyle = ReaderDateStyle.System, DateTimeOffset? openingPostAt = null, DateTimeOffset? now = null)
+    {
+        ArgumentNullException.ThrowIfNull(post);
+        string header = string.Join(" \u00B7 ", new[]
+        {
+            Texts.T("reader.postNumber", post.PostId), post.Author ?? string.Empty,
+            ReaderDateText.Posted(post.PostedAt, dateStyle, openingPostAt, now)
+        }.Where(part => part.Length > 0));
+        string body = ArchivePage.ShortenText(PlainText(post.Html), maxLines, maxCharacters);
+        if (body.Length == 0 && post.Attachments?.FirstOrDefault(attachment => !string.IsNullOrEmpty(attachment.OriginalFileName)) is { } file)
+            body = file.OriginalFileName!;
+        return (header, body);
+    }
+
+    // 4chan/8kun number the opening post with the thread number, so a thread whose OP was not
+    // captured has none. Other sources: the first captured post opens the thread.
+    internal static string? OpeningPostId(ArchivedThreadView thread) => OpeningPostId(thread.Summary.Id,
+        id => thread.FindPostIndex(id) >= 0, thread.PostCount == 0 ? null : thread.GetPosts(0, 1)[0].PostId);
+
+    internal static string? OpeningPostId(ResourceId thread, Func<string, bool> captured, string? firstPost) =>
+        thread.Thread is { } id && captured(id) ? id : thread.Source is "4chan" or "8kun" ? null : firstPost;
 }

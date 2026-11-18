@@ -24,6 +24,7 @@ public partial class PluginsPage
         _pluginSchemaAcknowledgement = null;
         StackPanel settings = C<StackPanel>("PluginSettings");
         settings.Children.Clear(); _editors.Clear(); _settingsGroups.Clear();
+        FitDraftFooterRule();
         if (entry.Description == null || entry.CandidateId == null) return;
         if (!_drafts.TryGetValue(entry.Key, out PluginConfigurationDraft? draft))
         {
@@ -42,7 +43,7 @@ public partial class PluginsPage
             acknowledge.Click += (_, _) =>
             {
                 if (_ended || _busy || Selected?.Key != entry.Key || !ReferenceEquals(CurrentDraft, draft)) return;
-                draft.AcknowledgeMigration(); BuildSettings(entry); UpdateDraftState(); RefreshPluginSections();
+                draft.AcknowledgeMigration(); BuildSettings(entry); UpdateDraftState();
                 Control target = _settingsGroups.Values.FirstOrDefault() as Control ?? C<StackPanel>("PluginSettings");
                 target.Focusable = true; target.BringIntoView(); target.Focus();
             };
@@ -53,8 +54,11 @@ public partial class PluginsPage
             AddSettings(Texts.T("plugins.sourceSettings", draft.Description.Sources.First(value => value.SourceId == sourceId).Name), sourceId, source);
         if (_settingsGroups.Count == 0 && !draft.NeedsMigrationAcknowledgement)
             settings.Children.Add(Label(Texts.T("plugins.noSettings")));
-        QueuePluginNavigationVisibility();
+        FitDraftFooterRule();
     }
+
+    // Layout only: a settings group ends with its own divider, so the draft footer draws its rule only where none is above it.
+    private void FitDraftFooterRule() => C<Border>("PluginDraftFooter").Classes.Set("workspace-card-footer", _settingsGroups.Count == 0);
 
     private void AddSettings(string label, string scope, PluginSettingsDraft draft)
     {
@@ -76,7 +80,6 @@ public partial class PluginsPage
         {
             if (args.Property != Expander.IsExpandedProperty) return;
             ExpansionState(entryKey)[sectionId] = group.IsExpanded;
-            QueuePluginNavigationVisibility();
         };
         _settingsGroups.Add(scope, group);
         C<StackPanel>("PluginSettings").Children.Add(group);

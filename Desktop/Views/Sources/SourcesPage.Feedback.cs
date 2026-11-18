@@ -9,12 +9,7 @@ public partial class SourcesPage
     {
         if (_ended) return;
         this.FindControl<TextBlock>("SourcesActionError")!.Text = text;
-        this.FindControl<Ursa.Controls.Banner>("SourcesActionErrorBanner")!.IsVisible = !string.IsNullOrEmpty(text);
+        this.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("SourcesActionErrorBanner")!.IsVisible = !string.IsNullOrEmpty(text);
     }
-    private void RenderOperationFeedback()
-    {
-        Ursa.Controls.LoadingIcon loading = this.FindControl<Ursa.Controls.LoadingIcon>("SourcesOperationLoading")!;
-        loading.IsLoading = loading.IsVisible = _busy;
-        this.FindControl<TextBlock>("SourcesOperationStatus")!.Text = _busy ? Texts.T("feedback.working") : string.Empty;
-    }
+    private void RenderOperationFeedback() => SourcePluginManagement.SetSourceOperationBusy(_busy);
 }

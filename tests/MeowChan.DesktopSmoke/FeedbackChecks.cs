@@ -27,7 +27,7 @@ internal static class FeedbackChecks
         bool information = config.ShowInformationNotifications, warning = config.ShowWarningNotifications, error = config.ShowErrorNotifications;
         SessionFeedbackStore store = (SessionFeedbackStore)typeof(MainWindow).GetField("_feedback", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(window)!;
         MethodInfo publish = typeof(MainWindow).GetMethod("ShowNotification", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         DiagnosticsPage? page = null;
         try
@@ -37,10 +37,10 @@ internal static class FeedbackChecks
             foreach (string operation in new[] { "target.open", "directory.open", "clipboard.read", "clipboard.write", "preferences.appearance", "preferences.gallery", "preferences.reading-position", "session.restore", "session.shutdown", "board.admission", "selection.command", "media.retry", "archive.delete", "gallery.action" })
                 publish.Invoke(window, new object?[] { "Feedback fixture", "Failure for " + operation, NotificationType.Error, "frozen-object-A", "fixture." + operation });
             Require(store.Entries.Count == before + 14, "Suppressed error families were lost from session diagnostics.");
-            Require(window.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible, "Suppressed errors have no local shell banner.");
+            Require(window.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible, "Suppressed errors have no local shell banner.");
             page = new DiagnosticsPage(_ => false, _ => Task.FromException(new IOException("Clipboard fixture unavailable")));
             page.AttachFeedback(store); host.Content = page;
-            window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            window.ShowStatus(StatusSegment.Diagnostics);
             page.FindControl<Expander>("SessionFeedbackSection")!.IsExpanded = true;
             DataGrid grid = page.FindControl<DataGrid>("SessionFeedbackGrid")!;
             // DataGrid defers SelectionChanged after ItemsSource changes until its first arrange.
@@ -77,7 +77,7 @@ internal static class FeedbackChecks
             page = new DiagnosticsPage(); page.AttachFeedback(store); host.Content = page;
             Require(page.FindControl<DataGrid>("SessionFeedbackGrid")!.ItemsSource!.Cast<SessionFeedback>().Count() == store.Entries.Count, "Rebuilding Diagnostics lost session feedback.");
             page.FindControl<Button>("ClearSessionFeedbackButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(store.Entries.Count == 0 && window.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!.IsVisible,
+            Require(store.Entries.Count == 0 && window.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!.IsVisible,
                 "Clearing session messages cleared a local error or retained the session list.");
 
             ArchivePage archive = new();
@@ -88,7 +88,7 @@ internal static class FeedbackChecks
                 message.Invoke(archive, new object?[] { "media", string.Empty, false });
                 Require(archive.FindControl<TextBlock>("ArchiveErrorText")!.Text == "Query failure retained", "Successful media loading erased the query error.");
                 message.Invoke(archive, new object?[] { "action", string.Empty, false });
-                Require(archive.FindControl<Ursa.Controls.Banner>("ArchiveErrorBanner")!.IsVisible, "A status redraw dismissed an unresolved archive error.");
+                Require(archive.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveErrorBanner")!.IsVisible, "A status redraw dismissed an unresolved archive error.");
             }
             finally { archive.EndLifetime(); }
             await CheckPluginGenerationsAsync();
@@ -118,13 +118,13 @@ internal static class FeedbackChecks
         object Dequeue() => queue.GetType().GetMethod("Dequeue")!.Invoke(queue, null)!;
         bool wasOpened = (bool)opened.GetValue(window)!;
         Require(wasOpened && Queued() == 0, "Dismissal checks require the real shell's completed startup queue.");
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         DiagnosticsPage? page = null;
         string operation = "fixture.dismiss." + Guid.NewGuid().ToString("N");
         string title = operation;
         const string message = "Synthetic persistent source failure";
-        Ursa.Controls.Banner banner = window.FindControl<Ursa.Controls.Banner>("ShellActionErrorBanner")!;
+        MeowChan.Desktop.Controls.WorkspaceBanner banner = window.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ShellActionErrorBanner")!;
         TextBlock text = window.FindControl<TextBlock>("ShellActionError")!;
         Button dismiss = window.FindControl<Button>("ShellFeedbackDismissButton")
             ?? throw new InvalidOperationException("MU-06 requires the public shell X control ShellFeedbackDismissButton.");
@@ -155,7 +155,7 @@ internal static class FeedbackChecks
             Button workTarget = window.GetVisualDescendants().OfType<Button>().First(candidate =>
                 candidate.Name is not ("BrandAboutButton" or "ShellFeedbackDismissButton") && candidate.Focusable
                 && candidate.IsEffectivelyVisible && candidate.IsEffectivelyEnabled
-                && !candidate.GetVisualAncestors().OfType<Ursa.Controls.Banner>().Any());
+                && !candidate.GetVisualAncestors().OfType<MeowChan.Desktop.Controls.WorkspaceBanner>().Any());
             Require(workTarget.Focus(), "The fixture work control cannot receive focus.");
             Require(dismiss.Focus(), "The shell X cannot receive keyboard focus.");
             SmokeActionClick.Execute(dismiss);
@@ -178,7 +178,7 @@ internal static class FeedbackChecks
                 "Popup re-enable or a late pre-Opened queue item replayed closed A.");
 
             page = new DiagnosticsPage(); page.AttachFeedback(store); host.Content = page;
-            window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            window.ShowStatus(StatusSegment.Diagnostics);
             page.FindControl<Expander>("SessionFeedbackSection")!.IsExpanded = true;
             DataGrid grid = page.FindControl<DataGrid>("SessionFeedbackGrid")!;
             Require(grid.ItemsSource!.Cast<SessionFeedback>().Single(entry => entry.Id == Entry("source-A").Id).Count == 4,
@@ -314,15 +314,15 @@ internal static class FeedbackChecks
             page.Select(keys[1]);
             string? status = page.FindControl<TextBlock>("PluginTestStatus")!.Text;
             compiler.Fail(); await old;
-            Require(!page.IsBusy && !page.FindControl<Ursa.Controls.Banner>("PluginErrorBanner")!.IsVisible
+            Require(!page.IsBusy && !page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("PluginErrorBanner")!.IsVisible
                 && page.FindControl<TextBlock>("PluginTestStatus")!.Text == status, "Late failure of A changed B feedback.");
             Task cancelled = page.BuildAndTestAsync();
             page.FindControl<Button>("PluginCancel")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             compiler.Fail(); await cancelled;
             Require(!page.IsBusy && page.FindControl<TextBlock>("PluginTestStatus")!.Text == Texts.T("plugins.cancelled")
-                && !page.FindControl<Ursa.Controls.Banner>("PluginErrorBanner")!.IsVisible, "Cancellation became an error or left loading active.");
+                && !page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("PluginErrorBanner")!.IsVisible, "Cancellation became an error or left loading active.");
             Task failed = page.BuildAndTestAsync(); compiler.Fail(); await failed;
-            Require(page.FindControl<Ursa.Controls.Banner>("PluginErrorBanner")!.IsVisible, "Current compilation failure is not retained in its banner.");
+            Require(page.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("PluginErrorBanner")!.IsVisible, "Current compilation failure is not retained in its banner.");
             Task ended = page.BuildAndTestAsync(); page.EndLifetime();
             string? ending = page.FindControl<TextBlock>("PluginPageError")!.Text;
             compiler.Fail(); await ended;

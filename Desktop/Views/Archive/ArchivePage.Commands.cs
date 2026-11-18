@@ -13,6 +13,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -59,20 +60,15 @@ public partial class ArchivePage
     {
         if (IsFilenameSearchOpen) return;
         if (TopLevel.GetTopLevel(this) is not Window owner) { Message(content); return; }
-        Window dialog = new() { Title = title, Width = 600, Height = 360, MinWidth = 360, MinHeight = 220,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner };
+        // Modals plan MD2: a read-only modal details dialog on the prompt step. The title stands in the title bar only,
+        // and a lone Close button is left out: × at the top right and Escape close it.
+        Window dialog = MeowChan.Desktop.Controls.DialogWindow.Create(title, DialogSize.S, modal: true);
         TextBox details = new() { Text = content, IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
-        TextBlock heading = new() { Text = title, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 16, 16, 0) };
-        heading.Classes.Add("section-title");
-        Button close = new() { Content = Texts.T("action.close"), MinWidth = 96, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right };
         Border body = new() { Child = details }; body.Classes.Add("workspace-dialog-body");
-        Border footer = new() { Child = close }; footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
-        layout.Children.Add(heading); layout.Children.Add(body); Grid.SetRow(body, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
-        close.Click += (_, _) => dialog.Close();
-        dialog.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; dialog.Close(); } };
-        dialog.Content = layout;
+        // Read-only metadata has no failure path of its own, so the frame carries no error strip.
+        Grid layout = MeowChan.Desktop.Controls.DialogFrame.Build(header: null, body, footer: null);
+        MeowChan.Desktop.Controls.DialogWindow.Frame(dialog, layout, modal: true);
+        MeowChan.Desktop.Controls.DialogEscape.Attach(dialog);
         await dialog.ShowDialog(owner);
     }
 
@@ -105,7 +101,7 @@ public partial class ArchivePage
         StopArchiveMenuRefresh(menu);
         // The table's current selection is authoritative when its menu opens.
         // Freeze these IDs before building commands, including an empty selection.
-        DataGrid table = Control<DataGrid>("ArchiveThreadTable");
+        DataGrid table = ArchiveThreadTable;
         if (ReferenceEquals(menu, table.ContextMenu))
         {
             ArchiveThreadRow[] selected = table.SelectedItems.OfType<ArchiveThreadRow>().ToArray();
@@ -116,66 +112,70 @@ public partial class ArchivePage
         }
         ArchiveThreadRow[] targets = ArchiveVisibleRows.Where(row => _archiveSelectionIds.Contains(row.Summary.Id)).ToArray();
         ArchiveThreadRow? lead = ArchiveLead;
-        menu.Items.Clear();
-        if (targets.Length == 0 || lead == null) return;
+        if (targets.Length == 0 || lead == null) { ContextMenuBuilder.Clear(menu); return; }
         Control origin = ArchiveSelectionList;
         ResourceId[] ids = targets.Select(row => row.Summary.Id).ToArray();
         string[] urls = targets.Select(row => row.Summary.Url).ToArray();
-        List<MenuItem> commands = new();
         List<Func<string?>> disabledReasons = new();
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("nav.archive"));
         bool Ready() => _available && !_ended && !_busy && !IsReaderDialogOpen;
         void Add(string id, Action execute, Func<bool>? eligible = null, string? reason = null,
-            Func<int>? count = null, bool leadAction = false, Func<string>? actionLabel = null)
+            Func<int>? count = null, Func<string>? actionLabel = null)
         {
-            MenuItem? item = null;
-            string Label() => count != null ? Texts.T("archive.command.batchCount", actionLabel?.Invoke() ?? CommandCatalog.Label(id), count())
-                : leadAction ? Texts.T("archive.command.leadTarget", actionLabel?.Invoke() ?? CommandCatalog.Label(id), ExportMemberLabel(lead.Summary.Id))
-                : actionLabel?.Invoke() ?? CommandCatalog.Label(id);
-            void UpdateLabel()
-            {
-                if (item == null) return;
-                string label = Label();
-                item.Header = label;
-                AutomationProperties.SetName(item, label);
-                string tip = label + (CommandCatalog.ShortcutDisplay(id) is string shortcut ? " · " + shortcut : "");
-                if (!Ready()) tip += " · " + Texts.T("archive.command.busy");
-                else if (eligible?.Invoke() == false && reason != null) tip += " · " + reason;
-                ToolTip.SetTip(item, tip);
-                AutomationProperties.SetHelpText(item, tip);
-            }
-            bool Enabled() { UpdateLabel(); return Ready() && (eligible?.Invoke() ?? true); }
+            string Label() => ArchiveMenuLabels.Action(actionLabel?.Invoke() ?? CommandCatalog.Label(id), ids.Length, count?.Invoke());
+            bool Enabled() => Ready() && (eligible?.Invoke() ?? true);
             string? Reason() => !Ready() ? Texts.T("archive.command.busy") : !Enabled() ? reason : null;
-            item = CommandBindings.CreateMenuItem(id, execute, Enabled, Reason, Label);
-            item.Tag = id;
-            UpdateLabel();
-            commands.Add(item);
-            menu.Items.Add(item);
+            builder.Command(id, execute, Enabled(), Reason(), Label(), availableWhen: Enabled, reasonWhen: Reason, labelWhen: Label);
             disabledReasons.Add(() => !Enabled() && Reason() is string why ? CommandCatalog.Label(id) + ": " + why : null);
         }
         Add("thread.favorite-toggle", async () => await ToggleThreadFavoriteAsync(lead.Summary.Id),
             () => CanToggleThreadFavorite(lead.Summary.Id), _threadFavoriteLoadError ?? Texts.T("archive.command.busy"),
-            leadAction: true, actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
-        Add("thread.read", async () => { OpenReaderRequested?.Invoke(origin); await LoadThreadAsync(lead.Summary.Id); },
-            () => ids.Length == 1, Texts.T("archive.command.singleRead"), leadAction: true);
-        Add("gallery.open", async () => { if (OpenGallery != null) await OpenGallery(lead.Summary.Id, null, origin); }, leadAction: true);
-        Add("thread.details", async () => await ShowArchiveDetailsAsync(lead), leadAction: true);
-        menu.Items.Add(new Separator());
-        Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin), count: () => ids.Length);
-        Add("export.open-urltext-dialog", async () => await OpenUrlTextExportForThreadAsync(ids[0], origin),
-            () => ids.Length == 1 && CanOpenUrlTextExport, Texts.T("urltext.export.error.busy"));
+            actionLabel: () => ThreadFavoriteText.Action(_threadFavoriteIds.Contains(lead.Summary.Id)));
+        Add("thread.read", () => OpenActions.Start(() => OpenReaderOnThreadAsync(lead.Summary.Id, () => OpenReaderRequested?.Invoke(origin)), "archive.menu.read"),
+            () => ids.Length == 1, Texts.T("archive.command.singleRead"));
+        // RH1: the one "continue reading" command with the place of this thread; its shortcut opens the newest place, so none is shown here.
+        string? continueTip = null;
+        if (ids.Length == 1 && ReadingPlaceFor?.Invoke(lead.Summary.Id) is { } readingPlace && ResumeReadingPlace is { } resumeReading)
+        {
+            string? ContinueReason() => Ready() ? null : Texts.T("archive.command.busy");
+            string ContinueLabel() => Texts.T("resume.thread.action", readingPlace.PostId);
+            builder.Command("navigation.continue-reading", () => _ = resumeReading(readingPlace), Ready(), ContinueReason(), ContinueLabel(),
+                showShortcut: false, availableWhen: Ready, reasonWhen: ContinueReason, labelWhen: ContinueLabel);
+            continueTip = ReadingHistoryMenu.EntryTip(readingPlace);
+        }
+        Add("gallery.open", () => { if (OpenGallery is { } open) OpenActions.Start(() => open(lead.Summary.Id, null, origin), "archive.menu.gallery"); });
+        Add("thread.details", async () => await ShowArchiveDetailsAsync(lead));
+        // QW-A #7: from a thread to its media (the thread: chip of the Media page); several selected threads open as one thread set.
+        if (ids.Length == 1)
+            Add("thread.show-in-media", () => ShowThreadInMediaRequested?.Invoke(lead.Summary.Id, lead.Summary.Title),
+                () => ShowThreadInMediaRequested != null, null);
+        else
+            Add("thread.show-in-media", () => ShowArchiveSelectionInMedia(ids, lead),
+                () => ShowThreadsInMediaRequested != null, null, count: () => ids.Length);
+        if (ids.Length == 1) Add("thread.tags", async () => await OpenThreadTagsAsync(lead.Summary.Id));
+        // Post bookmarks are scoped to individual posts, but the manager is still useful from a
+        // thread selection: it is the only place to review bookmarks when no post row is open.
+        Add("post-bookmarks.open-manager", () => OpenPostBookmarks?.Invoke(),
+            () => OpenPostBookmarks != null, Texts.T("reader.thread.bookmarksUnavailable"));
+        if (ids.Length == 1) AddThreadTagFilterSubmenu(builder, lead.Summary.Id);
+        builder.Section();
+        Add("export.open-html-dialog", async () => await OpenExportForThreadsAsync(ids, origin, offerResults: true), count: () => ids.Length);
+        if (ids.Length == 1)
+            Add("export.open-urltext-dialog", async () => await OpenExportForThreadsAsync(new[] { ids[0] }, origin, offerResults: true, format: ExportFormat.LinkList),
+                () => CanOpenUrlTextExport, Texts.T("urltext.export.error.busy"));
         Add("selection.copy-links", async () => { if (CopySelectedUrls != null) await CopySelectedUrls(urls); }, count: () => urls.Length);
         Add("location.open-folder", () => RunArchiveLeadAction(lead, "folder"),
-            () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"), leadAction: true);
+            () => !string.IsNullOrWhiteSpace(lead.Summary.MediaDirectory), Texts.T("archive.command.noFolder"));
         Add("location.open-source", () => RunArchiveLeadAction(lead, "browser"),
-            () => !string.IsNullOrWhiteSpace(lead.Summary.Url), Texts.T("archive.command.noSource"), leadAction: true);
-        menu.Items.Add(new Separator());
+            () => !string.IsNullOrWhiteSpace(lead.Summary.Url), Texts.T("archive.command.noSource"));
+        builder.Section();
         Add("watch.check", async () => await CheckArchiveTargetsAsync(ids, false),
             () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, false).Length > 0, Texts.T("archive.command.noCheck"), count: () => EligibleArchiveWatches(ids, false).Length);
         Add("watch.retry-media", async () => await CheckArchiveTargetsAsync(ids, true),
             () => CheckSelectedWatches != null && EligibleArchiveWatches(ids, true).Length > 0, Texts.T("archive.command.noRetry"), count: () => EligibleArchiveWatches(ids, true).Length);
         Add("rules.edit-scope", () => RunArchiveLeadAction(lead, "rules"),
-            () => CanRemoveWatch?.Invoke(lead.Summary.Id) == true && SelectionLeadAction != null, Texts.T("archive.command.noWatch"), leadAction: true);
-        menu.Items.Add(new Separator());
+            () => CanRemoveWatch?.Invoke(lead.Summary.Id) == true && SelectionLeadAction != null, Texts.T("archive.command.noWatch"));
+        builder.Section();
         Add("watch.remove", async () =>
         {
             ResourceId[] eligible = ids.Where(id => CanRemoveWatch?.Invoke(id) == true).ToArray();
@@ -186,20 +186,16 @@ public partial class ArchivePage
         {
             if (DeletePermanentlyRequested != null) await DeletePermanentlyRequested(ids, origin);
         }, () => DeletePermanentlyRequested != null, count: () => ids.Length);
+
         if (ids.Length > 1)
         {
-            string count = string.Format(Texts.T("archive.command.selectionCount"), ids.Length);
-            menu.Items.Add(new Separator());
-            // Keep the explanatory prose compact even when the menu theme adds
-            // the shared shortcut column to this shortcut-free row.
-            MenuItem info = new() { Header = new TextBlock { Text = count, TextWrapping = TextWrapping.Wrap, MaxWidth = 280 },
-                Icon = CommandBindings.Icon("thread.details") };
+            string count = Texts.Count("archive.command.selectionCount", ids.Length);
+            MenuItem info = new() { Header = new TextBlock { Text = count, TextWrapping = TextWrapping.Wrap, MaxWidth = 280 }, Icon = CommandBindings.Icon("thread.details") };
             info.Click += (_, _) => Message(count);
             AutomationProperties.SetName(info, count);
-            menu.Items.Add(info);
+            // Appended through the builder: Populate makes the menu one ItemsSource, so Items.Add afterwards would throw.
+            builder.Append(new Separator(), info);
         }
-        // Disabled commands cannot receive keyboard focus. Refresh this enabled
-        // explanation together with changing counts and command availability.
         string explanation = string.Empty;
         MenuItem unavailable = new() { Header = Texts.T("archive.command.unavailable"), Icon = CommandBindings.Icon("thread.details") };
         void UpdateExplanation()
@@ -211,12 +207,19 @@ public partial class ArchivePage
             AutomationProperties.SetHelpText(unavailable, explanation);
         }
         unavailable.Click += (_, _) => Message(explanation);
-        menu.Items.Add(unavailable);
+        builder.Append(unavailable);
         UpdateExplanation();
+        builder.Populate(menu);
+        // The place of the thread is the continue entry's tooltip and help text (the builder gives enabled entries none).
+        if (continueTip != null && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "navigation.continue-reading")) is { } continueItem)
+        {
+            ToolTip.SetTip(continueItem, continueTip);
+            AutomationProperties.SetHelpText(continueItem, continueTip);
+        }
         DispatcherTimer refresh = new() { Interval = TimeSpan.FromMilliseconds(250) };
         refresh.Tick += (_, _) =>
         {
-            foreach (MenuItem item in commands) CommandBindings.Refresh(item);
+            foreach (MenuItem item in menu.Items.OfType<MenuItem>()) CommandBindings.Refresh(item);
             UpdateExplanation();
         };
         _archiveMenuRefreshTimers.Add(menu, refresh);

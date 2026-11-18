@@ -132,7 +132,7 @@ public sealed class GalleryPlaybackContinuityRegressionTests
         var volume = new VolumeHost(volumeChild) { Minimum = 0, Maximum = 100, Value = 29 };
         foreach (Control source in new[] { seekChild, volumeChild })
         {
-            var press = new KeyEventArgs { Source = source, Key = key };
+            var press = new KeyEventArgs { Source = source, Key = key, KeyModifiers = KeyModifiers.Shift };
             Assert.True(EffectiveShortcutBindings.Build().Matches(press, id));
             Assert.False(CommandBindings.Matches(press, id)); // Generic native-input guard.
             Assert.True(CommandBindings.MatchesGalleryTransport(press, id, seek, volume));
@@ -179,11 +179,23 @@ public sealed class GalleryPlaybackContinuityRegressionTests
                 KeyModifiers.Shift => "Shift+",
                 _ => "Control+Shift+"
             };
-            var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection()
-                .Set("gallery.previous", []).Set("gallery.next", [])
-                .Set("video.volume-down", [])
-                .Set("video.volume-up", [ShortcutGesture.Parse(prefix + key)]));
-            Assert.True(bindings.Matches(press, "video.volume-up"));
+            foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
+            {
+                var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection()
+                    .Set("gallery.previous", []).Set("gallery.next", [])
+                    .Set("video.volume-down", [])
+                    .Set("video.volume-up", [ShortcutGesture.Parse(prefix + key)]), platform);
+                if (platform == ShortcutPlatform.MacOS && key == Key.Up && modifiers == KeyModifiers.Control)
+                {
+                    // Mission Control owns Ctrl+Up on macOS. It is deliberately rejected,
+                    // not a usable custom volume binding; the native-input guards above
+                    // still cover it, and the other gestures prove live custom bindings.
+                    Assert.False(bindings.Matches(press, "video.volume-up"));
+                    Assert.Contains(bindings.Issues, issue => issue.Reason?.Code == "reservedMacSystem");
+                }
+                else
+                    Assert.True(bindings.Matches(press, "video.volume-up"));
+            }
             Assert.False(press.Handled);
         }
         Assert.Equal("synthetic note", editor.Text);
@@ -194,7 +206,7 @@ public sealed class GalleryPlaybackContinuityRegressionTests
     {
         var config = new Config { VideoVolume = 29, VideoStartMuted = true, VideoAutoplay = false };
         var baseline = GalleryPlaybackPreferences.FromConfig(config);
-        var edited = baseline.WithControlsOverlay(true) with { Mode = GalleryPlaybackMode.Repeat };
+        var edited = baseline.WithControlsOverlay(true) with { VideoRepeat = true };
         // A newer live volume has priority over an unrelated playback draft.
         config.VideoVolume = 61;
         edited.ApplyChangesTo(config, baseline);
@@ -202,7 +214,7 @@ public sealed class GalleryPlaybackContinuityRegressionTests
         Assert.Equal(61, config.VideoVolume);
         Assert.True(config.VideoStartMuted);
         Assert.False(config.VideoAutoplay);
-        Assert.Equal(GalleryPlaybackMode.Repeat, GalleryPlaybackPreferences.FromConfig(config).Mode);
+        Assert.True(GalleryPlaybackPreferences.FromConfig(config).VideoRepeat);
     }
 
     [Fact]

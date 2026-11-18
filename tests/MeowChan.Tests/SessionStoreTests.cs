@@ -540,6 +540,75 @@ public sealed class SessionStoreTests
         Assert.True(child.ExitCode == 0, $"Profile lease subprocess failed. {await output} {await errors}");
     }
 
+    [MeowChan.Tests.PersistenceCorruption.SymbolicLinkTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ADanglingSessionLinkLoadsWithAWarningAndTheNextSavesSucceed(bool withBackup)
+    {
+        if (!AtomicJsonFile.CanAtomicallyReplaceSymbolicLink) return; // Windows refuses to replace a link; covered elsewhere.
+        using TempDirectory directory = new TempDirectory();
+        using TempDirectory outside = new TempDirectory();
+        string backupPath = SessionPath(directory) + ".bak";
+        byte[]? backupBytes = null;
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        SessionStore store = new SessionStore(directory.Path, lease);
+        if (withBackup)
+        {
+            await store.SaveAsync(FullSnapshot(directory.Path));
+            await store.SaveAsync(FullSnapshot(directory.Path));
+            backupBytes = File.ReadAllBytes(backupPath);
+        }
+        File.Delete(SessionPath(directory));
+        string linkText = Path.Combine(outside.Path, "saved_urls.json");
+        File.CreateSymbolicLink(SessionPath(directory), linkText);
+
+        SessionLoadResult loaded = await store.LoadAsync();
+
+        Assert.True(loaded.Recovered);
+        Assert.NotNull(loaded.Warning);
+        Assert.Contains("symbolic link target is missing", loaded.Warning);
+        Assert.Equal(withBackup ? new[] { ThreadUrl } : Array.Empty<string>(), loaded.Snapshot.ThreadUrls);
+
+        await store.SaveAsync(FullSnapshot(directory.Path));
+        if (withBackup) Assert.Equal(backupBytes, File.ReadAllBytes(backupPath));
+        await store.SaveAsync(new SessionSnapshot { BoardUrls = new[] { BoardUrl } });
+
+        SessionLoadResult reloaded = await store.LoadAsync();
+        Assert.False(reloaded.Recovered);
+        Assert.Null(reloaded.Warning);
+        Assert.Equal(new[] { BoardUrl }, reloaded.Snapshot.BoardUrls);
+        Assert.Null(new FileInfo(SessionPath(directory)).LinkTarget);
+        string sidecar = Assert.Single(Directory.GetFileSystemEntries(directory.Path, "saved_urls.json.dangling-link-*"));
+        Assert.Equal(linkText, new FileInfo(sidecar).LinkTarget);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside.Path));
+        Assert.Empty(Directory.GetFiles(directory.Path, "*.tmp"));
+    }
+
+    [MeowChan.Tests.PersistenceCorruption.SymbolicLinkTheory]
+    [InlineData("dangling")]
+    public async Task ADanglingSessionBackupLinkIsKeptAndDoesNotBlockSaves(string kind)
+    {
+        if (!AtomicJsonFile.CanAtomicallyReplaceSymbolicLink) return;
+        using TempDirectory directory = new TempDirectory();
+        using TempDirectory outside = new TempDirectory();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        SessionStore store = new SessionStore(directory.Path, lease);
+        await store.SaveAsync(FullSnapshot(directory.Path));
+        string backupPath = SessionPath(directory) + ".bak";
+        string linkText = Path.Combine(outside.Path, kind + ".json");
+        File.CreateSymbolicLink(backupPath, linkText);
+        string primary = File.ReadAllText(SessionPath(directory));
+
+        Assert.Null((await store.LoadAsync()).Warning);
+        await store.SaveAsync(new SessionSnapshot { BoardUrls = new[] { BoardUrl } });
+
+        Assert.Equal(primary, File.ReadAllText(backupPath));
+        string sidecar = Assert.Single(Directory.GetFileSystemEntries(directory.Path, "saved_urls.json.bak.dangling-link-*"));
+        Assert.Equal(linkText, new FileInfo(sidecar).LinkTarget);
+        Assert.Equal(new[] { BoardUrl }, (await store.LoadAsync()).Snapshot.BoardUrls);
+        Assert.Empty(Directory.EnumerateFileSystemEntries(outside.Path));
+    }
+
     private static SessionSnapshot FullSnapshot(string downloadRoot)
     {
         return new SessionSnapshot

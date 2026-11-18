@@ -46,7 +46,7 @@ public partial class ArchivePage
         _transferPreviewRouter = new(this);
         _transferPreviewRouter.Register(new("archive.transfer-preview", this,
             () => !_ended && IsEffectivelyVisible, () => CanOpenTransferPreview,
-            () => _ = OpenTransferPreviewAsync(), Priority: 100));
+            () => OpenActions.Start(OpenTransferPreviewAsync, "archive.transferPreview.open"), Priority: 100));
         AddHandler(KeyDownEvent, RouteTransferPreviewCommand, RoutingStrategies.Bubble);
     }
 
@@ -54,12 +54,12 @@ public partial class ArchivePage
 
     private bool CanOpenTransferPreview => !_ended && !_busy && _available && !_urlTextExportBusy
         && !_transferPreviewOpening && _transferPreviewDialog == null && _transferImportDialog == null
-        && !IsArchiveCleanupOpen && !IsReaderDialogOpen && !_exportRunning
+        && !IsArchiveCleanupOpen && !IsReaderDialogOpen && !_exportRunning && !IsTransferExportOpen
         && (_transferImportHost == null || _transferImportHost.State == DesktopSessionState.Ready);
 
     private void UpdateTransferPreviewAction()
     {
-        Button button = Control<Button>("ArchiveTransferPreview");
+        Button button = ArchiveTransferPreview;
         CommandBindings.Apply(button, "archive.transfer-preview", iconWithLabel: true);
         button.IsEnabled = CanOpenTransferPreview;
     }
@@ -79,7 +79,7 @@ public partial class ArchivePage
 
     private async Task OpenTransferImportAsync(Window owner)
     {
-        Control origin = Control<Button>("ArchiveTransferPreview");
+        Control origin = ArchiveTransferPreview;
         NativeTransferImportSession? session = null;
         NativeTransferImportDialog? dialog = null;
         string? workDirectory = null;
@@ -140,14 +140,14 @@ public partial class ArchivePage
             {
                 UpdateTransferPreviewAction();
                 if (retained) Message(Texts.T("transfer.import.cleanupRetained"), true);
-                if (origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
+                if (ActionOriginFocusTarget(origin) is { IsEffectivelyEnabled: true } target) target.Focus();
             }
         }
     }
 
     private async Task OpenPreviewOnlyAsync(Window owner)
     {
-        Control origin = Control<Button>("ArchiveTransferPreview");
+        Control origin = ArchiveTransferPreview;
         NativeTransferPreviewSession? session = null;
         NativeTransferPreviewDialog? dialog = null;
         string? workDirectory = null;
@@ -209,7 +209,7 @@ public partial class ArchivePage
             {
                 UpdateTransferPreviewAction();
                 if (retained) Message(Texts.T("transfer.preview.cleanupRetained"), true);
-                if (origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
+                if (ActionOriginFocusTarget(origin) is { IsEffectivelyEnabled: true } target) target.Focus();
             }
         }
     }

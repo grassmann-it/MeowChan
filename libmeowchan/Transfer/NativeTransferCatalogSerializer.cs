@@ -199,6 +199,8 @@ internal static class NativeTransferCatalogSerializer
                 || (m.AttachmentRevisionKey is null ? a.History != null : a.History is null && !allowUnattestedHistory))) throw Bad();
         w.WriteStartObject(); Number(w, "position", m.Position); Text(w, "mediaId", m.MediaId); Required(w, "variant", m.Variant);
         Text(w, "url", m.Url); Text(w, "originalFileName", m.OriginalFileName); Number(w, "expectedSize", m.ExpectedSize);
+        if (m.Width is { } width) w.WriteNumber("width", width);
+        if (m.Height is { } height) w.WriteNumber("height", height);
         Text(w, "expectedMd5", m.ExpectedMd5); Text(w, "expectedSha1", m.ExpectedSha1); Text(w, "expectedSha256", m.ExpectedSha256);
         if (m.ProviderSizeHint is not { } h) w.WriteNull("sizeHint");
         else

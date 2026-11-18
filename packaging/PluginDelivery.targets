@@ -3,24 +3,34 @@
     <MeowChanPluginDeliveryEnabled Condition="'$(MeowChanPluginDeliveryEnabled)' == ''">true</MeowChanPluginDeliveryEnabled>
     <_PluginRepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..'))/</_PluginRepositoryRoot>
     <_PluginHelperProperties>Configuration=$(Configuration);TargetFramework=net10.0;PublishSingleFile=false;PublishTrimmed=false;CopyOutputSymbolsToPublishDirectory=false;PublishDocumentationFiles=false</_PluginHelperProperties>
+    <!-- Keep the build-time contract closed: project/output mutation cannot turn an
+         allowlisted project into an arbitrary delivered assembly or source file. -->
+    <_ShippedPluginAssemblies>MeowChan.Plugin.FourChan;MeowChan.Plugin.EightKun;MeowChan.Plugin.Danbooru;MeowChan.Plugin.VichanFamily;MeowChan.Plugin.Kohlchan;MeowChan.ImageDimensionsFilter;MeowChan.Plugin.Endchan;MeowChan.FileRulesFilter;MeowChan.HashBlocklistFilter;MeowChan.AnimationFormatFilter;MeowChan.PngMetadataFilter;MeowChan.Plugin.Dvach;MeowChan.Plugin.JschanFamily;MeowChan.Plugin.SevenChan;MeowChan.Plugin.BbwChan;MeowChan.Plugin.AnonImageboards;MeowChan.Plugin.CapybaraChan;MeowChan.Plugin.EightchanMoe;MeowChan.Plugin.Fchan;MeowChan.Plugin.GuroCx</_ShippedPluginAssemblies>
+    <_PluginExampleSourceNames>VichanFamily.cs;Kohlchan.cs;ImageDimensionsFilter.cs;Endchan.cs;FileRulesFilter.cs;HashBlocklistFilter.cs;AnimationFormatFilter.cs;PngMetadataFilter.cs;Dvach.cs;JschanFamily.cs;SevenChan.cs;BbwChan.cs;AnonImageboards.cs;CapybaraChan.cs;EightchanMoe.cs;Fchan.cs;GuroCx.cs</_PluginExampleSourceNames>
   </PropertyGroup>
   <!-- These are restore/build graph edges only. No helper/Roslyn assembly is a Desktop reference. -->
   <ItemGroup Condition="'$(MeowChanPluginDeliveryEnabled)' == 'true'">
     <_PluginHelperProject Include="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj;$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" />
-    <_ShippedPluginProject Include="$(_PluginRepositoryRoot)plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj;$(_PluginRepositoryRoot)plugins/Official/EightKun/MeowChan.Plugin.EightKun.csproj;$(_PluginRepositoryRoot)plugins/Examples/Lainchan/MeowChan.Plugin.Lainchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/MeowChan.Plugin.Kohlchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/MeowChan.ImageDimensionsFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/Wizchan/MeowChan.Plugin.Wizchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/Endchan/MeowChan.Plugin.Endchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/FileRulesFilter/MeowChan.FileRulesFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/HashBlocklistFilter/MeowChan.HashBlocklistFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/AnimationFormatFilter/MeowChan.AnimationFormatFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/PngMetadataFilter/MeowChan.PngMetadataFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/Leftypol/MeowChan.Plugin.Leftypol.csproj;$(_PluginRepositoryRoot)plugins/Examples/Dvach/MeowChan.Plugin.Dvach.csproj;$(_PluginRepositoryRoot)plugins/Examples/Uboachan/MeowChan.Plugin.Uboachan.csproj;$(_PluginRepositoryRoot)plugins/Examples/Zzzchan/MeowChan.Plugin.Zzzchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/SushiChan/MeowChan.Plugin.SushiChan.csproj;$(_PluginRepositoryRoot)plugins/Examples/SevenChan/MeowChan.Plugin.SevenChan.csproj;$(_PluginRepositoryRoot)plugins/Examples/BbwChan/MeowChan.Plugin.BbwChan.csproj;$(_PluginRepositoryRoot)plugins/Examples/AnonImageboards/MeowChan.Plugin.AnonImageboards.csproj;$(_PluginRepositoryRoot)plugins/Examples/CapybaraChan/MeowChan.Plugin.CapybaraChan.csproj;$(_PluginRepositoryRoot)plugins/Examples/EightchanMoe/MeowChan.Plugin.EightchanMoe.csproj;$(_PluginRepositoryRoot)plugins/Examples/Fchan/MeowChan.Plugin.Fchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/GuroCx/MeowChan.Plugin.GuroCx.csproj" />
+    <_ShippedPluginProject Include="$(_PluginRepositoryRoot)plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj;$(_PluginRepositoryRoot)plugins/Official/EightKun/MeowChan.Plugin.EightKun.csproj;$(_PluginRepositoryRoot)plugins/Official/Danbooru/MeowChan.Plugin.Danbooru.csproj;$(_PluginRepositoryRoot)plugins/Examples/VichanFamily/MeowChan.Plugin.VichanFamily.csproj;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/MeowChan.Plugin.Kohlchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/MeowChan.ImageDimensionsFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/Endchan/MeowChan.Plugin.Endchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/FileRulesFilter/MeowChan.FileRulesFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/HashBlocklistFilter/MeowChan.HashBlocklistFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/AnimationFormatFilter/MeowChan.AnimationFormatFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/PngMetadataFilter/MeowChan.PngMetadataFilter.csproj;$(_PluginRepositoryRoot)plugins/Examples/Dvach/MeowChan.Plugin.Dvach.csproj;$(_PluginRepositoryRoot)plugins/Examples/JschanFamily/MeowChan.Plugin.JschanFamily.csproj;$(_PluginRepositoryRoot)plugins/Examples/SevenChan/MeowChan.Plugin.SevenChan.csproj;$(_PluginRepositoryRoot)plugins/Examples/BbwChan/MeowChan.Plugin.BbwChan.csproj;$(_PluginRepositoryRoot)plugins/Examples/AnonImageboards/MeowChan.Plugin.AnonImageboards.csproj;$(_PluginRepositoryRoot)plugins/Examples/CapybaraChan/MeowChan.Plugin.CapybaraChan.csproj;$(_PluginRepositoryRoot)plugins/Examples/EightchanMoe/MeowChan.Plugin.EightchanMoe.csproj;$(_PluginRepositoryRoot)plugins/Examples/Fchan/MeowChan.Plugin.Fchan.csproj;$(_PluginRepositoryRoot)plugins/Examples/GuroCx/MeowChan.Plugin.GuroCx.csproj" />
     <!-- Helpers/plugins select their own multifile defaults. Setting false as
          extra global properties creates separate solution build nodes sharing
          the same obj/bin paths; concurrent apphost generation then races. -->
     <ProjectReference Include="@(_PluginHelperProject);@(_ShippedPluginProject)" ReferenceOutputAssembly="false" Private="false" PrivateAssets="all" ExcludeAssets="all" GlobalPropertiesToRemove="PublishSingleFile;PublishTrimmed" />
-    <_PluginExampleSource Include="$(_PluginRepositoryRoot)plugins/Examples/Lainchan/Lainchan.cs;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/Kohlchan.cs;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/Wizchan/Wizchan.cs;$(_PluginRepositoryRoot)plugins/Examples/Endchan/Endchan.cs;$(_PluginRepositoryRoot)plugins/Examples/FileRulesFilter/FileRulesFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/HashBlocklistFilter/HashBlocklistFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/AnimationFormatFilter/AnimationFormatFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/PngMetadataFilter/PngMetadataFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/Leftypol/Leftypol.cs;$(_PluginRepositoryRoot)plugins/Examples/Dvach/Dvach.cs;$(_PluginRepositoryRoot)plugins/Examples/Uboachan/Uboachan.cs;$(_PluginRepositoryRoot)plugins/Examples/Zzzchan/Zzzchan.cs;$(_PluginRepositoryRoot)plugins/Examples/SushiChan/SushiChan.cs;$(_PluginRepositoryRoot)plugins/Examples/SevenChan/SevenChan.cs;$(_PluginRepositoryRoot)plugins/Examples/BbwChan/BbwChan.cs;$(_PluginRepositoryRoot)plugins/Examples/AnonImageboards/AnonImageboards.cs;$(_PluginRepositoryRoot)plugins/Examples/CapybaraChan/CapybaraChan.cs;$(_PluginRepositoryRoot)plugins/Examples/EightchanMoe/EightchanMoe.cs;$(_PluginRepositoryRoot)plugins/Examples/Fchan/Fchan.cs;$(_PluginRepositoryRoot)plugins/Examples/GuroCx/GuroCx.cs" />
+    <_PluginExampleSource Include="$(_PluginRepositoryRoot)plugins/Examples/VichanFamily/VichanFamily.cs;$(_PluginRepositoryRoot)plugins/Examples/Kohlchan/Kohlchan.cs;$(_PluginRepositoryRoot)plugins/Examples/ImageDimensionsFilter/ImageDimensionsFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/Endchan/Endchan.cs;$(_PluginRepositoryRoot)plugins/Examples/FileRulesFilter/FileRulesFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/HashBlocklistFilter/HashBlocklistFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/AnimationFormatFilter/AnimationFormatFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/PngMetadataFilter/PngMetadataFilter.cs;$(_PluginRepositoryRoot)plugins/Examples/Dvach/Dvach.cs;$(_PluginRepositoryRoot)plugins/Examples/JschanFamily/JschanFamily.cs;$(_PluginRepositoryRoot)plugins/Examples/SevenChan/SevenChan.cs;$(_PluginRepositoryRoot)plugins/Examples/BbwChan/BbwChan.cs;$(_PluginRepositoryRoot)plugins/Examples/AnonImageboards/AnonImageboards.cs;$(_PluginRepositoryRoot)plugins/Examples/CapybaraChan/CapybaraChan.cs;$(_PluginRepositoryRoot)plugins/Examples/EightchanMoe/EightchanMoe.cs;$(_PluginRepositoryRoot)plugins/Examples/Fchan/Fchan.cs;$(_PluginRepositoryRoot)plugins/Examples/GuroCx/GuroCx.cs" />
   </ItemGroup>
 
   <UsingTask TaskName="StageMeowChanPlugins" TaskFactory="RoslynCodeTaskFactory" AssemblyFile="$(MSBuildToolsPath)/Microsoft.Build.Tasks.Core.dll">
     <ParameterGroup>
-      <WorkerAssembly ParameterType="System.String" Required="true" />
-      <CompilerAssembly ParameterType="System.String" Required="true" />
-      <Plugins ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
-      <Sources ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="true" />
+      <ProjectDirectory ParameterType="System.String" Required="true" />
+      <IntermediateOutputPath ParameterType="System.String" Required="true" />
+      <StageKind ParameterType="System.String" Required="true" />
+      <ValidateOnly ParameterType="System.Boolean" Required="false" />
+      <WorkerAssembly ParameterType="System.String" Required="false" />
+      <CompilerAssembly ParameterType="System.String" Required="false" />
+      <Plugins ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" />
+      <Sources ParameterType="Microsoft.Build.Framework.ITaskItem[]" Required="false" />
+      <ExpectedPluginAssemblies ParameterType="System.String" Required="false" />
+      <ExpectedSourceFiles ParameterType="System.String" Required="false" />
       <Destination ParameterType="System.String" Required="true" />
     </ParameterGroup>
     <Task>
@@ -30,28 +40,262 @@
       <Code Type="Fragment" Language="cs"><![CDATA[
         try
         {
-            string root = Path.GetFullPath(Destination);
-            Directory.CreateDirectory(root);
+            // Destination is an untrusted stage override.  The project directory and
+            // IntermediateOutputPath are the task's trusted boundary inputs; the
+            // destination must be the exact build/publish stage derived from them.
+            StringComparison pathComparison = Path.DirectorySeparatorChar == '\\'
+                ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            string separator = Path.DirectorySeparatorChar.ToString();
+            Func<string, string> canonical = value => {
+                if (String.IsNullOrWhiteSpace(value)) throw new InvalidDataException("Plugin delivery path is empty.");
+                string full = Path.GetFullPath(value);
+                string pathRoot = Path.GetPathRoot(full);
+                if (!String.IsNullOrEmpty(pathRoot) && full.Length > pathRoot.Length)
+                    full = full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+                return full;
+            };
+            Func<string, bool> hasParentTraversal = value =>
+                String.IsNullOrEmpty(value) || value.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.None)
+                    .Any(component => component == "..");
+            Func<string, string, string> canonicalFrom = (value, baseDirectory) =>
+                Path.IsPathRooted(value) ? canonical(value) : canonical(Path.Combine(baseDirectory, value));
+            Func<string, string, bool> isWithin = (candidate, ancestor) => {
+                candidate = canonical(candidate); ancestor = canonical(ancestor);
+                if (String.Equals(candidate, ancestor, pathComparison)) return true;
+                string prefix = ancestor.EndsWith(separator, StringComparison.Ordinal) ? ancestor : ancestor + separator;
+                return candidate.StartsWith(prefix, pathComparison);
+            };
+            Func<string, FileAttributes?> attributesOrMissing = path => {
+                try { return File.GetAttributes(path); }
+                catch (FileNotFoundException) { return null; }
+                catch (DirectoryNotFoundException) { return null; }
+            };
+            Action<string, string> requireNoReparsePath = (path, description) => {
+                string current = canonical(path);
+                while (true)
+                {
+                    FileAttributes? attributes = attributesOrMissing(current);
+                    if (attributes.HasValue && (attributes.Value & FileAttributes.ReparsePoint) != 0)
+                        throw new InvalidDataException(description + " contains a symlink/reparse alias: " + current);
+                    string parent = Path.GetDirectoryName(current);
+                    if (String.IsNullOrEmpty(parent)) break;
+                    parent = canonical(parent);
+                    if (String.Equals(parent, current, pathComparison)) break;
+                    current = parent;
+                }
+            };
+            Action<string, string> requireNoReparseTree = null;
+            requireNoReparseTree = (path, description) => {
+                string full = canonical(path);
+                FileAttributes? rootAttributes = attributesOrMissing(full);
+                if (!rootAttributes.HasValue) return;
+                if ((rootAttributes.Value & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidDataException(description + " contains a symlink/reparse alias: " + full);
+                if ((rootAttributes.Value & FileAttributes.Directory) == 0) return;
+                foreach (string entry in Directory.GetFileSystemEntries(full, "*", SearchOption.TopDirectoryOnly))
+                {
+                    FileAttributes attributes = File.GetAttributes(entry);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0)
+                        throw new InvalidDataException(description + " contains a symlink/reparse alias: " + entry);
+                    if ((attributes & FileAttributes.Directory) != 0)
+                        requireNoReparseTree(entry, description);
+                }
+            };
+
+            string projectRoot = canonical(ProjectDirectory);
+            requireNoReparsePath(projectRoot, "Plugin delivery project root");
+            FileAttributes? projectAttributes = attributesOrMissing(projectRoot);
+            if (!projectAttributes.HasValue || (projectAttributes.Value & FileAttributes.Directory) == 0)
+                throw new InvalidDataException("Plugin delivery project root is not a directory: " + projectRoot);
+            if (hasParentTraversal(IntermediateOutputPath))
+                throw new InvalidDataException("Plugin delivery intermediate path contains parent traversal.");
+            string intermediateRoot = canonicalFrom(IntermediateOutputPath, projectRoot);
+            if (!isWithin(intermediateRoot, projectRoot) || String.Equals(intermediateRoot, projectRoot, pathComparison))
+                throw new InvalidDataException("Plugin delivery intermediate path is outside the project or is the project root: " + intermediateRoot);
+            requireNoReparsePath(intermediateRoot, "Plugin delivery intermediate path");
+
+            string expectedDestination;
+            if (StageKind == "build")
+                expectedDestination = canonical(Path.Combine(intermediateRoot, "plugin-delivery", "build"));
+            else if (StageKind == "publish")
+                expectedDestination = canonical(Path.Combine(intermediateRoot, "plugin-delivery", "publish", "payload"));
+            else
+                throw new InvalidDataException("Plugin delivery stage kind is not allowed: " + StageKind);
+            if (!Path.IsPathRooted(Destination) || hasParentTraversal(Destination))
+                throw new InvalidDataException("Plugin delivery destination must be an absolute path without parent traversal.");
+            string root = canonical(Destination);
+            if (!String.Equals(root, expectedDestination, pathComparison))
+                throw new InvalidDataException("Plugin delivery destination is not the trusted project staging path: " + root);
+            requireNoReparsePath(root, "Plugin delivery destination");
+            FileAttributes? destinationAttributes = attributesOrMissing(root);
+            if (destinationAttributes.HasValue)
+            {
+                if ((destinationAttributes.Value & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidDataException("Plugin delivery destination is a symlink/reparse alias: " + root);
+                if ((destinationAttributes.Value & FileAttributes.Directory) == 0)
+                    throw new InvalidDataException("Plugin delivery destination is not a directory: " + root);
+                requireNoReparseTree(root, "Plugin delivery destination");
+            }
+            // Publish writes the helper outputs before the payload task runs. Check
+            // those independently derived siblings during preflight too, otherwise
+            // a link in worker/compiler could redirect MSBuild's writes outside the
+            // staging tree before the final input validation gets a chance to run.
+            if (StageKind == "publish")
+            {
+                foreach (string helperName in new[] { "worker", "compiler" })
+                {
+                    string helperOutput = canonical(Path.Combine(intermediateRoot, "plugin-delivery", "publish", helperName));
+                    requireNoReparsePath(helperOutput, "Plugin helper publish output");
+                    FileAttributes? helperAttributes = attributesOrMissing(helperOutput);
+                    if (helperAttributes.HasValue && (helperAttributes.Value & FileAttributes.Directory) == 0)
+                        throw new InvalidDataException("Plugin helper publish output is not a directory: " + helperOutput);
+                    requireNoReparseTree(helperOutput, "Plugin helper publish output");
+                }
+            }
+            if (ValidateOnly) return true;
+
+            if (String.IsNullOrEmpty(WorkerAssembly) || String.IsNullOrEmpty(CompilerAssembly) || Plugins == null || Sources == null)
+                throw new InvalidDataException("Plugin delivery inputs are incomplete.");
+            HashSet<string> expectedAssemblies = new HashSet<string>(ExpectedPluginAssemblies.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
+            HashSet<string> expectedSources = new HashSet<string>(ExpectedSourceFiles.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries), StringComparer.Ordinal);
+            HashSet<string> forbiddenComponents = new HashSet<string>(new[] { "bin", "obj", ".git", ".vs", "profile", "profiles" }, StringComparer.OrdinalIgnoreCase);
+            if (expectedAssemblies.Count == 0 || expectedSources.Count == 0) throw new InvalidDataException("The public plugin inventory is empty.");
+
             Func<string, string> hash = file => { using (var algorithm = SHA256.Create()) using (var data = File.OpenRead(file))
                 return BitConverter.ToString(algorithm.ComputeHash(data)).Replace("-", "").ToLowerInvariant(); };
+            Action<string, string> requireRegular = (path, description) => {
+                FileAttributes attributes = File.GetAttributes(path);
+                if ((attributes & FileAttributes.ReparsePoint) != 0 || (attributes & FileAttributes.Directory) != 0 || !File.Exists(path))
+                    throw new InvalidDataException(description + " is not a regular file: " + path);
+            };
+            Action<string> validateHelperTree = source => {
+                string fullSource = canonical(source);
+                FileAttributes? sourceAttributes = attributesOrMissing(fullSource);
+                if (!sourceAttributes.HasValue || (sourceAttributes.Value & FileAttributes.Directory) == 0)
+                    throw new InvalidDataException("Plugin helper output is not a directory: " + source);
+                if ((sourceAttributes.Value & FileAttributes.ReparsePoint) != 0)
+                    throw new InvalidDataException("Plugin helper output cannot be a link: " + source);
+                string sourceRoot = fullSource.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + separator;
+                foreach (string entry in Directory.GetFileSystemEntries(fullSource, "*", SearchOption.AllDirectories)) {
+                    FileAttributes attributes = File.GetAttributes(entry);
+                    if (!entry.StartsWith(sourceRoot, pathComparison))
+                        throw new InvalidDataException("Plugin helper entry escaped its output root: " + entry);
+                    string relative = entry.Substring(sourceRoot.Length);
+                    if (relative.Split(new[] { Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar }, StringSplitOptions.RemoveEmptyEntries).Any(forbiddenComponents.Contains))
+                        throw new InvalidDataException("Plugin helper output contains a build or profile artifact: " + relative);
+                    if ((attributes & FileAttributes.ReparsePoint) != 0)
+                        throw new InvalidDataException("Plugin helper output cannot contain a link: " + relative);
+                }
+            };
+            Action<string, string> rejectInputOverlap = (input, description) => {
+                string inputPath = canonical(input);
+                string inputDirectory = Path.GetDirectoryName(inputPath);
+                if (String.IsNullOrEmpty(inputDirectory)) inputDirectory = inputPath;
+                inputDirectory = canonical(inputDirectory);
+                if (isWithin(root, inputDirectory) || isWithin(inputDirectory, root))
+                    throw new InvalidDataException("Plugin delivery destination overlaps an input directory (" + description + "): " + inputDirectory);
+            };
+
+            string worker = Path.GetDirectoryName(canonical(WorkerAssembly));
+            string compiler = Path.GetDirectoryName(canonical(CompilerAssembly));
+            if (String.IsNullOrEmpty(worker) || String.IsNullOrEmpty(compiler))
+                throw new InvalidDataException("Plugin helper assembly paths have no parent directory.");
+            // rejectInputOverlap accepts a file and obtains its containing directory.
+            // Passing worker/compiler here would climb twice and reject the normal
+            // publish layout where both helper directories are siblings of payload.
+            rejectInputOverlap(WorkerAssembly, "worker");
+            rejectInputOverlap(CompilerAssembly, "compiler");
+            validateHelperTree(worker);
+            validateHelperTree(compiler);
+            if (Plugins.Length != expectedAssemblies.Count) throw new InvalidDataException("Delivered plugin project count differs from the public inventory.");
+            if (Sources.Length != expectedSources.Count) throw new InvalidDataException("Delivered source count differs from the public inventory.");
+            HashSet<string> inputAssemblies = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in Plugins)
+            {
+                string assembly = item.ItemSpec, name = Path.GetFileNameWithoutExtension(assembly), fileName = Path.GetFileName(assembly);
+                if (!Regex.IsMatch(fileName, "^[A-Za-z0-9._-]+[.]dll$") || !expectedAssemblies.Contains(name) || !inputAssemblies.Add(name))
+                    throw new InvalidDataException("Delivered assembly is outside the public plugin inventory: " + fileName);
+                requireRegular(assembly, "Plugin delivery input");
+                rejectInputOverlap(assembly, "plugin assembly");
+            }
+            HashSet<string> inputSources = new HashSet<string>(StringComparer.Ordinal);
+            foreach (var item in Sources)
+            {
+                string sourceName = Path.GetFileName(item.ItemSpec);
+                if (!expectedSources.Contains(sourceName) || !inputSources.Add(sourceName) || Path.GetExtension(sourceName) != ".cs")
+                    throw new InvalidDataException("Delivered source is outside the public plugin inventory: " + sourceName);
+                requireRegular(item.ItemSpec, "Plugin delivery input");
+                rejectInputOverlap(item.ItemSpec, "plugin source");
+            }
+            if (!inputAssemblies.SetEquals(expectedAssemblies)) throw new InvalidDataException("Delivered plugin assemblies differ from the public inventory.");
+            if (!inputSources.SetEquals(expectedSources)) throw new InvalidDataException("Delivered sources differ from the public inventory.");
+
+            Func<string, string> ensureDestinationDirectory = target => {
+                string fullTarget = canonical(target);
+                if (!isWithin(fullTarget, root) || String.Equals(fullTarget, root, pathComparison) || hasParentTraversal(target))
+                    throw new InvalidDataException("Plugin delivery destination escaped its trusted stage: " + target);
+                requireNoReparsePath(fullTarget, "Plugin delivery destination");
+                FileAttributes? attributes = attributesOrMissing(fullTarget);
+                if (attributes.HasValue)
+                {
+                    if ((attributes.Value & FileAttributes.ReparsePoint) != 0 || (attributes.Value & FileAttributes.Directory) == 0)
+                        throw new InvalidDataException("Plugin delivery destination is not a normal directory: " + fullTarget);
+                    requireNoReparseTree(fullTarget, "Plugin delivery destination");
+                }
+                string parent = Path.GetDirectoryName(fullTarget);
+                if (String.IsNullOrEmpty(parent) || !isWithin(parent, root))
+                    throw new InvalidDataException("Plugin delivery destination parent escaped its trusted stage: " + fullTarget);
+                requireNoReparsePath(parent, "Plugin delivery destination parent");
+                return fullTarget;
+            };
+            Func<string, string> ensureDestinationFile = target => {
+                string fullTarget = canonical(target);
+                if (!isWithin(fullTarget, root) || String.Equals(fullTarget, root, pathComparison) || hasParentTraversal(target))
+                    throw new InvalidDataException("Plugin delivery destination escaped its trusted stage: " + target);
+                requireNoReparsePath(fullTarget, "Plugin delivery destination");
+                FileAttributes? attributes = attributesOrMissing(fullTarget);
+                if (attributes.HasValue && ((attributes.Value & FileAttributes.ReparsePoint) != 0 || (attributes.Value & FileAttributes.Directory) != 0))
+                    throw new InvalidDataException("Plugin delivery destination is not a regular file: " + fullTarget);
+                string parent = Path.GetDirectoryName(fullTarget);
+                if (String.IsNullOrEmpty(parent) || !isWithin(parent, root))
+                    throw new InvalidDataException("Plugin delivery destination parent escaped its trusted stage: " + fullTarget);
+                requireNoReparsePath(parent, "Plugin delivery destination parent");
+                FileAttributes? parentAttributes = attributesOrMissing(parent);
+                if (parentAttributes.HasValue && (parentAttributes.Value & FileAttributes.Directory) == 0)
+                    throw new InvalidDataException("Plugin delivery destination parent is not a directory: " + parent);
+                return fullTarget;
+            };
             Action<string, string> copy = (source, target) => {
-                Directory.CreateDirectory(Path.GetDirectoryName(target));
-                if (!File.Exists(target) || new FileInfo(source).Length != new FileInfo(target).Length || hash(source) != hash(target))
-                    File.Copy(source, target, true);
+                requireRegular(source, "Plugin delivery input");
+                string fullTarget = ensureDestinationFile(target);
+                Directory.CreateDirectory(Path.GetDirectoryName(fullTarget));
+                if (!File.Exists(fullTarget) || new FileInfo(source).Length != new FileInfo(fullTarget).Length || hash(source) != hash(fullTarget))
+                    File.Copy(source, fullTarget, true);
             };
             Action<string, string> copyTree = (source, target) => {
-                HashSet<string> expected = new HashSet<string>(StringComparer.Ordinal);
-                foreach (string file in Directory.GetFiles(source, "*", SearchOption.AllDirectories))
+                validateHelperTree(source);
+                string fullTarget = ensureDestinationDirectory(target);
+                if (Directory.Exists(fullTarget)) Directory.Delete(fullTarget, true);
+                Directory.CreateDirectory(fullTarget);
+                string sourceFull = canonical(source);
+                string sourceRoot = sourceFull.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + separator;
+                foreach (string file in Directory.GetFiles(sourceFull, "*", SearchOption.AllDirectories))
                 {
                     if (Path.GetExtension(file) == ".pdb" || Path.GetExtension(file) == ".xml") continue;
-                    string relative = file.Substring(source.TrimEnd(Path.DirectorySeparatorChar).Length + 1);
-                    expected.Add(relative); copy(file, Path.Combine(target, relative));
+                    if (!file.StartsWith(sourceRoot, pathComparison))
+                        throw new InvalidDataException("Plugin helper entry escaped its output root: " + file);
+                    string relative = file.Substring(sourceRoot.Length);
+                    copy(file, Path.Combine(fullTarget, relative));
                 }
-                if (Directory.Exists(target)) foreach (string file in Directory.GetFiles(target, "*", SearchOption.AllDirectories))
-                    if (!expected.Contains(file.Substring(target.TrimEnd(Path.DirectorySeparatorChar).Length + 1))) File.Delete(file);
             };
-            string worker = Path.GetDirectoryName(Path.GetFullPath(WorkerAssembly));
-            string compiler = Path.GetDirectoryName(Path.GetFullPath(CompilerAssembly));
+
+            // No destination mutation occurs before this point.  Recheck the exact
+            // root before deleting it, then keep every generated path below it.
+            requireNoReparsePath(root, "Plugin delivery destination");
+            FileAttributes? rootBeforeDelete = attributesOrMissing(root);
+            if (rootBeforeDelete.HasValue) requireNoReparseTree(root, "Plugin delivery destination");
+            if (Directory.Exists(root)) Directory.Delete(root, true);
+            Directory.CreateDirectory(root);
             copyTree(worker, Path.Combine(root, "plugin-worker"));
             copyTree(compiler, Path.Combine(root, "plugin-compiler"));
             string toolchain = File.ReadAllText(Path.Combine(compiler, "toolchain.json"));
@@ -63,28 +307,31 @@
             string sdk = fingerprint("SdkFingerprint"), compilerFingerprint = fingerprint("CompilerFingerprint");
             if (hash(Path.Combine(worker, "MeowChan.PluginSdk.dll")) != sdk)
                 throw new InvalidDataException("Worker and compiler SDK bytes differ.");
-            string plugins = Path.Combine(root, "plugins"); Directory.CreateDirectory(plugins);
-            HashSet<string> pluginFiles = new HashSet<string>(StringComparer.Ordinal);
+            string plugins = ensureDestinationDirectory(Path.Combine(root, "plugins"));
+            Directory.CreateDirectory(plugins);
+            HashSet<string> actualAssemblies = new HashSet<string>(StringComparer.Ordinal);
             foreach (var item in Plugins)
             {
-                string assembly = item.ItemSpec, name = Path.GetFileName(assembly);
-                if (!Regex.IsMatch(name, "^[A-Za-z0-9._-]+[.]dll$")) throw new InvalidDataException("Invalid delivered assembly name.");
-                string relative = "assemblies/" + name;
-                copy(assembly, Path.Combine(plugins, relative)); pluginFiles.Add(relative);
-                string manifestName = Path.GetFileNameWithoutExtension(name) + ".plugin.json";
+                string assembly = item.ItemSpec, name = Path.GetFileNameWithoutExtension(assembly), fileName = Path.GetFileName(assembly);
+                string relative = "assemblies/" + fileName;
+                copy(assembly, Path.Combine(plugins, relative));
+                string manifestName = name + ".plugin.json";
                 string json = "{\n  \"SchemaVersion\": 1,\n  \"AssemblyRelativePath\": \"" + relative + "\",\n  \"AssemblySha256\": \"" + hash(assembly) +
                     "\",\n  \"SdkFingerprint\": \"" + sdk + "\",\n  \"CompilerFingerprint\": \"" + compilerFingerprint + "\",\n  \"Resources\": []\n}\n";
-                string manifest = Path.Combine(plugins, manifestName);
+                string manifest = ensureDestinationFile(Path.Combine(plugins, manifestName));
                 if (!File.Exists(manifest) || File.ReadAllText(manifest) != json) File.WriteAllText(manifest, json, new UTF8Encoding(false));
-                pluginFiles.Add(manifestName);
+                if (!actualAssemblies.Add(name)) throw new InvalidDataException("Delivered assembly is duplicated: " + name);
             }
+            if (!actualAssemblies.SetEquals(expectedAssemblies)) throw new InvalidDataException("Delivered plugin assemblies differ from the public inventory.");
+            HashSet<string> actualSources = new HashSet<string>(StringComparer.Ordinal);
             foreach (var item in Sources)
             {
-                string relative = "sources/" + Path.GetFileName(item.ItemSpec);
-                copy(item.ItemSpec, Path.Combine(plugins, relative)); pluginFiles.Add(relative);
+                string sourceName = Path.GetFileName(item.ItemSpec);
+                string relative = "sources/" + sourceName;
+                copy(item.ItemSpec, Path.Combine(plugins, relative));
+                if (!actualSources.Add(sourceName)) throw new InvalidDataException("Delivered source is duplicated: " + sourceName);
             }
-            foreach (string file in Directory.GetFiles(plugins, "*", SearchOption.AllDirectories))
-                if (!pluginFiles.Contains(file.Substring(plugins.Length + 1).Replace(Path.DirectorySeparatorChar, '/'))) File.Delete(file);
+            if (!actualSources.SetEquals(expectedSources)) throw new InvalidDataException("Delivered sources differ from the public inventory.");
         }
         catch (Exception exception) { Log.LogErrorFromException(exception, true); return false; }
       ]]></Code>
@@ -94,9 +341,17 @@
   <Target Name="PrepareMeowChanPluginBuildDelivery" BeforeTargets="GetCopyToOutputDirectoryItems" DependsOnTargets="ResolveProjectReferences"
           Condition="'$(MeowChanPluginDeliveryEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <PropertyGroup>
-      <_PluginDeliveryStage>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/build/</_PluginDeliveryStage>
-      <_PluginPublishStage>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/</_PluginPublishStage>
+      <!-- These are compatibility inputs, not the trust boundary. The task derives
+           the only accepted destination independently from the project parameters.
+           Keep this calculation at target execution: SDK targets finalize
+           IntermediateOutputPath after the project body is evaluated. -->
+      <_PluginDeliveryTrustedIntermediateRoot>$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))</_PluginDeliveryTrustedIntermediateRoot>
+      <_PluginDeliveryTrustedBuildStage>$(_PluginDeliveryTrustedIntermediateRoot)/plugin-delivery/build/</_PluginDeliveryTrustedBuildStage>
+      <_PluginDeliveryTrustedPublishStage>$(_PluginDeliveryTrustedIntermediateRoot)/plugin-delivery/publish/</_PluginDeliveryTrustedPublishStage>
+      <_PluginDeliveryStage>$(_PluginDeliveryTrustedBuildStage)</_PluginDeliveryStage>
+      <_PluginPublishStage>$(_PluginDeliveryTrustedPublishStage)</_PluginPublishStage>
     </PropertyGroup>
+    <StageMeowChanPlugins ProjectDirectory="$(MSBuildProjectDirectory)" IntermediateOutputPath="$(IntermediateOutputPath)" StageKind="build" ValidateOnly="true" Destination="$(_PluginDeliveryStage)" />
     <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_WorkerDeliveryAssembly" />
     </MSBuild>
@@ -106,7 +361,7 @@
     <MSBuild Projects="@(_ShippedPluginProject)" Targets="GetTargetPath" Properties="$(_PluginHelperProperties)" RemoveProperties="RuntimeIdentifier;SelfContained" BuildInParallel="false">
       <Output TaskParameter="TargetOutputs" ItemName="_PluginDeliveryAssembly" />
     </MSBuild>
-    <StageMeowChanPlugins WorkerAssembly="@(_WorkerDeliveryAssembly)" CompilerAssembly="@(_CompilerDeliveryAssembly)" Plugins="@(_PluginDeliveryAssembly)" Sources="@(_PluginExampleSource)" Destination="$(_PluginDeliveryStage)" />
+    <StageMeowChanPlugins ProjectDirectory="$(MSBuildProjectDirectory)" IntermediateOutputPath="$(IntermediateOutputPath)" StageKind="build" ValidateOnly="false" WorkerAssembly="@(_WorkerDeliveryAssembly)" CompilerAssembly="@(_CompilerDeliveryAssembly)" Plugins="@(_PluginDeliveryAssembly)" Sources="@(_PluginExampleSource)" ExpectedPluginAssemblies="$(_ShippedPluginAssemblies)" ExpectedSourceFiles="$(_PluginExampleSourceNames)" Destination="$(_PluginDeliveryStage)" />
     <ItemGroup>
       <_PluginBuildPayload Include="$(_PluginDeliveryStage)/**/*" />
       <ContentWithTargetPath Include="@(_PluginBuildPayload)" TargetPath="%(_PluginBuildPayload.RecursiveDir)%(_PluginBuildPayload.Filename)%(_PluginBuildPayload.Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="Never" ExcludeFromSingleFile="true" />
@@ -116,9 +371,11 @@
   <Target Name="PrepareMeowChanPluginPublishDelivery" BeforeTargets="ComputeFilesToPublish" DependsOnTargets="PrepareMeowChanPluginBuildDelivery"
           Condition="'$(MeowChanPluginDeliveryEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true'">
     <Error Condition="'$(RuntimeIdentifier)' == '' or '$(SelfContained)' != 'true'" Text="Desktop plugin delivery requires an explicit RID and self-contained publish." />
-    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" Targets="Publish" Properties="$(_PluginHelperProperties);PublishDir=$(_PluginPublishStage)/worker/" BuildInParallel="false" />
-    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" Targets="Publish" Properties="$(_PluginHelperProperties);PublishDir=$(_PluginPublishStage)/compiler/" BuildInParallel="false" />
-    <StageMeowChanPlugins WorkerAssembly="$(_PluginPublishStage)/worker/MeowChan.PluginWorker.dll" CompilerAssembly="$(_PluginPublishStage)/compiler/MeowChan.PluginCompiler.dll" Plugins="@(_PluginDeliveryAssembly)" Sources="@(_PluginExampleSource)" Destination="$(_PluginPublishStage)/payload/" />
+    <StageMeowChanPlugins ProjectDirectory="$(MSBuildProjectDirectory)" IntermediateOutputPath="$(IntermediateOutputPath)" StageKind="publish" ValidateOnly="true" Destination="$(_PluginPublishStage)/payload/" />
+    <!-- Do not use the overridable compatibility stage property for helper output. -->
+    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginWorker/MeowChan.PluginWorker.csproj" Targets="Publish" Properties="$(_PluginHelperProperties);PublishDir=$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/worker/" BuildInParallel="false" />
+    <MSBuild Projects="$(_PluginRepositoryRoot)MeowChan.PluginCompiler/MeowChan.PluginCompiler.csproj" Targets="Publish" Properties="$(_PluginHelperProperties);PublishDir=$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/compiler/" BuildInParallel="false" />
+    <StageMeowChanPlugins ProjectDirectory="$(MSBuildProjectDirectory)" IntermediateOutputPath="$(IntermediateOutputPath)" StageKind="publish" ValidateOnly="false" WorkerAssembly="$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/worker/MeowChan.PluginWorker.dll" CompilerAssembly="$([System.IO.Path]::GetFullPath('$(IntermediateOutputPath)', '$(MSBuildProjectDirectory)'))/plugin-delivery/publish/compiler/MeowChan.PluginCompiler.dll" Plugins="@(_PluginDeliveryAssembly)" Sources="@(_PluginExampleSource)" ExpectedPluginAssemblies="$(_ShippedPluginAssemblies)" ExpectedSourceFiles="$(_PluginExampleSourceNames)" Destination="$(_PluginPublishStage)/payload/" />
     <ItemGroup>
       <_PluginPublishPayload Include="$(_PluginPublishStage)/payload/**/*" />
       <ResolvedFileToPublish Include="@(_PluginPublishPayload)" RelativePath="%(_PluginPublishPayload.RecursiveDir)%(_PluginPublishPayload.Filename)%(_PluginPublishPayload.Extension)" CopyToPublishDirectory="PreserveNewest" ExcludeFromSingleFile="true" />

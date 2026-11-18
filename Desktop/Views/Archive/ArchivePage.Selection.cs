@@ -11,6 +11,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan;
 
@@ -28,10 +29,12 @@ public partial class ArchivePage
     internal Func<IReadOnlyList<ResourceId>, bool, Task>? CheckSelectedWatches { get; set; }
     internal Func<System.Collections.Generic.IEnumerable<string>, Task>? CopySelectedUrls { get; set; }
     internal Action<ResourceId>? SelectionDetailsRequested { get; set; }
+    /// <summary>"Show in Media" of the archive list's and the reader's thread menus: the shell opens the Media page with the thread: chip (id, title).</summary>
+    internal Action<ResourceId, string?>? ShowThreadInMediaRequested { get; set; }
     internal Action<ResourceId, string>? SelectionLeadAction { get; set; }
 
-    private ArchiveThreadRow[] ArchiveVisibleRows => Control<DataGrid>("ArchiveThreadTable").ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
-    private Control ArchiveSelectionList => _threadTable ? Control<DataGrid>("ArchiveThreadTable") : Control<ListBox>("ArchiveThreads");
+    private ArchiveThreadRow[] ArchiveVisibleRows => ArchiveThreadTable.ItemsSource?.Cast<ArchiveThreadRow>().ToArray() ?? Array.Empty<ArchiveThreadRow>();
+    private Control ArchiveSelectionList => _threadTable ? ArchiveThreadTable : ArchiveThreads;
     private ArchiveThreadRow? ArchiveLead
     {
         get
@@ -55,13 +58,47 @@ public partial class ArchivePage
 
     private void InitializeArchiveSelection()
     {
-        foreach (Control list in new Control[] { Control<ListBox>("ArchiveThreads"), Control<DataGrid>("ArchiveThreadTable") })
+        foreach (Control list in new Control[] { ArchiveThreads, ArchiveThreadTable })
         {
             list.AddHandler(KeyDownEvent, OnArchiveListKeyDown, RoutingStrategies.Tunnel);
             list.AddHandler(PointerPressedEvent, OnArchiveListPointerPressed, RoutingStrategies.Tunnel);
             list.AddHandler(ContextRequestedEvent, OnArchiveContextRequested, RoutingStrategies.Tunnel);
         }
+        // The page's own tunnel handler of the media menus (InitializeArchiveMediaCommands, registered after this one) would otherwise see a
+        // right-click on a row's thumbnail or star first and answer it with the media menu of the OPEN thread; the row's own menu is the answer.
+        AddHandler(ContextRequestedEvent, OnThreadRowContextRequested, RoutingStrategies.Tunnel);
     }
+
+    private void OnThreadRowContextRequested(object? sender, ContextRequestedEventArgs e)
+    {
+        if (e.Handled || _ended || e.Source is not Visual source) return;
+        Visual[] path = source.GetSelfAndVisualAncestors().ToArray();
+        Control? list = new Control[] { ArchiveThreads, ArchiveThreadTable }.FirstOrDefault(candidate => path.Contains(candidate));
+        if (list == null || !IsRowButtonPath(path, list)) return;
+        OnArchiveContextRequested(list, e);
+    }
+
+    /// <summary>
+    /// Whether the source of a right-click is a button inside a thread row of <paramref name="list"/> (the row's thumbnail, its favourite star):
+    /// such a click belongs to the row and opens the row's menu, as it does on the row's text. Text fields, selectors, the column headers and the
+    /// scroll bars keep their own behaviour. <paramref name="selfAndAncestors"/> runs from the source up to the root.
+    /// </summary>
+    internal static bool IsRowButtonPath(IEnumerable<object?> selfAndAncestors, object list)
+    {
+        bool button = false, row = false;
+        foreach (object? node in selfAndAncestors)
+        {
+            if (ReferenceEquals(node, list)) return button && row;
+            if (node is Visual input && PointerFocusReclaim.IsTextInput(input) || node is SelectableTextBlock or Slider or MenuItem or TabItem
+                or DataGridColumnHeader or Avalonia.Controls.Primitives.ScrollBar) return false;
+            if (node is Button) button = true;
+            if (node is DataGridRow or ListBoxItem) row = true;
+        }
+        return false;
+    }
+
+    /// <summary>Whether a request comes from a column header of a table (its own menu answers, not the rows' menu).</summary>
+    internal static bool IsColumnHeaderPath(IEnumerable<object?> selfAndAncestors) => selfAndAncestors.Any(node => node is DataGridColumnHeader);
 
     // The identity set belongs to the current 50-row page. A refreshed/filter-
     // changed page prunes unavailable IDs rather than accumulating hidden targets.
@@ -80,8 +117,8 @@ public partial class ArchivePage
         _updatingList = true;
         try
         {
-            ListBox cards = Control<ListBox>("ArchiveThreads");
-            DataGrid table = Control<DataGrid>("ArchiveThreadTable");
+            ListBox cards = ArchiveThreads;
+            DataGrid table = ArchiveThreadTable;
             if (!ReferenceEquals(source, cards)) cards.SelectedItems!.Clear();
             if (!ReferenceEquals(source, table))
             {
@@ -105,10 +142,10 @@ public partial class ArchivePage
     {
         if (_updatingList || IsFilenameSearchOpen || _ended || !CanRead) return;
         IEnumerable<ArchiveThreadRow> selected = sender is DataGrid table ? table.SelectedItems.Cast<ArchiveThreadRow>()
-            : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItems!.Cast<ArchiveThreadRow>();
+            : (sender as ListBox ?? ArchiveThreads).SelectedItems!.Cast<ArchiveThreadRow>();
         _archiveSelectionIds.Clear();
         foreach (ArchiveThreadRow row in selected) _archiveSelectionIds.Add(row.Summary.Id);
-        ArchiveThreadRow? current = sender is DataGrid grid ? grid.CollectionView?.CurrentItem as ArchiveThreadRow : (sender as ListBox ?? Control<ListBox>("ArchiveThreads")).SelectedItem as ArchiveThreadRow;
+        ArchiveThreadRow? current = sender is DataGrid grid ? grid.CollectionView?.CurrentItem as ArchiveThreadRow : (sender as ListBox ?? ArchiveThreads).SelectedItem as ArchiveThreadRow;
         _archiveLeadId = ResolveArchiveLeadId(ArchiveVisibleRows.Select(row => row.Summary.Id),
             _archiveSelectionIds, _archiveLeadId, current?.Summary.Id);
         _history.Clear();
@@ -142,6 +179,8 @@ public partial class ArchivePage
         CancelReferences();
         CancelInlineReplies();
         ClosePreview();
+        _mediaMenuPresenter.Invalidate();
+        _ = ReleaseInlineVideos();
         CloseThreadFind();
         _thread = null;
         _selectedThread = null;
@@ -156,13 +195,14 @@ public partial class ArchivePage
     private void UpdateArchiveSelectionActions()
     {
         RefreshArchiveSelectionContext();
-        if (this.FindControl<MenuItem>("ArchiveTableRemoveMenu") is MenuItem remove)
-            remove.IsEnabled = _available && !_busy && FrozenArchiveSelection().Any(id => CanRemoveWatch?.Invoke(id) == true);
     }
 
     private void OnArchiveListPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (sender is not Control list || !MainWindow.IsListCommandSource(e.Source, list)) return;
+        if (sender is not Control list) return;
+        bool rightButton = e.GetCurrentPoint(list).Properties.IsRightButtonPressed;
+        if (!MainWindow.IsListCommandSource(e.Source, list)
+            && !(rightButton && e.Source is Visual pressed && IsRowButtonPath(pressed.GetSelfAndVisualAncestors(), list))) return;
         _archivePointerContextHandled.Remove(list);
         Control? hit = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<Control>().FirstOrDefault(control => control is DataGridRow or ListBoxItem);
         ArchiveThreadRow? row = hit?.DataContext as ArchiveThreadRow;
@@ -196,7 +236,12 @@ public partial class ArchivePage
             { _archiveSelectionIds.Clear(); _archiveSelectionIds.Add(row.Summary.Id); }
             _selectedThread = row.Summary.Id;
             SynchronizeArchiveSelection(ArchiveVisibleRows);
-            list.Focus();
+            // This press is handled here, so native ListBox/DataGrid focus will
+            // not run. DataGridRow is not itself focusable: use its clicked cell.
+            DataGridCell? cell = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridCell>().FirstOrDefault()
+                ?? hit?.GetVisualDescendants().OfType<DataGridCell>().FirstOrDefault(candidate => candidate.IsEffectivelyVisible);
+            if (cell != null) cell.Focusable = true;
+            if (cell?.Focus(NavigationMethod.Pointer) != true && hit?.Focus() != true) list.Focus();
             Control? owner = list.ContextMenu != null ? list : hit?.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.ContextMenu != null);
             if (owner != null) OpenArchiveSelectionMenu(owner, e.GetPosition(owner));
         }
@@ -206,6 +251,10 @@ public partial class ArchivePage
     private void OnArchiveContextRequested(object? sender, ContextRequestedEventArgs e)
     {
         if (sender is not Control list) return;
+        // A column header of the table has its own menu (fit, visibility, reset). Its handler is registered after this one on the same grid, and a
+        // request this handler marks as handled never reaches it, so the header is answered here.
+        if (sender is DataGrid grid && e.Source is Visual origin && IsColumnHeaderPath(origin.GetSelfAndVisualAncestors()))
+        { OnArchiveHeaderContextRequested(grid, e); return; }
         if (e.TryGetPosition(list, out _))
         {
             // Pointer menus are opened explicitly only after resolving an actual row.
@@ -234,12 +283,12 @@ public partial class ArchivePage
     {
         if (IsFilenameSearchOpen) return;
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
-            || _ended || !_available || _largeReader || Control<Border>("ArchiveExportDialog").IsVisible) return;
+            || _ended || !_available || _largeReader || ArchiveExportDialog.IsVisible) return;
         if (MatchesArchiveCommand(e, "menu.context-open"))
         { e.Handled = true; OpenArchiveKeyboardMenu(list); return; }
         if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (MatchesArchiveCommand(e, "input.focus-search"))
-        { e.Handled = true; Control<TextBox>("ArchiveSearchText").Focus(); return; }
+        { e.Handled = true; FocusArchiveTextSearch(); return; }
         // The list owns these navigation gestures. The generic command guard
         // deliberately leaves navigation keys to native lists, so resolve here
         // after the list-source/editor shielding above.
@@ -285,7 +334,7 @@ public partial class ArchivePage
         if (MatchesArchiveCommand(e, "selection.copy-links"))
         { e.Handled = true; await CopyArchiveSelectionAsync(); return; }
         if (MatchesArchiveCommand(e, "export.open-html-dialog"))
-        { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list); return; }
+        { e.Handled = true; ResourceId[] ids = FrozenArchiveSelection(); if (ids.Length > 0) await OpenExportForThreadsAsync(ids, list, offerResults: true); return; }
         if (MatchesArchiveCommand(e, "archive.delete-permanently"))
         {
             e.Handled = true;
@@ -299,14 +348,21 @@ public partial class ArchivePage
         { e.Handled = true; if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(MatchesArchiveCommand(e, "watch.retry-media")); return; }
         if (MatchesArchiveCommand(e, "thread.details"))
         { e.Handled = true; if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); return; }
+        // Revision 19: "Show in Media" (Alt+M), like the menu entry: every selected thread (several open as one thread set on the Media page).
+        if (MatchesArchiveCommand(e, "thread.show-in-media"))
+        {
+            e.Handled = true;
+            if (ArchiveLead is ArchiveThreadRow row) ShowArchiveSelectionInMedia(FrozenArchiveSelection(), row);
+            return;
+        }
         if (MatchesArchiveCommand(e, "thread.read") || MatchesArchiveCommand(e, "gallery.open"))
         {
             e.Handled = true;
             if (ArchiveLead is not ArchiveThreadRow row) return;
             ResourceId id = row.Summary.Id;
-            if (MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery != null) await OpenGallery(id, null, list); }
+            if (!MatchesArchiveCommand(e, "thread.read") && MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery is { } open) await OpenActions.RunAsync(() => open(id, null, list), "archive.list.gallery"); }
             else if (FrozenArchiveSelection().Length != 1) Message(Texts.T("archive.command.singleRead"));
-            else { OpenReaderRequested?.Invoke(list); await LoadThreadAsync(id); }
+            else await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(id, () => OpenReaderRequested?.Invoke(list)), "archive.list.read");
             return;
         }
         string? action = MatchesArchiveCommand(e, "rules.edit-scope") ? "rules"
@@ -330,16 +386,9 @@ public partial class ArchivePage
     private Task RemoveArchiveSelectionAsync()
     {
         ResourceId[] ids = FrozenArchiveSelection().Where(id => CanRemoveWatch?.Invoke(id) == true).ToArray();
-        return ids.Length > 0 ? RemoveSelectedWatches?.Invoke(ids) ?? Task.CompletedTask : Task.CompletedTask;
+        if (ids.Length > 0 && RemoveSelectedWatches != null) return RemoveSelectedWatches(ids);
+        // The key says why nothing happened (the menu entry shows the same reason): an archived thread that is not on the watch list has nothing to remove.
+        Message(Texts.T("archive.command.noWatch"));
+        return Task.CompletedTask;
     }
-    private async void OnArchiveRemoveSelection(object? sender, RoutedEventArgs e) => await RemoveArchiveSelectionAsync();
-    private async void OnArchiveCopySelection(object? sender, RoutedEventArgs e) => await CopyArchiveSelectionAsync();
-    private async void OnArchiveCheckSelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(false); }
-    private async void OnArchiveRetrySelection(object? sender, RoutedEventArgs e)
-    { if (CheckSelectedWatches != null) await CheckArchiveSelectionAsync(true); }
-    private async void OnArchiveSelectionDetails(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row) await ShowArchiveDetailsAsync(row); }
-    private void OnArchiveLeadAction(object? sender, RoutedEventArgs e)
-    { if (ArchiveLead is ArchiveThreadRow row && sender is MenuItem { CommandParameter: string action }) RunArchiveLeadAction(row, action); }
 }

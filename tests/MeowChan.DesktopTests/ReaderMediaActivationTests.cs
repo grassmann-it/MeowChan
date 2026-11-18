@@ -148,11 +148,11 @@ public sealed class ReaderMediaActivationTests
         Assert.Null(ArchivePage.FindReaderMediaTarget(Thread, selected, Assets(bound)));
     }
 
-    [Theory]
-    [InlineData(Key.Enter)]
-    [InlineData(Key.Space)]
-    public void FixedContentGestureIsUnmodifiedOnlyAndPreservesEffectiveReaderAndShellRemaps(Key key)
+    // Space is the fixed content key (and the video's play / pause); Enter is the command "Open medium of the post", so its gesture is read from the bindings.
+    [Fact]
+    public void FixedContentGestureIsUnmodifiedOnlyAndPreservesEffectiveReaderAndShellRemaps()
     {
+        Key key = Key.Space;
         var e = new KeyEventArgs { Key = key };
         var defaults = EffectiveShortcutBindings.Build();
         Assert.True(ArchivePage.IsReaderMediaGesture(e, defaults)); // thread.read is an archive action.
@@ -172,6 +172,72 @@ public sealed class ReaderMediaActivationTests
         Assert.False(ArchivePage.IsReaderMediaGesture(e, shellBindings));
         // An unrelated gallery transport binding must not erase reader activation.
         Assert.True(ArchivePage.IsReaderMediaGesture(e, EffectiveShortcutBindings.Build(
+            new ShortcutBindingsSection().Set("gallery.next", [ShortcutGesture.Parse(key.ToString())]))));
+    }
+
+    // Enter is only the command "Open medium of the post": the fixed content path knows Space alone, so rebinding or unbinding the command takes Enter away.
+    [Fact]
+    public void EnterIsNeverAFixedContentGestureSoUnbindingTheCommandLeavesItDead()
+    {
+        KeyEventArgs enter = new() { Key = Key.Enter };
+        Assert.False(ArchivePage.IsReaderMediaGesture(enter, EffectiveShortcutBindings.Build()));
+        EffectiveShortcutBindings unbound = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(ArchivePage.ActivateMediumCommandId, Array.Empty<ShortcutGesture>()));
+        Assert.False(unbound.Matches(enter, ArchivePage.ActivateMediumCommandId));
+        Assert.False(ArchivePage.IsReaderMediaGesture(enter, unbound));
+        EffectiveShortcutBindings moved = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(ArchivePage.ActivateMediumCommandId, [ShortcutGesture.Parse("F2")]));
+        Assert.False(ArchivePage.IsReaderMediaGesture(enter, moved));
+        Assert.True(ArchivePage.IsReaderMediaGesture(new() { Key = Key.Space }, unbound)); // Space keeps its fixed meaning
+    }
+
+    [Fact]
+    public void AKeyChosenMediumOpensExactlyThatAttachmentNotAnotherOneOfThePost()
+    {
+        var first = Bound("later", 0, "first.png");
+        var second = Bound("later", 1, "second.webm");
+        var rows = Assets(first, second);
+        ArchivePostRow post = Post("later", first.Attachment, second.Attachment);
+        ArchiveAttachmentRow chosen = post.Attachments.Single(row => row.Attachment.Position == 1);
+        var target = ArchivePage.FindReaderMediumTarget(Thread, post, chosen, rows);
+        Assert.NotNull(target);
+        Assert.Equal(second.Asset.AssetId, target.Key.Asset.AssetId);
+        Assert.Equal(1, target.Key.AttachmentPosition);
+        Assert.Equal("later", target.Key.PostId);
+        Assert.Null(ArchivePage.FindReaderMediumTarget(Thread, post, chosen, rows, _ => false)); // the saved file is gone: nothing opens, no other medium takes its place
+        Assert.Null(ArchivePage.FindReaderMediumTarget(Thread, post, chosen, Assets(first)));    // not in the manifest
+    }
+
+    [Fact]
+    public void TheKeyPathOpensTheGalleryUnderTheReadersGuardNotAfterABareManifestWait()
+    {
+        string path = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourceFile())!, "../..", "Desktop/Views/Archive/ArchivePage.MediaActivation.cs"));
+        string source = File.ReadAllText(path);
+        Assert.DoesNotContain("OpenMediumInGalleryAsync", source);
+        Assert.Contains("_readerMediaActivationCancellation = cancellation;", source);   // a repeat or a second key does nothing while it runs
+        Assert.Contains("ActivateReaderMediaAsync(origin, post, _thread.Summary.Id, _mediaReady.Task, cancellation, row, largeReaderOnly)", source); // the same Current() recheck after every await
+        Assert.DoesNotContain("ReaderMediaActivationTask = Open", source);
+    }
+
+    private static string SourceFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
+
+    [Theory]
+    [InlineData(Key.Enter)]
+    [InlineData(Key.Space)]
+    public void BothMediaKeysGiveWayToASavedReaderOrShellBindingOnTheSameGesture(Key key)
+    {
+        var e = new KeyEventArgs { Key = key };
+        var defaults = EffectiveShortcutBindings.Build();
+        Assert.False(ArchivePage.ClaimedByOtherReaderCommand(e, defaults));
+        // The command "Open medium of the post" has Enter by default and no other gesture.
+        Assert.Equal(key == Key.Enter, defaults.Matches(e, ArchivePage.ActivateMediumCommandId));
+        Assert.True(ReaderMediaActivation.IsMediaKey(key, KeyModifiers.None, defaults.Matches(e, ArchivePage.ActivateMediumCommandId), claimedByOtherCommand: false));
+        foreach (var modifier in new[] { KeyModifiers.Control, KeyModifiers.Meta, KeyModifiers.Shift, KeyModifiers.Alt })
+            Assert.False(ReaderMediaActivation.IsMediaKey(key, modifier, false, false)); // a modifier never activates a medium
+        var reader = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("thread.read", Array.Empty<ShortcutGesture>())
+            .Set("reader.next-post", [ShortcutGesture.Parse(key.ToString())]));
+        Assert.True(ArchivePage.ClaimedByOtherReaderCommand(e, reader));
+        Assert.False(ReaderMediaActivation.IsMediaKey(key, KeyModifiers.None, reader.Matches(e, ArchivePage.ActivateMediumCommandId), claimedByOtherCommand: true));
+        // An unrelated gallery binding changes nothing.
+        Assert.False(ArchivePage.ClaimedByOtherReaderCommand(e, EffectiveShortcutBindings.Build(
             new ShortcutBindingsSection().Set("gallery.next", [ShortcutGesture.Parse(key.ToString())]))));
     }
 
@@ -207,5 +273,5 @@ public sealed class ReaderMediaActivationTests
     }
 
     private static ArchivePostRow Post(string id, params CapturedAttachment[] attachments) =>
-        new(id, id, string.Empty, "body", attachments.Select(attachment => new ArchiveAttachmentRow(attachment)).ToArray());
+        new(id, string.Empty, "body", attachments.Select(attachment => new ArchiveAttachmentRow(attachment)).ToArray());
 }

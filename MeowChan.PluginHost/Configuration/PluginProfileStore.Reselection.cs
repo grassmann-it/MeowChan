@@ -17,7 +17,11 @@ public sealed partial class PluginProfileStore
         cancellationToken.ThrowIfCancellationRequested();
         if (!Directory.Exists(directory)) return new(0, []);
         await using FileStream lease = await AcquireLockAsync(cancellationToken, FileAccess.Read).ConfigureAwait(false);
-        return PreviewReselections(WithCurrentRepairRestrictions(await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false)));
+        BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false);
+        BundledCandidateReselectionPreview preview = PreviewReselections(WithCurrentRepairRestrictions(document));
+        // A replaced bundled identity is not a missing plugin to choose a new build for.
+        IReadOnlySet<string> superseded = Configuration.SupersededBundledPlugins.InProfile(document.Profile, SupersededBundledPlugins);
+        return superseded.Count == 0 ? preview : preview with { Rows = preview.Rows.Where(row => !superseded.Contains(row.PluginId)).ToArray() };
     }
 
     private static BundledCandidateReselectionPreview PreviewReselections(BundledProfileDocument document)
@@ -27,10 +31,6 @@ public sealed partial class PluginProfileStore
         {
             if (plugin.SelectedCandidateId is not { } selected || plugin.Active is not null && plugin.Pinned is null) continue;
             PluginCandidateSnapshot? missing = plugin.Candidates.SingleOrDefault(c => c.CandidateId == selected);
-            // This route is only a fresh choice after a missing legacy selection.
-            // Existing local selections and proven delivered repair history keep their own paths.
-            if (missing is { IsPresent: true } || document.Provenance.Any(p => p.CandidateId == selected)
-                || document.Bindings.Any(b => b.PluginId == plugin.PluginId)) continue;
             PreReplacementBasis prior = BundledCandidateMigration.TrustedPreReplacementBasis(document, plugin);
             PluginReleaseSnapshot? basis = prior.Release;
             PluginCandidateSnapshot[] present = plugin.Candidates.Where(c => c.IsPresent).ToArray();
@@ -38,10 +38,25 @@ public sealed partial class PluginProfileStore
                 && document.Provenance.Count(p => BundledCandidateMigration.Matches(p, c)) == 1).ToArray();
             PluginCandidateSnapshot? target = targets.Length == 1 ? targets[0] : null;
             DeliveredCandidateProvenance? proof = target is null ? null : document.Provenance.Single(p => BundledCandidateMigration.Matches(p, target));
-            bool rights = document.Profile.Grants.Any(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None)
+            // A pinned, same-slot bundled rebuild is an explicit recovery choice, not an
+            // automatic unpin. It is offered only when the declaration and manifest path
+            // are unchanged; source/grant changes still use the ordinary fail-closed paths.
+            bool pinnedSameBundleRebuild = plugin.Pinned is { } pin && basis is not null && target is not null &&
+                pin.CandidateId == selected && basis.CandidateId == selected && basis.ExecutionRevision == pin.ExecutionRevision &&
+                target.CandidateId == selected && target.Artifact!.ExecutionRevision != pin.ExecutionRevision &&
+                string.Equals(target.CandidatePath, prior.Provenance?.CandidatePath, StringComparison.Ordinal) &&
+                SamePinnedBundleDescription(basis.Description, target.Description!);
+            // Existing local selections and proven delivered repair history keep their own paths.
+            // The exception above is the one explicit current-build recovery offered for a
+            // pinned bundled executable whose trust-relevant declaration and manifest path remain the same.
+            if ((!pinnedSameBundleRebuild && missing is { IsPresent: true }) ||
+                (!pinnedSameBundleRebuild && (document.Provenance.Any(p => p.CandidateId == selected) ||
+                    document.Bindings.Any(b => b.PluginId == plugin.PluginId)))) continue;
+            bool rights = !pinnedSameBundleRebuild &&
+                (document.Profile.Grants.Any(g => g.PluginId == plugin.PluginId && g.Access != FilterDataAccess.None)
                 || (basis?.Description.Sources.Concat(target?.Description?.Sources ?? []).Any(s =>
-                    document.RestrictedSourceIds.Contains(s.SourceId, StringComparer.Ordinal)) ?? false);
-            string? reason = plugin.Pinned is not null ? "pinned" :
+                    document.RestrictedSourceIds.Contains(s.SourceId, StringComparer.Ordinal)) ?? false));
+            string? reason = plugin.Pinned is not null && !pinnedSameBundleRebuild ? "pinned" :
                 prior.Missing || basis is null || basis.CandidateId != selected ? "unproven-configuration" :
                 plugin.Pending is { } pending && (pending.CandidateId != basis.CandidateId || pending.ExecutionRevision != basis.ExecutionRevision)
                     ? "pending-choice" :
@@ -58,6 +73,10 @@ public sealed partial class PluginProfileStore
         }
         return new(document.Profile.Revision, rows);
     }
+
+    // One operational-metadata rule for the explicit recovery here and the automatic pinned-release update (#130).
+    private static bool SamePinnedBundleDescription(PluginDescription previous, PluginDescription candidate) =>
+        BundledCandidateMigration.SamePinnedBundleDescription(previous, candidate);
 
     public async Task<PluginProfileSnapshot> ConfirmBundledReselectionAsync(BundledCandidateReselection selection, long expectedRevision,
         CancellationToken cancellationToken = default)
@@ -92,6 +111,10 @@ public sealed partial class PluginProfileStore
                 {
                     SelectedCandidateId = candidate.CandidateId,
                     Active = null, LastGood = null,
+                    // A pinned same-bundle recovery is an explicit replacement choice;
+                    // never clear a pin during preview or startup.
+                    Pinned = null,
+                    AutomaticSdkTransition = null,
                     Pending = new(candidate.CandidateId, candidate.Artifact!, candidate.Description!, configuration),
                     Problem = "New bundled selection confirmed for next start; original state retained in backup."
                 };

@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.LogicalTree;
 using Avalonia.Threading;
 using Avalonia.Media.TextFormatting;
 using Avalonia.VisualTree;
@@ -53,7 +54,7 @@ internal static class HtmlExportButtonLabelChecks
                     Texts.SetLanguage(code);
                     Require(Texts.Language == code, code + ": bundled language did not become effective.");
                     if (code is "es" or "fr" or "ru")
-                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                        Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                             code + ": HTML export command silently fell back to English; bundled pack coverage is not exercised.");
                     await SettleAsync(owner);
                     inspector.BringIntoView();
@@ -86,7 +87,7 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for archive export.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                         code + ": archive export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await SettleAsync(host);
@@ -96,19 +97,22 @@ internal static class HtmlExportButtonLabelChecks
                 toolbar.More!.IsChecked = true;
                 await Program.WaitUntilAsync(() => results.IsEffectivelyVisible && TopLevel.GetTopLevel(results) is { IsVisible: true });
                 await SettleAsync(host);
-                string expected = Texts.T("export.resultsAction", 1);
+                string expected = Texts.Count("export.resultsAction", 1);
                 CheckButton(results, expected, code + "/results-overflow");
+                // AP7: the button opens the one Export dialog with "all matches" preselected (no one-item menu).
                 SmokeActionClick.Execute(results);
-                await Program.WaitUntilAsync(() => results.ContextMenu?.IsOpen == true);
-                MenuItem item = results.ContextMenu!.Items.OfType<MenuItem>().Single();
-                Require(Equals(item.Header, expected), "Results menu lost its full count-bearing title.");
+                await Program.WaitUntilAsync(() => page.FindControl<Border>("ArchiveExportDialog")!.IsVisible
+                    && page.CurrentExportScope == ArchivePage.ExportScope.AllResults);
                 Require(ReferenceEquals(results.Command, resultCommand), "Results label refresh replaced its command.");
-                results.ContextMenu.Close();
+                SmokeActionClick.Execute(page.FindControl<Button>("ArchiveExportClose")!);
+                await Program.WaitUntilAsync(() => !page.FindControl<Border>("ArchiveExportDialog")!.IsVisible);
                 toolbar.More.IsChecked = true;
                 await SettleAsync(host);
                 CapturePopup(results, "smoke-html-label-results-" + code + ".png");
                 toolbar.More.IsChecked = false;
-                CheckButton(readerExport, CommandCatalog.Label("export.open-html-dialog"), code + "/split-reader");
+                ActionToolBar? readerOverflow = await OpenOverflowIfNeededAsync(host, readerExport);
+                CheckButton(readerExport, CommandCatalog.Label("export.open-html-dialog"), code + "/split-reader" + (readerOverflow != null ? "-overflow" : ""));
+                if (readerOverflow != null) { readerOverflow.More!.IsChecked = false; await SettleAsync(host); }
                 Program.CaptureWindow(host, "smoke-html-label-split-reader-" + code + ".png");
             }
             detached = page.DetachReader(); // Exact production large-reader pane, not a reconstructed toolbar.
@@ -120,13 +124,15 @@ internal static class HtmlExportButtonLabelChecks
                 Texts.SetLanguage(code);
                 Require(Texts.Language == code, code + ": bundled language did not become effective for large reader.");
                 if (code is "es" or "fr" or "ru")
-                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export as HTML…",
+                    Require(CommandCatalog.Label("export.open-html-dialog") != "Export",
                         code + ": large-reader export silently fell back to English.");
                 await page.ReaderLocalizationTask;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(host, size.Width, size.Height));
                 await SettleAsync(host);
-                CheckButton(readerExport, CommandCatalog.Label("export.open-html-dialog"), $"{code}/reader/{size.Width}");
+                ActionToolBar? readerOverflow = await OpenOverflowIfNeededAsync(host, readerExport);
+                CheckButton(readerExport, CommandCatalog.Label("export.open-html-dialog"), $"{code}/reader/{size.Width}" + (readerOverflow != null ? "-overflow" : ""));
                 Require(ReferenceEquals(readerExport.Command, readerCommand), "Reader label refresh replaced its command.");
+                if (readerOverflow != null) { readerOverflow.More!.IsChecked = false; await SettleAsync(host); }
                 ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
                 Require(posts.IsEffectivelyVisible && posts.Bounds.Height >= 100, "Full labels left no readable post viewport.");
                 Program.CaptureWindow(host, $"smoke-html-label-reader-{code}-{size.Width}.png");
@@ -153,6 +159,19 @@ internal static class HtmlExportButtonLabelChecks
     {
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
         await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Render);
+    }
+
+    // Export is the reader toolbar's last AsNeeded candidate, so a longer language (German) moves it into
+    // the real "More" overflow. Its complete title is then checked where the user finds it, in the opened popup.
+    private static async Task<ActionToolBar?> OpenOverflowIfNeededAsync(Window host, Button button)
+    {
+        ActionToolBar? toolbar = button.Parent as ActionToolBar ?? button.GetLogicalAncestors().OfType<ActionToolBar>().FirstOrDefault();
+        if (toolbar?.OverflowHost?.Children.Contains(button) != true) return null;
+        Require(toolbar.More?.IsEffectivelyVisible == true, "The overflowed reader action has no visible More toggle.");
+        toolbar.More!.IsChecked = true;
+        await Program.WaitUntilAsync(() => button.IsEffectivelyVisible && TopLevel.GetTopLevel(button) is { IsVisible: true });
+        await SettleAsync(host);
+        return toolbar;
     }
 
     private static void CheckButton(Button button, string expected, string scene)

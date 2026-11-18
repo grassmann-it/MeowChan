@@ -26,8 +26,10 @@ internal static class ActionToolBarDynamicChecks
         }
         try { await CheckOpenToolsResizeAsync(owner); }
         catch (Exception error) { failures.Add(error); }
+        try { await CheckBoundaryWidthsAreStableAsync(owner); }
+        catch (Exception error) { failures.Add(error); }
         if (failures.Count > 0) throw new AggregateException("Dynamic action lifecycle checks failed.", failures);
-        Console.WriteLine("SMOKE dynamic actions: three real overflow mutations, explicit focus preservation and open Tools language/resize focus transition passed; in-process input, not native keyboard/AT.");
+        Console.WriteLine("SMOKE dynamic actions: three real overflow mutations, explicit focus preservation, open Tools language/resize focus transition and stable bar-button overflow at every width around the fit boundaries passed; in-process input, not native keyboard/AT.");
     }
 
     private static async Task CheckOverflowAsync(MainWindow owner, string scenario)
@@ -130,14 +132,62 @@ internal static class ActionToolBarDynamicChecks
         }
     }
 
+    // Review 15.11. (toolbar ping-pong): an item under "More" is measured in the popup's plain style, narrower than the same item on a
+    // bar-button bar. Deciding on that width let it return, grow and overflow again. At every width across the fit boundaries (each
+    // 1 dip step, so +-1 around each of them) the overflow set must be the same after the second layout pass and stay so after more passes.
+    private static async Task CheckBoundaryWidthsAreStableAsync(MainWindow owner)
+    {
+        string[] labels = ["Select", "Tag", "Remove tag", "Move to group", "Clear selection", "Add to favorites"];
+        var toolbar = new ActionToolBar { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left, Width = 1000 };
+        Button[] buttons = labels.Select((label, index) => new Button { Name = "BoundaryItem" + index, Content = label }).ToArray();
+        for (int index = 0; index < buttons.Length; index++)
+        {
+            // Outlined bar-button items (the tagging selection bar) and plain flat items (padding 8,4, height 32 only on the bar) alike.
+            if (index % 2 == 0) buttons[index].Classes.Add("bar-button");
+            ToolBar.SetOverflowMode(buttons[index], OverflowMode.AsNeeded);
+            toolbar.Items.Add(buttons[index]);
+        }
+        var fixture = new Window { Width = 1200, Height = 160, Content = toolbar, Title = "boundary-widths" };
+        fixture.Show(owner);
+        try
+        {
+            await Program.WaitUntilAsync(() => { fixture.UpdateLayout(); return toolbar.DirectHost?.Children.Count == buttons.Length && buttons[^1].Bounds.Width > 0; });
+            double chrome = toolbar.Bounds.Width - toolbar.DirectHost!.Bounds.Width;
+            double needed = chrome + buttons[^1].Bounds.Right;
+            string Overflowed() => string.Join(",", buttons.Where(button => toolbar.OverflowHost?.Children.Contains(button) == true).Select(button => button.Name));
+            var failures = new List<string>();
+            // Down and up again: the outcome must not depend on the direction (a stale decision would show in one of them).
+            foreach (bool descending in new[] { true, false })
+                for (int step = 0; step <= 260; step++)
+                {
+                    double width = Math.Round(descending ? needed + 3 - step : needed - 257 + step);
+                    toolbar.Width = width;
+                    fixture.UpdateLayout();
+                    fixture.UpdateLayout();
+                    string settled = Overflowed();
+                    for (int again = 0; again < 3; again++)
+                    {
+                        fixture.UpdateLayout();
+                        if (Overflowed() != settled)
+                        {
+                            failures.Add($"width {width}: overflow {{{settled}}} changed to {{{Overflowed()}}} after more layout passes.");
+                            break;
+                        }
+                    }
+                }
+            Require(failures.Count == 0, "Bar-button overflow is not stable at boundary widths: " + string.Join(" | ", failures.Take(8)));
+        }
+        finally { fixture.Close(); }
+    }
+
     private static async Task CheckOpenToolsResizeAsync(MainWindow window)
     {
         string mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language;
         double width = window.Width, height = window.Height;
         Button tools = window.FindControl<Button>("ToolsNavigationButton")!;
         MenuFlyout menu = (MenuFlyout)tools.Flyout!;
-        Button destination = window.FindControl<Button>("DiagnosticsNavigationButton")!;
-        MenuItem item = menu.Items.OfType<MenuItem>().Single(value => value.Tag as string == "nav.diagnostics");
+        Button destination = window.FindControl<Button>("StatusNavigationButton")!;
+        MenuItem item = menu.Items.OfType<MenuItem>().Single(value => value.Tag as string == "nav.status");
         try
         {
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
@@ -149,7 +199,7 @@ internal static class ActionToolBarDynamicChecks
             await Program.WaitUntilAsync(() => ReferenceEquals(window.FocusManager?.GetFocusedElement(), item));
             Texts.SetLanguage(language == "de" ? "en" : "de");
             window.UpdateLayout();
-            Require(item.Header as string == Texts.T("nav.diagnostics"), "Open Tools retained a stale localized destination.");
+            Require(item.Header as string == Texts.T("nav.status"), "Open Tools retained a stale localized destination.");
             Require(ReferenceEquals(window.FocusManager?.GetFocusedElement(), item), "Open Tools language refresh lost its focused destination.");
             Trace("focused-open-after-language");
             window.Width = 1400; window.Height = 600;

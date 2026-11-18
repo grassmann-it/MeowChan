@@ -22,8 +22,13 @@ internal static class GridChecks
         TabControl tabs = window.FindControl<TabControl>("DownloadsTabs")!;
         DataGrid threadGrid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         DataGrid boardGrid = window.FindControl<DataGrid>("BoardsDataGrid")!;
+        string originalMode = window.SessionHost.Config.WorkspaceMode;
         try
         {
+            // Active/queued/ID are Advanced defaults, intentionally hidden in Barebones.
+            // Do not depend on earlier full-normal scenes having exposed these columns.
+            // Keep the real window geometry: widening here would mask overflow defects.
+            await PresentationChecks.SwitchModeAsync(window, "Advanced");
             tabs.SelectedIndex = 0;
             await WaitForRowsAsync(threadGrid, two, ten);
             foreach (string property in new[] { nameof(ThreadRow.SourceBoard), nameof(ThreadRow.ThreadNumber), nameof(ThreadRow.Completion), nameof(ThreadRow.Queued), nameof(ThreadRow.Active) })
@@ -46,7 +51,12 @@ internal static class GridChecks
             Point? activeEnd = activeCell.TranslatePoint(new Point(activeCell.Bounds.Width, 0), threadGrid);
             if (!activeCell.IsVisible || activeCell.Bounds.Width <= 0 || activeEnd == null
                 || activeEnd.Value.X > threadGrid.Bounds.Width + 1)
-                throw new InvalidOperationException("The default window hides the active-download column offscreen.");
+                throw new InvalidOperationException("The default window hides the active-download column offscreen. "
+                    + $"mode={window.SessionHost.Config.WorkspaceMode}; window={window.Bounds}; state={window.WindowState}; "
+                    + $"scale={window.RenderScaling}; grid={threadGrid.Bounds}; cell={activeCell.Bounds}; "
+                    + $"cell-visible={activeCell.IsVisible}; column-visible={activeColumn.IsVisible}; end={activeEnd}; "
+                    + "columns=" + string.Join(", ", threadGrid.Columns.Select(column =>
+                        $"{column.SortMemberPath}[visible={column.IsVisible}, width={column.ActualWidth}, index={column.DisplayIndex}]")));
             Program.CaptureWindow(window, "smoke-grid.png");
 
             tabs.SelectedIndex = 1;
@@ -62,6 +72,7 @@ internal static class GridChecks
             threadGrid.CollectionView.SortDescriptions.Clear();
             await synthetic.DisposeAsync();
             tabs.SelectedIndex = 0;
+            await PresentationChecks.SwitchModeAsync(window, originalMode);
         }
         await DownloadSearchChecks.RunAsync(window);
     }
@@ -84,12 +95,20 @@ internal static class GridChecks
     {
         Point position = await WaitForRowTargetAsync(window, grid, item);
         RightPress(window, position, KeyModifiers.None);
-        if (!ReferenceEquals(grid.SelectedItem, item))
-            throw new InvalidOperationException("Opening the copy menu selected a different row in " + grid.Name
-                + "; selected=" + Describe(grid.SelectedItem) + "; expected=" + Describe(item) + "; point=" + position);
         ContextMenu menu = grid.ContextMenu ?? throw new InvalidOperationException("The copy context menu is missing.");
-        menu.Open(grid);
-        await Program.WaitUntilAsync(() => menu.IsOpen);
+        // The product opens the menu from a dispatcher callback after Avalonia's
+        // DataGrid has applied the right-click selection. Opening it here as well
+        // races that callback and can build a multi-selection menu from the
+        // previous selection (or an empty menu) on native platforms. Wait for
+        // both the authoritative selection and the callback-built action.
+        string expectedAction = item is ThreadRow ? "thread.read" : "selection.copy-links";
+        await Program.WaitUntilAsync(
+            () => ReferenceEquals(grid.SelectedItem, item) && grid.SelectedItems.Contains(item),
+            () => "selected=" + Describe(grid.SelectedItem) + "; selected-count=" + grid.SelectedItems.Count);
+        await Program.WaitUntilAsync(
+            () => menu.IsOpen && menu.Items.OfType<MenuItem>().Any(entry => entry.Tag as string == expectedAction),
+            () => "open=" + menu.IsOpen + "; expected=" + expectedAction + "; items="
+                + string.Join(",", menu.Items.OfType<MenuItem>().Select(entry => entry.Tag as string ?? "<untagged>")));
     }
 
     private static async Task<Point> WaitForRowTargetAsync(MainWindow window, DataGrid grid, object item)

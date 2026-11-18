@@ -20,6 +20,7 @@ using Avalonia.VisualTree;
 using LibVLCSharp.Avalonia;
 using LibVLCSharp.Shared;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Gallery;
 using MeowChan.Diagnostics;
 using Texts = MeowChan.Desktop.Localization.Texts;
@@ -30,25 +31,30 @@ namespace MeowChan.Desktop;
 /// Owns one local, verified media handle. Native calls are serialized off the UI thread;
 /// the video surface and the Avalonia transport toolbar occupy separate rows.
 /// </summary>
-internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
+internal sealed partial class GalleryVideoPlayer : UserControl, IAsyncDisposable
 {
     private readonly VideoView _video = new() { Name = "GalleryNativeVideo", MinHeight = 100 };
     private readonly Image _softwareVideo = new() { Name = "GallerySoftwareVideo", MinHeight = 100, Stretch = Avalonia.Media.Stretch.Uniform };
     // Status and time belong to the themed transport below the black media viewport.
-    private readonly TextBlock _status = new() { Name = "GalleryVideoStatus", FontSize = 12, Margin = new Thickness(0, 4, 0, 0), TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") };
-    private readonly TextBlock _time = new() { Name = "GalleryVideoTime", FontSize = 12, MinWidth = 76, TextAlignment = Avalonia.Media.TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") };
-    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 40, Height = 40, CornerRadius = new CornerRadius(20), Padding = new Thickness(10) };
-    private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
-    private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(7) };
+    private readonly TextBlock _status = new TextBlock { Name = "GalleryVideoStatus", Margin = new Thickness(0, 4, 0, 0), TextWrapping = Avalonia.Media.TextWrapping.Wrap, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text") }.MetaText();
+    private readonly TextBlock _time = new TextBlock { Name = "GalleryVideoTime", MinWidth = 76, TextAlignment = Avalonia.Media.TextAlignment.Right, VerticalAlignment = VerticalAlignment.Center, [!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted") }.MetaText();
+    private readonly Button _playPause = new() { Name = "GalleryVideoPlayPause", Classes = { "media-control", "media-play" }, Width = 32, Height = 32, CornerRadius = new CornerRadius(16), Padding = new Thickness(4) }; // GL5b: 32 like every other control of the bar (was 40)
+    private readonly ToggleButton _mute = new() { Name = "GalleryVideoMute", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
+    private readonly ToggleButton _loop = new() { Name = "GalleryVideoLoop", Classes = { "media-control" }, Width = 32, Height = 32, Padding = new Thickness(8) };
+    // Playback speed: one click steps through Rates, the speed keys (video.speed-down / video.speed-up, [ ] and X C by default) step down/up, Backspace returns to 1×, a right-click offers
+    // 0.25×–4× (VideoRates.Choices). Every medium starts at 1×.
+    private readonly Button _speed = new() { Name = "GalleryVideoSpeed", Classes = { "media-control" }, MinWidth = 44, Height = 32,
+        Padding = new Thickness(8, 0), HorizontalContentAlignment = HorizontalAlignment.Center, VerticalContentAlignment = VerticalAlignment.Center };
     private readonly GalleryTransportSlider _seek = new() { Name = "GalleryVideoSeek", Classes = { "media-slider" }, Minimum = 0, Maximum = 1000, MinWidth = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
     private readonly GalleryVolumeSlider _volume = new() { Name = "GalleryVideoVolume", Classes = { "media-slider" }, Minimum = 0, Maximum = 100, Value = 70, Width = 80, Height = 32, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _root = new() { RowDefinitions = new RowDefinitions("*,Auto") };
+    private readonly PointerFocusReclaim _pointerFocusReclaim;
     private readonly Border _transportPanel = new() { Name = "GalleryVideoTransport", Classes = { "workspace-media-transport" } };
     private Panel? _externalTransportHost;
     private bool _transportPlacementRetired;
     private Window? _transportWindow;
     private static bool UsesSoftwareVideo => OperatingSystem.IsMacOS() || OperatingSystem.IsLinux();
-    private readonly SemaphoreSlim _operations = new(1, 1);
+    private readonly VideoOperationGate _operations = new();
     private readonly VideoPlaybackLifetime _lifetime;
     private GCHandle _failedCleanupRoot;
     private Stream? _failedStream;
@@ -76,21 +82,41 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private Window? _ownerWindow;
     private IPointer? _seekPointer;
     private int _loopRestarts;
+    internal static readonly float[] Rates = VideoRates.Cycle;
+    private float _rate = VideoRates.Normal;
+    private bool _repeatOwnedBySlideshow;
+    private string? _repeatOwnedReason;
     private bool _canSeek;
     private bool _knownSeekable;
     private bool _audioAvailable;
     private int _audioTracks = -1;
     private int _audioRefreshPending;
+    private int _unrenderedAudioProbes;
+    private bool _audioTrackDisableAttemptedForUnavailableOutput;
+    // Time ticks re-probe audio only until the current play epoch has settled it.
+    private readonly VideoAudioProbeSchedule _audioProbe = new();
 
     internal event Action<int>? VolumeChanged;
+    /// <summary>Publishes the verified media length for the gallery filmstrip; null retires the previous medium's value.</summary>
+    internal event Action<TimeSpan?>? DurationChanged;
     internal event Action<bool>? LoopChanged;
     internal event Action? PlaybackEnded;
     internal event Action? PlaybackFailed;
     internal event Action<string>? DiagnosticNotice;
     internal event Action<string>? CleanupDiagnostic;
     internal event Action<bool>? UserPlaybackRequested;
+    /// <summary>Raised after a pointer (mouse, pen, touch) activation of the transport, once its own action ran and no menu of it is open, so the
+    /// owner returns the keyboard to the surface its keys belong to (the gallery, the reader's medium): the next Space or Enter then plays or pauses
+    /// instead of pressing the control again. Keyboard activation never raises it: the focus stays on the control (<see cref="PointerFocusReclaim"/>).</summary>
+    internal event Action? ShortcutFocusRequested;
     internal event Action? SeekInteractionStarted;
     internal bool LoopEnabled => _intent.LoopEnabled;
+    /// <summary>The playback speed chosen for the current medium (1 after every new medium).</summary>
+    internal float Rate => _rate;
+    /// <summary>The shown position in milliseconds (a pending seek's target while it runs).</summary>
+    internal long PositionMs => _timeline.DisplayPosition;
+    /// <summary>Whether the transport can seek now (a seekable medium with a known length).</summary>
+    internal bool CanSeekNow => !IsDisposed && !_lifetime.HasCleanupPending && _seek.IsEnabled && _canSeek && _length > 0;
     internal bool IsSeekInteracting => _timeline.HasGesture || _timeline.HasPendingSeek;
     internal VideoPlaybackMode PlaybackMode => _intent.Current.Mode;
     internal Control TransportControl => _transportPanel;
@@ -110,8 +136,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         // Still submit Move below so an outstanding transfer receives the latest target.
         if (!ReferenceEquals(host, _externalTransportHost)) CancelSeekGesture();
         _externalTransportHost = host;
+        // GL5b: a host that marks itself "in-dock" (the docked dock) gives the bar the dock's own 4 dip of height (WorkspaceStyles .in-dock).
+        _transportPanel.Classes.Set("in-dock", host != null && host.Classes.Contains("in-dock"));
         Grid.SetRow(_transportPanel, host == null ? 1 : 0);
-        Grid.SetRowSpan(UsesSoftwareVideo ? _softwareVideo : _video, host == null ? 1 : 2);
+        Grid.SetRowSpan(SurfaceControl, host == null ? 1 : 2);
+        ApplyVolumePlacement();
         // Always submit the latest desired host, even if it is the actual parent:
         // an earlier cross-root request may still be pending. The transfer owns removal.
         GalleryControlTransfer.Move(_transportPanel, host ?? _root,
@@ -146,7 +175,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         get
         {
             if (_externalTransportHost != null) return 0;
-            Control surface = UsesSoftwareVideo ? _softwareVideo : _video;
+            Control surface = SurfaceControl;
             Point? bottom = surface.TranslatePoint(new Point(0, surface.Bounds.Height), this);
             return bottom.HasValue ? Math.Max(0, Bounds.Height - bottom.Value.Y) : 0;
         }
@@ -183,6 +212,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         _autoplay = autoplay;
         _muteIntent.ConfigureStartup(startMuted);
+        ConfigureVolume(volume);
+    }
+
+    /// <summary>A new volume from the preferences while the player lives: the slider and the playing video follow, nothing is persisted and mute is not touched.</summary>
+    internal void ConfigureVolume(int volume)
+    {
         int nextVolume = Math.Clamp(volume, 0, 100);
         bool changed = (int)_volume.Value != nextVolume;
         _settingVolume = true;
@@ -199,13 +234,21 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         if (!IsCurrent(playback.Generation) || !permitted()) return false;
         MediaPlayer player = playback.Player;
-        if (player.State == VLCState.Ended) player.Stop();
+        if (player.State == VLCState.Ended)
+        {
+            DisableUnrenderedAudioOutput(playback);
+            player.Stop();
+        }
         if (!IsCurrent(playback.Generation) || !permitted()) return false;
         if (!player.Play(playback.Media)) throw new InvalidOperationException("The video backend rejected playback.");
         return true;
     }
     internal Task PlayAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Playing);
     internal Task PauseAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Paused);
+
+    /// <summary>The video is playing now (not paused, stopped or at its end).</summary>
+    internal bool IsPlayingNow => !_ended && _intent.Current.Mode == VideoPlaybackMode.Playing;
+
     internal Task StopPlaybackAsync() => SetPlaybackModeAsync(VideoPlaybackMode.Stopped);
 
     // Slideshow uses a silent, idempotent command: reflecting a user Play must not publish
@@ -238,13 +281,18 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (mode == VideoPlaybackMode.Stopped)
         {
             CancelSeekGesture();
+            CancelScrubPreviewRequest();
             _ended = false;
         }
         return CommandAsync(playback =>
         {
             if (!_transportIntent.IsCurrent(command)) return;
             MediaPlayer player = playback.Player;
-            if (mode == VideoPlaybackMode.Stopped) player.Stop();
+            if (mode == VideoPlaybackMode.Stopped)
+            {
+                DisableUnrenderedAudioOutput(playback);
+                player.Stop();
+            }
             else if (mode == VideoPlaybackMode.Paused) player.SetPause(true);
             else if (player.State == VLCState.Paused) player.SetPause(false);
             else if (!player.IsPlaying) PlayCurrent(playback, () => _transportIntent.IsCurrent(command));
@@ -272,11 +320,106 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 
     internal void ToggleLoop()
     {
-        if (IsDisposed || !_loop.IsEnabled) return;
+        // The visible transport stays disabled while slideshow automation owns
+        // repetition, but the explicit keyboard/command intent is still allowed
+        // to hand the current video back to the player.
+        if (IsDisposed || !_loop.IsEnabled && !_repeatOwnedBySlideshow) return;
         SetLoopEnabled(!LoopEnabled, notify: true);
     }
 
-    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, StreamMediaInput Input, Stream Stream, SoftwareVideoSurface? Surface, CancellationToken Token);
+    /// <summary>While a slideshow runs, its video rule (not the loop button) decides about repetition: the button is then
+    /// unavailable and its tooltip says why. An explicit keyboard/command Repeat intent may still take over.</summary>
+    internal void SetRepeatOwnedBySlideshow(bool owned, string reason)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (_repeatOwnedBySlideshow == owned && _repeatOwnedReason == reason) return;
+        _repeatOwnedBySlideshow = owned; _repeatOwnedReason = reason;
+        _loop.IsEnabled = _playPause.IsEnabled && !owned;
+        // The A–B loop is a repeat too: a running slideshow's video rule owns repetition, so the loop ends and waits.
+        if (owned) ClearAbLoop();
+        RefreshTransportPresentation();
+    }
+
+    /// <summary>Seeks by <paramref name="delta"/> from the shown position, clamped to the medium, through the same latest-seek
+    /// path as the timeline (so the slideshow treats it as a seek and not as a natural end).</summary>
+    internal bool SeekRelative(TimeSpan delta)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (!CanSeekNow) return false;
+        long target = Math.Clamp(_timeline.DisplayPosition + (long)delta.TotalMilliseconds, 0, _length);
+        double value = Math.Clamp(target * 1000d / _length, _seek.Minimum, _seek.Maximum);
+        if (Math.Abs(value - _seek.Value) < 1e-9) return false;
+        _seek.Value = value;
+        return true;
+    }
+
+    /// <summary>Steps the speed one entry of <see cref="Rates"/> down (negative) or up (positive); 0 returns to 1×.</summary>
+    internal void StepRate(int direction)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (IsDisposed || !_speed.IsEnabled) return;
+        SetRate(VideoRates.Step(_rate, direction));
+    }
+
+    private void CycleRate()
+    {
+        if (IsDisposed || !_speed.IsEnabled) return;
+        SetRate(VideoRates.Next(_rate));
+    }
+
+    /// <summary>Chooses any speed of <see cref="VideoRates.Choices"/> (the right-click menu and the player menu).</summary>
+    internal void ChooseRate(float rate)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (IsDisposed || !_speed.IsEnabled) return;
+        SetRate(VideoRates.Normalize(rate));
+    }
+
+    private void SetRate(float rate)
+    {
+        if (VideoRates.Same(rate, _rate)) return;
+        _rate = rate;
+        RefreshTransportPresentation();
+        ApplyRate();
+    }
+
+    private void ApplyRate()
+    {
+        float rate = Rate;
+        _ = CommandAsync(playback => playback.Player.SetRate(rate));
+    }
+
+    internal static string RateLabel(float rate) => rate.ToString("0.##", Texts.Culture) + MultiplicationSign;
+
+    // The times sign of a rate label ("1.5×") is text next to a number, not an icon, so it is not a drawn catalog icon (P6).
+    private const char MultiplicationSign = '\u00D7';
+
+    /// <summary>
+    /// Saves the frame shown now as a PNG at <paramref name="path"/> (the native snapshot of the player; on the software
+    /// surface of Linux/macOS the presented bitmap when the native snapshot is refused). False when no frame is available.
+    /// </summary>
+    internal async Task<bool> SaveFrameAsync(string path)
+    {
+        Dispatcher.UIThread.VerifyAccess();
+        if (IsDisposed || _lifetime.HasCleanupPending) return false;
+        bool saved = await Task.Run(async () =>
+        {
+            await _operations.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                Playback? playback = _playback;
+                return playback != null && IsCurrent(playback.Generation) && playback.Player.TakeSnapshot(0, path, 0, 0) && File.Exists(path);
+            }
+            catch (Exception error) when (error is not OutOfMemoryException) { Serilog.Log.Warning(error, "The native video snapshot failed."); return false; }
+            finally { _operations.Release(); }
+        }).ConfigureAwait(true);
+        if (saved || !UsesSoftwareVideo || _softwareVideo.Source is not Avalonia.Media.Imaging.Bitmap shown) return saved;
+        // Copied here, encoded and written on a worker: a large frame never stalls the UI thread (logged on failure).
+        return await GalleryFramePng.SaveAsync(shown, path).ConfigureAwait(true);
+    }
+
+    private sealed record Playback(long Generation, MediaPlayer Player, Media Media, MediaInput? Input, Stream Stream,
+        VerifiedVideoFile? NativeFile, SoftwareVideoSurface? Surface, CancellationToken Token);
 
     // Acceptance observes the real player under its normal native-operation lock.
     // No alternate decoder, dummy video output or synthetic clock is used.
@@ -284,36 +427,45 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         bool HasPlayback, bool HasEngine, bool Disposed, int ReleasedStreams, int CleanupFailures,
         int SurfaceFrames = 0, bool SurfaceNonUniform = false, bool LoopEnabled = false, int LoopRestarts = 0,
         bool Muted = false, int Volume = 0, long Length = 0, bool Seekable = false,
-        int AudioTracks = -1, bool AudioAvailable = false, int DecodedAudio = 0, int PlayedAudioBuffers = -1);
+        int AudioTracks = -1, bool AudioAvailable = false, int DecodedAudio = 0, int PlayedAudioBuffers = -1,
+        long AudioTicks = 0, long AudioProbeRequests = 0, long AudioProbes = 0, long AudioProbePresentations = 0, bool AudioSettled = false);
 
-    internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null) => Task.Run(async () =>
-    {
-        await _operations.WaitAsync().ConfigureAwait(false);
-        try
-        {
-            Playback? playback = _playback;
-            if (_lifetime.HasCleanupFailure)
-                return new PlaybackEvidence("CleanupFailed", 0, 0, 0, playback != null, _engine != null, IsDisposed,
-                    _releasedStreams, _cleanupFailures);
-            if (playback == null) return new PlaybackEvidence("Stopped", 0, 0, 0, false, _engine != null, IsDisposed,
-                _releasedStreams, _cleanupFailures, LoopEnabled: _intent.LoopEnabled, LoopRestarts: _loopRestarts);
-            var stats = playback.Media.Statistics;
-            if (snapshotPath != null && !playback.Player.TakeSnapshot(0, snapshotPath, 0, 0))
-                throw new InvalidOperationException("The native video output rejected the frame snapshot.");
-            int audioTracks = playback.Player.AudioTrackCount, volume = playback.Player.Volume;
-            return new PlaybackEvidence(playback.Player.State.ToString(), playback.Player.Time,
-                stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, IsDisposed,
-                _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false,
-                _intent.LoopEnabled, _loopRestarts, playback.Player.Mute, volume,
-                playback.Player.Length, playback.Player.IsSeekable, audioTracks,
-                VideoAudioAvailability.IsAvailable(audioTracks, volume, stats.PlayedAudioBuffers), stats.DecodedAudio, stats.PlayedAudioBuffers);
-        }
-        finally { _operations.Release(); }
-    });
+    // Managed-only evidence remains readable even when a native getter/Stop holds _operations.
+    internal sealed record PlaybackLifecycleEvidence(long Generation, long? PlaybackGeneration,
+        bool CleanupPending, VideoCleanupEvidence Cleanup);
+    internal PlaybackLifecycleEvidence InspectPlaybackLifecycle() => new(_generation,
+        Volatile.Read(ref _playback)?.Generation, _lifetime.HasCleanupPending, _lifetime.Cleanup.Evidence);
+
+    internal Task<PlaybackEvidence> InspectPlaybackAsync(string? snapshotPath = null, CancellationToken cancellationToken = default)
+        => VideoPlaybackObservation.RunAsync(_operations.WaitAsync, _operations.Release, _lifetime, _generation, () => _playback,
+            static playback => playback.Generation, playback =>
+            {
+                T Read<T>(string phase, Func<T> read)
+                {
+                    using var measure = PerformanceDiagnostics.Measure("video.observer." + phase, revision: playback.Generation);
+                    return read();
+                }
+                var stats = Read("statistics", () => playback.Media.Statistics);
+                if (snapshotPath != null && !Read("snapshot", () => playback.Player.TakeSnapshot(0, snapshotPath, 0, 0)))
+                    throw new InvalidOperationException("The native video output rejected the frame snapshot.");
+                int audioTracks = Read("audio-tracks", () => playback.Player.AudioTrackCount);
+                int volume = Read("volume", () => playback.Player.Volume);
+                var probes = _audioProbe.Counts;
+                return new PlaybackEvidence(Read("state", () => playback.Player.State).ToString(), Read("time", () => playback.Player.Time),
+                    stats.DecodedVideo, stats.DisplayedPictures, true, _engine != null, IsDisposed,
+                    _releasedStreams, _cleanupFailures, playback.Surface?.PresentedFrames ?? 0, playback.Surface?.NonUniform ?? false,
+                    _intent.LoopEnabled, _loopRestarts, Read("mute", () => playback.Player.Mute), volume,
+                    Read("length", () => playback.Player.Length), Read("seekable", () => playback.Player.IsSeekable), audioTracks,
+                    VideoAudioAvailability.IsAvailable(audioTracks, volume, stats.PlayedAudioBuffers), stats.DecodedAudio, stats.PlayedAudioBuffers,
+                    probes.Ticks, probes.Requests, probes.Probes, probes.Presentations, probes.Settled);
+            }, state => new PlaybackEvidence(state, 0, 0, 0, state == "CleanupFailed" && _playback != null,
+                _engine != null, IsDisposed, _releasedStreams, _cleanupFailures,
+                LoopEnabled: _intent.LoopEnabled, LoopRestarts: _loopRestarts), cancellationToken);
 
     internal GalleryVideoPlayer()
     {
         _lifetime = new VideoPlaybackLifetime(CleanupAsync, ReleaseEngineAsync);
+        InitializeScrubPreview();
         GalleryControlTransfer.Track(_transportPanel, () => !_transportPlacementRetired && !IsDisposed);
         _seeks = new VideoLatestSeekQueue(SeekAsync);
         PropertyChanged += (_, change) =>
@@ -335,6 +487,10 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             Window? window = TopLevel.GetTopLevel(_transportPanel) as Window;
             _transportWindow = ReferenceEquals(window, _ownerWindow) ? null : window;
             if (_transportWindow != null) _transportWindow.Deactivated += OnWindowDeactivated;
+            // A cross-root transport move can retain the native pointer over the
+            // speaker without raising IsPointerOver again. Re-evaluate the retained
+            // volume popup after the new root has attached and laid out.
+            Dispatcher.UIThread.Post(UpdateVolumePopup, DispatcherPriority.Loaded);
         };
         _transportPanel.DetachedFromVisualTree += (_, _) =>
         {
@@ -356,12 +512,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             _status.Text = UnavailableText;
             // Cleanup retains ownership/admission exactly as before. The report is not
             // forwarded as a new medium's failure or used to reveal its transport.
-            CleanupDiagnostic?.Invoke(Text("The video backend has not finished cleanup; resources remain owned.",
-                "Das Videobackend hat das Aufräumen noch nicht beendet; Ressourcen bleiben gebunden."));
+            CleanupDiagnostic?.Invoke(Texts.T("gallery.video.cleanupPending"));
         });
         CommandBindings.BindExisting(_playPause, "video.play-pause");
         CommandBindings.BindExisting(_mute, "video.mute");
         CommandBindings.BindExisting(_loop, "video.loop");
+        ToolTip.SetShowOnDisabled(_loop, true);
         foreach (Slider slider in new Slider[] { _seek, _volume })
         {
             // Retain Semi's slider input/template with a slim media track and
@@ -370,21 +526,27 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             slider.Resources["SliderThumbWidth"] = 12d;
             slider.Resources["SliderThumbHeight"] = 12d;
         }
-        StackPanel secondary = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        secondary.Children.Add(_mute); secondary.Children.Add(_volume); secondary.Children.Add(_loop);
-        Grid timeline = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        timeline.Children.Add(_seek);
-        timeline.Children.Add(_time); Grid.SetColumn(_time, 1);
+        // One row: ▶ · time · seek (with the A–B marks) · speed · repeat · A·B · next frame · volume · full screen · ⋯.
+        StackPanel secondary = _secondary;
+        secondary.Children.Add(_speed); secondary.Children.Add(_loop); secondary.Children.Add(_abLoopButton);
+        secondary.Children.Add(_frameStep); secondary.Children.Add(_volumeHost);
+        secondary.Children.Add(_fullscreen); secondary.Children.Add(_playerMenuButton);
+        Grid timeline = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
+        timeline.Children.Add(_time);
+        Grid seekTrack = new();
+        seekTrack.Children.Add(_seek); seekTrack.Children.Add(_seekMarks);
+        timeline.Children.Add(seekTrack); Grid.SetColumn(seekTrack, 1);
+        InitializeTransportExtras();
         Grid controls = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
         controls.Children.Add(_playPause);
         controls.Children.Add(timeline); Grid.SetColumn(timeline, 1);
         controls.Children.Add(secondary); Grid.SetColumn(secondary, 2);
         // A narrow post-context pane gets two deliberate rows, never a loosely
-        // wrapping button pile. Audio and loop remain reachable at every width.
+        // wrapping button pile: the timeline above, ▶ and every other control below.
         bool compact = false;
         _transportPanel.SizeChanged += (_, _) =>
         {
-            bool nextCompact = _transportPanel.Bounds.Width < 560;
+            bool nextCompact = _transportPanel.Bounds.Width < CompactTransportWidth;
             if (compact == nextCompact) return;
             compact = nextCompact;
             controls.RowDefinitions = new RowDefinitions(compact ? "Auto,Auto" : "Auto");
@@ -399,8 +561,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _transportPanel.Child = transport;
         // Seek, time, volume and playback form one reserved surface. Its dynamic
         // resources follow open-window theme changes without touching playback.
-        Control videoSurface = UsesSoftwareVideo ? _softwareVideo : _video;
-        _root.Children.Add(videoSurface);
+        InitializeViewTransform();
+        _root.Children.Add(SurfaceControl);
         _root.Children.Add(_transportPanel); Grid.SetRow(_transportPanel, 1); Content = _root;
         _status.IsVisible = false;
         _status.PropertyChanged += (_, args) =>
@@ -413,6 +575,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _playPause.Click += async (_, _) => await TogglePlaybackAsync();
         _mute.Click += async (_, _) => await ToggleMuteAsync();
         _loop.Click += (_, _) => ToggleLoop();
+        _speed.Click += (_, _) => CycleRate();
+        // A pointer activation is an action, not a request to move keyboard ownership into the transport (every button, the volume slider
+        // once released, the speed and player menus once closed): the owner gets the keyboard back so the next Enter/Space reaches playback.
+        // The timeline keeps its focus (its arrows seek); Tab and keyboard activation keep the control's native focus for accessibility.
+        PointerFocusReclaim.SetReclaims(_volume, true);
+        _pointerFocusReclaim = PointerFocusReclaim.Attach(_transportPanel, () => ShortcutFocusRequested?.Invoke());
         _volume.PropertyChanged += (_, args) =>
         {
             if (args.Property != Slider.ValueProperty || _settingVolume) return;
@@ -459,16 +627,27 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 _transportWindow = null;
             }
             if (_ownerWindow != null) _ownerWindow.Deactivated += OnWindowDeactivated;
+            AttachOwnerWindowExtras();
             Texts.Changed += OnLanguageChanged; ShortcutService.Changed += RefreshTransportPresentation; RefreshTransportPresentation();
         };
         DetachedFromVisualTree += async (_, _) =>
         {
             if (_ownerWindow != null) _ownerWindow.Deactivated -= OnWindowDeactivated;
+            DetachOwnerWindowExtras();
             _ownerWindow = null;
             if (IsDisposed) DetachTransport();
             else SetExternalTransportHost(null);
-            Texts.Changed -= OnLanguageChanged; ShortcutService.Changed -= RefreshTransportPresentation; await StopAsync();
+            Texts.Changed -= OnLanguageChanged; ShortcutService.Changed -= RefreshTransportPresentation; await StopAfterDetachAsync(StopAsync);
         };
+    }
+
+    // Nothing awaits a detach handler, so a failed stop would escape as an unhandled UI-thread exception. A failed
+    // native cleanup is already retained and reported by the lifetime (CleanupDiagnostic); closing must still finish.
+    internal static async Task StopAfterDetachAsync(Func<Task> stop)
+    {
+        try { await stop(); }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        { Serilog.Log.Warning(error, "Video stop after leaving the visual tree failed; cleanup ownership stays retained."); }
     }
 
     private void EndPointerSeek() { _seekPointer = null; _timeline.EndGesture(pointer: true); RenderTime(); }
@@ -489,7 +668,6 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         else Dispatcher.UIThread.Post(Update);
     }
 
-    private static string Text(string en, string de) => GalleryViewerText.Get(en, de);
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(RefreshTransportPresentation); return; }
@@ -499,7 +677,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         void ActionName(Control control, string id, string label)
         {
-            string tip = CommandCatalog.ShortcutDisplay(id) is string gesture ? label + " · " + gesture : label;
+            string tip = CommandCatalog.ShortcutTooltipDisplay(id, ShortcutContext) is string gesture ? label + " · " + gesture : label;
             AutomationProperties.SetName(control, label);
             AutomationProperties.SetHelpText(control, tip);
             ToolTip.SetTip(control, tip);
@@ -513,12 +691,24 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         ActionName(_mute, "video.mute", _audioAvailable ? Texts.T(muted ? "viewer.video.unmute" : "viewer.video.mute") : audioUnavailable);
         _loop.Content = TransportIcon("video.loop", 18);
         _loop.IsChecked = _intent.LoopEnabled;
-        ActionName(_loop, "video.loop", Texts.T(_loop.IsChecked == true ? "viewer.video.loop.disable" : "viewer.video.loop.enable"));
-        AutomationProperties.SetName(_seek, Texts.T("viewer.video.position"));
-        ToolTip.SetTip(_seek, Texts.T("viewer.video.position"));
+        ActionName(_loop, "video.loop", _repeatOwnedBySlideshow && _repeatOwnedReason != null ? _repeatOwnedReason
+            : Texts.T(_loop.IsChecked == true ? "viewer.video.loop.disable" : "viewer.video.loop.enable"));
+        _speed.Content = RateLabel(Rate);
+        string speed = Texts.T("viewer.video.speed", RateLabel(Rate));
+        string speedKeys = string.Join(" · ", new[] { "video.speed-down", "video.speed-up", "video.speed-reset" }
+            .Select(id => CommandCatalog.ShortcutTooltipDisplay(id, ShortcutContext)).Where(gesture => gesture != null));
+        string speedTip = speed + " · " + Texts.T("viewer.video.speedHelp") + (speedKeys.Length > 0 ? " · " + speedKeys : string.Empty);
+        speedTip += " · " + Texts.T("viewer.video.speedMore");
+        AutomationProperties.SetName(_speed, speed);
+        AutomationProperties.SetHelpText(_speed, speedTip);
+        ToolTip.SetTip(_speed, speedTip);
+        RefreshSeekTooltip();
         string volumeLabel = _audioAvailable ? Texts.T("viewer.video.volume") : audioUnavailable;
         AutomationProperties.SetName(_volume, volumeLabel);
-        ToolTip.SetTip(_volume, volumeLabel);
+        string volumeTip = ShortcutHelp.Append(volumeLabel, ShortcutHelp.Commands(ShortcutContext, "video.volume-down", "video.volume-up"));
+        AutomationProperties.SetHelpText(_volume, volumeTip);
+        ToolTip.SetTip(_volume, volumeTip);
+        RefreshTransportExtras();
     }
     private static Control TransportIcon(string command, int size, string? state = null)
     {
@@ -555,20 +745,26 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         CancellationToken token = request.Token;
         PerformanceDiagnostics.Record("video.show", "begin", request.Id, asset: entry.Asset.AssetId, revision: generation);
         _loopRestarts = 0;
+        ResetViewTransform();
+        _rate = VideoRates.Normal; // A new medium starts at normal speed; its new native player does too.
+        ResetTransportExtras(); // Its A–B loop and audio tracks are its own.
         CancelSeekGesture();
+        BeginScrubSession(entry, generation);
         _timeline.Reset(generation);
         _isPlaying = false; _ended = false; _canSeek = _knownSeekable = false;
         _muteIntent.BeginMedia();
-        _audioAvailable = false; _audioTracks = -1;
+        _audioAvailable = false; _audioTracks = -1; _unrenderedAudioProbes = 0;
+        _audioTrackDisableAttemptedForUnavailableOutput = false; _audioProbe.BeginMedia();
         RefreshTransportPresentation();
         _volumeIntent.Request(generation, (int)_volume.Value);
-        EnableTransport(false); _length = 0; UpdateTime(0);
-        _status.Text = Text("Verifying local video…", "Lokales Video wird geprüft…");
+        EnableTransport(false); _length = 0; DurationChanged?.Invoke(null); UpdateTime(0);
+        _status.Text = Texts.T("gallery.video.verifying");
         await Task.Run(async () =>
         {
             using (PerformanceDiagnostics.Measure("video.operations.wait", request.Id, asset: entry.Asset.AssetId, revision: generation))
                 await _operations.WaitAsync().ConfigureAwait(false);
-            Stream? stream = null; StreamMediaInput? input = null; Media? media = null; MediaPlayer? player = null; SoftwareVideoSurface? surface = null;
+            Stream? stream = null; MediaInput? input = null; Media? media = null; MediaPlayer? player = null;
+            VerifiedVideoFile? nativeFile = null; SoftwareVideoSurface? surface = null;
             try
             {
                 await ClearPlaybackAsync(generation).ConfigureAwait(false);
@@ -581,32 +777,58 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 if (!IsCurrent(generation)) return;
                 using (PerformanceDiagnostics.Measure("video.native.create", request.Id, asset: entry.Asset.AssetId, revision: generation))
                 {
-                    NativeVideoRuntime.EnsureInitialized();
-                    _engine ??= UsesSoftwareVideo
+                    using (PerformanceDiagnostics.Measure("video.native.runtime-init", request.Id, revision: generation))
+                        NativeVideoRuntime.EnsureInitialized();
+                    using (PerformanceDiagnostics.Measure("video.native.engine-create", request.Id, revision: generation))
+                        _engine ??= UsesSoftwareVideo
                         ? new LibVLC("--no-video-title-show", "--no-media-library", "--avcodec-hw=none", "--stats")
                         : new LibVLC("--no-video-title-show", "--no-media-library", "--stats");
-                    player = new MediaPlayer(_engine);
+                    using (PerformanceDiagnostics.Measure("video.native.player-create", request.Id, revision: generation))
+                        player = new MediaPlayer(_engine);
                     VideoVolumeRequest initialVolume = _volumeIntent.Current;
                     player.Volume = initialVolume.Volume; ApplyMute(player);
                     _appliedVolumeRevision = initialVolume.Revision;
                     player.EnableKeyInput = false; player.EnableMouseInput = false;
                     if (UsesSoftwareVideo) surface = new SoftwareVideoSurface(_softwareVideo, player);
-                    input = new StreamMediaInput(stream);
-                    media = new Media(_engine, input);
-                    // VLC 3's MP4 demux can consume a callback-backed, single-chunk
-                    // video-only track to EOF while its reported clock stays at 250ms.
-                    // Keep the verified handle (never reopen by path); avformat demuxes
-                    // the same bytes with progressing native PCR/time and the same decoder.
-                    if (VideoStreamDemux.HasIsoBaseMediaHeader(stream)) media.AddOption(":demux=avformat");
+                    bool isoBaseMedia = VideoStreamDemux.HasIsoBaseMediaHeader(stream);
+                    if (VideoNativeInput.UsesFileInput)
+                    {
+                        using (PerformanceDiagnostics.Measure("video.native.file-materialize", request.Id, revision: generation))
+                            nativeFile = await VideoNativeInput.MaterializeAsync(stream, entry.Asset.Path, token).ConfigureAwait(false);
+                        using (PerformanceDiagnostics.Measure("video.native.media-create", request.Id, revision: generation))
+                            media = new Media(_engine, nativeFile.Path, FromType.FromPath);
+                    }
+                    else
+                    {
+                        input = new StreamMediaInput(stream);
+                        media = new Media(_engine, input);
+                    }
+                    AddInitialRotation(media);
+                    // Keep the verified stream and use a private file on macOS Intel:
+                    // LibVLC 3's callback-backed imem access can reject its get/release
+                    // table there, while the file input preserves seeking/repeat semantics.
+                    if (isoBaseMedia) media.AddOption(":demux=avformat");
                 }
-                _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, engine");
+                _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, native file, engine");
                 MediaPlayer ownedPlayer = player;
-                player.Playing += (_, _) => PostIntent(generation, intent =>
+                player.Playing += (_, _) =>
                 {
-                    if (!_intent.MarkPlaying(intent)) return;
-                    _isPlaying = true; _ended = false; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
-                    _ = RefreshAudioStateAsync(generation, ownedPlayer);
-                });
+                    // Start, resume, repeat and replay may (re)create the output and reset mute.
+                    // An Intel host without a CoreAudio endpoint needs the same defensive
+                    // audio-track admission on every play epoch, not only the first medium.
+                    _unrenderedAudioProbes = 0;
+                    _audioTrackDisableAttemptedForUnavailableOutput = false;
+                    _audioProbe.Invalidate();
+                    PostIntent(generation, intent =>
+                    {
+                        if (!_intent.MarkPlaying(intent)) return;
+                        _isPlaying = true; _ended = false; _status.Text = string.Empty; EnableTransport(true); RefreshTransportPresentation();
+                        _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                        // A replay or repeat may re-open the input; keep the chosen speed.
+                        if (!VideoRates.Same(_rate, VideoRates.Normal)) ApplyRate();
+                        RequestAudioTrackRefresh(generation, ownedPlayer);
+                    });
+                };
                 player.Paused += (_, _) => PostIntent(generation, intent =>
                 { if (intent.Mode == VideoPlaybackMode.Paused) { _isPlaying = false; RefreshTransportPresentation(); } });
                 player.Stopped += (_, _) => PostIntent(generation, intent =>
@@ -624,7 +846,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 {
                     // The verified local medium has not changed; terminal input teardown may
                     // report zero. Keep its last known duration until the next Show resets it.
-                    if (args.Length > 0) _length = args.Length;
+                    if (args.Length > 0)
+                    {
+                        bool changed = _length != args.Length;
+                        _length = args.Length;
+                        if (changed) DurationChanged?.Invoke(TimeSpan.FromMilliseconds(args.Length));
+                    }
                     RenderTime(); _seek.IsEnabled = _playPause.IsEnabled && _canSeek && _length > 0;
                 });
                 player.TimeChanged += (_, args) =>
@@ -633,13 +860,24 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     Post(generation, () =>
                     {
                         if (!_ended && _timeline.Observe(generation, revision, args.Time))
+                        {
                             RenderTime();
-                        _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                            CheckAbLoop(args.Time);
+                        }
+                        if (_sourceSize == null) RequestNativeSize(generation, ownedPlayer);
+                        if (_audioProbe.Tick()) _ = RefreshAudioStateAsync(generation, ownedPlayer);
                     });
                 };
-                player.ESAdded += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
-                player.ESDeleted += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
-                player.ESSelected += (_, _) => _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                void TrackChanged()
+                {
+                    // Invalidate before requesting: a probe in flight may have read the old track list.
+                    _audioProbe.Invalidate();
+                    _ = RefreshAudioStateAsync(generation, ownedPlayer);
+                    RequestAudioTrackRefresh(generation, ownedPlayer);
+                }
+                player.ESAdded += (_, _) => TrackChanged();
+                player.ESDeleted += (_, _) => TrackChanged();
+                player.ESSelected += (_, _) => TrackChanged();
                 player.EndReached += (_, _) =>
                 {
                     // A seek to the terminal position is an interaction, not slideshow progress.
@@ -653,10 +891,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                         if (_ended) { _canSeek = _knownSeekable; UpdateTime(_length); EnableTransport(true); }
                         _isPlaying = false; RefreshTransportPresentation();
                         if (_length <= 0) _ = FailAsync(generation);
+                        // A loop whose B lies at the very end meets the natural end first: it returns to A as well.
+                        else if (_abLoop.IsActive && JumpToLoopStart()) { }
                         else if (_intent.CanRepeat(intent)) _ = RestartAfterEndAsync(intent, ownedPlayer);
                         else
                         {
-                            _status.Text = Text("Playback ended.", "Wiedergabe beendet.");
+                            _status.Text = Texts.T("gallery.video.ended");
                             if (!IsCurrent(generation)) return;
                             if (naturalEnd && !_timeline.HasGesture && !_timeline.HasPendingSeek)
                                 _intent.FinishNaturalEnd(intent);
@@ -666,8 +906,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 };
                 player.EncounteredError += (_, _) => Post(generation, () => _ = FailAsync(generation));
                 token.ThrowIfCancellationRequested();
-                _playback = new Playback(generation, player, media, input, stream, surface, token);
-                player = null; media = null; input = null; stream = null; surface = null;
+                _playback = new Playback(generation, player, media, input, stream, nativeFile, surface, token);
+                player = null; media = null; input = null; stream = null; nativeFile = null; surface = null;
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     if (IsCurrent(generation) && !UsesSoftwareVideo) _video.MediaPlayer = _playback.Player;
@@ -683,7 +923,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 else
                 {
                     _playback.Player.Media = _playback.Media;
-                    Post(generation, () => { EnableTransport(true); _status.Text = Text("Ready to play.", "Bereit zur Wiedergabe."); });
+                    Post(generation, () => { EnableTransport(true); _status.Text = Texts.T("gallery.video.ready"); });
                 }
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
@@ -704,12 +944,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     // Even a partially constructed player retains its verified input until native release returns.
                     if (player != null)
                     {
-                        _playback = new Playback(generation, player, media!, input!, stream!, surface, token);
+                        _playback = new Playback(generation, player, media!, input, stream!, nativeFile, surface, token);
                         await ClearPlaybackAsync(generation).ConfigureAwait(false);
                     }
                     else
                     {
-                        try { surface?.Dispose(); media?.Dispose(); input?.Dispose(); stream?.Dispose(); }
+                        try { surface?.Dispose(); media?.Dispose(); input?.Dispose(); nativeFile?.Dispose(); stream?.Dispose(); }
                         catch (Exception exception)
                         {
                             _failedStream = stream;
@@ -764,7 +1004,10 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 if (!CanRestart() || expectedPlayer.State != VLCState.Ended) return;
                 long request = _lifetime.RequestId(generation);
                 using (PerformanceDiagnostics.Measure("video.native.repeat-stop", request, revision: generation))
+                {
+                    DisableUnrenderedAudioOutput(_playback!);
                     expectedPlayer.Stop();
+                }
                 if (!CanRestart() || _intent.BeginRepeat(intent) is not { } repeat) return;
                 if (!IsCurrent(generation) || !_intent.CanRepeat(repeat)) return;
                 using (PerformanceDiagnostics.Measure("video.native.repeat-play", request, revision: generation))
@@ -775,28 +1018,30 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             finally { _operations.Release(); }
         }).ConfigureAwait(true);
     }
-    private static string UnavailableText => Text("Media unavailable. Details are available in diagnostics.",
-        "Medium nicht verfügbar. Details stehen in der Diagnose.");
+    private static string UnavailableText => Texts.T("gallery.mediaUnavailable");
 
     private static string Diagnosis(Exception? exception)
     {
         string reason = exception is IOException or UnauthorizedAccessException
-            ? Text("The saved video could not be verified or read.", "Das gespeicherte Video konnte nicht geprüft oder gelesen werden.")
-            : Text("Video playback is unavailable or this file cannot be decoded.", "Videowiedergabe ist nicht verfügbar oder diese Datei kann nicht dekodiert werden.");
-        return OperatingSystem.IsLinux() ? reason + " " + Text(
-            "Linux requires LibVLC 3.0.20 or newer with WebM/Matroska, VP8/VP9, Vorbis/Opus and video/audio output plugins. Install your distribution's VLC runtime packages.",
-            "Linux benötigt LibVLC ab 3.0.20 mit WebM-/Matroska-, VP8-/VP9-, Vorbis-/Opus- und Video-/Audioausgabe-Plugins. Installiere die VLC-Laufzeitpakete deiner Distribution.") : reason;
+            ? Texts.T("gallery.video.error.read")
+            : Texts.T("gallery.video.error.decode");
+        return OperatingSystem.IsLinux() ? reason + " " + Texts.T("gallery.video.error.linuxRuntime") : reason;
     }
     private void UpdateTime(long position)
     {
         _timeline.Observe(_generation, _timeline.Revision, Math.Max(0, position));
         RenderTime();
     }
+    internal static string FormatVideoTime(long milliseconds)
+    {
+        TimeSpan value = TimeSpan.FromMilliseconds(Math.Max(0, milliseconds));
+        return value.ToString(milliseconds >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss");
+    }
+
     private void RenderTime()
     {
         long position = _timeline.DisplayPosition;
-        static string Clock(long milliseconds) => TimeSpan.FromMilliseconds(milliseconds).ToString(milliseconds >= 3_600_000 ? @"h\:mm\:ss" : @"m\:ss");
-        _time.Text = Clock(position) + " / " + (_length > 0 ? Clock(_length) : "–:––");
+        _time.Text = FormatVideoTime(position) + " / " + (_length > 0 ? FormatVideoTime(_length) : "–:––");
         _updatingSeek = true;
         try { _seek.Value = _length > 0 ? Math.Clamp(position * 1000d / _length, 0, 1000) : 0; }
         finally { _updatingSeek = false; }
@@ -804,9 +1049,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
 
     private async Task SeekAsync(VideoSeekRequest request)
     {
-        await _operations.WaitAsync().ConfigureAwait(false);
+        using (PerformanceDiagnostics.Measure("video.seek.operations-wait", revision: request.Generation))
+            await _operations.WaitAsync().ConfigureAwait(false);
         try
         {
+            using var operation = PerformanceDiagnostics.Measure("video.seek.native", revision: request.Generation);
             Playback? playback = _playback;
             bool Current() => playback != null && playback.Generation == request.Generation
                 && IsCurrent(request.Generation) && _timeline.IsLatest(request);
@@ -817,7 +1064,8 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             if (terminal && length <= 0) length = request.Length;
             if ((!terminal && !player.IsSeekable) || length <= 0)
             {
-                CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
+                using (PerformanceDiagnostics.Measure("video.seek.readback", revision: request.Generation))
+                    CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
                 return;
             }
             // VLC cannot seek an ended/stopped input. Re-open it first, then restore the user's
@@ -853,13 +1101,15 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             player.TimeChanged += TimeChanged;
             try
             {
-                player.Time = position;
+                using (PerformanceDiagnostics.Measure("video.seek.set-time", revision: request.Generation))
+                    player.Time = position;
                 if (Math.Abs(player.Time - position) > 250)
                 {
                     try { await observed.Task.WaitAsync(TimeSpan.FromMilliseconds(500), playback.Token).ConfigureAwait(false); }
                     catch (TimeoutException) { /* Read actual time even if the backend cannot honor the seek. */ }
                 }
-                CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
+                using (PerformanceDiagnostics.Measure("video.seek.readback", revision: request.Generation))
+                    CompleteSeek(request, Math.Max(0, player.Time), player.IsPlaying);
             }
             finally { player.TimeChanged -= TimeChanged; }
         }
@@ -887,29 +1137,67 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     }
     private void EnableTransport(bool enabled)
     {
-        _playPause.IsEnabled = _loop.IsEnabled = enabled;
+        _playPause.IsEnabled = _speed.IsEnabled = enabled;
+        _loop.IsEnabled = enabled && !_repeatOwnedBySlideshow;
         _mute.IsEnabled = _volume.IsEnabled = enabled && _audioAvailable;
         _seek.IsEnabled = enabled && _canSeek && _length > 0;
+        UpdateTransportExtrasEnabled();
     }
 
     // A track list/output may become available only after Playing. Query on our
-    // native worker after track changes, and retry while initial audio is unknown.
+    // native worker after track changes, and retry on time ticks until the play
+    // epoch is settled (see VideoAudioProbeSchedule).
     // A nonnegative cached volume does NOT prove an output exists (Windows can
     // return 0/100 while mmdevice reports no default endpoint). Require actual
     // played audio buffers; muted-but-functional outputs still render buffers.
     private async Task RefreshAudioStateAsync(long generation, MediaPlayer expectedPlayer)
     {
+        _audioProbe.CountRequest();
         if (Interlocked.CompareExchange(ref _audioRefreshPending, 1, 0) != 0) return;
         try
         {
             await Task.Run(async () =>
             {
-                await _operations.WaitAsync().ConfigureAwait(false);
+                using (PerformanceDiagnostics.Measure("video.audio.operations-wait", revision: generation))
+                    await _operations.WaitAsync().ConfigureAwait(false);
                 try
                 {
+                    using var operation = PerformanceDiagnostics.Measure("video.audio.native", revision: generation);
                     if (!IsCurrent(generation) || !ReferenceEquals(_playback?.Player, expectedPlayer)) return;
+                    // Observe the epoch before native state, so a later track/playing event always wins.
+                    long epoch = _audioProbe.Observe();
                     int tracks = expectedPlayer.AudioTrackCount, volume = expectedPlayer.Volume;
-                    bool available = VideoAudioAvailability.IsAvailable(tracks, volume, _playback!.Media.Statistics.PlayedAudioBuffers);
+                    MediaStats statistics = _playback!.Media.Statistics;
+                    int decoded = statistics.DecodedAudio, played = statistics.PlayedAudioBuffers;
+                    bool available = VideoAudioAvailability.IsAvailable(tracks, volume, played);
+                    if (VideoNativeInput.UsesFileInput && tracks > 0 && decoded > 0 && played == 0)
+                    {
+                        // Do not let an Intel host with no CoreAudio endpoint keep reopening
+                        // the audio output on every play/repeat. This is enabled only after
+                        // native decoding is proven and two ordered probes prove no buffers
+                        // reached an output; the playback evidence remains auditable.
+                        if (_unrenderedAudioProbes < 2) _unrenderedAudioProbes++;
+                        if (_unrenderedAudioProbes >= 2 && !_audioTrackDisableAttemptedForUnavailableOutput)
+                        {
+                            _audioTrackDisableAttemptedForUnavailableOutput = true;
+                            try
+                            {
+                                if (expectedPlayer.SetAudioTrack(-1))
+                                {
+                                    PerformanceDiagnostics.Record("video.audio", "disable-unrendered-output",
+                                        _lifetime.RequestId(generation), revision: generation);
+                                }
+                            }
+                            catch (Exception exception)
+                            {
+                                Serilog.Log.Debug(exception, "Could not disable the unrendered Intel audio track.");
+                            }
+                        }
+                    }
+                    else if (played > 0 || tracks <= 0)
+                    {
+                        _unrenderedAudioProbes = 0;
+                    }
                     // A volume edit can arrive during backend construction, before the audio
                     // output is ready. Apply it on readiness instead of losing the latest value.
                     VideoVolumeRequest requestedVolume = _volumeIntent.Current;
@@ -921,9 +1209,13 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                     if (available) ApplyMute(expectedPlayer);
                     Post(generation, () =>
                     {
+                        _audioProbe.Record(epoch, tracks, available, played);
+                        // The presentation reads only these two values from a probe. Every other
+                        // input (mute, loop, play state, language, shortcuts) refreshes it itself.
+                        bool changed = tracks != _audioTracks || available != _audioAvailable;
                         _audioTracks = tracks; _audioAvailable = available;
                         _mute.IsEnabled = _volume.IsEnabled = _playPause.IsEnabled && available;
-                        RefreshTransportPresentation();
+                        if (changed) { _audioProbe.CountPresentation(); RefreshTransportPresentation(); }
                     });
                 }
                 catch (Exception) { /* Playback/error lifecycle owns backend failure reporting. */ }
@@ -947,8 +1239,14 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         if (!CanAdjustVolume || direction == 0) return;
         // Same bounds/step and same synchronous ValueChanged/latest-intent/persistence path
         // as pointer input. No play/pause/loop/mute policy or second backend setter here.
-        double step = _volume.SmallChange;
-        _volume.Value = Math.Clamp(_volume.Value + Math.Sign(direction) * step, _volume.Minimum, _volume.Maximum);
+        AdjustVolumeBy(Math.Sign(direction) * _volume.SmallChange);
+    }
+
+    // The wheel over the volume control takes the same path in larger steps.
+    private void AdjustVolumeBy(double delta)
+    {
+        if (!CanAdjustVolume || delta == 0) return;
+        _volume.Value = Math.Clamp(_volume.Value + delta, _volume.Minimum, _volume.Maximum);
     }
 
     private Task SetVolumeAsync(int volume, bool userInitiated)
@@ -996,15 +1294,12 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     private async Task CommandAsync(Action<Playback> command)
     {
         long generation = _generation;
-        await VideoPlaybackCommands.RunAsync(_operations, _lifetime, generation, () => _playback,
+        await VideoPlaybackCommands.RunAsync(_operations.WaitAsync, _operations.Release, _lifetime, generation, () => _playback,
             static playback => playback.Generation, command,
             exception => Post(generation, () => _ = FailAsync(generation))).ConfigureAwait(true);
     }
 
-    internal long NoOpStopCount => _lifetime.NoOpStops;
-    internal long FullStopCount => _lifetime.FullStops;
     // Readable without entering the native semaphore, even while native Stop is blocked.
-    internal VideoCleanupEvidence CleanupEvidence => _lifetime.Cleanup.Evidence;
     internal Task StopUnavailableAsync()
     {
         EnableTransport(false);
@@ -1015,6 +1310,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     internal Task StopAsync()
     {
         _intent.Set(_generation, VideoPlaybackMode.Stopped);
+        CancelScrubPreviewRequest();
         CancelSeekGesture();
         return _lifetime.StopAsync();
     }
@@ -1027,6 +1323,30 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         finally { _operations.Release(); }
     }
 
+    private void DisableUnrenderedAudioOutput(Playback playback)
+    {
+        if (!VideoNativeInput.UsesFileInput || _audioTrackDisableAttemptedForUnavailableOutput) return;
+        try
+        {
+            MediaStats statistics = playback.Media.Statistics;
+            if (playback.Player.AudioTrackCount > 0 && statistics.DecodedAudio > 0 && statistics.PlayedAudioBuffers == 0)
+            {
+                _audioTrackDisableAttemptedForUnavailableOutput = true;
+                if (playback.Player.SetAudioTrack(-1))
+                {
+                    PerformanceDiagnostics.Record("video.audio", "disable-unrendered-output-before-stop",
+                        _lifetime.RequestId(playback.Generation), revision: playback.Generation);
+                }
+            }
+        }
+        catch (Exception exception)
+        {
+            // Cleanup still owns the player and will attempt the native stop. Do not turn
+            // an unavailable optional audio output into an untracked ownership loss.
+            Serilog.Log.Debug(exception, "Could not disable the unrendered Intel audio track before stop.");
+        }
+    }
+
     // The drawable and callback-reachable inputs remain owned until native release actually returns.
     // A throwing release poisons admission and retains this owner, rather than freeing live callbacks.
     private async Task ClearPlaybackAsync(long notNewerThan)
@@ -1035,9 +1355,11 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         Playback? playback = _playback;
         if (playback == null || playback.Generation > notNewerThan) return;
         bool watching = _lifetime.Cleanup.Begin(notNewerThan);
-        _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, engine");
+        _lifetime.Cleanup.Owns("native operation, player/drawable, callback roots, media/input, verified stream, native file, engine");
         try
         {
+            _lifetime.Cleanup.Phase("native-audio-detach");
+            DisableUnrenderedAudioOutput(playback);
             _lifetime.Cleanup.Phase("native-stop");
             playback.Player.Stop();
             // A throwing Stop gives no proof that drawable users joined. Retain the owner and
@@ -1049,16 +1371,16 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
             });
             _lifetime.Cleanup.Phase("player-dispose");
             playback.Player.Dispose();
-            _lifetime.Cleanup.Owns("native operation, callback roots, media/input, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, callback roots, media/input, verified stream, native file, engine");
             _lifetime.Cleanup.Phase("surface-dispose");
             playback.Surface?.Dispose();
-            _lifetime.Cleanup.Owns("native operation, media/input, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, media/input, verified stream, native file, engine");
             _lifetime.Cleanup.Phase("media-dispose");
             playback.Media?.Dispose();
-            _lifetime.Cleanup.Owns("native operation, input, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, input, native file, verified stream, engine");
             _lifetime.Cleanup.Phase("input-dispose");
             playback.Input?.Dispose();
-            _lifetime.Cleanup.Owns("native operation, verified stream, engine");
+            _lifetime.Cleanup.Owns("native operation, verified stream, native file, engine");
             _lifetime.Cleanup.Phase("stream-dispose");
             playback.Stream?.Dispose();
             if (playback.Stream != null)
@@ -1066,6 +1388,15 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
                 if (!playback.Stream.CanRead) Interlocked.Increment(ref _releasedStreams);
                 else throw new IOException("The verified video stream did not close.");
             }
+            _lifetime.Cleanup.Phase("native-file-dispose");
+            playback.NativeFile?.Dispose();
+            _lifetime.Cleanup.Owns("native operation, engine");
+            // The engine belongs to this GalleryVideoPlayer, not to one medium. Native
+            // Stop/player release above joins that medium's decoder before its callbacks
+            // and verified input are freed. Keep the idle engine for the next Show;
+            // ReleaseEngineAsync joins it only at terminal owner disposal.
+            // Intel 43916342134: per-medium engine release took 5.23s and recreation
+            // 4.46s under _operations, blocking observers after the decoder had retired.
             _playback = null;
             if (watching) _lifetime.Cleanup.Complete();
         }
@@ -1081,9 +1412,7 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
     {
         _lifetime.FailCleanup(exception);
         if (!_failedCleanupRoot.IsAllocated) _failedCleanupRoot = GCHandle.Alloc(this);
-        Dispatcher.UIThread.Post(() => CleanupDiagnostic?.Invoke(Text(
-            "Video cleanup failed; resources remain retained and new playback is blocked.",
-            "Video-Aufräumen fehlgeschlagen; Ressourcen bleiben gebunden und neue Wiedergabe ist blockiert.")));
+        Dispatcher.UIThread.Post(() => CleanupDiagnostic?.Invoke(Texts.T("gallery.video.cleanupFailed")));
     }
 
     private async Task ReleaseEngineAsync()
@@ -1110,8 +1439,15 @@ internal sealed class GalleryVideoPlayer : UserControl, IAsyncDisposable
         _intent.Set(_generation, VideoPlaybackMode.Stopped);
         CancelSeekGesture();
         Task cleanup = _lifetime.DisposeAsync();
-        if (Dispatcher.UIThread.CheckAccess()) RetireTransportPlacement();
-        else Dispatcher.UIThread.Post(RetireTransportPlacement);
+        Task scrubCleanup = DisposeScrubPreviewAsync();
+        cleanup = Task.WhenAll(cleanup, scrubCleanup);
+        void RetireInput()
+        {
+            _pointerFocusReclaim.Dispose();
+            RetireTransportPlacement();
+        }
+        if (Dispatcher.UIThread.CheckAccess()) RetireInput();
+        else Dispatcher.UIThread.Post(RetireInput);
         return new(DetachTransportAfterCleanupAsync(cleanup));
     }
     private async Task DetachTransportAfterCleanupAsync(Task cleanup)
@@ -1162,9 +1498,15 @@ internal static class VideoPlaybackCommands
     internal static Task RunAsync<TPlayback>(SemaphoreSlim operations, VideoPlaybackLifetime lifetime,
         long generation, Func<TPlayback?> currentPlayback, Func<TPlayback, long> playbackGeneration,
         Action<TPlayback> command, Action<Exception>? onFailure = null) where TPlayback : class
+        => RunAsync(operations.WaitAsync, () => operations.Release(), lifetime, generation,
+            currentPlayback, playbackGeneration, command, onFailure);
+
+    internal static Task RunAsync<TPlayback>(Func<CancellationToken, Task> wait, Action release, VideoPlaybackLifetime lifetime,
+        long generation, Func<TPlayback?> currentPlayback, Func<TPlayback, long> playbackGeneration,
+        Action<TPlayback> command, Action<Exception>? onFailure = null) where TPlayback : class
         => Task.Run(async () =>
         {
-            await operations.WaitAsync().ConfigureAwait(false);
+            await wait(CancellationToken.None).ConfigureAwait(false);
             try
             {
                 TPlayback? playback = currentPlayback();
@@ -1178,7 +1520,7 @@ internal static class VideoPlaybackCommands
                 command(playback);
             }
             catch (Exception exception) when (onFailure != null) { onFailure(exception); }
-            finally { operations.Release(); }
+            finally { release(); }
         });
 }
 
@@ -1401,6 +1743,7 @@ internal sealed class VideoPlaybackLifetime
                 Cleanup.Begin(Generation);
                 await _releaseEngine().ConfigureAwait(false);
                 Cleanup.Complete();
+                Cleanup.Dispose();
                 completion.TrySetResult();
             }
             catch (Exception exception) { FailCleanup(exception); completion.TrySetException(exception); }
@@ -1417,7 +1760,7 @@ internal sealed record VideoCleanupEvidence(long Request, long Generation, strin
 /// the ThreadPool; pool-starvation detection belongs to the external PF00 watchdog.
 /// It observes pending work and never releases or cancels resources.
 /// </summary>
-internal sealed class VideoCleanupWatch
+internal sealed class VideoCleanupWatch : IDisposable
 {
     private readonly object _state = new();
     private readonly string _prefix;
@@ -1427,7 +1770,7 @@ internal sealed class VideoCleanupWatch
     private Timer? _timer;
     private long _request, _generation, _since;
     private string _phase = "idle", _completed = "none", _resources = "accepted show/native operation";
-    private bool _pending, _overdue, _retained;
+    private bool _pending, _overdue, _retained, _disposed;
     internal event Action<VideoCleanupEvidence>? Pending;
     internal VideoCleanupWatch(string prefix, Func<long>? clock = null, long? deadline = null, bool schedule = true)
     {
@@ -1444,7 +1787,7 @@ internal sealed class VideoCleanupWatch
     {
         lock (_state)
         {
-            if (_pending) return false;
+            if (_pending || _disposed) return false;
             _request = PerformanceDiagnostics.NextId(); _generation = generation;
             _pending = _retained = true; _overdue = false;
             _phase = "accepted"; _completed = "none"; _since = _clock();
@@ -1489,6 +1832,17 @@ internal sealed class VideoCleanupWatch
             PerformanceDiagnostics.Record(_prefix, "released", _request, revision: _generation);
         }
     }
+    public void Dispose()
+    {
+        lock (_state)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            _pending = false;
+            _timer?.Dispose(); _timer = null;
+        }
+    }
+
     internal void Fail()
     {
         lock (_state)
@@ -1525,4 +1879,68 @@ internal static class VideoAudioAvailability
 {
     internal static bool IsAvailable(int tracks, int volume, int playedAudioBuffers)
         => tracks > 0 && volume >= 0 && playedAudioBuffers > 0;
+}
+
+/// <summary>
+/// Decides whether a time tick must re-probe native audio state. Native track and Playing
+/// callbacks only call <see cref="Invalidate"/>; all other members run on the UI thread, in
+/// probe completion order. An epoch is settled when the media has no audio track, or when two
+/// available probes of that epoch saw played buffers grow: the output then rendered after the
+/// epoch began, so the probe that saw it already reapplied volume and mute to the live output.
+/// Present but silent tracks never settle (an output may still start), so they keep the
+/// previous per-tick behavior. A settled epoch with a rendering track still probes every
+/// <see cref="HeartbeatTicks"/> ticks: the backend can replace its output (device switch,
+/// format change) without a track or Playing event, and a new output may reset mute.
+/// </summary>
+internal sealed class VideoAudioProbeSchedule
+{
+    // About two seconds at VLC's usual four time ticks per second.
+    internal const int HeartbeatTicks = 8;
+    private long _epoch;
+    private long _settledAt = -1, _baselineAt = -1;
+    private int _baselineBuffers;
+    private bool _rendering;
+    private int _idleTicks;
+    private long _ticks, _requests, _probes, _presentations;
+
+    internal void Invalidate() => Interlocked.Increment(ref _epoch);
+    internal long Observe() => Interlocked.Read(ref _epoch);
+    internal bool IsSettled => _settledAt == Interlocked.Read(ref _epoch);
+
+    internal void BeginMedia()
+    {
+        _settledAt = _baselineAt = -1; _rendering = false; _idleTicks = 0;
+        Interlocked.Exchange(ref _ticks, 0); Interlocked.Exchange(ref _requests, 0);
+        Interlocked.Exchange(ref _probes, 0); Interlocked.Exchange(ref _presentations, 0);
+    }
+
+    // Returns whether this time tick must probe.
+    internal bool Tick()
+    {
+        Interlocked.Increment(ref _ticks);
+        if (!IsSettled) return true;
+        // Trackless media has no output to replace; a track event invalidates it.
+        if (!_rendering || ++_idleTicks < HeartbeatTicks) return false;
+        _idleTicks = 0;
+        return true;
+    }
+
+    internal void Record(long epoch, int tracks, bool available, int playedBuffers)
+    {
+        Interlocked.Increment(ref _probes);
+        _settledAt = -1; _idleTicks = 0; _rendering = false;
+        if (tracks == 0) { _settledAt = epoch; return; }
+        if (!available) { _baselineAt = -1; return; }
+        if (_baselineAt == epoch && playedBuffers > _baselineBuffers) { _settledAt = epoch; _rendering = true; return; }
+        // First available sample of this epoch, or stale statistics of a replaced input.
+        _baselineAt = epoch; _baselineBuffers = playedBuffers;
+    }
+
+    internal void CountRequest() => Interlocked.Increment(ref _requests);
+    internal void CountPresentation() => Interlocked.Increment(ref _presentations);
+    // Evidence only: time ticks, probe requests, completed probes and probe-caused presentations.
+    // Settled is read off the UI thread here, so it is a racy snapshot for evidence only.
+    internal (long Ticks, long Requests, long Probes, long Presentations, bool Settled) Counts =>
+        (Interlocked.Read(ref _ticks), Interlocked.Read(ref _requests), Interlocked.Read(ref _probes),
+            Interlocked.Read(ref _presentations), Volatile.Read(ref _settledAt) == Interlocked.Read(ref _epoch));
 }

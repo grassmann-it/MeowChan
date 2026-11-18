@@ -145,7 +145,7 @@ public sealed class SushiZzzWaveIntegrationTests(ITestOutputHelper output)
     {
         string source = fixture.Source;
         var plugin = (await host.Plugins!.ProfileStore.ReadAsync()).Plugins.Single(row => row.PluginId == Owner(source));
-        Assert.False(plugin.Enabled);
+        Assert.Equal(ChanSourceFamilies.IsFamily(plugin.PluginId), plugin.Enabled); // a family plugin is on, its site switch is off (98f5f63a)
         var projection = await host.ProjectExperimentalSourceActivationAsync(fixture.ThreadUrl);
         Assert.Equal(ExperimentalSourceActivationProjectionStatus.ConfirmationRequired, projection.Status);
         var target = Assert.IsType<ExperimentalSourceActivationTarget>(projection.Target);
@@ -235,7 +235,9 @@ public sealed class SushiZzzWaveIntegrationTests(ITestOutputHelper output)
         Assert.Equal(hash, plugin.Active!.Artifact.AssemblySha256, ignoreCase: true);
         Assert.Equal(hash, Hash(await File.ReadAllBytesAsync(plugin.Active.Artifact.AssemblyPath)), ignoreCase: true);
     }
-    private static string Owner(string source) => "meowchan.source." + source;
+    // The engine families (0a867b40) took over the single-site plugins: the owner is the family plugin of the site.
+    private static string Owner(string source) => ChanSourceFamilies.Replaced.TryGetValue("meowchan.source." + source, out var site)
+        ? site.Family : "meowchan.source." + source;
     private static ResourceId Resource(string source) => new(source, "demo", "123");
     private static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     private static SourceMediaIntegrityPolicyView Policy(DesktopSessionHost host, string source) =>

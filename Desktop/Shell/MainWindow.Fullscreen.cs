@@ -10,6 +10,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -86,6 +87,10 @@ public partial class MainWindow
             + $"expected={_fullscreenRestoreClient}; from={_fullscreenRestoreFromClient}; pending-max={_fullscreenMaximizeRestoreClient}/{_fullscreenMaximizeRestoreQueued}/{_fullscreenMaximizeSizeCorrectionQueued}/{_fullscreenMaximizeRestoreCancelled}; repair={_fullscreenExitRepairQueued}/{_fullscreenExitRepairConsumed}/{_fullscreenExitSizeCorrectionQueued}; exit-generation={_fullscreenExitGeneration}; mode={_config.WorkspaceMode}.");
     }
 
+    /// <summary>The theme to switch to, or null when the app already requests it.</summary>
+    internal static Avalonia.Styling.ThemeVariant? ThemeChangeNeeded(Avalonia.Styling.ThemeVariant? current, Avalonia.Styling.ThemeVariant next)
+        => Equals(current ?? Avalonia.Styling.ThemeVariant.Default, next) ? null : next;
+
     internal static Avalonia.Styling.ThemeVariant ThemeForPreference(string theme) => theme switch
     {
         "Light" => Avalonia.Styling.ThemeVariant.Light,
@@ -106,9 +111,9 @@ public partial class MainWindow
         Resized += OnFullscreenRestoreResized;
         PropertyChanged += OnFullscreenStateChanged;
         Screens.Changed += OnShellScreensChanged;
-        WorkspaceControl<Button>("FullscreenButton").Click += (_, _) => ToggleFullscreen();
-        WorkspaceControl<Button>("ShellHelpClose").Click += (_, _) => DismissShellHelp();
-        WorkspaceControl<MenuItem>("ShortcutHelpMenuItem").Click += (_, _) => ShowShellHelp();
+        FullscreenButton.Click += (_, _) => ToggleFullscreen();
+        ShellHelpClose.Click += (_, _) => DismissShellHelp();
+        ShortcutHelpMenuItem.Click += (_, _) => ShowShellHelp();
         RefreshShellCommands();
     }
 
@@ -390,6 +395,8 @@ public partial class MainWindow
                 TraceFullscreen("maximized exit superseded by explicit normal request");
             }
             UpdateGalleryFullscreenPresentation();
+            if (e.OldValue is WindowState before && e.NewValue is WindowState after
+                && FullscreenPresentationChanged(before, after)) RefreshFullscreenButton();
             ContinueLinuxFullscreenNormalRestore();
             ContinueFullscreenRestore();
             ContinuePendingFullscreenExitSizeRepair();
@@ -647,11 +654,24 @@ public partial class MainWindow
         }, DispatcherPriority.Background);
     }
 
+    /// <summary>Closes the shortcuts window (or the former in-window overlay) as Escape's first layer; false when neither is open.</summary>
     private bool DismissShellHelp()
     {
-        Border help = WorkspaceControl<Border>("ShellHelpOverlay");
+        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true } window)
+        {
+            window.RequestClose();
+            return true;
+        }
+        // The in-window overlay is no longer opened (KS2); kept until its markup is removed.
+        Border help = ShellHelpOverlay;
         if (!help.IsVisible) return false;
         help.IsVisible = false;
+        RestoreHelpOrigin();
+        return true;
+    }
+
+    private void RestoreHelpOrigin()
+    {
         if (_helpOrigin is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } origin
             && origin.IsAttachedToVisualTree() && ReferenceEquals(TopLevel.GetTopLevel(origin), this))
         {
@@ -659,27 +679,48 @@ public partial class MainWindow
         }
         else Focus();
         _helpOrigin = null;
-        return true;
     }
 
-    private void ShowShellHelp()
+    /// <summary>F1, the app menu and the macOS Help menu: toggles the one shortcuts window on the area the user works in (KS2); the gallery passes its own context.</summary>
+    private void ShowShellHelp(MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext? context = null)
     {
-        Border help = WorkspaceControl<Border>("ShellHelpOverlay");
-        if (help.IsVisible) { DismissShellHelp(); return; }
+        if (MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(this) is { IsVisible: true }) { DismissShellHelp(); return; }
         _helpOrigin = FocusManager?.GetFocusedElement() as Control;
-        var ids = new List<string> { "navigation.downloads", "navigation.archive", "navigation.rules", "navigation.sources", "navigation.diagnostics",
-            "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" };
+        var window = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.Open(this, SettingsEditor, context
+            ?? (_gallery != null && !_gallerySuspended ? _gallery.ShortcutHelp() : ShellHelpContext()));
+        window.Closed -= OnShortcutsWindowClosed;
+        window.Closed += OnShortcutsWindowClosed;
+    }
+
+    private void OnShortcutsWindowClosed(object? sender, EventArgs e)
+    {
+        if (_isClosing) return;
+        Activate();
+        RestoreHelpOrigin();
+    }
+
+    /// <summary>The context of F1: the current area, its commands in the order of the former help list (only actions that
+    /// are available here), which of them the work view keeps under More, and the notes of the old help.</summary>
+    private MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext ShellHelpContext()
+    {
+        var ids = new List<string>(MainPageOrder.CommandIds);
+        ids.AddRange(new[] { "session.pause", "input.focus-url", "navigation.settings", "window.fullscreen", "viewer.shortcut-help" });
         if (_largeReaderOpen)
         {
             foreach (var pair in new[] { ("ArchiveOpenGallery", "gallery.open"), ("ExportArchiveButton", "export.open-html-dialog"),
                 ("ReaderPreviousPost", "reader.previous-post"), ("ReaderNextPost", "reader.next-post"),
                 ("ReaderPreviousThread", "reader.previous-thread"), ("ReaderNextThread", "reader.next-thread") })
                 if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
+            // The three back commands are listed by their state (the same answer the Back gesture gets: CanRunBack), the page buttons by the
+            // enabled state their page keeps: a button that layout hides (narrow chrome, a work view, the More menu) leaves its command in force.
+            foreach (string id in BackCommands) if (CanRunBack(id)) ids.Insert(0, id);
+            foreach (var pair in new[] { ("PreviousPostsButton", "pagination.previous"), ("NextPostsButton", "pagination.next") })
+                if (_archivePage?.FindControl<Button>(pair.Item1)?.IsEnabled == true) ids.Insert(0, pair.Item2);
         }
         else if (_selectedPage == WorkspacePage.Downloads && _restoreCompleted && !WorkspaceCommandBusy)
         {
             ids.InsertRange(0, new[] { "input.focus-download-search", "selection.select-all", "menu.context-open", "watch.import-clipboard" });
-            bool boards = WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1;
+            bool boards = DownloadsTabs.SelectedIndex == 1;
             DownloadMenuTarget? target = CaptureDownloadMenu(boards);
             if (target != null)
             {
@@ -694,10 +735,14 @@ public partial class MainWindow
                 if (target.Retriable.Length > 0) ids.Insert(0, "watch.retry-media");
             }
         }
+        if (_selectedPage == WorkspacePage.Media && !_largeReaderOpen) ids.Insert(0, "input.focus-media-search");
+        if (DiagnosticsSegmentShown && !_largeReaderOpen) ids.Insert(0, "input.focus-diagnostics-search");
         if (_selectedPage == WorkspacePage.Archive && !_largeReaderOpen)
             ids.InsertRange(0, new[] { "input.focus-search", "archive.select-page", "menu.context-open",
                 "archive.previous-page", "archive.next-page", "export.open-all-results-html-dialog", "archive.delete-permanently" });
-        string activeContext = _largeReaderOpen ? "reader" : _selectedPage.ToString().ToLowerInvariant();
+        // The Status page's commands are those of the segment it shows (diagnostics or statistics).
+        string activePage = _selectedPage == WorkspacePage.Status ? CurrentStatusSegment.ToString() : _selectedPage.ToString();
+        string activeContext = _largeReaderOpen ? "reader" : activePage.ToLowerInvariant();
         // These download commands were selected above from the actual row target.
         // The registry supplement must not add unavailable selection actions back.
         var downloadSelectionCommands = new HashSet<string>(StringComparer.Ordinal)
@@ -710,27 +755,18 @@ public partial class MainWindow
             && (command.ExecutionContexts.Contains(activeContext) || command.ExecutionContexts.Contains("shell"))
             && (activeContext != "downloads" || !downloadSelectionCommands.Contains(command.Id))
             && command.ShortcutDisplay != null).Select(command => command.Id));
-        WorkspaceControl<TextBlock>("ShellHelpTitle").Text = Texts.T("shortcuts.title");
-        // The command registry supplies the visible help and its scoped gestures.
-        // Keep this named text surface for the existing automation consumers.
-        string[] effectiveIds = ids.Distinct().Where(id => CommandCatalog.TryGet(id, out _)
-            && CommandCatalog.ShortcutDisplay(id) != null).ToArray();
-        string HelpLine(string id) => CommandCatalog.Label(id) + "   " + CommandCatalog.ShortcutDisplay(id)
-            + (CommandCatalog.ScopeHint(id, _largeReaderOpen ? CommandScope.Reader : CommandScope.None) is string hint ? " · " + hint : string.Empty);
-        List<string> sections = new();
-        foreach ((string label, bool shell) in new[] { ("help.scope.current", false), ("help.scope.application", true) })
-        {
-            string[] lines = effectiveIds.Where(id => CommandCatalog.Get(id).ExecutionContexts.Contains("shell") == shell)
-                .Select(HelpLine).ToArray();
-            if (lines.Length > 0) sections.Add(Texts.T(label) + Environment.NewLine + string.Join(Environment.NewLine, lines));
-        }
-        if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true)
-            sections.Insert(0, Texts.T("help.reader.mediaActivation"));
-        WorkspaceControl<TextBlock>("ShellHelpText").Text = string.Join(Environment.NewLine + Environment.NewLine, sections)
-            + Environment.NewLine + Environment.NewLine + Texts.T("help.escape");
-        help.MaxHeight = Math.Max(180, ClientSize.Height - 40);
-        help.IsVisible = true;
-        WorkspaceControl<Button>("ShellHelpClose").Focus();
+        // R9: a shortcut whose button this view keeps under "More" says so.
+        WorkView helpView = ConfiguredWorkView;
+        WorkViewPage[] helpPages = WorkViewHelp.HelpPages(_selectedPage.ToString(), _largeReaderOpen);
+        List<string> notes = new();
+        if (_largeReaderOpen && _archivePage?.ReaderShowsPosts == true) notes.Add("help.reader.mediaActivation");
+        return new MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext(
+            MeowChan.Desktop.Views.Shortcuts.ShortcutHelpContext.AreaFor(_selectedPage.ToString(), _largeReaderOpen),
+            // The F1 area lists what has a gesture here (as the former overlay did); the window still offers every command.
+            ids.Distinct(StringComparer.Ordinal).Where(id => CommandCatalog.TryGet(id, out _) && CommandCatalog.ShortcutDisplay(id) != null).ToArray(),
+            id => WorkViewHelp.UnderMore(id, helpView, helpPages),
+            _largeReaderOpen ? CommandScope.Reader : CommandScope.None,
+            notes);
     }
 
     private bool DismissShellMenu()
@@ -753,6 +789,12 @@ public partial class MainWindow
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
         {
             // Popups/editors own their first Escape; never cascade a handled key.
+            // A native ComboBox can report DropDownClosed before this shell handler
+            // sees Escape on macOS. The gallery retains that ownership for one
+            // bounded grace so closing the popup cannot close the gallery too.
+            if (_gallery != null && !_gallerySuspended && _gallery.ConsumeRecentlyClosedPlaybackMenuEscape(e)) return;
+            // A search field with text takes its first Escape to clear itself (SearchBox); nothing around it reacts to that key.
+            if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
             if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
@@ -761,16 +803,18 @@ public partial class MainWindow
             if (_archivePage?.IsReaderDialogOpen == true) return;
             if (_selectedPage == WorkspacePage.Rules && _rulesPage?.TryDismissRuleDecision() == true)
             { e.Handled = true; return; }
-            if (_selectedPage == WorkspacePage.Plugins && _pluginsPage?.IsDiscardConfirmationOpen == true)
+            if (_selectedPage == WorkspacePage.Sources && _pluginsPage?.IsDiscardConfirmationOpen == true)
             { _pluginsPage.CancelDiscardConfirmation(); e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Sources && _gallery == null && !_largeReaderOpen && _sourcesPage?.TryDismissMergedLayer() == true)
+            { e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }
             if (_largeReaderOpen) { e.Handled = true; CloseLargeReader(); return; }
-            if (_selectedPage == WorkspacePage.Downloads && WorkspaceControl<Border>("WorkspaceInspector").IsVisible)
+            if (_selectedPage == WorkspacePage.Downloads && WorkspaceInspector.IsVisible)
             {
                 e.Handled = true;
                 OnDetailsToggleClick(sender, e);
-                DownloadList(WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1).Focus();
+                DownloadList(DownloadsTabs.SelectedIndex == 1).Focus();
             }
             return;
         }
@@ -782,6 +826,9 @@ public partial class MainWindow
         }
         if (CommandBindings.Matches(e, "viewer.shortcut-help") && (_gallery == null || _gallerySuspended))
         { e.Handled = true; ShowShellHelp(); return; }
+        // Command-M on macOS (the Window menu entry): the menu bar never owns a key equivalent, the window resolves it.
+        if (CommandBindings.Matches(e, "window.minimize") && !CommandRouter.IsNativeInput(e.Source, e.Key))
+        { e.Handled = true; MinimizeWindow(toTray: false); return; }
         if (_archivePage?.IsReaderDialogOpen == true) return;
         if (TryRouteMediaReturn(e)) return;
         // Native video -> image retirement can clear focus before the next key.
@@ -789,27 +836,47 @@ public partial class MainWindow
         // navigation before our bubble fallback, focusing unrelated shell chrome.
         // Enter the same gallery policy from this existing tunnel handler, ONLY
         // for genuine unfocused host input; focused controls/popups retain ownership.
-        if (_gallery is { IsOverlayOpen: false } activeGallery && !_gallerySuspended
-            && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
+        if (_gallery is { BlocksUnfocusedHostKeys: false } activeGallery && !_gallerySuspended
+            && !ShellHelpOverlay.IsVisible
             && activeGallery.RouteUnfocusedHostShortcut(e)) return;
-        if (CanExecuteShellPowerCommand(e.Source, e.Key))
+        if (CanExecuteShellPowerCommand(e))
         {
-            foreach ((string id, WorkspacePage page) in new[]
+            if (ShellPageCommand(e, CanOpenBooru) is { } pageCommand)
             {
-                ("navigation.downloads", WorkspacePage.Downloads), ("navigation.archive", WorkspacePage.Archive),
-                ("navigation.media", WorkspacePage.Media), ("navigation.rules", WorkspacePage.Rules), ("navigation.sources", WorkspacePage.Sources),
-                ("navigation.diagnostics", WorkspacePage.Diagnostics)
-            })
-            {
-                if (!CommandBindings.Matches(e, id)) continue;
+                WorkspacePage page = PageFor(pageCommand);
                 if (_gallery != null) CloseGallery(restoreOrigin: false);
                 if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
-                e.Handled = NavigateWorkspace(page);
+                // The tagging page is built when it is first opened (ShowTaggingPage), which NavigateWorkspace alone does not do. Its chord is a page chord
+                // like the others (S3 P2-1): it also runs from a text field and from the gallery or the large reader, which close first.
+                e.Handled = page switch
+                {
+                    WorkspacePage.Status => ShowStatus(),
+                    WorkspacePage.Tagging => ShowTaggingPage(),
+                    _ => NavigateWorkspace(page)
+                };
+                return;
+            }
+            // Compatibility route: saved plugin shortcuts open the merged page's All plugins mode, not a hidden footer button.
+            if (CommandBindings.Matches(e, "navigation.plugins"))
+            {
+                if (_gallery != null) CloseGallery(restoreOrigin: false);
+                if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+                e.Handled = NavigateWorkspace(WorkspacePage.Sources);
+                if (e.Handled) _ = _sourcesPage?.ActivateAsync(SourcesPluginsFilter.AllPlugins);
+                return;
+            }
+            // The old Diagnostics and Statistics commands: no default gesture, a saved binding opens their segment.
+            foreach (string id in MainPageOrder.StatusSegmentCommandIds)
+            {
+                if (!CommandBindings.Matches(e, id) || StatusSegmentFor(id) is not { } segment) continue;
+                if (_gallery != null) CloseGallery(restoreOrigin: false);
+                if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
+                e.Handled = ShowStatus(segment);
                 return;
             }
             if (CommandBindings.Matches(e, "session.pause"))
             {
-                if (_restoreCompleted && !_session.IsPauseTransitioning && WorkspaceControl<Button>("PauseButton").IsEnabled)
+                if (_restoreCompleted && !_session.IsPauseTransitioning && PauseButton.IsEnabled)
                 {
                     e.Handled = true;
                     OnPauseClick(sender, e);
@@ -822,13 +889,14 @@ public partial class MainWindow
                 FocusDownloadSearch();
                 return;
             }
+            if (TryRunUnroutedShellCommand(e)) return;
         }
         if (CommandBindings.Matches(e, "input.focus-url"))
         {
             e.Handled = true;
             if (_gallery != null) CloseGallery(restoreOrigin: false);
             if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
-            if (NavigateWorkspace(WorkspacePage.Downloads)) WorkspaceControl<TextBox>("UrlInput").Focus();
+            if (NavigateWorkspace(WorkspacePage.Downloads)) UrlInput.Focus();
         }
         else if (CommandBindings.Matches(e, "navigation.settings"))
         {
@@ -837,43 +905,61 @@ public partial class MainWindow
             if (_largeReaderOpen) CloseLargeReader(restoreOrigin: false);
             NavigateWorkspace(WorkspacePage.Settings);
         }
+        // RD-02: with the focus inside the reader (embedded, or its sidebar) the same key finds in the thread; the list and the search fields keep the archive search.
+        else if ((_selectedPage == WorkspacePage.Archive || _largeReaderOpen) && (_gallery == null || _gallerySuspended) && _archivePage?.TryOpenReaderFindByKey(e) == true)
+        { e.Handled = true; }
         else if (CommandBindings.Matches(e, "input.focus-search") && _selectedPage == WorkspacePage.Archive && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
-        { e.Handled = true; _archivePage?.FindControl<TextBox>("ArchiveSearchText")?.Focus(); }
+        { e.Handled = true; _archivePage?.FocusArchiveTextSearch(); }
+        else if (CommandBindings.Matches(e, "input.focus-media-search") && _selectedPage == WorkspacePage.Media && _mediaPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
+        { e.Handled = true; _mediaPage.FocusSearch(); }
+        // AP2: the diagnostics message filter is the same search field and takes Primary+F like the other pages.
+        else if (CommandBindings.Matches(e, "input.focus-diagnostics-search") && DiagnosticsSegmentShown && _diagnosticsPage != null && !_largeReaderOpen && (_gallery == null || _gallerySuspended))
+        { e.Handled = true; _diagnosticsPage.FocusSearch(); }
     }
 
-    internal bool CanExecuteShellPowerCommand(object? source, Key key) => _workspaceInitialized && _restoreCompleted
+    /// <summary>The shell's power commands for this key: a chord that types no text also runs while a text field has the focus (the commands that
+    /// reach there say so themselves, <see cref="CommandBindings.Matches"/>); every other key stays with the field.</summary>
+    internal bool CanExecuteShellPowerCommand(KeyEventArgs e) => CanExecuteShellPowerCommand(e.Source, e.Key, CommandBindings.IsTextSafeChord(e));
+
+    internal bool CanExecuteShellPowerCommand(object? source, Key key) => CanExecuteShellPowerCommand(source, key, allowTextInput: false);
+
+    private bool CanExecuteShellPowerCommand(object? source, Key key, bool allowTextInput) => _workspaceInitialized && _restoreCompleted
         && !_isClosing && IsEnabled && !WorkspaceCommandBusy && !HasVisibleShellDialog() && !HasBlockingPageDecision()
-        && !CommandRouter.IsNativeInput(source, key) && !WorkspaceControl<Border>("ShellHelpOverlay").IsVisible
-        && _archivePage?.IsReaderDialogOpen != true && !(_gallery?.IsOverlayOpen ?? false)
+        && (allowTextInput || !CommandRouter.IsNativeInput(source, key)) && !ShellHelpOverlay.IsVisible
+        && _archivePage?.IsReaderDialogOpen != true && !(_gallery is { } blocking && GalleryBlocksShellPowerCommands(blocking.BlocksUnfocusedHostKeys, _gallerySuspended))
         && !this.GetLogicalDescendants().OfType<Control>().Any(control => control.ContextMenu?.IsOpen == true
             || control is Button { Flyout.IsOpen: true } || control is MenuItem { IsSubMenuOpen: true }
             || control is ComboBox { IsDropDownOpen: true });
 
+    // The shortcuts window is modeless help: while it is open the window's own shortcuts keep working (KS2).
     private bool HasVisibleShellDialog() => OwnedWindows.Any(window => window.IsVisible
-        && !(_gallery?.OwnsOverlayWindow(window) ?? false));
+        && !(_gallery?.OwnsOverlayWindow(window) ?? false) && !MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.IsPassive(window));
+
+    private void RefreshFullscreenButton()
+    {
+        if (!_workspaceInitialized) return;
+        CommandBindings.Apply(FullscreenButton, "window.fullscreen", iconOnly: true);
+        FullscreenButton.Content = CommandBindings.Icon("window.fullscreen", 16,
+            WindowState == WindowState.FullScreen ? "fullscreen" : "windowed");
+        FullscreenButton.Classes.Set("selected", WindowState == WindowState.FullScreen);
+        Avalonia.Automation.AutomationProperties.SetHelpText(FullscreenButton,
+            CommandBindings.Tooltip("window.fullscreen") + " · " + MeowChan.Desktop.Localization.Texts.T(WindowState == WindowState.FullScreen ? "window.fullscreen.on" : "window.fullscreen.off"));
+    }
 
     private void RefreshShellCommands()
     {
         RefreshReaderGroupsEntry(); // URSA-12 shared localization/availability refresh.
         if (!_workspaceInitialized) return;
-        CommandBindings.Apply(WorkspaceControl<Button>("FullscreenButton"), "window.fullscreen", iconOnly: true);
-        WorkspaceControl<Button>("FullscreenButton").Content = CommandBindings.Icon("window.fullscreen", 16,
-            WindowState == WindowState.FullScreen ? "fullscreen" : "windowed");
-        WorkspaceControl<Button>("FullscreenButton").Classes.Set("selected", WindowState == WindowState.FullScreen);
-        Avalonia.Automation.AutomationProperties.SetHelpText(WorkspaceControl<Button>("FullscreenButton"),
-            CommandBindings.Tooltip("window.fullscreen") + (WindowState == WindowState.FullScreen ? (MeowChan.Desktop.Localization.Texts.Language == "de" ? " · Ein" : " · On") : (MeowChan.Desktop.Localization.Texts.Language == "de" ? " · Aus" : " · Off")));
-        CommandBindings.Apply(WorkspaceControl<Button>("ShellHelpClose"), "window.close");
-        foreach (var pair in new[] { ("ArchiveMenuItem", "navigation.archive"), ("MediaMenuItem", "navigation.media"), ("RulesMenuItem", "navigation.rules"),
-            ("SourcesMenuItem", "navigation.sources"), ("DiagnosticsMenuItem", "navigation.diagnostics"),
-            ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
+        RefreshFullscreenButton();
+        // The help's close cross in its header bar: the catalog icon, the same name and tooltip as the former footer button.
+        CommandBindings.Apply(ShellHelpClose, "window.close", iconOnly: true);
+        foreach (var pair in new[] { ("ManualImportMenuItem", "import.open"), ("SettingsMenuItem", "navigation.settings"), ("AboutMenuItem", "navigation.about"),
             ("ShortcutHelpMenuItem", "viewer.shortcut-help"), ("ExitMenuItem", "app.quit") })
             CommandBindings.Apply(WorkspaceControl<MenuItem>(pair.Item1), pair.Item2);
-        if (WorkspaceControl<Button>("ToolsNavigationButton").Flyout is MenuFlyout tools)
+        if (ToolsNavigationButton.Flyout is MenuFlyout tools)
             foreach (MenuItem item in tools.Items.OfType<MenuItem>())
-            {
-                string? id = (item.Tag as string) switch { "nav.archive" => "navigation.archive", "nav.media" => "navigation.media", "nav.rules" => "navigation.rules",
-                    "nav.sources" => "navigation.sources", "nav.diagnostics" => "navigation.diagnostics", _ => null };
-                if (id != null) CommandBindings.Apply(item, id);
-            }
+                if (item.Tag is string tag && MainPageOrder.CommandIds.FirstOrDefault(id => MainPageOrder.Tag(id) == tag) is { } navigationId)
+                    CommandBindings.Apply(item, navigationId);
+        RefreshWorkViewMenu();
     }
 }

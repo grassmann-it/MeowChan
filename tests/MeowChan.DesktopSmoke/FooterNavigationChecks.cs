@@ -11,11 +11,13 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class FooterNavigationChecks
 {
+    // Booru is no entry of this table: it is hidden in the footer by default (F1), needs the Danbooru composition and is covered through the More
+    // entry BooruMoreMenuItem wherever the fixture offers it (BooruInMore).
     private static readonly (string Name, MainWindow.WorkspacePage Page)[] Destinations =
     [
         ("Downloads", MainWindow.WorkspacePage.Downloads), ("Archive", MainWindow.WorkspacePage.Archive),
-        ("Rules", MainWindow.WorkspacePage.Rules), ("Plugins", MainWindow.WorkspacePage.Plugins),
-        ("Diagnostics", MainWindow.WorkspacePage.Diagnostics), ("Settings", MainWindow.WorkspacePage.Settings),
+        ("Media", MainWindow.WorkspacePage.Media), ("Tagging", MainWindow.WorkspacePage.Tagging), ("Rules", MainWindow.WorkspacePage.Rules),
+        ("Status", MainWindow.WorkspacePage.Status), ("Settings", MainWindow.WorkspacePage.Settings),
         ("Sources", MainWindow.WorkspacePage.Sources)
     ];
 
@@ -55,12 +57,18 @@ internal static class FooterNavigationChecks
                         RequireLanguage(window, language);
                         RequireSelection(window, tools);
                         RequireResumeAction(window);
+                        RequireGroupSeparators(window, tools);
+                        RequireWorkspaceMenuGroups(window);
+                        RequireFooterOrderAndDigits(window);
+                        RequireWorkViewFooterPolicy(window, mode, wide, scenario);
                         Require(Fits(window, window.FindControl<ComboBox>("WorkspaceModeComboBox")!),
                             scenario + ": the footer view switch is clipped.");
 
                         MenuItem[] visibleItems = menu.Items.OfType<MenuItem>().Where(item => item.IsVisible).ToArray();
+                        bool booruInMore = BooruInMore(window);
                         string[] expectedHidden = Destinations.Where(destination => !Button(window, destination.Name).IsVisible)
-                            .Select(destination => "nav." + destination.Name.ToLowerInvariant()).Order().ToArray();
+                            .Select(destination => "nav." + destination.Name.ToLowerInvariant())
+                            .Concat(booruInMore ? ["nav.booru"] : []).Order().ToArray();
                         Require(tools.IsVisible == (expectedHidden.Length > 0), scenario + ": Tools does not match the hidden destinations.");
                         if (tools.IsVisible)
                         {
@@ -75,8 +83,8 @@ internal static class FooterNavigationChecks
                             await Program.WaitUntilAsync(() => !menu.IsOpen);
                         }
                         if (wide && mode == "Advanced" && window.Bounds.Width >= 1280)
-                            Require(!tools.IsVisible && Destinations.All(destination => Button(window, destination.Name).IsVisible),
-                                scenario + ": wide Advanced does not expose every destination directly, including Plugins.");
+                            Require(!tools.IsVisible == !booruInMore && Destinations.All(destination => Button(window, destination.Name).IsVisible),
+                                scenario + ": wide Advanced does not expose every destination directly, including Plugins (Booru stays in More until the footer shows it).");
                         foreach ((string name, MainWindow.WorkspacePage page) in Destinations)
                         {
                             Button direct = Button(window, name);
@@ -101,6 +109,15 @@ internal static class FooterNavigationChecks
                             RequireLanguage(window, language);
                             RequireSelection(window, tools);
                         }
+                        if (booruInMore)
+                        {
+                            // The page hidden in the footer by default is reached through its More entry, never through a ⋯ entry.
+                            await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Booru);
+                            Require(window.SelectedPage == MainWindow.WorkspacePage.Booru && tools.Classes.Contains("selected"),
+                                scenario + ": Booru through More did not select the More button.");
+                            Button(window, "Downloads").RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+                            await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+                        }
                         await SettleAsync(window);
                         RequireLanguage(window, language);
                         RequireToolsLabel(window, tools, language);
@@ -110,10 +127,12 @@ internal static class FooterNavigationChecks
                     }
                 }
             }
+            await CheckConfiguredLayoutAsync(window);
         }
         finally
         {
             menu.Hide();
+            await RestoreFooterLayoutAsync(window);
             await PersistLanguageAsync(window, languageBefore);
             await PresentationChecks.SwitchModeAsync(window, modeBefore);
             window.Width = widthBefore; window.Height = heightBefore;
@@ -148,17 +167,17 @@ internal static class FooterNavigationChecks
 
     private static string DestinationLabel(string name, string language) => (name, language) switch
     {
-        ("Archive", "de") => "Archiv", ("Rules", "de") => "Regeln", ("Sources", "de") => "Quellen",
-        ("Diagnostics", "de") => "Diagnose", ("Settings", "de") => "Einstellungen", _ => name
+        ("Archive", "de") => "Archiv", ("Media", "de") => "Medien", ("Tagging", "de") => "Taggen", ("Rules", "de") => "Regeln", ("Sources", _) => "Plugins", // the merged page is plain "Plugins" in both languages (14.11.2026)
+        ("Settings", "de") => "Einstellungen", _ => name
     };
 
     private static void RequireToolsLabel(MainWindow window, Button tools, string language)
     {
         if (!tools.IsVisible || window.Bounds.Width < 640) return;
-        string expected = language == "de" ? "Werkzeuge" : "Tools";
+        string expected = language == "de" ? "Mehr" : "More";
         Require(tools.GetVisualDescendants().OfType<TextBlock>()
                 .Any(label => label.IsEffectivelyVisible && label.Text == expected),
-            "Tools must retain its visible localized label at the supported workspace minimum width.");
+            "More must retain its visible localized label at the supported workspace minimum width.");
     }
 
     internal static Task WaitForResumeHitAsync(MainWindow window) => Program.WaitUntilAsync(() =>
@@ -185,7 +204,7 @@ internal static class FooterNavigationChecks
         Require(action.IsVisible == expectedVisible, "Unexpected header reading action visibility.");
         Grid header = window.FindControl<Grid>("WorkspaceHeader")!;
         Control[] headerControls = new[] { header.Children[0] }.Concat(new[] {
-            "WorkspaceSubtitle", "TransferSpeed", "ContinueReadingButton", "PauseButton", "FullscreenButton",
+            "WorkspaceSubtitle", "TransferSpeed", "ContinueReadingButton", "ContinueReadingHistoryButton", "PauseButton", "FullscreenButton",
             "ThemeToggleButton", "WorkspaceMenuItem", "WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton"
         }.Select(name => window.FindControl<Control>(name)!))
             .Where(control => control.IsEffectivelyVisible && control.Bounds.Width > 0).ToArray();
@@ -194,8 +213,14 @@ internal static class FooterNavigationChecks
             Require(action.IsEffectivelyVisible && action.IsEffectivelyEnabled && Fits(window, action),
                 "The available header reading action is disabled or clipped.");
             Button pause = window.FindControl<Button>("PauseButton")!;
-            Require(action.Parent is StackPanel utilities && utilities.Children.IndexOf(pause) == utilities.Children.IndexOf(action) + 1,
-                "The header book action is not directly left of Pause.");
+            // QW-A: the arrow that opens the reading history sits between the book and Pause.
+            Button arrow = window.FindControl<Button>("ContinueReadingHistoryButton")!;
+            Require(action.Parent is StackPanel utilities && utilities.Children.IndexOf(arrow) == utilities.Children.IndexOf(action) + 1
+                && utilities.Children.IndexOf(pause) == utilities.Children.IndexOf(arrow) + 1,
+                "The header book action and its history arrow are not directly left of Pause.");
+            Require(arrow.IsEffectivelyVisible && arrow.IsEffectivelyEnabled && Fits(window, arrow)
+                && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(arrow)) && ToolTip.GetTip(arrow) is string,
+                "The reading history arrow is hidden, disabled, clipped or lacks its accessible name and tooltip.");
             foreach (Control control in headerControls) Require(Fits(window, control), "Header control is clipped: " + control.Name);
             for (int first = 0; first < headerControls.Length; first++)
                 for (int second = first + 1; second < headerControls.Length; second++)
@@ -203,7 +228,9 @@ internal static class FooterNavigationChecks
                     Control x = headerControls[first], y = headerControls[second];
                     Rect intersection = new Rect(x.TranslatePoint(default, window)!.Value, x.Bounds.Size)
                         .Intersect(new Rect(y.TranslatePoint(default, window)!.Value, y.Bounds.Size));
-                    Require(intersection.Width <= 1 || intersection.Height <= 1, "Header controls overlap: " + x.Name + "/" + y.Name);
+                    Require(intersection.Width <= 1 || intersection.Height <= 1, "Header controls overlap: " + x.Name + "/" + y.Name
+                        + " (" + window.SessionHost.Config.WorkspaceMode + ", " + Texts.Language + ", client " + window.ClientSize + "; "
+                        + string.Join("; ", headerControls.Select(control => (control.Name ?? "brand-group") + "@" + control.TranslatePoint(default, window) + "/" + control.Bounds.Size)) + ")");
                 }
             Point a = action.TranslatePoint(default, window)!.Value;
             Point b = pause.TranslatePoint(default, window)!.Value;
@@ -263,6 +290,195 @@ internal static class FooterNavigationChecks
             && origin.X >= -1 && origin.Y >= -1
             && origin.X + control.Bounds.Width <= window.Bounds.Width + 1
             && origin.Y + control.Bounds.Height <= window.Bounds.Height + 1;
+    }
+
+    /// <summary>Footer groups (Downloads, Archive, Media, Tagging, Booru | Rules, Sources, Plugins | Status | More, Settings):
+    /// a separator shows exactly while the group in front of it has a visible button, never two in a row, never one at an edge,
+    /// and the More flyout sets its own groups apart the same way.</summary>
+    private static void RequireGroupSeparators(MainWindow window, Button tools)
+    {
+        StackPanel footer = window.FindControl<StackPanel>("WorkspaceNavigationButtons")!;
+        // Every page button is followed by its separator slot (ArrangeFooterButtons): a slot is shown behind a shown button when the next shown
+        // button belongs to another group, and behind the last shown one; a hidden or reduced page has no separator.
+        var ids = window.FooterLayout.Order;
+        bool[] shown = ids.Select(id => Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id)).IsVisible).ToArray();
+        for (int index = 0; index < ids.Count; index++)
+        {
+            string stem = MeowChan.Desktop.Commands.MainPageOrder.ControlStem(ids[index]);
+            int at = footer.Children.IndexOf(footer.Children.Single(control => control.Name == stem + "NavigationButton"));
+            Control separator = footer.Children[at + 1];
+            Require(separator is Border, "No separator slot follows the footer button " + stem + ".");
+            int next = Enumerable.Range(index + 1, ids.Count - index - 1).Cast<int?>().FirstOrDefault(candidate => shown[candidate!.Value]) ?? -1;
+            bool expected = shown[index] && (next < 0 || MeowChan.Desktop.Commands.MainPageOrder.Group(ids[index]) != MeowChan.Desktop.Commands.MainPageOrder.Group(ids[next]));
+            Require(separator.IsVisible == expected, $"Footer separator behind {stem} is {(separator.IsVisible ? "shown" : "hidden")} but should be {(expected ? "shown" : "hidden")}.");
+        }
+        Control[] visible = footer.Children.Where(control => control.IsVisible).ToArray();
+        Require(visible[0] is Button && visible[^1] is Button, "A footer separator sits at the edge of the footer.");
+        for (int index = 1; index < visible.Length; index++)
+            Require(!(visible[index] is Border && visible[index - 1] is Border), "Two footer separators are adjacent.");
+        if (tools.Flyout is MenuFlyout flyout)
+        {
+            // Each flyout separator needs a visible destination before and after it.
+            Control[] items = flyout.Items.OfType<Control>().Where(item => item.IsVisible).ToArray();
+            if (items.Length > 0)
+            {
+                Require(items[0] is MenuItem && items[^1] is MenuItem, "A More separator sits at the edge of the menu.");
+                for (int index = 1; index < items.Length; index++)
+                    Require(!(items[index] is Separator && items[index - 1] is Separator), "Two More separators are adjacent.");
+            }
+        }
+    }
+
+    /// <summary>
+    /// F1 (14.11.2026): the ⋯ menu lists no pages. Downloads, Archive, Media, Tagging, Booru, Rules, Plugins and Status are the footer buttons the
+    /// profile chose, the footer's More menu and the Ctrl/Cmd+digit shortcuts; the ⋯ menu keeps the tools and the application and starts with a tool.
+    /// </summary>
+    private static void RequireWorkspaceMenuGroups(MainWindow window)
+    {
+        MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!;
+        var ids = MeowChan.Desktop.Commands.MainPageOrder.CommandIds;
+        string[] tags = ids.Select(MeowChan.Desktop.Commands.MainPageOrder.Tag).ToArray();
+        Require(!menu.Items.OfType<MenuItem>().Any(item => item.Tag is string tag && tags.Contains(tag)), "The ⋯ menu still lists a page.");
+        foreach (string id in ids)
+            Require(window.FindControl<MenuItem>(MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id) + "MenuItem") == null,
+                "The ⋯ menu still has the entry " + MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id) + "MenuItem.");
+        Require(window.FindControl<Separator>("PagesGroupSeparatorWork") == null && window.FindControl<Separator>("PagesGroupSeparatorSetUp") == null
+            && window.FindControl<Separator>("MenuPagesToolsSeparator") == null, "A separator of the removed page group is still in the ⋯ menu.");
+        Require(menu.Items.Count > 0 && menu.Items[0] is not Separator, "The ⋯ menu starts with a separator.");
+        // QW-A (review of 15.11.2026, item 13): three labelled groups, Exit apart, no tagging queue entry.
+        string[] shape = window.HeaderMenuShape().ToArray();
+        string[] labels = shape.Where(entry => entry.StartsWith("HeaderMenuLabel", StringComparison.Ordinal)).ToArray();
+        Require(labels.SequenceEqual(new[] { "HeaderMenuLabelRead", "HeaderMenuLabelCollection", "HeaderMenuLabelApp" }),
+            "The ⋯ menu does not have the groups Reading, Collection and App: " + string.Join(", ", shape));
+        Require(Array.IndexOf(shape, "ManualImportMenuItem") > Array.IndexOf(shape, "HeaderMenuLabelCollection")
+            && Array.IndexOf(shape, "PauseMenuItem") > Array.IndexOf(shape, "HeaderMenuLabelApp")
+            && shape[^1] == "ExitMenuItem" && shape[^2] == "|",
+            "The ⋯ menu entries are not in their groups with Exit apart: " + string.Join(", ", shape));
+        Require(menu.Items.OfType<MenuItem>().All(item => item.Tag as string != "media.queue.open")
+            && menu.Items.OfType<MenuItem>().All(item => item.Header as string != Texts.T("command.media.queue.open")),
+            "The ⋯ menu still offers the tagging queue walk-through.");
+        foreach (string name in new[] { "ManualImportMenuItem", "PauseMenuItem", "SettingsMenuItem", "ShortcutHelpMenuItem", "AboutMenuItem", "ExitMenuItem" })
+            Require(menu.Items.OfType<MenuItem>().Any(item => item.Name == name), "The ⋯ menu lost its entry " + name + ".");
+        Require(window.FindControl<CheckBox>("ShowBooruToolsToggle") == null && menu.Items.OfType<MenuItem>().All(item => item.Name != "BooruToolsMenuItem"),
+            "The Show Booru switch is still in the footer or the ⋯ menu (it is Settings > Appearance > Footer since F1).");
+    }
+
+    /// <summary>
+    /// The footer buttons stand in the profile's order and Ctrl/Cmd+1, 2, 3 ... follow the pages the footer shows from the left, the hidden pages
+    /// (Booru by default) after them. The numbering is the layout's, so a narrow window moving a button under More does not renumber.
+    /// </summary>
+    private static void RequireFooterOrderAndDigits(MainWindow window)
+    {
+        var layout = window.FooterLayout;
+        StackPanel footer = window.FindControl<StackPanel>("WorkspaceNavigationButtons")!;
+        string[] stems = layout.Order.Select(MeowChan.Desktop.Commands.MainPageOrder.ControlStem).ToArray();
+        string[] childOrder = footer.Children.OfType<Button>().Select(button => button.Name ?? string.Empty)
+            .Where(name => stems.Any(stem => name == stem + "NavigationButton")).ToArray();
+        Require(childOrder.SequenceEqual(stems.Select(stem => stem + "NavigationButton")),
+            "The footer buttons are not in the order of the layout: " + string.Join(", ", childOrder));
+        string[] shownDirectly = stems.Where(stem => footer.Children.OfType<Button>().Single(button => button.Name == stem + "NavigationButton").IsVisible).ToArray();
+        Require(shownDirectly.SequenceEqual(shownDirectly.OrderBy(stem => Array.IndexOf(stems, stem))), "The shown footer buttons are not in layout order.");
+        Require(layout.IsVisible("navigation.downloads") && Button(window, "Downloads").IsVisible, "Downloads left the footer.");
+        // Booru is off in a default layout, so it has no direct button; the setting never forces one a work view or the width removed.
+        if (layout.IsDefault) Require(!Button(window, "Booru").IsVisible, "Booru is shown in the default footer.");
+        foreach (string id in layout.Order)
+            if (!layout.IsVisible(id)) Require(!Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id)).IsVisible, id + " is hidden by the layout but its button is shown.");
+        // Digits (Tom 15.11.): the buttons effectively shown in the work view (setting AND policy, never the width) from the left, then the pages under More.
+        var numbering = ExpectedNumbering(window);
+        Require(MeowChan.Desktop.Commands.MainPageOrder.Numbering.SequenceEqual(numbering),
+            "The live numbering " + string.Join(", ", MeowChan.Desktop.Commands.MainPageOrder.Numbering) + " is not the work view's: " + string.Join(", ", numbering));
+        for (int index = 0; index < numbering.Count && index < MeowChan.Desktop.Commands.MainPageOrder.MaximumDigit; index++)
+            Require(MeowChan.Desktop.Commands.MainPageOrder.Digit(numbering[index]) == index + 1,
+                numbering[index] + " does not own Ctrl/Cmd+" + (index + 1) + " (owns " + MeowChan.Desktop.Commands.MainPageOrder.Digit(numbering[index]) + ").");
+        if (layout.IsDefault)
+        {
+            string[] defaultNumbering = MeowChan.Desktop.WorkViews.WorkViewSetting.Parse(window.SessionHost.Config.WorkspaceMode) switch
+            {
+                MeowChan.Desktop.WorkViews.WorkView.Simple => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
+                    "navigation.status", "navigation.rules", "navigation.sources", "navigation.booru"],
+                _ => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
+                    "navigation.rules", "navigation.sources", "navigation.status", "navigation.booru"],
+            };
+            Require(numbering.SequenceEqual(defaultNumbering),
+                "The default footer numbering of this work view is wrong: " + string.Join(", ", numbering));
+        }
+        // The tooltip of a shown button names the digit it owns.
+        foreach (string id in layout.Order.Where(layout.IsVisible))
+        {
+            Button button = Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id));
+            string? shortcut = MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay(id);
+            Require(shortcut != null && ToolTip.GetTip(button) is string tip && tip.Contains(shortcut, StringComparison.Ordinal),
+                "The footer tooltip of " + id + " does not name its digit shortcut (" + shortcut + ").");
+        }
+    }
+
+    /// <summary>
+    /// The work view's footer policy (Tom 15.11.): Barebones shows Downloads, Archive and Media directly, Simple adds Tagging and Status, Advanced adds
+    /// Rules and Plugins (Booru only when the footer setting shows it). The policy is the upper bound at every width; with room for the buttons (wide) every
+    /// allowed page is direct; at the minimum width a page leaves for More from the right of the layout, so no allowed page stays direct behind one that left.
+    /// </summary>
+    private static void RequireWorkViewFooterPolicy(MainWindow window, string mode, bool wide, string scenario)
+    {
+        var layout = window.FooterLayout;
+        MeowChan.Desktop.WorkViews.WorkView view = MeowChan.Desktop.WorkViews.WorkViewSetting.Parse(mode);
+        string[] allowed = layout.DirectOrder(view).Where(id => id != "navigation.booru" || BooruAvailable(window)).ToArray();
+        string[] shown = layout.Order.Where(id => Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id)).IsVisible).ToArray();
+        Require(shown.All(allowed.Contains), scenario + ": a footer button is shown that the work view moves under More: " + string.Join(", ", shown));
+        if (wide && window.Bounds.Width >= 1280)
+            Require(shown.SequenceEqual(allowed), scenario + ": the footer does not show what the work view allows: " + string.Join(", ", shown));
+        int firstLeft = Array.FindIndex(allowed, id => !shown.Contains(id));
+        if (firstLeft >= 0)
+            Require(allowed.Skip(firstLeft).All(id => !shown.Contains(id)),
+                scenario + ": a page stays direct behind one that already left for More (the rightmost leaves first).");
+        // Barebones always keeps Downloads; Archive and Media are direct there whenever the footer setting shows them and the width allows.
+        if (mode == "Barebones" && layout.IsDefault && wide && window.Bounds.Width >= 1280)
+            Require(shown.SequenceEqual(["navigation.downloads", "navigation.archive", "navigation.media"]),
+                scenario + ": the Barebones footer is not Downloads, Archive, Media: " + string.Join(", ", shown));
+        if (mode == "Simple" && layout.IsDefault && wide && window.Bounds.Width >= 1280)
+            Require(shown.SequenceEqual(["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging", "navigation.status"]),
+                scenario + ": the Simple footer is not Downloads, Archive, Media, Tagging, Status: " + string.Join(", ", shown));
+    }
+
+    // Booru has no direct button without the "Show Booru actions" setting (the layout shows it only on request, so a default layout never lists it).
+    /// <summary>The digit order the work view and the footer setting give (the shell publishes the same list; width never changes it).</summary>
+    internal static IReadOnlyList<string> ExpectedNumbering(MainWindow window) => window.FooterLayout.NumberingFor(
+        MeowChan.Desktop.WorkViews.WorkViewSetting.Parse(window.SessionHost.Config.WorkspaceMode), id => id != "navigation.booru" || BooruAvailable(window));
+
+    /// <summary>The digit a page owns now in the work view in effect (Status is 7 in Barebones and Advanced, 5 in Simple).</summary>
+    internal static int? ExpectedDigit(MainWindow window, string commandId) =>
+        ExpectedNumbering(window).ToList().IndexOf(commandId) is int index and >= 0 && index < MeowChan.Desktop.Commands.MainPageOrder.MaximumDigit ? index + 1 : null;
+
+    private static bool BooruAvailable(MainWindow window) => window.SessionHost.Config.ShowBooruTools;
+
+    private static bool BooruInMore(MainWindow window) => window.FindControl<MenuItem>("BooruMoreMenuItem") is { IsVisible: true };
+
+    /// <summary>The footer setting at work: hiding Media removes its button, puts it in More and renumbers; the page keeps its shortcut.</summary>
+    private static async Task CheckConfiguredLayoutAsync(MainWindow window)
+    {
+        await window.SetFooterPageVisibleAsync("media", false);
+        await Program.WaitUntilAsync(() => !window.FooterLayout.IsVisible("navigation.media"));
+        await SettleAsync(window);
+        Button tools = window.FindControl<Button>("ToolsNavigationButton")!;
+        MenuFlyout menu = (MenuFlyout)tools.Flyout!;
+        Require(!Button(window, "Media").IsVisible && tools.IsVisible
+            && menu.Items.OfType<MenuItem>().Any(item => item.Tag as string == "nav.media" && item.IsVisible),
+            "Hiding Media in the footer layout did not move it into More.");
+        RequireFooterOrderAndDigits(window);
+        Require(MeowChan.Desktop.Commands.MainPageOrder.Digit("navigation.media") > MeowChan.Desktop.Commands.MainPageOrder.Digit("navigation.status"),
+            "A page hidden from the footer did not move behind the shown ones in the numbering.");
+        await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Media);
+        Require(tools.Classes.Contains("selected"), "More is not selected while a page it holds is open.");
+        Button(window, "Downloads").RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
+        await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+        await RestoreFooterLayoutAsync(window);
+        RequireFooterOrderAndDigits(window);
+        Console.WriteLine("SMOKE footer navigation: a page hidden by the footer setting moved into More and behind the shown pages in the digits; restored.");
+    }
+
+    private static async Task RestoreFooterLayoutAsync(MainWindow window)
+    {
+        if (!window.FooterLayout.IsVisible("navigation.media")) await window.SetFooterPageVisibleAsync("media", true);
+        await Program.WaitUntilAsync(() => window.FooterLayout.IsVisible("navigation.media"));
     }
 
     private static void RequireNoOverlap(MainWindow window)

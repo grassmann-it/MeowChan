@@ -18,6 +18,7 @@ internal static class ArchiveUpdateCoalescingChecks
         ArchivePage? counts = null, readerPage = null;
         Window? countsHost = null, readerHost = null;
         TaskCompletionSource? inventoryRelease = null, summaryRelease = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
             string profile = Path.Combine(root, "profile"), media = Path.Combine(root, "media");
@@ -121,16 +122,20 @@ internal static class ArchiveUpdateCoalescingChecks
                 "A passive catch-up replaced the frozen reader or lost the new-post notice.");
             Console.WriteLine("SMOKE archive update coalescing: PASS; visible 300-change burst -> 2 scans/0 cancellations; coverage cancels once; non-cooperative I/O retains slot; latest catch-up; late error rejected; row/selection/focus retained; reader coverage epoch and one catch-up. Offline fixture, no native input claim.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            inventoryRelease?.TrySetResult(); summaryRelease?.TrySetResult();
-            counts?.EndLifetime(); readerPage?.EndLifetime();
-            if (counts != null) await counts.ArchiveMediaCountTask;
-            // EndLifetime cancels the reader lifetime; wait for any read continuation before deleting its profile.
-            if (readerPage != null) await Program.WaitUntilAsync(() =>
-                !(bool)typeof(ArchivePage).GetField("_checkingReaderUpdate", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(readerPage)!);
-            countsHost?.Close(); readerHost?.Close();
-            Directory.Delete(root, recursive: true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                inventoryRelease?.TrySetResult(); summaryRelease?.TrySetResult();
+                counts?.EndLifetime(); readerPage?.EndLifetime();
+                if (counts != null) await counts.ArchiveMediaCountTask;
+                // EndLifetime cancels the reader lifetime; wait for any read continuation before deleting its profile.
+                if (readerPage != null) await Program.WaitUntilAsync(() =>
+                    !(bool)typeof(ArchivePage).GetField("_checkingReaderUpdate", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(readerPage)!);
+                countsHost?.Close(); readerHost?.Close();
+                Directory.Delete(root, recursive: true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ArchiveUpdateCoalescingChecks: " + exception));
         }
     }
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);

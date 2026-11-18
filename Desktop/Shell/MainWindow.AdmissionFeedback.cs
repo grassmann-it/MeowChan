@@ -8,11 +8,14 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
+    internal const string DefaultExampleSourceId = "4chan";
+
     private string? RefreshAdmissionRepair()
     {
         Control panel = WorkspaceControl<Control>("AdmissionRepairPanel");
         AdmissionFeedback? first = _admissionResults.FirstOrDefault(item => item.Status is not (AdmissionStatus.Added or AdmissionStatus.AlreadyPresent));
-        panel.IsVisible = first != null;
+        // DL-04: the banner can be dismissed; the sources text still goes to the report, which has its own place for it.
+        panel.IsVisible = first != null && !_admissionRepairDismissed;
         if (first == null) return null;
         string cause = first.Error ?? Texts.T(first.Status == AdmissionStatus.Invalid ? "admission.repairInvalid" : "admission.repairUnsupported");
         ProviderDescriptor[] providers = _session.GetProviderDescriptors().ToArray();
@@ -25,17 +28,21 @@ public partial class MainWindow
         bool sessionExample = example != null;
         if (example == null)
         {
-            // These examples were validated by the source parsers on the single capture worker.
-            example = _session.Projection.AdmissionExamples
-                .OrderByDescending(url => rejected != null && Uri.TryCreate(url, UriKind.Absolute, out Uri? known)
-                    && string.Equals(known.Host, rejected.Host, StringComparison.OrdinalIgnoreCase))
-                .FirstOrDefault();
+            // These examples were validated by the source parsers on the single capture worker. A mistyped
+            // host never borrows another source's example: without a host match only the default source
+            // (4chan) is shown, never whichever plugin source happens to come first.
+            static bool OnHost(string url, Func<string, bool> host) => Uri.TryCreate(url, UriKind.Absolute, out Uri? known) && host(known.Host);
+            ProviderDescriptor? fallback = providers.FirstOrDefault(provider => provider.SourceId == DefaultExampleSourceId);
+            example = _session.Projection.AdmissionExamples.FirstOrDefault(url => rejected != null
+                    && OnHost(url, host => string.Equals(host, rejected.Host, StringComparison.OrdinalIgnoreCase)))
+                ?? (fallback == null ? null : _session.Projection.AdmissionExamples.FirstOrDefault(url => OnHost(url,
+                    host => fallback.SupportedHosts.Prepend(fallback.BaseUri.Host).Contains(host, StringComparer.OrdinalIgnoreCase))));
         }
         // Keep the cause and repair example visible together in compact windows.
         // The rejected URLs and complete source list belong to the scrollable report.
         string repair = cause
             + (example == null ? string.Empty : Environment.NewLine + Texts.T(sessionExample ? "admission.repairExample" : "admission.repairFormat", example));
-        SelectableTextBlock message = WorkspaceControl<SelectableTextBlock>("AdmissionRepairText");
+        SelectableTextBlock message = AdmissionRepairText;
         message.Text = repair;
         AutomationProperties.SetName(message, first.Url + " · " + repair);
         AutomationProperties.SetLiveSetting(message, AutomationLiveSetting.Polite);

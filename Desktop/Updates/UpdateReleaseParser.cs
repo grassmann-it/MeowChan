@@ -114,6 +114,6 @@ internal static class UpdateReleaseParser
         return true;
     }
 
-    private static Uri ReleaseUri(string tag) => new($"https://github.com/grassmann-it/MeowChan/releases/tag/{Uri.EscapeDataString(tag)}");
+    internal static Uri ReleaseUri(string tag) => new($"https://github.com/grassmann-it/MeowChan/releases/tag/{Uri.EscapeDataString(tag)}");
     private static Uri AssetUri(string tag, string name) => new($"https://github.com/grassmann-it/MeowChan/releases/download/{Uri.EscapeDataString(tag)}/{Uri.EscapeDataString(name)}");
 }

@@ -29,6 +29,9 @@ public partial class ExperimentalActivationDialog : Window
     {
         _original = _next = target; _activate = activate;
         AvaloniaXamlLoader.Load(this);
+        // Modals plan MD3: a modal dialog on the M step (size, centring, screen fit, no taskbar entry, no minimize).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.M, modal: true);
+        MeowChan.Desktop.Controls.DialogWindow.Wrap(this, modal: true);
         C<Button>("ActivationCancel").Click += (_, _) => Dismiss();
         C<Button>("ActivationConfirm").Click += async (_, _) => await ActivateAsync();
         // A queued initial error reveal must not override a newer user scroll,
@@ -41,12 +44,8 @@ public partial class ExperimentalActivationDialog : Window
         {
             if (e.Property == IsVisibleProperty && !IsVisible) _statusRevealRevision++;
         };
-        KeyDown += (_, e) =>
-        {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (!_busy) Dismiss();
-        };
+        // Escape dismisses like Cancel, never while the activation is being saved (the dialog policy).
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, isBusy: () => _busy, close: Dismiss);
         // A persisted Enable cannot be rolled back by closing the window during Save.
         Closing += (_, e) => { if (_busy) e.Cancel = true; };
         Opened += (_, _) =>
@@ -78,7 +77,10 @@ public partial class ExperimentalActivationDialog : Window
         C<TextBlock>("ActivationHeading").Text = Title;
         C<TextBlock>("ActivationExplanation").Text = Texts.T(_original.RequestsMismatchPermission ? "activation.explanation" : "activation.strictExplanation", _original.SourceName);
         C<TextBlock>("ActivationScope").Text = Texts.T(_original.RequestsMismatchPermission ? "activation.scope" : "activation.strictScope", _original.SourceId, _original.PluginOwnerId);
-        C<Button>("ActivationCancel").Content = Texts.T(_failure != null || _unexpectedError != null ? "activation.close" : "wizard.cancel");
+        string cancel = Texts.T(_failure != null || _unexpectedError != null ? "activation.close" : "wizard.cancel");
+        C<Button>("ActivationCancel").Content = cancel;
+        // Cancel turns into Close after a failure; its accessible name follows the visible word like Confirm's.
+        AutomationProperties.SetName(C<Button>("ActivationCancel"), cancel);
         string confirm = Texts.T(!_original.RequestsMismatchPermission
             ? _failure == null && _unexpectedError == null ? "activation.strictConfirm" : "activation.strictRetry"
             : _failure == null && _unexpectedError == null ? "activation.confirm"
@@ -89,9 +91,13 @@ public partial class ExperimentalActivationDialog : Window
         C<Button>("ActivationCancel").IsEnabled = !_busy;
         C<Ursa.Controls.LoadingIcon>("ActivationBusy").IsLoading = _busy;
         C<Ursa.Controls.LoadingIcon>("ActivationBusy").IsVisible = _busy;
-        string? status = FailureMessage();
-        C<Border>("ActivationStatusPanel").IsVisible = _busy || status != null;
-        C<TextBlock>("ActivationStatus").Text = _busy ? Texts.T(_original.RequestsMismatchPermission ? "activation.saving" : "activation.strictSaving") : status;
+        // Busy progress stays a polite footer status; the failure owns the local error strip.
+        // As before, a running retry replaces the previous failure instead of showing both.
+        C<Grid>("ActivationBusyPanel").IsVisible = _busy;
+        C<TextBlock>("ActivationBusyStatus").Text = _busy ? Texts.T(_original.RequestsMismatchPermission ? "activation.saving" : "activation.strictSaving") : null;
+        string? status = _busy ? null : FailureMessage();
+        C<Border>("DialogFrameErrorStrip").IsVisible = C<Border>("ActivationStatusPanel").IsVisible = status != null;
+        C<TextBlock>("ActivationStatus").Text = status;
     }
 
     internal string? AdmissionError => FailureMessage();

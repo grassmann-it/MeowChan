@@ -54,7 +54,7 @@ public sealed class CommandLabelLocalizationTests : IDisposable
     }
 
     [Fact]
-    public void NewlyCataloguedFullLabelsPreserveTheExactLegacyEnglishAndGermanFallbacks()
+    public void FullLabelsPreserveLegacyFallbacksExceptTheExplicitMergedSourcesTitles()
     {
         // Only new full-label entries belong to this migration. Existing feature
         // catalogs deliberately have a few context-specific titles differing from
@@ -64,10 +64,18 @@ public sealed class CommandLabelLocalizationTests : IDisposable
         {
             if (entry.Key.EndsWith(".compact", StringComparison.Ordinal)) continue;
             Assert.True(commands.TryGetValue(entry.Key, out CommandDefinition? definition), entry.Key);
-            Assert.Equal(definition!.LabelEn, entry.English);
-            Assert.Equal(definition.LabelDe, entry.German);
-            Assert.Equal(entry.English, BuiltInCatalog.English[entry.Key]);
-            Assert.Equal(entry.German, BuiltInCatalog.German[entry.Key]);
+            // WP deliberately supersedes these two legacy entries. Keep checking both commands and the actual
+            // built-in registration, rather than skipping their old rows or accepting arbitrary non-empty titles.
+            (string english, string german) = entry.Key switch
+            {
+                "command.navigation.sources" => ("Plugins", "Plugins"),
+                "command.navigation.plugins" => ("Show all plugins", "Alle Plugins anzeigen"),
+                _ => (entry.English, entry.German)
+            };
+            Assert.Equal(english, definition!.LabelEn);
+            Assert.Equal(german, definition.LabelDe);
+            Assert.Equal(english, BuiltInCatalog.English[entry.Key]);
+            Assert.Equal(german, BuiltInCatalog.German[entry.Key]);
         }
     }
 
@@ -81,20 +89,22 @@ public sealed class CommandLabelLocalizationTests : IDisposable
             ("navigation.continue-reading", "Continue reading", "Weiterlesen", "Continuar leyendo", "Continuer la lecture", "Продолжить чтение"),
             ("navigation.archive", "Archive", "Archiv", "Archivo", "Archives", "Архив"),
             ("navigation.rules", "Rules", "Regeln", "Reglas", "Règles", "Правила"),
-            ("navigation.sources", "Sources", "Quellen", "Fuentes", "Sources", "Источники"),
+            // The merged page is plain "Plugins" again (Tom, 14.11.2026): the pack labels equal their nav.plugins words.
+            ("navigation.sources", "Plugins", "Plugins", "Complementos", "Extensions", "Плагины"),
             ("navigation.diagnostics", "Diagnostics", "Diagnose", "Diagnóstico", "Diagnostics", "Диагностика"),
-            ("navigation.plugins", "Plugins", "Plugins", "Complementos", "Plugins", "Плагины"),
+            ("navigation.status", "Status", "Status", "Estado", "État", "Состояние"),
+            ("navigation.plugins", "Show all plugins", "Alle Plugins anzeigen", "Mostrar todos los complementos", "Afficher toutes les extensions", "Показать все плагины"),
             ("navigation.settings", "Settings", "Einstellungen", "Configuración", "Paramètres", "Настройки"),
             ("navigation.about", "About MeowChan", "Über MeowChan", "Acerca de MeowChan", "À propos de MeowChan", "О программе MeowChan"),
-            ("navigation.tools-menu", "Tools", "Werkzeuge", "Herramientas", "Outils", "Инструменты"),
+            ("navigation.tools-menu", "More", "Mehr", "Más", "Plus", "Ещё"),
             ("navigation.app-menu", "App menu", "Appmenü", "Menú de la aplicación", "Menu de l’application", "Меню приложения"),
             ("settings.browse-folder", "Browse…", "Durchsuchen…", "Examinar…", "Parcourir…", "Обзор…"),
-            ("settings.discard", "Discard draft", "Entwurf verwerfen", "Descartar borrador", "Annuler le brouillon", "Отменить черновик"),
+            ("settings.discard", "Discard draft", "Entwurf verwerfen", "Descartar borrador", "Abandonner le brouillon", "Отбросить черновик"),
             ("settings.save", "Save", "Speichern", "Guardar", "Enregistrer", "Сохранить"),
             ("sections.open-navigation", "Navigate sections", "Abschnitte öffnen", "Navegar por las secciones", "Naviguer dans les sections", "Перейти к разделам"),
             ("sections.go-to", "Go to selected section", "Ausgewählten Abschnitt öffnen", "Ir a la sección seleccionada", "Accéder à la section sélectionnée", "Перейти к выбранному разделу"),
             ("appearance.theme", "Change theme", "Farbschema wechseln", "Cambiar tema", "Changer de thème", "Изменить тему"),
-            ("export.open-html-dialog", "Export as HTML…", "Als HTML exportieren…", "Exportar como HTML…", "Exporter en HTML…", "Экспортировать в HTML…"),
+            ("export.open-html-dialog", "Export", "Exportieren", "Exportar", "Exporter", "Экспортировать"),
             ("gallery.actual-size", "1:1", "1:1", "1:1", "1:1", "1:1")
         };
         foreach (var label in labels)
@@ -131,11 +141,11 @@ public sealed class CommandLabelLocalizationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Close", "Read", "Gallery", "Full screen")]
-    [InlineData("de", "Schließen", "Lesen", "Galerie", "Vollbild")]
-    [InlineData("es", "Cerrar", "Leer", "Galería", "Pantalla completa")]
-    [InlineData("fr", "Fermer", "Lire", "Galerie", "Plein écran")]
-    [InlineData("ru", "Закрыть", "Читать", "Галерея", "Полный экран")]
+    [InlineData("en", "Close", "Large reader", "Gallery", "Full screen")]
+    [InlineData("de", "Schließen", "Großer Reader", "Galerie", "Vollbild")]
+    [InlineData("es", "Cerrar", "Lector grande", "Galería", "Pantalla completa")]
+    [InlineData("fr", "Fermer", "Grand lecteur", "Galerie", "Plein écran")]
+    [InlineData("ru", "Закрыть", "Развёрнутая читалка", "Галерея", "Полный экран")]
     public void AllFourCompactLabelsAreLocalizedWithoutChangingTheFullTitles(string language,
         string close, string read, string gallery, string fullscreen)
     {

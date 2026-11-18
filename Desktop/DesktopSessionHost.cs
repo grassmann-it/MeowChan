@@ -75,18 +75,23 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
         Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
         Func<string, Config, UpdateSession>? updateSessionFactory = null, Func<System.Net.Http.HttpClient>? pluginTransportFactory = null,
-        Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null)
+        Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null, Stats.IoStatsHub? ioStats = null)
     {
         _logger = logger ?? Log.Logger;
+        _ioStats = ioStats ?? Stats.IoStatsHub.Shared;
         _profileLease = ProfileLease.Acquire(profileDirectory);
         DownloadQueue? queue = null;
         try
         {
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "lease");
             _profileStartupAdmission = _profileLease.Admission.EnterStartupWriter();
             Config = global::MeowChan.Config.LoadConfig(_profileLease.ProfileDirectory, _profileLease);
-            Config.EnsureOrdinaryWritesAllowed();
+            // Fail closed: nothing may write into a profile whose settings were not read as they are. The startup
+            // window explains the files and the way out (SettingsRecoveryRequiredException.LocalizedMessage).
+            if (!Config.AllowsOrdinaryWrites) throw SettingsRecoveryRequiredException.For(Config, _profileLease.ProfileDirectory);
             _confirmedConfig = Config.Clone();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "config-done");
             ExportHistory = new ExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             CollectionExportHistory = new CollectionExportHistoryStore(_profileLease.ProfileDirectory, _profileLease);
             _content = new ThreadContentRuntime(_profileLease.ProfileDirectory, _profileLease);
@@ -94,23 +99,40 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             queue.UpdateParallelDownloadsSafetyLimit(Config.ParallelDownloadsSafetyLimit);
             _downloadQueue = queue;
             queue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
+            ApplyPrivateTagLimits();
+            ApplyStoreLimits();
+            queue.PrivateTagLimits = _privateTagLimits;
             queue.SetPaused(Config.DownloadsPaused);
-            if (providers == null) Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
-                pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
+            if (providers == null)
+            {
+                Plugins = new PluginSession(_profileLease.ProfileDirectory, _profileLease, Config, queue, _logger,
+                    pluginTransportFactory, GetOrCreateSourceMediaIntegrityPolicy, _commands);
+                // The read-only plugin probe needs nothing the window or the catalog builds: it overlaps their
+                // construction and is awaited in StartCoreAsync where plugin startup ran before. Activation,
+                // provenance and adapters keep their place there. Shutdown's startup cancellation also ends it.
+                Plugins.BeginProbe(_startupCancellation.Token);
+            }
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "plugin-session-done");
             IImageBoard[] sources = providers?.ToArray() ?? Array.Empty<IImageBoard>();
             ISessionStore store = sessionStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
             IWorkStateStore workStore = workStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new WorkStateStore(_profileLease.ProfileDirectory, _profileLease, _profileStartupAdmission);
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "stores-done");
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);
             _registry.PrepareProfileProducers(_profileLease);
+            ApplyBooruCatalogLimit();
+            _booruProducers = new MeowChan.Booru.BooruProducerLifecycle(_profileLease.Admission);
             _hostFinalWriteParticipant = new HostFinalWriteParticipant(this);
             _registry.RegisterProfileFinalWriteParticipant(_hostFinalWriteParticipant);
             _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
             _registry.StateChanged += OnRegistryChanged;
+            queue.MediaTagsCarriedOver += OnMediaTagsCarriedOver;
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
                 ?? new UpdateSession(_profileLease.ProfileDirectory, Config);
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "updates-done");
+            StartIoStats();
         }
         catch
         {
@@ -121,6 +143,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             {
                 try
                 {
+                    // An early plugin probe may already import or run describe workers. It ends (workers reaped,
+                    // cache writes stopped) before the profile lease is released; its own failure never replaces
+                    // the constructor's exception. No continuation here needs the calling (UI) thread.
+                    try { _startupCancellation.Cancel(); Plugins?.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+                    catch (Exception error) { _logger.Error(error, "Failed to dispose the plugin session after a failed session construction."); }
                     FinishProfileStartup(succeeded: false);
                     _profileLease.Admission.BeginShutdown();
                     _profileLease.Admission.CompleteShutdown();
@@ -188,12 +215,19 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             // bypassed by restarting the ordinary producer/queue epoch.
             await ResolveInterruptedTransfersAsync(_startupCancellation.Token).ConfigureAwait(false);
             await _content.Catalog.EnsureNativeMediaRecoveryClearAsync(_startupCancellation.Token).ConfigureAwait(false);
+            // Thread marks belong to the readable archive, not plugin/registry readiness. Read only
+            // this bounded profile index on the existing startup worker before admitting reader views.
+            _startupCancellation.Token.ThrowIfCancellationRequested();
+            GetThreadFavoriteSnapshot();
+            _startupCancellation.Token.ThrowIfCancellationRequested();
             PublishCatalogReadable();
             if (AfterCatalogReadableForTests is { } readableHold) await readableHold(_startupCancellation.Token).ConfigureAwait(false);
             if (Plugins != null)
             {
+                PluginStartupDiagnostics.RecordResources("host.startup.plugins", "begin");
                 using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.startup.plugins", epoch: _epoch))
                     await Plugins.StartAsync(_startupCancellation.Token).ConfigureAwait(false);
+                PluginStartupDiagnostics.RecordResources("host.startup.plugins", "end");
                 await PluginRegistryAdapter.RegisterBeforeRestoreAsync(_registry, Plugins.Sources, _startupCancellation.Token).ConfigureAwait(false);
             }
             Plugins?.AttachContent(_content);
@@ -216,6 +250,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await _registry.ActivatePreparedProfileProducersAsync(
                     sealBeforeFailureDrain: _profileLease.Admission.BeginShutdown,
                     notifyBeforeFailureDrain: _hostFinalWriteParticipant.FailTransition).ConfigureAwait(false);
+            // Open outside _lifecycle: family observers may inspect/cancel the host. Shutdown marks the family
+            // stopped before taking that monitor, so no late generation can survive a concurrent stop.
+            if (State == DesktopSessionState.Starting) OpenBooruProducers();
             lock (_lifecycle)
                 if (_state == DesktopSessionState.Starting)
                 {
@@ -233,13 +270,20 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await SaveViewPreferencesAsync(candidate => candidate.FirstRunSetupPending = true).ConfigureAwait(false);
             }
             if (State == DesktopSessionState.Ready) Updates.Start();
+            if (State == DesktopSessionState.Ready) StartMediaTagReconcile();
+            if (State == DesktopSessionState.Ready) StartFolderSources();
+            // In the background: recovering pending originals may wait for queue admission (paused queue, space gate).
+            if (State == DesktopSessionState.Ready) StartBooruInBackground();
         }
         catch (Exception exception)
         {
             _logger.Error(exception, "Failed to restore the desktop session.");
+            // Startup can fail after its first Booru generation opened. Close ingress before sealing the profile,
+            // and release the generation below even when Registry rollback itself fails.
+            _booruProducers.BeginStop();
             lock (_lifecycle)
             {
-                if (_state == DesktopSessionState.Starting)
+                if (_state is DesktopSessionState.Starting or DesktopSessionState.Ready)
                 {
                     if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Starting)
                         FinishProfileStartup(succeeded: false);
@@ -257,10 +301,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await DrainFailedStartupFinalWritesAsync().ConfigureAwait(false);
             }
             catch (Exception drainError) { _logger.Error(drainError, "Failed to drain the startup producer subtree."); }
+            try { await _booruProducers.StopAsync().ConfigureAwait(false); }
+            catch (Exception drainError) { _logger.Error(drainError, "Failed to drain the startup Danbooru producer family."); }
             lock (_lifecycle)
             {
                 _startupError = exception.Message;
-                if (_state == DesktopSessionState.Starting)
+                if (_state is DesktopSessionState.Starting or DesktopSessionState.Ready)
                 {
                     if (_profileLease.Admission.Phase == ProfileAdmissionPhase.Starting)
                         FinishProfileStartup(succeeded: false);
@@ -496,6 +542,10 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         frozen.SettingsBaselineWorkspaceMode = settings.SettingsBaselineWorkspaceMode;
         frozen.SettingsBaselineVideoVolume = settings.SettingsBaselineVideoVolume;
         frozen.SettingsBaselineGalleryPlayback = settings.SettingsBaselineGalleryPlayback;
+        frozen.SettingsBaselineGalleryFilmstrip = settings.SettingsBaselineGalleryFilmstrip;
+        frozen.SettingsBaselineMediaTagListWidth = settings.SettingsBaselineMediaTagListWidth;
+        frozen.SettingsBaselineMediaPanelWidth = settings.SettingsBaselineMediaPanelWidth;
+        frozen.GalleryLayoutResetRequested = settings.GalleryLayoutResetRequested;
         frozen.SettingsBaselineProfiles = settings.SettingsBaselineProfiles?.ToDictionary(
             pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
         frozen.Validate();
@@ -535,6 +585,11 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             PublishConfig(candidate);
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
+            ApplyBooruCatalogLimit();
+            ApplyPrivateTagLimits();
+            ApplyStoreLimits();
+            ApplyIoStatsOptions();
+            ApplyFolderSourceSettings();
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
@@ -617,7 +672,12 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 await _registry.SetPausedAdmittedAsync(paused, admission).ConfigureAwait(false);
                 PublishConfig(candidate);
             }
-            finally { IsPauseTransitioning = false; SignalChanged(); }
+            finally
+            {
+                // Follow the queue's actual state even if the registry transition failed after changing it.
+                try { SyncBooruSessionPause(); }
+                finally { IsPauseTransitioning = false; SignalChanged(); }
+            }
         }
         finally { _commands.Release(); }
         SignalChanged();
@@ -702,6 +762,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal Task BeginShutdown()
     {
         FinalWriteShutdownPlan plan;
+        // Terminal cut before profile seal. Already accepted work retains its generation until physical drain.
+        // Changed callbacks must never execute under the outer host monitor.
+        _booruProducers.BeginStop();
         lock (_lifecycle)
         {
             if (_finalWriteShutdownPlan == null)
@@ -718,6 +781,9 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             }
             plan = _finalWriteShutdownPlan;
         }
+        // Revoke escaped Booru handles before scheduling engine shutdown. Cancellation callbacks
+        // run outside the outer lifecycle monitor; physical drain still belongs to StopAsync.
+        Volatile.Read(ref _booru)?.ClosePortIngress();
         SettleTerminalFinalWriteObservers(plan);
         StartEngineShutdownOnce(plan);
         return _engineStopTask!;
@@ -740,6 +806,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     {
         using var measurement = MeowChan.Diagnostics.PerformanceDiagnostics.Measure("host.shutdown.engine", epoch: _epoch);
         Task startupCanceled = _startupCancellation.CancelAsync();
+        // Danbooru watchers stop first, while the shared queue still runs and the profile still accepts writes.
+        Task booruStopped = await StopBooruBeforeQueueAsync().ConfigureAwait(false);
         Task queueStopped = _downloadQueue.StopAllAsync();
         RetireSourceMediaIntegrityPolicies();
         List<Exception> errors = new();
@@ -747,8 +815,14 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         { try { await task.ConfigureAwait(false); } catch (Exception error) { errors.Add(error); } }
         await Drain(startupCanceled).ConfigureAwait(false);
         await Drain(restoration).ConfigureAwait(false);
+        await Drain(_mediaTagReconcile ?? Task.CompletedTask).ConfigureAwait(false);
+        await Drain(StopFolderSourcesAsync()).ConfigureAwait(false);
         Task registryStopped = _registry.StopAsync();
         await Drain(Task.WhenAll(queueStopped, registryStopped)).ConfigureAwait(false);
+        // An unpublished start may still own a transport: drain its cleanup before releasing all owners.
+        await Drain(booruStopped).ConfigureAwait(false);
+        await Drain(_booruProducers.StopAsync()).ConfigureAwait(false);
+        ReleaseBooruAfterQueue();
         try { await Updates.DisposeAsync().ConfigureAwait(false); _updatesQuiescent = true; } catch (Exception error) { errors.Add(error); }
         if (errors.Count != 0) throw new AggregateException("Engine shutdown reported failures.", errors);
     }
@@ -794,6 +868,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             catch (Exception error) { errors.Add(error); if (ownsLifetime) quiescent = false; }
         }
         await Observe(() => Task.WhenAll(engineStopped, _acceptedDrain, finalWrites)).ConfigureAwait(false);
+        await Observe(() => { StopIoStats(); return Task.CompletedTask; }).ConfigureAwait(false);
         // The optional cache belongs to the existing TerminalOpen authority, before
         // releasing the host family and BEFORE the kernel's final admission drain.
         ProfileProducerEpoch.Use? terminalUse;
@@ -824,6 +899,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             await Observe(() => _content.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
             if (Plugins != null) await Observe(() => Plugins.DisposeAsync().AsTask(), ownsLifetime: true).ConfigureAwait(false);
             _registry.StateChanged -= OnRegistryChanged;
+            _downloadQueue.MediaTagsCarriedOver -= OnMediaTagsCarriedOver;
             _ownersQuiescent = quiescent;
             lock (_lifecycle) { if (quiescent) _state = DesktopSessionState.Stopped; }
         }
@@ -879,7 +955,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
     }
 
-    private void OnRegistryChanged() => SignalChanged();
+    private void OnRegistryChanged() { QueueIoActivityRefresh(); SignalChanged(); }
 
     private void SignalChanged() => RequestProjection();
 

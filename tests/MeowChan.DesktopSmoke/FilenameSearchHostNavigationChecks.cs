@@ -62,7 +62,7 @@ internal static class FilenameSearchHostNavigationChecks
             await page.MediaLoadTask.WaitAsync(Deadline); // existing passive projection is allowed
             await page.ArchiveMediaCountTask.WaitAsync(Deadline);
             page.ShowPost(TargetPost); // origin deliberately contains the SAME post string
-            await PumpAsync();
+            await SmokeDispatcher.SettleAsync();
             ArchivedThreadView origin = page.CurrentThread!;
             string[] beforeRows = Rows(page);
             string? beforeSelected = (C<ListBox>(page, "ArchivePosts").SelectedItem as ArchivePostRow)?.Id;
@@ -72,7 +72,9 @@ internal static class FilenameSearchHostNavigationChecks
                 && beforeRows.SequenceEqual(new[] { TargetPost }) && beforeSelected == TargetPost,
                 "Origin must select final-page collision post, distinct from firstpost fallback.");
             int beforeOpen = Volatile.Read(ref factories);
-            Click(page, "ReaderFilenameSearchOpen"); // actual product entry handler, not injected Show/Navigate
+            // Actual product entry (AP2): reader find bar, File name scope, Search; not injected Show/Navigate.
+            Button entry = UnifiedSearchEntry.ReaderScope(page, MeowChan.Desktop.Controls.SearchScope.FileName);
+            Click(page, entry.Name!);
             await UntilAsync(() => page.FilenameSearchWindow is { IsVisible: true });
             FilenameSearchDialog dialog = page.FilenameSearchWindow!;
             Require(ReferenceEquals(dialog.Owner, window), "Search dialog has wrong real owner.");
@@ -91,7 +93,7 @@ internal static class FilenameSearchHostNavigationChecks
             else
             {
                 C<TextBox>(dialog, "FilenameSearchQuery").Text = Needle;
-                await PumpAsync();
+                await SmokeDispatcher.SettleAsync();
                 Click(dialog, "FilenameSearchSubmit");
                 await UntilAsync(() => dialog.Session.Current is { Busy: false, StatusKey: "filename.search.ready" });
                 var rows = dialog.Session.Current.Rows;
@@ -102,7 +104,7 @@ internal static class FilenameSearchHostNavigationChecks
                     && hit.OriginalName == Needle + ".png", "Actual catalog search lost full selected claim.");
                 Require(ReferenceEquals(page.CurrentThread, origin), "Search itself navigated.");
                 C<ListBox>(dialog, "FilenameSearchResults").SelectedIndex = selectedIndex;
-                await PumpAsync();
+                await SmokeDispatcher.SettleAsync();
                 Require(C<Button>(dialog, "FilenameSearchSelect").IsEnabled, "Explicit result choice is not actionable.");
                 if (scenario == "missing-post") await RemovePostAsync(profile);
                 if (scenario == "missing-thread")
@@ -114,7 +116,7 @@ internal static class FilenameSearchHostNavigationChecks
                 Click(dialog, "FilenameSearchSelect"); // old immutable result remains selectable; host MUST revalidate
                 await operation.WaitAsync(Deadline);
                 await page.MediaLoadTask.WaitAsync(Deadline);
-                await PumpAsync();
+                await SmokeDispatcher.SettleAsync();
                 if (scenario == "select")
                 {
                     Require(page.CurrentThread?.Summary.Id == Target && page.CurrentThread.FindPostIndex(TargetPost) == 250,
@@ -242,11 +244,6 @@ internal static class FilenameSearchHostNavigationChecks
         Button button = C<Button>(root, name);
         Require(button.IsEffectivelyVisible && button.IsEffectivelyEnabled, "Hidden/disabled filename host action: " + name);
         SmokeActionClick.Execute(button);
-    }
-    private static async Task PumpAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
     private static async Task UntilAsync(Func<bool> predicate)
     {

@@ -50,21 +50,27 @@ internal static class ArchiveMediaCommandChecks
             Console.WriteLine("SMOKE archive media menu: " + JsonSerializer.Serialize(items
                 .Select(item => new { item.Tag, header = item.Header?.ToString(), item.IsEnabled,
                     canExecute = item.Command?.CanExecute(item.CommandParameter) })));
-            Require(page.EditPostBookmark != null && items.Length == 8 && items[0].Tag == null
-                && Equals(items[0].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
-                "The real reader media menu lost its leading post-bookmark action or contains unexpected actions.");
-            MenuItem bookmark = items[0];
+            // The common media section comes first, in the one shared order (wave3 adds "Add to tagging queue" after the tag entry, PT1);
+            // the page's own post-bookmark action follows it.
+            Require(page.EditPostBookmark != null && items.Length == 10 && items[^1].Tag == null
+                && Equals(items[^1].Header, CommandCatalog.Label("post-bookmarks.edit-post")),
+                "The real reader media menu lost its trailing post-bookmark action or contains unexpected actions.");
+            MenuItem bookmark = items[^1];
             Require(bookmark.IsEnabled && bookmark.Command?.CanExecute(bookmark.CommandParameter) == true,
                 "The captured inline post has no available shared bookmark action.");
             // Check every remaining item; do not hide the untagged bookmark or any unexpected action.
-            MenuItem[] commands = items.Skip(1).ToArray();
+            MenuItem[] commands = items.Take(items.Length - 1).ToArray();
             string[] actualTags = commands.Select(item => item.Tag as string ?? "<untagged>").ToArray();
             Require(actualTags.SequenceEqual(new[]
-            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.export-original", "media.show-in-folder", "gallery.show-in-thread", "media.details" }),
+            { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original", "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" }),
                 "Inline media menu lacks the shared media actions or order: " + string.Join(", ", actualTags));
             MenuItem rating = commands.Single(item => (string)item.Tag! == "media.rating.edit");
             Require(rating.IsEnabled && rating.Command?.CanExecute(rating.CommandParameter) == true,
                 "Saved inline media has no available shared rating action.");
+            // Review 15.11.: "Rate and tag…" is one entry (no rating submenu, no second tag entry); it opens the quick tag popover with the stars on top.
+            Require(rating.ItemsSource == null || !rating.ItemsSource.Cast<object>().Any(), "The inline media menu's rate-and-tag entry must not have a submenu.");
+            Require(Equals(rating.Header, CommandCatalog.Label("media.rating.edit")) && page.TagPopoverAsync != null,
+                "The inline media menu's rate-and-tag entry is not the one popover action.");
             commands.Single(item => (string)item.Tag! == "gallery.open").Command!.Execute(null);
             Require(opened?.PostId == page.CurrentThread!.GetPosts(0, 1).Single().PostId,
                 "Inline context gallery lost the clicked attachment's post association.");
@@ -93,12 +99,32 @@ internal static class ArchiveMediaCommandChecks
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             MenuItem hiddenGallery = page.ArchiveMediaMenu!.Items.OfType<MenuItem>()
                 .Single(item => (string?)item.Tag == "gallery.open");
-            Require(!hiddenGallery.IsEnabled, "A hidden inline asset remained navigable in the visible gallery.");
+            Require(hiddenGallery.IsEnabled, "A hidden inline asset lost its thread-gallery fallback.");
             page.ArchiveMediaMenu.Close();
             favorites.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+            // The post menu copies text, number and (where the address scheme is known) the link; clipboard faked, local only.
+            List<string> copied = new();
+            page.CopyTextForTests = text => { copied.Add(text); return Task.CompletedTask; };
+            ArchivePostRow post = posts.ItemsSource!.Cast<ArchivePostRow>().First();
+            ContextMenu postMenu = page.BuildPostMenu(post, posts);
+            MenuItem[] postItems = postMenu.Items.OfType<MenuItem>().ToArray();
+            string link = PostMenuText.Link(page.CurrentThread!.Summary.Id, page.CurrentThread.Summary.Url, post.Id) ?? "";
+            string[] expectedHeaders = new[] { "post.copy-text", "post.copy-number" }.Concat(link.Length > 0 ? new[] { "post.copy-link" } : Array.Empty<string>())
+                .Append("post-bookmarks.edit-post").Append("post.hide").Select(CommandCatalog.Label)
+                .Append(Texts.T("postFilter.hideWithReplies")).ToArray();
+            int copyCount = expectedHeaders.Length - 3; // text, number and link come first; bookmark and the two hide entries follow
+            Require(postItems.Select(item => item.Header?.ToString()).SequenceEqual(expectedHeaders),
+                "The post menu items are wrong: " + string.Join(" | ", postItems.Select(item => item.Header)));
+            foreach (MenuItem item in postItems.Take(copyCount))
+                Require(item.IsEnabled && item.Command!.CanExecute(null), "A post copy action is disabled: " + item.Header);
+            foreach (MenuItem item in postItems.Take(copyCount)) item.Command!.Execute(null);
+            string[] expectedCopies = new[] { PostMenuText.Text(post), PostMenuText.Number(post.Id) }.Concat(link.Length > 0 ? new[] { link } : Array.Empty<string>()).ToArray();
+            Require(copied.SequenceEqual(expectedCopies), "The post menu copied: " + string.Join(" | ", copied));
         }
         finally
         {
+            page.CopyTextForTests = null;
             page.ArchiveMediaMenu?.Close();
             page.IsArchiveFavorite = oldMarked; page.ToggleArchiveFavoriteAsync = oldToggle; page.OpenMediaGallery = oldGallery;
             page.RefreshArchiveFavoriteControls();

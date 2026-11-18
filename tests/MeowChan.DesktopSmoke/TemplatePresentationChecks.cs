@@ -58,7 +58,7 @@ internal static partial class TemplateComparisonChecks
         string originalLanguage = Texts.Language, originalMode = window.SessionHost.Config.WorkspaceMode;
         ThemeVariant? originalTheme = Application.Current!.RequestedThemeVariant;
         double originalWidth = window.Width, originalHeight = window.Height;
-        window.FindControl<MenuItem>("RulesMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
         ContentControl host = window.FindControl<ContentControl>("RulesPageHost")!; object? retained = host.Content;
         RulesPage page = new(() => rules.Current, (values, revision) => rules.SaveAsync(values, revision));
         page.AttachTemplateServices(() => templates.LoadAsync(), (values, revision) => templates.SaveAsync(values, revision));
@@ -92,7 +92,7 @@ internal static partial class TemplateComparisonChecks
                         && PresentationChecks.MatchesRequestedSize(window, cellWidth, cellHeight)
                         && Math.Abs(window.RenderScaling - expectedScale) < 0.01;
                 });
-                await FlushAsync(); evidence.AssertPresentation();
+                await SmokeDispatcher.SettleAsync(); evidence.AssertPresentation();
                 ComboBox picker = Find<ComboBox>("RuleTemplateList");
                 object selected = picker.Items.Cast<object>().Single(value => value.ToString()!.StartsWith("Video · ", StringComparison.Ordinal));
                 string pickerLabel = language == "de" ? "Regelvorlagen" : "Rule templates";
@@ -120,7 +120,7 @@ internal static partial class TemplateComparisonChecks
                 TextBox name = Find<TextBox>("RuleTemplateName"); ComboBox types = Find<ComboBox>("RuleTemplateTypesMode");
                 CheckBox include = Find<CheckBox>("templates-includeTypes");
                 Button cancel = Find<Button>("templates-cancel"), save = Find<Button>("templates-save");
-                await ShowAsync(name); await FlushAsync();
+                await ShowAsync(name); await SmokeDispatcher.SettleAsync();
                 Require(name.Text == "Video" && name.PlaceholderText == (language == "de" ? "Vorlagenname" : "Template name")
                     && AutomationProperties.GetName(name) == (language == "de" ? "Vorlagenname" : "Template name")
                     && types.SelectedIndex == (int)MediaTypeSelectionMode.Selected && include.IsChecked == true,
@@ -135,7 +135,7 @@ internal static partial class TemplateComparisonChecks
                 await ShowAsync(cancel);
                 Require(cancel.Focus(NavigationMethod.Tab) && cancel.IsKeyboardFocusWithin,
                     "Visible template cancel action cannot receive keyboard focus.");
-                await FlushAsync();
+                await SmokeDispatcher.SettleAsync();
                 ScrollViewer editorScroll = page.FindControl<ScrollViewer>("RulesScroll")!;
                 object[] actionGeometry = new[] { save, cancel }.Select(button =>
                 {

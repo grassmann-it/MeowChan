@@ -149,11 +149,58 @@ public sealed class PluginErrorLanguageRefreshTests : IDisposable
         Assert.DoesNotContain("Texts.T(", keys);
         foreach (string source in new[] { main, testing, migration, actions })
             Assert.DoesNotContain("Error(Texts.T(", source);
-        // Raw exception/validation/probe paths are intentionally not localized.
-        Assert.Contains("Error(exception.Message)", main);
-        Assert.Contains("errors.Select(error => error.Error.Message)", testing);
+        // Exceptions and validation results show a localized sentence; their original text is only the detail.
+        Assert.Contains("ErrorFailure(\"plugins.error.refresh\", exception)", main);
+        Assert.Contains("ErrorFailure(\"plugins.error.fields\", string.Join(Environment.NewLine, errors.Select(error => error.Error.Message)))", testing);
+        Assert.Contains("ErrorFailure(\"plugins.error.repair\", exception)", migration);
+        // Only the plugin's own probe output for the user's URL stays verbatim.
         Assert.Contains("if (result is ThreadFailure or CatalogFailure) Error(formatted);", testing);
-        Assert.Contains("Error(exception.Message)", migration);
+        foreach (string source in new[] { main, testing, migration, actions, ReadSource("PluginsPage.Discard.cs") })
+        {
+            Assert.DoesNotContain("Error(exception.Message)", source);
+            Assert.DoesNotContain("Error(error.Message)", source);
+        }
+    }
+
+    [Theory]
+    [InlineData("plugins.error.refresh")]
+    [InlineData("plugins.error.folder")]
+    [InlineData("plugins.error.change")]
+    [InlineData("plugins.error.discard")]
+    [InlineData("plugins.error.save")]
+    [InlineData("plugins.error.fields")]
+    [InlineData("plugins.error.test")]
+    [InlineData("plugins.error.probe")]
+    [InlineData("plugins.error.editorSave")]
+    [InlineData("plugins.error.repair")]
+    public void FailureShowsALocalizedSentenceAndKeepsTheOriginalTextOnlyAsDetail(string key)
+    {
+        const string raw = "System.IO.IOException: The process cannot access the file 'state.json' (HResult 0x80070020)";
+        var state = PluginsPage.PluginErrorState.Failure(key, raw);
+        string english = Texts.T(key);
+        foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
+        {
+            Texts.SetLanguage(language);
+            string message = state.Render();
+            Assert.Equal(Texts.T(key), message);
+            Assert.NotEqual(key, message);
+            Assert.DoesNotContain("IOException", message);
+            Assert.DoesNotContain("HResult", message);
+            Assert.Equal(raw, state.Detail);
+            if (language != "en") Assert.NotEqual(english, message);
+        }
+        Assert.Null(PluginsPage.PluginErrorState.Failure(key, "  ").Detail);
+        Assert.Null(PluginsPage.PluginErrorState.Localized(key).Detail);
+        Assert.Null(PluginsPage.PluginErrorState.Raw(raw).Detail);
+        Assert.Equal(raw, PluginsPage.PluginErrorState.Raw(raw).Render());
+    }
+
+    [Fact]
+    public void RenderErrorKeepsTheDetailAsTooltipAndAccessibleHelp()
+    {
+        string render = Between(ReadSource("PluginsPage.axaml.cs"), "private void RenderError()", "private (long Generation, CancellationToken Token) BeginOperation()");
+        Assert.Contains("ToolTip.SetTip(summary, detail);", render);
+        Assert.Contains("AutomationProperties.SetHelpText(summary, detail ?? string.Empty);", render);
     }
 
     private static string Between(string source, string start, string end)

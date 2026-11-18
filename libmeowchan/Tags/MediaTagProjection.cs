@@ -28,6 +28,14 @@ internal sealed record PrivateMediaTagTarget
     }
 
     internal AttachmentRevisionReference Reference { get; }
+
+    /// <summary>
+    /// The attachment and bytes this target names, without the revision key: thread, post, position, media id,
+    /// variant, role and SHA-256. The same file under an earlier and a later revision key (after a source changed what
+    /// it reports) has one identity; a different file, or the same bytes in another post or position, has another.
+    /// Counting and removing use it; storage and lookup stay on the exact target.
+    /// </summary>
+    internal MediaIdentity Identity => new(Reference.Resource, Reference.PostId, Reference.Position, MediaId, Variant, Role, Sha256);
     internal string MediaId { get; }
     // Role and variant are both retained explicitly; neither is inferred from a filename or hash.
     internal string Variant { get; }
@@ -60,6 +68,10 @@ internal sealed record PrivateMediaTagTarget
         && (value.StartsWith("att-v1:", StringComparison.Ordinal) || value.StartsWith("att-v2:", StringComparison.Ordinal))
         && CanonicalSha256(value[7..]);
 }
+
+/// <summary>One file of one attachment, independent of which revision key currently names it.</summary>
+internal readonly record struct MediaIdentity(ResourceId Thread, string PostId, int Position, string MediaId,
+    string Variant, TransferMediaRole Role, string Sha256);
 
 /// <summary>Caller-supplied local identity. Not a portable tag reference or a profile authority.</summary>
 // Compatibility adapter only: no category-local vocabulary is stored.
@@ -188,6 +200,8 @@ internal sealed class MediaTagProjection
             : Catalog.TryDefine(id, name, Catalog.Revision, out next, out catalogError);
         if (!success) return Fail(Enum.Parse<MediaTagError>(catalogError.ToString()), out error);
         if (ReferenceEquals(next, Catalog)) return true;
+        // The shared catalog allows more definitions than this in-memory projection's own bound.
+        if (next.Definitions.Count > MaximumDefinitions) return Fail(MediaTagError.CapacityExceeded, out error);
         if (!CanChange(out error)) return false;
         result = new(Revision + 1, next, assignments);
         return true;

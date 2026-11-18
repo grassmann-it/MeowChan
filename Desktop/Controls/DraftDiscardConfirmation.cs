@@ -54,26 +54,30 @@ internal sealed class DraftDiscardConfirmation
             else if (e.Key == Key.Enter) e.Handled = true;
         }, RoutingStrategies.Bubble);
     }
-    internal void Open(string target, Action confirm, string? actionLabel = null, Func<bool>? context = null, Func<Control?>? completedFocus = null)
-        => OpenAsync(target, () => { confirm(); return Task.CompletedTask; }, actionLabel, context, completedFocus);
-    internal void OpenAsync(string target, Func<Task> confirm, string? actionLabel = null, Func<bool>? context = null, Func<Control?>? completedFocus = null)
+    internal void Open(string target, Action confirm, string? actionLabel = null, Func<bool>? context = null, Func<Control?>? completedFocus = null,
+        string? title = null, string? body = null, string? cancelLabel = null)
+        => OpenAsync(target, () => { confirm(); return Task.CompletedTask; }, actionLabel, context, completedFocus, title, body, cancelLabel);
+    internal void OpenAsync(string target, Func<Task> confirm, string? actionLabel = null, Func<bool>? context = null, Func<Control?>? completedFocus = null,
+        string? title = null, string? body = null, string? cancelLabel = null)
     {
         if (IsOpen) return;
         ++_generation; _confirm = confirm; _context = context; _completedFocus = completedFocus;
-        _surface.PopupHeader = Texts.T("draft.discardTitle", target);
-        TextBlock explanation = new() { Text = Texts.T("draft.discardBody"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 380 };
+        _surface.PopupHeader = title ?? Texts.T("draft.discardTitle", target);
+        TextBlock explanation = new() { Text = body ?? Texts.T("draft.discardBody"), TextWrapping = Avalonia.Media.TextWrapping.Wrap, MaxWidth = 380 };
         explanation.Classes.Add("workspace-warning");
         _surface.PopupContent = explanation;
         _actionLabel = actionLabel ?? Texts.T("rules.discard");
+        _cancelLabel = cancelLabel ?? Texts.T("draft.keepEditing");
         _surface.IsDropdownOpen = true;
     }
     private string _actionLabel = string.Empty;
+    private string _cancelLabel = string.Empty;
     private void PrepareButtons()
     {
         if (!IsOpen) return;
         Button? cancel = _surface.CancelButton;
         Button? confirm = _surface.ConfirmButton;
-        if (cancel != null) { cancel.Content = Texts.T("draft.keepEditing"); AutomationProperties.SetName(cancel, Texts.T("draft.keepEditing")); cancel.Focus(); }
+        if (cancel != null) { cancel.Content = _cancelLabel; AutomationProperties.SetName(cancel, _cancelLabel); cancel.Focus(); }
         if (confirm != null) { confirm.Content = _actionLabel; confirm.Classes.Add("danger"); AutomationProperties.SetName(confirm, _actionLabel); }
     }
     private async Task ConfirmAsync()

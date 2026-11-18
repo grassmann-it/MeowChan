@@ -38,7 +38,7 @@ public sealed class Schema11PostPresenceMigrationTests
         using (SqliteConnection connection = files.Open())
         {
             ArchiveSql.ValidateSchema(connection);
-            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version"));
+            Assert.Equal(13, ArchiveSql.GetPragma(connection, "user_version"));
             Assert.Equal(ArchiveSql.ApplicationId, ArchiveSql.GetPragma(connection, "application_id"));
             Assert.True(HasPresence(connection));
             Assert.Equal(oldPosts, Rows(connection, "archive_posts", excludePresence: true));
@@ -79,7 +79,7 @@ public sealed class Schema11PostPresenceMigrationTests
             using SqliteConnection connection = files.Open(SqliteOpenMode.ReadWrite);
             using SqliteTransaction transaction = connection.BeginTransaction(deferred: false);
             ArchiveSql.MigratePostAttachmentPresenceSchema11(connection, transaction);
-            Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version", transaction));
+            Assert.Equal(13, ArchiveSql.GetPragma(connection, "user_version", transaction));
             Assert.Equal(rows, DataSnapshot(connection, transaction));
             Assert.Equal(objects, Objects(connection, transaction));
             transaction.Commit();
@@ -224,7 +224,7 @@ public sealed class Schema11PostPresenceMigrationTests
         string[] before;
         using (SqliteConnection connection = files.Open(SqliteOpenMode.ReadWrite))
         {
-            Execute(connection, "PRAGMA user_version=13");
+            Execute(connection, "PRAGMA user_version=14");
             before = CompleteSnapshot(connection);
             using (SqliteTransaction transaction = connection.BeginTransaction(deferred: false))
             {
@@ -235,7 +235,7 @@ public sealed class Schema11PostPresenceMigrationTests
         await Assert.ThrowsAsync<InvalidDataException>(() => files.OpenCatalogAsync());
         using SqliteConnection read = files.Open();
         Assert.Equal(before, CompleteSnapshot(read));
-        Assert.Equal(13, ArchiveSql.GetPragma(read, "user_version"));
+        Assert.Equal(14, ArchiveSql.GetPragma(read, "user_version"));
     }
 
     private static async Task AssertLegacyReadAsync(string profile)
@@ -358,7 +358,7 @@ public sealed class Schema11PostPresenceMigrationTests
                          new("4", 4, PostFieldPresence.Attachments, Attachments: null)]));
                 }
                 using SqliteConnection connection = files.Open(SqliteOpenMode.ReadWrite);
-                Assert.Equal(12, ArchiveSql.GetPragma(connection, "user_version"));
+                Assert.Equal(13, ArchiveSql.GetPragma(connection, "user_version"));
                 string[] otherTables = DataSnapshot(connection, excludePosts: true);
                 string[] otherObjects = Objects(connection, excludePosts: true);
                 using (SqliteTransaction transaction = connection.BeginTransaction(deferred: false))

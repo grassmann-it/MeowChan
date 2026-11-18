@@ -23,15 +23,11 @@ public partial class ArchivePage
         var editor = Control<IdentitySuggestionBox>(name);
         return IdentitySuggestions.CurrentSelection(editor.Text, editor.AcceptedCandidate);
     }
-    internal void WriteIdentityEditor(string name, string? value) => Control<IdentitySuggestionBox>(name).SetCurrentValue(IdentitySuggestionBox.TextProperty, value);
-
     // URSA-14 adapters can consume qualified candidates without parsing display labels.
-    internal Task<IdentitySuggestion[]> GetIdentityCandidatesAsync(bool boards, string text, CancellationToken token) => ReadSuggestionsAsync(boards, text, token);
-
     internal void InvalidateBoardSuggestions()
     {
         string? source = ReadBoardSuggestionSource();
-        var board = Control<IdentitySuggestionBox>("ArchiveBoardFilter");
+        var board = ArchiveBoardFilter;
         if (_hasBoardSuggestionContext && !StringComparer.Ordinal.Equals(source, _boardSuggestionContext))
             board.InvalidateIdentityContext();
         else board.Dismiss(); // A label/layout rebind does not revoke an explicit choice.
@@ -44,14 +40,23 @@ public partial class ArchivePage
 
     private void InitializeSuggestions()
     {
-        var source = Control<IdentitySuggestionBox>("ArchiveSourceFilter");
-        var board = Control<IdentitySuggestionBox>("ArchiveBoardFilter");
+        var source = ArchiveSourceFilter;
+        var board = ArchiveBoardFilter;
         source.Candidates = (text, token) => ReadSuggestionsAsync(false, text, token);
         board.Candidates = (text, token) => ReadSuggestionsAsync(true, text, token);
         source.TextChanged += (_, _) => { InvalidateBoardSuggestions(); board.RefreshSuggestions(); };
         source.LoadCompleted += SuggestionLoadCompleted;
+        // Accepting a suggestion (click, or Enter on the highlighted one) adds it as a chip once the box has
+        // finished its selection update, and only while that exact accepted value is still in the field.
+        foreach (var (editor, isBoard) in new[] { (source, false), (board, true) })
+        {
+            editor.ReleaseUnselectedEnter = true;
+            editor.CandidateAccepted += item => Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            { if (!_ended && ReferenceEquals(IdentitySuggestions.CurrentSelection(editor.Text, editor.AcceptedCandidate), item)) _ = AddIdentityAsync(isBoard, item); },
+                Avalonia.Threading.DispatcherPriority.Send);
+        }
         board.LoadCompleted += SuggestionLoadCompleted;
-        Control<Button>("ArchiveRetrySuggestions").Click += (_, _) =>
+        ArchiveRetrySuggestions.Click += (_, _) =>
         {
             InvalidateSuggestions();
             source.Focus(); source.RestartSuggestions();
@@ -86,18 +91,20 @@ public partial class ArchivePage
     }
     private void UpdateSuggestionHint()
     {
-        AutomationProperties.SetName(Control<IdentitySuggestionBox>("ArchiveSourceFilter"), Texts.T("archive.sourceFilter"));
-        AutomationProperties.SetName(Control<IdentitySuggestionBox>("ArchiveBoardFilter"), Texts.T("archive.boardFilter"));
-        var hint = Control<TextBlock>("ArchiveSuggestionsHint");
-        hint.Text = Texts.T(_suggestionsFailed ? "suggestions.unavailable" : "suggestions.limited");
-        Control<Button>("ArchiveRetrySuggestions").Content = Texts.T("suggestions.retry");
-        Control<Button>("ArchiveRetrySuggestions").IsVisible = _suggestionsFailed;
+        AutomationProperties.SetName(ArchiveSourceFilter, Texts.T("archive.filter.source"));
+        AutomationProperties.SetName(ArchiveBoardFilter, Texts.T("archive.filter.board"));
+        AutomationProperties.SetHelpText(ArchiveSourceFilter, Texts.T("archive.sourceFilter"));
+        AutomationProperties.SetHelpText(ArchiveBoardFilter, Texts.T("archive.boardFilter"));
+        var hint = ArchiveSuggestionsHint;
+        hint.Text = Texts.T(_suggestionsFailed ? "suggestions.unavailable" : "archive.suggestionsHint");
+        ArchiveRetrySuggestions.Content = Texts.T("suggestions.retry");
+        ArchiveRetrySuggestions.IsVisible = _suggestionsFailed;
     }
     private void InvalidateSuggestions()
     {
         _suggestionCache?.Dispose(); _suggestionCache = null; _suggestionsFailed = false;
-        Control<IdentitySuggestionBox>("ArchiveSourceFilter").Dismiss();
-        Control<IdentitySuggestionBox>("ArchiveBoardFilter").Dismiss();
+        ArchiveSourceFilter.Dismiss();
+        ArchiveBoardFilter.Dismiss();
         UpdateSuggestionHint();
     }
 }

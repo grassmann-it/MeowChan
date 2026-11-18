@@ -15,12 +15,16 @@ using System.Threading.Tasks;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Updates;
 
 namespace MeowChan
 {
-    public partial class SettingsEditor : UserControl, INotifyPropertyChanged
+    public partial class SettingsEditor : UserControl, INotifyPropertyChanged, IShortcutDraftHost
     {
+        /// <summary>The limits of the tag panel's suggestion box, read by the XAML so it never repeats the numbers (the Config constants are internal).</summary>
+        public static decimal QuickTagPanelSuggestionLimitMinimum => Config.QuickTagPanelSuggestionLimitMinimum;
+        public static decimal QuickTagPanelSuggestionLimitMaximum => Config.QuickTagPanelSuggestionLimitMaximum;
         public static IMultiValueConverter NumericActionNameConverter { get; } =
             new FuncMultiValueConverter<object?, string>((IReadOnlyList<object?> values) =>
                 values.Count == 2 && values[0] is string format && values[1] is string field
@@ -81,6 +85,7 @@ namespace MeowChan
             if (_statusMessageState != null) StatusMessage = _statusMessageState.Render();
         }
         private SettingsChoice? _selectedTheme;
+        private SettingsChoice? _selectedAnimations;
         private SettingsChoice? _selectedWorkspaceMode;
         private LanguageInfo? _selectedLanguage;
         private bool _compactDensity;
@@ -95,6 +100,7 @@ namespace MeowChan
         private bool _galleryOverlayControls;
         private bool _galleryOverlayPostContext;
         private SettingsChoice? _selectedReadingFontSize;
+        private SettingsChoice? _selectedReaderPostWidth;
         private bool _videoAutoplay;
         private bool _videoStartMuted;
         private int _videoVolume;
@@ -128,10 +134,45 @@ namespace MeowChan
         private decimal? _workerIdleMinutes;
         private decimal? _sourceHeapMiB;
         private decimal? _filterHeapMiB;
+        private decimal? _booruCatalogMiB;
+        private decimal? _booruRetryAfterCooldownHours;
+        private decimal? _privateTagLimit;
+        private decimal? _privateTagFileMiB;
+        private decimal? _mediaIndexCacheMiB;
+        private decimal? _favoriteEntryLimit;
+        private decimal? _favoriteFileLimitMiB;
+        private decimal? _postBookmarkLimit;
+        private decimal? _savedSearchLimit;
+        private decimal? _readerGroupLimit;
+        private decimal? _profileRegistryLimit;
+        private decimal? _sourcesWatchPreviewRows;
+        private decimal? _exportConfirmFiles;
+        private decimal? _exportConfirmGiB;
+        private decimal? _posterCacheLimitMiB;
+        private decimal? _posterCacheFileLimit;
+        private decimal? _audioProbeCacheLimitMiB;
+        private decimal? _audioProbeCacheEntries;
+        private decimal? _thumbnailCacheTiles;
+        private decimal? _clipboardUrlLimit;
+        private decimal? _clipboardTextLimitKiB;
+        private decimal? _galleryImageCacheMiB;
+        private decimal? _galleryPreloadAhead;
+        private decimal? _galleryPreloadBehind;
+        private decimal? _importMaxFilesPerBatch;
+        private decimal? _importMaxBatchGiB;
+        private decimal? _importMaxFileMiB;
+        private decimal? _importMaxTotalFiles;
+        private decimal? _importMaxTagsPerBatch;
+        private decimal? _importMaxBatches;
+        private decimal? _mediaIndexMaxEntries;
+        private decimal? _mediaIndexMaxThreads;
+        private decimal? _importCatalogLimitMiB;
 
 
         public IReadOnlyList<SettingsChoice> ThemeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<SettingsChoice> AnimationsChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> ReadingFontSizeChoices { get; private set; } = Array.Empty<SettingsChoice>();
+        public IReadOnlyList<SettingsChoice> ReaderPostWidthChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> GalleryPlaybackModeChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<SettingsChoice> WorkspaceChoices { get; private set; } = Array.Empty<SettingsChoice>();
         public IReadOnlyList<LanguageInfo> LanguageChoices { get; private set; } = Array.Empty<LanguageInfo>();
@@ -149,6 +190,7 @@ namespace MeowChan
             set
             {
                 SetField(ref _isAvailable, value, nameof(IsAvailable));
+                if (!value) _settingsExportCancellation?.Cancel();
                 if (!_isClosed)
                 {
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsEditable)));
@@ -178,8 +220,11 @@ namespace MeowChan
         {
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
+            InitializeResetIcons();
+            WorkspaceModeHelpButton.Source = HelpSources.WorkViews;
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);
+            ShortcutsEditor.Host = this;
             ShortcutsEditor.DraftEdited += (_, _) => RetireSavedStatus();
             _initialCompactDensity = config.CompactDensity;
             _initialReadingFontSize = config.ReadingFontSize;
@@ -211,26 +256,30 @@ namespace MeowChan
             ShowWarningNotifications = config.ShowWarningNotifications;
             ShowErrorNotifications = config.ShowErrorNotifications;
             IncludePrereleaseUpdates = config.IncludePrereleaseUpdates;
-            MinimumFreeSpaceGiB = config.MinimumFreeSpaceGiB;
-            ProductionWorkers = config.PluginMaximumProductionWorkers;
-            WorkerIdleMinutes = config.PluginWorkerIdleMinutes;
-            SourceHeapMiB = config.PluginSourceHeapMiB;
-            FilterHeapMiB = config.PluginFilterHeapMiB;
+            LoadBudgetsDraft(config);
 
+            LoadStatisticsDraft(config);
+            LoadReaderDraft(config);
+            LoadTagQueueDraft(config);
+            LoadTaggingDraft(config);
+            LoadViewerDraft(config);
+            LoadQuickTagDraft(config);
+            LoadLimitsDraft(config);
+            LoadWorkViewSwitchNoticeDraft(config);
+            LoadShutdownLimitDraft(config);
+            LoadFooterDraft(config);
             RefreshChoices(config.Theme, config.WorkspaceMode, config.Language);
             DataContext = this;
             ApplyCommandIcons();
             InitializeSectionNavigation();
+            InitializeSearch();
+            InitializeRowMenu();
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
-            ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
-            ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
-            ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
-            ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
-            ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            InitializeWorkViews();
 
             Texts.Changed += OnLanguageChanged;
             DownloadDestinationValidator.Shared.CleanupFailed += OnDestinationCleanupFailed;
@@ -254,6 +303,8 @@ namespace MeowChan
         public string ReserveLabel => Texts.T("budgets.reserve");
         public string ReserveHint => Texts.T("budgets.reserveHint");
         public string AdvancedBudgetsLabel => Texts.T("budgets.advanced");
+        public string StorageLimitsLabel => Texts.T("settings.storageLimits");
+        public string StorageLimitsIntro => Texts.T("budgets.intro");
         public string BudgetRestartHint => Texts.T("budgets.nextSession");
         public bool AutomaticUpdateChecks { get => _automaticUpdateChecks; set => SetField(ref _automaticUpdateChecks, value, nameof(AutomaticUpdateChecks)); }
         public bool IncludePrereleaseUpdates { get => _includePrereleaseUpdates; set => SetField(ref _includePrereleaseUpdates, value, nameof(IncludePrereleaseUpdates)); }
@@ -266,6 +317,113 @@ namespace MeowChan
         public decimal? SourceHeapMiB { get => _sourceHeapMiB; set => SetField(ref _sourceHeapMiB, value, nameof(SourceHeapMiB)); }
         public string FilterHeapMiBLabel => Texts.T("budgets.filterHeap");
         public decimal? FilterHeapMiB { get => _filterHeapMiB; set => SetField(ref _filterHeapMiB, value, nameof(FilterHeapMiB)); }
+        public string BooruCatalogMiBLabel => Texts.T("budgets.booruCatalog");
+        public string BooruCatalogMiBHint => Texts.T("budgets.booruCatalogHint");
+        public decimal? BooruCatalogMiB { get => _booruCatalogMiB; set => SetField(ref _booruCatalogMiB, value, nameof(BooruCatalogMiB)); }
+        public string BooruRetryAfterCooldownHoursLabel => Texts.T("budgets.booruRetryAfterCooldown");
+        public string BooruRetryAfterCooldownHoursHint => Texts.T("budgets.booruRetryAfterCooldownHint");
+        public decimal? BooruRetryAfterCooldownHours { get => _booruRetryAfterCooldownHours; set => SetField(ref _booruRetryAfterCooldownHours, value, nameof(BooruRetryAfterCooldownHours)); }
+        public string PrivateTagLimitLabel => Texts.T("budgets.privateTags");
+        public string PrivateTagLimitHint => Texts.T("budgets.privateTagsHint");
+        public decimal? PrivateTagLimit { get => _privateTagLimit; set => SetField(ref _privateTagLimit, value, nameof(PrivateTagLimit)); }
+        public string PrivateTagFileMiBLabel => Texts.T("budgets.privateTagFile");
+        public string PrivateTagFileMiBHint => Texts.T("budgets.privateTagFileHint");
+        public decimal? PrivateTagFileMiB { get => _privateTagFileMiB; set => SetField(ref _privateTagFileMiB, value, nameof(PrivateTagFileMiB)); }
+        public string MediaIndexCacheMiBLabel => Texts.T("budgets.mediaIndexCache");
+        public string MediaIndexCacheMiBHint => Texts.T("budgets.mediaIndexCacheHint");
+        public decimal? MediaIndexCacheMiB { get => _mediaIndexCacheMiB; set => SetField(ref _mediaIndexCacheMiB, value, nameof(MediaIndexCacheMiB)); }
+        public string FavoriteEntryLimitLabel => Texts.T("budgets.favoriteEntries");
+        public string FavoriteEntryLimitHint => Texts.T("budgets.favoriteEntriesHint");
+        public decimal? FavoriteEntryLimit { get => _favoriteEntryLimit; set => SetField(ref _favoriteEntryLimit, value, nameof(FavoriteEntryLimit)); }
+        public string FavoriteFileLimitMiBLabel => Texts.T("budgets.favoriteFile");
+        public string FavoriteFileLimitMiBHint => Texts.T("budgets.favoriteFileHint");
+        public decimal? FavoriteFileLimitMiB { get => _favoriteFileLimitMiB; set => SetField(ref _favoriteFileLimitMiB, value, nameof(FavoriteFileLimitMiB)); }
+        public string PostBookmarkLimitLabel => Texts.T("budgets.postBookmarks");
+        public string PostBookmarkLimitHint => Texts.T("budgets.postBookmarksHint");
+        public decimal? PostBookmarkLimit { get => _postBookmarkLimit; set => SetField(ref _postBookmarkLimit, value, nameof(PostBookmarkLimit)); }
+        public string SavedSearchLimitLabel => Texts.T("budgets.savedSearches");
+        public string SavedSearchLimitHint => Texts.T("budgets.savedSearchesHint");
+        public decimal? SavedSearchLimit { get => _savedSearchLimit; set => SetField(ref _savedSearchLimit, value, nameof(SavedSearchLimit)); }
+        public string ReaderGroupLimitLabel => Texts.T("budgets.readerGroups");
+        public string ReaderGroupLimitHint => Texts.T("budgets.readerGroupsHint");
+        public decimal? ReaderGroupLimit { get => _readerGroupLimit; set => SetField(ref _readerGroupLimit, value, nameof(ReaderGroupLimit)); }
+        public string ProfileRegistryLimitLabel => Texts.T("budgets.profileRegistry");
+        public string ProfileRegistryLimitHint => Texts.T("budgets.profileRegistryHint");
+        public decimal? ProfileRegistryLimit { get => _profileRegistryLimit; set => SetField(ref _profileRegistryLimit, value, nameof(ProfileRegistryLimit)); }
+        // PR1: where this window's profile lives, read-only; other profiles open in their own window (⋯ › Profile).
+        public string ProfileFolderLabel => Texts.T("settings.profileFolder");
+        public string ProfileFolderHint => Texts.T("settings.profileFolderHint");
+        public string ProfileFolderOpenLabel => Texts.T("settings.profileFolderOpen");
+        public string ProfileFolderPath => _config.ProfileDirectory ?? string.Empty;
+        public string SourcesWatchPreviewRowsLabel => Texts.T("budgets.sourcesWatchPreviewRows");
+        public string SourcesWatchPreviewRowsHint => Texts.T("budgets.sourcesWatchPreviewRowsHint");
+        public decimal? SourcesWatchPreviewRows { get => _sourcesWatchPreviewRows; set => SetField(ref _sourcesWatchPreviewRows, value, nameof(SourcesWatchPreviewRows)); }
+        public string ExportConfirmFilesLabel => Texts.T("budgets.exportConfirmFiles");
+        public string ExportConfirmFilesHint => Texts.T("budgets.exportConfirmFilesHint");
+        public decimal? ExportConfirmFiles { get => _exportConfirmFiles; set => SetField(ref _exportConfirmFiles, value, nameof(ExportConfirmFiles)); }
+        public string ExportConfirmGiBLabel => Texts.T("budgets.exportConfirmGiB");
+        public string ExportConfirmGiBHint => Texts.T("budgets.exportConfirmGiBHint");
+        public decimal? ExportConfirmGiB { get => _exportConfirmGiB; set => SetField(ref _exportConfirmGiB, value, nameof(ExportConfirmGiB)); }
+        public string PosterCacheLimitMiBLabel => Texts.T("budgets.posterCacheMiB");
+        public string PosterCacheLimitMiBHint => Texts.T("budgets.posterCacheMiBHint");
+        public decimal? PosterCacheLimitMiB { get => _posterCacheLimitMiB; set => SetField(ref _posterCacheLimitMiB, value, nameof(PosterCacheLimitMiB)); }
+        public string PosterCacheFileLimitLabel => Texts.T("budgets.posterCacheFiles");
+        public string ThumbnailCacheTilesLabel => Texts.T("budgets.thumbnailCacheTiles");
+        public string GalleryImageCacheMiBLabel => Texts.T("budgets.galleryImageCacheMiB");
+        public string GalleryPreloadAheadLabel => Texts.T("budgets.galleryPreloadAhead");
+        public string GalleryPreloadBehindLabel => Texts.T("budgets.galleryPreloadBehind");
+        public string PosterCacheFileLimitHint => Texts.T("budgets.posterCacheFilesHint");
+        public string ThumbnailCacheTilesHint => Texts.T("budgets.thumbnailCacheTilesHint");
+        public string GalleryImageCacheMiBHint => Texts.T("budgets.galleryImageCacheMiBHint");
+        public string GalleryPreloadAheadHint => Texts.T("budgets.galleryPreloadAheadHint");
+        public string GalleryPreloadBehindHint => Texts.T("budgets.galleryPreloadBehindHint");
+        public decimal? PosterCacheFileLimit { get => _posterCacheFileLimit; set => SetField(ref _posterCacheFileLimit, value, nameof(PosterCacheFileLimit)); }
+        public string AudioProbeCacheLimitMiBLabel => Texts.T("budgets.audioCacheMiB");
+        public string AudioProbeCacheLimitMiBHint => Texts.T("budgets.audioCacheMiBHint");
+        public decimal? AudioProbeCacheLimitMiB { get => _audioProbeCacheLimitMiB; set => SetField(ref _audioProbeCacheLimitMiB, value, nameof(AudioProbeCacheLimitMiB)); }
+        public string AudioProbeCacheEntriesLabel => Texts.T("budgets.audioCacheEntries");
+        public string AudioProbeCacheEntriesHint => Texts.T("budgets.audioCacheEntriesHint");
+        public decimal? AudioProbeCacheEntries { get => _audioProbeCacheEntries; set => SetField(ref _audioProbeCacheEntries, value, nameof(AudioProbeCacheEntries)); }
+        public decimal? ThumbnailCacheTiles { get => _thumbnailCacheTiles; set => SetField(ref _thumbnailCacheTiles, value, nameof(ThumbnailCacheTiles)); }
+        public string ClipboardUrlLimitLabel => Texts.T("budgets.clipboardUrls");
+        public string ClipboardUrlLimitHint => Texts.T("budgets.clipboardUrlsHint");
+        public decimal? ClipboardUrlLimit { get => _clipboardUrlLimit; set => SetField(ref _clipboardUrlLimit, value, nameof(ClipboardUrlLimit)); }
+        public string ClipboardTextLimitKiBLabel => Texts.T("budgets.clipboardText");
+        public string ClipboardTextLimitKiBHint => Texts.T("budgets.clipboardTextHint");
+        public decimal? ClipboardTextLimitKiB { get => _clipboardTextLimitKiB; set => SetField(ref _clipboardTextLimitKiB, value, nameof(ClipboardTextLimitKiB)); }
+        public decimal? GalleryImageCacheMiB { get => _galleryImageCacheMiB; set => SetField(ref _galleryImageCacheMiB, value, nameof(GalleryImageCacheMiB)); }
+        public decimal? GalleryPreloadAhead { get => _galleryPreloadAhead; set => SetField(ref _galleryPreloadAhead, value, nameof(GalleryPreloadAhead)); }
+        public decimal? GalleryPreloadBehind { get => _galleryPreloadBehind; set => SetField(ref _galleryPreloadBehind, value, nameof(GalleryPreloadBehind)); }
+        public string ImportMaxFilesPerBatchLabel => Texts.T("budgets.importFiles");
+        public string ImportMaxFilesPerBatchHint => Texts.T("budgets.importFilesHint");
+        public decimal? ImportMaxFilesPerBatch { get => _importMaxFilesPerBatch; set => SetField(ref _importMaxFilesPerBatch, value, nameof(ImportMaxFilesPerBatch)); }
+        public string ImportMaxBatchGiBLabel => Texts.T("budgets.importBatchGiB");
+        public string ImportMaxBatchGiBHint => Texts.T("budgets.importBatchGiBHint");
+        public decimal? ImportMaxBatchGiB { get => _importMaxBatchGiB; set => SetField(ref _importMaxBatchGiB, value, nameof(ImportMaxBatchGiB)); }
+        public string ImportMaxFileMiBLabel => Texts.T("budgets.importFileMiB");
+        public string ImportMaxFileMiBHint => Texts.T("budgets.importFileMiBHint");
+        public decimal? ImportMaxFileMiB { get => _importMaxFileMiB; set => SetField(ref _importMaxFileMiB, value, nameof(ImportMaxFileMiB)); }
+        public string ImportMaxTotalFilesLabel => Texts.T("budgets.importTotal");
+        public string ImportMaxTotalFilesHint => Texts.T("budgets.importTotalHint");
+        public decimal? ImportMaxTotalFiles { get => _importMaxTotalFiles; set => SetField(ref _importMaxTotalFiles, value, nameof(ImportMaxTotalFiles)); }
+        public string ImportMaxTagsPerBatchLabel => Texts.T("budgets.importTags");
+        public string ImportMaxTagsPerBatchHint => Texts.T("budgets.importTagsHint");
+        public decimal? ImportMaxTagsPerBatch { get => _importMaxTagsPerBatch; set => SetField(ref _importMaxTagsPerBatch, value, nameof(ImportMaxTagsPerBatch)); }
+        public string ImportMaxBatchesLabel => Texts.T("budgets.importBatches");
+        public string ImportMaxBatchesHint => Texts.T("budgets.importBatchesHint");
+        public decimal? ImportMaxBatches { get => _importMaxBatches; set => SetField(ref _importMaxBatches, value, nameof(ImportMaxBatches)); }
+        public string MediaIndexMaxEntriesLabel => Texts.T("budgets.mediaIndexEntries");
+        public string MediaIndexMaxEntriesHint => Texts.T("budgets.mediaIndexEntriesHint");
+        public decimal? MediaIndexMaxEntries { get => _mediaIndexMaxEntries; set => SetField(ref _mediaIndexMaxEntries, value, nameof(MediaIndexMaxEntries)); }
+        public string MediaIndexMaxThreadsLabel => Texts.T("budgets.mediaIndexThreads");
+        public string MediaIndexMaxThreadsHint => Texts.T("budgets.mediaIndexThreadsHint");
+        public decimal? MediaIndexMaxThreads { get => _mediaIndexMaxThreads; set => SetField(ref _mediaIndexMaxThreads, value, nameof(MediaIndexMaxThreads)); }
+        public string ImportCatalogLimitMiBLabel => Texts.T("budgets.importCatalogMiB");
+        public string ImportCatalogLimitMiBHint => Texts.T("budgets.importCatalogMiBHint");
+        public decimal? ImportCatalogLimitMiB { get => _importCatalogLimitMiB; set => SetField(ref _importCatalogLimitMiB, value, nameof(ImportCatalogLimitMiB)); }
+        public string ListsGroupLabel => Texts.T("budgets.group.lists");
+        public string PreviewsGroupLabel => Texts.T("budgets.group.previews");
+        public string ImportGroupLabel => Texts.T("budgets.group.import");
 
         public string SettingsTitle => Texts.T("settings.title");
         public string SettingsSubtitle => Texts.T("settings.subtitle");
@@ -273,6 +431,8 @@ namespace MeowChan
         public string InterfaceTitle => Texts.T("settings.interface");
         public string ReadingMediaTitle => Texts.T("r08d.settings.readingMedia");
         public string ReadingFontSizeLabel => Texts.T("r08d.settings.readingFontSize");
+        public string ReaderPostWidthLabel => Texts.T("reader.postWidth");
+        public string ReaderPostWidthHint => Texts.T("reader.postWidth.hint");
         public string VideoAutoplayLabel => Texts.T("r08d.settings.videoAutoplay");
         public string VideoStartMutedLabel => Texts.T("r08d.settings.videoStartMuted");
         public string VideoVolumeLabel => Texts.T("r08d.settings.videoVolume");
@@ -299,6 +459,19 @@ namespace MeowChan
         public string ParallelLabel => Texts.T("settings.parallelDownloads");
         public string ParallelSafetyLabel => Texts.T("settings.parallelSafetyLimit");
         public string ParallelSafetyHint => Texts.T("settings.parallelSafetyHint");
+        public string ParallelHint => Texts.T("settings.parallelHint");
+        public string BandwidthHint => Texts.T("settings.bandwidthHint");
+        // Live from the two drafts: the smaller value is what the queue applies. Empty while
+        // either draft is not a valid whole number (the field errors already say why).
+        public string ParallelEffectiveText =>
+            MaxParallelDownloads is { } requested && ParallelDownloadsSafetyLimit is { } cap
+            && requested >= Config.MaxParallelDownloadsMinimum && requested == decimal.Truncate(requested) && requested <= Config.MaxParallelDownloadsMaximum
+            && cap >= 1 && cap == decimal.Truncate(cap) && cap <= Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit
+                ? Texts.Count("settings.parallelEffective", (int)Math.Min(requested, cap)) : string.Empty;
+        private void RaiseParallelEffectiveChanged()
+        {
+            if (!_isClosed) PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ParallelEffectiveText)));
+        }
         public string RestoreSessionLabel => Texts.T("settings.restoreSession");
         public string BoardAdmissionWizardLabel => Texts.T("settings.boardAdmissionWizard");
         public string MonitorClipboardLabel => Texts.T("settings.monitorClipboard");
@@ -306,6 +479,8 @@ namespace MeowChan
         public string CloseToTrayLabel => Texts.T("settings.closeToTray");
         public string MinimizeToTrayLabel => Texts.T("settings.minimizeToTray");
         public string ThemeLabel => Texts.T("settings.theme");
+        public string AnimationsLabel => Texts.T("settings.animations");
+        public string AnimationsHint => Texts.T("settings.animations.hint");
         public string LanguageLabel => Texts.T("settings.language");
         public string LanguagePacksLabel => Texts.T("settings.languagePacksTitle");
         public string LanguagePacksHint => Texts.T("settings.languagePacks");
@@ -327,6 +502,12 @@ namespace MeowChan
         public bool RememberReadingPosition { get => _rememberReadingPosition; set => SetField(ref _rememberReadingPosition, value, nameof(RememberReadingPosition)); }
         public string SupportedSources => Texts.T("settings.supportedSources");
 
+        public SettingsChoice? SelectedAnimations
+        {
+            get => _selectedAnimations;
+            set => SetField(ref _selectedAnimations, value, nameof(SelectedAnimations));
+        }
+
         public SettingsChoice? SelectedTheme
         {
             get => _selectedTheme;
@@ -337,6 +518,11 @@ namespace MeowChan
         {
             get => _selectedReadingFontSize;
             set => SetField(ref _selectedReadingFontSize, value, nameof(SelectedReadingFontSize));
+        }
+        public SettingsChoice? SelectedReaderPostWidth
+        {
+            get => _selectedReaderPostWidth;
+            set => SetField(ref _selectedReaderPostWidth, value, nameof(SelectedReaderPostWidth));
         }
         public bool VideoAutoplay { get => _videoAutoplay; set => SetField(ref _videoAutoplay, value, nameof(VideoAutoplay)); }
         public bool VideoStartMuted { get => _videoStartMuted; set => SetField(ref _videoStartMuted, value, nameof(VideoStartMuted)); }
@@ -352,7 +538,10 @@ namespace MeowChan
                 // the focused slideshow editor; publish the final semantic state
                 // once RefreshChoices has restored the selection.
                 if (!_refreshingLanguageLabels)
+                {
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
+                    RaiseViewerVisibilityChanged();
+                }
             }
         }
         public bool IsGallerySlideshow => SelectedGalleryPlaybackMode?.Value == "Slideshow";
@@ -389,6 +578,7 @@ namespace MeowChan
             GalleryMediaFocus = _initialGalleryPlayback.MediaFocus;
             GalleryOverlayControls = _initialGalleryPlayback.OverlayControls;
             GalleryOverlayPostContext = _initialGalleryPlayback.OverlayPostContext;
+            LoadGalleryVideoDraft(_initialGalleryPlayback);
         }
 
         public bool ShowShortcutHelp { get => _showShortcutHelp; set => SetField(ref _showShortcutHelp, value, nameof(ShowShortcutHelp)); }
@@ -396,7 +586,7 @@ namespace MeowChan
         public SettingsChoice? SelectedWorkspaceMode
         {
             get => _selectedWorkspaceMode;
-            set => SetField(ref _selectedWorkspaceMode, value, nameof(SelectedWorkspaceMode));
+            set { SetField(ref _selectedWorkspaceMode, value, nameof(SelectedWorkspaceMode)); UpdateFooterNumberingContext(); }
         }
 
         public LanguageInfo? SelectedLanguage
@@ -426,13 +616,13 @@ namespace MeowChan
         public decimal? MaxParallelDownloads
         {
             get => _maxParallelDownloads;
-            set => SetField(ref _maxParallelDownloads, value, nameof(MaxParallelDownloads));
+            set { SetField(ref _maxParallelDownloads, value, nameof(MaxParallelDownloads)); RaiseParallelEffectiveChanged(); }
         }
 
         public decimal? ParallelDownloadsSafetyLimit
         {
             get => _parallelDownloadsSafetyLimit;
-            set => SetField(ref _parallelDownloadsSafetyLimit, value, nameof(ParallelDownloadsSafetyLimit));
+            set { SetField(ref _parallelDownloadsSafetyLimit, value, nameof(ParallelDownloadsSafetyLimit)); RaiseParallelEffectiveChanged(); }
         }
 
         public decimal? BandwidthLimiterMB
@@ -534,7 +724,7 @@ namespace MeowChan
                 if (!_suppressPassiveErrorReveal && revealRevision == _errorRevealRevision && !_isClosed && IsVisible && HasError && SettingsError.IsAttachedToVisualTree() && SettingsError.Bounds.Height > 0)
                 {
                     if (_firstInvalidInput != null)
-                        (_firstInvalidInput.Parent as Control ?? _firstInvalidInput).BringIntoView();
+                        FieldRevealTarget(_firstInvalidInput).BringIntoView();
                     else
                         SettingsError.BringIntoView();
                 }
@@ -545,9 +735,15 @@ namespace MeowChan
         {
             if (_isClosed) return;
             _isClosed = true;
+            EndSearchVisit();
+            _conditionalReveal.Release(keepEdited: false);
+            _rowMenu?.Dispose();
             _destinationWait?.Cancel();
             DownloadDestinationValidator.Shared.CleanupFailed -= OnDestinationCleanupFailed;
             _sectionNavigation?.Dispose();
+            EndResetLifetime();
+            EndSettingsTransferLifetime();
+            EndWorkViewOverviewLifetime();
             Texts.Changed -= OnLanguageChanged;
             if (_updates != null) _updates.Changed -= OnUpdateStateChanged;
             SettingsScrollViewer.ScrollChanged -= OnSettingsScrollChanged;
@@ -600,26 +796,30 @@ namespace MeowChan
             MonitorClipboardUrls = _config.MonitorClipboardUrls;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
+            LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
             ShowWarningNotifications = _config.ShowWarningNotifications;
             ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
-            MinimumFreeSpaceGiB = _config.MinimumFreeSpaceGiB;
-            ProductionWorkers = _config.PluginMaximumProductionWorkers;
-            WorkerIdleMinutes = _config.PluginWorkerIdleMinutes;
-            SourceHeapMiB = _config.PluginSourceHeapMiB;
-            FilterHeapMiB = _config.PluginFilterHeapMiB;
+            LoadBudgetsDraft(_config);
 
+            LoadStatisticsDraft(_config);
+            LoadReaderDraft(_config);
+            LoadTagQueueDraft(_config);
+            LoadTaggingDraft(_config);
+            LoadViewerDraft(_config);
+            LoadQuickTagDraft(_config);
+            LoadLimitsDraft(_config);
+            LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
+            LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
-            ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
-            ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
-            ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
-            ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
-            ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            ResetGroupBaselines();
 
             SetErrorMessage(null);
             SetStatusMessage(null);
@@ -633,7 +833,7 @@ namespace MeowChan
 
         private void OnEditorSizeChanged(object? sender, SizeChangedEventArgs e)
         {
-            bool categories = e.NewSize.Width >= 820;
+            bool categories = SettingsHeaderLayout.ShowsCategories(e.NewSize.Width);
             bool presentationChanged = categories != SettingsCategories.IsVisible;
             bool navigationFocus = SettingsCategories.IsKeyboardFocusWithin || SettingsSections.IsKeyboardFocusWithin;
             string? selectedSection = SelectedSectionId;
@@ -656,8 +856,8 @@ namespace MeowChan
             SettingsSections.IsVisible = !categories;
             SettingsFormLayout.ColumnDefinitions[0].Width = new GridLength(categories ? 176 : 0);
             SettingsFormLayout.ColumnSpacing = categories ? 16 : 0;
-            Grid.SetColumn(SettingsScrollViewer, categories ? 1 : 0);
-            Grid.SetColumnSpan(SettingsScrollViewer, categories ? 1 : 2);
+            Grid.SetColumn(SettingsContentColumn, categories ? 1 : 0);
+            Grid.SetColumnSpan(SettingsContentColumn, categories ? 1 : 2);
             double sharedWidth = Math.Min(1088, Math.Max(0, e.NewSize.Width - 40));
             SettingsFormLayout.Width = sharedWidth;
             SettingsHeader.Width = sharedWidth;
@@ -666,15 +866,19 @@ namespace MeowChan
             SettingsContent.Width = width;
             if (presentationChanged && navigationFocus && focusOwner != null)
                 QueueSectionNavigationFocus(focusOwner, focusOrigin, categories, selectedSection);
+            PositionSearchPanelLater();
             bool narrow = width < 700;
             foreach (Grid row in SettingsContent.GetLogicalDescendants().OfType<Grid>().Where(row => row.Classes.Contains("settings-row")))
             {
-                row.ColumnDefinitions[1].Width = new GridLength(narrow ? 0 : 280);
-                row.RowSpacing = narrow ? 6 : 0;
-                row.ColumnSpacing = narrow ? 0 : 24;
                 Control editor = row.Children[1];
-                Grid.SetColumn(editor, narrow ? 0 : 1);
-                Grid.SetRow(editor, narrow ? 1 : 0);
+                // A switch stays at the end of its row, also in a narrow page; every other control goes under the label.
+                bool inline = editor is ToggleSwitch;
+                bool below = narrow && !inline;
+                row.ColumnDefinitions[1].Width = below ? new GridLength(0) : inline && narrow ? GridLength.Auto : new GridLength(280);
+                row.RowSpacing = below ? 6 : 0;
+                row.ColumnSpacing = below ? 0 : narrow ? 12 : 24;
+                Grid.SetColumn(editor, below ? 0 : 1);
+                Grid.SetRow(editor, below ? 1 : 0);
                 row.ColumnDefinitions[0].Width = new GridLength(1, GridUnitType.Star);
             }
             Grid.SetColumn(SettingsFooterActions, narrow ? 0 : 1);
@@ -695,18 +899,23 @@ namespace MeowChan
                 foreach (string property in new[]
                 {
                     nameof(BusyStatusMessage), nameof(NotificationsTitle), nameof(InformationNotificationsLabel), nameof(WarningNotificationsLabel), nameof(ErrorNotificationsLabel), nameof(NotificationsHint), nameof(UpdatesTitle), nameof(AutomaticUpdateChecksLabel), nameof(IncludePrereleaseUpdatesLabel), nameof(UpdatePrivacyHint),
-                    nameof(UpdateDisabledReason), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel),
+                    nameof(UpdateDisabledReason), nameof(WorkViewSwitchNoticeSecondsLabel), nameof(WorkViewSwitchNoticeSecondsHint),
+                    nameof(WorkViewSwitchNoticeSecondsHelp), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel), nameof(StorageLimitsLabel), nameof(StorageLimitsIntro), nameof(ParallelEffectiveText),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
-                    nameof(FilterHeapMiBLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
-                    nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(VideoAutoplayLabel),
+                    nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
+                    nameof(BooruRetryAfterCooldownHoursLabel), nameof(BooruRetryAfterCooldownHoursHint), nameof(BooruRetryAfterCooldownHoursHelp),
+                    nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
+                    nameof(ProfileRegistryLimitLabel), nameof(ProfileRegistryLimitHint), nameof(ProfileRegistryLimitHelp), nameof(ProfileFolderLabel), nameof(ProfileFolderHint), nameof(ProfileFolderOpenLabel),
+                    nameof(PrivateTagFileMiBLabel), nameof(PrivateTagFileMiBHint), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBLabel), nameof(MediaIndexCacheMiBHint), nameof(MediaIndexCacheMiBHelp), nameof(FavoriteEntryLimitLabel), nameof(FavoriteEntryLimitHint), nameof(FavoriteEntryLimitHelp), nameof(FavoriteFileLimitMiBLabel), nameof(FavoriteFileLimitMiBHint), nameof(FavoriteFileLimitMiBHelp), nameof(PostBookmarkLimitLabel), nameof(PostBookmarkLimitHint), nameof(PostBookmarkLimitHelp), nameof(SavedSearchLimitLabel), nameof(SavedSearchLimitHint), nameof(SavedSearchLimitHelp), nameof(ReaderGroupLimitLabel), nameof(ReaderGroupLimitHint), nameof(ReaderGroupLimitHelp), nameof(SourcesWatchPreviewRowsLabel), nameof(SourcesWatchPreviewRowsHint), nameof(SourcesWatchPreviewRowsHelp), nameof(ExportConfirmFilesLabel), nameof(ExportConfirmFilesHint), nameof(ExportConfirmFilesHelp), nameof(ExportConfirmGiBLabel), nameof(ExportConfirmGiBHint), nameof(ExportConfirmGiBHelp), nameof(PosterCacheLimitMiBLabel), nameof(PosterCacheLimitMiBHint), nameof(PosterCacheLimitMiBHelp), nameof(PosterCacheFileLimitLabel), nameof(PosterCacheFileLimitHint), nameof(PosterCacheFileLimitHelp), nameof(AudioProbeCacheLimitMiBLabel), nameof(AudioProbeCacheLimitMiBHint), nameof(AudioProbeCacheLimitMiBHelp), nameof(AudioProbeCacheEntriesLabel), nameof(AudioProbeCacheEntriesHint), nameof(AudioProbeCacheEntriesHelp), nameof(ThumbnailCacheTilesLabel), nameof(ThumbnailCacheTilesHint), nameof(ThumbnailCacheTilesHelp), nameof(GalleryImageCacheMiBLabel), nameof(GalleryImageCacheMiBHint), nameof(GalleryImageCacheMiBHelp), nameof(GalleryPreloadAheadLabel), nameof(GalleryPreloadAheadHint), nameof(GalleryPreloadAheadHelp), nameof(GalleryPreloadBehindLabel), nameof(GalleryPreloadBehindHint), nameof(GalleryPreloadBehindHelp), nameof(ClipboardUrlLimitLabel), nameof(ClipboardUrlLimitHint), nameof(ClipboardUrlLimitHelp), nameof(ClipboardTextLimitKiBLabel), nameof(ClipboardTextLimitKiBHint), nameof(ClipboardTextLimitKiBHelp), nameof(ImportMaxFilesPerBatchLabel), nameof(ImportMaxFilesPerBatchHint), nameof(ImportMaxFilesPerBatchHelp), nameof(ImportMaxBatchGiBLabel), nameof(ImportMaxBatchGiBHint), nameof(ImportMaxBatchGiBHelp), nameof(ImportMaxFileMiBLabel), nameof(ImportMaxFileMiBHint), nameof(ImportMaxFileMiBHelp), nameof(ImportMaxTotalFilesLabel), nameof(ImportMaxTotalFilesHint), nameof(ImportMaxTotalFilesHelp), nameof(ImportCatalogLimitMiBLabel), nameof(ImportCatalogLimitMiBHint), nameof(ImportCatalogLimitMiBHelp), nameof(ImportMaxTagsPerBatchLabel), nameof(ImportMaxTagsPerBatchHint), nameof(ImportMaxTagsPerBatchHelp), nameof(ImportMaxBatchesLabel), nameof(ImportMaxBatchesHint), nameof(ImportMaxBatchesHelp), nameof(MediaIndexMaxEntriesLabel), nameof(MediaIndexMaxEntriesHint), nameof(MediaIndexMaxEntriesHelp), nameof(MediaIndexMaxThreadsLabel), nameof(MediaIndexMaxThreadsHint), nameof(MediaIndexMaxThreadsHelp), nameof(ListsGroupLabel), nameof(PreviewsGroupLabel), nameof(ImportGroupLabel), nameof(SettingsTitle), nameof(SettingsSubtitle), nameof(DownloadsTitle),
+                    nameof(InterfaceTitle), nameof(ReadingMediaTitle), nameof(ReadingFontSizeLabel), nameof(ReaderPostWidthLabel), nameof(ReaderPostWidthHint), nameof(VideoAutoplayLabel),
                     nameof(VideoStartMutedLabel), nameof(VideoVolumeLabel), nameof(ShowShortcutHelpLabel), nameof(AboutLabel),
                     nameof(GalleryPlaybackTitle), nameof(GalleryPlaybackModeLabel), nameof(GallerySlideshowSecondsLabel), nameof(GallerySlideshowSecondsHelp),
                     nameof(GalleryPlaybackModeHelp), nameof(GalleryMediaFocusLabel), nameof(GalleryOverlayControlsLabel),
                     nameof(GalleryAutoHideControlsLabel), nameof(GalleryOverlayPostContextLabel), nameof(GalleryOverlayHelp), nameof(GalleryPlaybackProfileHelp),
                     nameof(BehaviorTitle), nameof(DownloadPathLabel), nameof(BrowseLabel), nameof(PathHint),
-                    nameof(RecheckLabel), nameof(BandwidthLabel), nameof(ParallelLabel), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
+                    nameof(RecheckLabel), nameof(BandwidthLabel), nameof(BandwidthHint), nameof(ParallelLabel), nameof(ParallelHint), nameof(ParallelSafetyLabel), nameof(ParallelSafetyHint), nameof(RestoreSessionLabel),
                     nameof(MonitorClipboardLabel), nameof(MonitorClipboardHint),
-                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel),
+                    nameof(BoardAdmissionWizardLabel), nameof(CloseToTrayLabel), nameof(MinimizeToTrayLabel), nameof(ThemeLabel), nameof(ThemeColorsLabel), nameof(ThemeColorsHint), nameof(ThemeColorsOpenLabel), nameof(AnimationsLabel), nameof(AnimationsHint),
                     nameof(LanguageLabel), nameof(LanguagePacksLabel), nameof(LanguagePacksHint), nameof(WorkspaceModeLabel),
                     nameof(DensityLabel), nameof(CompactLabel), nameof(ModeHint), nameof(SaveLabel),
                     nameof(CancelLabel), nameof(RememberReadingPositionLabel), nameof(ReadingPositionHint), nameof(ForgetReadingPositionLabel),
@@ -718,6 +927,20 @@ namespace MeowChan
                     nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(ErrorDetailsLabel),
                 })
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+                foreach (string property in FolderSourceTextProperties())
+                    PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
+                RaiseStatisticsTextsChanged();
+                RaiseReaderTextsChanged();
+                RaiseTagQueueTextsChanged();
+                RaiseViewerTextsChanged();
+                RaiseQuickTagTextsChanged();
+                RaiseLimitsTextsChanged();
+                RaiseWorkViewNoticeTextsChanged();
+                RaiseShutdownLimitTextsChanged();
+                RaiseFooterTextsChanged();
+                RaiseTransferTextsChanged();
+                RefreshWorkViewOverviewTexts();
+                RaiseResetTextsChanged();
                 _refreshingLanguageLabels = true;
                 try
                 {
@@ -737,6 +960,7 @@ namespace MeowChan
 
         private void ApplyCommandIcons()
         {
+            MeowChan.Desktop.WorkViews.WorkViewMoreSurface.Apply(SettingsMoreButton, SettingsMoreLabel);
             CommandBindings.ApplyLabeled(BrowseButton, "settings.browse-folder", BrowseLabel);
             CommandBindings.ApplyLabeled(AboutSettingsButton, "navigation.about", AboutLabel);
             CommandBindings.ApplyLabeled(CancelSettingsButton, "settings.discard", CancelLabel);
@@ -751,13 +975,18 @@ namespace MeowChan
             string mode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
             string language = SelectedLanguage?.Code ?? _config.Language;
             string readingFontSize = SelectedReadingFontSize?.Value ?? _config.ReadingFontSize;
+            string animations = SelectedAnimations?.Value ?? _config.Animations;
+            string statsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;
+            string readerPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
+            string headerTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
+            string headerTaglineFixed = SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
-            try { RefreshChoices(theme, mode, language, readingFontSize); }
+            try { RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth, headerTagline, headerTaglineFixed); }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
 
-        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null)
+        private void RefreshChoices(string theme, string mode, string language, string? readingFontSize = null, string? animations = null, string? statsHeaderGraph = null, string? readerPostWidth = null, string? headerTagline = null, string? headerTaglineFixed = null)
         {
             ThemeChoices = new SettingsChoice[]
             {
@@ -765,17 +994,28 @@ namespace MeowChan
                 new SettingsChoice("Light", Texts.T("theme.light")),
                 new SettingsChoice("System", Texts.T("r08d.settings.systemTheme"))
             };
+            AnimationsChoices = new SettingsChoice[]
+            {
+                new SettingsChoice(MeowChan.Desktop.Motion.MotionPolicy.System, Texts.T("settings.animations.system")),
+                new SettingsChoice(MeowChan.Desktop.Motion.MotionPolicy.On, Texts.T("settings.animations.on")),
+                new SettingsChoice(MeowChan.Desktop.Motion.MotionPolicy.Off, Texts.T("settings.animations.off"))
+            };
             ReadingFontSizeChoices = new SettingsChoice[]
             {
                 new SettingsChoice("Small", Texts.T("r08d.settings.fontSmall")),
                 new SettingsChoice("Normal", Texts.T("r08d.settings.fontNormal")),
                 new SettingsChoice("Large", Texts.T("r08d.settings.fontLarge"))
             };
+            ReaderPostWidthChoices = new SettingsChoice[]
+            {
+                new SettingsChoice(Config.ReaderPostWidthFit, Texts.T("reader.postWidth.fit")),
+                new SettingsChoice(Config.ReaderPostWidthFull, Texts.T("reader.postWidth.full")),
+                new SettingsChoice(Config.ReaderPostWidthColumn, Texts.T("reader.postWidth.column"))
+            };
             string galleryMode = SelectedGalleryPlaybackMode?.Value ?? _initialGalleryPlayback.Mode.ToString();
             GalleryPlaybackModeChoices = new SettingsChoice[]
             {
                 new("Manual", GalleryPlaybackCatalog.Manual),
-                new("Repeat", GalleryPlaybackCatalog.Repeat),
                 new("Slideshow", GalleryPlaybackCatalog.Slideshow)
             };
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GalleryPlaybackModeChoices)));
@@ -785,6 +1025,7 @@ namespace MeowChan
             // transient null notification to preserve focus/raw input state.
             if (_refreshingLanguageLabels)
                 PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsGallerySlideshow)));
+            RefreshViewerChoices();
             WorkspaceChoices = new SettingsChoice[]
             {
                 new SettingsChoice("Barebones", Texts.T("mode.barebones")),
@@ -796,13 +1037,21 @@ namespace MeowChan
                 languages.Add(new LanguageInfo(language, Texts.T("settings.unavailableLanguage", language)));
             LanguageChoices = languages;
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ThemeChoices)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(AnimationsChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ReadingFontSizeChoices)));
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ReaderPostWidthChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(WorkspaceChoices)));
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(LanguageChoices)));
             SelectedTheme = ThemeChoices.First(item => item.Value == theme);
+            SelectedAnimations = AnimationsChoices.First(item => item.Value == (animations ?? _config.Animations));
             SelectedReadingFontSize = ReadingFontSizeChoices.First(item => item.Value == (readingFontSize ?? _config.ReadingFontSize));
+            SelectedReaderPostWidth = ReaderPostWidthChoices.First(item => item.Value == (readerPostWidth ?? _config.ReaderPostWidth));
             SelectedWorkspaceMode = WorkspaceChoices.First(item => item.Value == mode);
             SelectedLanguage = LanguageChoices.First(item => string.Equals(item.Code, language, StringComparison.OrdinalIgnoreCase));
+            RefreshStatsHeaderGraphChoices(statsHeaderGraph ?? _config.StatsHeaderGraph);
+            RefreshHeaderTaglineChoices(headerTagline ?? _config.HeaderTagline, headerTaglineFixed ?? _config.HeaderTaglineFixedId);
+            RefreshReaderChoiceLabels();
+            RefreshTaggingChoiceLabels();
         }
 
         private void OnCancelButtonClick(object? sender, RoutedEventArgs e)
@@ -867,6 +1116,18 @@ namespace MeowChan
             }
         }
 
+        ShortcutDraftSession IShortcutDraftHost.ShortcutSession => ShortcutsEditor.Session;
+        bool IShortcutDraftHost.IsShortcutCommitBlocked => IsBusy || !IsAvailable || _isClosed;
+
+        /// <summary>The shortcuts window's Save: only the bindings, through the same commit path as Save here (KS2).</summary>
+        async Task IShortcutDraftHost.CommitShortcutsAsync(ShortcutBindingsSection draft)
+        {
+            if (IsBusy || !IsAvailable || _isClosed) throw new InvalidOperationException("The settings are busy or unavailable.");
+            IsBusy = true;
+            try { await ShortcutBindingsCommit.CommitAsync(_config, draft, _applySettings); }
+            finally { IsBusy = false; }
+        }
+
         private async void OnSaveButtonClick(object? sender, RoutedEventArgs e)
         {
             if (IsBusy || !IsAvailable || _isClosed)
@@ -888,16 +1149,22 @@ namespace MeowChan
                     SelectCategory("settings.shortcuts");
                 if (!ShortcutsEditor.ValidateDraft()) return;
                 Config candidate = _config.Clone();
-                candidate.ShortcutBindings = ShortcutsEditor.Draft.Clone();
+                // What this save persists; edits made to the shared draft (here or in the shortcuts window) while it runs stay pending.
+                ShortcutBindingsSection savedShortcuts = ShortcutsEditor.Draft;
+                ShortcutBindingsCommit.ApplyTo(candidate, savedShortcuts);
                 candidate.DownloadPath = normalizedPath!;
                 candidate.RecheckTimer = GetPositiveInteger(RecheckTimer, Texts.T("settings.recheckLabel"));
-                candidate.MaxParallelDownloads = GetPositiveInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"));
+                candidate.MaxParallelDownloads = GetInteger(MaxParallelDownloads, Texts.T("settings.parallelLabel"), Config.MaxParallelDownloadsMinimum, Config.MaxParallelDownloadsMaximum);
                 candidate.ParallelDownloadsSafetyLimit = GetInteger(ParallelDownloadsSafetyLimit, ParallelSafetyLabel, 1, Downloader.DownloadQueue.MaximumParallelDownloadsSafetyLimit);
                 candidate.SaveUrlsOnExit = SaveUrlsOnExit;
                 candidate.ShowBoardAdmissionWizard = ShowBoardAdmissionWizard;
                 candidate.MinimizeToTray = MinimizeToTray;
                 candidate.CloseToTray = CloseToTray;
                 candidate.Theme = SelectedTheme?.Value ?? _config.Theme;
+                candidate.Animations = SelectedAnimations?.Value ?? _config.Animations;
+                candidate.StatsHeaderGraph = SelectedStatsHeaderGraph?.Value ?? _config.StatsHeaderGraph;
+                candidate.HeaderTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
+                candidate.HeaderTaglineFixedId = HeaderTaglineFixedEnabled ? SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId : _config.HeaderTaglineFixedId;
                 candidate.Language = SelectedLanguage?.Code ?? _config.Language;
                 candidate.WorkspaceMode = SelectedWorkspaceMode?.Value ?? _config.WorkspaceMode;
                 if (CompactDensity != _initialCompactDensity)
@@ -908,6 +1175,7 @@ namespace MeowChan
                     candidate.ReadingFontSize = selectedReadingFontSize;
                 candidate.SettingsBaselineReadingFontSize = _initialReadingFontSize;
                 candidate.SettingsBaselineWorkspaceMode = _initialWorkspaceMode;
+                candidate.ReaderPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
                 candidate.VideoAutoplay = VideoAutoplay;
                 candidate.VideoStartMuted = VideoStartMuted;
                 candidate.VideoVolume = VideoVolume;
@@ -919,14 +1187,64 @@ namespace MeowChan
                 candidate.MonitorClipboardUrls = MonitorClipboardUrls;
                 candidate.AutomaticUpdateChecks = AutomaticUpdateChecks;
                 candidate.ShowInformationNotifications = ShowInformationNotifications;
+                ApplyWorkViewSwitchNoticeDraft(candidate);
+                ApplyShutdownLimitDraft(candidate);
                 candidate.ShowWarningNotifications = ShowWarningNotifications;
                 candidate.ShowErrorNotifications = ShowErrorNotifications;
                 candidate.IncludePrereleaseUpdates = IncludePrereleaseUpdates;
-                candidate.MinimumFreeSpaceGiB = GetInteger(MinimumFreeSpaceGiB, ReserveLabel, 0, int.MaxValue);
+                candidate.MinimumFreeSpaceGiB = GetInteger(MinimumFreeSpaceGiB, ReserveLabel, Config.MinimumFreeSpaceGiBMinimum, Config.MinimumFreeSpaceGiBMaximum);
                 candidate.PluginMaximumProductionWorkers = GetInteger(ProductionWorkers, ProductionWorkersLabel, 1, 8);
                 candidate.PluginWorkerIdleMinutes = GetInteger(WorkerIdleMinutes, WorkerIdleMinutesLabel, 1, 30);
                 candidate.PluginSourceHeapMiB = GetInteger(SourceHeapMiB, SourceHeapMiBLabel, 128, 1024);
                 candidate.PluginFilterHeapMiB = GetInteger(FilterHeapMiB, FilterHeapMiBLabel, 256, 2048);
+                candidate.BooruCatalogLimitMiB = GetInteger(BooruCatalogMiB, BooruCatalogMiBLabel, Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB);
+                candidate.BooruRetryAfterCooldownHours = GetInteger(BooruRetryAfterCooldownHours, BooruRetryAfterCooldownHoursLabel, Config.BooruRetryAfterCooldownMinimumHours, Config.BooruRetryAfterCooldownMaximumHours);
+                candidate.PrivateTagLimit = GetInteger(PrivateTagLimit, PrivateTagLimitLabel, Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit);
+                candidate.PrivateTagFileLimitMiB = GetInteger(PrivateTagFileMiB, PrivateTagFileMiBLabel, Config.PrivateTagFileMinimumLimitMiB, Config.PrivateTagFileMaximumLimitMiB);
+                candidate.MediaIndexCacheLimitMiB = GetInteger(MediaIndexCacheMiB, MediaIndexCacheMiBLabel, Config.MediaIndexCacheMinimumLimitMiB, Config.MediaIndexCacheMaximumLimitMiB);
+                candidate.FavoriteEntryLimit = GetInteger(FavoriteEntryLimit, FavoriteEntryLimitLabel, Config.FavoriteEntryLimitMinimum, Config.FavoriteEntryLimitMaximum);
+                candidate.FavoriteFileLimitMiB = GetInteger(FavoriteFileLimitMiB, FavoriteFileLimitMiBLabel, Config.FavoriteFileLimitMiBMinimum, Config.FavoriteFileLimitMiBMaximum);
+                candidate.PostBookmarkLimit = GetInteger(PostBookmarkLimit, PostBookmarkLimitLabel, Config.PostBookmarkLimitMinimum, Config.PostBookmarkLimitMaximum);
+                candidate.SavedSearchLimit = GetInteger(SavedSearchLimit, SavedSearchLimitLabel, Config.SavedSearchLimitMinimum, Config.SavedSearchLimitMaximum);
+                candidate.ReaderGroupLimit = GetInteger(ReaderGroupLimit, ReaderGroupLimitLabel, Config.ReaderGroupLimitMinimum, Config.ReaderGroupLimitMaximum);
+                candidate.ProfileRegistryLimit = GetInteger(ProfileRegistryLimit, ProfileRegistryLimitLabel, Config.ProfileRegistryLimitMinimum, Config.ProfileRegistryLimitMaximum);
+                candidate.SourcesWatchPreviewRows = GetInteger(SourcesWatchPreviewRows, SourcesWatchPreviewRowsLabel, Config.SourcesWatchPreviewRowsMinimum, Config.SourcesWatchPreviewRowsMaximum);
+                candidate.ExportConfirmFiles = GetInteger(ExportConfirmFiles, ExportConfirmFilesLabel, Config.ExportConfirmFilesMinimum, Config.ExportConfirmFilesMaximum);
+                candidate.ExportConfirmGiB = GetInteger(ExportConfirmGiB, ExportConfirmGiBLabel, Config.ExportConfirmGiBMinimum, Config.ExportConfirmGiBMaximum);
+                candidate.PosterCacheLimitMiB = GetInteger(PosterCacheLimitMiB, PosterCacheLimitMiBLabel, Config.PosterCacheLimitMiBMinimum, Config.PosterCacheLimitMiBMaximum);
+                candidate.PosterCacheFileLimit = GetInteger(PosterCacheFileLimit, PosterCacheFileLimitLabel, Config.PosterCacheFileLimitMinimum, Config.PosterCacheFileLimitMaximum);
+                candidate.AudioProbeCacheLimitMiB = GetInteger(AudioProbeCacheLimitMiB, AudioProbeCacheLimitMiBLabel, Config.AudioProbeCacheLimitMiBMinimum, Config.AudioProbeCacheLimitMiBMaximum);
+                candidate.AudioProbeCacheEntries = GetInteger(AudioProbeCacheEntries, AudioProbeCacheEntriesLabel, Config.AudioProbeCacheEntriesMinimum, Config.AudioProbeCacheEntriesMaximum);
+                candidate.ThumbnailCacheTiles = GetInteger(ThumbnailCacheTiles, ThumbnailCacheTilesLabel, Config.ThumbnailCacheTilesMinimum, Config.ThumbnailCacheTilesMaximum);
+                candidate.ClipboardUrlLimit = GetInteger(ClipboardUrlLimit, ClipboardUrlLimitLabel, Config.ClipboardUrlLimitMinimum, Config.ClipboardUrlLimitMaximum);
+                candidate.ClipboardTextLimitKiB = GetInteger(ClipboardTextLimitKiB, ClipboardTextLimitKiBLabel, Config.ClipboardTextLimitKiBMinimum, Config.ClipboardTextLimitKiBMaximum);
+                candidate.GalleryImageCacheMiB = GetInteger(GalleryImageCacheMiB, GalleryImageCacheMiBLabel, Config.GalleryImageCacheMiBMinimum, Config.GalleryImageCacheMiBMaximum);
+                candidate.GalleryPreloadAhead = GetInteger(GalleryPreloadAhead, GalleryPreloadAheadLabel, Config.GalleryPreloadAheadMinimum, Config.GalleryPreloadAheadMaximum);
+                candidate.GalleryPreloadBehind = GetInteger(GalleryPreloadBehind, GalleryPreloadBehindLabel, Config.GalleryPreloadBehindMinimum, Config.GalleryPreloadBehindMaximum);
+                candidate.ImportMaxFilesPerBatch = GetInteger(ImportMaxFilesPerBatch, ImportMaxFilesPerBatchLabel, Config.ImportMaxFilesPerBatchMinimum, Config.ImportMaxFilesPerBatchMaximum);
+                candidate.ImportMaxBatchGiB = GetInteger(ImportMaxBatchGiB, ImportMaxBatchGiBLabel, Config.ImportMaxBatchGiBMinimum, Config.ImportMaxBatchGiBMaximum);
+                candidate.ImportMaxFileMiB = GetInteger(ImportMaxFileMiB, ImportMaxFileMiBLabel, Config.ImportMaxFileMiBMinimum, Config.ImportMaxFileMiBMaximum);
+                candidate.ImportMaxTotalFiles = GetInteger(ImportMaxTotalFiles, ImportMaxTotalFilesLabel, Config.ImportMaxTotalFilesMinimum, Config.ImportMaxTotalFilesMaximum);
+                candidate.ImportMaxTagsPerBatch = GetInteger(ImportMaxTagsPerBatch, ImportMaxTagsPerBatchLabel, Config.ImportMaxTagsPerBatchMinimum, Config.ImportMaxTagsPerBatchMaximum);
+                candidate.ImportMaxBatches = GetInteger(ImportMaxBatches, ImportMaxBatchesLabel, Config.ImportMaxBatchesMinimum, Config.ImportMaxBatchesMaximum);
+                candidate.FolderSourceMaxFiles = GetInteger(FolderSourceMaxFiles, FolderSourceMaxFilesLabel, Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum);
+                candidate.FolderSourceMaxRoots = GetInteger(FolderSourceMaxRoots, FolderSourceMaxRootsLabel, Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum);
+                candidate.FolderSourceHashParallelism = GetInteger(FolderSourceHashParallelism, FolderSourceHashParallelismLabel, Config.FolderSourceHashParallelismMinimum, Config.FolderSourceHashParallelismMaximum);
+                candidate.FolderSourceHashMaxFileGiB = GetInteger(FolderSourceHashMaxFileGiB, FolderSourceHashMaxFileGiBLabel, Config.FolderSourceHashMaxFileGiBMinimum, Config.FolderSourceHashMaxFileGiBMaximum);
+                candidate.FolderSourceRescanMinutes = GetInteger(FolderSourceRescanMinutes, FolderSourceRescanMinutesLabel, Config.FolderSourceRescanMinutesMinimum, Config.FolderSourceRescanMinutesMaximum);
+                candidate.FolderSourceCatalogLimitMiB = GetInteger(FolderSourceCatalogLimitMiB, FolderSourceCatalogLimitMiBLabel, Config.FolderSourceCatalogLimitMiBMinimum, Config.FolderSourceCatalogLimitMiBMaximum);
+                candidate.FolderSourceGalleryHashWindow = GetInteger(FolderSourceGalleryHashWindow, FolderSourceGalleryHashWindowLabel, Config.FolderSourceGalleryHashWindowMinimum, Config.FolderSourceGalleryHashWindowMaximum);
+                candidate.FolderSourceBackgroundHashing = FolderSourceBackgroundHashing;
+                candidate.MediaIndexMaxEntries = GetInteger(MediaIndexMaxEntries, MediaIndexMaxEntriesLabel, Config.MediaIndexMaxEntriesMinimum, Config.MediaIndexMaxEntriesMaximum);
+                candidate.MediaIndexMaxThreads = GetInteger(MediaIndexMaxThreads, MediaIndexMaxThreadsLabel, Config.MediaIndexMaxThreadsMinimum, Config.MediaIndexMaxThreadsMaximum);
+                candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
+                ApplyStatisticsDraft(candidate, _config);
+                ApplyReaderDraft(candidate);
+                ApplyTagQueueDraft(candidate);
+                ApplyViewerDraft(candidate);
+                ApplyQuickTagDraft(candidate);
+                ApplyLimitsDraft(candidate);
+                ApplyFooterDraft(candidate);
 
                 if (!BandwidthLimiterMB.HasValue || BandwidthLimiterMB.Value <= 0)
                 {
@@ -947,16 +1265,8 @@ namespace MeowChan
                 if (DestinationNeedsCheck(candidate) && !await CheckDestinationAsync(candidate.DownloadPath, candidate.MinimumFreeSpaceGiB))
                     return;
                 if (_isClosed || !IsAvailable) return;
-                if (_applySettings != null)
-                {
-                    await _applySettings(candidate);
-                }
-                else
-                {
-                    if (!candidate.RememberReadingPosition) await Task.Run(candidate.ForgetReadingPositionFile);
-                    candidate.SaveConfig();
-                    ShortcutService.Publish(candidate.ShortcutBindings);
-                }
+                if (_applySettings == null && !candidate.RememberReadingPosition) await Task.Run(candidate.ForgetReadingPositionFile);
+                await ShortcutBindingsCommit.PersistAsync(candidate, _applySettings);
 
                 if (_applySettings == null)
                     _config.CopyFrom(candidate);
@@ -967,8 +1277,8 @@ namespace MeowChan
                 _initialWorkspaceMode = _config.WorkspaceMode;
                 if (!_isClosed)
                 {
-                    CancelChangesAfterSave();
-                    SetStatusMessage("settings.saved");
+                    CancelChangesAfterSave(savedShortcuts);
+                    SetStatusMessage(ShortcutsEditor.IsDirty ? "settings.unsaved" : "settings.saved");
                     IsBusy = false;
                     Saved?.Invoke(this, EventArgs.Empty);
                 }
@@ -985,9 +1295,9 @@ namespace MeowChan
             }
         }
 
-        private void CancelChangesAfterSave()
+        private void CancelChangesAfterSave(ShortcutBindingsSection savedShortcuts)
         {
-            ShortcutsEditor.Load(_config.ShortcutBindings);
+            ShortcutsEditor.CommitSaved(savedShortcuts);
             DownloadPath = _config.DownloadPath;
             RecheckTimer = _config.RecheckTimer;
             MaxParallelDownloads = _config.MaxParallelDownloads;
@@ -1003,26 +1313,30 @@ namespace MeowChan
             MonitorClipboardUrls = _config.MonitorClipboardUrls;
             AutomaticUpdateChecks = _config.AutomaticUpdateChecks;
             ShowInformationNotifications = _config.ShowInformationNotifications;
+            LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
             ShowWarningNotifications = _config.ShowWarningNotifications;
             ShowErrorNotifications = _config.ShowErrorNotifications;
             IncludePrereleaseUpdates = _config.IncludePrereleaseUpdates;
-            MinimumFreeSpaceGiB = _config.MinimumFreeSpaceGiB;
-            ProductionWorkers = _config.PluginMaximumProductionWorkers;
-            WorkerIdleMinutes = _config.PluginWorkerIdleMinutes;
-            SourceHeapMiB = _config.PluginSourceHeapMiB;
-            FilterHeapMiB = _config.PluginFilterHeapMiB;
+            LoadBudgetsDraft(_config);
 
+            LoadStatisticsDraft(_config);
+            LoadReaderDraft(_config);
+            LoadTagQueueDraft(_config);
+            LoadTaggingDraft(_config);
+            LoadViewerDraft(_config);
+            LoadQuickTagDraft(_config);
+            LoadLimitsDraft(_config);
+            LoadWorkViewSwitchNoticeDraft(_config);
+            LoadShutdownLimitDraft(_config);
+            LoadFooterDraft(_config);
             RefreshChoices(_config.Theme, _config.WorkspaceMode, _config.Language);
             ResetNumber(RecheckTimerInput, RecheckTimer!.Value);
             ResetNumber(ParallelDownloadsInput, MaxParallelDownloads!.Value);
             ResetNumber(ParallelDownloadsSafetyInput, ParallelDownloadsSafetyLimit!.Value);
             ResetNumber(BandwidthInput, BandwidthLimiterMB!.Value);
-            ResetNumber(ReserveInput, MinimumFreeSpaceGiB!.Value);
-            ResetNumber(ProductionWorkersInput, ProductionWorkers!.Value);
-            ResetNumber(WorkerIdleMinutesInput, WorkerIdleMinutes!.Value);
-            ResetNumber(SourceHeapMiBInput, SourceHeapMiB!.Value);
-            ResetNumber(FilterHeapMiBInput, FilterHeapMiB!.Value);
             ResetNumber(GallerySlideshowSecondsInput, GallerySlideshowSeconds!.Value);
+            ResetGroupBaselines();
 
         }
 
@@ -1049,6 +1363,7 @@ namespace MeowChan
                 GallerySlideshowSecondsInput.NumberFormat, out _) && !DataValidationErrors.GetHasErrors(GallerySlideshowSecondsInput)) return true;
             GallerySlideshowSecondsInputError.Text = Texts.T("settings.fieldInteger", GallerySlideshowSecondsLabel, 1, 300);
             GallerySlideshowSecondsInputError.IsVisible = true;
+            SweepGroups();
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(GallerySlideshowSecondsHelp)));
             _firstInvalidInput ??= GallerySlideshowSecondsInput;
             return FinishFieldValidation(focusError);
@@ -1059,13 +1374,11 @@ namespace MeowChan
             // Inactive slideshow controls cannot block an unrelated save with rejected hidden text.
             int seconds = TryParseGalleryImageSeconds(GallerySlideshowSecondsInput.Text, GallerySlideshowSecondsInput.ParsingNumberStyle,
                 GallerySlideshowSecondsInput.NumberFormat, out int parsed) ? parsed : _initialGalleryPlayback.ImageSeconds;
-            GalleryPlaybackMode mode = SelectedGalleryPlaybackMode?.Value switch
-            {
-                "Repeat" => GalleryPlaybackMode.Repeat,
-                "Slideshow" => GalleryPlaybackMode.Slideshow,
-                _ => GalleryPlaybackMode.Manual
-            };
-            return new(mode, seconds, GalleryMediaFocus, GalleryOverlayControls, GalleryAutoHideControls, GalleryOverlayPostContext);
+            GalleryPlaybackMode mode = SelectedGalleryPlaybackMode?.Value == "Slideshow" ? GalleryPlaybackMode.Slideshow : GalleryPlaybackMode.Manual;
+            var video = CaptureGalleryVideoDraft();
+            return new(mode, seconds, GalleryMediaFocus, GalleryOverlayControls, GalleryAutoHideControls, GalleryOverlayPostContext,
+                video.Repeat, video.Rule, video.Seconds, video.Repeats,
+                _initialGalleryPlayback.PauseOnFocusLoss); // the choice lives in the gallery's slideshow menu, not on this page
         }
 
         private static int GetInteger(decimal? value, string label, int minimum, int maximum)
@@ -1091,8 +1404,10 @@ namespace MeowChan
             {
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
-                    nameof(SelectedTheme) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedGalleryPlaybackMode);
+                    nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
+                    or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode) or nameof(SelectedGalleryFilmstripFlagUntagged) or nameof(SelectedGalleryWheelMode)
+                    or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))
                 {
                     _draftRevision++;

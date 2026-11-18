@@ -1,72 +1,64 @@
-using Avalonia;
-using Avalonia.Controls;
 using MeowChan.Desktop;
 
 namespace MeowChan.DesktopTests;
 
 public sealed class ReaderNavigationLayoutTests
 {
+    [Fact]
+    public void TheBarKeepsItsSizeAndDistanceFromTheEdge()
+    {
+        Assert.Equal(40, ReaderNavigationLayout.BarHeight);
+        Assert.Equal(320, ReaderNavigationLayout.BarMaxWidth);
+        Assert.Equal(56, ReaderNavigationLayout.CounterMinWidth);
+        Assert.Equal(700, ReaderNavigationLayout.CompactBelowSurfaceWidth);
+        Assert.Equal(24, ReaderNavigationLayout.RightInset);
+        Assert.Equal(64, ReaderNavigationLayout.NearMargin);
+    }
+
+    [Fact]
+    public void TheIdleHideDelayHasADefaultAndIsClampedToItsRange()
+    {
+        Assert.Equal(2000, ReaderNavigationLayout.IdleHideDelayMsDefault);
+        Assert.Equal(500, ReaderNavigationLayout.ClampIdleHideDelayMs(0));
+        Assert.Equal(500, ReaderNavigationLayout.ClampIdleHideDelayMs(-5));
+        Assert.Equal(2000, ReaderNavigationLayout.ClampIdleHideDelayMs(2000));
+        Assert.Equal(30_000, ReaderNavigationLayout.ClampIdleHideDelayMs(int.MaxValue));
+        Assert.InRange(ReaderNavigationLayout.IdleHideDelayMsDefault, ReaderNavigationLayout.IdleHideDelayMsMinimum, ReaderNavigationLayout.IdleHideDelayMsMaximum);
+    }
+
     [Theory]
-    [InlineData(320)]
-    [InlineData(640)]
-    [InlineData(760)]
-    [InlineData(1263.9)]
-    public void NarrowReaderKeepsFullViewportInsteadOfReservingBottomOrSideLane(double width)
-    {
-        var layout = ReaderNavigationLayout.Resolve(true, width, 1120);
-        Assert.Equal(default, layout.PostMargin);
-        Assert.Equal(120, layout.TailInset);
-    }
-
-    [Fact]
-    public void OnlyGenuinelyFreeWideSpaceReservesTheSideLane()
-    {
-        var layout = ReaderNavigationLayout.Resolve(true, 1264, 1120);
-        Assert.Equal(new Thickness(0, 0, 144, 0), layout.PostMargin);
-        Assert.Equal(0, layout.TailInset);
-        Assert.Equal(default, ReaderNavigationLayout.Resolve(false, 1440, 1120));
-    }
+    [InlineData(1440, true, false)]
+    [InlineData(700, true, false)]
+    [InlineData(699.9, true, true)]
+    [InlineData(640, true, true)]
+    [InlineData(0, true, true)]
+    [InlineData(1440, false, true)]
+    [InlineData(700, false, true)]
+    public void TheBarIsCompactBelowTheBreakWidthOrWithoutThePositionDisplay(double surfaceWidth, bool showPosition, bool compact) =>
+        Assert.Equal(compact, ReaderNavigationLayout.IsCompact(surfaceWidth, showPosition));
 
     [Theory]
-    [InlineData(640, 640, 24)]
-    [InlineData(1260, 1190, 94)]
-    [InlineData(640, 650, 24)]
-    public void OverlayAlignsInsideTheCenteredListAndKeepsItsScrollbarClear(double surface, double postRight, double inset)
-    {
-        var layout = ReaderNavigationLayout.Resolve(true, surface, 1120);
-        Assert.Equal(inset, layout.RightInset(surface, postRight));
-    }
+    [InlineData(0, 27, "1 / 27")]
+    [InlineData(2, 27, "3 / 27")]
+    [InlineData(11, 405, "12 / 405")]
+    [InlineData(26, 27, "27 / 27")]
+    [InlineData(0, 1, "1 / 1")]
+    [InlineData(-1, 27, "–")]
+    [InlineData(-1, 0, "–")]
+    [InlineData(0, 0, "–")]
+    [InlineData(27, 27, "–")]
+    public void TheCounterIsOneBasedDigitsAndADashWhenThePositionIsNotInTheList(int index, int count, string expected) =>
+        Assert.Equal(expected, ReaderNavigationLayout.CounterText(index, count));
 
     [Fact]
-    public void TailSpaceIsNotCompoundedAndRestoresRecycledContainers()
+    public void TheCounterDigitsDoNotDependOnTheCulture()
     {
-        ReaderPostTailSpace space = new();
-        Border first = new() { Margin = new Thickness(1, 2, 3, 4) };
-        Border second = new() { Margin = new Thickness(5, 6, 7, 8) };
-        space.Update(first, 120);
-        space.Update(first, 120);
-        Assert.Equal(new Thickness(1, 2, 3, 124), first.Margin);
-        space.Update(first, 80);
-        Assert.Equal(new Thickness(1, 2, 3, 84), first.Margin);
-        space.Release(second);
-        Assert.Equal(new Thickness(1, 2, 3, 84), first.Margin);
-        space.Update(second, 120);
-        Assert.Equal(new Thickness(1, 2, 3, 4), first.Margin);
-        Assert.Equal(new Thickness(5, 6, 7, 128), second.Margin);
-        space.Release(second);
-        Assert.Equal(new Thickness(5, 6, 7, 8), second.Margin);
-    }
-
-    [Fact]
-    public void ReturningToDockedOrWideLayoutRemovesOnlyTheOwnedTailSpace()
-    {
-        ReaderPostTailSpace space = new();
-        Border item = new() { Margin = new Thickness(3) };
-        space.Update(item, 120);
-        space.Update(item, 0);
-        Assert.Equal(new Thickness(3), item.Margin);
-        space.Update(item, 120);
-        space.Update(null, 0);
-        Assert.Equal(new Thickness(3), item.Margin);
+        System.Globalization.CultureInfo previous = System.Globalization.CultureInfo.CurrentCulture;
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = System.Globalization.CultureInfo.GetCultureInfo("ar-SA");
+            Assert.Equal("1234 / 5678", ReaderNavigationLayout.CounterText(1233, 5678));
+        }
+        finally { System.Globalization.CultureInfo.CurrentCulture = previous; }
     }
 }

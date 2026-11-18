@@ -51,6 +51,7 @@ public sealed partial class PluginProfileStore
                     Profile = Replace(document.Profile, plugin with
                     {
                         Pending = new(candidate.CandidateId, candidate.Artifact!, candidate.Description!, basis.Configuration),
+                        AutomaticSdkTransition = null,
                         Problem = "Bundled permissions explicitly reconfirmed for this exact build at next start; original state retained."
                     }),
                     Bindings = document.Bindings.Where(b => b.PluginId != plugin.PluginId).Append(binding).ToArray()

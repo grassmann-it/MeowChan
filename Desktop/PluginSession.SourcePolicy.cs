@@ -49,7 +49,10 @@ internal sealed partial class PluginSession
             var saved = persisted.Plugins.SingleOrDefault(plugin => plugin.PluginId == owner);
             SourceMediaIntegrityPolicyView? policy = (source.MediaIntegrityPolicy as SourceMediaIntegrityPolicyService)?.GetView(source.Description.Maturity);
             if (saved == null || policy == null) return new(null, null, ready, "The source owner or host policy is unavailable.");
-            var actual = new ExperimentalSourceActivationActualState(saved.Enabled,
+            // A family site needs its plugin and its own switch; any other source has only its plugin switch.
+            bool? siteEnabled = ChanSiteEnabled(owner, source.Name);
+            bool enabled = saved.Enabled && siteEnabled != false;
+            var actual = new ExperimentalSourceActivationActualState(enabled,
                 IsSourceMediaIntegrityActive(source) && source.Enabled && policy.IsActive,
                 policy.IsGranted, policy.Snapshot.AllowProviderSizeMd5Mismatch,
                 persisted.Revision, saved.LifecycleRevision, policy.Snapshot.Revision);
@@ -65,14 +68,15 @@ internal sealed partial class PluginSession
                 // Compare to the startup-established runtime anchor, never trust saved.Active alone.
                 || runtime.SelectedCandidateId != saved.SelectedCandidateId
                 || runtime.Enabled != saved.Enabled || runtime.LifecycleRevision != saved.LifecycleRevision
-                || actual.IsActive != saved.Enabled)
+                || actual.IsActive != enabled)
                 return new(null, actual, ready, "The source has no matching selected active build or its lifecycle changed.");
             source.Router.TryResolve(uri, out _, out _, out _, out Uri? canonical);
             var target = new ExperimentalSourceActivationTarget(sessionId, profileId, owner, source.Name,
                 source.NiceName, canonical!.AbsoluteUri, saved.Active.CandidateId, saved.Active.ExecutionRevision,
                 saved.Active.CompilationFingerprint, saved.Active.Artifact.AssemblySha256, persisted.Revision,
-                saved.LifecycleRevision, policy.Snapshot.Revision, saved.Enabled, policy.IsGranted,
-                ExperimentalSourceActivationPolicy.RequestsMismatchPermission(owner, source.Name));
+                saved.LifecycleRevision, policy.Snapshot.Revision, enabled, policy.IsGranted,
+                ExperimentalSourceActivationPolicy.RequestsMismatchPermission(owner, source.Name),
+                siteEnabled is null ? null : saved.Enabled);
             return new(target, actual, ready);
         }
     }
@@ -80,7 +84,62 @@ internal sealed partial class PluginSession
     // Caller holds _state. Candidate/Pending/LastGood descriptions never confer authority.
     private bool IsSourceMediaIntegrityActive(PluginSourceImageBoard source) => !_disposed
         && _sourceOwners.TryGetValue(source, out string? owner)
-        && _active.TryGetValue(owner, out var activation) && activation.Enabled && activation.Active != null;
+        && _active.TryGetValue(owner, out var activation) && activation.Enabled && activation.Active != null
+        && SiteSwitches.IsEnabled(owner, source.Name);
+
+    /// <summary>
+    /// Turns one site of an engine-family plugin on or off. The plugin's own enabled state stays the master switch:
+    /// a site is used only while both are on. False for a source without a site switch or when it cannot be saved.
+    /// </summary>
+    internal bool SetChanSiteEnabled(string sourceId, bool enabled)
+    {
+        lock (_state)
+        {
+            if (_disposed) return false;
+            PluginSourceImageBoard? source = Sources.FirstOrDefault(item => item.Name == sourceId);
+            if (source == null || !_sourceOwners.TryGetValue(source, out string? owner) || !ChanSourceFamilies.IsFamily(owner)
+                || !SiteSwitches.SetEnabled(owner, sourceId, enabled)) return false;
+            bool active = IsSourceMediaIntegrityActive(source);
+            // Invalidate before returning, as the plugin lifecycle callback does.
+            SetSourceMediaIntegrityActive(source, active);
+            if (_active.TryGetValue(owner, out PluginActivationSnapshot? activation)) ApplyAdapterState(source, activation, activation.Enabled);
+            else source.SetEnabled(active);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// Why a source of this activation cannot run, or None when it can: the plugin is off, it is not running (a build
+    /// that waits for an explicit repair review is named as such, since a restart does not help), or its site is off.
+    /// </summary>
+    internal PluginSourceUnavailableReason AdapterState(PluginActivationSnapshot activation, bool pluginEnabled, string sourceId, out string? detail)
+    {
+        detail = null;
+        if (!pluginEnabled) return PluginSourceUnavailableReason.PluginDisabled;
+        if (activation.Active == null)
+        {
+            detail = activation.Problem;
+            return PluginActivationProblems.RequiresRepairReview(activation.Problem)
+                ? PluginSourceUnavailableReason.NeedsRepairReview : PluginSourceUnavailableReason.NotActive;
+        }
+        return SiteSwitches.IsEnabled(activation.PluginId, sourceId) ? PluginSourceUnavailableReason.None : PluginSourceUnavailableReason.SiteDisabled;
+    }
+
+    /// <summary>The plugin that owns this adapter (routing and lifecycle follow it), or null for a foreign adapter.</summary>
+    internal string? SourceOwner(PluginSourceImageBoard source)
+    {
+        lock (_state) return _sourceOwners.TryGetValue(source, out string? owner) ? owner : null;
+    }
+
+    private void ApplyAdapterState(PluginSourceImageBoard adapter, PluginActivationSnapshot activation, bool pluginEnabled)
+    {
+        PluginSourceUnavailableReason reason = AdapterState(activation, pluginEnabled, adapter.Name, out string? detail);
+        adapter.SetEnabled(reason == PluginSourceUnavailableReason.None, reason, detail);
+    }
+
+    /// <summary>The site's own switch, or null for a source that has none (a single-site or non-family plugin).</summary>
+    internal bool? ChanSiteEnabled(string pluginOwnerId, string sourceId) =>
+        ChanSourceFamilies.IsFamily(pluginOwnerId) ? SiteSwitches.IsEnabled(pluginOwnerId, sourceId) : null;
 
     private static void SetSourceMediaIntegrityActive(PluginSourceImageBoard source, bool active)
     {

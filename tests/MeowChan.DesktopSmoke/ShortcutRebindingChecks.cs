@@ -15,6 +15,7 @@ internal static class ShortcutRebindingChecks
         KeyGesture oldArchive = CommandBindings.Gesture("navigation.archive")!;
         var menu = new MenuItem();
         CommandBindings.Apply(menu, "navigation.archive");
+        Exception? failureBeforeCleanup = null;
         try
         {
             Config candidate = original.Clone();
@@ -53,12 +54,16 @@ internal static class ShortcutRebindingChecks
             Require(EffectiveShortcutBindings.Build(Config.LoadConfig().ShortcutBindings).For("navigation.archive").Single().Key == "K",
                 "Rejected validation changed the settings file.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            long revision = ShortcutService.Revision;
-            await window.SessionHost.ApplySettingsAsync(original);
-            await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
-            Press(window, CommandBindings.Gesture("navigation.downloads")!);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                long revision = ShortcutService.Revision;
+                await window.SessionHost.ApplySettingsAsync(original);
+                await Program.WaitUntilAsync(() => ShortcutService.Revision > revision);
+                Press(window, CommandBindings.Gesture("navigation.downloads")!);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ShortcutRebindingChecks: " + exception));
         }
         Console.WriteLine("SMOKE shortcuts: durable replacement, old gesture removal, live menu, capture/text guards and rejected-draft atomicity passed.");
     }
@@ -91,6 +96,7 @@ internal static class ShortcutRebindingChecks
         dialog.Activated += (_, _) => Console.WriteLine("SMOKE router fixture activated: " + State());
         dialog.Deactivated += (_, _) => Console.WriteLine("SMOKE router fixture deactivated: " + State());
         Task closed = dialog.ShowDialog(owner);
+        Exception? failureBeforeCleanup = null;
         try
         {
             // ShowDialog requests native activation asynchronously. Synthetic key
@@ -124,11 +130,15 @@ internal static class ShortcutRebindingChecks
         {
             throw new InvalidOperationException("Router fixture native readiness timed out before/after routing: " + State(), error);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            dialog.Close(); await closed;
-            owner.Activate();
-            await Program.WaitUntilAsync(() => owner.IsActive);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                dialog.Close(); await closed;
+                owner.Activate();
+                await Program.WaitUntilAsync(() => owner.IsActive);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ShortcutRebindingChecks: " + exception));
         }
     }
     private static KeyEventArgs Press(Control source, KeyGesture gesture)

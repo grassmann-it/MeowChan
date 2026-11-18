@@ -105,7 +105,7 @@ public sealed class DownloadSafetyLimitSettingsTests
         Assert.Equal("1", (string?)field.Attribute("Minimum"));
         Assert.Equal(DownloadQueue.MaximumParallelDownloadsSafetyLimit.ToString(), (string?)field.Attribute("Maximum"));
         Assert.Equal("{Binding ParallelSafetyLabel}", (string?)field.Attribute("AutomationProperties.Name"));
-        Assert.Contains(field.Parent!.Parent!.Elements(), e => (string?)e.Attribute("Text") == "{Binding ParallelSafetyHint}"
+        Assert.Contains(field.Parent!.Parent!.Descendants(), e => (string?)e.Attribute("Text") == "{Binding ParallelSafetyHint}"
             && (string?)e.Attribute("TextWrapping") == "Wrap");
     }
 

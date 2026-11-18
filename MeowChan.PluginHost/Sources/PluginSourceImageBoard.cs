@@ -9,6 +9,23 @@ using Serilog;
 
 namespace MeowChan.PluginHost.Sources;
 
+/// <summary>Why a source adapter refuses work. The worker error code stays <c>source_unavailable</c> for every reason.</summary>
+public enum PluginSourceUnavailableReason
+{
+    /// <summary>The adapter is available.</summary>
+    None,
+    /// <summary>No reason was given (the generic message).</summary>
+    Unavailable,
+    /// <summary>The user turned the owning plugin off.</summary>
+    PluginDisabled,
+    /// <summary>The user turned this site of an engine-family plugin off.</summary>
+    SiteDisabled,
+    /// <summary>The owning bundled plugin's build changed and waits for an explicit repair review; a restart does not help.</summary>
+    NeedsRepairReview,
+    /// <summary>The owning plugin is not running for another startup problem.</summary>
+    NotActive
+}
+
 /// <summary>An optional local provider adapter. Only asynchronous checks acquire a plugin worker.</summary>
 public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptorSource, ISourceMediaIntegrityPolicyProvider, IDisposable
 {
@@ -17,6 +34,10 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     private CancellationTokenSource? _enabledLifetime = new();
     private bool _enabled = true;
     private bool _disposed;
+    // Non-null exactly while the source is switched off or disposed; completed when it is enabled again.
+    private TaskCompletionSource? _availableSignal;
+    private PluginSourceUnavailableReason _reason = PluginSourceUnavailableReason.None;
+    private string? _reasonDetail;
     public SourceDescription Description { get; }
     /// <summary>Fresh host-owned source/profile policy; source metadata never grants permission.</summary>
     public ISourceMediaIntegrityPolicy? MediaIntegrityPolicy { get; init; }
@@ -25,10 +46,36 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     public override string NiceName => Description.Name;
     public override Uri BaseUri => Description.BaseUri;
     internal override bool UsesOpaqueStorageIdentifiers => true;
-    public ProviderCapabilities Capabilities => (ProviderCapabilities)(int)Description.Capabilities;
+    public ProviderCapabilities Capabilities => MapCapabilities(Description.Capabilities);
+
+    /// <summary>
+    /// Explicit SDK-to-descriptor mapping. Only the flags listed here are carried over; flags without a descriptor
+    /// counterpart (PostSearch, and any future SDK flag) are dropped instead of leaking as undefined enum values.
+    /// </summary>
+    private static readonly (SourceCapabilities Sdk, ProviderCapabilities Provider)[] CapabilityMap =
+    {
+        (SourceCapabilities.ThreadRead, ProviderCapabilities.ThreadWatch),
+        (SourceCapabilities.BoardCatalog, ProviderCapabilities.BoardCatalog),
+        (SourceCapabilities.PostCapture, ProviderCapabilities.PostCapture),
+        (SourceCapabilities.OriginalMedia, ProviderCapabilities.OriginalMedia),
+        (SourceCapabilities.Previews, ProviderCapabilities.Previews)
+    };
+
+    public static ProviderCapabilities MapCapabilities(SourceCapabilities capabilities)
+    {
+        ProviderCapabilities mapped = ProviderCapabilities.None;
+        foreach ((SourceCapabilities sdk, ProviderCapabilities provider) in CapabilityMap)
+            if ((capabilities & sdk) != 0) mapped |= provider;
+        return mapped;
+    }
     public IReadOnlyList<string> SupportedHosts { get; }
     public string? AdapterVersion { get; }
     public bool Enabled { get { lock (_lifecycle) return _enabled && !_disposed; } }
+    /// <summary>Why the adapter refuses work right now; <see cref="PluginSourceUnavailableReason.None"/> while it is enabled.</summary>
+    public PluginSourceUnavailableReason UnavailableReason
+    {
+        get { lock (_lifecycle) return _disposed ? PluginSourceUnavailableReason.Unavailable : _enabled ? PluginSourceUnavailableReason.None : _reason; }
+    }
     internal DownloadQueue? MetadataQueue { get; }
 
     public PluginSourceImageBoard(PluginDescription plugin, string sourceId,
@@ -62,18 +109,54 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
             ? Router.Canonical(SourceResourceKind.Board, board) : BaseUri), thread!, canonical!);
     }
 
-    public void SetEnabled(bool enabled)
+    public void SetEnabled(bool enabled) => SetEnabled(enabled, PluginSourceUnavailableReason.Unavailable, null);
+
+    /// <summary>Turns the adapter on or off; a disabled adapter names <paramref name="reason"/> (and the optional
+    /// <paramref name="detail"/>, such as the plugin's startup problem) in every refused call.</summary>
+    public void SetEnabled(bool enabled, PluginSourceUnavailableReason reason, string? detail = null)
     {
         CancellationTokenSource? previous = null;
+        TaskCompletionSource? available = null;
         lock (_lifecycle)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (!enabled)
+            {
+                _reason = reason == PluginSourceUnavailableReason.None ? PluginSourceUnavailableReason.Unavailable : reason;
+                _reasonDetail = detail;
+            }
             if (_enabled == enabled) return;
             _enabled = enabled;
-            if (enabled) _enabledLifetime = new CancellationTokenSource();
-            else { previous = _enabledLifetime; _enabledLifetime = null; }
+            if (enabled)
+            {
+                _enabledLifetime = new CancellationTokenSource();
+                available = _availableSignal;
+                _availableSignal = null;
+            }
+            else
+            {
+                previous = _enabledLifetime;
+                _enabledLifetime = null;
+                _availableSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            }
         }
+        // One line per source transition; its watched threads only change their state quietly.
+        if (enabled) Logger.Information("Source {Source} is available again; its watched threads resume checking.", Name);
+        else Logger.Information("Source {Source} is disabled or unavailable; its watched threads wait until it is available again.", Name);
         CancelAndDispose(previous);
+        available?.TrySetResult();
+    }
+
+    /// <summary>Completes once the source is enabled (immediately when it already is). A disposed source never becomes
+    /// available again; the wait then only ends through <paramref name="token"/>.</summary>
+    internal Task WaitUntilAvailableAsync(CancellationToken token)
+    {
+        lock (_lifecycle)
+        {
+            if (_enabled && !_disposed) return Task.CompletedTask;
+            _availableSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            return _availableSignal.Task.WaitAsync(token);
+        }
     }
 
     internal async Task<T> InvokeAsync<T>(Func<IPluginWorkerClient, CancellationToken, Task<T>> call, CancellationToken token)
@@ -90,10 +173,20 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
     {
         lock (_lifecycle)
         {
-            if (!_enabled || _disposed) throw new PluginWorkerException("source_unavailable", "The source plugin is disabled or unavailable.");
+            if (!_enabled || _disposed) throw new PluginWorkerException("source_unavailable", UnavailableMessage(_disposed ? PluginSourceUnavailableReason.Unavailable : _reason, _reasonDetail));
             return CancellationTokenSource.CreateLinkedTokenSource(token, _enabledLifetime!.Token);
         }
     }
+
+    internal static string UnavailableMessage(PluginSourceUnavailableReason reason, string? detail) => reason switch
+    {
+        PluginSourceUnavailableReason.PluginDisabled => "The source plugin is turned off.",
+        PluginSourceUnavailableReason.SiteDisabled => "This site of the source plugin is turned off.",
+        PluginSourceUnavailableReason.NeedsRepairReview => "The source plugin needs a repair review before it runs again (Sources & Plugins, Review bundled repairs)"
+            + (string.IsNullOrEmpty(detail) ? "." : ": " + detail),
+        PluginSourceUnavailableReason.NotActive => "The source plugin is not running" + (string.IsNullOrEmpty(detail) ? "." : ": " + detail),
+        _ => "The source plugin is disabled or unavailable."
+    };
 
     internal static void Validate(IReadOnlyList<ValidationIssue> issues)
     {
@@ -109,6 +202,7 @@ public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptor
             _disposed = true;
             previous = _enabledLifetime;
             _enabledLifetime = null;
+            _availableSignal ??= new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         }
         CancelAndDispose(previous);
     }

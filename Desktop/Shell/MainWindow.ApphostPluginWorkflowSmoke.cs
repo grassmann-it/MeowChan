@@ -1,3 +1,5 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -52,14 +54,14 @@ public partial class MainWindow
                 RequireWorkflow(File.Exists(Path.Combine(app, helper)), "Delivered helper missing: " + helper);
             string[] manifests = Directory.GetFiles(Path.Combine(app, "plugins"), "*.plugin.json");
             PluginProfileSnapshot installed = await plugins.ProfileStore.ReadAsync();
-            RequireWorkflow(manifests.Length == 16 && installed.Plugins.Count == 16, "Delivered plugin inventory differs.");
-            RequireWorkflow(plugins.Sources.Select(source => source.Name).Order().SequenceEqual(new[] { "2ch", "4chan", "8kun", "endchan", "kohlchan", "lainchan", "leftypol", "sushichan", "uboachan", "wizchan", "zzzchan" }), "Delivered source inventory differs.");
+            RequireWorkflow(manifests.Length == 24, "Delivered manifest inventory differs.");
+            RequireApphostBundledInventory(plugins, installed);
             // This worker/download fixture explicitly enables its delivered sources through
             // the Host lifecycle. It does not grant a provider-integrity exception.
             installed = await EnableApphostFixtureSourcesAsync(plugins, installed);
             foreach (PluginActivationSnapshot plugin in installed.Plugins)
             {
-                RequireWorkflow(plugin.Enabled && plugin.Active != null && plugin.Problem == null && plugin.Candidates.Count == 1, "Plugin activation failed: " + plugin.PluginId);
+                RequireWorkflow(plugin.Enabled == ApphostFixturePluginEnabled(plugin.PluginId) && plugin.Active != null && plugin.Problem == null && plugin.Candidates.Count == 1, "Plugin activation failed: " + plugin.PluginId);
                 var candidate = plugin.Candidates.Single();
                 RequireWorkflow(manifests.Contains(candidate.CandidatePath), "Activation did not use delivered manifest.");
                 var manifest = JsonSerializer.Deserialize<PluginBundleManifest>(await File.ReadAllTextAsync(candidate.CandidatePath!))!;
@@ -72,15 +74,15 @@ public partial class MainWindow
             if (descriptor.Phase == "download")
             {
                 string compilerSource = Path.Combine(descriptor.Profile, "offline-compiler-probe.cs");
-                string deliveredSource = Path.Combine(app, "plugins", "sources", "Lainchan.cs");
+                string deliveredSource = Path.Combine(app, "plugins", "sources", "VichanFamily.cs");
                 File.Copy(deliveredSource, compilerSource);
                 var compiled = await plugins.CompilationService.BuildAsync(compilerSource);
                 RequireWorkflow(compiled.Succeeded && !compiled.CacheHit, "Delivered compiler did not compile uncached source: " + string.Join("; ", compiled.Diagnostics));
                 checks.Add("delivered-compiler-uncached");
                 PluginArtifact compiledArtifact = compiled.Artifact!;
                 var description = await plugins.DescribeTestAsync(compiledArtifact);
-                RequireWorkflow(description.PluginId == "meowchan.source.lainchan" && description.SdkVersion == SdkContract.Version
-                    && description.Sources.Count == 1 && description.Sources[0].SourceId == "lainchan", "Compiled delivered source did not describe the expected plugin.");
+                RequireWorkflow(description.PluginId == ChanSourceFamilies.Vichan && description.SdkVersion == SdkContract.Version
+                    && description.Sources.Any(source => source.SourceId == "lainchan"), "Compiled delivered source did not describe the expected plugin.");
                 checks.Add("delivered-plugin-source-described");
                 var cached = await plugins.CompilationService.BuildAsync(compilerSource);
                 RequireWorkflow(cached.Succeeded && cached.CacheHit && cached.Artifact is { } cachedArtifact
@@ -89,7 +91,7 @@ public partial class MainWindow
                 checks.Add("delivered-plugin-source-cache-hit");
                 sourceCompilation = new
                 {
-                    source = "plugins/sources/Lainchan.cs", pluginId = description.PluginId, sdkVersion = description.SdkVersion,
+                    source = "plugins/sources/VichanFamily.cs", pluginId = description.PluginId, sdkVersion = description.SdkVersion,
                     sourceSha256 = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(compilerSource))).ToLowerInvariant(),
                     executionRevision = compiledArtifact.ExecutionRevision, assemblySha256 = compiledArtifact.AssemblySha256,
                     uncachedBuild = !compiled.CacheHit, describedInWorker = true, cachedBuild = cached.CacheHit,
@@ -108,8 +110,10 @@ public partial class MainWindow
                 await _session.SetPausedAsync(false);
                 await WaitWorkflowAsync(() => PluginWorkflowCompleted(ApphostPluginFixtures.WorkflowSources), "delivered sources/filter/download");
                 var workers = plugins.Runtime.GetSnapshots();
-                RequireWorkflow(workers.Count == 5 && workers.All(worker => worker.ProcessId is > 0)
-                    && ApphostPluginFixtures.WorkflowSources.Select(source => revisions["meowchan.source." + source])
+                // Sites of one family share their plugin's worker (Lainchan and Wizchan: the vichan family).
+                string[] owners = ApphostPluginFixtures.WorkflowSources.Select(ApphostSourceOwner).Distinct(StringComparer.Ordinal).ToArray();
+                RequireWorkflow(workers.Count == owners.Length + 1 && workers.All(worker => worker.ProcessId is > 0)
+                    && owners.Select(owner => revisions[owner])
                         .Append(revisions[filterId]).ToHashSet(StringComparer.Ordinal)
                         .SetEquals(workers.Select(worker => worker.Identity.ExecutionRevision)), "Delivered source/filter worker missing.");
                 RequireWorkflow(fixture.Http.Requests.Count == 12 && fixture.Http.MediaRequests == 8
@@ -125,7 +129,7 @@ public partial class MainWindow
                 PluginArtifact cachedArtifact = cached.Artifact!;
                 sourceCompilation = new
                 {
-                    source = "plugins/sources/Lainchan.cs",
+                    source = "plugins/sources/VichanFamily.cs",
                     sourceSha256 = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(compilerSource))).ToLowerInvariant(),
                     executionRevision = cachedArtifact.ExecutionRevision, assemblySha256 = cachedArtifact.AssemblySha256,
                     cachedBuild = cached.CacheHit
@@ -195,9 +199,11 @@ public partial class MainWindow
 
     private static async Task<PluginProfileSnapshot> EnableApphostFixtureSourcesAsync(PluginSession plugins, PluginProfileSnapshot installed)
     {
-        foreach (string owner in new[] { "meowchan.source.kohlchan", "meowchan.source.wizchan", "meowchan.source.endchan" })
+        foreach (string owner in new[] { "meowchan.source.kohlchan", "meowchan.source.endchan" })
             if (!installed.Plugins.Single(plugin => plugin.PluginId == owner).Enabled)
                 installed = await plugins.ProfileStore.SetEnabledAsync(owner, true, installed.Revision);
+        // Wizchan is an experimental site of the (enabled) vichan family: it has its own switch.
+        RequireWorkflow(plugins.SetChanSiteEnabled("wizchan", true), "The Wizchan site switch could not be turned on.");
         return installed;
     }
 
@@ -216,3 +222,5 @@ public partial class MainWindow
         catch (ArgumentException) { return false; }
     }
 }
+
+#endif

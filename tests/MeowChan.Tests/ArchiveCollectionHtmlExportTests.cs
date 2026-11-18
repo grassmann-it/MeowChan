@@ -45,7 +45,9 @@ public sealed class ArchiveCollectionHtmlExportTests
         Assert.Contains("href=\"../media/", firstPage);
         Assert.Contains("External reference", firstPage);
         Assert.DoesNotContain("<script", firstPage);
-        Assert.DoesNotContain("https://", firstPage);
+        // The only address in the page is the fixed credit link of the About dialog, never captured content.
+        Assert.Equal(1, firstPage.Split("https://").Length - 1);
+        Assert.Contains("<a href=\"https://grassmann-it.de\" rel=\"noopener noreferrer\">grassmann-it.de</a>", firstPage);
         Assert.DoesNotContain("secret", firstPage);
         Assert.DoesNotContain(dir.Path, firstPage);
         string index = await File.ReadAllTextAsync(result.IndexPath);

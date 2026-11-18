@@ -59,6 +59,12 @@ internal partial class PostBookmarksDialog : Window
     internal PostBookmarksDialog(DesktopSessionHost owner, Func<PostBookmarkKey, CancellationToken, Task<bool>> open)
     {
         AvaloniaXamlLoader.Load(this);
+        MeowChan.Desktop.Controls.IconButtons.WithText(B("OpenTarget"), "external-link"); MeowChan.Desktop.Controls.IconButtons.WithText(B("Reload"), "refresh-cw"); // I1b: tools carry a catalog icon (Remove, Cancel and Save stay text).
+        // Also shown modeless (bookmark list beside the reader), so it keeps minimize (modals plan MD3: L step, factory caption).
+        MeowChan.Desktop.Controls.DialogWindow.Configure(this, DialogSize.L, modal: false);
+        MeowChan.Desktop.Controls.DialogWindow.Wrap(this, modal: false);
+        MeowChan.Desktop.Controls.DialogFooter.Fill(this.FindControl<Border>("DialogFrameFooter")!, B("Save"),
+            new Control[] { B("Reload"), B("Cancel") }, this.FindControl<ScrollViewer>("StatusHost"), statusAbove: true);
         _owner = owner; _open = open;
         Title = Texts.T("bookmarks.title");
         Texts.Changed += OnLanguageChanged;
@@ -67,6 +73,7 @@ internal partial class PostBookmarksDialog : Window
         AutomationProperties.SetName(NoteInput, Texts.T("bookmarks.note"));
         AutomationProperties.SetName(List, Title);
         AutomationProperties.SetLiveSetting(StatusText, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(this.FindControl<TextBlock>("StatusError")!, AutomationLiveSetting.Assertive);
         List.ItemTemplate = new FuncDataTemplate<PostBookmark>((entry, _) => entry == null ? new TextBlock() : CreateRow(entry));
         List.SelectionChanged += async (_, _) =>
         {
@@ -82,6 +89,10 @@ internal partial class PostBookmarksDialog : Window
         Bind("Save", "post-bookmarks.save", SaveAsync, () => CanSave);
         Bind("Remove", "post-bookmarks.remove", RemoveAsync, () => CanRemove);
         Bind("OpenTarget", "post-bookmarks.open-target", OpenAsync, () => CanOpen);
+        // Dead-affordance audit: a double click or Enter on a bookmark opens its exact local post (the "Open" button); a right-click, Menu key or
+        // Shift+F10 offers Open and Remove, the buttons' own actions.
+        MeowChan.Desktop.Controls.ListRowActions.OnActivate(List, () => { if (CanOpen) OpenActions.Start(OpenAsync, "post-bookmarks.open-target"); });
+        _rowMenu = MeowChan.Desktop.Controls.ListRowActions.AttachMenu(List, ComposeRowMenu);
         B("Reload").Content = Texts.T("bookmarks.retry");
         B("Reload").Click += async (_, _) => await ReloadAsync(preserveDraft: true);
         B("Cancel").Content = Texts.T("action.close");
@@ -99,7 +110,7 @@ internal partial class PostBookmarksDialog : Window
             Texts.Changed -= OnLanguageChanged;
             AvailabilityChanged = null; RowLanguageChanged = null;
             foreach (IDisposable registration in _registrations) registration.Dispose();
-            _router.Dispose(); _lifetime.Dispose();
+            _router.Dispose(); _rowMenu?.Dispose(); _lifetime.Dispose();
         };
         void Register(string id, Func<bool> allowed, Func<Task> execute) => _registrations.Add(_router.Register(
             new CommandRegistration(id, this, () => IsVisible && IsActive && !_confirming,
@@ -107,13 +118,9 @@ internal partial class PostBookmarksDialog : Window
         Register("post-bookmarks.save", () => CanSave, SaveAsync);
         Register("post-bookmarks.remove", () => CanRemove, RemoveAsync);
         Register("post-bookmarks.open-target", () => CanOpen, OpenAsync);
-        KeyDown += async (_, e) =>
-        {
-            _router.Route(e);
-            // Bubble handler lets native text/IME handling consume Escape first.
-            if (!e.Handled && e.Key == Key.Escape && !_busy && !_confirming)
-            { e.Handled = true; await RequestCloseAsync(); }
-        };
+        KeyDown += (_, e) => _router.Route(e);
+        // Bubble handler lets native text/IME handling consume Escape first; never while busy or asking (the dialog policy).
+        MeowChan.Desktop.Controls.DialogEscape.Attach(this, isBusy: () => _busy || _confirming, close: () => _ = RequestCloseAsync());
         Opened += (_, _) => { if (_key != null) NoteInput.Focus(); else List.Focus(); };
         Refresh();
     }
@@ -205,6 +212,15 @@ internal partial class PostBookmarksDialog : Window
         CommandBindings.Apply(button, id);
         button.Command = new DelegateCommand(async () => await execute(), available);
     }
+    private MeowChan.Desktop.Controls.ContextMenuHost? _rowMenu;
+    /// <summary>The menu host of the bookmark list; read by tests.</summary>
+    internal MeowChan.Desktop.Controls.ContextMenuHost? RowMenuHost => _rowMenu;
+    /// <summary>The menu of the selected bookmark as it would open now (null without one); also the test seam.</summary>
+    internal MeowChan.Desktop.Controls.ContextMenuBuilder? ComposeRowMenu() => _postEditor || _key == null || _confirming ? null
+        : new MeowChan.Desktop.Controls.ContextMenuBuilder().Named(Title ?? string.Empty)
+            .Command("post-bookmarks.open-target", () => OpenActions.Start(OpenAsync, "post-bookmarks.open-target"), CanOpen)
+            .Section()
+            .Command("post-bookmarks.remove", () => _ = RemoveAsync(), CanRemove);
     private bool CanSave => !_busy && !_conflicted && !_orphanDraft && _snapshot != null && _key != null && ValidNote;
     private bool CanRemove => !_busy && !_conflicted && _snapshot != null && _key != null && _exists;
     private bool CanOpen => !_postEditor && !_busy && _key != null && _targetAvailable;
@@ -220,10 +236,20 @@ internal partial class PostBookmarksDialog : Window
     }
     private void SetStatus(string? key, params object?[] arguments)
     { _actionError = false; _statusKey = key; _statusArguments = arguments; RenderStatus(); }
-    private void RenderStatus() => StatusText.Text = _statusKey == null ? "" : Texts.T(_statusKey, _statusArguments);
-    private string ErrorDetails(Exception error) => System.IO.Path.Combine(_owner.ProfileDirectory, "post-bookmarks.json") + "\n" + error.Message;
+    // States that need the user's action are shown in the local error strip between header and body;
+    // Status keeps the same text for its existing readers, other states stay in the footer status line.
+    private static readonly HashSet<string> ErrorStatusKeys =
+        ["bookmarks.failed", "bookmarks.conflict", "bookmarks.invalidNote", "bookmarks.removedDraft"];
+    private void RenderStatus()
+    {
+        StatusText.Text = _statusKey == null ? "" : Texts.T(_statusKey, _statusArguments);
+        bool error = _statusKey != null && ErrorStatusKeys.Contains(_statusKey);
+        this.FindControl<TextBlock>("StatusError")!.Text = error ? StatusText.Text : "";
+        this.FindControl<Border>("DialogFrameErrorStrip")!.IsVisible = error;
+        this.FindControl<ScrollViewer>("StatusHost")!.IsVisible = !error && StatusText.Text.Length > 0;
+    }
     private void ShowError(Exception error)
-    { SetStatus("bookmarks.failed", ErrorDetails(error)); _actionError = true; }
+    { SetStatus("bookmarks.failed", error.Message); _actionError = true; }
     private void SetAvailabilityStatus(string key, params object?[] arguments)
     {
         // Availability can finish after an edit, conflict or failed write. Its
@@ -239,7 +265,6 @@ internal partial class PostBookmarksDialog : Window
         _key = edit; _postEditor = edit != null;
         List.IsVisible = !_postEditor;
         B("OpenTarget").IsVisible = !_postEditor;
-        if (_postEditor && Content is Grid layout) layout.RowDefinitions[1].Height = new GridLength(0);
         this.FindControl<TextBlock>("Intro")!.Text = Texts.T(_postEditor ? "bookmarks.edit" : "bookmarks.select");
         await ReloadAsync(false);
         if (!_lifetime.IsCancellationRequested && _postEditor) NoteInput.Focus();
@@ -323,7 +348,7 @@ internal partial class PostBookmarksDialog : Window
         }
         catch (FileNotFoundException) { if (IsCurrent()) SetAvailabilityStatus("bookmarks.missing"); }
         catch (Exception error) when (error is not OutOfMemoryException)
-        { if (IsCurrent()) SetAvailabilityStatus("bookmarks.failed", ErrorDetails(error)); }
+        { if (IsCurrent()) SetAvailabilityStatus("bookmarks.failed", error.Message); }
         finally { if (IsCurrent()) Refresh(); }
     }
     private async Task SaveAsync()
@@ -419,21 +444,17 @@ internal partial class PostBookmarksDialog : Window
         _confirming = true;
         try
         {
-            Window confirm = new() { Title = Title, Width = 460, SizeToContent = SizeToContent.Height,
-                MinWidth = 320, WindowStartupLocation = WindowStartupLocation.CenterOwner };
+            // Modals plan MD1: a small modal confirmation whose height follows the text; the title stands in the title bar only.
+            Window confirm = MeowChan.Desktop.Controls.DialogWindow.Create(Title ?? string.Empty, DialogSize.S, modal: true, heightToContent: true);
             Button cancel = new() { Content = Texts.T("bookmarks.keepEditing") };
             Button accept = new() { Content = action };
             accept.Classes.Add("danger");
-            WrapPanel buttons = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right,
-                Children = { cancel, accept } };
-            Border footer = new() { Child = buttons, Margin = new Thickness(-16, 0, -16, -16) };
-            footer.Classes.Add("workspace-dialog-footer");
-            Grid layout = new() { Margin = new Thickness(16), RowDefinitions = new("Auto,Auto"), RowSpacing = 12 };
-            layout.Children.Add(new TextBlock { Text = explanation, TextWrapping = TextWrapping.Wrap });
-            layout.Children.Add(footer); Grid.SetRow(footer, 1); confirm.Content = layout;
+            TextBlock body = new() { Text = explanation, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16, 0, 16, 12) };
+            MeowChan.Desktop.Controls.DialogWindow.Frame(confirm, MeowChan.Desktop.Controls.DialogFrame.Build(header: null, body,
+                MeowChan.Desktop.Controls.DialogFooter.Build(accept, new Control[] { cancel })), modal: true);
             cancel.Click += (_, _) => confirm.Close(false); accept.Click += (_, _) => confirm.Close(true);
             confirm.Opened += (_, _) => cancel.Focus();
-            confirm.KeyDown += (_, e) => { if (!e.Handled && e.Key == Key.Escape) { e.Handled = true; confirm.Close(false); } };
+            MeowChan.Desktop.Controls.DialogEscape.Attach(confirm, close: () => confirm.Close(false));
             return await confirm.ShowDialog<bool>(this);
         }
         finally { _confirming = false; }

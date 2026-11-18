@@ -11,7 +11,7 @@ namespace MeowChan.Persistence;
 /// the already-validated handle; callers still perform their normal bounded and
 /// EOF-checked read.
 /// </summary>
-internal static class RegularProfileFile
+internal static partial class RegularProfileFile
 {
     private const int UnixRegularFileMode = 0x8000;
     private const int UnixSpecialFileMask = 0xF000;
@@ -27,6 +27,108 @@ internal static class RegularProfileFile
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         return OperatingSystem.IsWindows() ? OpenWindows(path) : OpenUnix(path);
+    }
+
+    /// <summary>
+    /// The identity of a regular file at <paramref name="path"/> without following a final link, for cache
+    /// validation only: device, inode, size, modification and status-change time on Unix; volume serial number,
+    /// 128-bit file id, size, last-write and change time of the opened object on Windows, falling back to size,
+    /// last-write and creation time when those handle queries are unavailable. Null when the entry is missing, is
+    /// not a regular file or cannot be inspected; a caller then reads the file through <see cref="OpenRead"/>,
+    /// which reports the precise failure.
+    /// </summary>
+    internal static RegularProfileFileIdentity? TryGetIdentity(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        try
+        {
+            if (OperatingSystem.IsWindows()) return TryGetWindowsIdentity(path);
+            if ((!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+                || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64))
+                return null;
+            if (UnixLStat(path, out FileStatus status) != 0 || (status.Mode & UnixSpecialFileMask) != UnixRegularFileMode)
+                return null;
+            return new(status.Dev, status.Ino, status.Size, status.MTime, status.MTimeNsec, status.CTime, status.CTimeNsec);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException
+            or DllNotFoundException or EntryPointNotFoundException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Captures the identity of the object already opened by <paramref name="file"/>. Unlike the path overload,
+    /// this never performs a second final-name lookup; callers use it immediately after CreateNew to bind ownership
+    /// to the returned handle. Null means that the handle's regular-file identity could not be established.
+    /// </summary>
+    internal static RegularProfileFileIdentity? TryGetIdentity(FileStream file)
+    {
+        ArgumentNullException.ThrowIfNull(file);
+        try
+        {
+            SafeFileHandle handle = file.SafeFileHandle;
+            if (handle.IsClosed || handle.IsInvalid) return null;
+            if (OperatingSystem.IsWindows())
+                return TryGetWindowsHandleIdentity(handle, out RegularProfileFileIdentity? identity) ? identity : null;
+            if ((!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+                || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64))
+                return null;
+            if (UnixFStat(handle, out FileStatus status) != 0 || (status.Mode & UnixSpecialFileMask) != UnixRegularFileMode)
+                return null;
+            return new(status.Dev, status.Ino, status.Size, status.MTime, status.MTimeNsec, status.CTime, status.CTimeNsec);
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException
+            or ObjectDisposedException or InvalidOperationException or DllNotFoundException
+            or EntryPointNotFoundException or NotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private static bool TryGetWindowsHandleIdentity(SafeFileHandle handle, out RegularProfileFileIdentity? identity)
+    {
+        identity = null;
+        if (handle.IsClosed || handle.IsInvalid) return false;
+        if (WindowsGetFileType(handle) != 1 /* FILE_TYPE_DISK */) return true;
+        if (!WindowsGetAttributeTag(handle, 9 /* FileAttributeTagInfo */, out WindowsAttributeTag tag,
+                (uint)Marshal.SizeOf<WindowsAttributeTag>()))
+            return false;
+        if (!IsWindowsRegularFile(tag.Attributes)) return true;
+        if (!WindowsGetBasicInfo(handle, 0 /* FileBasicInfo */, out WindowsFileBasicInfo basic,
+                (uint)Marshal.SizeOf<WindowsFileBasicInfo>())
+            || !WindowsGetStandardInfo(handle, 1 /* FileStandardInfo */, out WindowsFileStandardInfo standard,
+                (uint)Marshal.SizeOf<WindowsFileStandardInfo>())
+            || !WindowsGetIdInfo(handle, 18 /* FileIdInfo */, out WindowsFileIdInfo id,
+                (uint)Marshal.SizeOf<WindowsFileIdInfo>()))
+            return false;
+        identity = WindowsHandleIdentity(id.VolumeSerialNumber, id.FileIdLow, id.FileIdHigh, standard.EndOfFile,
+            basic.LastWriteTime, basic.ChangeTime);
+        return true;
+    }
+
+    /// <summary>
+    /// True when <paramref name="path"/> is, without following a final link, a Unix FIFO, socket, character or block device:
+    /// an entry whose open can block or read endlessly. False for regular files, folders, links, missing entries, every
+    /// error and all other platforms (the open itself is still guarded by <see cref="OpenRead"/>). Never opens the entry.
+    /// </summary>
+    internal static bool IsUnixSpecialFile(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        try
+        {
+            if ((!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
+                || RuntimeInformation.ProcessArchitecture is not (Architecture.X64 or Architecture.Arm64))
+                return false;
+            if (UnixLStat(path, out FileStatus status) != 0) return false;
+            // S_IFIFO, S_IFCHR, S_IFBLK, S_IFSOCK.
+            return (status.Mode & UnixSpecialFileMask) is 0x1000 or 0x2000 or 0x6000 or 0xC000;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or ArgumentException
+            or DllNotFoundException or EntryPointNotFoundException or NotSupportedException)
+        {
+            return false;
+        }
     }
 
     private static FileStream OpenWindows(string path)
@@ -213,3 +315,10 @@ internal static class RegularProfileFile
         internal uint UserFlags;
     }
 }
+
+/// <summary>
+/// Cache-validation identity of a regular profile file (see <see cref="RegularProfileFile.TryGetIdentity(string)"/>).
+/// <see cref="InodeHigh"/> is the high half of a 128-bit Windows file id and zero elsewhere.
+/// </summary>
+internal readonly record struct RegularProfileFileIdentity(long Device, long Inode, long Size,
+    long ModifiedSeconds, long ModifiedNanoseconds, long ChangedSeconds, long ChangedNanoseconds, long InodeHigh = 0);

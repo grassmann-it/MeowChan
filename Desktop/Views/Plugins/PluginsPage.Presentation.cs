@@ -15,8 +15,6 @@ namespace MeowChan;
 
 public partial class PluginsPage
 {
-    private void RenderIdentity(PluginCatalogEntry entry) => RenderTechnicalIdentity(entry);
-
     // The reason and enabled state share one projection. The associated selectable
     // text remains keyboard reachable even though disabled buttons cannot take focus.
     private void SetAction(string name, string unavailableKey, bool available)

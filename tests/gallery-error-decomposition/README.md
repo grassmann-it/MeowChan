@@ -1,0 +1,142 @@
+# Gallery-error fresh-process decomposition
+
+Base: `ba1842af4` (includes native-pointer fix `ef5de36a4`). This change only
+provides helper entrypoints. **Program/registry wiring belongs to Mencius; workflow
+scheduling belongs to Kuhn.** Every split selector must start a separate smoke
+process; do not invoke the four helpers in sequence inside one process.
+
+## Exact wiring contract
+
+All methods are `internal static Task`, on `GalleryErrorInteractionChecks`, taking
+one `MainWindow owner` argument.
+
+| Proposed selector ID | Method | Exact old checks retained |
+| --- | --- | --- |
+| `gallery-errors-retirement-clip` | `RunRetirementClipAsync` | `CheckExternalTransportRetirementAsync`; `CheckNativeClipFeedbackAsync` |
+| `gallery-errors-layout-roots` | `RunLayoutRootsAsync` | `CheckContextLayoutRootsAsync`: external root false/true × post overlay false/true; each uses footer heights 180/280/180, real OS pointer entry, terminal pointer/timer retirement assertions |
+| `gallery-errors-notifications` | `RunNotificationsAsync` | `CheckNotificationTransportAsync`: overlay false/true × paused false/true; then `CheckImageNotificationAsync` |
+| `gallery-errors-failure-reader-return` | `RunFailureReaderReturnAsync` | `CheckExplicitActualFailureAsync`; `CheckActualMediaUnavailableAsync`; `CheckShellFailureAndReaderReturnAsync`: paused false/true |
+| Existing unsplit debug selector, unchanged | `RunAsync` | Entire historical sequence below, same fail-fast semantics |
+
+### Unsplit historical sequence
+
+1. External transport retirement.
+2. Native clip/focus feedback.
+3. Create verified audio/video clip and image fixtures.
+4. Four layout/root combinations.
+5. Four notification/transport combinations.
+6. Explicit current-generation media failure on a player that decoded real frames.
+7. Image notification.
+8. Actual missing verified media.
+9. Playing and paused shell failure/reader-return journeys.
+
+The split moves image notification next to the notification matrix, but the
+unsplit helper retains its exact position between explicit and missing-media
+failure. Across split groups every old check executes exactly once, with the
+same loop order within each matrix.
+
+### Failure/decoder coverage is not replaced
+
+`CheckExplicitActualFailureAsync` first requires real decoded frames, then calls
+`SetMediaUnavailable` for the current generation and checks native cleanup,
+neutral status, no stale playback/slideshow movement. This is the original
+explicit shell-failure injection, **not** a claim of a newly induced codec fault.
+`CheckActualMediaUnavailableAsync` deletes a manifest-bound asset and verifies
+actual missing-media rejection, reporting, disabled seek, no automatic retry or
+advance, and rejection of late notices after stop.
+
+Both playing/paused shell journeys retain actual decoder/audio readiness,
+`CheckRealShellPreferenceFailureAsync` (real settings publication IO fault,
+failed raw task and retained draft, preserved native intent, explicit durable
+retry) and `CheckRealShellReaderReturnAsync` (real reader-return path). Existing
+real-frame/audio evidence requirements, unavailable-audio branch, decoder errors,
+operation deadlines and hold intervals are unchanged. No invalid fixture is
+caught to continue with a shortened suite. The decomposition left every check implementation byte-identical to the base.
+The later reviewed native-readiness amendment is documented under Pinned reference.
+
+### Independent fixture/lifetime ownership
+
+Every entry retains the disposable-desktop authorization and configured pinned
+video-fixture gates. Each invocation owns its diagnostic trace/timer and temporary
+workspace, with the original finally cleanup. Retirement/clip and layout-root
+checks need no decoder asset and no longer materialize unused media. Notifications
+creates its own verified clip and image; failure/reader-return creates its own
+verified clip and missing-media fixture. No static cached fixture, previous-group
+window, decoder state, or profile is required. Existing per-check Fixture and
+shell-profile lifetimes are unchanged. Trace setup/flush and all deadlines remain
+unchanged; selected group failures propagate to the harness.
+
+## Bounded contracts
+
+Run explicitly from the repository root (requires the installed .NET 10 SDK;
+no Git executable, `.git` directory, history, or package feed is required):
+
+```sh
+python3 tests/gallery-error-decomposition/check_contract.py
+```
+
+The Python runner checks the entire implementation suffix against a pinned SHA-256
+reference (see below), then extracts and compiles the **actual new entrypoint/orchestration source** in a
+temporary dependency-free .NET console project. Test doubles record scheduling,
+not GUI success. Contracts cover all five exact schedules, four notification
+combinations, both reader states, fixture failures, fail-fast check failures,
+cleanup on failure/success, per-entry authorization/configured-fixture gates,
+non-decoder groups' independence from asset preparation, and invalid group values.
+No application/plugin build, shared project edit, full suite, CI or native run is
+part of these contracts.
+
+The mini-project has no package dependencies and uses an empty package-source
+configuration. Build and execution are separate subprocesses, bounded to **60s**
+and **15s** respectively; timeout or nonzero exit fails the test. MSBuild node
+reuse, MSBuild servers and shared compiler servers are disabled. The runner uses
+the temporary project as its working directory, avoiding repository-level SDK
+configuration leakage. It does not perform an application build.
+
+**Intentional discovery scope:** this nested `check_contract.py` is an explicit
+review/decomposition check, not part of root `unittest` discovery (its filename
+is not `test*.py`, and the directory is not a discovery package). Run the command
+above, or explicitly wire that command in a future job; do not assume root test
+discovery ran it. No discovery/CI wiring is added by this follow-up.
+
+### Pinned reference and future changes
+
+Original reference provenance: `GalleryErrorInteractionChecks.cs` at full commit
+`ba1842af424bc1275ec0d440fa89be009f7a072f`, after native pointer fix `ef5de36a4`.
+Reviewed amendment after ARM run `43938129569`, job `133548071463`: based on
+`b3339ec86`, only `EnterClosingRootAsync` changes in the implementation suffix.
+The amended source is identified by Git content blob `dbd46fffb7f9a86fd5d71913c9b6ffa79f1ae6c5`
+(identifier only; no Git lookup at test time). The preflight now accepts a live
+local hit when the top-level snapshot disagrees, matching `MediaNativeInput`.
+Both native motion acknowledgements now additionally require the actual event
+source in the target subtree and `target.IsPointerOver`. Screen containment,
+activation, two coordinates, two-second delivery deadlines, final footer/root
+over-state and terminal retirement assertions remain unchanged. No other check
+body or matrix changes. Native evidence and verification limits are recorded in
+`NativeReadinessEvidence.md` beside this file.
+
+The reference covers the suffix beginning at the exact `BOUNDARY` declaration in
+`check_contract.py` through EOF. Decode as UTF-8 with universal-newline
+normalization, then encode as UTF-8 and hash with SHA-256. Thus CRLF checkouts and
+LF source archives agree. Expected digest:
+
+```text
+30e0249daba7892eb73f24fa429487bc7b5857f7dc00d2bd868bdc1d7a1ada98
+```
+
+The digest is checked in, not obtained from Git at test time. It protects the
+historical implementation snapshot, not a prohibition on legitimate future
+changes. If those checks intentionally change, review the diff against the
+previous pinned revision, explicitly account for changed assertions/matrix
+coverage in this document, then update the digest **and provenance revision** in
+the same reviewed change. Update the boundary if the method is renamed. Never
+blindly refresh the hash to silence a failing preservation check. Scheduling
+changes above the boundary are covered separately by the executable contract.
+
+Prior history-independence validation: **2/2 Python contracts PASS**, also from a
+copied source tree without `.git`. After the native-readiness amendment: **3/3
+contracts PASS**, including a source guard for target-specific native delivery;
+extracted C# scheduling/guard/cleanup contracts PASS. Residual native verification: execute all four selectors in separate
+authorized macOS processes with the pinned fixture, require every mapped matrix
+case and normal stage completion; ensure a failed group does not suppress launch
+of other independent processes. The actual failing process must still report
+failure, not catch-and-continue. macOS native passes are not claimed here.

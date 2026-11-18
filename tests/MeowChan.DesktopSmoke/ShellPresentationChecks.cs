@@ -54,10 +54,10 @@ internal static class ShellPresentationChecks
         if (OperatingSystem.IsMacOS())
             Require(observedEntryFrames.Length > 0, "Native fullscreen entry produced no recorded resize observations.");
         Press(window, Key.F1);
-        Require(window.FindControl<Border>("ShellHelpOverlay")!.IsVisible, "F1 did not open fullscreen shortcut help.");
+        Require(MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true }, "F1 did not open the shortcuts window over fullscreen.");
         Press(window, Key.Escape);
-        Require(!window.FindControl<Border>("ShellHelpOverlay")!.IsVisible && window.WindowState == WindowState.FullScreen,
-            "Escape dismissed more than the topmost fullscreen help layer.");
+        await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
+        Require(window.WindowState == WindowState.FullScreen, "Escape dismissed more than the topmost fullscreen help layer.");
         Press(window, Key.Escape);
         try
         {

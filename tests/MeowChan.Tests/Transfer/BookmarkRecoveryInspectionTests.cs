@@ -525,7 +525,7 @@ public sealed class BookmarkRecoveryInspectionTests
         Assert.Equal(new[] { "synthetic-nonpayload-drift" }, Inventory(backup));
     }
 
-    [Theory]
+    [NonWindowsDirectoryRenameTheory]
     [InlineData(false)]
     [InlineData(true)]
     public void MissingOrReplacedLeasedDirectoryCannotMasqueradeAsAnEmptyStore(bool replacement)

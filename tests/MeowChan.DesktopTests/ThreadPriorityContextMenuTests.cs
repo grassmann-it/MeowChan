@@ -179,28 +179,12 @@ public sealed class ThreadPriorityContextMenuTests
         Assert.Same(rowListeners, rowEvent.GetValue(row));
     });
 
-    // Same pinned Avalonia 12.1.4 seam as PluginFooterLanguageTransitionBoundaryTests.
+    // Same pinned Avalonia 12.1.4 seam as PluginFooterLanguageTransitionBoundaryTests, shared as OwnedUiDispatcher.
     // This nonparallel collection keeps all collection mutation, clicks and disposal
     // on its owner; restore the process-primary slot without draining another queue.
-    private static void OnOwnedDispatcher(Action test)
-    {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread",
-            BindingFlags.Static | BindingFlags.NonPublic)
-            ?? throw new InvalidOperationException("Avalonia primary dispatcher slot is missing.");
-        object? previous = primary.GetValue(null);
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
-        try
-        {
-            primary.SetValue(null, owner);
-            owner.Invoke(() =>
-            {
-                owner.VerifyAccess();
-                Assert.Same(owner, Dispatcher.UIThread);
-                test();
-            }, DispatcherPriority.Send);
-        }
-        finally { primary.SetValue(null, previous); }
-    }
+    // The shared helper also empties the shortcut refresher registry, whose leftovers from other owners
+    // fail the host's own shortcut publish (DesktopSessionHost constructor).
+    private static void OnOwnedDispatcher(Action test) => OwnedUiDispatcher.Run(test);
 
     [Fact]
     public void BatchRevalidationRejectsRowsRetiredOrChangedAfterAnEarlierDispatch()

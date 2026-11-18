@@ -1,0 +1,128 @@
+# Source-stability run harness
+
+Runs the live protocol of [source-stability.md](source-stability.md) (section 3) and writes
+the evidence file of section 4. It never sends anything unless `--live` is given.
+
+## What a run does
+
+For each chan named in the manifest, per board, in this order and nothing else:
+
+1. GET the catalog (the URL is computed by the plugin's own code with no network).
+2. Pick the thread in the run: the user's thread URL, or the first catalog entry that has
+   at least one attachment and is not marked pinned/sticky by the source (a catalog without
+   attachment counts, such as Kohlchan, uses its first unpinned entry; this is recorded in
+   `details.selection`). Pinned flags (`sticky`, `pinned`, `pin`) are read from the saved
+   catalog JSON; where they are unknown (an HTML catalog such as 7chan) the first entry with an
+   attachment is taken as before. The number of pinned threads passed over is appended to
+   `details.selection` ("...; skipped 2 pinned threads") and kept in `details.pinnedThreadsSkipped`.
+   If every candidate is pinned, the first one is used and the note says so.
+3. GET the thread (through the production watch, so the archive is written by production code).
+4. GET the first image attachment of at most 2 MiB (the original). An attachment whose exact size exceeds the cap is
+   passed over; so is one whose displayed (rounded) size, `ProviderSizeHint` times 1.01, exceeds it (7chan shows
+   "(355.92KB, ...)"). Those skips are appended to `details.selection` ("...; original: skipped 2 image attachments whose
+   displayed size already exceeds the 2 MiB cap") and counted in `details.originalsSkippedByDisplayedSize`.
+
+A chan that lists boards by `boardsFromList` costs one more GET, the board list at `boardListUrl`.
+Caps: 8 MiB for metadata, 2 MiB for the original. Retries, HEAD, Range, thumbnails, a second
+media file and every redirect that is not in `plannedRedirects` are refused before the socket and
+recorded. The first unexpected response (challenge page, login, 4xx/5xx, wrong content type, empty
+body, size cap) stops that chan and is recorded in `failuresObserved`.
+
+A 200 page counts as a challenge only on strong signals: `cf-chl`, `challenge-platform`,
+`cf-browser-verification`, `ddos-guard`, `powblock`, `proof-of-work`, or a `<title>` of
+"Just a moment..." / "Attention Required". Words such as "captcha" or "enable JavaScript" appear on
+ordinary imageboard pages (post form, noscript notice) and do not stop a run. HTML catalogs (7chan) are
+accepted as HTML. After a board is done, its production thread watch is removed through the host and
+any later request that no armed step asked for, or that repeats the board's URLs, is a failure
+(`leftover-watch-request`).
+
+Integrity is strict and no exception is ever granted: expected vs received bytes, every provider
+hash and the SHA-256 of the received bytes are recorded, together with the MD5 of the received bytes (`original.receivedMd5` as hex,
+`receivedMd5Base64`) and the provider's size annotation (`original.providerSizeHint`), so a mismatch shows what the bytes really hash to; a mismatch is an integrity failure and the
+outcome is `fail`. A source that declares neither a size nor a hash (`integrityBasis: "none"`) passes only when the
+original's Content-Length, if declared, equals the received bytes, the saved file decodes through the gallery's codec, and
+the offline reopen works; the evidence records `contentLength`, `contentLengthMatched`, `decoded` and an `integrityNote`.
+A Content-Length mismatch, a file that does not decode (`no-provider-integrity-data`) or any provided size or hash that differs fails.
+
+Then the archive entry, the verified media file and the reader/gallery projection are checked in
+the same host. The driver then starts a second OS process (network namespace unshared with
+`bwrap`) that opens the same throwaway profile with a transport that rejects every request and
+checks thread and media again. The profile and all downloaded bytes are deleted at the end.
+
+The plugin bundle is the delivered one from the test output (`plugins/*.plugin.json`, `assemblies/`);
+the package file name and SHA-256, the assembly SHA-256, the execution revision and the description
+fingerprint (`SourceWording.DescriptionFingerprint`) are in the evidence. `expectedAssemblySha256`
+in the manifest ends the chan before any request if the delivered assembly differs.
+
+## Diagnostics (outside Git)
+
+Under `artifacts/stability/<run>/evidence/`, referenced by SHA-256 from the evidence file's `receipts`
+and request entries:
+
+- `bodies/<sha256>.body`: every metadata response (board list, catalog, thread, also a failing one). Never media.
+- `logs/<phase>-<chan>.log`: the host's Serilog events; `logs/workers-<phase>-<chan>.json`: plugin worker state and log lines.
+- `audit-<chan>.json`: every request row (sent or refused) with status, bytes, SHA-256 and response headers.
+- Per board in the evidence `details`: `captureWaitedMs` / `captureLimitMs` (default wait 120 s, `--capture-seconds`),
+  `thread` (catalog position, sticky/pinned/locked flags as delivered, opening post time, age in days) and, when a step did not
+  complete, `hostView` (thread activity, last check failure, the content capture/selection failure, request progress, work state, worker state and log tail).
+
+`--replay <run-dir> --only <chan> [--board <b>]` serves the saved bodies of that run to the production host and parser in a
+process with no network (`bwrap --unshare-net`) and stops after the thread is archived. It waits 10 s so the production watch can
+plan its downloads (media it asks for is refused and shows in the replay's audit), prints the host's view and the original the
+harness would arm, and exits 1 if the failure reproduces. Runs made before bodies were saved cannot be replayed.
+
+## Manifest
+
+```json
+{
+  "schemaVersion": 1,
+  "sources": [
+    {
+      "pluginId": "meowchan.source.vichan",
+      "sourceId": "lainchan",
+      "approval": "2026-11-11, chat",
+      "boards": [{"board": "sec"}, {"board": "lit"}, {"board": "music", "thread": "https://lainchan.org/music/res/1.html"}]
+    },
+    {
+      "pluginId": "meowchan.source.capybarachan",
+      "sourceId": "capybarachan",
+      "approval": "2026-11-11, chat",
+      "boardsFromList": 3,
+      "boardListUrl": "https://capybarachan.org/boards.js?json=1"
+    }
+  ]
+}
+```
+
+Optional per chan: `plannedRedirects` (`[{"from": "2ch.hk", "to": "2ch.su"}]`, exact hosts, at most
+four) and `expectedAssemblySha256`. Unknown fields, duplicates and out-of-range values fail closed.
+A chan that is not in the manifest gets no host and no request; `--only a,b` can only narrow it.
+The `boardListUrl` of CapybaraChan above is a guess: the plugin has no board-list endpoint, and the
+URL must be checked before approval.
+
+## Commands
+
+Dry run (verifies the payload, prints the exact request plan, sends nothing):
+
+    scripts/run-stability-live.py --manifest artifacts/stability-run.json
+
+Live run (after the user has approved each chan and date in chat):
+
+    scripts/run-stability-live.py --manifest artifacts/stability-run.json --live
+
+Build first with `nice -n 10 dotnet build tests/MeowChan.DesktopTests -c Debug -v q`. The driver
+refuses an uncommitted contract file. Exit codes: 0 all chans pass, 1 a chan failed (its evidence
+file is written), 2 usage, 3 infrastructure. `--selftest` runs both phases against an in-memory stub
+site in two real OS processes and needs no network and no manifest.
+
+Evidence files go to `plugins/Examples/<Plugin>/Evidence/stability-<YYYYMMDD>.json`, for a site of an
+engine-family plugin to `plugins/Examples/<Family>/Sites/<Site>/Evidence/stability-<YYYYMMDD>.json` (an existing
+file is never overwritten). The raw HTTP audits and the phase logs stay in
+`artifacts/stability/<run>/evidence/` outside Git; the evidence file names each with its SHA-256.
+
+## Test entry
+
+`StabilityRunLiveTests.RunTheRequestedPhase` is skipped unless `MEOWCHAN_STABILITY_RUN_MANIFEST`
+is set. The driver sets `..._MODE` (plan, online, offline, replay), `..._EVIDENCE`, `..._WORK`, `..._ONLY`
+and, for the online phase of `--live` only, `..._NETWORK=live` plus `..._LIVE=1`. The older
+`LiveSourceAcceptanceTests` are unchanged.

@@ -10,3 +10,5 @@
 /docs/native-video-macos-sources.md -text
 /docs/native-video-macos-source-manifest.json -text
 /docs/native-video-macos-COPYING -text
+# Bytes written by the released 1.0.2 stores; the tests pin their SHA-256 values, so no end-of-line conversion.
+/tests/Fixtures/persistence102/* -text

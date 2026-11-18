@@ -39,34 +39,49 @@ internal sealed partial class PluginSession : IAsyncDisposable
     private readonly RequestPolicyState _httpPolicy = new RequestPolicyState();
     private readonly DownloadQueue _queue;
     private readonly ILogger _logger;
+    private readonly Config _config;
     private readonly string _shippedDirectory;
-    private readonly string[] _repairRestrictedSourceIds;
+    // The saved size/MD5 exceptions as this session started with them; narrowed by RepairRestrictedSourceIds.
+    private readonly SourceMediaIntegrityPermission[] _savedSourcePermissions;
+    // Written only by startup (Volatile), read by the store's live restriction callback.
+    private string[] _repairRestrictedSourceIds;
     private readonly PluginWorkerLaunch _launch;
+    private readonly string _workerWorkspaceRoot;
+    private int _workspaceSweepStarted;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
     private readonly Dictionary<PluginSourceImageBoard, string> _sourceOwners = new();
     private string[] _warnings = Array.Empty<string>();
     private bool _disposed;
+    // The read-only startup probe, begun at most once before StartAsync (see BeginProbe).
+    private Task<StartupProbe>? _probe;
+    private CancellationTokenSource? _probeCancellation;
 
     internal IPluginProfileStore ProfileStore { get; }
     internal IPluginCompilationService CompilationService { get; }
     internal IPluginInstallationInventory Inventory { get; }
     internal PluginWorkerManager Runtime { get; }
     internal string PluginDirectory { get; }
+    /// <summary>The own on/off switch of each site of an engine-family chan plugin (the plugin stays the master switch).</summary>
+    internal ChanSiteSwitches SiteSwitches { get; }
     internal IReadOnlyList<PluginSourceImageBoard> Sources { get; private set; } = Array.Empty<PluginSourceImageBoard>();
     internal IReadOnlyList<string> Warnings => Volatile.Read(ref _warnings);
+    // Observation only: the early probe's completion, never its result.
+    internal Task? StartupProbeForTests { get { lock (_state) return _probe; } }
 
     internal PluginSession(string profileDirectory, ProfileLease profileLease, Config config, DownloadQueue queue, ILogger logger,
         Func<HttpClient>? transportFactory = null,
         Func<string, string, SourceMediaIntegrityPolicyService>? sourceMediaIntegrityPolicyFactory = null,
         SemaphoreSlim? sourcePermissionCommitGate = null)
     {
-        _queue = queue; _logger = logger;
+        _queue = queue; _logger = logger; _config = config ?? throw new ArgumentNullException(nameof(config));
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
         string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
+        SiteSwitches = new ChanSiteSwitches(profileDirectory, logger);
         _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
-        _repairRestrictedSourceIds = config.SourceMediaIntegrityPermissions
-            .Where(pair => pair.Value.AllowProviderSizeMd5Mismatch).Select(pair => pair.Value.SourceId).Distinct(StringComparer.Ordinal).ToArray();
+        _savedSourcePermissions = config.SourceMediaIntegrityPermissions.Values.Where(permission => permission.AllowProviderSizeMd5Mismatch).ToArray();
+        // Until the plugin profile is read, every saved exception restricts (nothing is known to be retired yet).
+        _repairRestrictedSourceIds = RepairRestrictedSourceIds(_savedSourcePermissions, null, Array.Empty<PluginCandidateObservation>());
         string compilerDirectory = Path.Combine(applicationDirectory, "plugin-compiler");
         string executableSuffix = OperatingSystem.IsWindows() ? ".exe" : string.Empty;
         CompilationService = new PluginCompilationService(new PluginCompilerOptions(
@@ -77,8 +92,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
         {
             lock (_state)
                 return Sources.Where(source => source.MediaIntegrityPolicy is SourceMediaIntegrityPolicyService policy && policy.GetView().IsGranted)
-                    .Select(source => source.Name).Concat(_repairRestrictedSourceIds).Distinct(StringComparer.Ordinal).ToArray();
-        }, sourcePermissionCommitGate);
+                    .Select(source => source.Name).Concat(Volatile.Read(ref _repairRestrictedSourceIds)).Distinct(StringComparer.Ordinal).ToArray();
+        }, sourcePermissionCommitGate) { SupersededBundledPlugins = ChanSourceFamilies.Successors, Logger = logger };
         Runtime = new PluginWorkerManager(new PluginWorkerOptions
         {
             MaximumProductionWorkers = config.PluginMaximumProductionWorkers,
@@ -92,6 +107,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         _filterStages = new FilterStageCoordinator(profileDirectory, profileLease,
             new FilterStageOptions { WorkerTemporaryBytes = Runtime.GetTemporaryBytes });
         string working = Path.Combine(profileDirectory, "plugin-workers");
+        _workerWorkspaceRoot = working;
         _launch = new PluginWorkerLaunch(Path.Combine(applicationDirectory, "plugin-worker", "MeowChan.PluginWorker" + executableSuffix),
             Array.Empty<string>(), working);
         // The optional factory only replaces network transport; this session owns the returned client.
@@ -116,6 +132,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     {
         long started = Stopwatch.GetTimestamp();
         bool succeeded = false;
+        using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement span = PluginStartupDiagnostics.Span("total");
         try
         {
             await StartCoreAsync(cancellationToken).ConfigureAwait(false);
@@ -124,41 +141,56 @@ internal sealed partial class PluginSession : IAsyncDisposable
         finally { LogStartupPhase("total", null, started, succeeded); }
     }
 
+    /// <summary>What the read-only probe observed; activation consumes it unchanged and in inventory order.</summary>
+    private sealed record StartupProbe(PluginProfileSnapshot Previous, PluginInstallationCandidate[] Ordered,
+        HashSet<string> ShippedIds, PluginCandidateObservation[] Probed, List<string> Warnings);
+
+    /// <summary>
+    /// Starts the read-only part of plugin startup (profile read, inventory, import, describe) in the background,
+    /// at most once, so it overlaps the window construction instead of waiting for it. It never writes the plugin
+    /// profile, activates, grants or routes anything: StartAsync awaits it where the probe ran before and then
+    /// performs provenance, activation and adapters unchanged. The probe ends with the session lifetime or
+    /// <paramref name="cancellationToken"/>; DisposeAsync waits until it has (describe workers reaped).
+    /// </summary>
+    internal void BeginProbe(CancellationToken cancellationToken)
+    {
+        lock (_state)
+        {
+            if (_disposed || _probe != null) return;
+            CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, cancellationToken);
+            _probeCancellation = source;
+            // Never on the caller's (UI) thread: even the synchronous prefix reads files.
+            _probe = Task.Run(() => ProbeAsync(source.Token), CancellationToken.None);
+        }
+    }
+
     private async Task StartCoreAsync(CancellationToken cancellationToken)
     {
         using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
         CancellationToken token = linked.Token;
-        Directory.CreateDirectory(PluginDirectory);
-        Directory.CreateDirectory(_launch.WorkingDirectory);
-        PluginProfileSnapshot previous = await MeasureStartupAsync("profile-read", null, () => ProfileStore.ReadAsync(token)).ConfigureAwait(false);
-        PluginInventory shipped = await MeasureStartupAsync("inventory-shipped", null, () => Inventory.ScanAsync(_shippedDirectory, token)).ConfigureAwait(false);
-        PluginInventory local = await MeasureStartupAsync("inventory-local", null, () => Inventory.ScanAsync(PluginDirectory, token)).ConfigureAwait(false);
-        List<string> warnings = shipped.Diagnostics.Concat(local.Diagnostics).Select(item => item.Message).ToList();
+        Task<StartupProbe>? early;
+        CancellationTokenSource? earlyCancellation;
+        lock (_state) { early = _probe; earlyCancellation = _probeCancellation; }
+        StartupProbe probe;
+        if (early is null) probe = await ProbeAsync(token).ConfigureAwait(false);
+        else
+        {
+            // This start's token also ends the early probe, and startup returns only after the probe has
+            // really stopped, as when it ran inline: no describe worker or cache write outlives StartAsync.
+            Task<StartupProbe> pending = early;
+            using (token.Register(static source => CancelQuietly((CancellationTokenSource)source!), earlyCancellation))
+                probe = await MeasureStartupAsync("probe-wait", null, () => pending).ConfigureAwait(false);
+            token.ThrowIfCancellationRequested();
+        }
+        (PluginProfileSnapshot previous, PluginInstallationCandidate[] ordered, HashSet<string> shippedIds,
+            PluginCandidateObservation[] probed, List<string> warnings) = probe;
+        // An exception owned by a replaced single-site plugin that already left the profile restricts nothing any more.
+        Volatile.Write(ref _repairRestrictedSourceIds, RepairRestrictedSourceIds(_savedSourcePermissions, previous, probed));
+        // Before any adapter exists: a site of a family plugin takes over its replaced single-site plugin's state.
+        SiteSwitches.MigrateFrom(previous);
         List<PluginCandidateObservation> observations = new();
         List<DeliveredCandidateProvenance> delivered = new();
-        HashSet<string> shippedIds = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
-            .Select(item => item.CandidateId).ToHashSet(StringComparer.Ordinal);
-        PluginInstallationCandidate[] ordered = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
-            .Concat(local.Candidates).ToArray();
-        // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
-        SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
-        using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
-        PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
-        {
-            await lanes.WaitAsync(token).ConfigureAwait(false);
-            try
-            {
-                PluginActivationSnapshot? previousOwner = previous.Plugins.FirstOrDefault(plugin =>
-                    plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
-                return await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
-                    ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
-                        ? imports.ImportBundleAsync(candidate.Path, ct)
-                        : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
-                    (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
-            }
-            finally { lanes.Release(); }
-        })).ConfigureAwait(false);
-        imports.Dispose(); // The shared toolchain result serves this probe pass only.
+        MeowChan.Diagnostics.PerformanceDiagnostics.Measurement provenance = PluginStartupDiagnostics.Span("provenance");
         for (int index = 0; index < ordered.Length; index++)
         {
             token.ThrowIfCancellationRequested();
@@ -168,6 +200,8 @@ internal sealed partial class PluginSession : IAsyncDisposable
             {
                 try
                 {
+                    using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement proof = PluginStartupDiagnostics.Span("provenance-candidate",
+                        MeowChan.Diagnostics.PerformanceDiagnostics.Enabled ? Path.GetFileName(candidate.Path) : null);
                     delivered.Add(await PluginInstallationInventory.RecordDeliveredAsync(_shippedDirectory, candidate,
                         observation.Artifact, observation.Description, token).ConfigureAwait(false));
                 }
@@ -180,13 +214,25 @@ internal sealed partial class PluginSession : IAsyncDisposable
             observations.Add(observation);
             if (observation.Problem is not null) warnings.Add(observation.Problem);
         }
+        provenance.Dispose();
+        PluginStartupDiagnostics.RecordResources("plugin.startup.activation", "begin");
         PluginProfileSnapshot activated = await MeasureStartupAsync("activation", null,
-            () => ProfileStore.ApplyBundledStartupAsync(observations, delivered, _repairRestrictedSourceIds, previous.Revision, token)).ConfigureAwait(false);
+            () => ProfileStore.ApplyBundledStartupAsync(observations, delivered, Volatile.Read(ref _repairRestrictedSourceIds), previous.Revision, token)).ConfigureAwait(false);
+        PluginStartupDiagnostics.RecordResources("plugin.startup.activation", "end");
+        // A replaced single-site chan plugin whose site switch holds its state leaves the profile (backup kept) and its
+        // cached builds go through the cache cleanup; its record would only show a stale state and keep files alive.
+        activated = await RetireReplacedSingleSitePluginsAsync(activated, token).ConfigureAwait(false);
+        // The plugins retired just now leave their (owner-keyed, unusable) exceptions behind as well.
+        Volatile.Write(ref _repairRestrictedSourceIds, RepairRestrictedSourceIds(_savedSourcePermissions, activated, probed));
         foreach (PluginActivationSnapshot activation in activated.Plugins)
             PluginStartupDiagnostics.LogActivationProblem(_logger, activation);
         long adaptersStarted = Stopwatch.GetTimestamp();
+        using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement adapters = PluginStartupDiagnostics.Span("adapters-routing");
         lock (_state) _grants = activated;
+        // A bundled identity replaced by its delivered family plugin keeps its record but never owns a source again.
+        IReadOnlySet<string> superseded = SupersededBundledPlugins.InProfile(activated, ChanSourceFamilies.Successors);
         List<(PluginActivationSnapshot Activation, PluginDescription Description)> descriptions = activated.Plugins
+            .Where(plugin => !superseded.Contains(plugin.PluginId))
             .Select(plugin => (Activation: plugin, Description: plugin.Active?.Description ?? plugin.LastGood?.Description))
             .Where(item => item.Description != null).Select(item => (item.Activation, item.Description!)).ToList();
         // Activation owns explicit conflict choices. Keep an unavailable source's last declaration
@@ -202,6 +248,13 @@ internal sealed partial class PluginSession : IAsyncDisposable
             if (activation.Problem != null) warnings.Add(description.Name + ": " + activation.Problem);
             foreach (SourceDescription source in description.Sources)
             {
+                // A booru post-search source is served by the booru host services. It is never a chan board adapter,
+                // so it must not appear in the chan source registry, URL routing or board/thread watch paths.
+                if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+                {
+                    RegisterBooruSource(activation, description, source, descriptions, activated);
+                    continue;
+                }
                 string[] owners = descriptions.Where(item => item.Description.Sources.Any(value => value.SourceId == source.SourceId))
                     .Select(item => item.Activation.PluginId).Distinct(StringComparer.Ordinal).ToArray();
                 if (owners.Length > 1 && (!activated.SelectedSourceOwners.TryGetValue(source.SourceId, out string? selected) || selected != activation.PluginId)) continue;
@@ -209,7 +262,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 _services.Add(media);
                 PluginSourceImageBoard adapter = new(description, source.SourceId, ct => GetWorkerAsync(activation.PluginId, ct), media, _logger, _queue)
                 { MediaIntegrityPolicy = _sourceMediaIntegrityPolicyFactory?.Invoke(activation.PluginId, source.SourceId) };
-                if (!activation.Enabled || activation.Active == null) adapter.SetEnabled(false);
+                ApplyAdapterState(adapter, activation, activation.Enabled);
                 sources.Add(adapter);
                 lock (_state) _sourceOwners.Add(adapter, activation.PluginId);
             }
@@ -234,6 +287,114 @@ internal sealed partial class PluginSession : IAsyncDisposable
         }
         Volatile.Write(ref _warnings, warnings.Distinct(StringComparer.Ordinal).ToArray());
         LogStartupPhase("adapters-routing", null, adaptersStarted, true);
+    }
+
+    private async Task<PluginProfileSnapshot> RetireReplacedSingleSitePluginsAsync(PluginProfileSnapshot activated, CancellationToken token)
+    {
+        if (ProfileStore is not PluginProfileStore store) return activated;
+        SupersededRetirement retirement;
+        try { retirement = await store.RetireSupersededAsync(SiteSwitches.TakenOver(), activated.Revision, token).ConfigureAwait(false); }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or PluginProfileConflictException
+            or InvalidDataException or ArgumentException)
+        {
+            // Retirement is housekeeping: the replaced records keep never owning a source, so startup goes on unchanged.
+            _logger.Warning(exception, "The replaced single-site chan plugins could not be retired from the plugin profile; they stay as inactive history");
+            return activated;
+        }
+        if (retirement.RetiredPluginIds.Count == 0) return retirement.Profile;
+        _logger.Information("Retired {Count} single-site chan plugins replaced by their family plugins ({PluginIds}); their sites keep their own switches and the previous plugin state is kept in {Backup}",
+            retirement.RetiredPluginIds.Count, retirement.RetiredPluginIds, Path.GetFileName(retirement.BackupPath));
+        try
+        {
+            PluginCacheCleanupResult cleanup = await CompilationService.CleanupOnlyAsync(retirement.ReleasedExecutionRevisions,
+                retirement.ReleasedCompilationFingerprints, retirement.Profile.RetainedExecutionRevisions,
+                retirement.Profile.RetainedCompilationFingerprints, token).ConfigureAwait(false);
+            if (cleanup.RemovedArtifacts + cleanup.RemovedCompilations > 0 || cleanup.Diagnostics.Count > 0)
+                _logger.Information("Removed {Artifacts} cached builds and {Compilations} compilations of the retired plugins ({Diagnostics} kept with a warning)",
+                    cleanup.RemovedArtifacts, cleanup.RemovedCompilations, cleanup.Diagnostics.Count);
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        { _logger.Warning(exception, "The cached builds of the retired plugins stay in the plugin cache"); }
+        return retirement.Profile;
+    }
+
+    /// <summary>
+    /// The sources whose saved size/MD5 exception keeps a changed bundled build that declares them in repair review.
+    /// An exception is keyed by its owner plugin. Once that owner is a replaced 1.0.x single-site chan plugin that has
+    /// been retired from the plugin profile, nothing can use the exception again (the family successor starts strict,
+    /// and the Sources page can neither show nor revoke it), so it must not keep the family's updates in review. It keeps
+    /// counting while the profile is not known yet (<paramref name="profile"/> null), while the old record is still in
+    /// the profile, while a candidate with the old identity is installed, and for any other owner or source.
+    /// </summary>
+    internal static string[] RepairRestrictedSourceIds(IEnumerable<SourceMediaIntegrityPermission> permissions,
+        PluginProfileSnapshot? profile, IEnumerable<PluginCandidateObservation> candidates)
+    {
+        HashSet<string>? present = profile is null ? null : profile.Plugins.Select(plugin => plugin.PluginId)
+            .Concat(candidates.Select(candidate => candidate.PluginId)).ToHashSet(StringComparer.Ordinal);
+        return permissions.Where(permission => permission.AllowProviderSizeMd5Mismatch
+                && (present is null || !OwnedByRetiredReplacedPlugin(permission, present)))
+            .Select(permission => permission.SourceId).Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    private static bool OwnedByRetiredReplacedPlugin(SourceMediaIntegrityPermission permission, IReadOnlySet<string> present) =>
+        ChanSourceFamilies.Replaced.TryGetValue(permission.PluginOwnerId, out (string Family, string SourceId) replaced)
+        && string.Equals(replaced.SourceId, permission.SourceId, StringComparison.Ordinal)
+        && !present.Contains(permission.PluginOwnerId);
+
+    private static void CancelQuietly(CancellationTokenSource source)
+    {
+        try { source.Cancel(); }
+        catch (ObjectDisposedException) { } // The session was disposed; its lifetime already ended the probe.
+    }
+
+    // Read-only: creates the plugin/worker directories and fills plugin-cache (its own area), never the profile.
+    private async Task<StartupProbe> ProbeAsync(CancellationToken token)
+    {
+        // Before the first worker of this session: what a forced exit of an earlier run left in plugin-workers is stale (the profile lease is ours).
+        if (Interlocked.Exchange(ref _workspaceSweepStarted, 1) == 0)
+            await Task.Run(() => PluginWorkerWorkspaceSweep.Sweep(_workerWorkspaceRoot, _logger), CancellationToken.None).ConfigureAwait(false);
+        PluginStartupDiagnostics.RecordResources("plugin.startup.probe", "begin");
+        StartupProbe probe = await MeasureStartupAsync("probe", null, () => ProbeCoreAsync(token)).ConfigureAwait(false);
+        PluginStartupDiagnostics.RecordResources("plugin.startup.probe", "end");
+        return probe;
+    }
+
+    private async Task<StartupProbe> ProbeCoreAsync(CancellationToken token)
+    {
+        // The batch starts verifying the delivered toolchain right away, so the hashing overlaps the profile read and
+        // the inventory scans instead of running later under the build gate (each import re-checks it before use).
+        using IPluginBundleImportBatch imports = ((IPluginBundleInstaller)CompilationService).BeginImportBatch();
+        Directory.CreateDirectory(PluginDirectory);
+        Plugins.PluginImportStaging.CleanupAbandoned(PluginDirectory);
+        Directory.CreateDirectory(_launch.WorkingDirectory);
+        PluginProfileSnapshot previous = await MeasureStartupAsync("profile-read", null, () => ProfileStore.ReadAsync(token)).ConfigureAwait(false);
+        PluginInventory shipped = await MeasureStartupAsync("inventory-shipped", null, () => Inventory.ScanAsync(_shippedDirectory, token)).ConfigureAwait(false);
+        PluginInventory local = await MeasureStartupAsync("inventory-local", null, () => Inventory.ScanAsync(PluginDirectory, token)).ConfigureAwait(false);
+        List<string> warnings = shipped.Diagnostics.Concat(local.Diagnostics).Select(item => item.Message).ToList();
+        HashSet<string> shippedIds = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
+            .Select(item => item.CandidateId).ToHashSet(StringComparer.Ordinal);
+        PluginInstallationCandidate[] ordered = shipped.Candidates.Where(item => item.Kind == PluginCandidateKind.PrebuiltManifest)
+            .Concat(local.Candidates).ToArray();
+        // Probes overlap in bounded lanes; observations, provenance and activation keep inventory order.
+        SemaphoreSlim lanes = new(StartupProbeLanes, StartupProbeLanes);
+        using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement pass = PluginStartupDiagnostics.Span("probe-pass");
+        PluginCandidateObservation[] probed = await Task.WhenAll(ordered.Select(async candidate =>
+        {
+            await lanes.WaitAsync(token).ConfigureAwait(false);
+            try
+            {
+                PluginActivationSnapshot? previousOwner = previous.Plugins.FirstOrDefault(plugin =>
+                    plugin.Candidates.Any(item => item.CandidateId == candidate.CandidateId));
+                return await PluginStartupDiagnostics.ObserveAsync(candidate, previousOwner,
+                    ct => candidate.Kind == PluginCandidateKind.PrebuiltManifest
+                        ? imports.ImportBundleAsync(candidate.Path, ct)
+                        : CompilationService.BuildAsync(candidate.Path, cancellationToken: ct),
+                    (artifact, ct) => DescribeStartupAsync(previous, candidate.CandidateId, artifact, ct), _logger, token).ConfigureAwait(false);
+            }
+            finally { lanes.Release(); }
+        })).ConfigureAwait(false);
+        imports.Dispose(); // The shared toolchain result serves this probe pass only.
+        return new(previous, ordered, shippedIds, probed, warnings);
     }
 
     private Task<T> MeasureStartupAsync<T>(string phase, string? candidate, Func<Task<T>> operation) =>
@@ -311,17 +472,25 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     private IPluginHostServices CreateServices(PluginDescription description)
     {
+        // A post-search plugin runs with the booru host services that the desktop composition also uses.
+        if (TryGetBooruServices(description.PluginId, out IPluginHostServices booru)) return booru;
+        return new HostServices(GetPluginHttp(description), _filterStages, description.PluginId);
+    }
+
+    private PluginHostHttp GetPluginHttp(PluginDescription description)
+    {
         PluginHostHttp http;
         lock (_state)
         {
             if (!_pluginHttp.TryGetValue(description.PluginId, out http!))
             {
-                http = new PluginHostHttp(_transport, _httpPolicy, description.Sources);
+                http = new PluginHostHttp(_transport, _httpPolicy, description.Sources,
+                    maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours));
                 _pluginHttp.Add(description.PluginId, http);
                 _services.Add(http);
             }
         }
-        return new HostServices(http, _filterStages, description.PluginId);
+        return http;
     }
 
     private void OnLifecycleChanged(PluginLifecycleChange change)
@@ -333,10 +502,10 @@ internal sealed partial class PluginSession : IAsyncDisposable
             _active[change.PluginId] = activation with { Enabled = change.Enabled, LifecycleRevision = change.LifecycleRevision };
             foreach (KeyValuePair<PluginSourceImageBoard, string> item in _sourceOwners.Where(item => item.Value == change.PluginId))
             {
-                bool enabled = change.Enabled && activation.Active != null;
+                bool enabled = change.Enabled && activation.Active != null && SiteSwitches.IsEnabled(change.PluginId, item.Key.Name);
                 // Invalidate before returning from the synchronous lifecycle notification.
                 SetSourceMediaIntegrityActive(item.Key, enabled);
-                item.Key.SetEnabled(enabled);
+                ApplyAdapterState(item.Key, activation, change.Enabled);
             }
             if (!change.Enabled) _clients.Remove(change.PluginId, out client);
         }
@@ -346,6 +515,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
             lock (_state) _draining.Add(draining);
             _ = draining.ContinueWith(completed => { lock (_state) _draining.Remove(completed); }, TaskScheduler.Default);
         }
+        NotifyBooruLifecycle(change.PluginId);
     }
 
     public async ValueTask DisposeAsync()
@@ -360,6 +530,17 @@ internal sealed partial class PluginSession : IAsyncDisposable
         ProfileStore.LifecycleChanged -= OnLifecycleChanged;
         ProfileStore.GrantChanged -= OnGrantChanged;
         await _lifetime.CancelAsync().ConfigureAwait(false);
+        // An early probe that StartAsync never awaited (or abandoned) ends here, before the runtime and
+        // compiler go away: describe workers are reaped and no cache write outlives the session.
+        Task<StartupProbe>? probe;
+        lock (_state) probe = _probe;
+        if (probe != null)
+        {
+            try { await probe.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch (Exception exception) { _logger.Debug(exception, "The plugin startup probe ended with a failure during disposal."); }
+        }
+        _probeCancellation?.Dispose();
         foreach (PluginSourceImageBoard source in Sources) source.Dispose();
         await Runtime.DisposeAsync().ConfigureAwait(false);
         await _filterStages.DisposeAsync().ConfigureAwait(false);
@@ -375,7 +556,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
 
     private sealed class HostServices(PluginHostHttp http, FilterStageCoordinator stages, string pluginId) : IPluginHostServices
     {
-        public Task<HostHttpResult> SendHttpAsync(HostHttpRequest request, PluginOperationContext operation, CancellationToken cancellationToken) => http.SendAsync(request, cancellationToken);
+        // Pass the typed operation through: post-search requests resolve the booru job bound
+        // to it for the whole operation and fail closed without one.
+        public Task<HostHttpResult> SendHttpAsync(HostHttpRequest request, PluginOperationContext operation, CancellationToken cancellationToken) => http.SendAsync(request, operation, cancellationToken);
         public Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, PluginOperationContext operation, CancellationToken cancellationToken) =>
             stages.ReadImageAsync(pluginId, assetToken, offset, count, operation, cancellationToken);
     }

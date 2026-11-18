@@ -1,0 +1,6 @@
+# G4 baseline (2026-11-16): bubble KeyDown handlers on list-like controls that mention Key.Enter/Space/Return. Recorded as found, not individually reviewed.
+# Keys: file :: receiver.KeyDown(bubble) -> handler. Fixed/removed sites must be deleted here (stale entries fail).
+Desktop/Views/Archive/ArchivePage.Reader.cs :: posts.KeyDown(bubble) -> lambda
+Desktop/Views/Archive/ArchivePage.Resume.cs :: posts.KeyDown(bubble) -> lambda
+Desktop/Views/Sources/SourcesPage.axaml :: <ListBox KeyDown> -> OnWatchKeyDown
+Desktop/Views/Sources/SourcesPage.axaml :: <plugins:PluginSelectionList KeyDown> -> OnSourceListKeyDown

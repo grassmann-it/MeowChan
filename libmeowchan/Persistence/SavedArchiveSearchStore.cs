@@ -29,7 +29,8 @@ internal sealed class SavedSearchRevisionException(SavedArchiveSearchSnapshot cu
 /// <summary>Passive optional profile store. Only the existing session host owns its lease.</summary>
 internal sealed class SavedArchiveSearchStore
 {
-    internal const int MaximumSearches = 500;
+    /// <summary>Default saved-search limit. The limit is a setting; reads accept up to <see cref="ProfileStoreLimits.SavedSearchCeiling"/>.</summary>
+    internal const int DefaultSearches = ProfileStoreLimits.DefaultSavedSearches;
     internal const int MaximumFileBytes = 8 * 1024 * 1024;
     private readonly ProfileLease _lease;
     private readonly string _path;
@@ -156,11 +157,13 @@ internal sealed class SavedArchiveSearchStore
             throw new SavedSearchRevisionException(disk);
         List<SavedArchiveSearch> candidate = disk.Searches.ToList();
         change(candidate);
-        if (candidate.Count > MaximumSearches) throw new InvalidDataException("At most 500 saved searches are supported.");
+        // Only growth is refused: with the limit lowered below the saved count, renames and removals still work.
+        if (candidate.Count > _lease.StoreLimits.SavedSearches && candidate.Count > disk.Searches.Count)
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.SavedSearches, _lease.StoreLimits.SavedSearches,
+                "The saved search limit is reached.");
         long next = checked(revision + 1);
         string json = SerializeForCommit(next, candidate);
-        if (File.Exists(_path) && !Read(_path + ".bak", missingIsEmpty: true).CanWrite)
-            throw new InvalidOperationException("The saved searches backup contains unsupported data. No files were changed.");
+        if (File.Exists(_path)) PrepareBackupForRotation();
         BeforeAdmittedMutationForTests?.Invoke(admission);
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
         _current = new(next, Array.AsReadOnly(candidate.ToArray()), SavedSearchStoreState.Ready);
@@ -191,14 +194,40 @@ internal sealed class SavedArchiveSearchStore
     }
     // InvalidDataException derives from SystemException, not IOException.
     private static bool IsReadError(Exception error) => error is InvalidDataException or IOException or UnauthorizedAccessException or JsonException or ArgumentException or InvalidOperationException or OverflowException or FormatException or KeyNotFoundException or DecoderFallbackException or NotSupportedException;
+    // The commit replaces the backup with the current file (valid: the load state allowed the commit). A damaged backup is set
+    // aside as .bad first, so the good primary is never lost and the evidence is kept. A backup of a newer version or one that
+    // cannot be opened is not ours to move: the commit is refused with a message that names the file.
+    private void PrepareBackupForRotation()
+    {
+        string backupPath = _path + ".bak";
+        SavedArchiveSearchSnapshot backup;
+        try { backup = Read(backupPath, missingIsEmpty: true); }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        { throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable); }
+        catch (Exception error) when (IsReadError(error))
+        {
+            if (AtomicJsonFile.SetAsideDamagedBackup(backupPath) == null)
+                throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable);
+            return;
+        }
+        if (!backup.CanWrite) throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion);
+    }
     private static string FileIdentity(string path)
     {
-        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream stream = Open(path);
         return Convert.ToHexString(SHA256.HashData(stream));
+    }
+    // The system messages of open failures name the full profile path, and load errors reach the dialog's text.
+    private static FileStream Open(string path)
+    {
+        try { return new(path, FileMode.Open, FileAccess.Read, FileShare.Read); }
+        catch (FileNotFoundException) { throw new FileNotFoundException("The saved searches file is missing."); }
+        catch (UnauthorizedAccessException) { throw new UnauthorizedAccessException("The saved searches file could not be read."); }
+        catch (IOException) { throw new IOException("The saved searches file could not be read."); }
     }
     private static string ReadBounded(string path)
     {
-        using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        using FileStream stream = Open(path);
         if (stream.Length > MaximumFileBytes) throw new InvalidDataException("Saved searches exceed 8 MiB.");
         using MemoryStream contents = new();
         byte[] chunk = new byte[8192];
@@ -227,7 +256,7 @@ internal sealed class SavedArchiveSearchStore
         bool unknownEnvelopeFields = root.EnumerateObject().Any(x => x.Name is not ("schemaVersion" or "revision" or "searches"));
         bool unsupported = unknownEnvelopeFields;
         JsonElement array = root.GetProperty("searches");
-        if (array.ValueKind != JsonValueKind.Array || array.GetArrayLength() > MaximumSearches) throw new InvalidDataException("Invalid saved searches list.");
+        if (array.ValueKind != JsonValueKind.Array || array.GetArrayLength() > ProfileStoreLimits.SavedSearchCeiling) throw new InvalidDataException("Invalid saved searches list.");
         List<SavedArchiveSearch> entries = new();
         HashSet<Guid> ids = new();
         foreach (JsonElement item in array.EnumerateArray())
@@ -280,7 +309,9 @@ internal sealed class SavedArchiveSearchStore
     }
     private static string SerializeForCommit(long revision, IReadOnlyList<SavedArchiveSearch> searches)
     {
-        string json = Serialize(revision, searches);
+        // AtomicJsonFile writes this platform-independent form. Check the exact bytes that will be published, so the
+        // admission boundary is identical on platforms whose text serializers produce CRLF.
+        string json = Serialize(revision, searches).Replace("\r\n", "\n", StringComparison.Ordinal);
         if (Encoding.UTF8.GetByteCount(json) > MaximumFileBytes)
             throw new InvalidDataException("Saved searches exceed 8 MiB.");
         return json;

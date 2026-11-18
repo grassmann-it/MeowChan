@@ -61,7 +61,9 @@ internal sealed class UpdateSession : IAsyncDisposable
         try
         {
             await RefreshAsync().ConfigureAwait(false);
-            await Task.Delay(TimeSpan.FromSeconds(30), _time, _lifetime.Token).ConfigureAwait(false);
+            // MEOWCHAN_UPDATE_SIMULATE: no network is involved, so a tester does not need to wait out the start-up quiet time.
+            bool simulating = UpdateService.ParseSimulated(Environment.GetEnvironmentVariable(UpdateService.SimulateVariable)) != null;
+            await Task.Delay(TimeSpan.FromSeconds(simulating ? 3 : 30), _time, _lifetime.Token).ConfigureAwait(false);
             while (true)
             {
                 await CheckAsync(UpdateCheckKind.Automatic).ConfigureAwait(false);
@@ -114,12 +116,13 @@ internal sealed class UpdateSession : IAsyncDisposable
         }
     }
 
-    internal async Task SkipAsync()
+    /// <param name="expected">When given, only that version is skipped; a newer release found meanwhile stays visible.</param>
+    internal async Task SkipAsync(SemanticVersion? expected = null)
     {
         await _operations.WaitAsync(_lifetime.Token).ConfigureAwait(false);
         try
         {
-            if (View.Update is not { } update) return;
+            if (View.Update is not { } update || expected != null && !update.Version.Equals(expected)) return;
             await _service.SkipVersionAsync(update.Version, _lifetime.Token).ConfigureAwait(false);
             await RefreshCoreAsync(clearManual: true).ConfigureAwait(false);
         }
@@ -169,7 +172,12 @@ internal sealed class UpdateSession : IAsyncDisposable
         _lifetime.Cancel();
         if (_background != null) await _background.ConfigureAwait(false);
         await _operations.WaitAsync().ConfigureAwait(false);
-        try { _client.Dispose(); lock (_gate) Changed = null; }
-        finally { _operations.Release(); }
+        try { _service.Dispose(); _client.Dispose(); lock (_gate) Changed = null; }
+        finally
+        {
+            _operations.Release();
+            _operations.Dispose();
+            _lifetime.Dispose();
+        }
     }
 }

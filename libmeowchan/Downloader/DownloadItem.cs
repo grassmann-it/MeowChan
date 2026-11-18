@@ -53,6 +53,9 @@ public class DownloadItem
     public string Variant { get; }
     public long? ExpectedSize { get; }
     public string? ExpectedMd5 { get; }
+    // Runtime-only transport claim. It is intentionally not part of the persisted media identity;
+    // Booru originals derive it from the provider extension and validate it before publication.
+    internal string? ExpectedMimeType { get; init; }
     public string? ExpectedSha256 { get; init; }
     public string? ExpectedSha1 { get; init; }
     public MeowChan.Storage.MediaProviderSizeHint? ProviderSizeHint { get; init; }

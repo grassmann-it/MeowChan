@@ -12,6 +12,8 @@ public sealed record WorkStatusPresentation(string Status, string Progress, stri
     public string ExceptionHint { get; init; } = string.Empty;
     public string IssueDetails { get; init; } = string.Empty;
     public string ContextDetails { get; init; } = string.Empty;
+    /// <summary>The generic "needs a retry" state: the next step is the retry command, not waiting.</summary>
+    public bool NeedsIntervention { get; init; }
 }
 
 /// <summary>Passive, shared projection of authoritative work; displaying it never schedules work.</summary>
@@ -56,7 +58,8 @@ public static class WorkStatusFormatter
                 MediaWorkStatus.Expired => "work.missingCount",
                 _ => "work.pendingCount"
             };
-            string summary = Texts.T(state, group.Count(), cause);
+            int groupSize = group.Count();
+            string summary = Texts.Count(state, groupSize, groupSize, cause);
             progress += " · " + summary;
             if (group.Key.Status is MediaWorkStatus.Waiting or MediaWorkStatus.NeedsIntervention or MediaWorkStatus.Expired)
             {
@@ -97,13 +100,16 @@ public static class WorkStatusFormatter
                 details.Add(retry); context.Add(retry);
             }
         }
+        // Only the first five items are listed; say so instead of silently hiding the rest.
+        if (missing.Length > 5) details.Add(Texts.T("work.moreItems", missing.Length - 5));
         double completion = work.Media.Count == 0 ? 0 : 100d * work.SavedMedia / work.Media.Count;
         bool canRetry = work.Intent != WorkIntent.Suppressed && missing.Any(item => !item.ManualAttempt);
         return new WorkStatusPresentation(status, progress, string.Join(Environment.NewLine, details), completion, canRetry)
         {
             ExceptionHint = string.Join(" · ", exceptions),
             IssueDetails = string.Join(Environment.NewLine, issues.Distinct()),
-            ContextDetails = string.Join(Environment.NewLine, context.Distinct())
+            ContextDetails = string.Join(Environment.NewLine, context.Distinct()),
+            NeedsIntervention = key == "work.intervention"
         };
     }
 }

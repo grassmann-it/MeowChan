@@ -135,6 +135,8 @@ internal static class VideoGalleryChecks
             await capture.WaitForExitAsync();
             Require(capture.ExitCode == 0, "Private Xvfb video capture failed.");
         }
+        // GA-01/GA-02: a mouse click on the transport, a toolbar toggle and the volume slider gives the keys back to the picture.
+        await GalleryPointerFocusChecks.CheckVideoControlsAsync(window, viewer);
         Click(Control<Button>(viewer, "GalleryNext"));
         await Program.WaitUntilAsync(() => viewer.CaptureState().PostId == "2001" && Control<Button>(viewer, "GalleryActual").IsEnabled);
         Click(Control<Button>(viewer, "GalleryPrevious"));
@@ -167,6 +169,7 @@ internal static class VideoGalleryChecks
         var player = new LibVLCSharp.Shared.MediaPlayer(engine);
         var media = new LibVLCSharp.Shared.Media(engine, fixture, LibVLCSharp.Shared.FromType.FromPath);
         var surface = new SoftwareVideoSurface(image, player);
+        Exception? failureBeforeCleanup = null;
         try
         {
             Require(player.Play(media), "Software video fixture was rejected.");
@@ -199,11 +202,15 @@ internal static class VideoGalleryChecks
             }
             Console.WriteLine($"SMOKE production software surface: real frames={surface.PresentedFrames}, native displayed={media.Statistics.DisplayedPictures}, varied pixels, pause/resume and native snapshot passed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await Task.Run(() => { player.Stop(); player.Dispose(); surface.Dispose(); media.Dispose(); engine.Dispose(); });
-            await Program.WaitUntilAsync(() => image.Source == null);
-            surfaceWindow.Close();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                await Task.Run(() => { player.Stop(); player.Dispose(); surface.Dispose(); media.Dispose(); engine.Dispose(); });
+                await Program.WaitUntilAsync(() => image.Source == null);
+                surfaceWindow.Close();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in VideoGalleryChecks: " + exception));
         }
     }
     private static T Control<T>(GalleryViewer viewer, string name) where T : Control => viewer.GetGalleryVisualDescendants().OfType<T>().Single(control => control.Name == name);

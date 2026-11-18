@@ -16,18 +16,18 @@ public sealed class MediaLibraryIndexTests
     private static readonly byte[] Other = { 4, 5, 6, 7 };
 
     // A saved file; Post/Position bind it to a captured attachment, null leaves it unassigned.
-    private sealed record File_(string Name, string MediaId, byte[] Bytes, string? Post = null, int Position = 0);
+    internal sealed record File_(string Name, string MediaId, byte[] Bytes, string? Post = null, int Position = 0);
 
-    private static string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+    internal static string Sha(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
     private static string Md5(byte[] bytes) => Convert.ToBase64String(MD5.HashData(bytes));
     private static string Url(string name) => "https://offline.invalid/" + name;
 
-    private static CapturedAttachment Attachment(int position, string mediaId, string name, byte[]? bytes = null) =>
+    internal static CapturedAttachment Attachment(int position, string mediaId, string name, byte[]? bytes = null) =>
         new(position, mediaId, "original", Url(name), name, ExpectedSize: bytes?.Length, ExpectedMd5: bytes == null ? null : Md5(bytes))
         { ExpectedSha256 = bytes == null ? null : Sha(bytes) };
 
     /// <summary>Writes a manifest like real captures do: files plus exact bindings to post attachment versions.</summary>
-    private static async Task WriteManifestAsync(string directory, ResourceId resource, params File_[] files)
+    internal static async Task WriteManifestAsync(string directory, ResourceId resource, params File_[] files)
     {
         Directory.CreateDirectory(directory);
         Dictionary<string, object> entries = new(), assets = new();
@@ -57,7 +57,7 @@ public sealed class MediaLibraryIndexTests
         await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new { Version = 3, Entries = entries, Assets = assets, AttachmentBindings = bindings }));
     }
 
-    private static async Task CaptureAsync(string profile, ResourceId id, string title, string directory, params CapturedPost[] posts)
+    internal static async Task CaptureAsync(string profile, ResourceId id, string title, string directory, params CapturedPost[] posts)
     {
         using ProfileLease lease = ProfileLease.Acquire(profile);
         await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
@@ -198,8 +198,8 @@ public sealed class MediaLibraryIndexTests
         MediaLibrarySnapshot built = await BuildAsync(temp.Path);
         string path = Path.Combine(temp.Path, "cache", MediaLibraryIndexCache.FileName);
 
-        MediaLibraryIndexCache.Save(path, built);
-        MediaLibrarySnapshot? loaded = MediaLibraryIndexCache.Load(path);
+        MediaLibraryIndexCacheSync.Save(path, built);
+        MediaLibrarySnapshot? loaded = MediaLibraryIndexCacheSync.Load(path);
 
         Assert.NotNull(loaded);
         Assert.Equal(built.Entries.OrderBy(Key), loaded!.Entries.OrderBy(Key));
@@ -210,18 +210,21 @@ public sealed class MediaLibraryIndexTests
         Assert.Equal(2, progress.Last().Reused);
 
         string valid = await File.ReadAllTextAsync(path);
-        foreach (string damaged in new[] { "{bad", valid.Replace("\"Version\":1", "\"Version\":2"),
+        // Version 4 is current (manifest file identities); version 3 is still read; an older or a newer document is no cache and rebuilds.
+        Assert.Contains("\"Version\":4", valid);
+        Assert.NotNull(MediaLibraryIndexCacheSync.Load(path));
+        foreach (string damaged in new[] { "{bad", valid.Replace("\"Version\":4", "\"Version\":5"), valid.Replace("\"Version\":4", "\"Version\":2"),
                      valid.Replace("\"Threads\":[", "\"Extra\":1,\"Threads\":["),
                      valid.Replace("\"Sha\":\"" + Sha(Shared) + "\"", "\"Sha\":\"nothex\"") })
         {
             await File.WriteAllTextAsync(path, damaged);
-            Assert.Null(MediaLibraryIndexCache.Load(path));
+            Assert.Null(MediaLibraryIndexCacheSync.Load(path));
         }
         File.Delete(path);
-        Assert.Null(MediaLibraryIndexCache.Load(path));
+        Assert.Null(MediaLibraryIndexCacheSync.Load(path));
         // Saving again replaces without leaving backups or preserved copies behind.
-        MediaLibraryIndexCache.Save(path, built);
-        MediaLibraryIndexCache.Save(path, built);
+        MediaLibraryIndexCacheSync.Save(path, built);
+        MediaLibraryIndexCacheSync.Save(path, built);
         Assert.Equal(new[] { path }, Directory.GetFiles(Path.GetDirectoryName(path)!));
     }
 
@@ -253,12 +256,12 @@ public sealed class MediaLibraryIndexTests
         Assert.Equal(threads * perThread / 2, built.Entries.Count(entry => entry.Presence == MediaLibraryPresence.Present));
         Assert.True(cold < TimeSpan.FromSeconds(60), "Cold build took " + cold);
 
-        watch.Restart();
         List<MediaLibraryProgress> progress = new();
         MediaLibrarySnapshot warm = await BuildAsync(temp.Path, built, progress);
         Assert.Equal(threads, progress.Last().Reused);
         Assert.Equal(built.Entries.Count, warm.Entries.Count);
-        Assert.True(watch.Elapsed < cold, "Reusing every thread was not faster than reading them: " + watch.Elapsed + " vs " + cold);
+        // Reuse is proved by the progress counter above (every thread reused, none read again); comparing two wall-clock
+        // samples of the same build says nothing more and flips on a loaded machine.
     }
 
     [Fact]

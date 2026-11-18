@@ -4,6 +4,7 @@ using System.Reflection;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
@@ -18,7 +19,8 @@ using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopSmoke;
 
-// Held async callbacks + actual controls/menu event boundaries, not network or OS-native input.
+// Held callbacks and synthetic control/menu unit checks, plus an explicitly native
+// row/blank pointer-and-focus check. No network or personal desktop input.
 internal static class DiagnosticsScopedRetryChecks
 {
     private const BindingFlags Private = BindingFlags.NonPublic | BindingFlags.Instance;
@@ -26,7 +28,7 @@ internal static class DiagnosticsScopedRetryChecks
 
     internal static async Task RunAsync(MainWindow window)
     {
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         string language = Texts.Language;
         MainWindow.WorkspacePage previousPage = window.SelectedPage;
@@ -56,13 +58,13 @@ internal static class DiagnosticsScopedRetryChecks
         }
         try
         {
-            window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            window.ShowStatus(StatusSegment.Diagnostics);
             page = Create();
             page.Refresh(View(first, second), true);
             DataGrid grid = page.FindControl<DataGrid>("DiagnosticsGrid")!;
             await Program.WaitUntilAsync(() => { window.UpdateLayout(); return grid.Bounds.Height > 40; });
             DiagnosticEntry[] entries = Entries(grid);
-            // Test genuine extended selection gestures against realized cells.
+            // Synthetic Avalonia unit checks against realized cells (not native acceptance).
             await PressRowAsync(window, grid, entries[0], KeyModifiers.None, false);
             await PressRowAsync(window, grid, entries[1], OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control, false);
             Require(grid.SelectedItems.Count == 2, "Ctrl-click did not extend diagnostic selection.");
@@ -89,8 +91,10 @@ internal static class DiagnosticsScopedRetryChecks
             Require(grid.SelectedItems.Count == 1 && ReferenceEquals(grid.SelectedItem, entries[1]),
                 "Right click on an unselected row retained unrelated marks.");
             menu.Close();
-            await PressBlankAsync(window, grid);
-            Require(grid.SelectedItems.Count == 0 && !menu.IsOpen, "Blank-space context request retained stale targets.");
+            Console.WriteLine("SMOKE diagnostics synthetic: extended selection and context/Opening unit checks passed; not OS input acceptance.");
+            await CheckNativeBlankGestureAsync(window, page, grid, first);
+            // Restore the unfiltered projection before the frozen-scope unit checks.
+            Click(page, "DiagnosticClearFilters"); await FlushAsync();
 
             // Keyboard menu freezes selected/filtered scopes before later filter/row expansion.
             grid.SelectedItem = entries[0]; grid.SelectedItems.Clear(); grid.SelectedItem = entries[0];
@@ -226,10 +230,10 @@ internal static class DiagnosticsScopedRetryChecks
         Require(!dismiss.IsEnabled, "Acknowledgement enabled without a selected entry.");
         grid.SelectedItem = store.Entries.Single(entry => entry.Id == first.Id);
         await FlushAsync();
-        Require(dismiss.IsEnabled && AutomationProperties.GetName(dismiss) == Texts.T("feedback.dismiss"),
+        Require(dismiss.IsEnabled && AutomationProperties.GetName(dismiss) == Texts.T("feedback.markRead"),
             "Central acknowledgement missing localized selection action: enabled=" + dismiss.IsEnabled
             + "; selected=" + (grid.SelectedItem as SessionFeedback)?.Id + "; expected=" + first.Id
-            + "; name=" + AutomationProperties.GetName(dismiss) + "; label=" + Texts.T("feedback.dismiss"));
+            + "; name=" + AutomationProperties.GetName(dismiss) + "; label=" + Texts.T("feedback.markRead"));
         string? details = page.FindControl<TextBox>("SessionFeedbackDetails")!.Text;
         Click(page, "DismissSessionFeedbackButton");
         Require(store.IsDismissed(first) && !store.IsDismissed(other) && store.Entries.Count == 2
@@ -242,8 +246,8 @@ internal static class DiagnosticsScopedRetryChecks
             foreach (string current in new[] { "en", "de" })
             {
                 Texts.SetLanguage(current); page.AttachFeedback(store);
-                Require(AutomationProperties.GetName(dismiss) == Texts.T("feedback.dismiss")
-                    && Equals(dismiss.Content, Texts.T("feedback.dismiss")) && !dismiss.IsEnabled,
+                Require(AutomationProperties.GetName(dismiss) == Texts.T("feedback.markRead")
+                    && dismiss.Content is StackPanel { Children: [_, TextBlock label] } && label.Text == Texts.T("feedback.markRead") && !dismiss.IsEnabled,
                     "Acknowledgement lost localization or dismissal state after redraw.");
             }
         }
@@ -293,28 +297,158 @@ internal static class DiagnosticsScopedRetryChecks
         pointer.Capture(null);
         await FlushAsync();
     }
-    private static async Task PressBlankAsync(MainWindow window, DataGrid grid)
+    private static async Task CheckNativeBlankGestureAsync(MainWindow window, DiagnosticsPage page, DataGrid grid, DesktopThreadEntry first)
     {
-        Point point = default;
+        // Two fixture failures + platform information fill the compact viewport. Use
+        // the production filter to leave ONE row, not a grid/window height override.
+        TextBox query = page.FindControl<TextBox>("DiagnosticTextFilter")!;
+        query.Text = first.Snapshot.Id.Source + " /" + first.Snapshot.Id.Board + "/ #" + first.Snapshot.Id.Thread;
+        await Program.WaitUntilAsync(() => Entries(grid).Length == 1 && Entries(grid)[0].Target?.WatchId == first.WatchId);
+        DiagnosticEntry entry = Entries(grid).Single();
+        grid.SelectedItem = entry;
+        using MediaNativeInput native = new(window); // Enforces disposable desktop/Xvfb; no synthetic fallback.
+
+        async Task FocusFilterAsync()
+        {
+            query.BringIntoView();
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                Point? center = query.TranslatePoint(new Point(query.Bounds.Width / 2, query.Bounds.Height / 2), window);
+                return center is Point point && VisibleBounds(window, query).Contains(point)
+                    && window.InputHitTest(point) is Visual hit && hit.GetSelfAndVisualAncestors().Contains(query);
+            }, () => $"diagnostic filter bounds={query.Bounds}; focus={query.IsKeyboardFocusWithin}");
+            await native.ClickAsync(query);
+            await Program.WaitUntilAsync(() => query.IsKeyboardFocusWithin);
+        }
+
+        await FocusFilterAsync();
+        grid.ScrollIntoView(entry, null);
+        grid.BringIntoView();
+        Point rowPoint = default;
         await Program.WaitUntilAsync(() =>
         {
-            grid.BringIntoView(); window.UpdateLayout();
-            for (double y = grid.Bounds.Height - 4; y > grid.Bounds.Height / 2; y -= 4)
+            window.UpdateLayout();
+            DataGridRow? row = grid.GetVisualDescendants().OfType<DataGridRow>()
+                .SingleOrDefault(candidate => ReferenceEquals(candidate.DataContext, entry));
+            DataGridCell? cell = row?.GetVisualDescendants().OfType<DataGridCell>()
+                .FirstOrDefault(candidate => candidate.IsEffectivelyVisible && candidate.Bounds.Width > 0 && candidate.Bounds.Height > 0);
+            if (cell?.TranslatePoint(new Point(cell.Bounds.Width / 2, cell.Bounds.Height / 2), window) is not Point point
+                || !VisibleBounds(window, cell).Contains(point) || window.InputHitTest(point) is not Visual hit
+                || !hit.GetSelfAndVisualAncestors().Contains(row!)) return false;
+            rowPoint = point; return true;
+        }, () => $"native diagnostic row not hit-ready; grid={grid.Bounds}; rows={Entries(grid).Length}");
+        bool rowPressed = false, rowFocused = false, blankPressed = false;
+        void ObserveFocus(object? sender, FocusChangedEventArgs e)
+        {
+            if (e.Source is Visual target && target.GetSelfAndVisualAncestors().Contains(grid)) rowFocused = true;
+        }
+        void ObservePress(object? sender, PointerPressedEventArgs e)
+        {
+            if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed || e.Source is not Visual source) return;
+            DataGridRow? row = source.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault();
+            if (ReferenceEquals(row?.DataContext, entry)) rowPressed = true;
+            else if (row == null && source.GetSelfAndVisualAncestors().Contains(grid)) blankPressed = true;
+        }
+        grid.AddHandler(InputElement.PointerPressedEvent, ObservePress, RoutingStrategies.Tunnel, handledEventsToo: true);
+        grid.AddHandler(InputElement.GotFocusEvent, ObserveFocus, RoutingStrategies.Bubble, handledEventsToo: true);
+        try
+        {
+            await native.RightClickAsync(window, rowPoint);
+            // Opening the popup may move focus onward to its menu. Observe the actual
+            // grid focus transition during the press, not an incidental final owner.
+            await Program.WaitUntilAsync(() => rowPressed && rowFocused && grid.ContextMenu!.IsOpen,
+                () => $"rowPress={rowPressed}; gridFocusObserved={rowFocused}; menu={grid.ContextMenu!.IsOpen}");
+            Require(ReferenceEquals(grid.SelectedItem, entry), "Native row context click lost its exact selected target.");
+            grid.ContextMenu!.Close();
+            await FocusFilterAsync(); // Prove row and blank handling without pre-focusing the grid.
+            grid.BringIntoView();
+            await FlushAsync();
+            window.UpdateLayout();
+
+            // The rows presenter can be sized to its realized rows on native macOS
+            // while the DataGrid itself still owns the available client area. Derive
+            // the gesture from the grid's clipped bounds, not from an implementation
+            // detail of the presenter. This is one deterministic point, never a scan
+            // over chrome or an invented Source=grid coordinate.
+            Point blankPoint;
+            string blankCapability;
+            if (!TryGetBlankPoint(window, grid, entry, out blankPoint, out blankCapability))
             {
-                if (grid.TranslatePoint(new Point(20, y), window) is not Point actual
-                    || window.InputHitTest(actual) is not Visual hit
-                    || !hit.GetSelfAndVisualAncestors().Contains(grid)
-                    || hit.GetSelfAndVisualAncestors().OfType<DataGridRow>().Any()) continue;
-                point = actual; return true;
+                // Row context input remains a native acceptance check. A platform
+                // that exposes no pointer-reachable blank geometry cannot prove the
+                // optional deselection gesture; the synthetic selection/context-menu
+                // checks above still run and must not be hidden behind this capability.
+                Console.WriteLine("SMOKE diagnostics native: row context focus passed; blank-area pointer capability unavailable ("
+                    + blankCapability + "); synthetic checks retained; " + native.Backend);
+                return;
             }
-            return false;
-        });
-        InputElement hit = (InputElement)window.InputHitTest(point)!;
-        using Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true);
-        hit.RaiseEvent(new PointerPressedEventArgs(hit, pointer, window, point, 0,
-            new PointerPointProperties(RawInputModifiers.RightMouseButton, PointerUpdateKind.RightButtonPressed), KeyModifiers.None));
-        pointer.Capture(null);
-        await FlushAsync();
+            Require(grid.SelectedItems.Count == 1 && query.IsKeyboardFocusWithin,
+                "Native blank gesture did not start with a selected row and focus outside the grid.");
+            await native.RightClickAsync(window, blankPoint);
+            await Program.WaitUntilAsync(() => blankPressed && grid.SelectedItems.Count == 0 && !grid.ContextMenu!.IsOpen,
+                () => $"blankPress={blankPressed}; selected={grid.SelectedItems.Count}; menu={grid.ContextMenu!.IsOpen}");
+            Require(query.IsKeyboardFocusWithin, "Native blank context click stole focus from the filter.");
+            Console.WriteLine("SMOKE diagnostics native: filtered single-row viewport, row context focus and blank deselection passed; " + native.Backend);
+        }
+        finally
+        {
+            grid.RemoveHandler(InputElement.PointerPressedEvent, ObservePress);
+            grid.RemoveHandler(InputElement.GotFocusEvent, ObserveFocus);
+            grid.ContextMenu?.Close();
+        }
     }
+
+    private static bool TryGetBlankPoint(Window window, DataGrid grid, DiagnosticEntry entry,
+        out Point point, out string capability)
+    {
+        point = default;
+        capability = "unknown";
+        DataGridRow? row = grid.GetVisualDescendants().OfType<DataGridRow>()
+            .SingleOrDefault(candidate => ReferenceEquals(candidate.DataContext, entry));
+        if (row?.TranslatePoint(new Point(0, row.Bounds.Height), window) is not Point bottom)
+        {
+            capability = "the filtered row has no window geometry";
+            return false;
+        }
+
+        Rect available = VisibleBounds(window, grid);
+        double top = Math.Max(available.Top, bottom.Y);
+        if (available.Width <= 0 || available.Bottom <= top)
+        {
+            capability = $"grid has no clipped area below the row; grid={grid.Bounds}; client={window.ClientSize}";
+            return false;
+        }
+
+        Point candidate = new(available.Center.X, (top + available.Bottom) / 2);
+        if (window.InputHitTest(candidate) is not Visual hit)
+        {
+            capability = $"grid client area is not pointer hit-testable; grid={grid.Bounds}; client={window.ClientSize}";
+            return false;
+        }
+        Visual[] ancestors = hit.GetSelfAndVisualAncestors().ToArray();
+        if (!ancestors.Contains(grid) || ancestors.OfType<DataGridRow>().Any())
+        {
+            capability = "grid client area is covered by a row or is outside the DataGrid hit-test path";
+            return false;
+        }
+
+        point = candidate;
+        capability = "available";
+        return true;
+    }
+
+    private static Rect VisibleBounds(Window window, Control control)
+    {
+        if (!control.IsEffectivelyVisible || control.TranslatePoint(default, window) is not Point origin) return default;
+        Rect result = new Rect(origin, control.Bounds.Size).Intersect(new Rect(window.ClientSize));
+        foreach (Control clip in control.GetVisualAncestors().OfType<Control>().Where(candidate => candidate.ClipToBounds))
+        {
+            if (clip.TranslatePoint(default, window) is not Point position) return default;
+            result = result.Intersect(new Rect(position, clip.Bounds.Size));
+        }
+        return result;
+    }
+
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }
 }

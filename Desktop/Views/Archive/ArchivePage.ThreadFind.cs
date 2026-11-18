@@ -10,6 +10,7 @@ using Avalonia.VisualTree;
 using System.Linq;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
 
@@ -28,13 +29,13 @@ public partial class ArchivePage
     {
         // One local tunnel registration, before native Button.Enter click handling.
         // No XAML bubble registration and no handledEventsToo replay after a click.
-        Control<StackPanel>("ReaderFindBar").AddHandler(KeyDownEvent,
+        ReaderFindBar.AddHandler(KeyDownEvent,
             OnThreadFindKeyDown, RoutingStrategies.Tunnel);
         LocalizeThreadFind();
     }
 
     private bool IsThreadFindSource(object? source) => source is Avalonia.Visual visual
-        && visual.GetSelfAndVisualAncestors().Contains(Control<StackPanel>("ReaderFindBar"));
+        && visual.GetSelfAndVisualAncestors().Contains(ReaderFindBar);
 
     // Test seam: lets a harness make the one index build fail without touching real data.
     internal Func<ArchivedThreadView, string, CancellationToken, ReaderThreadFindIndex>? ThreadFindIndexFactory { get; set; }
@@ -42,15 +43,18 @@ public partial class ArchivePage
     private void OnOpenThreadFind(object? sender, RoutedEventArgs e)
     {
         if (_ended || _busy || IsReaderDialogOpen || _thread == null) return;
-        Control<StackPanel>("ReaderFindBar").IsVisible = true;
+        // AP2: "Find in saved thread" and its reader.find shortcut always open the bar in the Text scope; the
+        // scope chip switches to File name or SHA-256 while it stays open.
+        ReaderFindScope.Scope = SearchScope.Text;
+        ReaderFindBar.IsVisible = true;
         // Opening is explicit; asynchronous completion and hit navigation never take focus.
-        Control<TextBox>("ReaderFindQuery").Focus();
+        ReaderFindQuery.Focus();
         ThreadFindTask = SearchThreadFindAsync();
     }
 
     private void OnThreadFindQueryChanged(object? sender, TextChangedEventArgs e)
     {
-        if (this.FindControl<StackPanel>("ReaderFindBar")?.IsVisible == true)
+        if (this.FindControl<StackPanel>("ReaderFindBar")?.IsVisible == true && ReaderScope == SearchScope.Text)
             ThreadFindTask = SearchThreadFindAsync();
     }
 
@@ -61,12 +65,13 @@ public partial class ArchivePage
         _threadFindResult = null;
         _threadFindCursor = -1;
         _threadFindStatus = "readerFind.ready";
-        Control<StackPanel>("ReaderFindBar").IsVisible = false;
+        ReaderFindCarryOffer.Hide();
+        ReaderFindBar.IsVisible = false;
         LocalizeThreadFind();
     }
 
     private bool AcceptThreadFind(long request, ReaderThreadFindIndex result) => !_ended
-        && request == _threadFindRequest && Control<StackPanel>("ReaderFindBar").IsVisible
+        && request == _threadFindRequest && ReaderFindBar.IsVisible && ReaderScope == SearchScope.Text
         && _thread != null && result.Matches(_thread.Summary.Id, _thread.Summary.Revision);
 
     // Validate the original input, not a prefix truncated by TextBox.MaxLength.
@@ -81,7 +86,7 @@ public partial class ArchivePage
         _threadFindResult = null;
         _threadFindCursor = -1;
         var thread = _thread;
-        string query = Control<TextBox>("ReaderFindQuery").Text ?? "";
+        string query = ReaderFindQuery.Text ?? "";
         _threadFindStatus = ThreadFindQueryStatus(query);
         LocalizeThreadFind();
         if (_ended || thread == null || _threadFindStatus != "readerFind.searching") return;
@@ -116,7 +121,12 @@ public partial class ArchivePage
         _threadFindCursor = forward ? ReaderThreadFindIndex.Next(_threadFindCursor, result.Hits.Count)
             : ReaderThreadFindIndex.Previous(_threadFindCursor, result.Hits.Count);
         if (_threadFindCursor >= 0)
-            ShowPost(result.Texts[result.Hits[_threadFindCursor].TextIndex].PostId);
+        {
+            ReaderFindText hit = result.Texts[result.Hits[_threadFindCursor].TextIndex];
+            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId);
+            ShowPost(hit.PostId);
+            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId); // The page may have been rebuilt around the hit.
+        }
         LocalizeThreadFind();
     }
     private void OnNextThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(true);
@@ -139,9 +149,24 @@ public partial class ArchivePage
     private void OnThreadFindKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
-            || !Control<StackPanel>("ReaderFindBar").IsVisible || !IsThreadFindSource(e.Source)) return;
+            || !ReaderFindBar.IsVisible || !IsThreadFindSource(e.Source)) return;
+        if (TryMoveThreadFindByShortcut(e)) return;
         int gesture = ThreadFindGesture(e.Key, e.KeyModifiers);
         if (gesture == 0) return; // Space, Tab, modified Enter/Escape retain native ownership.
+        // The first Escape empties a typed query (SearchBox); only Escape in an empty query or on a button closes the bar.
+        if (gesture == 2 && SearchBox.OwnsEscape(e.Source)) return;
+        // The scope chip keeps its own Enter (opens the scope menu).
+        if (gesture != 2 && e.Source is Avalonia.Visual chip && chip.GetSelfAndVisualAncestors().Contains(ReaderFindScope)) return;
+        if (gesture != 2 && ReaderScope != SearchScope.Text)
+        {
+            // File name and SHA-256: Enter in the field or on Search opens the result dialog; Enter on another
+            // button runs that button; Shift+Enter has no hit to go back to.
+            if (gesture != 1) return;
+            e.Handled = true;
+            if (FocusedFindButton(e.Source) is { Name: "ReaderFindClose" }) CloseThreadFind();
+            else RunReaderScope(ReaderScopedBox);
+            return;
+        }
         e.Handled = true;
         if (gesture == 2) CloseThreadFind();
         else if (gesture == 1 && FocusedFindButton(e.Source) is { } button)
@@ -163,21 +188,21 @@ public partial class ArchivePage
 
     private void LocalizeThreadFind()
     {
-        Control<Button>("ReaderFindOpen").Content = Texts.T("readerFind.open");
-        Control<TextBox>("ReaderFindQuery").Watermark = Texts.T("readerFind.query");
-        Control<Button>("ReaderFindPrevious").Content = Texts.T("readerFind.previous");
-        Control<Button>("ReaderFindNext").Content = Texts.T("readerFind.next");
-        Control<Button>("ReaderFindClose").Content = Texts.T("readerFind.close");
-        Control<Button>("ReaderFindRetry").Content = Texts.T("readerFind.retry");
-        Control<Button>("ReaderFindRetry").IsVisible = _threadFindStatus == "readerFind.failed";
+        ReaderFindOpen.Content = Texts.T("readerFind.open");
+        ReaderFindQuery.PlaceholderText = Texts.T("readerFind.query");
+        ReaderFindPrevious.Content = Texts.T("readerFind.previous");
+        ReaderFindNext.Content = Texts.T("readerFind.next");
+        HeaderBar.MakeClose(ReaderFindClose, Texts.T("readerFind.close"));
+        ReaderFindRetry.Content = Texts.T("readerFind.retry");
+        ReaderFindRetry.IsVisible = _threadFindStatus == "readerFind.failed";
         var result = _threadFindResult;
         bool hits = result?.Hits.Count > 0;
-        Control<Button>("ReaderFindPrevious").IsEnabled = hits;
-        Control<Button>("ReaderFindNext").IsEnabled = hits;
-        Control<TextBlock>("ReaderFindStatus").Text = result == null ? Texts.T(_threadFindStatus)
-            : string.Format(Texts.T("readerFind.count"), _threadFindCursor + 1, result.Hits.Count)
+        ReaderFindPrevious.IsEnabled = hits;
+        ReaderFindNext.IsEnabled = hits;
+        ReaderFindStatus.Text = result == null ? Texts.T(_threadFindStatus)
+            : Texts.Count("readerFind.count", result.Hits.Count, _threadFindCursor + 1, result.Hits.Count)
                 + (result.Truncation == ReaderFindTruncation.None ? "" : " · " + Texts.T("readerFind.truncated"));
-        TextBlock excerpt = Control<TextBlock>("ReaderFindExcerpt");
+        TextBlock excerpt = ReaderFindExcerpt;
         excerpt.Inlines!.Clear();
         if (result != null && _threadFindCursor >= 0)
         {
@@ -190,11 +215,12 @@ public partial class ArchivePage
             excerpt.Inlines.Add(new Run { Text = Texts.T("readerFind.location", text.PostId,
                 field, hit.Offset + 1, hit.Length) + "\n" });
             excerpt.Inlines.Add(new Run { Text = snippet.Before });
-            excerpt.Inlines.Add(new Run { Text = snippet.Match, FontWeight = FontWeight.Bold });
+            excerpt.Inlines.Add(new Run { Text = snippet.Match, FontWeight = FontWeight.SemiBold });
             excerpt.Inlines.Add(new Run { Text = snippet.After });
             if (text.Field == ReaderFindField.Body && hit.Offset + hit.Length > 65536)
                 excerpt.Inlines.Add(new Run { Text = "\n" + Texts.T("readerFind.beyondDisplay") });
         }
+        UpdateUnifiedSearch(); // the File name and SHA-256 scopes replace status and actions
     }
 
     internal static (string Before, string Match, string After) ThreadFindSnippet(string text, int offset, int length)

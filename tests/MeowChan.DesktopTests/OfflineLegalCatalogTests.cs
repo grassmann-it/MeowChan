@@ -52,6 +52,9 @@ public sealed class OfflineLegalCatalogTests
         if (OperatingSystem.IsMacOS())
             Assert.Contains(catalog.Search("dolby_surround_decoder"), e => e.Name == "VideoLAN.LibVLC.Mac");
         Assert.Contains(catalog.Search("Rasmus Andersson"), e => e.Name == "Avalonia.Fonts.Inter");
+        Assert.Contains(catalog.Entries, e => e.Name == "Noto Sans (reading font)" && e.License == "SIL Open Font License 1.1"
+            && e.FullText.Contains("The Noto Project Authors") && e.FullText.Contains("SIL OPEN FONT LICENSE Version 1.1")
+            && !e.FullText.Contains("Section missing"));
     }
 
     [Fact]

@@ -1,8 +1,11 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -27,6 +30,10 @@ public partial class MainWindow
         string profile = _session.ProfileDirectory;
         string evidencePath = Path.Combine(profile, "apphost-playback.json");
         string framePath = Path.Combine(profile, "apphost-playback-frame.png");
+        string fixtureHash = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture)));
+        using var diagnostics = new ApphostPlaybackDiagnostics(
+            typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "unknown", fixtureHash);
+        GalleryVideoPlayer? observedPlayer = null;
         List<GalleryVideoPlayer.PlaybackEvidence> samples = new();
         List<string> checks = new();
         GalleryVideoPlayer.PlaybackEvidence? lastPlaybackObservation = null;
@@ -38,13 +45,20 @@ public partial class MainWindow
         GalleryVideoPlayer.PlaybackEvidence? repeatAfterSwitch = null, reopenedPlayback = null;
         string? persistedMode = null;
         int? postCloseRestarts = null, postShutdownRestarts = null;
-        void SaveEvidence() => File.WriteAllText(evidencePath, JsonSerializer.Serialize(new
+        void SaveEvidence()
         {
-            schemaVersion = 2, completed, failure, fixtureSha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(fixture))),
-            samples, lastPlaybackObservation, lastPlaybackReadiness, checks, imageCleanup, closeCleanup, shutdownCleanup, poster,
-            repeatAfterSwitch, reopenedPlayback, persistedMode, postCloseRestarts, postShutdownRestarts,
-            scope = "actual apphost, production verified gallery/native video output; no audio-device, screen-pixel or hardware-acceleration claim"
-        }, new JsonSerializerOptions { WriteIndented = true }));
+            // A killed checkpoint write must not replace the last complete report.
+            string pending = evidencePath + ".tmp";
+            File.WriteAllText(pending, JsonSerializer.Serialize(new
+            {
+                schemaVersion = 2, completed, failure, fixtureSha256 = fixtureHash,
+                samples, lastPlaybackObservation, lastPlaybackReadiness, checks, imageCleanup, closeCleanup, shutdownCleanup, poster,
+                repeatAfterSwitch, reopenedPlayback, persistedMode, postCloseRestarts, postShutdownRestarts,
+                diagnostics = diagnostics.Snapshot(), playbackLifecycle = observedPlayer?.InspectPlaybackLifecycle(),
+                scope = "actual apphost, production verified gallery/native video output; no audio-device, screen-pixel or hardware-acceleration claim"
+            }, new JsonSerializerOptions { WriteIndented = true }));
+            File.Move(pending, evidencePath, overwrite: true);
+        }
         try
         {
             await _restoreTask;
@@ -81,6 +95,7 @@ public partial class MainWindow
                 manifest, asset, null, null, false, true);
             GalleryEntry[] entries = manifest.GetPage().OrderBy(asset => Path.GetFileName(asset.Path) == videoName ? 1 : 0)
                 .Select(MakeEntry).ToArray();
+            Console.WriteLine("APPHOST PLAYBACK STAGE: native poster/cache");
             string posterCache = Path.Combine(profile, "cache", "video-posters-v1");
             byte[] posterBytes = await VideoPosterCache.GetPngAsync(manifest, entries[1].Asset, posterCache, default)
                 ?? throw new InvalidOperationException("The native video-poster decoder produced no PNG.");
@@ -110,12 +125,16 @@ public partial class MainWindow
             await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetGalleryVisualDescendants().OfType<Image>()
                 .Any(control => control.Name == "GalleryImage" && control.IsEffectivelyVisible && control.Source is Bitmap)), "initial image");
             checks.Add("initial-image");
+            Console.WriteLine("APPHOST PLAYBACK STAGE: gallery playback");
             ClickMediaSmoke(viewer, "GalleryNext");
             await WaitMediaSmokeAsync(() => Task.FromResult(viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Any()), "native video player");
             GalleryVideoPlayer player = viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
             async Task<GalleryVideoPlayer.PlaybackEvidence> PlayingSampleAsync()
             {
                 GalleryVideoPlayer.PlaybackEvidence? result = null;
+                observedPlayer = player;
+                diagnostics.BeginReadiness();
+                SaveEvidence();
                 await WaitMediaSmokeAsync(async () =>
                 {
                     result = await player.InspectPlaybackAsync();
@@ -134,10 +153,16 @@ public partial class MainWindow
                         Intent = player.PlaybackMode.ToString(),
                         RenderScaling = TopLevel.GetTopLevel(player)?.RenderScaling
                     };
-                    return result.State == "Playing" && result.Time >= 300 && result.DecodedFrames >= 3 && result.DisplayedFrames >= 2
+                    bool ready = result.State == "Playing" && result.Time >= 300 && result.DecodedFrames >= 3 && result.DisplayedFrames >= 2
                         && (OperatingSystem.IsWindows() || (result.SurfaceFrames >= 2 && result.SurfaceNonUniform))
                         && transport != null && transport.IsEffectivelyEnabled
                         && player.IsEffectivelyVisible && player.Bounds.Width > 0 && player.Bounds.Height > 0;
+                    // Statistics are VLC's published input snapshot, not live decoder counters.
+                    // Keep the independent surface/clock history, but never substitute it for
+                    // the native decode/display assertions (or the later strict audio proof).
+                    diagnostics.ObserveReadiness(result, lastPlaybackReadiness, ready);
+                    if (diagnostics.CheckpointDue()) SaveEvidence();
+                    return ready;
                 }, "native decoded/displayed frames and enabled transport");
                 samples.Add(result!); SaveEvidence(); return result!;
             }
@@ -217,6 +242,11 @@ public partial class MainWindow
                 await WaitMediaSmokeAsync(() => Task.FromResult(!muteButton.IsEnabled && !volumeSlider.IsEnabled), "unavailable audio controls disabled");
                 RequireMediaSmoke(!string.IsNullOrWhiteSpace(AutomationProperties.GetName(muteButton))
                     && !string.IsNullOrWhiteSpace(ToolTip.GetTip(volumeSlider)?.ToString()), "Unavailable audio controls lack an accessible explanation.");
+                bool hasStrictUnavailableEvidence = audio.AudioTracks == 0
+                    || audio.AudioTracks > 0 && (audio.Volume < 0
+                        || audio.DecodedAudio > 0 && audio.PlayedAudioBuffers == 0);
+                RequireMediaSmoke(hasStrictUnavailableEvidence,
+                    "Unavailable audio controls were shown without no-track or decoded-without-output evidence.");
                 checks.Add(audio.AudioTracks == 0 ? "no-audio-track-controls" : "audio-output-unavailable-controls");
             }
             checks.Add("audio-controls-availability");
@@ -273,8 +303,9 @@ public partial class MainWindow
             postCloseRestarts = (await player.InspectPlaybackAsync()).LoopRestarts;
             RequireMediaSmoke(postCloseRestarts == afterCloseRepeats,
                 "A pending EndReached callback restarted a closed video.");
-            persistedMode = Config.LoadConfig(profile).GalleryPlaybackMode;
-            RequireMediaSmoke(persistedMode == "Repeat", "Gallery close did not persist the chosen repeat mode.");
+            Config persisted = Config.LoadConfig(profile);
+            persistedMode = persisted.GalleryPlaybackMode + (persisted.GalleryVideoRepeat ? "+repeat" : string.Empty);
+            RequireMediaSmoke(persisted.GalleryVideoRepeat, "Gallery close did not persist the chosen \"Repeat video\".");
             checks.Add("repeat-close-no-restart");
             // Also exercise ordinary app shutdown while a fresh native player is actively playing.
             await OpenMediaGalleryAsync(entries, entries[1].EntryKey);
@@ -315,3 +346,5 @@ public partial class MainWindow
     private static void RequireMediaSmoke(bool condition, string message)
     { if (!condition) throw new InvalidOperationException(message); }
 }
+
+#endif

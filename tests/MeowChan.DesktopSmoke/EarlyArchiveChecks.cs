@@ -43,8 +43,10 @@ internal static class EarlyArchiveChecks
             "The readable hold is not a pending startup.");
         Require(!C<Button>(window, "AddUrlButton").IsEnabled && !C<TextBox>(window, "UrlInput").IsEnabled && !C<Button>(window, "PauseButton").IsEnabled,
             "Early page choice enabled a session command.");
-        Require(!C<Button>(window, "RulesNavigationButton").IsEnabled && !C<Button>(window, "PluginsNavigationButton").IsEnabled
+        Require(!C<Button>(window, "RulesNavigationButton").IsEnabled
             && !C<Button>(window, "SourcesNavigationButton").IsEnabled, "A page that needs plugins or the registry was offered early.");
+        Require(window.FindControl<Button>("PluginsNavigationButton") == null && window.FindControl<ContentControl>("PluginsPageHost") == null,
+            "The removed Plugins workspace was recreated during startup.");
         Require(C<Border>(window, "StartupPreviewPanel").IsVisible && window.HistoricThreads.Count == 1, "The historical rows are not on the Downloads page before navigation.");
 
         archive.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -68,7 +70,8 @@ internal static class EarlyArchiveChecks
         Require(P<TextBlock>(page, "ArchiveSearchError").Text == Texts.T("archive.workStatusLoading"), "The unknown work status was not explained.");
         Require(Rows(page) == 1 && page.AppliedSearchSpec?.WorkFilter == ArchiveWorkFilter.All && work.SelectedIndex == 1,
             "The refused work filter changed the result or dropped the draft.");
-        Require(!P<Button>(page, "CapturePostsButton").IsEnabled && !P<Button>(page, "ExportArchiveButton").IsEnabled
+        Require(!page.BuildReaderThreadMenu().Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "archive.capture-toggle")).IsEnabled
+            && !P<Button>(page, "ExportArchiveButton").IsEnabled
             && !P<Button>(page, "ArchiveOpenGallery").IsEnabled, "Early reading opened a mutation, export or gallery gate.");
 
         work.SelectedIndex = 0;

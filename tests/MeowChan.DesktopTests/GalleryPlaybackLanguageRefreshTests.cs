@@ -20,8 +20,9 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
     [Fact]
     public void ViewerEntriesAreCompleteUniqueAndUseTheGlobalCatalog()
     {
-        Assert.Equal(25, GalleryPlaybackCatalog.Entries.Length);
-        Assert.Equal(25, GalleryPlaybackCatalog.Entries.Select(entry => entry.Key).Distinct().Count());
+        // G1 added viewer.playback.status.tagHold (the slideshow waits while the tag panel is worked in); G2 added menu and menuHelp.
+        Assert.Equal(42, GalleryPlaybackCatalog.Entries.Length);
+        Assert.Equal(42, GalleryPlaybackCatalog.Entries.Select(entry => entry.Key).Distinct().Count());
         foreach (string language in new[] { "en", "de", "es", "fr", "ru" })
         {
             Texts.Initialize(); // refresh the normal global catalog snapshot
@@ -55,10 +56,10 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
         const string key = "viewer.playback.manual";
         var viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
         var selector = new ComboBox();
-        var preferences = new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat);
+        var preferences = new GalleryPlaybackPreferences(GalleryPlaybackMode.Slideshow);
         Set(viewer, "_playbackMode", selector);
         Set(viewer, "_playbackPreferences", preferences);
-        string[] Labels() => new[] { "manual", "repeat", "slideshow" }
+        string[] Labels() => new[] { "manual", "slideshow" }
             .Select(suffix => GalleryPlaybackCatalog.Get("viewer.playback." + suffix)).ToArray();
         void Reload(Dictionary<string, string> strings)
         {
@@ -111,7 +112,6 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
-    [InlineData(2)]
     public void ChoiceRefreshPreservesSemanticIndexAndSuppressesSelectionFeedback(int mode)
     {
         var viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
@@ -131,7 +131,7 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
         {
             Texts.Initialize();
             Texts.SetLanguage(language);
-            string[] Labels() => new[] { "manual", "repeat", "slideshow" }
+            string[] Labels() => new[] { "manual", "slideshow" }
                 .Select(suffix => GalleryPlaybackCatalog.Get("viewer.playback." + suffix)).ToArray();
             viewer.RefreshPlaybackModeChoices(Labels());
             Assert.Equal(mode, selector.SelectedIndex);
@@ -150,7 +150,7 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
         Assert.Equal(0, unguarded);
         Assert.Equal(0, preferenceWrites);
         Set(viewer, "_updatingPlaybackControls", true);
-        viewer.RefreshPlaybackModeChoices(new[] { "Manual", "Repeat", "Slideshow" });
+        viewer.RefreshPlaybackModeChoices(new[] { "Manual", "Slideshow" });
         Assert.True(Get<bool>(viewer, "_updatingPlaybackControls")); // retain outer refresh guard
     }
 
@@ -180,7 +180,7 @@ public sealed class GalleryPlaybackLanguageRefreshTests : IDisposable
         foreach (string language in new[] { "de", "en", "de" })
         {
             Texts.SetLanguage(language);
-            viewer.RefreshPlaybackModeChoices(new[] { "manual", "repeat", "slideshow" }
+            viewer.RefreshPlaybackModeChoices(new[] { "manual", "slideshow" }
                 .Select(suffix => GalleryPlaybackCatalog.Get("viewer.playback." + suffix)).ToArray());
         }
         foreach (var (field, value) in before) Assert.Equal(value, field.GetValue(slideshow));

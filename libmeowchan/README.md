@@ -48,9 +48,9 @@ await session.StopAsync();
 
 Construction is passive. `Registry` owns watch lifetimes and the supplied queue's shutdown. Use one queue per session. `StopAsync` and `DisposeAsync` stop further work, cancel active requests and transfers, and await cleanup. Repeated shutdown is valid; a new run uses a new session and fresh provider resources. Provider transports and profile leases supplied by the host remain host-owned and must outlive the session.
 
-Registry mutation commands can be called concurrently; admission, persistence and removal decisions are serialized internally. Snapshots can be read from any thread. Await the initial restore before submitting user commands, and use the registry's lifecycle methods rather than starting or stopping its provider resources independently. A stopped session rejects new admissions.
+Registry mutation commands can be called concurrently; admission, persistence and removal decisions are serialized internally. Snapshots can be read from any thread. For a profile-bound session, await `StartAsync(lease)` before submitting user commands, and use the registry's lifecycle methods rather than starting or stopping its provider resources independently. A stopped session rejects new admissions.
 
-For durable watches and retry/source-end history, acquire `ProfileLease.Acquire(profileDirectory)`, create `SessionStore(profileDirectory, lease)`, create `WorkStateStore(profileDirectory, lease)` and pass it as `workStore` alongside the session store to `Registry`, then await `RestoreAsync()` before accepting new mutations. Keep the lease alive until the registry has stopped. With session persistence and the default in-memory work store, Add/Remove awaits the session-file commit before changing runtime membership. With an explicitly supplied durable work store, authoritative intent, generation and assigned root commit first; failure prevents the runtime change. A later session-JSON projection failure produces a snapshot warning without undoing committed intent. Restore reconciles the projection against work state. Hosts must surface operation exceptions and `GetSnapshot().Warnings`; closing the application does not erase committed watch intent. The built-in stores allow one writer per profile. `SessionStore` alone does not persist media retry or source-end history; the default `MemoryWorkStateStore` loses that state when discarded. Disabling session persistence prevents automatic watch restoration from retained work state as well as the URL list. Separate profiles can coexist; media publication uses per-directory leases between cooperating writers.
+For durable watches and retry/source-end history, acquire `ProfileLease.Acquire(profileDirectory)`, create `SessionStore(profileDirectory, lease)`, create `WorkStateStore(profileDirectory, lease)` and pass it as `workStore` alongside the session store to `Registry`, then await `StartAsync(lease)` before accepting new mutations. Startup performs recovery and restoration with producers suspended, then activates them; do not call `RestoreAsync()` as a substitute for startup or repeat it merely to finish startup. Keep the lease alive until the registry has stopped. With session persistence and the default in-memory work store, Add/Remove awaits the session-file commit before changing runtime membership. With an explicitly supplied durable work store, authoritative intent, generation and assigned root commit first; failure prevents the runtime change. A later session-JSON projection failure produces a snapshot warning without undoing committed intent. Restore reconciles the projection against work state. Hosts must surface operation exceptions and `GetSnapshot().Warnings`; closing the application does not erase committed watch intent. The built-in stores allow one writer per profile. `SessionStore` alone does not persist media retry or source-end history; the default `MemoryWorkStateStore` loses that state when discarded. Disabling session persistence prevents automatic watch restoration from retained work state as well as the URL list. Separate profiles can coexist; media publication uses per-directory leases between cooperating writers.
 
 When opening data written by an earlier release, stop all older applications and consumers first. The 0.9.0 profile and media locks use new names, so an older process cannot coordinate with a current writer. Concurrent old/new use of the same data and downgrading migrated data are unsupported. Back up the profile and referenced media before upgrading.
 
@@ -58,9 +58,27 @@ Removing a board stops catalog discovery while admitted threads continue. Removi
 
 Files are stored under `{root}/{source}/{board}/{thread}/{mediaId}.{ext}`. The store verifies available size/hash evidence, publishes the complete file, then commits its manifest. Existing foreign files are preserved. A new store verifies saved media before reuse. Within a store, unchanged file fingerprints can reuse verification for up to ten minutes; preserving every fingerprint during an external edit can defer detection until that deadline.
 
+### Migrating a durable 1.0.2 library consumer
+
+The old sequence (lease/stores/registry construction, then `RestoreAsync()`) is no
+longer sufficient. Version 1.1.0 requires the explicit public startup above; the
+old sequence throws `InvalidOperationException`. This is a behavioral migration,
+not a claim of unchanged 1.0.2 consumer compatibility. The in-memory, unbound
+example at the start of this document does not acquire a profile lease and is a
+different lifecycle.
+
+Use the **same `ProfileLease` instance** for the registry's stores and optional
+content runtime, and pass that instance to `StartAsync`. Do not set internal
+admission/Ready state or ignore a startup exception. The first accepted call owns
+cancellation; repeated calls with the same lease return that startup task. A
+failure after startup is claimed is terminal for the instance: stop/dispose the
+registry before disposing its borrowed stores/runtime and lease, and compose a
+fresh session for another attempt. No producer should be admitted by the host
+until startup succeeds.
+
 ## Add rules and post capture to a session
 
-`ThreadContentRuntime` joins a local `ArchiveCatalog` and `MediaRuleStore` under the host's profile lease. Initialize it before restoring or adding watches, then pass it to `Registry`. The registry borrows the runtime; stop/dispose the registry before disposing the runtime and lease. Session restoration remains a separate choice.
+`ThreadContentRuntime` joins a local `ArchiveCatalog` and `MediaRuleStore` under the host's profile lease. Construct it and pass it to `Registry`; `StartAsync(lease)` initializes it under startup admission before recovery, restoration and producer activation. The registry borrows the runtime; stop/dispose the registry before disposing the runtime and lease. `persistSession` controls whether saved watches are restored; it does not remove the startup requirement for a profile-bound session.
 
 ```csharp
 using MeowChan;
@@ -74,9 +92,6 @@ using MeowChan.Persistence;
 string profile = Path.GetFullPath("profile");
 using ProfileLease lease = ProfileLease.Acquire(profile);
 await using ThreadContentRuntime content = new ThreadContentRuntime(profile, lease);
-await content.InitializeAsync();
-if (content.LoadWarning != null) Console.Error.WriteLine(content.LoadWarning);
-
 SessionStore store = new SessionStore(profile, lease);
 WorkStateStore work = new WorkStateStore(profile, lease);
 IImageBoard[] providers = new IImageBoard[] { new FourChanImageBoard(), new EightKunImageBoard() };
@@ -85,7 +100,8 @@ await using Registry session = new Registry(
     providers, queue, Path.GetFullPath("downloads"),
     threadInterval: TimeSpan.FromSeconds(60), boardIntervalSeconds: 60,
     sessionStore: store, persistSession: true, contentRuntime: content, workStore: work);
-await session.RestoreAsync();
+await session.StartAsync(lease);
+if (content.LoadWarning != null) Console.Error.WriteLine(content.LoadWarning);
 
 AdmissionResult result = await session.AddAsync(args[0]);
 Console.WriteLine(result.Status);
@@ -122,7 +138,7 @@ Console.WriteLine(effective.SizeLimit.Bytes);
 
 `SaveAsync` replaces the complete catalog. Supply `expectedRevision` for an editor so a stale draft cannot overwrite a newer save. The store writes `media_rules.json` atomically and activates the new revision only after the commit. A recoverable backup produces a load warning; unrecoverable or unsupported documents are preserved and reported to the caller.
 
-The size limit evaluates provider metadata, not transferred bytes: an unknown size is allowed with reason `AllowedUnknownSize`. An unknown extension is allowed only by `All`. The desktop editor uses decimal MB (1 MB = 1,000,000 bytes). Rules select downloads; they do not pause watches, delete files or enforce a transfer-byte budget.
+The size limit evaluates provider metadata, not transferred bytes: an unknown size is allowed with reason `AllowedUnknownSize`. An unknown extension is allowed only by `All`. The desktop editor takes the limit in MiB (1 MiB = 1,048,576 bytes); the rule itself stores whole bytes. Rules select downloads; they do not pause watches, delete files or enforce a transfer-byte budget.
 
 With content services attached, the first decision for `(source, board, thread, media ID, variant)` is committed in `archive.db` before queue admission. Its result, reason, rule revision and field origins survive restart and later rule changes. Refreshed source URLs and metadata do not silently reevaluate an existing decision. Previously saved media retain their selected intent; normal storage verification still decides whether their bytes need repair. Disabling post capture leaves these decisions active. A failed decision commit prevents that new admission and exposes a storage failure.
 

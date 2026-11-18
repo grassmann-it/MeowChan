@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Views.Shortcuts;
 using Ursa.Controls;
 
 namespace MeowChan.DesktopSmoke;
@@ -76,6 +77,7 @@ internal static class ShortcutPresentationChecks
                 if (previousDraft != null)
                     Require(editor.Draft.Raw.GetRawText() == previousDraft && window.SettingsEditor.DownloadPath == previousPath,
                         "Appearance transition lost the previous shortcut/path draft before explicit fixture reset.");
+                Require(ShortcutsWindow.For(window) == null, "The shortcuts window outlived its cell.");
                 Require(window.FindControl<TextBox>("UrlInput")!.Text == rawUrl, "Appearance transition lost raw URL input.");
                 // Explicit fixture reset between independent cells. No Save or live binding mutation.
                 window.SettingsEditor.CancelChanges();
@@ -84,125 +86,127 @@ internal static class ShortcutPresentationChecks
                 Write("cell-start", new { cell, mode, language, theme, client = window.ClientSize.ToString(),
                     scale = window.RenderScaling, width, height, initialGesture = CommandCatalog.ShortcutDisplay("navigation.archive") });
 
-                // Help is opened through the actual action and must show the current remap.
+                // Every cell ends in Settings (the card opens the window there); F1 is checked on Downloads, whose group it opens (KS2/KS3).
+                if (window.SelectedPage != MainWindow.WorkspacePage.Downloads)
+                {
+                    Click(window.FindControl<Button>("DownloadsNavigationButton")!);
+                    await Program.WaitUntilAsync(() => window.SelectedPage == MainWindow.WorkspacePage.Downloads);
+                    await LayoutAsync();
+                }
+                // Help is opened through the actual action (F1) and must show the current remap: the one shortcuts window (KS2).
                 Press(window, CommandBindings.Gesture("viewer.shortcut-help")!);
-                Border help = window.FindControl<Border>("ShellHelpOverlay")!;
-                await Program.WaitUntilAsync(() => help.IsVisible);
-                string helpText = window.FindControl<TextBlock>("ShellHelpText")!.Text ?? string.Empty;
+                await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) is { IsVisible: true } opened && opened.Editor.ActionList.IsEffectivelyVisible);
+                ShortcutsWindow help = ShortcutsWindow.For(window)!;
+                string helpText = help.PlainText;
                 Require(helpText.Contains(CommandCatalog.Label("navigation.archive"), StringComparison.Ordinal)
                     && helpText.Contains(CommandCatalog.ShortcutDisplay("navigation.archive")!, StringComparison.Ordinal),
                     "Help does not show the translated action and its committed replacement.");
-                await CaptureAsync(cell, "help", window.FindControl<Button>("ShellHelpClose")!);
+                ShortcutTableRow archiveRow = help.Editor.Model.Rows.Single(row => row.CommandId == "navigation.archive");
+                Require(archiveRow.GestureTexts.Contains(CommandCatalog.ShortcutDisplay("navigation.archive")!),
+                    "The shortcuts table does not show the committed replacement as keycaps.");
+                Require(help.Editor.Context.Area == ShortcutGroups.Pages[0] && !help.Editor.CollapsedGroups.Contains(ShortcutGroups.Pages[0]),
+                    "F1 on Downloads did not open the Downloads group expanded and on top.");
+                // The table is a plain header row (labels, no sort buttons) above rows that share its column layout.
+                Grid helpHead = help.Editor.GetVisualDescendants().OfType<Grid>().Single(grid => grid.Name == ShortcutBindingsEditor.HeaderName);
+                Require(helpHead.Children.OfType<TextBlock>().Count() == 3 && !helpHead.GetVisualDescendants().OfType<Button>().Any(),
+                    "The shortcuts table header is not a plain row of three labels.");
+                await CaptureWindowAsync(help, cell, "help", help.Editor.SearchInput);
                 Press(window, new KeyGesture(Key.Escape));
-                Require(!help.IsVisible, "Help Escape failed to dismiss exactly the help surface.");
+                await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) == null);
 
                 window.FindControl<MenuItem>("SettingsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
                 await Program.WaitUntilAsync(() => window.SettingsPageVisible);
                 editor = CurrentEditor();
-                // Page selection precedes visual materialization. Resolve the actual
-                // content controls without using translated presentation text as identity.
-                Panel content = editor.Content as Panel
-                    ?? throw new InvalidOperationException("The production shortcut editor content is missing.");
-                TextBox search = content.Children.OfType<TextBox>().Single();
-                ListBox actions = content.Children.OfType<ListBox>().Single();
-                await Program.WaitUntilAsync(() => window.SettingsEditor.CanOpenSectionNavigation
-                    && ReferenceEquals(CurrentEditor(), editor) && ReferenceEquals(TopLevel.GetTopLevel(editor), window)
-                    && window.SettingsEditor.GetVisualDescendants().Contains(editor)
-                    && Materialized(editor) && Materialized(search) && Materialized(actions));
+                // Each settings category is its own page (029b4cd): the shortcut card only
+                // materializes after its category is selected, so select it before waiting.
+                await Program.WaitUntilAsync(() => window.SettingsEditor.CanOpenSectionNavigation);
                 window.SettingsEditor.OpenSectionNavigation();
                 Require(window.SettingsEditor.CanGoToSection("settings.shortcuts"), "The real shortcut section is unavailable.");
                 window.SettingsEditor.GoToSection("settings.shortcuts");
+                // Since KS2 F1 opens the shortcuts window, so this is the card's first showing: its template (and the button in it)
+                // exists only after the category page has laid it out. Look the button up once the card is materialized.
+                Button? found = null;
+                await Program.WaitUntilAsync(() => ReferenceEquals(CurrentEditor(), editor) && ReferenceEquals(TopLevel.GetTopLevel(editor), window)
+                    && window.SettingsEditor.GetVisualDescendants().Contains(editor) && Materialized(editor)
+                    && (found = editor.GetVisualDescendants().OfType<Button>().SingleOrDefault(button => button.Name == "SettingsShortcutsOpen")) != null
+                    && Materialized(found),
+                    () => "editor visible " + editor.IsEffectivelyVisible + ", open button " + (found == null ? "missing" : "not materialized"));
+                Button open = found!;
                 await Program.WaitUntilAsync(() => editor.SectionHeading.IsFocused && Visible(window, editor.SectionHeading));
+                Click(open);
+                await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) is { IsVisible: true } opened && opened.Editor.ActionList.IsEffectivelyVisible);
+                ShortcutsWindow shortcuts = ShortcutsWindow.For(window)!;
+                ShortcutBindingsEditor table = shortcuts.Editor;
+                Require(ReferenceEquals(table.Session, editor.Session), "The window does not edit the Settings draft.");
+                TextBox search = table.SearchInput;
+                ListBox actions = table.ActionList;
                 string searchLabel = L("Search action, context or shortcut", "Aktion, Bereich oder Kürzel suchen");
                 Require(search.PlaceholderText?.ToString() == searchLabel && AutomationProperties.GetName(search) == searchLabel,
                     "The materialized shortcut search label is stale.");
                 Write("editor-ready", new { cell, section = window.SettingsEditor.SelectedSectionId,
-                    headingFocused = editor.SectionHeading.IsFocused, editor = editor.Bounds.ToString(),
+                    headingFocused = editor.SectionHeading.IsFocused, window = shortcuts.Bounds.ToString(),
                     search = search.Bounds.ToString(), actions = actions.Bounds.ToString(), language = Texts.Language });
                 search.Text = "navigation.archive";
+                await Program.WaitUntilAsync(() => actions.Items.OfType<ListBoxItem>().Any(item => item.Tag as string == "navigation.archive"));
                 actions.SelectedItem = actions.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == "navigation.archive");
-                await RevealFocusAsync(search);
-                string rowText = string.Join(" · ", ((Control)actions.Items.OfType<ListBoxItem>().Single().Content!)
-                    .GetVisualDescendants().OfType<TextBlock>().Where(text => text.IsEffectivelyVisible).Select(text => text.Text));
+                await RevealFocusAsync(shortcuts, search);
+                string rowText = AutomationProperties.GetName(actions.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == "navigation.archive")) ?? "";
                 Require(rowText.Contains(CommandCatalog.Label("navigation.archive"), StringComparison.Ordinal), "Search row kept an old language label.");
                 Require(rowText.Contains(CommandCatalog.ShortcutDisplay("navigation.archive")!, StringComparison.Ordinal), "Editor row omitted the committed remap.");
-                await CaptureAsync(cell, "editor", search);
+                await CaptureWindowAsync(shortcuts, cell, "editor", search);
                 string beforeCapture = editor.Draft.Raw.GetRawText();
-                Button record = Action("Record additional shortcut", "Weiteres Kürzel aufnehmen");
-                await RevealFocusAsync(record); Click(record);
-                KeyGestureInput capture = editor.GetVisualDescendants().OfType<KeyGestureInput>().Single();
+                Button record = Action(table, "Record additional shortcut", "Weiteres Kürzel aufnehmen");
+                await RevealFocusAsync(shortcuts, record); Click(record);
+                KeyGestureInput capture = table.GetVisualDescendants().OfType<KeyGestureInput>().Single();
                 capture.BringIntoView();
                 await LayoutAsync();
                 Require(ShortcutService.IsCapturing && capture.IsKeyboardFocusWithin, "Recording did not acquire real capture focus/suppression.");
-                var input = window.FocusManager?.GetFocusedElement() as Control ?? throw new InvalidOperationException("Capture has no focused control.");
-                KeyGesture conflict = CommandBindings.Gesture("navigation.rules")!;
+                var input = shortcuts.FocusManager?.GetFocusedElement() as Control ?? throw new InvalidOperationException("Capture has no focused control.");
+                // A real symmetric conflict needs a page command whose default is old: a default added or changed in a later
+                // revision (Rules, Media, Sources since revision 2) yields to the saved Archive binding instead (defaultYields,
+                // non-blocking). Take the first such stable page shortcut.
+                string conflictId = new[] { "navigation.downloads", "navigation.settings", "navigation.status", "navigation.diagnostics" }
+                    .First(id => !EffectiveShortcutBindings.YieldingDefaultCommandIds.Contains(id) && CommandBindings.Gesture(id) != null);
+                KeyGesture conflict = CommandBindings.Gesture(conflictId)!;
                 MainWindow.WorkspacePage page = window.SelectedPage;
                 Press(input, conflict);
                 await Program.WaitUntilAsync(() => capture.Gesture?.Key == conflict.Key && capture.Gesture.KeyModifiers == conflict.KeyModifiers);
                 Require(window.SelectedPage == page && editor.Draft.Raw.GetRawText() == beforeCapture,
                     "Recording dispatched navigation or mutated the draft before Apply recording.");
                 Require(AutomationProperties.GetName(capture) == L("Record shortcut", "Tastenkürzel aufnehmen"), "Capture accessibility label is stale.");
-                await CaptureAsync(cell, "capture", input);
-                Button apply = Action("Apply recording", "Aufnahme übernehmen");
-                await RevealFocusAsync(apply); Click(apply);
+                await CaptureWindowAsync(shortcuts, cell, "capture", input);
+                Button apply = Action(table, "Apply recording", "Aufnahme übernehmen");
+                await RevealFocusAsync(shortcuts, apply); Click(apply);
                 await Program.WaitUntilAsync(() => editor.IsDirty && !ShortcutService.IsCapturing);
                 var issues = EffectiveShortcutBindings.Build(editor.Draft).Issues;
                 Require(issues.Any(issue => issue.BlocksSave && (issue.CommandId == "navigation.archive" || issue.OtherCommandId == "navigation.archive")),
-                    "Applying the recorded Rules gesture did not expose the real conflict.");
+                    "Applying the recorded " + conflictId + " gesture did not expose the real conflict: issues ["
+                    + string.Join("; ", issues.Select(issue => issue.CommandId + "/" + issue.OtherCommandId + " blocks " + issue.BlocksSave))
+                    + "], archive " + string.Join(",", table.Session.Requested("navigation.archive").Select(gesture => gesture.ToString()))
+                    + ", recorded " + conflict + ", session issues " + table.Session.Issues.Count);
+                Require(table.Model.Rows.Single(row => row.CommandId == "navigation.archive").HasBlockingConflict,
+                    "The conflict row is not marked in the table.");
                 string conflictRaw = editor.Draft.Raw.GetRawText();
                 long beforeRejectedSave = ShortcutService.Revision;
-                Button save = window.SettingsEditor.FindControl<Button>("SaveSettingsButton")!;
-                await RevealFocusAsync(save); Click(save);
-                await Program.WaitUntilAsync(() => !window.SettingsEditor.IsBusy);
+                Button save = table.SaveButton;
+                await RevealFocusAsync(shortcuts, save); Click(save);
                 await LayoutAsync();
                 Require(ShortcutService.Revision == beforeRejectedSave && CommandBindings.Gesture("navigation.archive")?.Key == Key.K
                     && editor.Draft.Raw.GetRawText() == conflictRaw && window.SettingsEditor.DownloadPath == rawPath,
                     "Conflict Save published a binding or lost the shortcut/path draft.");
-                TextBlock error = editor.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text => text.IsEffectivelyVisible
-                    && text.Text?.Contains("Kollidierende Aktionen", StringComparison.Ordinal) == true)
-                    ?? throw new InvalidOperationException("Conflict error is absent from the real editor.");
-                // BringIntoView changes offsets; a Loaded callback alone does not
-                // establish the final arranged viewport. Observe the existing gate
-                // without repairing focus, forcing layout or scrolling from the test.
-                TraceConflictGeometry("before-wait");
-                try
-                {
-                    await Program.WaitUntilAsync(() => ReferenceEquals(CurrentEditor(), editor)
-                        && ReferenceEquals(TopLevel.GetTopLevel(error), window)
-                        && ReferenceEquals(window.FocusManager?.GetFocusedElement(), error)
-                        && editor.IsKeyboardFocusWithin && Visible(window, error));
-                }
-                catch (TimeoutException)
-                {
-                    TraceConflictGeometry("timeout");
-                    try { Program.CaptureWindow(window, $"smoke-shortcuts-{cell}-conflict.png"); }
-                    catch (Exception diagnosticError) { Console.WriteLine("SMOKE conflict timeout screenshot failed: " + diagnosticError.Message); }
-                    throw;
-                }
-                TraceConflictGeometry("ready");
-                Program.CaptureWindow(window, $"smoke-shortcuts-{cell}-conflict.png");
-                Control focused = window.FocusManager?.GetFocusedElement() as Control ?? throw new InvalidOperationException("Conflict Save left no focus.");
-                Require(editor.IsKeyboardFocusWithin && Visible(window, focused) && Visible(window, error),
-                    "Conflict validation must expose the error and visible editor focus; actual focus: " + focused.GetType().Name);
-                Write("scene", new { cell, scene = "conflict", language = Texts.Language, theme = window.ActualThemeVariant.ToString(),
-                    scale = window.RenderScaling, client = window.ClientSize.ToString(), focus = focused.GetType().Name,
-                    conflicts = issues.Count, committed = CommandCatalog.ShortcutDisplay("navigation.archive"), rawDraftRetained = true });
-                void TraceConflictGeometry(string phase)
-                {
-                    try
-                    {
-                        Control? currentFocus = window.FocusManager?.GetFocusedElement() as Control;
-                        Write("conflict-geometry", new
-                        {
-                            cell, phase, busy = window.SettingsEditor.IsBusy,
-                            sameEditor = ReferenceEquals(CurrentEditor(), editor), editorFocused = editor.IsKeyboardFocusWithin,
-                            focusIsError = ReferenceEquals(currentFocus, error), errorInEditor = editor.GetVisualDescendants().Contains(error),
-                            editor = Geometry(window, editor), error = Geometry(window, error),
-                            focus = currentFocus == null ? null : Geometry(window, currentFocus)
-                        });
-                    }
-                    catch (Exception diagnosticError) { Console.WriteLine("SMOKE conflict geometry diagnostic failed: " + diagnosticError.Message); }
-                }
+                TextBlock error = table.ErrorText;
+                Require(error.Text?.Contains(L("Conflicting actions", "Kollidierende Aktionen"), StringComparison.Ordinal) == true,
+                    "Conflict error is absent from the shortcuts window.");
+                await Program.WaitUntilAsync(() => ReferenceEquals(shortcuts.FocusManager?.GetFocusedElement(), error) && Visible(shortcuts, error));
+                Program.CaptureWindow(shortcuts, $"smoke-shortcuts-{cell}-conflict.png");
+                Write("scene", new { cell, scene = "conflict", language = Texts.Language, theme = shortcuts.ActualThemeVariant.ToString(),
+                    scale = shortcuts.RenderScaling, client = shortcuts.ClientSize.ToString(), focus = error.GetType().Name,
+                    conflicts = issues.Count, committed = CommandCatalog.ShortcutDisplay("navigation.archive"), rawDraftRetained = true,
+                    card = editor.GetVisualDescendants().OfType<TextBlock>().FirstOrDefault(text => text.Name == "SettingsShortcutsErrors")?.Text });
+                // The draft stays with Settings (same session) when the window closes without the question.
+                shortcuts.CloseWithoutAsking();
+                await Program.WaitUntilAsync(() => ShortcutsWindow.For(window) == null);
+                Require(editor.Draft.Raw.GetRawText() == conflictRaw, "Closing the window dropped the shared Settings draft.");
                 previousDraft = conflictRaw; previousPath = rawPath;
                 Require(window.FindControl<TextBox>("UrlInput")!.Text == rawUrl, "Help/editor path lost raw URL input.");
                 completed++;
@@ -210,10 +214,11 @@ internal static class ShortcutPresentationChecks
             }
             Require(completed == 12, "The presentation matrix did not complete all 12 cells.");
             Write("complete", new { completed, scenes = completed * 4, scale = window.RenderScaling });
-            Console.WriteLine("SMOKE shortcut presentation: 12 EN/DE × Light/Dark × B/S/A minimum cells; real remap/help/editor/capture/conflict, visible focus and raw-draft preservation passed.");
+            Console.WriteLine("SMOKE shortcut presentation: 12 EN/DE × Light/Dark × B/S/A minimum cells; real remap/F1 window/Settings-opened window/capture/conflict, visible focus and shared raw-draft preservation passed.");
         }
         finally
         {
+            ShortcutsWindow.For(window)?.CloseWithoutAsking();
             window.SettingsEditor.CancelChanges();
             await window.SessionHost.ApplySettingsAsync(original);
             Texts.SetLanguage(originalLanguage);
@@ -225,21 +230,22 @@ internal static class ShortcutPresentationChecks
             ?? throw new InvalidOperationException("The production Settings shortcut editor is missing from its namescope.");
         bool Materialized(Control control) => control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > 0
             && ReferenceEquals(TopLevel.GetTopLevel(control), window) && (ReferenceEquals(control, editor) || editor.GetVisualDescendants().Contains(control));
-        Button Action(string en, string de) => editor.GetVisualDescendants().OfType<Button>().Single(button => button.Content as string == L(en, de));
+        static Button Action(Control owner, string en, string de) => owner.GetVisualDescendants().OfType<Button>().Single(button => button.Content as string == L(en, de));
         void Write(string kind, object data) => File.AppendAllText(output, JsonSerializer.Serialize(new { kind, data }, new JsonSerializerOptions { NumberHandling = JsonNumberHandling.AllowNamedFloatingPointLiterals }) + Environment.NewLine);
-        async Task CaptureAsync(string cell, string scene, Control focus)
+        async Task CaptureWindowAsync(Window shown, string cell, string scene, Control focus)
         {
             await LayoutAsync();
-            Program.CaptureWindow(window, $"smoke-shortcuts-{cell}-{scene}.png");
-            Require(focus.IsKeyboardFocusWithin && Visible(window, focus), scene + " lacks visible real keyboard focus.");
-            Write("scene", new { cell, scene, language = Texts.Language, theme = window.ActualThemeVariant.ToString(),
-                scale = window.RenderScaling, client = window.ClientSize.ToString(), focus = focus.GetType().Name,
+            focus.Focus();
+            await Program.WaitUntilAsync(() => focus.IsKeyboardFocusWithin && Visible(shown, focus));
+            Program.CaptureWindow(shown, $"smoke-shortcuts-{cell}-{scene}.png");
+            Write("scene", new { cell, scene, language = Texts.Language, theme = shown.ActualThemeVariant.ToString(),
+                scale = shown.RenderScaling, client = shown.ClientSize.ToString(), focus = focus.GetType().Name,
                 name = AutomationProperties.GetName(focus), help = AutomationProperties.GetHelpText(focus) });
         }
-        async Task RevealFocusAsync(Control target)
+        async Task RevealFocusAsync(Window shown, Control target)
         {
             target.BringIntoView(); await LayoutAsync(); target.Focus();
-            await Program.WaitUntilAsync(() => target.IsKeyboardFocusWithin && Visible(window, target));
+            await Program.WaitUntilAsync(() => target.IsKeyboardFocusWithin && Visible(shown, target));
         }
     }
 

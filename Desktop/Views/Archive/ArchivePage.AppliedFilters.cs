@@ -4,11 +4,14 @@ using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Input;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Ursa.Controls;
 
@@ -16,30 +19,32 @@ namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private sealed class FilterTagCommand(Action action) : ICommand
+    /// <summary>A removable filter value; C1 styles it as <c>chip chip-filter</c>, an exclusion additionally as <c>chip-exclude</c>.</summary>
+    internal static ClosableTag CreateFilterTag(string label, Action remove, bool exclude = false) =>
+        WorkspaceChips.CreateTermChip(label, negatable: false, exclude, remove);
+    /// <summary>The text of a filter chip, whether it is a plain chip or a tag chip with its include/exclude toggle.</summary>
+    internal static string FilterTagLabel(ClosableTag tag) => WorkspaceChips.TermChipLabel(tag);
+
+    /// <summary>
+    /// A tag chip with its state (S1/M2): the chip says "Tag: x" (included) or "Without tag: x" (excluded, <c>chip-exclude</c>), a small
+    /// toggle button in front of the text and a click on the chip body (E4) switch between the two, and the chip's own close mark
+    /// removes the tag. The one chip model of the media page (<see cref="WorkspaceChips.CreateTermChip"/>), with its context menu.
+    /// </summary>
+    internal static ClosableTag CreateTagFilterChip(string label, string tagName, Guid id, bool exclude, Action remove, Action toggle,
+        FilterChipMenuOptions? menu = null)
     {
-        public event EventHandler? CanExecuteChanged { add { } remove { } }
-        public bool CanExecute(object? parameter) => true;
-        public void Execute(object? parameter) => action();
-    }
-    internal static ClosableTag CreateFilterTag(string label, Action remove)
-    {
-        string accessible = Texts.T("archive.removeFilter", label);
-        ClosableTag tag = new()
-        {
-            Content = new TextBlock { Text = label, MaxWidth = 235, TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis },
-            Command = new FilterTagCommand(remove), Focusable = true
-        };
-        ToolTip.SetTip(tag, accessible); AutomationProperties.SetName(tag, accessible);
-        MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
-        tag.KeyDown += (_, e) => { if (e.Key is Key.Enter or Key.Space) { e.Handled = true; remove(); } };
+        ClosableTag tag = WorkspaceChips.CreateTermChip(label, negatable: true, exclude, remove, toggle, tagName,
+            menu: menu ?? new FilterChipMenuOptions { TagName = tagName });
+        tag.Tag = id;
         return tag;
     }
+
     internal static IReadOnlyList<(string Field, string? Value, string Label)> AppliedFilterLabels(ArchiveSearchSpec spec,
         Func<Guid, string?>? tagName = null)
     {
         List<(string, string?, string)> tags = new();
         if (!string.IsNullOrWhiteSpace(spec.Text)) tags.Add(("text", null, Texts.T("archive.textChip", spec.Text)));
+        if (spec.Scope != MeowChan.Archive.ArchiveSearchScope.AllPosts) tags.Add(("scope", null, Texts.T("archive.textScopeChip", TextScopeLabel(spec.Scope))));
         tags.AddRange(spec.Sources.Select(source => ("source", (string?)source, Texts.T("archive.sourceChip", source))));
         tags.AddRange(spec.Boards.Select(board => ("board", (string?)BoardKey(board), Texts.T("archive.boardChip", BoardLabel(board)))));
         tags.AddRange(spec.SourceStates.Select(state => ("state", (string?)state.ToString(), StateLabel(state))));
@@ -58,11 +63,28 @@ public partial class ArchivePage
         }
         return tags.AsReadOnly();
     }
+    // S7: "Reset all" follows the last applied chip, like on Media. It is the empty state's reset (search text and every filter;
+    // the sort stays), so the chips and the link always agree on what is cleared.
+    private readonly Button _appliedResetAll = new()
+    {
+        Name = "ArchiveAppliedResetAll", Classes = { "link" }, MinHeight = 24, Padding = new Avalonia.Thickness(8, 2),
+        BorderThickness = new Avalonia.Thickness(0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+    };
+    private bool _appliedResetAllWired;
+    private int _appliedFilterCount;
+
     private void UpdateAppliedFilters()
     {
-        WrapPanel panel = Control<WrapPanel>("ArchiveAppliedFilters"); panel.Children.Clear();
-        if (_appliedSearch == null) return;
+        WrapPanel panel = ArchiveAppliedFilters; panel.Children.Clear();
+        if (!_appliedResetAllWired)
+        {
+            _appliedResetAllWired = true;
+            _appliedResetAll.Click += (_, e) => OnResetArchiveFiltersClick(_appliedResetAll, e);
+        }
+        _appliedFilterCount = 0;
+        if (_appliedSearch == null) { UpdateArchiveFilterToggle(); SyncSearchPanelGaps(); return; }
         var tags = AppliedFilterLabels(_appliedSearch.Spec, TagFilterName);
+        _appliedFilterCount = tags.Count;
         if (tags.Count > 0)
         {
             TextBlock label = new() { Text = Texts.T("archive.appliedFilters"), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
@@ -72,8 +94,26 @@ public partial class ArchivePage
         for (int i = 0; i < tags.Count; i++)
         {
             var item = tags[i]; int index = i;
-            panel.Children.Add(CreateFilterTag(item.Label, async () => await RemoveAppliedFilter(item.Field, item.Value, index)));
+            ClosableTag chip = CreateAppliedChip(item, index);
+            // An own-tag chip got the chip menu from CreateTagFilterChip (one menu, one Copy tag name); any other applied chip gets it here.
+            if (!WorkspaceChips.HasMenu(chip)) AttachFilterChipMenu(chip, async () => await RemoveAppliedFilter(item.Field, item.Value, index), applied: true);
+            panel.Children.Add(chip);
         }
+        if (tags.Count > 0)
+        {
+            _appliedResetAll.Content = Texts.T("media.filter.resetAll");
+            ToolTip.SetTip(_appliedResetAll, Texts.T("media.filter.resetAllHint"));
+            AutomationProperties.SetName(_appliedResetAll, Texts.T("media.filter.resetAllHint"));
+            panel.Children.Add(_appliedResetAll);
+        }
+        UpdateArchiveFilterToggle();
+        SyncSearchPanelGaps();
+    }
+    /// <summary>The search panel's rows carry no gap of their own; a row that shows something gets its 8 dip above it.</summary>
+    private void SyncSearchPanelGaps()
+    {
+        ArchiveAppliedFilters.Margin = ArchiveAppliedFilters.Children.Count > 0 ? new Thickness(0, 8, 0, 0) : default;
+        ArchiveSearchErrorHost.Margin = ArchiveSearchError.IsVisible || ArchiveRetrySearch.IsVisible ? new Thickness(0, 8, 0, 0) : default;
     }
     private static string CanonicalField(ArchiveSearchSpec spec, string field) => ArchiveSearchSpecJson.Serialize(field switch
     {
@@ -86,6 +126,7 @@ public partial class ArchivePage
         "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: spec.WorkFilter),
         "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: spec.DateRange),
         "tags" => ArchiveSearchSpec.FromExactIdentities().WithTags(spec.Tags),
+        "scope" => ArchiveSearchSpec.FromExactIdentities().WithScope(spec.Scope),
         _ => throw new ArgumentOutOfRangeException(nameof(field))
     });
     private bool DraftFieldMatches(ArchiveSearchSpec spec, string field)
@@ -97,16 +138,17 @@ public partial class ArchivePage
         {
             ArchiveSearchSpec draft = field switch
             {
-                "text" => ArchiveSearchSpec.FromExactIdentities(text: Control<TextBox>("ArchiveSearchText").Text ?? ""),
+                "text" => ArchiveSearchSpec.FromExactIdentities(text: ArchiveSearchText.Text ?? ""),
                 "source" when string.IsNullOrWhiteSpace(IdentityText("ArchiveSourceFilter")) => ArchiveSearchSpec.FromExactIdentities(sources: _draftSources),
                 "board" when string.IsNullOrWhiteSpace(IdentityText("ArchiveBoardFilter")) => ArchiveSearchSpec.FromExactIdentities(boards: _draftBoards),
-                "state" when Control<ComboBox>("ArchiveStateFilter").SelectedIndex <= 0 => ArchiveSearchSpec.FromExactIdentities(sourceStates: _draftStates),
+                "state" when ArchiveStateFilter.SelectedIndex <= 0 => ArchiveSearchSpec.FromExactIdentities(sourceStates: _draftStates),
                 "capture" => ArchiveSearchSpec.FromExactIdentities(captureEnabled: Choice("ArchiveCaptureFilter")),
                 "posts" => ArchiveSearchSpec.FromExactIdentities(hasPosts: Choice("ArchivePostsFilter")),
-                "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: WorkChoice(Control<ComboBox>("ArchiveWorkFilter").SelectedIndex)),
-                "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: new ArchiveDateRange(Control<ArchiveDateEditor>("ArchiveStartDate").ParseRaw(false),
-                    Control<ArchiveDateEditor>("ArchiveEndDate").ParseRaw(false), _draftTimeZone ?? "Etc/UTC")),
+                "work" => ArchiveSearchSpec.FromExactIdentities(workFilter: WorkChoice(ArchiveWorkFilter.SelectedIndex)),
+                "date" => ArchiveSearchSpec.FromExactIdentities(dateRange: new ArchiveDateRange(ArchiveStartDate.ParseRaw(false),
+                    ArchiveEndDate.ParseRaw(false), _draftTimeZone ?? "Etc/UTC")),
                 "tags" when !HasPendingTagChoice => ArchiveSearchSpec.FromExactIdentities().WithTags(ReadTagFilterDraft()),
+                "scope" => ArchiveSearchSpec.FromExactIdentities().WithScope(DraftTextScope),
                 _ => throw new InvalidOperationException()
             };
             return CanonicalField(spec, field) == CanonicalField(draft, field);
@@ -117,20 +159,21 @@ public partial class ArchivePage
     {
         switch (field)
         {
-            case "text": Control<TextBox>("ArchiveSearchText").Text = next.Text; break;
+            case "text": ArchiveSearchText.Text = next.Text; break;
             case "source": _draftSources.Clear(); _draftSources.AddRange(next.Sources); break;
             case "board": _draftBoards.Clear(); _draftBoards.AddRange(next.Boards); break;
             case "state": _draftStates.Clear(); _draftStates.AddRange(next.SourceStates); break;
-            case "capture": Control<ComboBox>("ArchiveCaptureFilter").SelectedIndex = next.CaptureEnabled switch { true => 1, false => 2, _ => 0 }; break;
-            case "posts": Control<ComboBox>("ArchivePostsFilter").SelectedIndex = next.HasPosts switch { true => 1, false => 2, _ => 0 }; break;
-            case "work": Control<ComboBox>("ArchiveWorkFilter").SelectedIndex = WorkIndex(next.WorkFilter); break;
+            case "capture": ArchiveCaptureFilter.SelectedIndex = next.CaptureEnabled switch { true => 1, false => 2, _ => 0 }; break;
+            case "posts": ArchivePostsFilter.SelectedIndex = next.HasPosts switch { true => 1, false => 2, _ => 0 }; break;
+            case "work": ArchiveWorkFilter.SelectedIndex = WorkIndex(next.WorkFilter); break;
             case "date":
                 _draftTimeZone = null;
                 _writingDraft = true;
-                try { Control<ArchiveDateEditor>("ArchiveStartDate").RawText = ""; Control<ArchiveDateEditor>("ArchiveEndDate").RawText = ""; }
+                try { ArchiveStartDate.RawText = ""; ArchiveEndDate.RawText = ""; }
                 finally { _writingDraft = false; }
                 UpdateTimeZoneLabel(); break;
             case "tags": WriteTagFilterDraft(next.Tags); break;
+            case "scope": ArchiveTextScope.SelectedIndex = TextScopeToIndex(next.Scope); break;
         }
         DraftEdited(field);
         // A sourcechip removal must not revise an unrelated board draft/scope.
@@ -139,24 +182,30 @@ public partial class ArchivePage
     internal async Task<bool> RemoveAppliedFilter(string field, string? value = null, int focusIndex = 0)
     {
         if (_busy || _ended || !CanRead || _appliedSearch == null) return false;
-        ArchiveSearchSpec applied = _appliedSearch.Spec;
-        ArchiveSearchSpec next = CopySearch(applied, field, value);
-        string category = DraftCategory(field);
+        bool success = await SearchFromAppliedChip(CopySearch(_appliedSearch.Spec, field, value), DraftCategory(field));
+        if (success)
+        {
+            var tags = ArchiveAppliedFilters.Children.OfType<ClosableTag>().ToArray();
+            if (tags.Length > 0) tags[Math.Clamp(focusIndex, 0, tags.Length - 1)].Focus();
+            else ArchiveScopedBox.Focus();
+        }
+        return success;
+    }
+    /// <summary>
+    /// Searches again with a changed copy of the applied definition (a removed or toggled chip). The draft category follows only
+    /// when it still showed what was applied and was not edited meanwhile; a refused definition explains itself and keeps the list.
+    /// </summary>
+    private async Task<bool> SearchFromAppliedChip(ArchiveSearchSpec next, string category)
+    {
+        ArchiveSearchSpec applied = _appliedSearch!.Spec;
         long revision = _editorRevisions.GetValueOrDefault(category);
         bool matches = DraftFieldMatches(applied, category);
         ArchiveSearchRequest request;
         try { request = CreateSearchRequest(next); }
         catch (InvalidOperationException exception) { ShowTagFilterError(exception.Message); return false; }
-        bool success = await LoadListAsync(NewListLoad(request, afterCommit: () =>
+        return await LoadListAsync(NewListLoad(request, afterCommit: () =>
         {
             if (matches && _editorRevisions.GetValueOrDefault(category) == revision) WriteSearchField(next, category);
         }));
-        if (success)
-        {
-            var tags = Control<WrapPanel>("ArchiveAppliedFilters").Children.OfType<ClosableTag>().ToArray();
-            if (tags.Length > 0) tags[Math.Clamp(focusIndex, 0, tags.Length - 1)].Focus();
-            else Control<TextBox>("ArchiveSearchText").Focus();
-        }
-        return success;
     }
 }

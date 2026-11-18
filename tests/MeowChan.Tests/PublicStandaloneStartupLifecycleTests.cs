@@ -1,3 +1,4 @@
+using MeowChan.Archive;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -10,6 +11,39 @@ public sealed class PublicStandaloneStartupLifecycleTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
     private static string Url(string id) => $"https://stub.test/g/thread/{id}";
+
+    [Fact]
+    public async Task StandaloneStartupBindsTheAdditiveBooruCatalogAndAllowsAnOlderProfileWithoutIt()
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        using StubImageBoard provider = new();
+        await using Registry registry = new([provider], new DownloadQueue(1, 1024 * 1024),
+            profile.Path, TimeSpan.FromHours(1), 3600, persistSession: false);
+
+        await registry.StartAsync(lease).WaitAsync(Deadline);
+
+        Assert.NotNull(registry.BooruCatalog);
+        Assert.Equal(Path.Combine(profile.Path, BooruCatalogStore.FileName), registry.BooruCatalog!.FilePath);
+        Assert.False(File.Exists(registry.BooruCatalog.FilePath));
+        await registry.StopAsync().WaitAsync(Deadline);
+    }
+
+    [Theory]
+    [InlineData("{")]
+    [InlineData("{\"schemaVersion\":99,\"posts\":[],\"watchers\":[]}")]
+    public async Task StandaloneStartupFailsClosedForMalformedOrFutureBooruCatalog(string contents)
+    {
+        using TempDirectory profile = new();
+        File.WriteAllText(Path.Combine(profile.Path, BooruCatalogStore.FileName), contents);
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        using StubImageBoard provider = new();
+        await using Registry registry = new([provider], new DownloadQueue(1, 1024 * 1024),
+            profile.Path, TimeSpan.FromHours(1), 3600, persistSession: false);
+
+        await Assert.ThrowsAsync<InvalidDataException>(() => registry.StartAsync(lease).WaitAsync(Deadline));
+        Assert.NotNull(registry.BooruCatalog);
+    }
 
     [Theory]
     [InlineData(false)]

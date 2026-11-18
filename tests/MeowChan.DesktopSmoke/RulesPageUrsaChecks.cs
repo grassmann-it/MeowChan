@@ -25,8 +25,12 @@ internal static partial class RulesPageChecks
         try
         {
             fixture.IsAvailable = true;
-            await Program.WaitUntilAsync(() => fixture.CanExecuteTemplateCommand("rules.template-create"));
+            // Overview first: template commands act on a chosen scope's draft, so the wizard opens before they are available.
+            Require(fixture.IsOverviewVisible && !fixture.CanExecuteTemplateCommand("rules.template-create"),
+                "The Rules page did not open on its overview, or offered template commands without a chosen scope.");
             fixture.EditScope(MediaRuleScope.ForThread("unknown-source", "unknown-board", "unknown-thread"));
+            Require(fixture.IsWizardOpen && fixture.WizardStep == RuleWizardStep.Settings, "EditScope did not open the wizard at its settings step.");
+            await Program.WaitUntilAsync(() => fixture.CanExecuteTemplateCommand("rules.template-create"));
             fixture.RuleEnabled = false; fixture.TypesMode = (int)MediaTypeSelectionMode.Selected;
             await FlushAsync(); // Materialize the editor, then deliberately do not yield between input and Save/Discard.
             var raw = fixture.FindControl<MeowChan.Desktop.Controls.RuleExtensionsInput>("RuleExtensionsInput")!.GetVisualDescendants().OfType<TextBox>().First();
@@ -57,6 +61,11 @@ internal static partial class RulesPageChecks
             list.SelectedIndex = -1; list.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => list.IsFocused && list.IsEffectivelyVisible);
             Require(ReferenceEquals(list, Named<ComboBox>("RuleTemplateList")), "Selecting a template detached its focused list.");
+            // Grouped template actions: the selection row (preview first) exists only with a selection, undo only while it is available.
+            await Program.WaitUntilAsync(() => Shown("templates-preview") && Shown("templates-edit") && Shown("templates-delete") && Shown("templates-create"));
+            Require(!Shown("templates-undo-apply"), "Template undo was offered although no template copy can be undone.");
+            list.BringIntoView(); window.UpdateLayout();
+            Program.CaptureWindow(window, "smoke-rules-templates-selected.png");
             Button previewTrigger = Named<Button>("templates-preview"); previewTrigger.Focus(NavigationMethod.Tab);
             await fixture.ExecuteTemplateCommandAsync("rules.template-preview");
             await Program.WaitUntilAsync(() => Named<TextBlock>("RuleTemplatePreviewHeading").IsFocused && Fits(window, Named<TextBlock>("RuleTemplatePreviewHeading")));
@@ -111,6 +120,9 @@ internal static partial class RulesPageChecks
             Require(ruleWrites == 0, "Deleting a template wrote an active rule.");
         }
         finally { templatePublicationGate?.TrySetResult(); fixture.EndLifetime(); host.Content = retained; }
-        T Named<T>(string name) where T : Control => fixture.GetVisualDescendants().OfType<T>().First(c => c.Name == name);
+        bool Shown(string name) => fixture.GetVisualDescendants().OfType<Button>().Any(c => c.Name == name && c.IsEffectivelyVisible);
+        T Named<T>(string name) where T : Control => fixture.GetVisualDescendants().OfType<T>().FirstOrDefault(c => c.Name == name)
+            ?? throw new InvalidOperationException($"The Rules fixture has no {typeof(T).Name} named '{name}'; named {typeof(T).Name}s: "
+                + string.Join(", ", fixture.GetVisualDescendants().OfType<T>().Where(c => !string.IsNullOrEmpty(c.Name)).Select(c => c.Name)));
     }
 }

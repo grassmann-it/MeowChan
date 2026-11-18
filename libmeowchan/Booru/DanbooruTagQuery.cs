@@ -51,6 +51,10 @@ internal sealed class DanbooruTagQuery
     internal const int MaximumTermUtf8Bytes = 256;
     internal const int MaximumTagTerms = 2;
     internal const int MaximumTerms = MaximumTagTerms + 1;
+    // Request bounds shared by the search watcher (DanbooruWatcher) and the host transport (BooruHostHttp): at most
+    // this many result pages of at most this many posts per check or search. Fixed technical limits, not settings.
+    internal const int MaximumSearchPages = 5;
+    internal const int MaximumSearchPageSize = 20;
 
     private DanbooruTagQuery(DanbooruTagTerm[] terms, string providerQuery, int tagTermCount)
     {

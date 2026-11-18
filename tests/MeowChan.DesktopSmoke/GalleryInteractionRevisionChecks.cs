@@ -4,6 +4,8 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -83,14 +85,17 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height * .3));
                 await UntilAsync(() => !Visible(controls) && !viewer.CaptureState().ContextOpen,
                     "First-key precondition: controls/post never collapsed after leaving their panels.");
-                // Renew artwork with actual motion after waiting for collapse: targets remain
-                // keyboard/touch reachable at idle, but the chevrons must not be permanent.
-                await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .42, viewer.Bounds.Height * .32));
+                // Real mouse motion anywhere over the gallery intentionally reveals the
+                // controls. The edge chevron is transient artwork, so verify the
+                // persistent transparent handles as native targets instead of moving back
+                // through the centre and reopening the footer.
                 Button bottomHint = EdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
                 Button rightHint = EdgeIndicator(viewer, "GalleryPostEdgeIndicator");
-                await UntilAsync(() => MediaInteractionSmokeHelpers.EdgeHintVisible(bottomHint)
-                    && MediaInteractionSmokeHelpers.EdgeHintVisible(rightHint),
-                    "Native motion did not expose first-key fixture edge hints.");
+                await UntilAsync(() => MediaInteractionSmokeHelpers.IsNativeGeometryReady(bottomHint)
+                    && MediaInteractionSmokeHelpers.IsNativeGeometryReady(rightHint),
+                    "Hidden gallery edge handles never became current native geometry targets.");
+                MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(bottomHint, viewer);
+                MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(rightHint, viewer);
             }
             async Task FirstKeyAsync(bool next, string scenario)
             {
@@ -108,11 +113,12 @@ internal static partial class GalleryPlaybackFeatureChecks
             await HiddenAsync();
             await FirstKeyAsync(false, "hidden Left");
             await HiddenAsync();
-            await native.MoveAsync(EdgeIndicator(viewer, "GalleryControlsEdgeIndicator"));
+            await LayoutAsync(fixture.Window);
+            await native.MoveAsync(() => NativeTargetAsync<Button>(viewer, "GalleryControlsEdgeIndicator"));
             await UntilAsync(() => Visible(controls), "Bottom indicator hover did not reveal controls.");
             await FirstKeyAsync(true, "after bottom-indicator hover");
             await HiddenAsync();
-            await native.ClickAsync(EdgeIndicator(viewer, "GalleryControlsEdgeIndicator"));
+            await native.ClickAsync(() => NativeTargetAsync<Button>(viewer, "GalleryControlsEdgeIndicator"));
             await UntilAsync(() => Visible(controls), "Bottom indicator click did not reveal controls.");
             await FirstKeyAsync(false, "after bottom-indicator click");
             await HiddenAsync();
@@ -126,11 +132,11 @@ internal static partial class GalleryPlaybackFeatureChecks
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Keyboard activation of the post indicator did not open context.");
             await FirstKeyAsync(false, "after keyboard post-indicator activation");
             await HiddenAsync();
-            await native.ClickAsync(EdgeIndicator(viewer, "GalleryPostEdgeIndicator"));
+            await native.ClickAsync(() => NativeTargetAsync<Button>(viewer, "GalleryPostEdgeIndicator"));
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Post indicator click did not reveal context.");
             await FirstKeyAsync(true, "after post-indicator click");
             await HiddenAsync();
-            await native.MoveAsync(EdgeIndicator(viewer, "GalleryPostEdgeIndicator"));
+            await native.MoveAsync(() => NativeTargetAsync<Button>(viewer, "GalleryPostEdgeIndicator"));
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Post indicator hover did not reveal context.");
             await FirstKeyAsync(false, "after post-indicator hover");
             Program.CaptureWindow(fixture.Window, "smoke-gallery-first-key-indicators.png");
@@ -309,6 +315,14 @@ internal static partial class GalleryPlaybackFeatureChecks
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
         GalleryVideoPlayer player = Player(viewer);
         await UntilAsync(async () => HasRealFrames(await player.InspectPlaybackAsync()) && Running(viewer), "Transport fixture did not start.");
+        Point LoopPoint(Border currentTransport)
+        {
+            ToggleButton currentLoop = currentTransport.GetVisualDescendants().OfType<ToggleButton>()
+                .Single(control => control.Name == "GalleryVideoLoop");
+            return currentLoop.TranslatePoint(
+                new Point(currentLoop.Bounds.Width / 2, currentLoop.Bounds.Height / 2), currentTransport)
+                ?? throw new ArgumentException("Gallery loop target has no current transport transform.", nameof(currentTransport));
+        }
         var evidence = await player.InspectPlaybackAsync();
         int contextWrites = 0;
         viewer.ContextOpenChanged += _ => contextWrites++;
@@ -327,7 +341,10 @@ internal static partial class GalleryPlaybackFeatureChecks
             Require(evidence.AudioAvailable && evidence.AudioTracks > 0, "Synthetic audio track is unavailable; volume acceptance cannot silently skip.");
             Require(volume.IsEffectivelyEnabled, "Real audio fixture did not enable volume.");
         }
-        await native.MoveAsync(volume);
+        // A no-output fixture disables the volume slider. Its hover is still a real
+        // pointer motion, but the disabled popup child is not an actionable native
+        // hit target; keep strict admission for the enabled/audio-positive branch.
+        await native.MoveAsync(volume, requireEnabled: !nativeUnavailable, requireHitTest: !nativeUnavailable);
         await ObservePlayingAsync(player, "volume hover");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Volume hover opened post/paused slideshow.");
         if (nativeUnavailable)
@@ -340,7 +357,13 @@ internal static partial class GalleryPlaybackFeatureChecks
             Require(ProvesNativeUnavailable(before) && before.State == "Playing"
                 && !volume.IsEffectivelyEnabled && !mute.IsEffectivelyEnabled && !player.CanAdjustVolume,
                 "Native no-output volume check requires disabled controls and actual unavailable evidence.");
-            await native.MoveAsync(volume, SliderPoint(volume, .65));
+            // The disabled popup slider is a geometry-only invariance probe. Resolve
+            // its current presentation and track point together, but do not require
+            // disabled-control hit-test ownership; enabled edits remain strict below.
+            await native.MoveAsync(
+                () => Task.FromResult(volume),
+                current => Task.FromResult((Point?)SliderPoint(current, .65)),
+                requireEnabled: false, requireHitTest: false);
             await native.ButtonAsync(true);
             await native.ButtonAsync(false);
             await ObservePlayingAsync(player, "disabled volume click");
@@ -356,7 +379,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
         else
         {
-            await native.ClickAsync(volume, SliderPoint(volume, .65));
+            await NativeSliderClickAsync(native, viewer, "GalleryVideoVolume", .65);
             await UntilAsync(async () => (await player.InspectPlaybackAsync()).Volume >= 55, "Native volume click did not change decoder volume.");
         }
         await ObservePlayingAsync(player, "volume click");
@@ -371,14 +394,29 @@ internal static partial class GalleryPlaybackFeatureChecks
         await ObservePlayingAsync(player, "bottom transport at right hotspot");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Right hotspot over visible bottom transport stole precedence and opened post.");
         ToggleButton loop = Find<ToggleButton>(viewer, "GalleryVideoLoop");
-        await native.MoveAsync(loop);
+        // The running slideshow owns Repeat, so the button is intentionally disabled.
+        // Resolve the current enabled transport and deliver native motion at the loop's
+        // current coordinates; strict hit-testing still proves the real input route.
+        await native.MoveAsync(
+            () => NativeTargetAsync<Border>(viewer, "GalleryVideoTransport"),
+            currentTransport => Task.FromResult<Point?>(LoopPoint(currentTransport)));
         await ObservePlayingAsync(player, "loop hover");
         Require(Running(viewer) && !viewer.CaptureState().ContextOpen, "Loop hover opened post and stopped progression.");
+        // A running slideshow owns video repetition, so the transport loop is intentionally
+        // disabled. Do not make the native helper click a disabled target: switch the
+        // existing playback mode while retaining the real native video clock, then wait for
+        // the current transport root to publish an actually clickable loop control.
+        Require(!loop.IsEffectivelyEnabled, "A running slideshow exposed a competing transport repeat action.");
+        viewer.ConfigurePlayback(prefs with { Mode = GalleryPlaybackMode.Manual });
+        await UntilAsync(() => !Running(viewer) && MediaInteractionSmokeHelpers.IsPointerTargetReady(loop),
+            "Manual repeat setup did not produce a current native loop target.");
+        await ObservePlayingAsync(player, "manual repeat ownership");
         await native.ClickAsync(loop);
         await ObservePlayingAsync(player, "loop click");
         Require(loop.IsChecked == true && !viewer.CaptureState().ContextOpen && contextWrites == 0,
             "Loop click opened post or failed to enable Repeat.");
-        Require(!Running(viewer), "Explicit Repeat did not retain its existing exclusive-mode safety contract.");
+        Require(!Running(viewer), "Explicit Repeat unexpectedly restarted slideshow automation.");
+        loop = await NativeTargetAsync<ToggleButton>(viewer, "GalleryVideoLoop");
         await native.ClickAsync(loop);
         // Configuring mode is setup, not Start. Menu/panel interactions below must not
         // stop the native video even when they pause automatic advancement.
@@ -409,7 +447,24 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(!Running(viewer), "Closing post context silently resumed automatic advancement.");
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
         await UntilAsync(() => Running(viewer), "Could not restart automation before menu intent check.");
+        // Keep the short synthetic audio fixture away from its natural terminal
+        // boundary while exercising the menu. Slower native runners can consume most
+        // of its twelve seconds during the preceding transport assertions; rewinding
+        // is deterministic setup, not a relaxation of the menu contract.
+        Require(player.SeekRelative(TimeSpan.FromSeconds(-8)), "Menu intent setup could not rewind the seekable video.");
+        await ObservePlayingAsync(player, "rewound menu intent setup");
+        // The playback selector stays in the shared "More" flyout while the slideshow
+        // toggle moves onto the toolbar. Opening the flyout is part of the user flow:
+        // without it the selector is intentionally detached from any native hit root.
+        viewer.SetOverflowOpen(true);
+        await UntilAsync(() => viewer.IsOverflowOpen,
+            "Playback mode overflow menu never opened.");
         ComboBox mode = Find<ComboBox>(viewer, "GalleryPlaybackModeSelector");
+        // After the native start click and popup reparenting Avalonia can retain the
+        // selector for one layout turn with visible-but-detached bounds. Do not pass that
+        // stale target to OS input; wait for its current hit root.
+        await UntilAsync(() => MediaInteractionSmokeHelpers.IsPointerTargetReady(mode),
+            "Playback mode setup never became a current native pointer target.");
         using var menuTrace = new ModeMenuInputTrace(fixture.Window, viewer, mode);
         menuTrace.Record("before-click");
         await native.ClickAsync(mode);
@@ -424,6 +479,31 @@ internal static partial class GalleryPlaybackFeatureChecks
         Require(contextWrites == 2, "Transient bottom-panel hover persisted post-context choices.");
     }
 
+    private static async Task<T> NativeTargetAsync<T>(GalleryViewer viewer, string name) where T : Control
+    {
+        // Resolve the retained control on every dispatcher turn. A native gallery
+        // transport can be between roots while the same named visual is being moved;
+        // a settled hit-test probe must never keep a retired instance.
+        T? target = null;
+        await UntilAsync(() =>
+        {
+            try
+            {
+                T[] matches = viewer.GetGalleryVisualDescendants().OfType<T>()
+                    .Where(control => control.Name == name).ToArray();
+                if (matches.Length != 1) { target = null; return false; }
+                target = matches[0];
+                return MediaInteractionSmokeHelpers.IsPointerTargetReady(target);
+            }
+            catch (InvalidOperationException)
+            {
+                target = null;
+                return false;
+            }
+        }, $"The {name} control did not settle as a native hit target.");
+        return target!;
+    }
+
     private static GalleryVideoPlayer Player(GalleryViewer viewer) => viewer.GetGalleryVisualDescendants().OfType<GalleryVideoPlayer>().Single();
     private static bool HasRealFrames(GalleryVideoPlayer.PlaybackEvidence evidence) => evidence.HasPlayback
         && evidence.State == "Playing" && evidence.Time > 100 && evidence.Seekable && evidence.Length >= 8000
@@ -433,13 +513,18 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         var first = await player.InspectPlaybackAsync().WaitAsync(Deadline);
         Require(first.State == "Playing", action + " changed native playback away from Playing.");
-        for (int i = 0; i < 5; i++)
+        // Native AVFoundation can publish the Playing state before its clock resumes
+        // after a seek or popup reparent. Give that legitimate rebuffer a bounded
+        // window, while still failing promptly if an interaction actually paused it.
+        for (int i = 0; i < 15; i++)
         {
             await Task.Delay(100);
             var state = await player.InspectPlaybackAsync().WaitAsync(Deadline);
             Require(state.State == "Playing", action + " caused a delayed native pause/stop.");
-            if (i == 4) Require(state.Time >= first.Time + 200, action + " left a Playing label but a frozen native clock.");
+            if (state.Time >= first.Time + 200) return;
         }
+        var frozen = await player.InspectPlaybackAsync().WaitAsync(Deadline);
+        Require(frozen.Time >= first.Time + 200, action + " left a Playing label but a frozen native clock.");
     }
 
     private static async Task ObservePausedAsync(GalleryVideoPlayer player, string action)
@@ -458,15 +543,109 @@ internal static partial class GalleryPlaybackFeatureChecks
     private static Point SliderPoint(Slider slider, double fraction)
     {
         Track track = slider.GetVisualDescendants().OfType<Track>().Single();
-        double thumb = track.Thumb?.Bounds.Width ?? 12;
-        return track.TranslatePoint(new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2), slider)
+        Point trackPoint = SliderTrackPoint(track, slider.Orientation, fraction);
+        return track.TranslatePoint(trackPoint, slider)
             ?? throw new InvalidOperationException("Native slider track has no screen transform.");
+    }
+
+    private static async Task NativeSliderClickAsync(MediaNativeInput native, GalleryViewer viewer, string name, double fraction)
+    {
+        // On software-video platforms the volume slider lives in an in-tree popup. Its
+        // visibility is driven by pointer-over and the popup can be retired/reopened
+        // while the native coordinate is being converted. Keep the speaker hovered
+        // first, then resolve the slider and its PART_Track together for every bounded
+        // native-input attempt. Never carry a track point across a popup transfer.
+        if (name == "GalleryVideoVolume")
+            await native.MoveAsync(() => CurrentNamedTargetAsync<Control>(viewer, "GalleryVideoVolumeHost"));
+
+        List<string> route = new();
+        void Pointer(object? _, PointerEventArgs e) => route.Add($"{e.RoutedEvent?.Name ?? "Pointer"}:{(e.Source is Control source ? source.Name ?? source.GetType().Name : e.Source?.GetType().Name)}:handled={e.Handled}");
+        // The viewer is above both the docked and popup presentations. Listening there
+        // survives a slider reparent, while the native target below remains strict.
+        viewer.AddHandler(InputElement.PointerPressedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        viewer.AddHandler(InputElement.PointerReleasedEvent, Pointer, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
+        try
+        {
+            await native.ClickAsync(
+                () => CurrentNamedTargetAsync<Slider>(viewer, name),
+                current =>
+                {
+                    Track track = current.GetVisualDescendants().OfType<Track>().Single();
+                    Point trackPoint = SliderTrackPoint(track, current.Orientation, fraction);
+                    Point sliderPoint = track.TranslatePoint(trackPoint, current)
+                        ?? throw new ArgumentException("Native slider track changed presentation during coordinate conversion.", nameof(current));
+                    TopLevel root = TopLevel.GetTopLevel(current)
+                        ?? throw new ArgumentException("Native slider has no current top-level input root.", nameof(current));
+                    PixelPoint screen = current.PointToScreen(sliderPoint);
+                    Point rootPoint = root.PointToClient(screen);
+                    Visual? hit = root.InputHitTest(rootPoint) as Visual;
+                    Console.WriteLine("SMOKE native slider input geometry: " + System.Text.Json.JsonSerializer.Serialize(new
+                    {
+                        slider = current.Name, orientation = current.Orientation.ToString(), fraction,
+                        sliderBounds = current.Bounds.ToString(), trackBounds = track.Bounds.ToString(),
+                        thumbBounds = track.Thumb?.Bounds.ToString(), trackPoint = trackPoint.ToString(),
+                        sliderPoint = sliderPoint.ToString(), screen = screen.ToString(),
+                        rootPoint = rootPoint.ToString(), hit = hit?.GetType().Name, hitName = (hit as Control)?.Name,
+                        hitSlider = hit?.GetSelfAndVisualAncestors().Contains(current) == true,
+                        popupVisible = current.GetVisualAncestors().OfType<Control>().FirstOrDefault(c => c.Name == "GalleryVideoVolumePopup")?.IsEffectivelyVisible
+                    }));
+                    // MediaNativeInput repeats this same current-target transaction and
+                    // performs the authoritative hit-test immediately before delivery.
+                    // This diagnostic catches geometry regressions without becoming a
+                    // second stale preflight gate.
+                    return Task.FromResult((Point?)sliderPoint);
+                });
+        }
+        finally
+        {
+            viewer.RemoveHandler(InputElement.PointerPressedEvent, Pointer);
+            viewer.RemoveHandler(InputElement.PointerReleasedEvent, Pointer);
+        }
+        Console.WriteLine("SMOKE native slider event route: " + System.Text.Json.JsonSerializer.Serialize(route));
+        Require(route.Any(entry => entry.StartsWith("PointerPressed:", StringComparison.Ordinal))
+            && route.Any(entry => entry.StartsWith("PointerReleased:", StringComparison.Ordinal)),
+            "Native slider click did not traverse the slider pointer route; see native slider event route.");
+    }
+
+    private static Task<T> CurrentNamedTargetAsync<T>(GalleryViewer viewer, string name) where T : Control
+    {
+        try
+        {
+            T[] matches = viewer.GetGalleryVisualDescendants().OfType<T>()
+                .Where(control => control.Name == name).ToArray();
+            if (matches.Length != 1)
+                throw new ArgumentException($"Expected exactly one current {name} target; found {matches.Length}.", nameof(name));
+            return Task.FromResult(matches[0]);
+        }
+        catch (InvalidOperationException exception)
+        {
+            // A transfer can invalidate the visual enumeration for one dispatcher
+            // turn. MediaNativeInput treats ArgumentException as a bounded retry and
+            // will enumerate the new presentation instead of using a stale control.
+            throw new ArgumentException($"The current {name} target changed during visual enumeration.", nameof(name), exception);
+        }
+    }
+
+    private static Point SliderTrackPoint(Track track, Orientation orientation, double fraction)
+    {
+        if (fraction is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(fraction));
+        double thumb = track.Thumb is { } trackThumb
+            ? orientation == Orientation.Vertical ? trackThumb.Bounds.Height : trackThumb.Bounds.Width
+            : 12;
+        return orientation == Orientation.Vertical
+            ? new Point(track.Bounds.Width / 2, track.Bounds.Height - (thumb / 2 + fraction * (track.Bounds.Height - thumb)))
+            : new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2);
     }
 
     private static async Task NativeSeekAsync(MediaNativeInput native, GalleryViewer viewer, double fraction, bool drag)
     {
         Slider seek = Find<Slider>(viewer, "GalleryVideoSeek");
         Require(seek.IsEffectivelyEnabled, "Native seek acceptance has no enabled seek slider.");
+        // Saved autoplay deliberately waits long enough for auto-hide. Reveal the
+        // transport with a real pointer move before asking the native backend to
+        // target the slider; do not turn a hidden-control race into a routed click.
+        await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, seek,
+            "Native seek controls did not become a current hit target after revealing the gallery transport.");
         if (!drag) await native.ClickAsync(seek, SliderPoint(seek, fraction));
         else
         {

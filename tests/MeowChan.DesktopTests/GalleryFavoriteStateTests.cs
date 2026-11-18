@@ -289,44 +289,70 @@ public sealed class GalleryFavoriteStateTests
     }
 
     [Fact]
-    public void FavoriteIndicatorFactoryCreatesTinyPassiveNonFocusableArtwork()
+    public void FavoriteIndicatorFactoryCreatesAFocusableToggleWithPassiveArtwork()
     {
-        Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
+        ToggleButton badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
         Assert.Equal("GalleryFavoriteIndicator", badge.Name);
-        Assert.False(badge.IsHitTestVisible);
-        Assert.False(badge.Focusable);
+        // Review 15.11.: the badge is a real toggle (pointer, Tab, Space and Enter), only its artwork is passive.
+        Assert.True(badge.IsHitTestVisible);
+        Assert.True(badge.Focusable);
+        Assert.Contains("gallery-favorite-badge", badge.Classes);
         Assert.False(badge.IsVisible);
         Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
-        Assert.Equal(new Thickness(7, 3), badge.Padding);
+        // As high as the way back beside it and at least a square of that size: the Workspace.Size.Control token, bound dynamically.
+        Assert.NotNull(badge.GetBindingObservable(Layoutable.HeightProperty));
+        Assert.NotNull(badge.GetBindingObservable(Layoutable.MinWidthProperty));
         Assert.Equal(16, badge.ZIndex);
-        TextBlock glyph = Assert.IsType<TextBlock>(badge.Child);
-        Assert.Equal(16, glyph.FontSize);
+        StackPanel glyph = Assert.IsType<StackPanel>(badge.Content);
         Assert.False(glyph.IsHitTestVisible);
         Assert.False(glyph.Focusable);
+        // A drawn star (not a font glyph) and a pending "…" that starts hidden.
+        Avalonia.Controls.Shapes.Path star = Assert.IsType<Avalonia.Controls.Shapes.Path>(glyph.Children[0]);
+        Assert.Equal(MeowChan.Desktop.Controls.WorkspaceIcons.Star, MeowChan.Desktop.Controls.WorkspaceIcons.KeyOf(star));
+        Assert.False(star.IsHitTestVisible);
+        TextBlock pending = Assert.IsType<TextBlock>(glyph.Children[1]);
+        // The size is the Subtitle design token (16), bound dynamically, so it resolves only once the badge is in the tree.
+        Assert.NotNull(pending.GetBindingObservable(Avalonia.Controls.Documents.TextElement.FontSizeProperty));
+        Assert.False(pending.IsVisible);
+        Assert.Equal((false, false), GalleryViewer.FavoriteBadgeState(badge));
     }
 
     [Fact]
-    public void FavoriteIndicatorUsesLeftSafeAreaAwayFromRightPostContext()
+    public void FavoriteIndicatorSitsTopLeftDirectlyRightOfTheWayBack()
     {
-        Border badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
+        ToggleButton badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
 
-        // Post context is an opaque right-hand overlay. The favorite badge is
-        // passive chrome and must remain in the opposite safe area instead of
-        // relying on a higher Z-index to sit on top of post text.
+        // The top left edge belongs to the gallery's way back (Tom's rule of 14.11.); the badge sits directly right of it
+        // (UpdateFavoriteIndicators sets the margin from the button's width) and the post panel starts below that row where it reaches it.
         Assert.Equal(HorizontalAlignment.Left, badge.HorizontalAlignment);
         Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
         Assert.Equal(new Thickness(12), badge.Margin);
         Assert.True(badge.ZIndex > 0);
     }
 
+    // Tom's rule of 15.11.: the star beside the way back is gone with it (opacity 0, no hit test, no focus) while the overlay controls are
+    // auto-hidden, and returns with it or alone after a change (GalleryAutoHideCleanTests drives the states).
+    [Fact]
+    public void TheStarHidesCompletelyAndReturnsWithTheWayBack()
+    {
+        string viewer = ViewerSource();
+        Assert.DoesNotContain("0.3", viewer.Substring(viewer.IndexOf("private void UpdateCornerChrome", StringComparison.Ordinal), 1800));
+        Assert.Contains("star.ApplyTo(_favoriteIndicator);", viewer);
+        Assert.Contains("star.ApplyTo(_nativeFavoriteIndicator);", viewer);
+        Assert.Contains("back.ApplyTo(_close);", viewer);
+    }
+
+    private static string ViewerSource([CallerFilePath] string source = "") =>
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", "Desktop/GalleryViewer.cs")));
+
     [Fact]
     public void RealIndicatorInitializerKeepsDistinctNamedControlsInEachRoot()
     {
         var h = new IndicatorFixture();
         Assert.NotSame(h.Managed, h.Native);
-        Assert.NotSame(h.Managed.Child, h.Native.Child);
+        Assert.NotSame(h.Managed.Content, h.Native.Content);
         Assert.Equal("GalleryFavoriteIndicator", h.Managed.Name);
         Assert.Equal("GalleryNativeFavoriteIndicator", h.Native.Name);
         Assert.NotEqual(h.Managed.Name, h.Native.Name);
@@ -425,6 +451,8 @@ public sealed class GalleryFavoriteStateTests
         SetField(h.Viewer, "_favoriteConfirmPanel", new Border());
         SetField(h.Viewer, "_chrome", new Border());
         SetField(h.Viewer, "_infoOverlay", new Border());
+        var dock = new StackPanel(); // GL1: the tools and the info line live in the dock, which owns the row below the picture
+        SetField(h.Viewer, "_dockStack", dock);
         h.Viewer.SetFavorite(true);
         // Invoke actual fallback row configuration, but not window activation or player setup.
         Invoke(h.Viewer, "SetVideoFallbackLayout", true);
@@ -433,6 +461,7 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(GridLength.Auto, h.ManagedRoot.RowDefinitions[0].Height);
         Assert.Equal(0, Grid.GetRow(h.Managed));
         Assert.Equal(1, Grid.GetRow(body));
+        Assert.Equal(2, Grid.GetRow(dock));
         Assert.True(h.Managed.IsVisible);
         Assert.False(h.Native.IsVisible);
         Assert.Same(h.ManagedRoot, h.Managed.Parent);
@@ -440,6 +469,7 @@ public sealed class GalleryFavoriteStateTests
         Invoke(h.Viewer, "SetVideoFallbackLayout", false);
         Invoke(h.Viewer, "UpdateFavoriteIndicators");
         Assert.Equal(3, h.ManagedRoot.RowDefinitions.Count);
+        Assert.Equal(1, Grid.GetRow(dock));
         Assert.Equal(0, Grid.GetRow(body));
         Assert.Equal(0, Grid.GetRow(h.Managed));
         Assert.True(h.Managed.IsVisible);
@@ -447,20 +477,23 @@ public sealed class GalleryFavoriteStateTests
 
     private static void AssertArtwork(IndicatorFixture h, bool saved, bool pending)
     {
-        string state = Texts.T(saved ? "viewer.favorite.saved" : "viewer.favorite.unsaved");
-        foreach (Border badge in new[] { h.Managed, h.Native })
+        foreach (ToggleButton badge in new[] { h.Managed, h.Native })
         {
-            TextBlock glyph = Assert.IsType<TextBlock>(badge.Child);
-            Assert.Equal((saved ? "★" : "☆") + (pending ? " …" : ""), glyph.Text);
+            StackPanel glyph = Assert.IsType<StackPanel>(badge.Content);
+            Assert.Equal((saved, pending), GalleryViewer.FavoriteBadgeState(badge));
+            Avalonia.Controls.Shapes.Path star = Assert.IsType<Avalonia.Controls.Shapes.Path>(glyph.Children[0]);
             Assert.Equal(saved ? Colors.Gold : Colors.White,
-                Assert.IsAssignableFrom<ISolidColorBrush>(glyph.Foreground).Color);
+                Assert.IsAssignableFrom<ISolidColorBrush>(star.Stroke).Color);
+            Assert.Equal(saved, star.Fill is ISolidColorBrush { Color.A: > 0 });
             string? label = AutomationProperties.GetName(badge);
             Assert.False(string.IsNullOrWhiteSpace(label));
-            Assert.Contains(state, label!);
+            Assert.StartsWith(Texts.T("gallery.decision.favorite"), label!); // the toggle state (checked), not the name, says saved or not
             Assert.Equal(pending, label!.Contains('…'));
-            Assert.Equal(label, AutomationProperties.GetName(glyph));
-            Assert.False(badge.IsHitTestVisible);
-            Assert.False(badge.Focusable);
+            Assert.Equal(saved, badge.IsChecked);
+            Assert.False(glyph.IsHitTestVisible);
+            Assert.True(badge.IsHitTestVisible);
+            Assert.True(badge.Focusable);
+            Assert.True(badge.IsEnabled); // never disabled while saving: the focus must stay where it is
         }
     }
 
@@ -480,6 +513,8 @@ public sealed class GalleryFavoriteStateTests
         }
         finally { SynchronizationContext.SetSynchronizationContext(previous); }
     });
+
+    private static string SourceFile([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
 
     private sealed class QueueOwnerContext : SynchronizationContext, IDisposable
     {
@@ -534,8 +569,8 @@ public sealed class GalleryFavoriteStateTests
     {
         internal GalleryViewer Viewer { get; } = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
         internal ToggleButton Button { get; } = new();
-        internal Border Managed { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
-        internal Border Native { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryNativeFavoriteIndicator");
+        internal ToggleButton Managed { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
+        internal ToggleButton Native { get; } = GalleryViewer.CreateFavoriteIndicator("GalleryNativeFavoriteIndicator");
         internal Grid ManagedRoot { get; } = new() { RowDefinitions = new RowDefinitions("*,Auto,Auto") };
         internal Grid NativeRoot { get; } = new();
         internal IndicatorFixture()

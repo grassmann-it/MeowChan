@@ -16,6 +16,7 @@ using MeowChan.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using Serilog;
+using Microsoft.Data.Sqlite;
 
 public enum DownloadPriority { Manual, BoardDiscovery }
 
@@ -39,6 +40,7 @@ public partial class DownloadQueue
     private readonly CancellationTokenSource _lifetime = new();
     private readonly DownloadTargetGate _targets;
     private Task? _targetPolling;
+    private int _targetPollingFailures;
     private TaskCompletionSource _targetChanged = CreateCompletionSource();
     private int _activeFilteredDownloads;
     private readonly SemaphoreSlim _pauseTransitions = new(1, 1);
@@ -71,6 +73,9 @@ public partial class DownloadQueue
     private IWorkStateStore? _workStore;
     private TaskCompletionSource _scheduleChanged = CreateCompletionSource();
     private Task? _scheduleTask;
+    // Consecutive unexpected loop faults without a completed pass; the loop is not restarted at the limit.
+    private int _scheduleFailures;
+    private const int MaxLoopFailures = 3;
     private TaskCompletionSource _idleCompletion = CreateCompletedSource();
     private TaskCompletionSource? _stopCompletion;
     private int _maxParallelDownloads;
@@ -91,6 +96,13 @@ public partial class DownloadQueue
     }
     public event Action<string>? PersistenceFailed;
 
+    /// <summary>
+    /// Raised after the queue itself changed the profile's private media tags (a carry-over to a new revision
+    /// key). The tag file is always written read-modify-write under the profile lease, so no update is lost;
+    /// the event lets a host refresh the tag view it published earlier.
+    /// </summary>
+    internal event Action? MediaTagsCarriedOver;
+
     public int MaxParallelDownloads
     {
         get
@@ -101,6 +113,9 @@ public partial class DownloadQueue
             }
         }
     }
+
+    /// <summary>True once <see cref="StopAllAsync"/> has permanently closed admission.</summary>
+    internal bool IsStopping { get { lock (_stateLock) { return _stopping; } } }
 
     /// <summary>True while dispatch and provider checks are halted.</summary>
     public bool IsPaused { get { lock (_stateLock) { return _paused; } } }
@@ -177,6 +192,9 @@ public partial class DownloadQueue
     public long MinimumFreeSpaceBytes => _targets.Reserve;
     public IReadOnlyList<DownloadTargetWaitState> TargetWaitStates => _targets.Snapshot();
     public void UpdateMinimumFreeSpaceBytes(long bytes) => _targets.UpdateReserve(bytes);
+
+    /// <summary>The profile's configured private tag write limits, used when a commit carries media tags over.</summary>
+    internal Tags.PrivateTagLimits PrivateTagLimits { get; set; } = new();
     public Task CheckTargetsAsync(CancellationToken cancellationToken = default) => _targets.CheckBlockedAsync(true, cancellationToken);
     internal DownloadTargetGate TargetGate => _targets;
 
@@ -195,7 +213,8 @@ public partial class DownloadQueue
             TaskCompletionSource old = _targetChanged;
             _targetChanged = CreateCompletionSource();
             old.TrySetResult();
-            if (_targetPolling == null && !_producerSuspended && _targets.NextCheckAt != null) _targetPolling = Task.Run(PollTargetsAsync);
+            if (_targetPolling == null && !_producerSuspended && _targetPollingFailures < MaxLoopFailures && _targets.NextCheckAt != null)
+                _targetPolling = Task.Run(() => SuperviseLoopAsync(PollTargetsAsync, schedule: false));
             if (_workStore != null) SignalScheduleLocked();
             ready = ReserveWorkersLocked();
         }
@@ -234,9 +253,36 @@ public partial class DownloadQueue
                     }
                     catch (ProducerSuspendedException) { }
                 }
+                lock (_stateLock) _targetPollingFailures = 0;
             }
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+    }
+
+    /// <summary>
+    /// Reports an unexpected background loop fault and clears its task so the next signal restarts it.
+    /// Repeated faults without a completed pass stop the loop visibly instead of restarting it in a circle.
+    /// </summary>
+    private async Task SuperviseLoopAsync(Func<Task> loop, bool schedule)
+    {
+        try { await loop().ConfigureAwait(false); }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested || _stopping) { }
+        catch (Exception failure)
+        {
+            bool stopped;
+            lock (_stateLock)
+            {
+                if (schedule) { _scheduleTask = null; stopped = ++_scheduleFailures >= MaxLoopFailures; }
+                else { _targetPolling = null; stopped = ++_targetPollingFailures >= MaxLoopFailures; }
+            }
+            string name = schedule ? "Automatic media retry scheduling" : "Storage target rechecking";
+            string warning = stopped
+                ? $"{name} stopped after {MaxLoopFailures} consecutive failures: {failure.Message}"
+                : $"{name} failed and restarts with the next change: {failure.Message}";
+            _logger.Error(failure, "{Warning}", warning);
+            RaisePersistenceFailed(warning);
+            _changes.Signal();
+        }
     }
 
     private async Task<bool> WaitForTargetAsync(DownloadItem item, CancellationToken cancellationToken)
@@ -525,8 +571,12 @@ public partial class DownloadQueue
         TaskCompletionSource old = _scheduleChanged;
         _scheduleChanged = CreateCompletionSource();
         old.TrySetResult();
-        if (_scheduleTask == null && !_stopping && !_producerSuspended) _scheduleTask = Task.Run(RunScheduleAsync);
+        if (_scheduleTask == null && !_stopping && !_producerSuspended && _scheduleFailures < MaxLoopFailures)
+            _scheduleTask = Task.Run(() => SuperviseLoopAsync(RunScheduleAsync, schedule: true));
     }
+
+    // Deterministic schedule fault injection for tests; never invoked under the queue state lock.
+    internal Action? BeforeSchedulePass { get; set; }
 
     private async Task RunScheduleAsync()
     {
@@ -534,6 +584,7 @@ public partial class DownloadQueue
         {
             try { await WaitForProducerAsync(_lifetime.Token).ConfigureAwait(false); }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested || _stopping) { return; }
+            BeforeSchedulePass?.Invoke();
             Transition? pass = null;
             ScheduledWork? due = null;
             Task changed;
@@ -639,6 +690,7 @@ public partial class DownloadQueue
             }
             pass?.Dispose();
             pass = null;
+            lock (_stateLock) _scheduleFailures = 0;
             if (delay == null) await changed.ConfigureAwait(false);
             else
             {
@@ -718,7 +770,17 @@ public partial class DownloadQueue
             }
             if (cleanup == null)
             {
-                if (!await WaitForProducerAsync(cancellationToken, item.Thread).ConfigureAwait(false)) return false;
+                try
+                {
+                    if (!await WaitForProducerAsync(cancellationToken, item.Thread).ConfigureAwait(false)) return false;
+                }
+                catch (QueueStoppingException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    // Stop can win before this caller has published an AdmissionWaiter.
+                    // A closed queue still completes admission with false; it must not leak
+                    // the internal stop sentinel to a caller that did not cancel its request.
+                    return false;
+                }
                 bool admitted = false;
                 AdmissionWaiter? created = null;
                 LinkedListNode<AdmissionWaiter>? createdNode = null;
@@ -815,7 +877,7 @@ public partial class DownloadQueue
     /// <summary>Caller holds the resource fence, never _stateLock during I/O.</summary>
     private bool PrepareDurableAdmission(ref DownloadItem item, PreparedDownload prepared, MediaWork? expected = null, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         if (store == null) return true;
         WorkResource owner;
         lock (_stateLock)
@@ -896,7 +958,7 @@ public partial class DownloadQueue
             if (expectedWaiter != null && !ReferenceEquals(NextWaiterLocked(), expectedWaiter)) { full = true; return false; }
             if (CleanupWaitLocked(item) != null) { full = true; return false; }
             if (_stopping || _cancelledThreads.TryGetValue(item.Thread, out _)
-                || _workStore != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? itemOwner) || !ItemOwnerCurrentLocked(item, itemOwner)))
+                || JournalFor(item) != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? itemOwner) || !ItemOwnerCurrentLocked(item, itemOwner)))
             {
                 return false;
             }
@@ -996,6 +1058,7 @@ public partial class DownloadQueue
         ThreadState? threadState;
         List<QueuedDownload> ready;
         AdmissionWaiter[] waiters;
+        List<DownloadItem> cancelledExternal = new();
         lock (_stateLock)
         {
             _cancelledThreads.GetValue(thread, static (IThread _) => new object());
@@ -1015,13 +1078,15 @@ public partial class DownloadQueue
                 // Keep the CTS alive while cancellation callbacks execute outside the
                 // lock, even if the final worker finishes at the same time.
                 threadState.CancellationLeases++;
-                RemovePendingJobsLocked(threadState);
+                cancelledExternal = RemovePendingJobsLocked(threadState);
                 RetireThreadIfIdleLocked(threadState, cleanup);
                 SignalIdleIfNeededLocked(cleanup);
                 ready = ReserveWorkersLocked();
             }
         }
 
+        // External owners have no chan notification path: notify them outside the state lock.
+        foreach (DownloadItem item in cancelledExternal) NotifyExternalCancelled(item, ExternalMediaCancellation.Cancelled);
         RunCleanup(cleanup);
         Task waiterCancellation = CancelWaitersAsync(waiters);
         Task cancellation = threadState == null ? Task.CompletedTask : CancelThreadStateAsync(threadState);
@@ -1045,6 +1110,7 @@ public partial class DownloadQueue
         List<ThreadState> threads;
         TaskCompletionSource stopCompletion;
         AdmissionWaiter[] waiters;
+        List<DownloadItem> stoppedExternal = new();
         lock (_stateLock)
         {
             if (_stopCompletion != null)
@@ -1073,6 +1139,7 @@ public partial class DownloadQueue
                 _jobs.Remove(interrupted.Value.Identity);
                 DetachFilter(interrupted.Value);
                 interrupted.Value.ThreadState.OutstandingJobs--;
+                if (interrupted.Value.Item.Thread is IExternalMediaWorkOwner) stoppedExternal.Add(interrupted.Value.Item);
             }
 
             while (_pendingDownloads.First is LinkedListNode<QueuedDownload> node)
@@ -1082,6 +1149,7 @@ public partial class DownloadQueue
                 _jobs.Remove(job.Identity);
                 DetachFilter(job);
                 job.ThreadState.OutstandingJobs--;
+                if (job.Item.Thread is IExternalMediaWorkOwner) stoppedExternal.Add(job.Item);
             }
 
             foreach (ThreadState threadState in threads)
@@ -1095,6 +1163,9 @@ public partial class DownloadQueue
 
         Task waiterCancellation = CancelWaitersAsync(waiters);
         _lifetime.Cancel();
+        // Queued and interrupted external jobs never reach a worker again. A stop is not an owner
+        // decision, so they are told Stopped and keep their own durable request for recovery.
+        foreach (DownloadItem item in stoppedExternal) NotifyExternalCancelled(item, ExternalMediaCancellation.Stopped);
         RunCleanup(cleanup);
         _changes.Signal();
         _ = CompleteStopAsync(threads, stopCompletion, waiterCancellation);
@@ -1217,6 +1288,44 @@ public partial class DownloadQueue
         }
     }
 
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<ResourceId, byte> _tagReconciledThreads = new();
+
+    /// <summary>
+    /// A re-check can give an attachment a new revision key (changed provider metadata). Once its new binding is
+    /// committed, the private media tags of the earlier key for the same attachment and bytes carry over.
+    /// This never fails or delays the download: a problem is logged and the tags simply stay where they were.
+    /// Hands the media tags over to the keys this commit newly bound (from the manifest the commit already held),
+    /// and once per thread and session completes any hand-over a stop between an earlier commit and its tag write
+    /// may have lost. Failure only logs: the next start reconciles again.
+    /// </summary>
+    private async Task CarryMediaTagsAsync(DownloadItem item, MediaCommitResult? committed, ProfileAdmissionToken? admission)
+    {
+        if (admission == null || item.AttachmentReferences.Count == 0) return;
+        try
+        {
+            ProfileLease? lease = ResolveExecutionProfileLease(item);
+            if (lease == null) return;
+            bool changed = committed != null && Tags.MediaTagKeyCarryOver.Apply(lease, admission, committed.TagHandovers, CancellationToken.None, PrivateTagLimits);
+            if (changed) RaiseMediaTagsCarriedOver();
+            ResourceId thread = item.AttachmentReferences[0].Resource;
+            if (!_tagReconciledThreads.TryAdd(thread, 0)) return;
+            Tags.PrivateTagStoreSnapshot tags = new Tags.PrivateTagStore(lease.ProfileDirectory, lease).ReadSnapshot();
+            HashSet<string> keys = tags.MediaAssignments.Where(a => a.Target.Reference.Resource == thread)
+                .Select(a => a.Target.Reference.RevisionKey).ToHashSet(StringComparer.Ordinal);
+            if (keys.Count == 0) return;
+            string directory = Path.GetDirectoryName(Path.GetFullPath(item.DestinationPath))!;
+            IReadOnlyList<Tags.MediaTagKeyHandover> pending = await Tags.MediaTagKeyCarryOver
+                .FindPendingForThreadAsync(thread, keys, (_, _) => Task.FromResult<IReadOnlyList<string>>(new[] { directory }), CancellationToken.None)
+                .ConfigureAwait(false);
+            if (Tags.MediaTagKeyCarryOver.Apply(lease, admission, pending, CancellationToken.None, PrivateTagLimits))
+                RaiseMediaTagsCarriedOver();
+        }
+        catch (Exception failure)
+        {
+            _logger.Warning(failure, "Could not carry private media tags over to the new revision of {MediaId}", item.MediaIdentifier);
+        }
+    }
+
     private async Task ProcessDownloadItemAsync(QueuedDownload job)
     {
         using ProfileProducerEpoch.Use? producerUse = job.ProducerUse;
@@ -1228,6 +1337,9 @@ public partial class DownloadQueue
         MediaCommitResult? committed = null;
         bool interrupted = false;
         bool targetBlocked = false;
+        // An external owner has no journal: every job end that is neither a commit nor a reported
+        // failure must reach it as a cancellation, or its completion would never terminate.
+        bool externalReported = false;
         using AsyncCancellationLink cancellation = new(job.ThreadState.Token, job.EpochToken);
         try
         {
@@ -1246,7 +1358,7 @@ public partial class DownloadQueue
             if (!await _targets.CheckAsync(TargetPath(job.Item), job.Item.ExpectedSize, cancellation.Token).ConfigureAwait(false))
             { targetBlocked = true; return; }
             DownloadWorker worker = new DownloadWorker(job.Item, _bandwidthLimiter, _mediaStore, _bodyIdleTimeout, _timeProvider,
-                _logger, notifyThread: _workStore == null)
+                _logger, notifyThread: _workStore == null && job.Item.Thread is not IExternalMediaWorkOwner)
             {
                 BytesReceived = bytes => Interlocked.Add(ref _receivedMediaBytes, bytes),
                 AcquirePublicationFence = token => AcquirePublicationAsync(job.Item, token, producerAdmission)
@@ -1268,9 +1380,11 @@ public partial class DownloadQueue
         {
             interrupted = job.EpochToken.IsCancellationRequested;
             _logger.Debug("Download for {DownloadUri} was cancelled.", job.Item.DownloadUri);
+            // An external owner is notified in finally, once it is known whether the job was re-queued.
         }
         catch (MediaFilterOmissionException omission)
         {
+            externalReported = true;
             try
             {
                 if (RecordFilterOmission(job.Item, omission, producerAdmission))
@@ -1291,12 +1405,13 @@ public partial class DownloadQueue
         }
         catch (Exception exception)
         {
-            bool current = _workStore == null;
+            bool current = JournalFor(job.Item) == null;
             try { current |= RecordDurableResult(job.Item, exception, admission: producerAdmission); }
             catch (Exception persistenceFailure)
             {
                 Quarantine(job.Item, persistenceFailure);
             }
+            externalReported |= current;
             if (current) try
             {
                 if (job.Item.Thread is Boards.Base.BaseThread thread)
@@ -1311,7 +1426,16 @@ public partial class DownloadQueue
         }
         finally
         {
-            if (succeeded)
+            if (succeeded && job.Item.Thread is IExternalMediaWorkOwner external)
+            {
+                // The external owner holds its own durable admission; it never becomes a journal row.
+                try { external.OnMediaCommitted(job.Item, committed!, producerAdmission); }
+                catch (Exception ownerFailure)
+                {
+                    _logger.Error(ownerFailure, "External media owner could not record committed {MediaId}", job.Item.MediaIdentifier);
+                }
+            }
+            else if (succeeded)
             {
                 try
                 {
@@ -1326,11 +1450,13 @@ public partial class DownloadQueue
                 {
                     Quarantine(job.Item, persistenceFailure);
                 }
+                await CarryMediaTagsAsync(job.Item, committed, producerAdmission).ConfigureAwait(false);
             }
             Cleanup cleanup = new Cleanup();
             List<QueuedDownload> ready;
             // Read the durable 404 deadline before taking the state lock; it is only applied if still needed.
             MediaWork? preservedDeadline = targetBlocked ? LoadBlockedDeadline(job.Item, producerAdmission) : null;
+            ExternalMediaCancellation? externalEnd = null;
             lock (_stateLock)
             {
                 _activeDownloads--;
@@ -1358,6 +1484,12 @@ public partial class DownloadQueue
                     DetachFilter(job);
                     job.ThreadState.OutstandingJobs--;
                     if (job.Replacement != null) _reservedSuccessors--;
+                    // The job is gone without a commit or reported failure (cancel, stop, a pause or target
+                    // wait overtaken by a stop). Only an explicit owner cancel is terminal for its request.
+                    if (!succeeded && !externalReported && job.Item.Thread is IExternalMediaWorkOwner)
+                        externalEnd = _cancelledThreads.TryGetValue(job.Item.Thread, out _)
+                            ? ExternalMediaCancellation.Cancelled
+                            : ExternalMediaCancellation.Stopped;
                     if (job.Replacement is DownloadItem replacement && !_stopping && !job.ThreadState.Token.IsCancellationRequested
                         && !_cancelledThreads.TryGetValue(replacement.Thread, out _))
                     {
@@ -1373,15 +1505,28 @@ public partial class DownloadQueue
                 }
             }
 
+            // Notify before thread retirement completes, so a finished cancel or stop implies a notified owner.
+            if (externalEnd is ExternalMediaCancellation reason)
+                NotifyExternalCancelled(job.Item, reason, producerAdmission);
             RunCleanup(cleanup);
             StartWorkers(ready);
             _changes.Signal();
         }
     }
 
+    private void NotifyExternalCancelled(DownloadItem item, ExternalMediaCancellation reason, ProfileAdmissionToken? admission = null)
+    {
+        if (item.Thread is not IExternalMediaWorkOwner external) return;
+        try { external.OnMediaCancelled(item, reason, admission); }
+        catch (Exception ownerFailure)
+        {
+            _logger.Error(ownerFailure, "External media owner could not record cancelled {MediaId}", item.MediaIdentifier);
+        }
+    }
+
     private MediaWork? LoadBlockedDeadline(DownloadItem item, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         WorkResource owner;
         lock (_stateLock)
         {
@@ -1411,7 +1556,7 @@ public partial class DownloadQueue
     {
         using (EnterDurable(item, admission, continuation: true))
         {
-            IWorkStateStore? store = _workStore;
+            IWorkStateStore? store = JournalFor(item);
             if (store == null) return true;
             WorkResource? owner;
             lock (_stateLock)
@@ -1435,14 +1580,34 @@ public partial class DownloadQueue
     {
         lock (_stateLock)
         {
-            if (_workStore != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? owner) || !ItemOwnerCurrentLocked(item, owner))) return;
+            if (JournalFor(item) != null && (!_workOwners.TryGetValue(item.Thread, out WorkResource? owner) || !ItemOwnerCurrentLocked(item, owner))) return;
             if (_jobs.TryGetValue(Prepare(item).Job, out QueuedDownload? job) && job.Replacement != null && !SameRetrieval(job.Replacement, item)) return;
             _quarantined.Add(Prepare(item).Job); _scheduled.Remove(Prepare(item).Job);
         }
-        string warning = $"Media work for {item.MediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
+        string warning = PersistenceWarning(item.MediaIdentifier, failure);
         _logger.Error(failure, "{Warning}", warning);
-        PersistenceFailed?.Invoke(warning);
+        RaisePersistenceFailed(warning);
         _changes.Signal();
+    }
+
+    internal static string PersistenceWarning(string mediaIdentifier, Exception failure)
+    {
+        if (failure is SqliteException { SqliteErrorCode: 10 } sqlite)
+            return $"Media work for {mediaIdentifier} could not be committed because the work journal reported SQLite I/O error 10/{sqlite.SqliteExtendedErrorCode}. Automatic retries are suspended to protect retry state. Check free space, profile folder write access, and whether its filesystem is available and writable.";
+        return $"Media work for {mediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
+    }
+
+    // A throwing subscriber must not abort the worker, schedule or quarantine path that reports the failure.
+    private void RaiseMediaTagsCarriedOver()
+    {
+        try { MediaTagsCarriedOver?.Invoke(); }
+        catch (Exception observer) { _logger.Error(observer, "Download queue media tag observer failed"); }
+    }
+
+    private void RaisePersistenceFailed(string warning)
+    {
+        try { PersistenceFailed?.Invoke(warning); }
+        catch (Exception observer) { _logger.Error(observer, "Download queue failure observer failed"); }
     }
 
     private bool CanRunDurable(DownloadItem item, ProfileAdmissionToken? admission = null)
@@ -1452,7 +1617,7 @@ public partial class DownloadQueue
 
     private bool CanRunDurableLocked(DownloadItem item, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         if (store == null) return true;
         WorkResource owner;
         lock (_stateLock)
@@ -1485,7 +1650,7 @@ public partial class DownloadQueue
 
     private bool RecordDurableResultLocked(DownloadItem item, Exception? failure, MediaCommitResult? committed, ProfileAdmissionToken? admission = null)
     {
-        IWorkStateStore? store = _workStore;
+        IWorkStateStore? store = JournalFor(item);
         if (store == null) return false;
         WorkResource owner;
         lock (_stateLock)
@@ -1541,14 +1706,17 @@ public partial class DownloadQueue
         return true;
     }
 
-    private void RemovePendingJobsLocked(ThreadState threadState)
+    /// <summary>Removes queued jobs of the thread; returns external items the caller notifies outside the lock.</summary>
+    private List<DownloadItem> RemovePendingJobsLocked(ThreadState threadState)
     {
+        List<DownloadItem> cancelledExternal = new();
         foreach (QueuedDownload interrupted in _interruptedDownloads.Where(job => ReferenceEquals(job.ThreadState, threadState)).ToArray())
         {
             _interruptedDownloads.Remove(interrupted);
             _jobs.Remove(interrupted.Identity);
             DetachFilter(interrupted);
             threadState.OutstandingJobs--;
+            if (interrupted.Item.Thread is IExternalMediaWorkOwner) cancelledExternal.Add(interrupted.Item);
         }
         LinkedListNode<QueuedDownload>? node = _pendingDownloads.First;
         while (node != null)
@@ -1561,10 +1729,13 @@ public partial class DownloadQueue
                 _jobs.Remove(job.Identity);
                 DetachFilter(job);
                 threadState.OutstandingJobs--;
+                if (job.Item.Thread is IExternalMediaWorkOwner) cancelledExternal.Add(job.Item);
             }
             node = next;
         }
         PulseCapacityLocked();
+        // A removed job never reaches a worker, so it would never report a cancellation itself.
+        return cancelledExternal;
     }
 
     private async Task CancelThreadStateAsync(ThreadState threadState)

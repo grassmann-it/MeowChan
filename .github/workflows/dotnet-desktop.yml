@@ -16,6 +16,8 @@ on:
         default: validate
         options:
           - validate
+          - offline-retest
+          - smoke-retest
           - prerelease-candidate
           - stable-candidate
           - macos-diagnose
@@ -23,6 +25,11 @@ on:
           - package-media
           - linux-distribution
           - homebrew-macos
+      smoke:
+        description: Exact registry id for smoke-retest (Linux x64 only; required in that mode)
+        type: string
+        required: false
+        default: ''
       platform:
         description: Native validation platform (all keeps the full validation and packaging checks)
         type: choice
@@ -35,8 +42,18 @@ on:
           - windows-2022
           - macos-15
           - macos-15-intel
+      offline_lane:
+        description: Lane for offline-retest only (ubuntu/windows, scenario all; no GUI, packaging or candidate work)
+        type: choice
+        required: false
+        default: lane-c
+        options:
+          - lane-a
+          - lane-b
+          - lane-c
+          - lane-d
       scenario:
-        description: Native GUI scenarios (Focused gallery/GIF/media-input diagnostics; candidates require all)
+        description: Native GUI scenarios (Focused gallery/GIF/media-input/tray diagnostics; candidates require all)
         type: choice
         required: false
         default: all
@@ -48,6 +65,7 @@ on:
           - gallery-features
           - gif-playback
           - media-input
+          - tray-lifecycle
 
 permissions:
   contents: read
@@ -57,47 +75,74 @@ env:
   MEOWCHAN_DISABLE_UPDATE_CHECK: '1'
 
 concurrency:
-  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}
+  group: desktop-${{ github.workflow }}-${{ github.ref }}-${{ inputs.mode || 'validate' }}-${{ inputs.mode == 'validate' && inputs.platform || 'all' }}-${{ inputs.mode == 'validate' && inputs.scenario || 'all' }}-${{ inputs.mode == 'offline-retest' && inputs.offline_lane || 'none' }}-${{ inputs.mode == 'smoke-retest' && inputs.smoke || 'none' }}
   cancel-in-progress: true
 
 jobs:
   validate:
-    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'offline-retest' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'
     strategy:
       fail-fast: false
-      matrix:
-        os: ${{ fromJSON((github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && '["ubuntu-24.04","ubuntu-24.04-arm","windows-2022","macos-15","macos-15-intel"]' || format('["{0}"]', inputs.platform)) }}
+      matrix: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest') && ((!inputs.platform || inputs.platform == 'all') && format('{{"include":[{{"os":"ubuntu-24.04","lane":"{0}","full":false}},{{"os":"ubuntu-24.04-arm","lane":"{0}","full":false}},{{"os":"windows-2022","lane":"{0}","full":false}}]}}', inputs.offline_lane) || format('{{"include":[{{"os":"{0}","lane":"{1}","full":false}}]}}', inputs.platform, inputs.offline_lane)) || (github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15","lane":"native-08","full":false,"mac_shard":8},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15-intel","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15-intel","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15-intel","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15-intel","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15-intel","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15-intel","lane":"native-08","full":false,"mac_shard":8}]}' || '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1}]}') || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}},{{"os":"{0}","lane":"native-02","full":false,"mac_shard":2}},{{"os":"{0}","lane":"native-03","full":false,"mac_shard":3}},{{"os":"{0}","lane":"native-04","full":false,"mac_shard":4}},{{"os":"{0}","lane":"native-05","full":false,"mac_shard":5}},{{"os":"{0}","lane":"native-06","full":false,"mac_shard":6}},{{"os":"{0}","lane":"native-07","full":false,"mac_shard":7}},{{"os":"{0}","lane":"native-08","full":false,"mac_shard":8}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}}]}}', inputs.platform)) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform)) }}
     runs-on: ${{ matrix.os }}
     # Existing checks, scoped native regressions and two genuine old-release replays.
     timeout-minutes: 75
     steps:
       - uses: actions/checkout@v7
+        id: checkout_source
         with:
           fetch-depth: 0 # Genuine 1.0.0/1.0.1 replay uses the exact historical tags.
+      - name: Reject offline retest outside its bounded scope
+        id: offline_retest_guard
+        # Fail closed: an invalid scope stops the job before any other work.
+        if: github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest'
+        shell: bash
+        env:
+          RETEST_LANE: ${{ inputs.offline_lane }}
+          RETEST_PLATFORM: ${{ inputs.platform }}
+          RETEST_SCENARIO: ${{ inputs.scenario }}
+        run: |
+          case "$RETEST_LANE" in lane-a|lane-b|lane-c|lane-d) ;; *) echo "invalid offline_lane: $RETEST_LANE" >&2; exit 1;; esac
+          case "$RETEST_PLATFORM" in macos-*) echo "offline-retest does not support macOS" >&2; exit 1;; esac
+          test "$RUNNER_OS" != macOS
+          test "$RETEST_SCENARIO" = all
       - name: Require the complete current-source candidate matrix
+        id: candidate_matrix
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         shell: bash
         run: |
           test "${{ inputs.platform }}" = all
           test "${{ inputs.scenario }}" = all
       - uses: actions/setup-dotnet@v6
+        id: setup_dotnet
         with:
           global-json-file: global.json
       - name: Record SDK and source commit
+        id: record_source
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         shell: bash
         run: |
           mkdir -p artifacts/build-evidence
           dotnet --info | tee artifacts/build-evidence/sdk.txt
           git rev-parse HEAD > artifacts/build-evidence/source-commit.txt
       - name: Prepare disposable native desktop for wide layout checks
-        if: runner.os == 'Windows' || runner.os == 'macOS'
+        id: prepare_desktop
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (runner.os == 'Windows' || runner.os == 'macOS')
         # The largest exact client scene is 1520x920; reserve 40 DIP for its
         # native frame. Other growth probes explicitly fit the usable work area.
         run: |
           python scripts/prepare-ci-desktop.py --allow-disposable-desktop --min-work-height 960 --report artifacts/build-evidence/native-desktop.json
           python scripts/prepare-ci-desktop.py --allow-disposable-desktop --verify-only --min-work-height 960 --report artifacts/build-evidence/native-desktop-lifetime.json
       - name: Check declared public APIs and require release review for candidates
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
+        id: public_api
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         shell: bash
         run: |
           api_args=()
@@ -106,12 +151,21 @@ jobs:
           fi
           python scripts/check-public-api.py "${api_args[@]}"
       - name: Check default development restore and build
+        id: dev_build
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet build MeowChan.csproj -warnaserror:NU1900
       - name: Restore dependencies and require audit availability
+        id: restore_release
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet restore MeowChan.sln -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact restored Release graphs
+        id: retain_release_assets
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         shell: bash
         run: |
@@ -120,47 +174,121 @@ jobs:
           cp tests/MeowChan.Tests/obj/project.assets.json artifacts/build-evidence/core-tests-assets.json
           cp tests/MeowChan.DesktopTests/obj/project.assets.json artifacts/build-evidence/desktop-tests-assets.json
       - name: Build all production and test projects
+        id: build_all
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
         run: dotnet build MeowChan.sln --configuration Release --no-restore
-      - name: Run core and desktop offline tests
+      - name: Build process-test probe in the test configuration
+        id: process_probe
+        # The probe is a non-solution project referenced without an assembly
+        # reference, so solution builds otherwise leave only its Debug output.
+        # Process tests require the matching Release artifact.
+        continue-on-error: true
         if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        # Windows was still passing tests at the former step deadline; hang guards remain unchanged.
-        timeout-minutes: 30
-        # Native worker suites retain their own concurrency tests and deadlines.
-        # Do not run ten independent test assemblies against the same runner at once.
-        run: dotnet test MeowChan.sln --configuration Release --no-build --no-restore -m:1 --logger trx --logger "console;verbosity=normal" --blame-hang --blame-hang-timeout 2min --blame-hang-dump-type mini --results-directory test-results
-      - name: Run both complete macOS offline suites with bounded diagnostics
+        run: dotnet build tests/PluginReauthorizationProbe/PluginReauthorizationProbe.csproj --configuration Release --no-restore
+      - name: Run core and desktop offline test shards
+        id: core_tests
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        # The Python runner gives every dotnet host a hard deadline and owns its
+        # process tree. Desktop class-LPT cells share the existing two-host queue
+        # with unchanged non-Desktop owners and one absolute lane deadline.
+        timeout-minutes: 35
+        shell: bash
+        run: |
+          # A focused offline-retest executes only this lane's cell + unchanged
+          # project owners. It is NOT a four-lane/platform coverage proof.
+          python scripts/run-dotnet-shards.py --lane "${{ matrix.lane }}" \
+            --desktop-platform "${{ matrix.os }}" --source "$(git rev-parse HEAD)" \
+            --results-root test-results/offline-shards
+      - name: Run native macOS offline test shard with bounded diagnostics
+        id: mac_tests
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        timeout-minutes: 12
-        # Native plugin integration cases can keep progressing beyond five minutes
-        # on Intel runners. Keep the core budget and bounded cleanup unchanged.
-        run: python3 scripts/macos-test-watchdog.py --timeout 300 --desktop-timeout 600
+        # Eight native machines partition each compiled inventory; no suite replay.
+        # Discovery is INCLUDED in the unchanged 300/600s (candidate 390/810s)
+        # bounds. Leave two minutes for diagnostic sampling and group cleanup.
+        timeout-minutes: 22
+        run: |
+          watchdog_args=()
+          if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
+            watchdog_args=(--candidate-validation)
+          fi
+          python3 scripts/run-macos-test-shards.py run --shard "${{ matrix.mac_shard }}" \
+            --platform "${{ matrix.os }}" --source "$(git rev-parse HEAD)" "${watchdog_args[@]}"
       - name: Check package layout fixtures
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input'
+        id: package_fixtures
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input')
         shell: bash
         run: |
           set -euo pipefail
-          python -m unittest discover -s tests -p test_macos_packaging.py -v
-          python -m unittest discover -s tests -p test_desktop_package.py -v
-          python -m unittest discover -s tests -p test_plugin_packaging.py -v
-          python -m unittest discover -s tests -p test_prerelease.py -v
-          python -m unittest discover -s tests -p test_public_api_policy.py -v
-          python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v
-          python -m unittest discover -s tests -p test_macos_test_watchdog.py -v
+          # Collect every fixture suite; retain a failure even if later suites pass.
+          fixture_status=0
+          python -m unittest discover -s tests -p test_macos_packaging.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_desktop_package.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_plugin_packaging.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_plugin_documentation.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_prerelease.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_release_gates.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_ap04_candidate_workflow.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_released102_fixture_generation.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_released102_migrated_check.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_public_api_policy.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_ci_desktop_preparation.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_validation_gate.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_tray_lifecycle_selector.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_macos_test_watchdog.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_macos_test_shards.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_desktop_four_lane_shards.py -v || fixture_status=$?
+          python -m unittest discover -s tests -p test_dotnet_desktop_workflow_contract.py -v || fixture_status=$?
+          exit "$fixture_status"
       - name: Check local library package contract fixtures
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
+        id: local_package
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         run: python -m unittest discover -s tests -p test_local_package.py -v
       - name: Check GUI runner isolation and cleanup fixtures
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
-        run: python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v
+        id: smoke_runner_contract
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        shell: bash
+        run: |
+          status=0
+          python -m unittest discover -s tests -p test_desktop_smoke_runner.py -v || status=$?
+          python -m unittest discover -s tests -p test_gui_ci_scenes.py -v || status=$?
+          python -m unittest discover -s tests/gui-ci-orchestration -v || status=$?
+          exit "$status"
       - name: Restore graphical harness with reviewed dependencies
+        id: smoke_restore
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         run: dotnet restore tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -p:Configuration=Release --locked-mode -warnaserror:NU1900
       - name: Retain exact graphical harness dependency graph
+        id: smoke_assets
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         shell: bash
         run: cp tests/MeowChan.DesktopSmoke/obj/project.assets.json artifacts/build-evidence/desktop-smoke-assets.json
       - name: Build graphical harness
+        id: smoke_build
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         run: dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj --configuration Release --no-restore
       - name: Verify plugin delivery in desktop and transitive harness outputs
+        id: plugin_delivery
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
         shell: bash
         run: |
           case "$RUNNER_OS/$RUNNER_ARCH" in
@@ -174,7 +302,10 @@ jobs:
           python scripts/package-plugins.py --verify bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/desktop-plugins.json
           python scripts/package-plugins.py --verify tests/MeowChan.DesktopSmoke/bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/smoke-plugins.json
       - name: Install Linux virtual display and private session bus
-        if: runner.os == 'Linux'
+        id: linux_setup
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (runner.os == 'Linux')
         run: |
           # The hosted x64 Azure mirror can make GUI setup exceed the job deadline.
           # Keep Ubuntu signature verification and ARM's ports mirror unchanged.
@@ -195,12 +326,25 @@ jobs:
           PY
           fi
           sudo apt-get update
-          sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core pulseaudio pulseaudio-utils
+          sudo apt-get install --yes --no-install-recommends vlc libvlc5 libvlccore9 xvfb xauth openbox x11-utils dbus-daemon python3-dbus python3-gi libdbus-1-3 libx11-6 libice6 libsm6 libfontconfig1 fonts-dejavu-core pulseaudio pulseaudio-utils bubblewrap
       - name: Exercise native graphical startup and fallback paths
-        if: github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input')
-        # The normal mode renders over 200 screenshots. Native macOS runners can
-        # exceed three minutes while still making progress; per-check waits stay bounded.
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout ${{ runner.os == 'macOS' && '300' || '180' }} ${{ inputs.scenario == 'selection' && '--mode selection' || '--mode normal --mode locked-profile --mode no-tray --mode tray-failure --mode download-session --mode reader-ux --mode selection' }} --output artifacts/desktop-smoke
+        id: smoke_normal
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input' && inputs.scenario != 'tray-lifecycle'))
+        # Each normal scope has a fresh process/profile and its own bounded evidence.
+        shell: bash
+        env:
+          GUI_CI_SCENARIO: ${{ inputs.scenario || 'all' }}
+        run: |
+          python scripts/run-gui-ci-scenes.py \
+            --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
+            --timeout "${{ runner.os == 'macOS' && '300' || '180' }}" \
+            ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} \
+            ${{ inputs.scenario == 'selection' && '--selection-only' || '' }} \
+            ${{ inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && format('--shard {0} --workers {1}', matrix.mac_shard || (matrix.lane == 'lane-a' && 1 || matrix.lane == 'lane-b' && 2 || matrix.lane == 'lane-c' && 3 || 4), runner.os == 'macOS' && 8 || 4) || '' }} \
+            --output artifacts/desktop-smoke
+
       # Dedicated Program.cs branches return before the ordinary normal/reader-ux
       # paths. Each gets its own process/profile/evidence; never combine selectors.
       # Linux uses the runner's private Xvfb/DBus/WM, not a host DISPLAY. Only the
@@ -208,16 +352,45 @@ jobs:
       # Native media/volume failures remain failures: these are not physical-audio
       # acceptance or a reason to silently skip unavailable hosted audio devices.
       - name: Exercise explicit bundled new-selection confirmation on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        id: smoke_plugins
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && ((github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && runner.os == 'Linux')
         shell: bash
         env:
           MEOWCHAN_PLUGIN_RESELECTION_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode plugins --timeout 300 --output artifacts/closure-plugin-reselection
+      - name: Exercise selected 1.1 registry workflows on Linux x64
+        id: smoke_1_1_registry
+        # The registry runner isolates entries and continues after individual failures;
+        # the candidate gate below still rejects this step unless every entry passes.
+        continue-on-error: true
+        if: matrix.full && (github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && runner.os == 'Linux' && runner.arch == 'X64')
+        run: |
+          python scripts/gui-ci-safety.py
+          python scripts/run-desktop-smoke.py \
+            --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
+            --registry --only booru-workbench \
+            --only booru-composition \
+            --only booru-media \
+            --only tagging-page \
+            --only tagging-mode \
+            --only media-page \
+            --only media-page-booru-captures \
+            --only media-menu-surfaces \
+            --only settings-reader-display \
+            --timeout 300 \
+            --output artifacts/desktop-smoke-1.1-registry
       - name: Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
+        id: upgrade_replay
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         shell: bash
         run: |
+          python scripts/gui-ci-safety.py
           set -euo pipefail
           for version in 1.0.0 1.0.1; do
             fixture="$GITHUB_WORKSPACE/artifacts/upgrade-$version"
@@ -225,58 +398,246 @@ jobs:
             MEOWCHAN_UPGRADE_1X_FIXTURE="$fixture" dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --no-restore --filter 'FullyQualifiedName~OldReleaseExplicitNewBundledSelectionPreservesHistoryAcrossTwoOfflineRestarts' --logger "trx;LogFileName=upgrade-$version.trx" --results-directory artifacts/upgrade-results
           done
           python -c 'import pathlib,xml.etree.ElementTree as E; files=list(pathlib.Path("artifacts/upgrade-results").glob("upgrade-*.trx")); assert len(files)==2; rows=[E.parse(f).getroot().findall(".//{*}UnitTestResult") for f in files]; assert all(len(r)==1 and r[0].get("outcome")=="Passed" for r in rows), "Genuine upgrade tests must actually execute and pass"'
+
+      - name: Exercise the released 1.0.2 fixture against the current source
+        id: upgrade_102_replay
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        shell: bash
+        run: |
+          python scripts/gui-ci-safety.py
+          set -euo pipefail
+          # The current-side consumer must use the same Debug configuration as
+          # the AP04 test assembly. Mixing Debug and Release changes the
+          # MeowChan.dll byte identity and is rejected by the provenance control.
+          fixture="$GITHUB_WORKSPACE/artifacts/upgrade-1.0.2"
+          source="$fixture/released102-source"
+          profile="$fixture/released102-profile"
+          results="$fixture/current-cycles"
+          current_revision="$(git rev-parse HEAD)"
+          released_revision=eec6c0169f8d52f7481ea0bf7febfd20981e97c3
+          mkdir -p "$fixture"
+          # The earlier core_tests step deliberately writes TRX files to the
+          # untracked test-results/ evidence directory. Exclude that known
+          # report output while checking that this fixture does not mutate the
+          # source tree.
+          git status --porcelain=v1 --untracked-files=all -- . ':(exclude)test-results' > "$fixture/status-before.txt"
+          test ! -s "$fixture/status-before.txt"
+
+          # Keep the source/generator contracts in this gate as well as the runtime evidence.
+          # Bind and validate the pinned released source/profile before current code
+          # is allowed to open it; these checks are part of the required step.
+          python -m unittest discover -s tests -p test_released102_fixture_generation.py -v
+          python tests/fixtures/upgrade-v1.0.2/prepare.py "$source" > "$fixture/prepare.log" 2>&1
+          python tests/fixtures/upgrade-v1.0.2/check.py --source "$source" > "$fixture/source-check.log"
+          generator="$source/tests/Upgrade102FixtureGenerator/UpgradeFixtureGenerator.csproj"
+          dotnet restore "$generator" -p:Configuration=Debug --locked-mode -p:NuGetAudit=false -warnaserror:NU1900
+          dotnet build "$generator" --configuration Debug --no-restore -p:SourceRevisionId="$released_revision" -p:UseSharedCompilation=false -nodeReuse:false
+          env -u MEOWCHAN_PROFILE -u OCHAN_PROFILE MEOWCHAN_DISABLE_UPDATE_CHECK=1 \
+            dotnet "$source/tests/Upgrade102FixtureGenerator/bin/Debug/net10.0/MeowChan.DesktopTests.dll" \
+            "$profile" "$source/UPGRADE-102-SOURCE.json" > "$fixture/generator.log" 2>&1
+          python tests/fixtures/upgrade-v1.0.2/check.py --source "$source" --profile "$profile" > "$fixture/receipt-check.log"
+          cp "$profile/v102-receipt.json" "$fixture/receipt.json"
+          cp "$source/UPGRADE-102-SOURCE.json" "$fixture/source-binding.json"
+
+          consumer=tests/fixtures/upgrade-v1.0.2/current/UpgradeConsumer.csproj
+          dotnet restore "$consumer" -p:Configuration=Debug --locked-mode -warnaserror:NU1900
+          dotnet build "$consumer" --configuration Debug --no-restore -p:SourceRevisionId="$current_revision" -p:UseSharedCompilation=false -nodeReuse:false
+          test_project=tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj
+          dotnet restore "$test_project" -p:Configuration=Debug -warnaserror:NU1900
+          dotnet build "$test_project" --configuration Debug --no-restore -p:SourceRevisionId="$current_revision" -p:UseSharedCompilation=false -nodeReuse:false
+          mkdir -p "$fixture/current-test-results"
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            # Ubuntu hosted runners reject the nested unshare uid_map write used
+            # by the old boolean path. The ARM hosted image also rejects the
+            # unprivileged bwrap uid_map write. Passwordless sudo only creates
+            # an outer user namespace whose root is the runner (a root-started
+            # bwrap would otherwise map the sandbox UID onto host root and
+            # cannot traverse the runner's 0750 home); bwrap then runs inside
+            # it, maps back to the runner UID/GID, and the replay never runs
+            # as root. The probe proves the host identity by requiring the
+            # runner-owned profile to appear runner-owned and writable (an
+            # unmapped owner shows as 65534). Do not pass --unshare-net to
+            # bwrap: it configures lo via RTM_NEWADDR, which hosted runners may
+            # forbid. A short-lived unshare child creates an empty netns, then
+            # setpriv removes every capability before the replay. This is a hard
+            # capability gate: no handler-only fallback.
+            bwrap_path="$(command -v bwrap || true)"
+            bwrap_launcher="$GITHUB_WORKSPACE/tests/fixtures/upgrade-v1.0.2/bwrap-root-accessible.sh"
+            unshare_path="$(command -v unshare || true)"
+            setpriv_path="$(command -v setpriv || true)"
+            sudo_path="$(command -v sudo || true)"
+            if [[ -z "$bwrap_path" || ! -x "$bwrap_launcher" || -z "$unshare_path" || -z "$setpriv_path" || -z "$sudo_path" ]]; then
+              echo "::error::1.0.2 replay requires bwrap, unshare, setpriv and non-interactive sudo for its isolated user+network namespace" >&2
+              exit 1
+            fi
+            sudo_root_uid="$(sudo -n id -u 2>/dev/null || true)"
+            if [[ "$sudo_root_uid" != 0 ]]; then
+              echo "::error::1.0.2 replay requires non-interactive sudo that is authorized for root-owned bwrap setup; refusing an unisolated replay" >&2
+              exit 1
+            fi
+            host_netns="$(readlink /proc/self/ns/net)"
+            expected_uid="$(id -u)"
+            expected_gid="$(id -g)"
+            probe_script="$(cat <<'PROBE'
+          set -eu
+          test "$(readlink /proc/self/ns/net)" != "$MEOWCHAN_HOST_NETNS"
+          test "$(id -u)" = "$MEOWCHAN_EXPECTED_UID"
+          test "$(id -g)" = "$MEOWCHAN_EXPECTED_GID"
+          test -d "$MEOWCHAN_EXPECTED_PROFILE"
+          test "$(stat -c %u "$MEOWCHAN_EXPECTED_PROFILE")" = "$MEOWCHAN_EXPECTED_UID"
+          test -w "$MEOWCHAN_EXPECTED_PROFILE"
+          for cap in CapInh CapPrm CapEff CapBnd CapAmb; do
+            test "$(awk -v key="$cap:" '$1 == key { print $2 }' /proc/self/status)" = 0000000000000000
+          done
+          awk -F: 'NR > 2 && $1 !~ /^[[:space:]]*lo[[:space:]]*$/ { bad=1 } END { exit bad+0 }' /proc/net/dev
+          awk 'NR > 1 && NF { bad=1 } END { exit bad+0 }' /proc/net/route
+          PROBE
+          )"
+            if ! sudo -n "$bwrap_launcher" --real-bwrap "$bwrap_path" --die-with-parent --unshare-user \
+                --uid "$expected_uid" --gid "$expected_gid" \
+                --cap-add CAP_SYS_ADMIN --cap-add CAP_SETPCAP --disable-userns \
+                --ro-bind / / --proc /proc --dev /dev --tmpfs /tmp \
+                --bind "$profile" "$profile" \
+                --setenv MEOWCHAN_HOST_NETNS "$host_netns" \
+                --setenv MEOWCHAN_EXPECTED_UID "$expected_uid" \
+                --setenv MEOWCHAN_EXPECTED_GID "$expected_gid" \
+                --setenv MEOWCHAN_EXPECTED_PROFILE "$profile" -- \
+                "$unshare_path" --net -- "$setpriv_path" \
+                --bounding-set=-all --inh-caps=-all --ambient-caps=-all --nnp -- \
+                /bin/sh -eu -c "$probe_script"; then
+              echo "::error::1.0.2 replay requires a private host-free network namespace with uid/gid and zero-capability proof; refusing an unisolated replay" >&2
+              exit 1
+            fi
+            export MEOWCHAN_RELEASED102_NETWORK_NAMESPACE=bwrap-root
+            # The adapter is mandatory: it runs bwrap inside the runner-rooted
+            # user namespace so every bind source and destination resolves
+            # with the runner's own host identity. No raw root bwrap, no
+            # staged aliases and no host-namespace fallback are allowed.
+            export MEOWCHAN_RELEASED102_BWRAP_PATH="$bwrap_launcher"
+            export MEOWCHAN_RELEASED102_REAL_BWRAP_PATH="$bwrap_path"
+            export MEOWCHAN_RELEASED102_BWRAP_SUDO="$sudo_path"
+            export MEOWCHAN_RELEASED102_BWRAP_UID="$expected_uid"
+            export MEOWCHAN_RELEASED102_BWRAP_GID="$expected_gid"
+            export MEOWCHAN_RELEASED102_UNSHARE_PATH="$unshare_path"
+            export MEOWCHAN_RELEASED102_SETPRIV_PATH="$setpriv_path"
+          fi
+          env -u MEOWCHAN_PROFILE -u OCHAN_PROFILE MEOWCHAN_DISABLE_UPDATE_CHECK=1 \
+            MEOWCHAN_RELEASED102_PROFILE="$profile" \
+            MEOWCHAN_RELEASED102_SOURCE_MANIFEST="$source/UPGRADE-102-SOURCE.json" \
+            MEOWCHAN_RELEASED102_CONSUMER_DLL="$GITHUB_WORKSPACE/tests/fixtures/upgrade-v1.0.2/current/bin/Debug/net10.0/MeowChan.DesktopTests.dll" \
+            MEOWCHAN_RELEASED102_RESULTS="$results" \
+            dotnet test "$test_project" -c Debug --no-build --no-restore \
+              --filter 'FullyQualifiedName~MeowChan.DesktopTests.Released102RestPackageUpgradeTests' \
+              --logger 'trx;LogFileName=upgrade-1.0.2.trx' --results-directory "$fixture/current-test-results" -nodeReuse:false
+          python - <<'PY'
+          from pathlib import Path
+          import xml.etree.ElementTree as ET
+          files = list(Path('artifacts/upgrade-1.0.2/current-test-results').glob('upgrade-1.0.2.trx'))
+          assert len(files) == 1, 'the released 1.0.2 upgrade test must produce exactly one TRX'
+          rows = [item for item in ET.parse(files[0]).getroot().iter() if item.tag.endswith('UnitTestResult')]
+          expected = 'MeowChan.DesktopTests.Released102RestPackageUpgradeTests.ReleasedProviderProfileSurvivesCurrentOpenAndTwoOfflineProcessRestarts'
+          matches = [item for item in rows if item.get('testName') == expected]
+          assert len(matches) == 1 and matches[0].get('outcome') == 'Passed', 'the released 1.0.2 main upgrade test must execute exactly once and pass'
+          PY
+          test -f "$results/current-result.json"
+          git status --porcelain=v1 --untracked-files=all -- . ':(exclude)test-results' > "$fixture/status-after.txt"
+          test ! -s "$fixture/status-after.txt"
+          python tests/fixtures/upgrade-v1.0.2/check_migrated.py --profile "$profile" --results "$results" \
+            --expect-revision "$current_revision" --status "$fixture/status-before.txt" --status "$fixture/status-after.txt" \
+            > "$fixture/migrated-check.log"
+          cp "$results/current-result.json" "$fixture/current-result.json"
       - name: Exercise FirstRunSetup on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        id: first_run
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 2) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_FIRST_RUN_SETUP_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-first-run-setup
       - name: Exercise PreferenceStartup on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        id: preference_startup
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_PREFERENCE_STARTUP_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-preference-startup
       - name: Exercise compact status and scoped diagnostics retry on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        id: scoped_diagnostics
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 4) || (runner.os != 'macOS' && matrix.lane == 'lane-d'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-scoped-diagnostics
       - name: Exercise GIF playback and ownership on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gif-playback'
+        id: gif_playback
+        # Default all/gui-only run independent leaf roots in smoke_normal.
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && github.event_name == 'workflow_dispatch' && inputs.scenario == 'gif-playback'
         shell: bash
         env:
           MEOWCHAN_GIF_PLAYBACK_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           export MEOWCHAN_MP4_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/release102/playback-h264-silent.mp4"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gif-playback
       - name: Exercise gallery error interaction on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-errors'
+        id: gallery_errors
+        # Default all/gui-only run independent leaf roots in smoke_normal.
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && github.event_name == 'workflow_dispatch' && inputs.scenario == 'gallery-errors'
         shell: bash
         env:
           MEOWCHAN_GALLERY_ERROR_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
-          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode normal --timeout 300 --output artifacts/closure-gallery-errors
+          if [[ "$RUNNER_OS" == Linux ]]; then
+            # The fixture uses real VP8+Vorbis, including paused terminal cleanup.
+            # Own a private output rather than entering the host ALSA/PipeWire fallback.
+            python scripts/with-private-null-audio.py --report artifacts/private-audio/gallery-errors.json -- \
+              env MEOWCHAN_GALLERY_ERROR_ONLY=1 MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1 MEOWCHAN_VIDEO_FIXTURE="$MEOWCHAN_VIDEO_FIXTURE" \
+              python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --mode normal --timeout 300 --output artifacts/closure-gallery-errors
+          else
+            python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --timeout 300 --output artifacts/closure-gallery-errors
+          fi
       - name: Exercise reader media activation input on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'
+        id: reader_media
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 7) || (runner.os != 'macOS' && matrix.lane == 'lane-d'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
         shell: bash
         env:
           MEOWCHAN_READER_MEDIA_INPUT_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} --mode reader-ux --timeout 300 --output artifacts/closure-reader-media-input
       - name: Exercise changed gallery features on the actual platform
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-features'
+        id: gallery_features
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 8) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-features')
         shell: bash
         env:
           MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY: '1'
         run: |
+          python scripts/gui-ci-safety.py
           export MEOWCHAN_VIDEO_FIXTURE="$GITHUB_WORKSPACE/tests/Fixtures/gallery-playback-vp8.webm"
           if [[ "$RUNNER_OS" == Linux ]]; then
             # Real, hardware-free output keeps functional volume acceptance mandatory.
@@ -288,9 +649,13 @@ jobs:
             python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --mode normal --timeout 300 --output artifacts/gallery-features
           fi
       - name: Exercise real OS media input (not synthetic routed keys)
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input'
+        id: media_input
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 2) || (runner.os != 'macOS' && matrix.lane == 'lane-c'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input')
         shell: bash
         run: |
+          python scripts/gui-ci-safety.py
           if [[ "$RUNNER_OS" == Linux ]]; then
             python scripts/with-private-null-audio.py --report artifacts/private-audio/media-native-input.json -- \
               python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 240 --require-audio-output --output artifacts/media-native-input
@@ -298,13 +663,28 @@ jobs:
             python scripts/test-media-interaction-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 240 --output artifacts/media-native-input
           fi
       - name: Exercise tray lifecycle separately on the disposable runner
-        if: github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
+        id: tray_lifecycle
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'tray-lifecycle')
+        shell: bash
+        run: |
+          python scripts/gui-ci-safety.py
+          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --allow-native-desktop --timeout 180 --mode tray-lifecycle --output artifacts/desktop-tray-stress
       - name: Check native Linux tray host lifecycle on private DBus
-        if: runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        run: python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 180 --mode tray-host --output artifacts/desktop-tray-host
+        id: tray_host
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: matrix.full && (runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'))
+        shell: bash
+        run: |
+          python scripts/gui-ci-safety.py
+          python scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --timeout 180 --mode tray-host --output artifacts/desktop-tray-host
       - name: Capture bounded macOS native failure diagnostics
-        if: failure() && runner.os == 'macOS'
+        id: macos_diagnostics
+        # Keep independent checks running so one failure yields a complete evidence set.
+        continue-on-error: true
+        if: (matrix.full || runner.os == 'macOS') && (always() && runner.os == 'macOS')
         shell: bash
         run: |
           python3 - <<'PY'
@@ -330,17 +710,106 @@ jobs:
                   output.seek(max(0, length - 256 * 1024))
                   (evidence / name).write_bytes(status.encode() + output.read(256 * 1024))
           PY
+      - name: Summarize validation outcomes
+        id: validation_summary
+        if: always()
+        # The summary itself is best-effort; the final gate below remains authoritative.
+        continue-on-error: true
+        shell: bash
+        env:
+          VALIDATION_STEPS: ${{ toJSON(steps) }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          steps = json.loads(os.environ.get("VALIDATION_STEPS", "{}"))
+          failures = {
+              key: value
+              for key, value in steps.items()
+              if value.get("outcome") == "failure"
+          }
+          payload = {
+              "runner": os.environ.get("RUNNER_OS"),
+              "architecture": os.environ.get("RUNNER_ARCH"),
+              "source": os.environ.get("GITHUB_SHA"),
+              "failedSteps": failures,
+              "stepOutcomes": steps,
+          }
+          evidence = Path("artifacts/build-evidence")
+          evidence.mkdir(parents=True, exist_ok=True)
+          (evidence / "validation-outcomes.json").write_text(
+              json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+          )
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a", encoding="utf-8") as summary:
+              summary.write("## Validation outcome matrix\n\n")
+              if failures:
+                  summary.write("The job continued after failures to collect independent evidence.\n\n")
+                  for key, value in failures.items():
+                      summary.write(f"- **{key}**: `{value.get('outcome', 'failure')}`\n")
+              else:
+                  summary.write("All recorded validation steps completed successfully.\n")
+          print(json.dumps(payload, indent=2, sort_keys=True))
+          PY
+      - name: Fail validation after collecting all evidence
+        if: always()
+        shell: bash
+        env:
+          VALIDATION_STEPS: ${{ toJSON(steps) }}
+        run: |
+          # Preserve the offline/release planner. The GUI-only overlay assigns
+          # required scene receipts and dedicated GUI steps to existing workers;
+          # every worker must pass its own gate. Focused input scenarios retain
+          # their original single-primary requirements. Push/PR are full.
+          required_csv="$(python3 scripts/compute-validation-required.py \
+            --event-name "${{ github.event_name }}" \
+            --mode "${{ inputs.mode }}" \
+            --scenario "${{ inputs.scenario }}" \
+            --lane "${{ matrix.lane }}" \
+            --runner-os "$RUNNER_OS" \
+            --runner-arch "$RUNNER_ARCH")"
+          if [[ "${{ inputs.mode }}" != offline-retest && ( "${{ github.event_name }}" != workflow_dispatch || ( "${{ inputs.scenario }}" == all || "${{ inputs.scenario }}" == gui-only ) ) ]]; then
+            required_csv="$(python3 scripts/gui-ci-plan.py --required "$required_csv" \
+              --shard "${{ matrix.mac_shard || (matrix.lane == 'lane-a' && 1 || matrix.lane == 'lane-b' && 2 || matrix.lane == 'lane-c' && 3 || 4) }}" --runner-os "$RUNNER_OS" --scenario "${{ inputs.scenario || 'all' }}")"
+          fi
+          python3 scripts/aggregate-release-gates.py steps \
+            --json-env VALIDATION_STEPS \
+            --required "$required_csv" \
+            --report artifacts/build-evidence/release-validation-gate.json
+      - name: Upload portable Desktop shard coverage
+        if: always() && runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        uses: actions/upload-artifact@v7
+        with:
+          name: desktop-offline-${{ matrix.os }}-${{ matrix.lane }}-${{ runner.arch }}
+          path: |
+            test-results/offline-shards/desktop-cells/**
+            test-results/offline-shards/aggregate-status.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload native macOS shard coverage
+        if: always() && runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos-offline-${{ matrix.os }}-${{ matrix.mac_shard }}-${{ runner.arch }}
+          path: artifacts/macos-test-shards/**
+          if-no-files-found: error
+          retention-days: 14
       - name: Upload regression and graphical evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: validation-${{ matrix.os }}-${{ runner.arch }}
+          name: validation-${{ matrix.os }}-${{ matrix.lane }}-${{ runner.arch }}
+          # The gate runs immediately before this upload, so its complete
+          # required-step decision is retained alongside outcomes.
           path: |
             test-results/**
             artifacts/desktop-smoke/**
+            artifacts/desktop-smoke-1.1-registry/**
             artifacts/gallery-features/**
             artifacts/closure-plugin-reselection/**
             artifacts/upgrade-results/**
+            artifacts/upgrade-1.0.2/current-test-results/**
             artifacts/upgrade-1.0.*/receipt.json
             artifacts/upgrade-1.0.*/source-binding.json
             artifacts/upgrade-1.0.*/generator.log
@@ -356,12 +825,78 @@ jobs:
             artifacts/desktop-tray-host/**
             artifacts/desktop-tray-stress/**
             artifacts/build-evidence/**
+            artifacts/build-evidence/release-validation-gate.json
             artifacts/macos-test-diagnosis/**
           if-no-files-found: warn
           retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
 
+  # Matrix success alone is insufficient: verify matching source/inventory,
+  # all eight workers per selected native platform, and every actual TRX row.
+  macos-offline-gate:
+    name: Native macOS offline coverage (fail-closed)
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all' || inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel'))) }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: macos-offline-macos-*
+          path: artifacts/macos-offline-inputs
+      - name: Verify exact native offline coverage
+        if: always()
+        shell: bash
+        run: |
+          platforms=(--platform macos-15 --platform macos-15-intel)
+          if [[ "${{ inputs.platform }}" == macos-* ]]; then
+            platforms=(--platform "${{ inputs.platform }}")
+          fi
+          python3 scripts/run-macos-test-shards.py aggregate \
+            --input artifacts/macos-offline-inputs --source "$(git rev-parse HEAD)" \
+            "${platforms[@]}" --report artifacts/macos-offline-gate.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: macos-offline-coverage-${{ github.sha }}
+          path: artifacts/macos-offline-gate.json
+          if-no-files-found: error
+          retention-days: 14
+
+  desktop-offline-gate:
+    name: Portable Desktop four-lane coverage (fail-closed)
+    # A one-lane offline-retest deliberately cannot satisfy full coverage.
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all' || inputs.platform == 'ubuntu-24.04' || inputs.platform == 'ubuntu-24.04-arm' || inputs.platform == 'windows-2022'))) }}
+    needs: validate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: desktop-offline-*
+          path: artifacts/desktop-offline-inputs
+      - name: Verify exact portable Desktop and retained project ownership
+        if: always()
+        shell: bash
+        run: |
+          platforms=(--platform ubuntu-24.04 --platform ubuntu-24.04-arm --platform windows-2022)
+          if [[ -n "${{ inputs.platform }}" && "${{ inputs.platform }}" != all ]]; then
+            platforms=(--platform "${{ inputs.platform }}")
+          fi
+          python3 scripts/desktop-test-shards.py \
+            --input artifacts/desktop-offline-inputs --source "$(git rev-parse HEAD)" \
+            "${platforms[@]}" --report artifacts/desktop-offline-gate.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: desktop-offline-coverage-${{ github.sha }}
+          path: artifacts/desktop-offline-gate.json
+          if-no-files-found: error
+          retention-days: 14
+
   library-package:
-    if: github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) && inputs.scenario == 'all')) }}
     needs: validate
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -412,7 +947,7 @@ jobs:
           retention-days: 7
 
   package:
-    if: github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all'))
+    if: ${{ always() && (github.event_name != 'workflow_dispatch' || (inputs.mode == 'validate' && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all'))) }}
     needs: [validate, library-package]
     strategy:
       fail-fast: false
@@ -516,7 +1051,7 @@ jobs:
             os: macos-15-intel
             cpu: x86_64
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 30
+    timeout-minutes: ${{ matrix.runtime == 'osx-x64' && 60 || 30 }}
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-dotnet@v6
@@ -533,11 +1068,15 @@ jobs:
           xcrun --sdk macosx --show-sdk-version >> artifacts/macos-evidence/host.txt
           git rev-parse HEAD > artifacts/macos-evidence/source.txt
           dotnet --info > artifacts/macos-evidence/sdk.txt
+      - name: Test Debug acceptance routing contracts
+        run: python3 scripts/test-apphost-acceptance-boundary.py -v
       - name: Test packager and signing contracts
         run: |
           python3 -m unittest discover -s tests -p 'test_macos*.py' -v
           python3 -m unittest discover -s tests -p test_desktop_package.py -v
+          python3 -m unittest discover -s tests -p test_public_package_alias_privacy.py -v
           python3 -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python3 -m unittest discover -s tests -p test_plugin_documentation.py -v
       - name: Read product version
         id: metadata
         shell: bash
@@ -550,6 +1089,8 @@ jobs:
         run: dotnet restore MeowChan.csproj --artifacts-path artifacts/macos-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true -warnaserror:NU1900
       - name: Publish native self-contained app
         run: dotnet publish MeowChan.csproj --artifacts-path artifacts/macos-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true --output artifacts/macos-publish
+      - name: Verify macos assembly smoke boundary
+        run: python3 scripts/apphost-acceptance-boundary.py artifacts/macos-publish/MeowChan --configuration Release
       - name: Validate visible .NET and bundled video runtime before signing
         shell: bash
         run: |
@@ -574,16 +1115,55 @@ jobs:
           shasum -a 256 "$archive" > "$archive.sha256"
           cp "$archive.sha256" artifacts/macos-evidence/archive.sha256
           echo "Native self-contained ad-hoc DMG; mounted and copied app verified. No Developer ID, notarization or Gatekeeper acceptance claim. Real VLC playback remains a separate acceptance check." >> "$GITHUB_STEP_SUMMARY"
-      - name: Start and gracefully stop the actual DMG-installed apphost
-        run: python3 scripts/macos-apphost-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/macos-evidence
-      - name: Exercise native gallery playback from the DMG-installed apphost
-        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
-        run: python3 scripts/apphost-playback-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/macos-evidence/playback
-      - name: Exercise the DMG-installed apphost download, restore, export and desktop workflow
-        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
-        run: python3 scripts/apphost-workflow-smoke.py artifacts/macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --archive artifacts/macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip --archive-member MeowChan.app/Contents/MacOS/MeowChan --archive-root artifacts/macos-extracted --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/macos-evidence/workflow
-      - name: Retain playback-verified native DMG candidate, inventory ZIP and evidence
-        if: inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+      - name: Record Release versus Debug acceptance boundary
+        shell: bash
+        run: echo "Shipping packages are Release. In-app acceptance executes separate NON-SHIPPING Debug archives at the same source/RID; it is not execution proof for the Release binary. All existing scenes/assertions are retained. See docs/smoke-release-boundary.md." >> "$GITHUB_STEP_SUMMARY"
+      - name: Prepare non-shipping Debug evidence
+        run: mkdir -p artifacts/acceptance-macos-evidence
+      # NON-SHIPPING DEBUG acceptance; never promote these archives.
+      # Keep the reviewed ILLink.Tasks lock graph while exposing all runtime Mach-O files.
+      - name: Debug acceptance - Restore native self-contained app with visible runtime libraries
+        run: dotnet restore MeowChan.csproj --artifacts-path artifacts/acceptance-macos-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Debug -p:MeowChanAcceptancePublish=true --locked-mode -p:SelfContained=true -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true -warnaserror:NU1900
+      - name: Debug acceptance - Publish native self-contained app
+        run: dotnet publish MeowChan.csproj --artifacts-path artifacts/acceptance-macos-build -c Debug -p:MeowChanAcceptancePublish=true -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=false -p:EnableSingleFileAnalyzer=true --output artifacts/acceptance-macos-publish
+      - name: Verify acceptance-macos assembly smoke boundary
+        run: python3 scripts/apphost-acceptance-boundary.py artifacts/acceptance-macos-publish/MeowChan --configuration Debug
+      - name: Debug acceptance - Validate visible .NET and bundled video runtime before signing
+        shell: bash
+        run: |
+          for library in libcoreclr.dylib libclrjit.dylib libhostfxr.dylib libhostpolicy.dylib; do
+            test -f "artifacts/acceptance-macos-publish/$library"
+          done
+          python3 scripts/check-desktop-package.py artifacts/acceptance-macos-publish ${{ matrix.runtime }}
+          python3 scripts/package-plugins.py --verify artifacts/acceptance-macos-publish --runtime ${{ matrix.runtime }}
+          python3 scripts/check-video-native.py artifacts/acceptance-macos-publish ${{ matrix.runtime }}
+      - name: Debug acceptance - Sign app inside-out and verify ZIP round trip
+        run: python3 scripts/package-macos.py --publish-dir artifacts/acceptance-macos-publish --output-dir artifacts/acceptance-macos-bundle --version ${{ steps.metadata.outputs.version }} --runtime ${{ matrix.runtime }} --sign-adhoc --archive artifacts/acceptance-macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip
+      - name: Debug acceptance - Create DMG and verify mounted, copied app and Applications shortcut
+        run: python3 scripts/package-macos-dmg.py --bundle artifacts/acceptance-macos-bundle/MeowChan.app --dmg artifacts/acceptance-macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.dmg --copied-root artifacts/acceptance-macos-extracted --runtime ${{ matrix.runtime }} > artifacts/acceptance-macos-evidence/dmg.json
+      - name: Debug acceptance - Retain signature and closure evidence from DMG-installed app
+        shell: bash
+        run: |
+          cp artifacts/macos-evidence/source.txt artifacts/acceptance-macos-evidence/source.txt
+          cp artifacts/macos-evidence/version.txt artifacts/acceptance-macos-evidence/version.txt
+          archive="artifacts/acceptance-macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.dmg"
+          python3 scripts/check-desktop-package.py artifacts/acceptance-macos-extracted/MeowChan.app/Contents/MacOS ${{ matrix.runtime }} > artifacts/acceptance-macos-evidence/contents.json
+          python3 scripts/macos-signing.py artifacts/acceptance-macos-extracted/MeowChan.app --runtime ${{ matrix.runtime }} > artifacts/acceptance-macos-evidence/signatures.json
+          python3 scripts/check-video-native.py artifacts/acceptance-macos-extracted/MeowChan.app/Contents/Resources/application ${{ matrix.runtime }} > artifacts/acceptance-macos-evidence/video-tree.json
+          python3 scripts/package-plugins.py --verify artifacts/acceptance-macos-extracted/MeowChan.app/Contents/Resources/application --runtime ${{ matrix.runtime }} --report artifacts/acceptance-macos-evidence/plugins.json
+          shasum -a 256 "$archive" > "$archive.sha256"
+          cp "$archive.sha256" artifacts/acceptance-macos-evidence/archive.sha256
+          echo "Native self-contained ad-hoc DMG; mounted and copied app verified. No Developer ID, notarization or Gatekeeper acceptance claim. Real VLC playback remains a separate acceptance check." >> "$GITHUB_STEP_SUMMARY"
+      - name: Start and gracefully stop the non-shipping Debug DMG-installed apphost
+        run: python3 scripts/macos-apphost-smoke.py artifacts/acceptance-macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --evidence-dir artifacts/acceptance-macos-evidence
+      - name: Exercise native gallery playback from the non-shipping Debug DMG-installed apphost
+        if: inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+        run: python3 scripts/apphost-playback-smoke.py artifacts/acceptance-macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --allow-native-desktop --evidence-dir artifacts/acceptance-macos-evidence/playback
+      - name: Exercise the non-shipping Debug DMG-installed apphost download, restore, export and desktop workflow
+        if: inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
+        run: python3 scripts/apphost-workflow-smoke.py artifacts/acceptance-macos-extracted/MeowChan.app/Contents/MacOS/MeowChan --archive artifacts/acceptance-macos-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}.zip --archive-member MeowChan.app/Contents/MacOS/MeowChan --archive-root artifacts/acceptance-macos-extracted --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/acceptance-macos-evidence/workflow
+      - name: Retain Release DMG candidate plus separate Debug acceptance evidence
+        if: inputs.mode == 'macos-package' || inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
         uses: actions/upload-artifact@v7
         with:
           name: macos-native-candidate-${{ matrix.runtime }}
@@ -591,6 +1171,8 @@ jobs:
             artifacts/macos-packages/*.dmg
             artifacts/macos-packages/*.zip
             artifacts/macos-evidence/**
+            artifacts/acceptance-macos-evidence/**
+            artifacts/acceptance-macos-packages/*
           if-no-files-found: error
           retention-days: 7
       - name: Retain native macOS evidence
@@ -598,7 +1180,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: macos-package-evidence-${{ matrix.runtime }}
-          path: artifacts/macos-evidence/**
+          path: |
+            artifacts/macos-evidence/**
+            artifacts/acceptance-macos-evidence/**
           if-no-files-found: warn
           retention-days: 7
 
@@ -626,16 +1210,21 @@ jobs:
           git rev-parse HEAD > artifacts/media-evidence/source.txt
           dotnet --info > artifacts/media-evidence/sdk.txt
           uname -a > artifacts/media-evidence/host.txt
+      - name: Test Debug acceptance routing contracts
+        run: python scripts/test-apphost-acceptance-boundary.py -v
       - name: Check runner evidence validation
         run: |
           python -m unittest discover -s tests -p test_apphost_playback_runner.py -v
           python -m unittest discover -s tests -p test_apphost_workflow_runner.py -v
           python -m unittest discover -s tests -p test_desktop_package.py -v
           python -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python -m unittest discover -s tests -p test_plugin_documentation.py -v
       - name: Restore the actual release package contract
         run: dotnet restore MeowChan.csproj --artifacts-path artifacts/media-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
       - name: Publish self-contained single-file application
         run: dotnet publish MeowChan.csproj --artifacts-path artifacts/media-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/media-publish
+      - name: Verify media assembly smoke boundary
+        run: python scripts/apphost-acceptance-boundary.py artifacts/media-publish/MeowChan.exe --configuration Release
       - name: Validate slim distribution and selected native video runtime
         run: |
           python scripts/check-desktop-package.py artifacts/media-publish ${{ matrix.runtime }}
@@ -657,19 +1246,53 @@ jobs:
           python scripts/check-desktop-package.py artifacts/media-extracted ${{ matrix.runtime }}
           python scripts/package-plugins.py --verify artifacts/media-extracted --runtime ${{ matrix.runtime }}
           python scripts/check-video-native.py artifacts/media-extracted ${{ matrix.runtime }}
-      - name: Play both WebM codecs through the extracted Windows apphost
+      - name: Record Release versus Debug acceptance boundary
+        shell: bash
+        run: echo "Shipping packages are Release. In-app acceptance executes separate NON-SHIPPING Debug archives at the same source/RID; it is not execution proof for the Release binary. All existing scenes/assertions are retained. See docs/smoke-release-boundary.md." >> "$GITHUB_STEP_SUMMARY"
+      - name: Prepare non-shipping Windows Debug evidence
+        run: python -c "from pathlib import Path; Path('artifacts/acceptance-media-evidence').mkdir(parents=True, exist_ok=True)"
+      - name: Debug acceptance - Restore the non-shipping acceptance contract
+        run: dotnet restore MeowChan.csproj --artifacts-path artifacts/acceptance-media-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Debug -p:MeowChanAcceptancePublish=true --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
+      - name: Debug acceptance - Publish self-contained single-file application
+        run: dotnet publish MeowChan.csproj --artifacts-path artifacts/acceptance-media-build -c Debug -p:MeowChanAcceptancePublish=true -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/acceptance-media-publish
+      - name: Verify acceptance-media assembly smoke boundary
+        run: python scripts/apphost-acceptance-boundary.py artifacts/acceptance-media-publish/MeowChan.exe --configuration Debug
+      - name: Debug acceptance - Validate slim distribution and selected native video runtime
+        run: |
+          python scripts/check-desktop-package.py artifacts/acceptance-media-publish ${{ matrix.runtime }}
+          python scripts/package-plugins.py --verify artifacts/acceptance-media-publish --runtime ${{ matrix.runtime }}
+          python scripts/check-video-native.py artifacts/acceptance-media-publish ${{ matrix.runtime }}
+      - name: Debug acceptance - ZIP and extract the Windows package
         if: runner.os == 'Windows'
-        run: python scripts/apphost-playback-smoke.py artifacts/media-extracted/MeowChan.exe --allow-native-desktop --evidence-dir artifacts/media-evidence/playback
-      - name: Exercise the extracted Windows apphost workflow
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force artifacts/acceptance-media-packages, artifacts/acceptance-media-extracted | Out-Null
+          $archive = "artifacts/acceptance-media-packages/MeowChan-${{ matrix.runtime }}.zip"
+          Compress-Archive -Path "artifacts/acceptance-media-publish/*" -DestinationPath $archive
+          Expand-Archive -Path $archive -DestinationPath artifacts/acceptance-media-extracted
+          $hash = (Get-FileHash -Algorithm SHA256 $archive).Hash.ToLowerInvariant()
+          "$hash  $(Split-Path -Leaf $archive)" | Set-Content artifacts/acceptance-media-evidence/archive.sha256 -Encoding utf8
+          if (-not (Test-Path artifacts/acceptance-media-extracted/MeowChan.exe -PathType Leaf)) { throw "Missing extracted apphost" }
+      - name: Debug acceptance - Check extracted distribution and native video layout
+        run: |
+          python scripts/check-desktop-package.py artifacts/acceptance-media-extracted ${{ matrix.runtime }}
+          python scripts/package-plugins.py --verify artifacts/acceptance-media-extracted --runtime ${{ matrix.runtime }}
+          python scripts/check-video-native.py artifacts/acceptance-media-extracted ${{ matrix.runtime }}
+      - name: Play both WebM codecs through the non-shipping Debug Windows apphost
         if: runner.os == 'Windows'
-        run: python scripts/apphost-workflow-smoke.py artifacts/media-extracted/MeowChan.exe --archive artifacts/media-packages/MeowChan-${{ matrix.runtime }}.zip --archive-member MeowChan.exe --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/media-evidence/workflow
-      - name: Retain playback-verified Windows archive and evidence
+        run: python scripts/apphost-playback-smoke.py artifacts/acceptance-media-extracted/MeowChan.exe --allow-native-desktop --evidence-dir artifacts/acceptance-media-evidence/playback
+      - name: Exercise the non-shipping Debug Windows apphost workflow
+        if: runner.os == 'Windows'
+        run: python scripts/apphost-workflow-smoke.py artifacts/acceptance-media-extracted/MeowChan.exe --archive artifacts/acceptance-media-packages/MeowChan-${{ matrix.runtime }}.zip --archive-member MeowChan.exe --allow-native-desktop --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/acceptance-media-evidence/workflow
+      - name: Retain Release Windows archive and separate Debug acceptance evidence
         uses: actions/upload-artifact@v7
         with:
           name: native-media-candidate-${{ matrix.runtime }}
           path: |
             artifacts/media-packages/*
             artifacts/media-evidence/**
+            artifacts/acceptance-media-evidence/**
+            artifacts/acceptance-media-packages/*
           if-no-files-found: error
           retention-days: 7
       - name: Retain native package playback evidence
@@ -677,7 +1300,9 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: package-media-evidence-${{ matrix.runtime }}
-          path: artifacts/media-evidence/**
+          path: |
+            artifacts/media-evidence/**
+            artifacts/acceptance-media-evidence/**
           if-no-files-found: warn
           retention-days: 7
 
@@ -753,6 +1378,8 @@ jobs:
           sudo apt-get update
           sudo apt-get install --yes libvlc5 libvlccore9 vlc-plugin-base vlc-plugin-video-output vlc-data patchelf binutils gcc dpkg-dev squashfs-tools
           dpkg-query -W > artifacts/linux-evidence/host-packages.txt
+      - name: Test Debug acceptance routing contracts
+        run: python3 scripts/test-apphost-acceptance-boundary.py -v
       - name: Check Linux packaging, provenance and isolated runner contracts
         shell: bash
         run: |
@@ -760,6 +1387,11 @@ jobs:
           python3 -W error::ResourceWarning -m unittest discover -s tests -p 'test_apphost*runner.py' -v
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_desktop_package.py -v
           python3 -W error::ResourceWarning -m unittest discover -s tests -p test_plugin_packaging.py -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_plugin_documentation.py -v
+          # Offline alias/freeze composition only; these are not a real AP04 upgrade run.
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_check_desktop_package_root_alias_regressions.py -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_public_package_alias_privacy.py -v
+          python3 -W error::ResourceWarning -m unittest discover -s tests -p test_package_plugins_alias_frozen_regressions.py -v
       - name: Read product version
         id: metadata
         shell: bash
@@ -767,13 +1399,25 @@ jobs:
           version="$(dotnet msbuild MeowChan.csproj -nologo -getProperty:Version)"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "$version" > artifacts/linux-evidence/version.txt
+      - name: Record Release versus Debug acceptance boundary
+        shell: bash
+        run: echo "Shipping packages are Release. In-app acceptance executes separate NON-SHIPPING Debug archives at the same source/RID; it is not execution proof for the Release binary. All existing scenes/assertions are retained. See docs/smoke-release-boundary.md." >> "$GITHUB_STEP_SUMMARY"
       - name: Restore and publish the native self-contained apphost
         shell: bash
         run: |
           dotnet restore MeowChan.csproj --artifacts-path artifacts/linux-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Release --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
           dotnet publish MeowChan.csproj --artifacts-path artifacts/linux-build -c Release -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/linux-publish
+          # Single-file bundles embed the .NET native runtime, but custom DllImport("System.Native")
+          # calls cannot resolve an embedded library. Deliver the exact RID runtime copy next to
+          # the apphost so profile safety checks stay available in the release package.
+          runtime_root="$(dirname "$(readlink -f "$(command -v dotnet)")")/shared/Microsoft.NETCore.App"
+          runtime_version="$(dotnet --list-runtimes | awk '$1 == "Microsoft.NETCore.App" && $2 ~ /^10\./ { print $2 }' | sort -V | tail -1)"
+          test -n "$runtime_version" && test -f "$runtime_root/$runtime_version/libSystem.Native.so"
+          cp --no-clobber "$runtime_root/$runtime_version/libSystem.Native.so" artifacts/linux-publish/libSystem.Native.so
           python3 scripts/check-desktop-package.py artifacts/linux-publish ${{ matrix.runtime }}
           python3 scripts/package-plugins.py --verify artifacts/linux-publish --runtime ${{ matrix.runtime }}
+      - name: Verify linux assembly smoke boundary
+        run: python3 scripts/apphost-acceptance-boundary.py artifacts/linux-publish/MeowChan --configuration Release
       - name: Prepare the selected private VLC runtime and pinned AppImage tools
         shell: bash
         run: |
@@ -782,6 +1426,24 @@ jobs:
           python3 scripts/package-linux.py download-tools --runtime ${{ matrix.runtime }} --output-dir artifacts/appimage-tools/${{ matrix.runtime }}
       - name: Build bundled VLC, system VLC and AppImage distributions
         run: python3 scripts/package-linux.py package --publish-dir artifacts/linux-publish --runtime ${{ matrix.runtime }} --version ${{ steps.metadata.outputs.version }} --source-commit ${{ github.sha }} --runtime-dir artifacts/linux-runtime/${{ matrix.runtime }}/runtime --runtime-manifest artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json --tools-dir artifacts/appimage-tools/${{ matrix.runtime }} --output-dir artifacts/linux-packages
+      - name: Debug acceptance - Restore and publish the native self-contained apphost
+        shell: bash
+        run: |
+          dotnet restore MeowChan.csproj --artifacts-path artifacts/acceptance-linux-build -p:RuntimeIdentifier=${{ matrix.runtime }} -p:Configuration=Debug -p:MeowChanAcceptancePublish=true --locked-mode -p:SelfContained=true -p:PublishSingleFile=true -warnaserror:NU1900
+          dotnet publish MeowChan.csproj --artifacts-path artifacts/acceptance-linux-build -c Debug -p:MeowChanAcceptancePublish=true -r ${{ matrix.runtime }} --self-contained true --no-restore -p:PublishSingleFile=true --output artifacts/acceptance-linux-publish
+          # Single-file bundles embed the .NET native runtime, but custom DllImport("System.Native")
+          # calls cannot resolve an embedded library. Deliver the exact RID runtime copy next to
+          # the apphost so profile safety checks stay available in the release package.
+          runtime_root="$(dirname "$(readlink -f "$(command -v dotnet)")")/shared/Microsoft.NETCore.App"
+          runtime_version="$(dotnet --list-runtimes | awk '$1 == "Microsoft.NETCore.App" && $2 ~ /^10\./ { print $2 }' | sort -V | tail -1)"
+          test -n "$runtime_version" && test -f "$runtime_root/$runtime_version/libSystem.Native.so"
+          cp --no-clobber "$runtime_root/$runtime_version/libSystem.Native.so" artifacts/acceptance-linux-publish/libSystem.Native.so
+          python3 scripts/check-desktop-package.py artifacts/acceptance-linux-publish ${{ matrix.runtime }}
+          python3 scripts/package-plugins.py --verify artifacts/acceptance-linux-publish --runtime ${{ matrix.runtime }}
+      - name: Verify acceptance-linux assembly smoke boundary
+        run: python3 scripts/apphost-acceptance-boundary.py artifacts/acceptance-linux-publish/MeowChan --configuration Debug
+      - name: Debug acceptance - Build bundled VLC, system VLC and AppImage distributions
+        run: python3 scripts/package-linux.py package --publish-dir artifacts/acceptance-linux-publish --runtime ${{ matrix.runtime }} --version ${{ steps.metadata.outputs.version }} --source-commit ${{ github.sha }} --runtime-dir artifacts/linux-runtime/${{ matrix.runtime }}/runtime --runtime-manifest artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json --tools-dir artifacts/appimage-tools/${{ matrix.runtime }} --output-dir artifacts/acceptance-linux-packages
       - name: Gather exact corresponding Linux and AppImage runtime sources
         run: python3 scripts/package-linux-sources.py --manifest ${{ matrix.runtime }}=artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json --source-commit ${{ github.sha }} --output artifacts/linux-packages/MeowChan-${{ steps.metadata.outputs.version }}-${{ matrix.runtime }}-video-sources.tar.gz --download-dir artifacts/linux-source-inputs
       - name: Build separate disposable desktops with and without system VLC
@@ -790,14 +1452,17 @@ jobs:
           docker build --pull --target no-vlc --tag meowchan-gates:no-vlc - < scripts/linux-distribution-gates.Dockerfile
           docker build --target system-vlc --tag meowchan-gates:system-vlc - < scripts/linux-distribution-gates.Dockerfile
           docker image inspect meowchan-gates:no-vlc meowchan-gates:system-vlc > artifacts/linux-evidence/desktop-images.json
-      - name: Accept all three exact distributions on native CPU without network or host desktop
-        run: python3 scripts/linux-distribution-gates.py --package-dir artifacts/linux-packages --manifest artifacts/linux-packages/${{ matrix.runtime }}-package-manifest.json --no-vlc-image meowchan-gates:no-vlc --system-vlc-image meowchan-gates:system-vlc --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/linux-evidence/distributions
+      - name: Check all three exact Release distribution layouts without in-app hooks
+        run: python3 scripts/linux-distribution-gates.py --layout-only --package-dir artifacts/linux-packages --manifest artifacts/linux-packages/${{ matrix.runtime }}-package-manifest.json --no-vlc-image meowchan-gates:no-vlc --system-vlc-image meowchan-gates:system-vlc --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/linux-evidence/release-layouts
+      - name: Accept all three non-shipping Debug distributions on native CPU without network or host desktop
+        run: python3 scripts/linux-distribution-gates.py --package-dir artifacts/acceptance-linux-packages --manifest artifacts/acceptance-linux-packages/${{ matrix.runtime }}-package-manifest.json --no-vlc-image meowchan-gates:no-vlc --system-vlc-image meowchan-gates:system-vlc --source-commit ${{ github.sha }} --runtime ${{ matrix.runtime }} --evidence-dir artifacts/linux-evidence/distributions
       - name: Retain accepted Linux archives, AppImage and corresponding sources
         uses: actions/upload-artifact@v7
         with:
           name: linux-distribution-candidate-${{ matrix.runtime }}
           path: |
             artifacts/linux-packages/*
+            artifacts/acceptance-linux-packages/*
             artifacts/linux-evidence/**
             artifacts/linux-runtime/${{ matrix.runtime }}/runtime-manifest.json
           if-no-files-found: error
@@ -812,7 +1477,7 @@ jobs:
           retention-days: 7
 
   macos-source-candidate:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'))
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'package-media' || (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')) }}
     needs: [macos-package, package-media, linux-distribution]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -822,7 +1487,7 @@ jobs:
         with:
           pattern: macos-native-candidate-*
           path: artifacts/macos-inputs
-      - name: Require matching native playback evidence and exact source
+      - name: Require separate Release package and Debug acceptance bindings at exact source
         shell: bash
         run: |
           python3 - <<'PY'
@@ -833,6 +1498,7 @@ jobs:
           playback_spec = importlib.util.spec_from_file_location('playback_runner', 'scripts/apphost-playback-smoke.py')
           playback_runner = importlib.util.module_from_spec(playback_spec)
           playback_spec.loader.exec_module(playback_runner)
+          boundary = workflow_runner.playback.boundary
           root = pathlib.Path('artifacts/macos-inputs')
           output = pathlib.Path('artifacts/macos-candidate')
           output.mkdir(parents=True)
@@ -843,11 +1509,11 @@ jobs:
           versions = set()
           for rid in sorted(expected):
               directory = root / ('macos-native-candidate-' + rid)
-              evidence = directory / 'macos-evidence'
+              evidence = directory / 'acceptance-macos-evidence'
               assert (evidence / 'source.txt').read_text().strip() == commit, 'Native source mismatch'
               version = (evidence / 'version.txt').read_text().strip()
               versions.add(version)
-              dmg = directory / 'macos-packages' / f'MeowChan-{version}-{rid}.dmg'
+              dmg = directory / 'acceptance-macos-packages' / f'MeowChan-{version}-{rid}.dmg'
               digest = hashlib.file_digest(dmg.open('rb'), 'sha256').hexdigest()
               assert (evidence / 'archive.sha256').read_text().split()[0] == digest, 'Final DMG hash mismatch'
               dmg_report = json.loads((evidence / 'dmg.json').read_text())
@@ -855,7 +1521,7 @@ jobs:
               assert dmg_report['dmgSha256'] == digest and dmg_report['mountedAndCopied'] is True
               assert dmg_report['applicationsShortcut'] == '/Applications'
               assert dmg_report['sourceSignatures']['files'] == dmg_report['copiedSignatures']['files']
-              archive = directory / 'macos-packages' / f'MeowChan-{version}-{rid}.zip'
+              archive = directory / 'acceptance-macos-packages' / f'MeowChan-{version}-{rid}.zip'
               archive_digest = hashlib.file_digest(archive.open('rb'), 'sha256').hexdigest()
               signatures = json.loads((evidence / 'signatures.json').read_text())
               assert signatures['runtime'] == rid
@@ -893,15 +1559,24 @@ jobs:
                   for name, expected_hash in signatures['files'].items():
                       assert hashlib.sha256(package.read('MeowChan.app/' + name)).hexdigest() == expected_hash, 'ZIP/signature evidence mismatch'
                   apphost_hash = hashlib.sha256(package.read('MeowChan.app/Contents/MacOS/MeowChan')).hexdigest()
+              assert all(proof.get('acceptanceConfiguration') == 'Debug' and proof.get('shippingArtifactExecuted') is False
+                         for proof in (startup, playback, workflow)), 'Native evidence must identify non-shipping Debug acceptance'
               assert playback['apphostSha256'] == apphost_hash, 'Playback apphost differs from final ZIP'
               assert workflow['apphostSha256'] == apphost_hash == workflow['archiveBinding']['memberSha256'], 'Workflow apphost differs from final ZIP'
               assert dmg_report['apphostSha256'] == apphost_hash, 'Mounted DMG apphost differs from inventory ZIP'
-              shutil.copy2(dmg, output / dmg.name)
-              shutil.copytree(evidence, output / 'evidence' / rid)
-              shutil.copy2(archive, output / 'evidence' / rid / archive.name)
-              report = {'source_commit': commit, 'rid': rid, 'dmg_sha256': digest,
-                        'inventory_zip_sha256': archive_digest, 'dmg_validation': dmg_report,
-                        'signatures': signatures, 'startup': startup, 'playback': playback, 'workflow': workflow}
+              release_evidence = directory / 'macos-evidence'
+              release_packages = directory / 'macos-packages'
+              release_dmg, release_report = boundary.validate_macos_release(release_packages, release_evidence, version, rid, commit)
+              shutil.copy2(release_dmg, output / release_dmg.name)
+              shutil.copytree(release_evidence, output / 'evidence' / rid / 'release-package')
+              shutil.copytree(evidence, output / 'evidence' / rid / 'debug-acceptance')
+              shutil.copy2(archive, output / 'evidence' / rid / 'debug-acceptance' / archive.name)
+              shutil.copy2(release_packages / archive.name, output / 'evidence' / rid / archive.name)
+              report = {'source_commit': commit, 'rid': rid, 'acceptanceConfiguration': 'Debug', 'releasePackage': release_report, 'dmg_sha256': release_report['dmgSha256'],
+                        'inventory_zip_sha256': release_report['inventoryZipSha256'], 'dmg_validation': release_report['dmg'],
+                        'signatures': release_report['signatures'], 'startup': startup, 'playback': playback, 'workflow': workflow,
+                        'debugAcceptance': {'dmg_sha256': digest, 'inventory_zip_sha256': archive_digest,
+                                            'dmg_validation': dmg_report, 'signatures': signatures}}
               (output / f'{rid}-native-validation.json').write_text(json.dumps(report, indent=2) + '\n')
           assert len(versions) == 1, 'Native versions differ'
           (output / 'version.txt').write_text(versions.pop() + '\n')
@@ -966,16 +1641,37 @@ jobs:
   # Explicit opt-in: same-run full validation plus all five native package jobs.
   # Actions artifacts only. The retained v0.9 upload workflow is deliberately separate.
   current-source-inventory:
-    if: github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate')
-    needs: [validate, library-package, macos-source-candidate]
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') }}
+    needs: [validate, library-package, linux-distribution, macos-source-candidate]
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
+      - name: Reject incomplete current-source candidate producers
+        id: current_source_inputs
+        if: always()
+        shell: bash
+        env:
+          CURRENT_SOURCE_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts/current-source
+          python3 scripts/aggregate-release-gates.py needs \
+            --json-env CURRENT_SOURCE_NEEDS \
+            --required validate,library-package,linux-distribution,macos-source-candidate \
+            --report artifacts/current-source/upstream-gate.json
       - uses: actions/download-artifact@v5
         with:
           pattern: '*candidate*'
           path: artifacts/current-source-inputs
+      - name: Retain current-source upstream decision even on failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: current-source-inventory-evidence-${{ github.sha }}
+          path: artifacts/current-source/**
+          if-no-files-found: error
+          retention-days: 7
       - name: Fetch the pinned corresponding-source base
         shell: bash
         run: |
@@ -992,6 +1688,15 @@ jobs:
           if [[ "${{ inputs.mode }}" == stable-candidate ]]; then channel=stable; fi
           python3 scripts/assemble-prerelease.py --channel "$channel" --artifacts-root artifacts/current-source-inputs --source-commit "$GITHUB_SHA" --version "$version" --source-base artifacts/source-base/MeowChan-0.9.0-video-sources.tar.gz --run-id "$GITHUB_RUN_ID" --output artifacts/${{ inputs.mode }}
           (cd artifacts/${{ inputs.mode }} && sha256sum --check --strict SHA256SUMS)
+      - name: Retain same-run AP04 source and checksum binding
+        uses: actions/upload-artifact@v7
+        with:
+          name: candidate-binding-${{ github.sha }}
+          path: |
+            artifacts/${{ inputs.mode }}/candidate-inventory.json
+            artifacts/${{ inputs.mode }}/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 7
       - name: Retain current-source candidate inventory and assets
         uses: actions/upload-artifact@v7
         with:
@@ -999,6 +1704,210 @@ jobs:
           path: artifacts/${{ inputs.mode }}/*
           if-no-files-found: error
           retention-days: 7
+
+  # AP04 consumes inventory checksums; no reverse inventory -> AP04 dependency.
+  ap04-upgrade:
+    name: AP04 full offline upgrade and write/readback (fail-closed)
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && inputs.platform == 'all' && inputs.scenario == 'all' }}
+    needs: [current-source-inventory, linux-distribution]
+    runs-on: ubuntu-24.04
+    # Historical source-only run ~26m; 60m is an estimate, not a runtime proof.
+    # Runner40 + tools5 + warm10 reserves nominal 5m for checkout/downloads,
+    # checks and upload. Whole-job exhaustion still fails closed; not a worst-case
+    # runtime guarantee. No existing native/GUI worker deadline changes.
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+      - name: Reject incomplete upstream AP04 inputs
+        id: ap04_inputs
+        shell: bash
+        env:
+          AP04_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          mkdir -p artifacts/ap04
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          python3 scripts/aggregate-release-gates.py needs \
+            --json-env AP04_NEEDS --required current-source-inventory,linux-distribution \
+            --report artifacts/ap04/upstream-gate.json
+      - uses: actions/download-artifact@v5
+        with:
+          name: candidate-binding-${{ github.sha }}
+          path: artifacts/ap04-binding
+      - uses: actions/download-artifact@v5
+        with:
+          name: linux-distribution-candidate-linux-x64
+          path: artifacts/ap04-linux
+      - name: Install mandatory isolated AP04 runtime prerequisites
+        id: ap04_tools
+        timeout-minutes: 5
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --yes --no-install-recommends bubblewrap util-linux libfontconfig1 libfreetype6 libdbus-1-3 libx11-6 libice6 libsm6
+          # C# cycle isolation hides /tmp except explicit profile/result binds.
+          # Both candidate binaries and the SDK must remain visible outside it.
+          case "$(realpath "$RUNNER_TEMP")/" in /tmp/*) echo 'AP04 candidate cannot live under /tmp' >&2; exit 1;; esac
+          case "$(readlink -f "$(command -v dotnet)")" in /tmp/*) echo 'AP04 SDK cannot live under /tmp' >&2; exit 1;; esac
+          command -v bwrap
+          command -v unshare
+          command -v setpriv
+          test "$(sudo -n id -u)" = 0
+      - name: Stage exactly the source-bound AP04 Linux package set
+        id: ap04_stage
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/a4"
+          python3 tests/fixtures/upgrade-v1.0.2/ap04_stage.py stage \
+            --linux-input artifacts/ap04-linux \
+            --inventory artifacts/ap04-binding/candidate-inventory.json \
+            --sha256sums artifacts/ap04-binding/SHA256SUMS \
+            --candidate-sha "$GITHUB_SHA" --run-id "$GITHUB_RUN_ID" \
+            --output "$RUNNER_TEMP/a4/packages" --receipt artifacts/ap04-stage.json
+      - name: Warm only the separate AP04 offline feed outside acceptance checkout
+        id: ap04_warm
+        timeout-minutes: 10
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Only warm trees may restore online. Neither is the acceptance tree.
+          git worktree add --detach "$RUNNER_TEMP/a4/warm-current" "$GITHUB_SHA"
+          python3 tests/fixtures/upgrade-v1.0.2/prepare.py "$RUNNER_TEMP/a4/warm-old"
+          for project in \
+            "$RUNNER_TEMP/a4/warm-old/tests/Upgrade102FixtureGenerator/UpgradeFixtureGenerator.csproj" \
+            "$RUNNER_TEMP/a4/warm-current/tests/fixtures/upgrade-v1.0.2/current/UpgradeConsumer.csproj" \
+            "$RUNNER_TEMP/a4/warm-current/tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj"; do
+            dotnet restore "$project" --packages "$RUNNER_TEMP/a4/feed" --locked-mode \
+              -p:Configuration=Debug -p:NuGetAudit=false -p:UseSharedCompilation=false -m:1 -nodeReuse:false
+          done 2>&1 | tee artifacts/ap04/warm-feed.log
+      - name: Run the full AP04 replay from a fresh detached same-source checkout
+        id: ap04_run
+        timeout-minutes: 40
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate="$RUNNER_TEMP/a4/candidate"
+          git worktree add --detach "$candidate" "$GITHUB_SHA"
+          cd "$candidate"
+          test "$(git rev-parse HEAD)" = "$GITHUB_SHA"
+          test -z "$(git symbolic-ref -q HEAD || true)"
+          python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py \
+            --candidate-sha "$GITHUB_SHA" --root "$candidate" \
+            --out-root "$RUNNER_TEMP/a4" --out "$RUNNER_TEMP/a4/run" \
+            --offline-feed "$RUNNER_TEMP/a4/feed" --heavy-lock "$RUNNER_TEMP/a4/heavy.lock" \
+            --namespace-backend bwrap-root --lock-wait 60 \
+            --linux-package-dir "$RUNNER_TEMP/a4/packages" \
+            --sha256sums "$GITHUB_WORKSPACE/artifacts/ap04-binding/SHA256SUMS" \
+            2>&1 | tee "$GITHUB_WORKSPACE/artifacts/ap04/runner.log"
+      - name: Verify full AP04 PASS and same-run package/source evidence
+        id: ap04_check
+        if: ${{ always() && steps.ap04_stage.outcome == 'success' && steps.ap04_run.outcome == 'success' }}
+        shell: bash
+        run: |
+          python3 tests/fixtures/upgrade-v1.0.2/ap04_stage.py check \
+            --out "$RUNNER_TEMP/a4/run" --candidate-sha "$GITHUB_SHA" \
+            --run-id "$GITHUB_RUN_ID" --stage-receipt artifacts/ap04-stage.json \
+            --report artifacts/ap04/gate.json
+      - name: Reject any missing or incomplete AP04 phase
+        if: always()
+        shell: bash
+        env:
+          AP04_STEPS: ${{ toJSON(steps) }}
+        run: |
+          python3 scripts/aggregate-release-gates.py steps \
+            --json-env AP04_STEPS --required ap04_inputs,ap04_tools,ap04_stage,ap04_warm,ap04_run,ap04_check \
+            --report artifacts/ap04/required-steps.json
+      - name: Retain AP04 decision and bounded attempt evidence even on failure
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: ap04-upgrade-${{ github.sha }}
+          path: |
+            artifacts/ap04/**
+            artifacts/ap04-stage.json
+            artifacts/ap04-binding/**
+            ${{ runner.temp }}/a4/run/report.json
+            ${{ runner.temp }}/a4/run/report.txt
+            ${{ runner.temp }}/a4/run/candidate.json
+            ${{ runner.temp }}/a4/run/evidence/**
+            ${{ runner.temp }}/a4/run/logs/**
+            ${{ runner.temp }}/a4/run/test-results/**
+            ${{ runner.temp }}/a4/run/cycles/**
+            ${{ runner.temp }}/a4/run/w/**
+          if-no-files-found: error
+          retention-days: 14
+
+  # One explicit, fail-closed decision for candidate artifacts. The jobs above
+  # intentionally continue independently so startup and packaging failures can
+  # all be diagnosed; this job is the only candidate admission signal.
+  release-candidate-gate:
+    name: Release candidate gate (fail-closed)
+    if: ${{ always() && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') }}
+    needs: [validate, macos-offline-gate, desktop-offline-gate, library-package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory, ap04-upgrade]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - name: Reject any incomplete candidate dependency
+        shell: bash
+        env:
+          RELEASE_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 scripts/aggregate-release-gates.py needs \
+            --json-env RELEASE_NEEDS \
+            --required validate,macos-offline-gate,desktop-offline-gate,library-package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory,ap04-upgrade \
+            --report artifacts/release-candidate-gate.json
+      - name: Retain candidate gate decision
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: release-candidate-gate-${{ github.sha }}
+          path: artifacts/release-candidate-gate.json
+          if-no-files-found: warn
+          retention-days: 7
+
+  # Dispatch through the registered desktop workflow even when the registry
+  # workflow does not exist on the repository's default branch yet.
+  smoke-retest:
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'smoke-retest'
+    uses: ./.github/workflows/desktop-smoke-registry.yml
+    with:
+      only: ${{ inputs.smoke }}
+      single: true
+
+  # Workflow-wide status, including ordinary full sweeps and focused retests.
+  # Mode/platform-excluded jobs may skip; coverage and candidate gates above
+  # remain strict and their failure/cancellation can never be hidden here.
+  full-sweep-aggregate:
+    name: Desktop full-sweep aggregate
+    if: always()
+    needs: [validate, macos-offline-gate, desktop-offline-gate, library-package, package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory, ap04-upgrade, release-candidate-gate, macos-diagnose, homebrew-macos, smoke-retest]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - name: Report all job outcomes and reject any failure
+        if: always()
+        env:
+          SWEEP_NEEDS: ${{ toJSON(needs) }}
+        run: |
+          python3 scripts/aggregate-release-gates.py needs --json-env SWEEP_NEEDS \
+            --required validate,macos-offline-gate,desktop-offline-gate,library-package,package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory,ap04-upgrade,release-candidate-gate,macos-diagnose,homebrew-macos,smoke-retest \
+            --allow-skipped --report artifacts/full-sweep-aggregate.json
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: full-sweep-aggregate
+          path: artifacts/full-sweep-aggregate.json
+          if-no-files-found: error
+          retention-days: 14
 
   # Diagnostic evidence only: this mode does not run or satisfy release validation.
   macos-diagnose:

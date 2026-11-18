@@ -78,6 +78,21 @@ public sealed class ShortcutBindingsTests
     public void UnsafeCaptureIsRejected(string gesture, ShortcutPlatform platform)
     { Assert.NotNull(EffectiveShortcutBindings.InvalidReason(ShortcutGesture.Parse(gesture), platform)); }
 
+    [Theory]
+    [InlineData(ShortcutPlatform.Windows)]
+    [InlineData(ShortcutPlatform.Linux)]
+    public void ReaderExpandNonTextChordIsValidAndRoundTripsWithoutAllowingAltGrText(ShortcutPlatform platform)
+    {
+        var chord = ShortcutGesture.Parse("Primary+Alt+Enter");
+        Assert.Null(EffectiveShortcutBindings.InvalidReason(chord, platform));
+        var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set("reader.expand", [chord]), platform);
+        Assert.Empty(bindings.Issues);
+        Assert.True(bindings.Matches(Key(Avalonia.Input.Key.Enter, KeyModifiers.Control | KeyModifiers.Alt), "reader.expand", "reader"));
+        foreach (Avalonia.Input.Key key in Enum.GetValues<Avalonia.Input.Key>().Distinct().Where(key => key != Avalonia.Input.Key.Enter))
+            Assert.NotNull(EffectiveShortcutBindings.InvalidReason(new ShortcutGesture(key.ToString(), new[] { "Control", "Alt" }), platform));
+        Assert.NotNull(EffectiveShortcutBindings.InvalidReason(ShortcutGesture.Parse("Primary+Alt+Shift+Enter"), platform));
+    }
+
     [Fact]
     public void NativeTextCommandsRemainAvailableInTheirListContext()
     { Assert.Null(EffectiveShortcutBindings.InvalidReason(ShortcutGesture.Parse("Primary+C"), ShortcutPlatform.Linux)); }
@@ -122,19 +137,24 @@ public sealed class ShortcutBindingsTests
     [InlineData("reader-groups.create", "navigation.archive")]
     [InlineData("media.rating.cleanup-retry", "media.rating.remove-selected")]
     [InlineData("sections.go-to", "archive.saved-searches.apply")]
-    public void SeparateModalSurfacesMayReuseAGesture(string first, string second)
+    public void SeparateModalSurfacesStillRejectUnrelatedMeaningsWhenSaving(string first, string second)
     {
         var gesture = new[] { ShortcutGesture.Parse("Primary+Shift+F9") };
-        var result = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(first, gesture).Set(second, gesture), ShortcutPlatform.Linux);
-        Assert.Empty(result.Issues);
+        var section = new ShortcutBindingsSection().Set(first, gesture).Set(second, gesture);
+        var result = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
+        Assert.Contains(result.Issues, issue => issue.BlocksSave && issue.CommandId == first && issue.OtherCommandId == second
+            || issue.BlocksSave && issue.CommandId == second && issue.OtherCommandId == first);
+        Assert.Throws<ArgumentException>(() => ShortcutService.ValidateForCommit(section));
+        // Existing profiles retain their non-overlapping runtime routes, but the
+        // editor cannot promise two unrelated meanings just because they are modal.
         Assert.Single(result.For(first));
         Assert.Single(result.For(second));
     }
 
     [Theory]
-    [InlineData("video.mute")]
-    [InlineData("video.loop")]
-    [InlineData("gallery.tools-toggle")]
+    // The tools switch has Shift+H and the controls overlay Shift+O since the gallery key scheme (GalleryShortcutSchemeTests);
+    // the post overlay has no default (its letter P belongs to the post panel).
+    [InlineData("gallery.post-overlay-toggle")]
     public void OptionalGalleryCommandsHaveNoInventedDefaultsButAcceptGalleryOverrides(string id)
     {
         Assert.Equal(CommandAvailability.Contextual, CommandCatalog.Get(id).Availability);
@@ -145,7 +165,6 @@ public sealed class ShortcutBindingsTests
     }
 
     [Theory]
-    [InlineData("post.copy-link")]
     [InlineData("post.open-source")]
     [InlineData("viewer.focus-mode")]
     [InlineData("table.reset-layout")]

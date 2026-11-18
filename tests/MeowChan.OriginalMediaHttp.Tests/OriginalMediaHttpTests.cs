@@ -98,6 +98,21 @@ public sealed class OriginalMediaHttpTests
     }
 
     [Fact]
+    public async Task NonIdentityResponseEncodingIsRejectedWithoutReturningTheBody()
+    {
+        TrackingContent content = new([1, 2, 3]);
+        using HttpClient transport = new(new Handler((request, _) =>
+        {
+            HttpResponseMessage response = Response(request, 200, content);
+            response.Content.Headers.ContentEncoding.Add("gzip");
+            return Task.FromResult(response);
+        }));
+        using HttpClient client = Client(transport);
+        await Assert.ThrowsAsync<HttpRequestException>(() => client.GetAsync(Initial, HttpCompletionOption.ResponseHeadersRead));
+        Assert.True(content.Disposed);
+    }
+
+    [Fact]
     public async Task MissingLocationAndHiddenTransportRedirectFailWithoutReturningBodies()
     {
         foreach (bool hidden in new[] { false, true })
@@ -133,10 +148,13 @@ public sealed class OriginalMediaHttpTests
         using HttpClient transport = new(new Handler((request, _) =>
         {
             sent++; Assert.Equal("image/*", request.Headers.Accept.ToString());
+            Assert.Single(request.Headers.AcceptEncoding);
+            Assert.Equal("identity", request.Headers.AcceptEncoding.Single().Value);
             Assert.True(request.Options.TryGetValue(new HttpRequestOptionsKey<string>("fixture"), out string? value)); Assert.Equal("retained", value);
             return Task.FromResult(sent == 1 ? Redirect(request, 307, "/next") : Response(request));
         }));
         using HttpClient client = Client(transport);
+        client.DefaultRequestHeaders.AcceptEncoding.Add(new("gzip"));
         using HttpRequestMessage initial = new(HttpMethod.Head, Initial);
         initial.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("image/*"));
         initial.Options.Set(new HttpRequestOptionsKey<string>("fixture"), "retained");
@@ -318,7 +336,7 @@ public sealed class OriginalMediaHttpTests
         { lock (_sync) { Timer timer = new(this, callback, state); _timers.Add(timer); timer.Change(dueTime, period); return timer; } }
         internal async Task WaitForDelayAsync(TimeSpan maximumDelay)
         {
-            using CancellationTokenSource watchdog = new(TimeSpan.FromSeconds(5));
+            using CancellationTokenSource watchdog = new(TimeSpan.FromSeconds(30)); // hang guard only
             while (true)
             {
                 lock (_sync)

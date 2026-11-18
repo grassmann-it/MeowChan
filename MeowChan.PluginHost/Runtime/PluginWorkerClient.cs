@@ -110,6 +110,20 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
         ThreadReadResult result = await CallAsync<ThreadReadRequest, ThreadReadResult>("thread", request, operation, cancellationToken).ConfigureAwait(false);
         Validate(SdkValidation.ValidateThreadResult(request, result, source)); return result;
     }
+    public async Task<BooruSearchResult> SearchBooruPostsAsync(BooruSearchRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)
+    {
+        SourceDescription source = Source(request.SourceId, SourceCapabilities.PostSearch);
+        Validate(SdkValidation.ValidateBooruSearchRequest(request, source));
+        BooruSearchResult result = await CallAsync<BooruSearchRequest, BooruSearchResult>("booru.search", request, operation, cancellationToken).ConfigureAwait(false);
+        Validate(SdkValidation.ValidateBooruSearchResult(request, result, source)); return result;
+    }
+    public async Task<BooruPostResult> ReadBooruPostAsync(BooruPostRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)
+    {
+        SourceDescription source = Source(request.Post.SourceId, SourceCapabilities.PostSearch);
+        Validate(SdkValidation.ValidateBooruPostRequest(request, source));
+        BooruPostResult result = await CallAsync<BooruPostRequest, BooruPostResult>("booru.post", request, operation, cancellationToken).ConfigureAwait(false);
+        Validate(SdkValidation.ValidateBooruPostResult(request, result, source)); return result;
+    }
     public async Task<ImageFilterResult> EvaluateAsync(ImageFilterRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default)
     {
         FilterDescription filter = Description.Filters.SingleOrDefault(value => value.Key == request.FilterKey)

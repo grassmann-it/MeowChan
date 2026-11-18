@@ -8,7 +8,7 @@ using MeowChan.Gallery;
 namespace MeowChan.Desktop;
 
 // Own tags of the shown media version. The viewer only shows state and raises a request for the
-// exact entry; the owner resolves the target, opens the dialog and reports the result back.
+// exact entry; the owner opens the tag panel (GalleryViewer.TagPanel.cs) for it and reports the result back.
 internal sealed partial class GalleryViewer
 {
     private Button _tagsButton = null!;
@@ -17,11 +17,18 @@ internal sealed partial class GalleryViewer
     internal event Action<GalleryEntry>? TagsRequested;
     internal Button TagsButton => _tagsButton;
 
-    private void CreateTagsButton(Panel media) =>
-        _tagsButton = Command(media, "GalleryTags", Texts.T("tags.media.button"), RequestTags);
+    // A row of the "⋯" menu; its label is the live tag count, so it has no static command label.
+    private void CreateTagsButton(Panel menu)
+    {
+        _tagsButton = new Button { Name = "GalleryTags" };
+        _tagsButton.Click += (_, _) => RequestTags();
+        AddOverflowItem(_tagsButton, "media.tags.edit", host: menu);
+        UpdateTagsButton();
+    }
 
     private void RequestTags()
     {
+        if (_tagPanelOpen) { CloseTagPanel(); return; } // the same command that opened the panel closes it
         if (_entry is { } entry && _tagNames != null && CanRequestFavorite)
         {
             PauseSlideshow();
@@ -38,6 +45,9 @@ internal sealed partial class GalleryViewer
         _tagNames = names;
         _tagsUnavailableReason = names == null ? unavailableReason : null;
         UpdateTagsButton();
+        // The Post segment lists the tags as chips: it is rebuilt when it is shown (now, or when it opens).
+        _contextDirty = true;
+        EnsureContextCurrent();
     }
 
     private void ResetMediaTags()
@@ -45,19 +55,28 @@ internal sealed partial class GalleryViewer
         _tagNames = null;
         _tagsUnavailableReason = null;
         UpdateTagsButton();
+        _contextDirty = true; // the medium changes: the context is built for it right after (UpdateContext)
+    }
+
+    // The row's label is the live tag count; on the toolbar it is the button's name and tooltip (the visible text stays "Tags").
+    private string TagsLabel()
+    {
+        int count = _tagNames?.Count ?? 0;
+        return count > 0 ? Texts.T("tags.media.buttonCount", count) : Texts.T("tags.media.button");
     }
 
     private void UpdateTagsButton()
     {
         if (_tagsButton == null) return;
+        string label = TagsLabel();
         int count = _tagNames?.Count ?? 0;
-        string label = count > 0 ? Texts.T("tags.media.buttonCount", count) : Texts.T("tags.media.button");
-        _tagsButton.Content = label;
+        SetButtonLabel(_tagsButton, label);
         string tip = _tagNames == null ? _tagsUnavailableReason ?? Texts.T("tags.media.button")
             : count > 0 ? Texts.T("tags.rowLabel", string.Join(", ", _tagNames)) : Texts.T("tags.media.hint");
         ToolTip.SetTip(_tagsButton, tip);
         AutomationProperties.SetName(_tagsButton, label);
         AutomationProperties.SetHelpText(_tagsButton, tip);
         _tagsButton.IsEnabled = _entry != null && _tagNames != null;
+        SyncSidePanel(); // the Tags segment of the side panel follows the same availability
     }
 }

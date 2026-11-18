@@ -254,18 +254,65 @@ proprietary theme assemblies are no longer dependencies or distributed assets.
 
 ## Bundled visual assets
 
-- `Assets/icons/*.png`: Feather Icons, attributed by the application's existing
-  About window. The original export revision is unknown. The verified upstream
-  MIT text and Cole Bemis attribution are included below.
+- `Assets/icons/feather/`: Feather Icons v4.29.2 (unchanged SVG originals and
+  derived PNG alpha masks), attributed by the application's About window. The
+  verified upstream MIT text and Cole Bemis attribution are included below.
 - `Avalonia.Fonts.Inter`: Inter font version `3.019;git-0a5106e0b`, verified from
   the font metadata at the package source commit. Font files are covered by SIL
   Open Font License 1.1; the Avalonia wrapper's MIT declaration does not replace
   that font license.
-- `Assets/meowchan.png`, `Assets/meowchan.ico` and high-resolution source
-  `Assets/branding/meowchan-source.png`: cat-head branding selected by the
-  project maintainer on 2026-10-10, derived with OpenAI ImageGen from a cat
-  photograph supplied by the maintainer. The PNG, Windows ICO and packaged
-  macOS ICNS use the same selected photographic cutout.
+- `Assets/Fonts/NotoSans-Regular.ttf`, `NotoSans-Bold.ttf`, `NotoSans-Italic.ttf`:
+  Noto Sans `Version 2.015; ttfautohint (v1.8.4.7-5d5b)`, the reading font of
+  post bodies (the interface stays Inter). Subsets of the Manjaro/Arch
+  `noto-fonts 1:2026.09.01-1` files, made with fontTools `pyftsubset` 4.64.0
+  for Latin (incl. Latin Extended-A/B and Additional), Greek, Cyrillic,
+  general punctuation, super/subscripts, currency, arrows and a few letterlike
+  and math signs, keeping all layout features and name records. SIL Open Font
+  License 1.1 (see below); the font metadata names no Reserved Font Name.
+- Cat-head branding, two sets shown by the application's theme:
+  - Grey tabby, shown in the dark theme: `Assets/meowchan-dark.png`,
+    `Assets/meowchan-dark.ico` and high-resolution source
+    `Assets/branding/meowchan-dark-source.png`. Selected by the project
+    maintainer on 2026-10-10, derived with OpenAI ImageGen from a cat
+    photograph supplied by the maintainer; the cat is Mila, photographed
+    by Alexander Huxel (credit below). These files are byte-identical to
+    the branding the application used before 2026-11-12.
+  - Orange (Simba), shown in the light theme and used for the executable, Linux
+    package and macOS bundle icons: `Assets/meowchan.png`,
+    `Assets/meowchan.ico` and high-resolution source
+    `Assets/branding/meowchan-source.png`. Adopted on 2026-11-12 as the
+    selected UX103 branding source (`lain-aktuell.png`, SHA-256
+    `6c9024b7220b6e015eeeb36aec9763fa5d804224b2b9e260caa7c4947c8436b1`); the
+    source file is kept byte-for-byte and the PNG and ICO are derived from it
+    by `scripts/prepare-branding-ux103.py` without crop or recolour. The same
+    artwork is the logo of the lain project (`lain-cat.png`, same SHA-256);
+    its provenance is recorded in lain's `src/Lain.Desktop/Assets/Brand/README.md`
+    ("Credit and permission"). The preparation script itself assesses no rights
+    (its manifest keeps the rights gate "not assessed"); the credit and statement
+    below are the rights record for both sets.
+  - Cat pair of the HTML export: `libmeowchan/Archive/HtmlExportAssets/meowchan-cats.png`
+    (300 x 150, Simba left, Mila right), downscaled side by side from
+    `Assets/meowchan.png` and `Assets/meowchan-dark.png` without crop or
+    recolour. It is embedded in libmeowchan and copied as `meowchan-cats.png`
+    into every HTML export, where the About dialog shows it with the
+    photographer credit below.
+
+  Cat photographs for both sets: Alexander Huxel · Webentwicklung Huxel,
+  <https://webentwicklung-huxel.de/>, Flickr
+  <https://flickr.com/people/204852984@N05/>. Simba (orange) and Mila (grey) are
+  each derived from a photograph by Alexander Huxel (the orange one an edited
+  variant of the supplied artwork, the grey one as described above). Used with
+  the permission of Alexander Huxel for the projects of Tom Graßmann, on condition
+  of attribution by name, as stated by the project owner on 12 November 2026. No
+  license name or further terms were given; the photographs are not covered by
+  MeowChan's license.
+
+  The application's header shows the theme-appropriate cat, while the About window
+  shows both cats side by side for documentation and credits; the window, tray and
+  dialog icons keep following the theme.
+
+  Within each set the PNG, Windows ICO and, for the orange set, packaged macOS
+  ICNS use the same photographic cutout.
 
 ## Resolved package inventory
 
@@ -418,17 +465,11 @@ Source: [LICENSE](https://raw.githubusercontent.com/feathericons/feather/1b00239
 
 Original SHA-256: `308028e93fcf84972523cdf6e616f73168546b4953895f516d01287f16fe7bee`.
 
-Applies to `Assets/icons/*.png`, `Assets/icons/feather/*.svg`, and the derived
-`Assets/icons/feather/masks/*.png`. The new `feather/` SVGs are unchanged originals
+Applies to `Assets/icons/feather/*.svg` and the derived
+`Assets/icons/feather/masks/*.png`. The `feather/` SVGs are unchanged originals
 from Feather v4.29.2, commit `1b002399e8758fb2bccea4d07312dc9e0f43dcb8`; their
 48 × 48 PNG alpha masks are local raster derivatives. The original MIT license
 also accompanies those assets as `Assets/icons/feather/LICENSE`.
-
-The existing About window identifies Feather as the source of the older
-`Assets/icons/*.png`. Their original PNG export revision is not recorded;
-v4.29.2 is the verified upstream license source, not a claim about their exporter
-version. The pinned source of the new `feather/` assets does not change that
-historical limitation.
 
 ````text
 The MIT License (MIT)
@@ -978,6 +1019,112 @@ https://github.com/rsms/inter
 This Font Software is licensed under the SIL Open Font License, Version 1.1.
 This license is copied below, and is also available with a FAQ at:
 http://scripts.sil.org/OFL
+
+-----------------------------------------------------------
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+-----------------------------------------------------------
+
+PREAMBLE
+The goals of the Open Font License (OFL) are to stimulate worldwide
+development of collaborative font projects, to support the font creation
+efforts of academic and linguistic communities, and to provide a free and
+open framework in which fonts may be shared and improved in partnership
+with others.
+
+The OFL allows the licensed fonts to be used, studied, modified and
+redistributed freely as long as they are not sold by themselves. The
+fonts, including any derivative works, can be bundled, embedded,
+redistributed and/or sold with any software provided that any reserved
+names are not used by derivative works. The fonts and derivatives,
+however, cannot be released under any other type of license. The
+requirement for fonts to remain under this license does not apply
+to any document created using the fonts or their derivatives.
+
+DEFINITIONS
+"Font Software" refers to the set of files released by the Copyright
+Holder(s) under this license and clearly marked as such. This may
+include source files, build scripts and documentation.
+
+"Reserved Font Name" refers to any names specified as such after the
+copyright statement(s).
+
+"Original Version" refers to the collection of Font Software components as
+distributed by the Copyright Holder(s).
+
+"Modified Version" refers to any derivative made by adding to, deleting,
+or substituting -- in part or in whole -- any of the components of the
+Original Version, by changing formats or by porting the Font Software to a
+new environment.
+
+"Author" refers to any designer, engineer, programmer, technical
+writer or other person who contributed to the Font Software.
+
+PERMISSION AND CONDITIONS
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+1) Neither the Font Software nor any of its individual components,
+in Original or Modified Versions, may be sold by itself.
+
+2) Original or Modified Versions of the Font Software may be bundled,
+redistributed and/or sold with any software, provided that each copy
+contains the above copyright notice and this license. These can be
+included either as stand-alone text files, human-readable headers or
+in the appropriate machine-readable metadata fields within text or
+binary files as long as those fields can be easily viewed by the user.
+
+3) No Modified Version of the Font Software may use the Reserved Font
+Name(s) unless explicit written permission is granted by the corresponding
+Copyright Holder. This restriction only applies to the primary font name as
+presented to the users.
+
+4) The name(s) of the Copyright Holder(s) or the Author(s) of the Font
+Software shall not be used to promote, endorse or advertise any
+Modified Version, except to acknowledge the contribution(s) of the
+Copyright Holder(s) and the Author(s) or with their explicit written
+permission.
+
+5) The Font Software, modified or unmodified, in part or in whole,
+must be distributed entirely under this license, and must not be
+distributed under any other license. The requirement for fonts to
+remain under this license does not apply to any document created
+using the Font Software.
+
+TERMINATION
+This license becomes null and void if any of the above conditions are
+not met.
+
+DISCLAIMER
+THE FONT SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO ANY WARRANTIES OF
+MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT
+OF COPYRIGHT, PATENT, TRADEMARK, OR OTHER RIGHT. IN NO EVENT SHALL THE
+COPYRIGHT HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY,
+INCLUDING ANY GENERAL, SPECIAL, INDIRECT, INCIDENTAL, OR CONSEQUENTIAL
+DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM
+OTHER DEALINGS IN THE FONT SOFTWARE.
+````
+
+## Noto Sans fonts — SIL Open Font License 1.1
+
+Source: the Manjaro/Arch package `noto-fonts 1:2026.09.01-1` (upstream https://github.com/notofonts/latin-greek-cyrillic, https://fonts.google.com/noto).
+
+Original SHA-256: `NotoSans-Regular.ttf` `478c558ea716033cd60c03438f628dfa75694dcf6b5f6d505a2f05fd2b4f3823`, `NotoSans-Bold.ttf` `1df075a380fc7cb898acf64c1f7b3b4dd780de3caa860178bf929de35817a913`, `NotoSans-Italic.ttf` `467e3f89eeca4108bb8710a2b9e0cf2281ac56d5b0609211a83776d0505eecb5`.
+
+Bundled subset SHA-256: `NotoSans-Regular.ttf` `ddb6b110fcea7a2387eba93e72b797f03d2d6e51c6edc51fa651842282d1b0f2`, `NotoSans-Bold.ttf` `a068c87936ef8f3352cf00b38499288e0f11c3ca8992b191a07897494c2f47a8`, `NotoSans-Italic.ttf` `f28061fd31dd383980b720fbb53363bbe1a5083e66b9e608eef82f8d20454b83`.
+
+The fonts report Version 2.015; ttfautohint (v1.8.4.7-5d5b), designer Monotype Design Team, and in their license fields the SIL Open Font License 1.1. The copyright record names no Reserved Font Name. The bundled files are Modified Versions under the license (glyph subsets with all layout features and name records kept). The distribution package's own license file (`/usr/share/licenses/noto-fonts/LICENSE`) is the Apache License 2.0 text; the font files themselves declare SIL OFL 1.1 in their license records (name IDs 13/14), which this notice follows.
+
+````text
+Copyright 2022 The Noto Project Authors (https://github.com/notofonts/latin-greek-cyrillic)
+Noto is a trademark of Google LLC.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at:
+https://scripts.sil.org/OFL
 
 -----------------------------------------------------------
 SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007

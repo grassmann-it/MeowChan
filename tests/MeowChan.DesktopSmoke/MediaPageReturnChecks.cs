@@ -27,8 +27,9 @@ internal static partial class MediaPageChecks
     {
         new Config { DownloadsPaused = true, SaveUrlsOnExit = false, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Simple" }.SaveConfig(profile);
         await SeedReturnAsync(profile);
-        DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
-        MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        await using DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
+        await using MainWindow shell = new(session) { Width = 1400, Height = 900 };
+        Exception? failureBeforeCleanup = null;
         try
         {
             shell.Show(owner);
@@ -49,7 +50,6 @@ internal static partial class MediaPageChecks
             ComboBox sort = C<ComboBox>(page, "MediaSort");
             TextBox name = C<TextBox>(page, "MediaNameFilter");
             CheckBox favoritesOnly = C<CheckBox>(page, "MediaFavoritesOnly");
-            Button reset = C<Button>(page, "MediaFilterReset");
             TextBlock note = C<TextBlock>(page, "MediaSelectionNote");
             shell.Activate();
             await UntilAsync(() => shell.IsActive);
@@ -62,10 +62,18 @@ internal static partial class MediaPageChecks
             void Key(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
                 target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
             Control Tile(int index) => page.Grid.ContainerFromIndex(index) as Control ?? throw new InvalidOperationException("Tile " + index + " is not realized.");
-            async Task InArchiveAsync(string thread, string post)
+            ContentControl readerHost = shell.FindControl<ContentControl>("ReaderHost")!;
+            ListBox threadCards = archive.FindControl<ListBox>("ArchiveThreads")!;
+            async Task InArchiveAsync(string thread, string post, bool largeReader = true)
             {
                 await UntilAsync(() => archiveHost.IsVisible && archive.CurrentThread?.Summary.Id.Thread == thread && ReaderPost() == post);
                 Require(!mediaHost.IsVisible, "The Medien page must be hidden behind the archive.");
+                if (!largeReader) return;
+                // 16.11.2026: like the gallery's "Show in thread", the jump opens the large reader on the post, over an archive whose list selects the thread.
+                await UntilAsync(() => readerHost.IsVisible && posts.GetVisualAncestors().Contains(readerHost)
+                    && shell.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(readerHost));
+                Require(threadCards.SelectedItems!.OfType<ArchiveThreadRow>().Select(row => row.Summary.Id.Thread).SequenceEqual(new[] { thread }),
+                    "The archive list must select exactly the opened thread.");
             }
             async Task BackOnMediaAsync()
             {
@@ -114,8 +122,46 @@ internal static partial class MediaPageChecks
             Require(back.Index == anchor.Index && Math.Abs(back.Offset - anchor.Offset) < 1.5, "The view must stand where it stood: " + anchor + " -> " + back);
             Require(!note.IsVisible, "No note when the tile is still there.");
 
+            // 1b. A library above the background threshold presents off the UI thread. A presentation still running when the page
+            // comes back replaces the rows just restored, so the return must wait for it, then restore selection, focus and view.
+            page.BackgroundPresentEntries = 0;
+            TaskCompletionSource releasePresent = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            int heldRuns = 0;
+            page.PresentGate = (_, _) => { Interlocked.Increment(ref heldRuns); return releasePresent.Task; };
+            try
+            {
+                anchor = panel.CaptureAnchor()!.Value;
+                Key(Tile(chosen), Avalonia.Input.Key.T);
+                await InArchiveAsync(target.Thread.Thread!, target.PostId!);
+                await UntilAsync(() => mediaReturn.IsEffectivelyVisible);
+                gridScroll.Offset = default;
+                Control heldPost = posts.ContainerFromItem(posts.SelectedItem!) as Control ?? throw new InvalidOperationException("The focused post is not realized.");
+                heldPost.Focus();
+                Key(heldPost, Avalonia.Input.Key.Left, KeyModifiers.Alt);
+                await UntilAsync(() => mediaHost.IsVisible && !archiveHost.IsVisible && Volatile.Read(ref heldRuns) > 0);
+                Require(!page.PresentTask.IsCompleted, "The gated presentation must still be running.");
+                await Task.Delay(300);
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                Require(!shell.MediaReturnTask.IsCompleted, "The return must wait for the presentation that is still running.");
+                releasePresent.SetResult();
+                await BackOnMediaAsync();
+                await page.PresentTask.WaitAsync(Deadline);
+                await UntilAsync(() => FocusOn(chosen));
+                Require(Selected() == chosenName && page.SelectedTiles.Count == 1, "The opened tile must be selected after a background presentation: " + Selected());
+                back = panel.CaptureAnchor()!.Value;
+                Require(back.Index == anchor.Index && Math.Abs(back.Offset - anchor.Offset) < 1.5,
+                    "The view must stand where it stood after a background presentation: " + anchor + " -> " + back);
+            }
+            finally
+            {
+                releasePresent.TrySetResult();
+                page.PresentGate = null;
+                page.BackgroundPresentEntries = 2000;
+                await page.PresentTask.WaitAsync(Deadline);
+            }
+
             // 2. A duplicate: the occurrences list opens the second thread; the button brings back the one tile of those bytes.
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
             sort.SelectedIndex = 0;
             await UntilAsync(() => page.Tiles.Count == ReturnThreads + 2);
             int group = IndexOf("dup-701.png");
@@ -129,8 +175,19 @@ internal static partial class MediaPageChecks
             StackPanel secondRow = occurrences.GetVisualDescendants().OfType<StackPanel>().Single(row => row.Name == "MediaOccurrence"
                 && row.Children.OfType<TextBlock>().Any(text => text.Name == "MediaOccurrenceFile" && text.Text?.StartsWith("dup-701.png", StringComparison.Ordinal) == true));
             Button second = secondRow.Children.OfType<Button>().Single(button => button.Name == "MediaOccurrenceShow");
-            second.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await InArchiveAsync("701", "701");
+            Func<MediaLibraryEntry, Task> showOccurrence = page.ShowInThread!;
+            page.ShowInThread = entry =>
+            {
+                Require(!occurrences.IsVisible && page.OccurrencesWindow == null,
+                    "The originating occurrences window must close before reader navigation can take focus.");
+                return showOccurrence(entry);
+            };
+            try
+            {
+                second.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await InArchiveAsync("701", "701");
+            }
+            finally { page.ShowInThread = showOccurrence; }
             await UntilAsync(() => page.OccurrencesWindow == null);
             await UntilAsync(() => mediaReturn.IsEffectivelyVisible);
             mediaReturn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -167,7 +224,7 @@ internal static partial class MediaPageChecks
                 "The filter must stay and no other tile may stand in for the gone one.");
 
             // 4. A file without a post: T and the menu do nothing.
-            reset.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            page.ResetFilters();
             await UntilAsync(() => page.Tiles.Count == ReturnThreads + 2);
             int loose = IndexOf("loose-r.png");
             await ShowTileAsync(page, loose);
@@ -195,7 +252,7 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => viewer.CaptureState().PostId == "610");
             viewer.Focus();
             Key(viewer, Avalonia.Input.Key.T);
-            await InArchiveAsync("610", "610");
+            await InArchiveAsync("610", "610", largeReader: false); // the gallery's own path (its reader is checked by the gallery smokes)
             await UntilAsync(() => galleryReturn.IsEffectivelyVisible);
             Require(!mediaReturn.IsVisible && !shell.MediaReturnAvailableForTests, "While the gallery waits, only its own return is offered.");
             galleryReturn.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -206,12 +263,15 @@ internal static partial class MediaPageChecks
             await UntilAsync(() => mediaHost.IsVisible && FocusOn(viaGallery));
             Require(Selected() == "r-610.png", "Closing the gallery must return to the Medien tile.");
 
-            // 6. Leaving the archive while the jump still loads ends it: no late focus, no return point.
+            // 6. Leaving during target admission or archive loading ends the jump: no late focus or return point.
             int late = IndexOf("r-615.png");
             await ShowTileAsync(page, late);
             await ClickTileAsync(page, shell, late);
             Task jump = page.ShowSelectedInThreadAsync();
-            Require(shell.MediaReturnAvailableForTests, "The jump must record its return point at once.");
+            // The archive existence check is asynchronous. A return point is published only
+            // after that check succeeds and navigation commits, never speculatively at invocation.
+            Require(!shell.MediaReturnAvailableForTests || archiveHost.IsVisible,
+                "The jump published a return point before archive navigation.");
             shell.FindControl<Button>("DownloadsNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await jump.WaitAsync(Deadline);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -219,18 +279,22 @@ internal static partial class MediaPageChecks
                 "A jump overtaken by leaving the archive must not come back or keep a return point.");
             Console.WriteLine("SMOKE media return [en]: real main window -> Medien sorted newest, name filter, scrolled -> T on a tile -> exact thread and post -> 'Back to media' shown, gallery return hidden -> Alt+Left kept by the archive search field -> Alt+Left on the post -> same order, filter, selection, focus and view (anchor " + anchor + " -> " + back + "); duplicate: occurrences list opens the second thread -> button -> the one byte tile selected; gone tile (favorite removed in the archive) -> note, filter kept, nothing selected; file without post: T and menu do nothing; gallery: T -> thread -> back to gallery -> close -> Medien tile focused; leaving the archive during a jump ends it.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
-            shell.Close();
-            await UntilAsync(() => !shell.IsVisible);
-            await shell.GalleryCleanupTask;
-            owner.Activate();
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
+                shell.Close();
+                await UntilAsync(() => !shell.IsVisible);
+                await shell.GalleryCleanupTask;
+                owner.Activate();
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaPageReturnChecks: " + exception));
         }
     }
 
     // Scrolls the tile's row to the top through the panel's own offset and waits until a pointer would reach the tile.
-    // ListBox.ScrollIntoView is not used: after a refill it can pick a kept focused container whose bounds are stale.
+    // RestoreAnchor puts the row at the top; ListBox.ScrollIntoView only scrolls as far as needed (after a refill it works too, see MediaTileRefillChecks).
     private static async Task ShowTileAsync(MediaPage page, int index)
     {
         MediaTilePanel panel = page.Grid.GetVisualDescendants().OfType<MediaTilePanel>().Single();

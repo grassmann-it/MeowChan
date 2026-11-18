@@ -24,6 +24,13 @@ public sealed class HtmlExportLocalizationRenderingTests
     [InlineData("es", "Resultado de la exportación")]
     [InlineData("fr", "Résultat de l’exportation")]
     [InlineData("ru", "Результат экспорта")]
+    [InlineData("cs", "Výsledek exportu")]
+    [InlineData("it", "Risultato dell'esportazione")]
+    [InlineData("ja", "エクスポート結果")]
+    [InlineData("ko", "내보내기 결과")]
+    [InlineData("pl", "Wynik eksportu")]
+    [InlineData("pt-BR", "Resultado da exportação")]
+    [InlineData("zh-Hans", "导出结果")]
     public async Task ThreadFrameIsLocalizedWithoutChangingSourceDataOrVerifiedMedia(string language, string heading)
     {
         using TempDirectory directory = new();
@@ -59,7 +66,9 @@ public sealed class HtmlExportLocalizationRenderingTests
         Assert.Contains("Content-Security-Policy", html);
         Assert.DoesNotContain("<script", html);
         Assert.DoesNotContain("fixture-script", html);
-        Assert.DoesNotContain("https://", html);
+        // The only address in the page is the fixed credit link of the About dialog, never captured content.
+        Assert.Equal(1, html.Split("https://").Length - 1);
+        Assert.Contains("<a href=\"https://grassmann-it.de\" rel=\"noopener noreferrer\">grassmann-it.de</a>", html);
         Assert.DoesNotContain(directory.Path, html);
         Assert.Equal(2, result.PostCount);
         Assert.Equal(1, result.FileCount);
@@ -77,6 +86,13 @@ public sealed class HtmlExportLocalizationRenderingTests
     [InlineData("es", "Colección de MeowChan", "Página inicial de la colección")]
     [InlineData("fr", "Collection MeowChan", "Page d’accueil de la collection")]
     [InlineData("ru", "Коллекция MeowChan", "Начальная страница коллекции")]
+    [InlineData("cs", "Kolekce MeowChan", "Úvodní stránka kolekce")]
+    [InlineData("it", "Raccolta MeowChan", "Pagina iniziale della raccolta")]
+    [InlineData("ja", "MeowChan コレクション", "コレクションの開始ページ")]
+    [InlineData("ko", "MeowChan 컬렉션", "컬렉션 시작 페이지")]
+    [InlineData("pl", "Kolekcja MeowChan", "Strona początkowa kolekcji")]
+    [InlineData("pt-BR", "Coleção MeowChan", "Página inicial da coleção")]
+    [InlineData("zh-Hans", "MeowChan 集合", "集合起始页")]
     public async Task CollectionIndexAndMemberPagesShareLanguageAndKeepOfflineLinks(string language, string title, string navigation)
     {
         using TempDirectory directory = new();

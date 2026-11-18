@@ -9,6 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -18,8 +19,13 @@ public partial class DiagnosticsPage
 {
     private void InitializeContextMenu()
     {
-        DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
-        grid.ContextMenu = new ContextMenu();
+        InitializeContextMenu(this.FindControl<DataGrid>("DiagnosticsGrid")!);
+        InitializeContextMenu(this.FindControl<DataGrid>("PlatformGrid")!);
+    }
+
+    private void InitializeContextMenu(DataGrid grid)
+    {
+        grid.ContextMenu = ContextMenuBuilder.Empty();
         grid.ContextMenu.Opening += (_, args) =>
         {
             // Pointer invocation has already frozen both clicked lead and batch
@@ -34,6 +40,17 @@ public partial class DiagnosticsPage
         grid.ContextMenu.Closed += (_, _) => _diagnosticContextPrepared = false;
         grid.AddHandler(PointerPressedEvent, OnDiagnosticContextPointer, RoutingStrategies.Tunnel);
         grid.AddHandler(ContextRequestedEvent, OnDiagnosticContextRequested, RoutingStrategies.Tunnel);
+    }
+
+    /// <summary>The menu of the selected row, opened by the context-open command: the selection is captured once, as for the Menu key.</summary>
+    internal void OpenDiagnosticKeyboardMenu(DataGrid grid)
+    {
+        if (_ended || grid.SelectedItem is not DiagnosticEntry || grid.ContextMenu is not { } menu) return;
+        // Avalonia's explicit Open skips the menu's Opening event, so the menu is composed here (once, marked prepared) and only
+        // opened when it has entries; a stale or empty menu must never pop up.
+        BuildDiagnosticContextMenu(grid);
+        _diagnosticContextPrepared = true;
+        if (menu.ItemCount > 0) menu.Open(grid); else _diagnosticContextPrepared = false;
     }
 
     private bool _diagnosticPointerContextHandled;
@@ -51,7 +68,7 @@ public partial class DiagnosticsPage
             _diagnosticContextPrepared = true;
             if (grid.ContextMenu?.ItemCount > 0) grid.ContextMenu.Open(grid);
         }
-        else { grid.SelectedItems.Clear(); grid.ContextMenu?.Close(); _diagnosticContextPrepared = false; }
+        else { MeowChan.Desktop.Controls.DataGridSelection.Clear(grid); grid.ContextMenu?.Close(); _diagnosticContextPrepared = false; }
         e.Handled = true;
     }
 
@@ -70,44 +87,38 @@ public partial class DiagnosticsPage
     private void BuildDiagnosticContextMenu(DataGrid grid, DiagnosticEntry? lead = null)
     {
         ContextMenu menu = grid.ContextMenu!;
-        menu.Items.Clear();
         DiagnosticEntry? frozen = lead ?? grid.SelectedItem as DiagnosticEntry;
-        if (frozen == null || _ended) { menu.Close(); return; }
-        string unavailable = Texts.Language.StartsWith("de", StringComparison.OrdinalIgnoreCase)
-            ? "Für dieses Ziel derzeit nicht verfügbar." : "Currently unavailable for this target.";
+        if (frozen == null || _ended) { ContextMenuBuilder.Clear(menu); menu.Close(); return; }
+        string unavailable = Texts.T("menu.unavailable.target");
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("nav.diagnostics"));
         void Add(string id, Action execute, bool available)
         {
-            var item = CommandBindings.CreateMenuItem(id, execute, () => !_ended && _available && available,
-                () => !_ended && _available && available ? null : unavailable);
-            menu.Items.Add(item);
-            if (!_available || !available)
-            {
-                string explanation = CommandCatalog.Label(id) + ": " + unavailable;
-                var info = new MenuItem { Header = explanation };
-                AutomationProperties.SetName(info, explanation);
-                AutomationProperties.SetHelpText(info, explanation);
-                menu.Items.Add(info);
-            }
+            bool CanExecute() => !_ended && _available && available;
+            builder.Command(id, execute, CanExecute(), CanExecute() ? null : unavailable,
+                availableWhen: CanExecute, reasonWhen: () => CanExecute() ? null : unavailable);
         }
         DiagnosticRetryTarget[] selection = DiagnosticRetryScope.Capture(SelectedDiagnostics());
         DiagnosticRetryTarget[] filtered = DiagnosticRetryScope.Capture(_visibleDiagnostics);
         void AddBatch(string id, DiagnosticRetryTarget[] scope)
         {
-            MenuItem item = CommandBindings.CreateMenuItem(id, () => _ = RetryFrozenScopeAsync(scope),
-                () => CanRetryScope(scope), () => Texts.T("diagnostics.retryScope"),
-                () => CommandCatalog.Label(id) + " (" + scope.Length + ")");
-            item.Tag = id;
-            menu.Items.Add(item);
+            bool CanExecute() => CanRetryScope(scope);
+            string? Reason() => CanExecute() ? null : Texts.T("diagnostics.retryScope");
+            builder.Command(id, () => _ = RetryFrozenScopeAsync(scope), CanExecute(), Reason(),
+                CommandCatalog.Label(id) + " (" + scope.Length + ")", availableWhen: CanExecute, reasonWhen: Reason);
         }
-        AddBatch("diagnostics.retry-selection", selection);
-        AddBatch("diagnostics.retry-filtered", filtered);
+        if (frozen.Kind != DiagnosticKind.Information)
+        {
+            AddBatch("diagnostics.retry-selection", selection);
+            AddBatch("diagnostics.retry-filtered", filtered);
+        }
         Add("diagnostics.copy", () => _ = CopyFrozenDiagnosticAsync(frozen), _copy != null);
         if (frozen.Target is DiagnosticTarget target && frozen.Kind != DiagnosticKind.Storage)
         {
             Add("watch.check", () => _ = RetryFrozenDiagnosticAsync(frozen),
-                !_retryBusy && IsCurrentDiagnostic(frozen) && _retry != null && _canRetry?.Invoke(target) == true);
-            Add("watch.show-in-downloads", () => OpenFrozenDiagnostic(frozen), _openWatch != null);
+                !_retryBusy && !IsRemoved(target) && IsCurrentDiagnostic(frozen) && _retry != null && _canRetry?.Invoke(target) == true);
+            Add("watch.show-in-downloads", () => OpenFrozenDiagnostic(frozen), _openWatch != null && !IsRemoved(target));
         }
+        builder.Populate(menu);
     }
 
     private async Task CopyFrozenDiagnosticAsync(DiagnosticEntry frozen)
@@ -132,7 +143,8 @@ public partial class DiagnosticsPage
         if (_ended || !_available || frozen.Target is not DiagnosticTarget target) return;
         int generation = BeginDiagnosticAction();
         if (!IsCurrentDiagnostic(frozen) || _openWatch?.Invoke(target) != true)
-            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), Texts.T("diagnostics.removed"));
+            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), Texts.T("diagnostics.removed"),
+                messageKey: "diagnostics.removed");
     }
 
     private async Task RetryFrozenDiagnosticAsync(DiagnosticEntry frozen)
@@ -141,7 +153,7 @@ public partial class DiagnosticsPage
             || frozen.Target is not DiagnosticTarget target || _retry == null || !IsCurrentDiagnostic(frozen)) return;
         _retryBusy = true;
         int generation = BeginDiagnosticAction();
-        string? message = null;
+        string? message = null, messageKey = null;
         bool failed = false;
         try
         {
@@ -152,10 +164,11 @@ public partial class DiagnosticsPage
             CheckRequestStatus result = await _retry(target);
             message = CheckActionText.ForResult(result, target.Kind);
             failed = result is not (CheckRequestStatus.Scheduled or CheckRequestStatus.AlreadyScheduled);
+            if (result == CheckRequestStatus.Stale) { _removedTargets.Add(target); messageKey = "diagnostics.removed"; }
         }
         catch (Exception exception) { message = Texts.T("check.failed", exception.Message); failed = true; }
         finally { _retryBusy = false; if (!_ended) RefreshSelection(); }
         if (!_ended && message != null)
-            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), message, failed);
+            ShowDiagnosticActionFeedback(generation, new(ActionContextKind.Diagnostic, frozen.Key), message, failed, messageKey);
     }
 }

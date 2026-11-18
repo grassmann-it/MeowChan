@@ -24,17 +24,24 @@ using SkiaSharp;
 
 namespace MeowChan.DesktopSmoke;
 
-// Root registers MEOWCHAN_GIF_PLAYBACK_ONLY. No registration/fixture/product edits here.
+// Registry owns selectors; RunAsync retains the complete unsplit debug journey.
 internal static class GifPlaybackChecks
 {
     internal static Task RunAsync(MainWindow owner) => GalleryPlaybackFeatureChecks.RunGifPlaybackChecksAsync(owner);
+    internal static Task RunPlaybackAsync(MainWindow owner) => GalleryPlaybackFeatureChecks.RunGifPlaybackChecksAsync(owner, GifJourney.Playback);
+    internal static Task RunSuccessorsAsync(MainWindow owner) => GalleryPlaybackFeatureChecks.RunGifPlaybackChecksAsync(owner, GifJourney.Successors);
+    internal static Task RunVerifiedFailuresAsync(MainWindow owner) => GalleryPlaybackFeatureChecks.RunGifPlaybackChecksAsync(owner, GifJourney.VerifiedFailures);
+    internal static Task RunReaderAssociationAsync(MainWindow owner) => GalleryPlaybackFeatureChecks.RunGifPlaybackChecksAsync(owner, GifJourney.ReaderAssociation);
 }
+
+// Each selected journey creates its own workspace and fixtures; no preceding GUI success is required.
+internal enum GifJourney { All, Playback, Successors, VerifiedFailures, ReaderAssociation }
 
 internal static partial class GalleryPlaybackFeatureChecks
 {
     private sealed record GifPixels(string Hash, int Width, int Height, string Bounds, SKColor Center);
 
-    internal static async Task RunGifPlaybackChecksAsync(MainWindow owner)
+    internal static async Task RunGifPlaybackChecksAsync(MainWindow owner, GifJourney journey = GifJourney.All)
     {
         if (OperatingSystem.IsLinux() ? Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1"
             : Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_NATIVE_ALLOWED") != "1")
@@ -51,40 +58,52 @@ internal static partial class GalleryPlaybackFeatureChecks
             GalleryEntry single = await AssetAsync(directory, "gif-single", "single-frame.gif", data["single-frame.gif"]);
             GalleryEntry corrupt = await AssetAsync(directory, "gif-corrupt", "truncated.gif", data["truncated.gif"]);
             GalleryEntry png = await ImageAsync(directory, "gif-successor", SKColors.Purple);
-            await CheckGifPixelsAndTransportAsync(owner, animated, png);
-            await CheckGifEncodedLoopsAsync(owner, animated, finite, single, disposal);
-            await CheckGifSlideshowAsync(owner, animated, png);
-            foreach (var video in new[]
+            if (journey is GifJourney.All or GifJourney.Playback)
             {
-                (Path: Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE") ?? GifFixturePath("tests/Fixtures/gallery-playback-vp8.webm"), Extension: ".webm"),
-                (Path: Environment.GetEnvironmentVariable("MEOWCHAN_MP4_FIXTURE") ?? GifFixturePath("tests/Fixtures/release102/playback-h264-silent.mp4"), Extension: ".mp4")
-            })
-            {
-                Require(File.Exists(video.Path) && Path.GetExtension(video.Path).Equals(video.Extension, StringComparison.OrdinalIgnoreCase),
-                    "GIF transition requires distinct existing synthetic WebM AND MP4 fixtures: " + video.Path);
-                byte[] bytes = await File.ReadAllBytesAsync(video.Path);
-                string sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-                string[] allowed = video.Extension == ".webm"
-                    ? ["92f5175697fa441fd6a95270ef307a55c51bc4d30b019f571dc99bf45d2fdddf",
-                       "4356f0c4eaa9cbc57cac91481b99dfa233da6c2664c2e4e8ef1504e68c39f7c7",
-                       "a88f7ec3fa76c11c38719662ba41d5538a5775cc58afce5bf32e14e0cd5d1ad8"]
-                    : ["7c15acb2dc63822b37a3ebd69207b520d2fc8e1bf270f5c53d17bb068c5584be",
-                       "677947056fdb71789e9ac9da651f8257adaf1e1b3ec1ccb8dfda48d9f9de0929"];
-                Require(allowed.Contains(sha), "GIF successor is not an existing pinned synthetic WebM/MP4 fixture.");
-                GalleryEntry clip = await AssetAsync(directory, "gif-follow-" + video.Extension.TrimStart('.'), "follow" + video.Extension, bytes);
-                await CheckGifVideoSuccessorAsync(owner, animated, clip, png);
+                await CheckGifPixelsAndTransportAsync(owner, animated, png);
+                await CheckGifEncodedLoopsAsync(owner, animated, finite, single, disposal);
+                await CheckGifSlideshowAsync(owner, animated, png);
             }
-            GalleryEntry tampered = await AssetAsync(directory, "gif-tampered", "tampered.gif", data["animated-loop.gif"]);
-            byte[] changed = data["animated-loop.gif"].ToArray(); changed[^1] ^= 0x01;
-            await File.WriteAllBytesAsync(tampered.Asset.Path, changed); // Own temporary original, NOT repository fixture/manifest.
-            bool rejected = false;
-            try { await using Stream ignored = await tampered.Manifest.OpenVerifiedReadAsync(tampered.Asset.AssetId); }
-            catch (InvalidDataException) { rejected = true; }
-            Require(rejected, "Existing verified media path accepted a same-length GIF checksum mismatch.");
-            await CheckGifFailureAsync(owner, corrupt, animated);
-            await CheckGifFailureAsync(owner, tampered, animated);
-            await CheckGifReaderAssociationAsync(owner, directory, data["animated-loop.gif"], await File.ReadAllBytesAsync(png.Asset.Path));
-            Console.WriteLine("SMOKE GIF playback: rendered GalleryImage pixels, native pause/resume, encoded loops/end, disposal, slideshow, WebM/MP4 successors, verified failures and native Reader association passed on this recorded platform only.");
+            if (journey is GifJourney.All or GifJourney.Successors)
+            {
+                foreach (var video in new[]
+                {
+                    (Path: Environment.GetEnvironmentVariable("MEOWCHAN_VIDEO_FIXTURE") ?? GifFixturePath("tests/Fixtures/gallery-playback-vp8.webm"), Extension: ".webm"),
+                    (Path: Environment.GetEnvironmentVariable("MEOWCHAN_MP4_FIXTURE") ?? GifFixturePath("tests/Fixtures/release102/playback-h264-silent.mp4"), Extension: ".mp4")
+                })
+                {
+                    Require(File.Exists(video.Path) && Path.GetExtension(video.Path).Equals(video.Extension, StringComparison.OrdinalIgnoreCase),
+                        "GIF transition requires distinct existing synthetic WebM AND MP4 fixtures: " + video.Path);
+                    byte[] bytes = await File.ReadAllBytesAsync(video.Path);
+                    string sha = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
+                    string[] allowed = video.Extension == ".webm"
+                        ? ["d619b46f9168375c0a05fea3b1f10184923d18f9e6f4773c2833307284c72399",
+                           "4356f0c4eaa9cbc57cac91481b99dfa233da6c2664c2e4e8ef1504e68c39f7c7",
+                           "a88f7ec3fa76c11c38719662ba41d5538a5775cc58afce5bf32e14e0cd5d1ad8"]
+                        : ["7c15acb2dc63822b37a3ebd69207b520d2fc8e1bf270f5c53d17bb068c5584be",
+                           "677947056fdb71789e9ac9da651f8257adaf1e1b3ec1ccb8dfda48d9f9de0929"];
+                    Require(allowed.Contains(sha), "GIF successor is not an existing pinned synthetic WebM/MP4 fixture.");
+                    GalleryEntry clip = await AssetAsync(directory, "gif-follow-" + video.Extension.TrimStart('.'), "follow" + video.Extension, bytes);
+                    await CheckGifVideoSuccessorAsync(owner, animated, clip, png);
+                }
+            }
+            if (journey is GifJourney.All or GifJourney.VerifiedFailures)
+            {
+                GalleryEntry tampered = await AssetAsync(directory, "gif-tampered", "tampered.gif", data["animated-loop.gif"]);
+                byte[] changed = data["animated-loop.gif"].ToArray(); changed[^1] ^= 0x01;
+                await File.WriteAllBytesAsync(tampered.Asset.Path, changed); // Own temporary original, NOT repository fixture/manifest.
+                bool rejected = false;
+                try { await using Stream ignored = await tampered.Manifest.OpenVerifiedReadAsync(tampered.Asset.AssetId); }
+                catch (InvalidDataException) { rejected = true; }
+                Require(rejected, "Existing verified media path accepted a same-length GIF checksum mismatch.");
+                await CheckGifFailureAsync(owner, corrupt, animated);
+                await CheckGifFailureAsync(owner, tampered, animated);
+            }
+            if (journey is GifJourney.All or GifJourney.ReaderAssociation)
+            {
+                await CheckGifReaderAssociationAsync(owner, directory, data["animated-loop.gif"], await File.ReadAllBytesAsync(png.Asset.Path));
+            }
+            Console.WriteLine($"SMOKE GIF journey {journey}: selected checks passed on this recorded platform only; no claim for unselected journeys.");
         }
         finally
         {
@@ -272,10 +291,22 @@ internal static partial class GalleryPlaybackFeatureChecks
             await native.KeyAsync(MediaNativeInput.Space);
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "Native Space did not pause GIF.");
             await GifStablePixelsAsync(viewer, "Space-paused");
-            await native.ClickAsync(Find<Button>(viewer, "GalleryGifPlayPause"));
+            Button gifPlayPause = Find<Button>(viewer, "GalleryGifPlayPause");
+            // The pixel hold intentionally allows the auto-hide timer to fire.
+            // Reveal the actual control through the OS pointer before each native
+            // click rather than relying on a stale retained visual.
+            // macOS can retain the pre-reparenting Avalonia hit cache while the transport is
+            // already visible in its current native root. The OS click still uses the fresh
+            // screen geometry and the state assertion below proves delivery.
+            bool requireFrameworkHitTest = !OperatingSystem.IsMacOS();
+            await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
+                "GIF play/pause did not become a current target after revealing the gallery transport.", requireFrameworkHitTest);
+            await native.ClickAsync(gifPlayPause, requireHitTest: requireFrameworkHitTest);
             await UntilAsync(() => !GifState(viewer).UserPaused && GifState(viewer).IsRunning, "GIF button did not resume.");
             await GifChangingPixelsAsync(viewer, "button-resumed");
-            await native.ClickAsync(Find<Button>(viewer, "GalleryGifPlayPause"));
+            await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
+                "GIF play/pause did not remain a current target before the second native click.", requireFrameworkHitTest);
+            await native.ClickAsync(gifPlayPause, requireHitTest: requireFrameworkHitTest);
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "GIF button did not pause.");
             await GifStablePixelsAsync(viewer, "button-paused");
             viewer.FocusGallerySurface(); await native.KeyAsync(MediaNativeInput.Space);
@@ -283,7 +314,8 @@ internal static partial class GalleryPlaybackFeatureChecks
             GalleryGifPlayback same = GifOwner(viewer);
             await native.ClickAsync(Find<Button>(viewer, "GalleryActual"));
             Require(viewer.CaptureState().ActualZoom, "GIF lost 1:1 zoom.");
-            await native.ClickAsync(Find<Button>(viewer, "GalleryPlus"));
+            // Zoom in is a "⋯" menu row (kept open on use); invoke the real row command without the popup.
+            Find<Button>(viewer, "GalleryPlus").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.CaptureState().ManualZoom, "GIF lost manual zoom.");
             await native.ClickAsync(Find<Button>(viewer, "GalleryFit"));
             Require(!viewer.CaptureState().ManualZoom && ReferenceEquals(same, GifOwner(viewer)), "Fit/zoom replaced or reset the GIF owner.");
@@ -317,11 +349,13 @@ internal static partial class GalleryPlaybackFeatureChecks
 
     private static async Task CheckGifEncodedLoopsAsync(MainWindow owner, GalleryEntry animated, GalleryEntry finite, GalleryEntry single, GalleryEntry disposal)
     {
-        foreach (GalleryPlaybackMode mode in new[] { GalleryPlaybackMode.Manual, GalleryPlaybackMode.Repeat })
+        // "Repeat video" is a separate choice since the viewer quick wins; a GIF keeps its encoded loop count either way.
+        foreach (bool repeat in new[] { false, true })
         {
+            string mode = repeat ? "RepeatVideo" : "Manual";
             await using Fixture fixture = new(owner); await fixture.ReadyAsync();
             GalleryViewer viewer = fixture.Viewer; int moves = 0; viewer.MoveRequested += _ => moves++;
-            viewer.ConfigurePlayback(new(mode, 1));
+            viewer.ConfigurePlayback(new(GalleryPlaybackMode.Manual, 1, VideoRepeat: repeat));
             await fixture.ShowAsync(finite);
             await GifChangingPixelsAsync(viewer, "finite-" + mode);
             await UntilAsync(() => GifState(viewer).Ended, "Encoded finite GIF never ended in " + mode);
@@ -442,7 +476,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         string media = Path.Combine(profile, "media");
         new Config { DownloadPath = media, SaveUrlsOnExit = false, AutomaticUpdateChecks = false, CloseToTray = false,
             MinimizeToTray = false, WorkspaceMode = "Advanced", GalleryPlaybackMode = "Manual", GalleryOverlayControls = false,
-            GalleryAutoHideControls = false, GalleryContextOpen = false }.SaveConfig(profile);
+            GalleryAutoHideControls = false, GalleryContextOpen = false, ReaderMediaSidebar = false, ReaderMediaClick = "Gallery" }.SaveConfig(profile);
         Directory.CreateDirectory(media); // Valid profile first; never initialize defaults over existing archive data.
         ResourceId id = new("4chan", "g", "50500");
         var entries = new Dictionary<string, object>();
@@ -467,11 +501,12 @@ internal static partial class GalleryPlaybackFeatureChecks
         GalleryEntryKey expected = new(new(id, snapshot.Directory, resolved.Asset.AssetId), "501", 0);
         await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
         MainWindow shell = new(host); shell.Show(owner); shell.Activate();
+        Exception? failureBeforeCleanup = null;
         try
         {
             await host.StartAsync().WaitAsync(Deadline);
             await UntilAsync(() => shell.IsActive && shell.FindControl<Button>("AddUrlButton")!.IsEnabled, "Private GIF Reader session did not become ready.");
-            SmokeActionClick.Execute(shell.FindControl<MenuItem>("ArchiveMenuItem")!);
+            SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Archive);
             ArchivePage page = shell.ArchivePage; await UntilAsync(() => !page.IsBusy, "Private archive did not load.");
             await page.LoadThreadAsync(id);
             SmokeActionClick.Execute(page.FindControl<Button>("ArchiveReadPosts")!);
@@ -570,11 +605,15 @@ internal static partial class GalleryPlaybackFeatureChecks
             }
             finally { page.FindControl<Grid>("ArchiveReaderPane")!.RemoveHandler(InputElement.PointerPressedEvent, Pointer); }
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            SmokeActionClick.Execute(shell.FindControl<MenuItem>("ExitMenuItem")!);
-            await UntilAsync(() => !shell.IsVisible, "Private GIF shell did not finish actual shutdown.");
-            ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                SmokeActionClick.Execute(shell.FindControl<MenuItem>("ExitMenuItem")!);
+                await UntilAsync(() => !shell.IsVisible, "Private GIF shell did not finish actual shutdown.");
+                ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GifPlaybackChecks: " + exception));
         }
     }
 }

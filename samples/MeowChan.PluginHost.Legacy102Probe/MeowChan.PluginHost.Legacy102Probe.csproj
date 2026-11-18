@@ -1,0 +1,74 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <IsPackable>false</IsPackable>
+    <Deterministic>true</Deterministic>
+    <DebugType>none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+
+    <!-- This probe is deliberately local-reference-only.  It must not acquire
+         Host, SDK or Core through a project/package dependency. -->
+    <RestoreProjectStyle>PackageReference</RestoreProjectStyle>
+    <RestorePackagesWithLockFile>false</RestorePackagesWithLockFile>
+    <RestoreIgnoreFailedSources>true</RestoreIgnoreFailedSources>
+    <NuGetAudit>false</NuGetAudit>
+  </PropertyGroup>
+
+  <Target Name="ValidateLegacyHostWorkerProbeInputs" BeforeTargets="ResolveReferences">
+    <Error Condition="'$(CandidateRuntimeDirectory)' == ''"
+           Text="CandidateRuntimeDirectory must point to the current local Host/SDK runtime directory." />
+    <Error Condition="'$(CandidateRuntimeDirectory)' != '' and !$([System.IO.Path]::IsPathFullyQualified('$(CandidateRuntimeDirectory)'))"
+           Text="CandidateRuntimeDirectory must be absolute: $(CandidateRuntimeDirectory)" />
+    <Error Condition="'$(CandidateRuntimeDirectory)' != '' and !Exists('$(CandidateRuntimeDirectory)')"
+           Text="CandidateRuntimeDirectory does not exist: $(CandidateRuntimeDirectory)" />
+    <Error Condition="'$(ProbeDependencyDirectory)' == ''"
+           Text="ProbeDependencyDirectory must point to the current local Core/dependency directory." />
+    <Error Condition="'$(ProbeDependencyDirectory)' != '' and !$([System.IO.Path]::IsPathFullyQualified('$(ProbeDependencyDirectory)'))"
+           Text="ProbeDependencyDirectory must be absolute: $(ProbeDependencyDirectory)" />
+    <Error Condition="'$(ProbeDependencyDirectory)' != '' and !Exists('$(ProbeDependencyDirectory)')"
+           Text="ProbeDependencyDirectory does not exist: $(ProbeDependencyDirectory)" />
+    <Error Condition="!Exists('$(CandidateRuntimeDirectory)/MeowChan.PluginHost.dll')"
+           Text="CandidateRuntimeDirectory must contain MeowChan.PluginHost.dll." />
+    <Error Condition="!Exists('$(CandidateRuntimeDirectory)/MeowChan.PluginSdk.dll')"
+           Text="CandidateRuntimeDirectory must contain MeowChan.PluginSdk.dll." />
+    <Error Condition="!Exists('$(ProbeDependencyDirectory)/libmeowchan.dll')"
+           Text="ProbeDependencyDirectory must contain libmeowchan.dll." />
+  </Target>
+
+  <ItemGroup>
+    <!-- These three explicit HintPaths are the only product references.  The
+         probe intentionally has no project or package dependency. -->
+    <Reference Include="MeowChan.PluginHost">
+      <HintPath>$(CandidateRuntimeDirectory)/MeowChan.PluginHost.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="MeowChan.PluginSdk">
+      <HintPath>$(CandidateRuntimeDirectory)/MeowChan.PluginSdk.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="libmeowchan">
+      <HintPath>$(ProbeDependencyDirectory)/libmeowchan.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+
+    <!-- Keep the local dependency closure beside the executable.  Reference
+         items copy flat sibling DLLs to the output without consulting NuGet;
+         the three explicit assemblies above are excluded to avoid duplicate
+         references/copies. -->
+    <CandidateDependencyAssembly Include="$(CandidateRuntimeDirectory)/*.dll"
+                                 Exclude="$(CandidateRuntimeDirectory)/MeowChan.PluginHost.dll;$(CandidateRuntimeDirectory)/MeowChan.PluginSdk.dll;$(CandidateRuntimeDirectory)/libmeowchan.dll" />
+    <Reference Include="@(CandidateDependencyAssembly)"
+               Condition="'@(CandidateDependencyAssembly)' != ''">
+      <Private>true</Private>
+    </Reference>
+    <ProbeDependencyAssembly Include="$(ProbeDependencyDirectory)/*.dll"
+                             Exclude="$(ProbeDependencyDirectory)/libmeowchan.dll;$(ProbeDependencyDirectory)/MeowChan.PluginHost.dll;$(ProbeDependencyDirectory)/MeowChan.PluginSdk.dll" />
+    <Reference Include="@(ProbeDependencyAssembly)"
+               Condition="'@(ProbeDependencyAssembly)' != ''">
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

@@ -94,13 +94,25 @@ The harness creates and removes its own temporary `MEOWCHAN_PROFILE`, including 
 
 It starts the real application, waits for session restoration, renders passive thread and board snapshots, and verifies the final title after a burst of 1,000 updates posted from a worker onto the dispatcher. It also checks request admission/cooldown display, typed queued/active counts, retained check errors, terminal source state, board request progress, and rejection of updates after row disposal. The fixtures create no provider watches or HTTP requests. Host lifecycle and watch identity are covered separately by the desktop contract tests; this burst check does not establish end-to-end host notification coalescing. Normal `MainWindow.Close()` must finish, after which the harness reacquires the profile lease to verify shutdown released it. Avalonia binding warnings and errors fail the smoke run.
 
+The normal run's command-button contrast check uses `MediaNativeInput` for real
+pointer motion and press/release (XTest on the runner-owned private Xvfb). It
+settles layout and verifies that the command is hit-testable before pointing at
+it; it does not set `IsPointerOver`, `IsPressed` or pseudo-classes, or raise a
+window `PointerMoved` event. Hover/press states and rendered Light/Dark contrast
+remain assertions. Releases occur away from the command, and unexpected clicks
+fail the check. Linux needs `libXtst.so.6`; there is no personal-display or
+synthetic-state fallback. This is source-built/software-rendered harness coverage,
+not native-platform or published-apphost acceptance. The separate custom archive
+favorite fixture checks checked/unchecked vector content in normal/disabled
+states only; it does not claim native hover/press acceptance for that star.
+
 The normal run also checks numeric sorting with values 2 and 10, context targeting for two thread/board rows (including Ctrl-right-click through a hit-tested cell), clearing stale selection on blank space, and visibility of the Active column in the advanced view. Settings checks use temporary profiles and a scoped fake storage provider to cover pending/duplicate saves, close behavior, validation, save failures and retries, appearance preferences committed with settings or discarded on cancel, and folder-picker cancellation/errors/results. These checks never open a native file picker.
 
 Presentation checks assert Simple as the initial view, persist all three view choices, verify that Barebones becomes smaller while keeping intake and view/application controls reachable, and roundtrip Dark/Light and English/German through the real settings flow. Pending URL text and a selected passive row must survive. Both a 760×500 regular window and Barebones at its 640×480 minimum, with expanded batch results, must retain URL intake and a full data row, with an inspector drawer that closes through its reachable button or Escape. Thread and board inspectors must display the selected snapshot's exact URL, assigned directory and current status; thread queue counts and errors must remain distinct from board data. These synthetic rows exercise presentation state, not live downloading across preference changes. Screenshots include compact, light, German, small-window and inspector views.
 
 On Linux/X11, a fixture clipboard service is installed before the window is created. The harness verifies its identity before using Add, then covers explicit comma/newline input, multiline clipboard import, ordered per-entry results including invalid input, overlapping clicks, empty content and read failures. It also verifies copying the selected thread, selected board and all tracked URLs. It never reads or writes the native desktop clipboard. Other platforms explicitly skip these clipboard checks; their native clipboard behavior remains untested.
 
-The `--locked-profile` case holds a conflicting lease before application startup and checks that a readable startup-error window appears and its Exit button closes normally. Window-only PNG renders are saved beside the smoke executable.
+The `--locked-profile` case holds a conflicting lease before application startup and checks that a readable startup-error window appears and its Exit button closes normally. Window-only PNG renders are saved beside the smoke executable. With `MEOWCHAN_LOCKED_PROFILE_CAUSE=damaged-settings` (and optionally `MEOWCHAN_LOCKED_PROFILE_LANGUAGE`) the same mode holds no lease but damages `settings.json` next to a good backup, and the startup-error window must show the localized recovery text of that language (`smoke-startup-error-settings-<language>.png`).
 
 The `--download-session` case uses the real session host, provider parsing, queue, media storage and durable profile behind the native window. An injected in-process HTTP handler supplies fixture responses; no requests reach a live imageboard. It admits a URL through the UI, verifies downloaded media at the assigned path, closes the native window, creates a fresh host/window for the same isolated profile and verifies restoration before closing again. Its explicit application lifetime allows this restart without ending the process after the first window closes.
 
@@ -209,3 +221,46 @@ human discovery proof. The technical copy button is checked only through the
 existing identity-verified fixture clipboard; without that fixture it is skipped
 before touching a native clipboard. Record actual image review as retain/adjust/change;
 technical assertions alone do not decide whether the hierarchy is understandable.
+
+## Dialog gallery (`dialog-gallery`)
+
+`MEOWCHAN_DIALOG_GALLERY_ONLY=1` is an evidence run, not a check. It opens every dialog, modal, secondary window, popup,
+context menu, toast, banner and shell overlay that has a private offline fixture and renders each one in Light/Dark and
+EN/DE (default size, plus the minimum size where the window has one) into one flat directory with `manifest.json` and an
+`index.html` grid (captions: surface, theme, language, size). The dialog frame groups (`DialogFrameChecks`) feed it through
+`DialogGallery.RecordFrame`; extra scenes are listed in `DialogGalleryChecks.Shell.cs`. A scene that fails is listed under
+"Not captured"; a frame-contract violation is listed under "Layout findings" while its image is still shown.
+
+The registry skips the entry unless `MEOWCHAN_DIALOG_GALLERY_OUTPUT` names the output directory:
+
+```bash
+MEOWCHAN_DIALOG_GALLERY_OUTPUT=/path/to/fresh/dir python3 scripts/run-desktop-smoke.py \
+  --assembly tests/MeowChan.DesktopSmoke/bin/Debug/net10.0/MeowChan.DesktopSmoke.dll --output <fresh dir> \
+  --registry --only dialog-gallery
+```
+
+`MEOWCHAN_DIALOG_GALLERY_SCENES=name1,name2` limits the run to named scenes. Never confirms anything: every surface is closed
+with Cancel, Close or Escape; no network and no real profile.
+
+## UI catalog (`ui-catalog`)
+
+`MEOWCHAN_UI_CATALOG_ONLY=1` is the sibling evidence run for everything that is not a dialog: the pages (also narrow), page
+modes (Archive table and filter surface, Reader tabs, find and tag bar, sidebar and view options, Gallery side panels, filmstrip
+and Tag/card mode, Media filter surface, selection bar and focus mode, Booru tabs, Rules wizard, Settings categories, Tagging
+page), the work-view tiers (Barebones and Advanced per page) and the shell and page popups (app menu, footer flyouts, header
+display menu, help popovers, legacy right-click menus). It runs the real main window over the offline showcase archive
+(`ShowcaseSmokeApp`, same fixture as `work-views`), at 1380x850 (pages also 760x500) in Light/Dark x EN/DE. Every scene and
+every capture is isolated: a failure is listed under "Nicht erfasst" and the run goes on.
+
+```bash
+MEOWCHAN_UI_CATALOG_OUTPUT=/path/to/fresh/dir \
+MEOWCHAN_UI_CATALOG_DIALOGS=/path/to/dialog-gallery/output \
+MEOWCHAN_UI_CATALOG_ENTRIES=/path/to/entries.json \
+python3 scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Debug/net10.0/MeowChan.DesktopSmoke.dll \
+  --output <fresh dir> --registry --only ui-catalog
+```
+
+`MEOWCHAN_UI_CATALOG_SCENES=name,prefix*` limits the run. `MEOWCHAN_UI_CATALOG_DIALOGS` merges a finished dialog-gallery run
+into the same `index.html`; `MEOWCHAN_UI_CATALOG_ENTRIES` is the machine-readable twin of the catalog document
+(`.claude/coordination/UI-KATALOG-1.1.0.md`: per entry id, area, name, how to open it and its capture keys, exact or `prefix*`) that
+groups the images by catalog area. Never confirms anything; no network and no real profile.

@@ -27,15 +27,16 @@ public partial class ArchivePage
         {
             _cleanupRouter = new(this);
             _cleanupRouter.Register(new("archive.cleanup", this,
-                () => !_ended && IsEffectivelyVisible && Control<Button>("ArchiveCleanupOpen").IsEffectivelyVisible,
-                CanOpenArchiveCleanup, () => _ = OpenArchiveCleanupAsync(), Priority: 100));
+                // The page, not the button: a view may keep the button under the header's More, and the shortcut must still work.
+                () => !_ended && IsEffectivelyVisible,
+                CanOpenArchiveCleanup, () => OpenActions.Start(OpenArchiveCleanupAsync, "archive.cleanup.open"), Priority: 100));
             AddHandler(KeyDownEvent, RouteArchiveCleanupCommand, RoutingStrategies.Bubble);
         }
         UpdateArchiveCleanupAction();
     }
     private void RouteArchiveCleanupCommand(object? sender, KeyEventArgs e) => _cleanupRouter?.Route(e);
     private bool CanOpenArchiveCleanup() => !_ended && _available && !_busy && _cleanupDialog == null && !_urlTextExportBusy
-        && _cleanupHost?.State == DesktopSessionState.Ready && !IsReaderDialogOpen && !_exportRunning
+        && _cleanupHost?.State == DesktopSessionState.Ready && !IsReaderDialogOpen && !_exportRunning && !IsTransferExportOpen
         && (_cleanupShellAvailable?.Invoke() ?? true);
     private void UpdateArchiveCleanupAction()
     {
@@ -49,7 +50,7 @@ public partial class ArchivePage
         // Even a retained detail pane can hold decoded media or a pending read.
         if (_thread != null) ids.Add(_thread.Summary.Id);
         if (_exportThread != null && (_exportRunning || _exportLoading || _exportPicking
-            || Control<Border>("ArchiveExportDialog").IsVisible))
+            || ArchiveExportDialog.IsVisible))
         {
             ids.Add(_exportThread);
             if (_exportMembers != null) ids.UnionWith(_exportMembers);
@@ -60,7 +61,7 @@ public partial class ArchivePage
     internal async Task OpenArchiveCleanupAsync()
     {
         if (!CanOpenArchiveCleanup() || _cleanupHost == null || TopLevel.GetTopLevel(this) is not Window owner) return;
-        Control origin = Control<Button>("ArchiveCleanupOpen");
+        Control origin = ArchiveCleanupOpen;
         var dialog = new ArchiveCleanupDialog(_cleanupHost, OpenArchiveCleanupThreads, _openFolder, _lifetime.Token)
         {
             Width = Math.Max(360, Math.Min(820, owner.ClientSize.Width - 32)),
@@ -79,11 +80,19 @@ public partial class ArchivePage
             if (!_ended)
             {
                 UpdateArchiveCleanupAction();
-                if (origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled) origin.Focus();
-                else Control<ListBox>("ArchiveThreads").Focus();
+                // A view may keep the button under the header's More: focus returns to that More.
+                if (ActionOriginFocusTarget(origin) is { IsEffectivelyEnabled: true } target) target.Focus();
+                else ArchiveThreads.Focus();
             }
         }
     }
+    /// <summary>
+    /// S4 F4: the app is quitting. A running preview, preparation or cleanup of the cleanup dialog is cancelled now (a cleanup stops
+    /// before its next step; what it committed stays), so the session's stop does not wait for it until the shutdown time limit ends
+    /// the process in its middle. The dialog itself closes with the page (ui-teardown), so nothing reloads the archive meanwhile.
+    /// </summary>
+    internal void CancelLongOperations() => _cleanupDialog?.CancelForShutdown();
+
     private void EndArchiveCleanupLifetime()
     {
         _cleanupDialog?.RequestClose();

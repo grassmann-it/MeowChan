@@ -10,6 +10,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -24,8 +25,6 @@ internal sealed class MediaConflictsDialog : Window
     private const int PageSize = 100;
     private readonly Func<int, int, CancellationToken, Task<MediaConflictPage>> _list;
     private readonly Func<string, MediaConflictUserAction, CancellationToken, Task<MediaConflictActionOutcome>> _decide;
-    private readonly WindowChromeBar _chrome = new();
-    private readonly TextBlock _heading = new() { Name = "MediaConflictsHeading" };
     private readonly TextBlock _status = new() { Name = "MediaConflictsStatus", TextWrapping = Avalonia.Media.TextWrapping.Wrap };
     private readonly StackPanel _rows = new() { Name = "MediaConflictsRows", Spacing = 8 };
     private readonly Button _more = new() { Name = "MediaConflictsMore" };
@@ -36,6 +35,8 @@ internal sealed class MediaConflictsDialog : Window
     private MeowChan.Archive.MediaReclaimSummary? _reclaimQuote;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<MediaConflictRow> _loaded = new();
+    // A reload must never erase what the last decision or reclaim reported.
+    private readonly MediaConflictStatusBoard _statusBoard = new();
     private string? _confirming;
     private string? _confirmingPromote;
     private int _total;
@@ -50,50 +51,37 @@ internal sealed class MediaConflictsDialog : Window
         _list = list ?? throw new ArgumentNullException(nameof(list));
         _decide = decide ?? throw new ArgumentNullException(nameof(decide));
         Name = "MediaConflictsDialog";
-        Width = 760; Height = 560; MinWidth = 480; MinHeight = 360;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        WindowDecorations = WindowDecorations.BorderOnly;
-        ExtendClientAreaToDecorationsHint = true;
-        ExtendClientAreaTitleBarHeightHint = 48;
+        // Modals plan MD2: a modal list dialog on the list step; the title stands in the title bar only, so there is no header.
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         this[!ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        _heading.Classes.Add("section-title");
         _status.Classes.Add("workspace-meta");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         _more.Click += async (_, _) => await LoadAsync(append: true);
         _close.Click += (_, _) => Close();
         _reclaim.Click += async (_, _) => await ReclaimAsync();
-        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16) };
-        body.Children.Add(_heading); body.Children.Add(_status); body.Children.Add(_rows); body.Children.Add(_more);
-        WrapPanel actions = new() { ItemSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        if (_previewReclaim != null && _doReclaim != null) actions.Children.Add(_reclaim);
-        actions.Children.Add(_close);
-        Border footer = new() { Child = actions, Margin = new Thickness(16, 0, 16, 16) };
-        footer.Classes.Add("workspace-dialog-footer");
-        Grid layout = new() { RowDefinitions = new RowDefinitions("48,*,Auto") };
-        layout.Children.Add(_chrome);
-        ScrollViewer scroll = new() { Content = body,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        layout.Children.Add(scroll); Grid.SetRow(scroll, 1);
-        layout.Children.Add(footer); Grid.SetRow(footer, 2);
-        Content = layout;
+        // Body: the alternatives with their per-row Keep/Promote/Discard and More;
+        // footer: the polite status line (empty, done or failed) above Reclaim and Close (right-most).
+        StackPanel body = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 16) };
+        body.Children.Add(_rows); body.Children.Add(_more);
+        bool canReclaim = _previewReclaim != null && _doReclaim != null;
+        Border footer = DialogFooter.Build(_close, canReclaim ? new Control[] { _reclaim } : null, _status, statusAbove: true);
+        DialogWindow.Frame(this, DialogFrame.Build(header: null, body, footer), modal: true);
         Title = Texts.T("transfer.conflicts.title");
-        Opened += async (_, _) => { _chrome.Attach(this); await LoadAsync(append: false); };
+        Opened += async (_, _) => await LoadAsync(append: false);
         Closed += (_, _) => { Texts.Changed -= OnLanguageChanged; _lifetime.Cancel(); _lifetime.Dispose(); };
-        AddHandler(KeyDownEvent, (_, e) =>
+        // Escape first withdraws a pending confirmation (discard, promote or reclaim), then closes.
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_confirming != null || _confirmingPromote != null || _reclaimQuote != null) { _confirming = null; _confirmingPromote = null; _reclaimQuote = null; Render(); } else Close();
-        }, RoutingStrategies.Tunnel);
+            if (_confirming == null && _confirmingPromote == null && _reclaimQuote == null) return false;
+            _confirming = null; _confirmingPromote = null; _reclaimQuote = null; Render(); return true;
+        });
         Texts.Changed += OnLanguageChanged;
         Render();
     }
 
     internal StackPanel RowsForTests => _rows;
     internal TextBlock StatusForTests => _status;
-    internal Task LoadForTestsAsync() => LoadAsync(append: false);
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Avalonia.Threading.Dispatcher.UIThread.Post(Render);
 
@@ -108,10 +96,10 @@ internal sealed class MediaConflictsDialog : Window
             if (!append) _loaded.Clear();
             _loaded.AddRange(page.Rows);
             _total = page.Total;
-            _status.Text = string.Empty;
+            _statusBoard.ListRead(_loaded.Count);
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { _status.Text = Texts.T("transfer.conflicts.error.read"); }
+        catch (Exception) { _statusBoard.ListReadFailed(); }
         finally { _busy = false; }
         Render();
     }
@@ -123,12 +111,13 @@ internal sealed class MediaConflictsDialog : Window
         try
         {
             MediaConflictActionOutcome outcome = await _decide(row.Id, action, _lifetime.Token);
-            _status.Text = outcome is MediaConflictActionOutcome.Applied or MediaConflictActionOutcome.AlreadyApplied
-                ? string.Empty : Texts.T(outcome == MediaConflictActionOutcome.Unavailable
-                    ? "transfer.conflicts.error.promoteUnavailable" : "transfer.conflicts.error.action");
+            _statusBoard.DecisionRecorded();
+            if (outcome is not (MediaConflictActionOutcome.Applied or MediaConflictActionOutcome.AlreadyApplied))
+                _statusBoard.DecisionFailed(MediaConflictStatus.Failure(outcome == MediaConflictActionOutcome.Unavailable
+                    ? "transfer.conflicts.error.promoteUnavailable" : "transfer.conflicts.error.action"));
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { _status.Text = Texts.T("transfer.conflicts.error.action"); }
+        catch (Exception) { _statusBoard.DecisionFailed(MediaConflictStatus.Failure("transfer.conflicts.error.action")); }
         finally { _busy = false; _confirming = null; _confirmingPromote = null; }
         await LoadAsync(append: false);
     }
@@ -143,18 +132,18 @@ internal sealed class MediaConflictsDialog : Window
             if (_reclaimQuote is null)
             {
                 var quote = await _previewReclaim(_lifetime.Token);
-                if (quote.Bytes == 0) _status.Text = Texts.T("transfer.conflicts.reclaim.none");
-                else { _status.Text = string.Empty; _reclaimQuote = quote; }
+                if (quote.Bytes == 0) _statusBoard.Reclaim(MediaConflictStatus.Information("transfer.conflicts.reclaim.none"));
+                else { _statusBoard.DecisionRecorded(); _reclaimQuote = quote; }
             }
             else
             {
                 var done = await _doReclaim(_lifetime.Token);
                 _reclaimQuote = null;
-                _status.Text = Texts.T("transfer.conflicts.reclaim.done", done.Bytes);
+                _statusBoard.Reclaim(MediaConflictStatus.Information("transfer.conflicts.reclaim.done", done.Bytes));
             }
         }
         catch (OperationCanceledException) { return; }
-        catch (Exception) { _reclaimQuote = null; _status.Text = Texts.T("transfer.conflicts.reclaim.error"); }
+        catch (Exception) { _reclaimQuote = null; _statusBoard.Reclaim(MediaConflictStatus.Failure("transfer.conflicts.reclaim.error")); }
         finally { _busy = false; }
         Render();
     }
@@ -163,14 +152,18 @@ internal sealed class MediaConflictsDialog : Window
     {
         _reclaim.Content = _reclaimQuote is { } q
             ? Texts.T("transfer.conflicts.reclaim.confirm", q.Bytes, q.Roots) : Texts.T("transfer.conflicts.reclaim");
-        _heading.Text = Texts.T("transfer.conflicts.title");
-        Title = _heading.Text;
-        _close.Content = Texts.T("transfer.import.close");
+        Title = Texts.T("transfer.conflicts.title");
+        _close.Content = Texts.T("action.close");
         _more.Content = Texts.T("transfer.conflicts.more", _loaded.Count, _total);
         _more.IsVisible = _loaded.Count < _total;
+        // Reclaim and More change their words (confirmation, counts); the accessible names follow them.
+        AutomationProperties.SetName(_reclaim, (string)_reclaim.Content);
+        AutomationProperties.SetName(_close, (string)_close.Content);
+        AutomationProperties.SetName(_more, (string)_more.Content);
+        AutomationProperties.SetName(_rows, Title);
         _rows.Children.Clear();
-        if (_loaded.Count == 0 && string.IsNullOrEmpty(_status.Text)) _status.Text = Texts.T("transfer.conflicts.empty");
-        else if (_loaded.Count > 0 && _status.Text == Texts.T("transfer.conflicts.empty")) _status.Text = string.Empty;
+        // Resolve at render time so a language switch re-renders the pending outcome as well.
+        _status.Text = _statusBoard.Display.Resolve();
         foreach (MediaConflictRow row in _loaded) _rows.Children.Add(BuildRow(row));
     }
 
@@ -188,6 +181,7 @@ internal sealed class MediaConflictsDialog : Window
         bool open = row.Status is MediaConflictUserStatus.Open or MediaConflictUserStatus.Kept;
         Button keep = new() { Name = "MediaConflictKeep", Content = Texts.T("transfer.conflicts.keep"),
             IsEnabled = row.Status == MediaConflictUserStatus.Open };
+        MeowChan.Desktop.Controls.IconButtons.WithText(keep, "check"); // I1b: keep and use-as-active carry a catalog icon; Discard stays text (no trash icon in the catalog).
         keep.Click += async (_, _) => await DecideAsync(row, MediaConflictUserAction.Keep);
         bool confirm = _confirming == row.Id;
         Button discard = new() { Name = "MediaConflictDiscard", IsEnabled = open,
@@ -202,11 +196,15 @@ internal sealed class MediaConflictsDialog : Window
         bool confirmPromote = _confirmingPromote == row.Id;
         Button promote = new() { Name = "MediaConflictPromote", IsEnabled = open,
             Content = confirmPromote ? Texts.T("transfer.conflicts.confirmPromote", row.CandidateBytes) : Texts.T("transfer.conflicts.promote") };
+        MeowChan.Desktop.Controls.IconButtons.WithText(promote, "check");
         promote.Click += async (_, _) =>
         {
             if (_confirmingPromote == row.Id) await DecideAsync(row, MediaConflictUserAction.Promote);
             else { _confirming = null; _confirmingPromote = row.Id; Render(); }
         };
+        // Every row repeats Keep, Promote and Discard: each name says which alternative it decides.
+        foreach (Button action in new[] { keep, promote, discard })
+            AutomationProperties.SetName(action, RowActionName((string)action.Content!, row));
         actions.Children.Add(keep); actions.Children.Add(promote); actions.Children.Add(discard);
         StackPanel panel = new() { Spacing = 4 };
         panel.Children.Add(text); panel.Children.Add(actions);
@@ -214,6 +212,10 @@ internal sealed class MediaConflictsDialog : Window
         border.Classes.Add("workspace-card");
         return border;
     }
+
+    /// <summary>The accessible name of a row action: the action, then the place and the alternative's hash prefix.</summary>
+    internal static string RowActionName(string action, MediaConflictRow row) =>
+        action + ", " + row.Resource.Source + " /" + row.Resource.Board + "/ " + row.Resource.Thread + " (" + row.CandidateSha256[..12] + "…)";
 
     private static string StatusLabel(MediaConflictUserStatus status) => Texts.T(status switch
     {

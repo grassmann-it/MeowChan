@@ -65,8 +65,10 @@ internal static class ActionToolBarPresentationChecks
             Require(page.FindControl<ListBox>("ArchiveThreads")!.ItemCount == 1, "Real local archive fixture did not load.");
             var downloads = owner.FindControl<ActionToolBar>("WorkspaceListActions")!;
             var archive = page.FindControl<ActionToolBar>("ArchiveResultActions")!;
-            Require(new[] { "ArchiveSaveSearch", "ArchiveSavedSearches", "ArchiveReaderGroups" }
-                .All(name => archive.Items.OfType<Button>().Any(b => b.Name == name)), "Integrated feature actions missing.");
+            Require(archive.Items.OfType<Button>().Any(b => b.Name == "ArchiveReaderGroups")
+                && archive.Items.OfType<SplitButton>().Any(b => b.Name == "ArchiveSavedSearches")
+                && !archive.Items.OfType<Control>().Any(b => b.Name is "ArchiveSaveSearch" or "ArchiveFilenameSearchOpen"),
+                "Integrated feature actions missing, or the AP2 saved-search split / file name scope regressed.");
             var identities = downloads.Items.Concat(archive.Items).OfType<Button>().ToDictionary(b => b, b => b.Command);
             var cases = from nextLanguage in new[] { "en", "de" }
                         from nextTheme in new[] { "Dark", "Light" }
@@ -112,7 +114,9 @@ internal static class ActionToolBarPresentationChecks
                             await Program.WaitUntilAsync(() => surface.Toolbar.OverflowHost.IsEffectivelyVisible
                                 && TopLevel.GetTopLevel(surface.Toolbar.OverflowHost) is { IsVisible: true });
                             await Settle(owner, host);
-                            Require(AutomationProperties.GetName(surface.Toolbar.More) == Texts.T("downloads.more"), "Actual overflow toggle label is not localized.");
+                            // R7: the toggle announces how many actions it holds ("More, 5 actions"); its tooltip stays "More".
+                            Require(AutomationProperties.GetName(surface.Toolbar.More)
+                                == Texts.Count("workview.moreCount", surface.Toolbar.OverflowHost.Children.Count(c => c.IsVisible)), "Actual overflow toggle label is not localized or does not count its actions.");
                         }
                         if (surface.Name == "downloads")
                             Require(AutomationProperties.GetName(owner.FindControl<Button>("CopyAllUrlsButton")!)
@@ -155,8 +159,17 @@ internal static class ActionToolBarPresentationChecks
                 await WaitForRequestedSize(owner, host, 1380, 850, expectedScale,
                     $"{item.Language}/{item.Theme}/{item.Mode}/focus-transition");
                 Button gallery = page.FindControl<Button>("ArchiveResultsGallery")!;
-                double never = archive.Items.OfType<Control>().Where(c => ToolBar.GetOverflowMode(c) == OverflowMode.Never).Sum(c => c.DesiredSize.Width);
-                double small = never + archive.MoreWidth() + 1, large = small + gallery.DesiredSize.Width + 1;
+                // WV2: the List/Table toggles are AsNeeded now (Always in Barebones), so the bar items in front of the gallery that stay on the bar are the required width.
+                // Toolbar UX review 15.11.: with the panel's gaps (none between the two joined segments, the group gap in front of the gallery).
+                double never = 0;
+                Control? previous = null;
+                foreach (Control c in archive.Items.OfType<Control>().TakeWhile(c => !ReferenceEquals(c, gallery))
+                    .Where(c => c.IsVisible && ToolBar.GetOverflowMode(c) != OverflowMode.Always))
+                {
+                    never += ActionToolBarPanel.LeadingGap(previous, c) + c.DesiredSize.Width;
+                    previous = c;
+                }
+                double small = never + archive.MoreWidth() + 1, large = small + ActionToolBarPanel.LeadingGap(previous, gallery) + gallery.DesiredSize.Width + 1;
                 archive.Width = small; await Settle(owner, host);
                 Require(archive.OverflowHost!.Children.Contains(gallery), "Controlled measured small toolbar did not overflow gallery.");
                 archive.More!.IsChecked = true;
@@ -263,11 +276,10 @@ internal static class ActionToolBarPresentationChecks
         {
             string? id = button.Name switch
             {
-                "ArchiveSaveSearch" => "archive.saved-searches.save-current",
-                "ArchiveSavedSearches" => "archive.saved-searches.open-manager",
                 "ArchiveReaderGroups" => "reader-groups.open-manager",
                 "ArchivePostBookmarks" => "post-bookmarks.open-manager",
                 "ArchiveResultsGallery" => "gallery.open-results",
+                "ArchiveResultsOpenInMedia" => "archive.open-results-in-media",
                 "ArchiveFavoritesOverview" => "favorites.open",
                 _ => null
             };
@@ -275,6 +287,12 @@ internal static class ActionToolBarPresentationChecks
             if (id != null)
                 Require(Label(button) == CommandCatalog.Label(id) && AutomationProperties.GetName(button) == CommandCatalog.Label(id),
                     "Actual action content/automation locale mismatch: " + button.Name);
+        }
+        foreach (SplitButton split in toolbar.Items.OfType<SplitButton>().Where(split => split.IsVisible))
+        {
+            string label = CommandCatalog.Label("archive.saved-searches.open-manager");
+            Require(Equals(split.Content, label) && AutomationProperties.GetName(split) == label,
+                "Actual split action content/automation locale mismatch: " + split.Name);
         }
     }
 

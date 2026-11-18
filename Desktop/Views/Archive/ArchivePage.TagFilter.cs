@@ -3,7 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using Ursa.Controls;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tags;
@@ -15,17 +18,36 @@ namespace MeowChan;
 // is what list, paging, gallery, export and reader navigation all use.
 public partial class ArchivePage
 {
+    private int _tagFilterTagsPerList = ArchiveTagFilter.DefaultTagsPerList;
+    // Admission only: changing this preference never edits an existing draft or applied filter.
+    internal int ArchiveTagFilterTagsPerListPreference
+    {
+        get => _tagFilterTagsPerList;
+        set => _tagFilterTagsPerList = Math.Clamp(value, ArchiveTagFilter.MinimumTagsPerList, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+    }
+
     private readonly List<Guid> _draftIncludeTags = new();
     private readonly List<Guid> _draftExcludeTags = new();
-    private sealed record TagChoice(Guid? Id, string Label) { public override string ToString() => Label; }
 
     private void InitializeTagFilterEditor()
     {
-        foreach (string name in new[] { "ArchiveTagChoice", "ArchiveTagMode" })
-            Control<ComboBox>(name).SelectionChanged += (_, _) => { if (!_localizingSearchOptions) DraftEdited("tags"); };
-        // The "unfinished entry" mark belongs to a chosen tag; it goes away as soon as the choice does.
-        Control<ComboBox>("ArchiveTagChoice").SelectionChanged += (_, _) =>
-        { if (!HasPendingTagChoice) DataValidationErrors.ClearErrors(Control<ComboBox>("ArchiveTagChoice")); };
+        ArchiveTagMode.SelectionChanged += (_, _) => { if (!_localizingSearchOptions) DraftEdited("tags"); };
+        // The popover adds to the draft at once (Enter includes, Shift+Enter or a leading "-" excludes); a tag the draft holds is
+        // not offered again, so include and exclude cannot overlap.
+        ArchiveTagChoice.Snapshot = () => _privateTags;
+        ArchiveTagChoice.Used = () => _draftIncludeTags.Concat(_draftExcludeTags).Select(id => new TagId(id)).ToHashSet();
+        ArchiveTagChoice.Picked = (id, exclude) => AddDraftTag(id, include: !exclude);
+        // What was typed in the popover and not picked stays: it is an unfinished entry, explained when a search is started.
+        ArchiveTagChoice.KeepQueryOnDismiss = true;
+        // The host is a stand-alone DataValidationErrors (not inside a control template), so it has no templated owner whose
+        // errors it would show; it shows its own. Without this the "choose Include or Exclude" request was set but never drawn.
+        ArchiveTagChoiceHost.Owner = ArchiveTagChoiceHost;
+        ArchiveTagChoice.PendingChanged += (_, _) =>
+        {
+            // The "unfinished entry" mark belongs to the typed tag; it goes away as soon as the entry does.
+            if (!HasPendingTagChoice) DataValidationErrors.ClearErrors(ArchiveTagChoiceHost);
+            if (!_localizingSearchOptions) DraftEdited("tags");
+        };
     }
 
     private string? TagFilterName(Guid id) => _privateTags?.Find(new TagId(id))?.Name.Display;
@@ -69,96 +91,156 @@ public partial class ArchivePage
     private void ClearTagFilterError()
     {
         if (_shownTagFilterError == null) return;
-        if (Control<TextBlock>("ArchiveSearchError").Text == _shownTagFilterError) SearchEditorError(string.Empty);
+        if (ArchiveSearchError.Text == _shownTagFilterError) SearchEditorError(string.Empty);
         _shownTagFilterError = null;
     }
 
-    private void OnAddTagInclude(object? sender, RoutedEventArgs e) => AddDraftTag(include: true);
-    private void OnAddTagExclude(object? sender, RoutedEventArgs e) => AddDraftTag(include: false);
-
-    private void AddDraftTag(bool include)
+    /// <summary>
+    /// Adds a tag to the draft (the popover and the tests). Null when it was added, else the localized reason it was refused; the
+    /// popover shows that reason itself, so the page's error line stays untouched.
+    /// </summary>
+    internal string? AddDraftTag(Guid id, bool include)
     {
-        if (Control<ComboBox>("ArchiveTagChoice").SelectedItem is not TagChoice { Id: Guid id }) return;
+        if (DraftTagRefusal(include ? _draftIncludeTags : _draftExcludeTags, include ? _draftExcludeTags : _draftIncludeTags, id, ArchiveTagFilterTagsPerListPreference) is string refusal)
+            return refusal;
+        if ((include ? _draftIncludeTags : _draftExcludeTags).Contains(id)) return null;
         try
         {
             _ = new ArchiveTagFilter(include ? _draftIncludeTags.Append(id) : _draftIncludeTags,
-                include ? _draftExcludeTags : _draftExcludeTags.Append(id));
+                include ? _draftExcludeTags : _draftExcludeTags.Append(id), ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
         }
-        catch (ArgumentException exception) { SearchEditorError(exception.Message); return; }
+        catch (ArgumentException) { return Texts.T("coreLimits.tags.invalid"); }
         (include ? _draftIncludeTags : _draftExcludeTags).Add(id);
-        DataValidationErrors.ClearErrors(Control<ComboBox>("ArchiveTagChoice"));
+        DataValidationErrors.ClearErrors(ArchiveTagChoiceHost);
         SearchEditorError(string.Empty);
         DraftEdited("tags");
         RenderDraftSets();
+        return null;
     }
 
-    private ArchiveTagFilter? ReadTagFilterDraft() => ArchiveTagFilter.OrNull(_draftIncludeTags, _draftExcludeTags,
-        Control<ComboBox>("ArchiveTagMode").SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All);
+    /// <summary>Test seam of the popover: adds the own tag with this display name; null when added, else why not.</summary>
+    internal string? AddDraftTagByName(string name, bool include) =>
+        _privateTags?.Tags.FirstOrDefault(tag => tag.Name.Display == name) is { } found ? AddDraftTag(found.Id.Value, include) : "Unknown tag: " + name;
 
-    private bool HasPendingTagChoice => Control<ComboBox>("ArchiveTagChoice").SelectedItem is TagChoice { Id: not null };
+    /// <summary>
+    /// The explicit include/exclude toggle of a draft tag chip: moves the tag to the other list. A refused move (a list at its
+    /// limit) is explained on the page's error line. Nothing is searched; like every draft edit it waits for Search.
+    /// </summary>
+    internal string? ToggleDraftTag(Guid id)
+    {
+        bool wasIncluded = _draftIncludeTags.Contains(id);
+        if (!wasIncluded && !_draftExcludeTags.Contains(id)) return null;
+        // The destination grows; the source may already exceed a newly lowered preference.
+        if (DraftTagRefusal(wasIncluded ? _draftExcludeTags : _draftIncludeTags, Array.Empty<Guid>(), id,
+                ArchiveTagFilterTagsPerListPreference) is string refusal)
+        { SearchEditorError(refusal); return refusal; }
+        try
+        {
+            _ = new ArchiveTagFilter(wasIncluded ? _draftIncludeTags.Where(tag => tag != id) : _draftIncludeTags.Append(id),
+                wasIncluded ? _draftExcludeTags.Append(id) : _draftExcludeTags.Where(tag => tag != id),
+                ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+        }
+        catch (ArgumentException)
+        {
+            string invalid = Texts.T("coreLimits.tags.invalid");
+            SearchEditorError(invalid); return invalid;
+        }
+        (wasIncluded ? _draftIncludeTags : _draftExcludeTags).Remove(id);
+        (wasIncluded ? _draftExcludeTags : _draftIncludeTags).Add(id);
+        SearchEditorError(string.Empty);
+        DraftEdited("tags");
+        RenderDraftSets();
+        return null;
+    }
+
+    /// <summary>Test seam of the chip toggle: switches the drafted own tag with this display name between include and exclude.</summary>
+    internal string? ToggleDraftTagByName(string name) =>
+        _privateTags?.Tags.FirstOrDefault(tag => tag.Name.Display == name) is { } found ? ToggleDraftTag(found.Id.Value) : "Unknown tag: " + name;
+
+    /// <summary>Test seam: the names the popover offers for an empty search, in ordinal order.</summary>
+    internal string[] AddableDraftTagNames => MeowChan.Desktop.Controls.TagFilterPicker.Choices(_privateTags, _draftIncludeTags.Concat(_draftExcludeTags).Select(id => new TagId(id)).ToHashSet(), null)
+        .Select(item => item.Name.Display).Order(StringComparer.Ordinal).ToArray();
+
+    /// <summary>
+    /// Admission to the growing list only. Existing tags are never trimmed when the preference is lowered;
+    /// an id already in the destination changes nothing and remains allowed.
+    /// </summary>
+    internal static string? DraftTagRefusal(IReadOnlyCollection<Guid> list, IReadOnlyCollection<Guid> otherList, Guid id) =>
+        DraftTagRefusal(list, otherList, id, ArchiveTagFilter.DefaultTagsPerList);
+
+    internal static string? DraftTagRefusal(IReadOnlyCollection<Guid> list, IReadOnlyCollection<Guid> otherList, Guid id, int tagsPerList) =>
+        list.Contains(id) ? null
+        : otherList.Contains(id) ? Texts.T("tags.filter.error.both")
+        : list.Count >= tagsPerList ? Texts.T("coreLimits.tags.tooMany", tagsPerList)
+        : null;
+
+    private ArchiveTagFilter? ReadTagFilterDraft() => ArchiveTagFilter.OrNull(_draftIncludeTags, _draftExcludeTags,
+        ArchiveTagMode.SelectedIndex == 1 ? ArchiveTagMatch.Any : ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList);
+
+    // A tag typed in the popover and not added: the app cannot guess Include or Exclude for it.
+    private bool HasPendingTagChoice => ArchiveTagChoice.HasPending;
 
     private void WriteTagFilterDraft(ArchiveTagFilter? tags)
     {
         _draftIncludeTags.Clear(); _draftExcludeTags.Clear();
         if (tags != null) { _draftIncludeTags.AddRange(tags.Include); _draftExcludeTags.AddRange(tags.Exclude); }
-        Control<ComboBox>("ArchiveTagMode").SelectedIndex = tags?.Match == ArchiveTagMatch.Any ? 1 : 0;
-        Control<ComboBox>("ArchiveTagChoice").SelectedIndex = 0;
+        ArchiveTagMode.SelectedIndex = tags?.Match == ArchiveTagMatch.Any ? 1 : 0;
+        ArchiveTagChoice.ClearPending();
     }
 
     private Action CaptureTagFilterDraft()
     {
         Guid[] include = _draftIncludeTags.ToArray(), exclude = _draftExcludeTags.ToArray();
-        int match = Control<ComboBox>("ArchiveTagMode").SelectedIndex;
-        Guid? pending = (Control<ComboBox>("ArchiveTagChoice").SelectedItem as TagChoice)?.Id;
+        int match = ArchiveTagMode.SelectedIndex;
+        string pending = ArchiveTagChoice.Search.Text ?? string.Empty;
         return () =>
         {
             _draftIncludeTags.Clear(); _draftIncludeTags.AddRange(include);
             _draftExcludeTags.Clear(); _draftExcludeTags.AddRange(exclude);
-            Control<ComboBox>("ArchiveTagMode").SelectedIndex = match;
+            ArchiveTagMode.SelectedIndex = match;
             RenderDraftTagFilter();
-            ComboBox combo = Control<ComboBox>("ArchiveTagChoice");
-            if (pending != null && combo.ItemsSource is IEnumerable<TagChoice> options)
-                combo.SelectedItem = options.FirstOrDefault(option => option.Id == pending) ?? options.First();
+            ArchiveTagChoice.Search.SetTextSilently(pending);
         };
     }
 
     private void RenderDraftTagFilter()
     {
+        // Included tags first, then excluded ones, like the applied chips; a chip carries its state toggle besides the close mark.
+        (Guid Id, bool Exclude)[] drafted = _draftIncludeTags.Select(id => (id, false)).Concat(_draftExcludeTags.Select(id => (id, true))).ToArray();
         RenderDraftTags("ArchiveDraftTags", "ArchiveTagChoice",
-            _draftIncludeTags.Select(id => (Texts.T("tags.filter.includeChip", TagFilterLabel(id)), (Action)(() =>
-            { _draftIncludeTags.Remove(id); DraftEdited("tags"); RenderDraftSets(); })))
-            .Concat(_draftExcludeTags.Select(id => (Texts.T("tags.filter.excludeChip", TagFilterLabel(id)), (Action)(() =>
-            { _draftExcludeTags.Remove(id); DraftEdited("tags"); RenderDraftSets(); })))));
-        ComboBox combo = Control<ComboBox>("ArchiveTagChoice");
-        PrivateTagStoreSnapshot? tags = _privateTags;
-        HashSet<Guid> used = _draftIncludeTags.Concat(_draftExcludeTags).ToHashSet();
-        // A tag already in the draft is not offered again, so include and exclude cannot overlap.
-        TagChoice[] options = new[] { new TagChoice(null, Texts.T(tags == null ? "tags.filter.unavailable"
-                : tags.Tags.Count == 0 ? "tags.filter.none" : "tags.filter.choose")) }
-            .Concat((tags?.Tags ?? Array.Empty<PrivateTagDefinition>()).Where(tag => !used.Contains(tag.Id.Value))
-                .Select(tag => new TagChoice(tag.Id.Value, tag.Name.Display))).ToArray();
-        Guid? selected = (combo.SelectedItem as TagChoice)?.Id;
-        _localizingSearchOptions = true;
-        try
+            drafted.Select(entry => (Texts.T(entry.Exclude ? "tags.filter.excludeChip" : "tags.filter.includeChip", TagFilterLabel(entry.Id)), (Action)(() =>
+            { (entry.Exclude ? _draftExcludeTags : _draftIncludeTags).Remove(entry.Id); DraftEdited("tags"); RenderDraftSets(); }))),
+            (position, label, remove) =>
+            {
+                // The one chip menu (switch, copy text, Copy tag name, remove); no second menu host on the same chip.
+                return CreateTagFilterChip(label, TagFilterLabel(drafted[position].Id), drafted[position].Id, drafted[position].Exclude, remove,
+                    () => ToggleDraftChip(drafted[position].Id), ChipMenuOptions(label, TagFilterLabel(drafted[position].Id), applied: false));
+            });
+        ArchiveTagChoice.Refresh();
+    }
+
+    // A toggle rebuilds the chips (the tag moves behind the other list); a keyboard user stays on the toggle of the same tag.
+    private void ToggleDraftChip(Guid id)
+    {
+        WrapPanel panel = Control<WrapPanel>("ArchiveDraftTags");
+        bool focused = panel.GetVisualDescendants().OfType<Control>().Any(control => control.IsKeyboardFocusWithin && control.IsFocused);
+        if (ToggleDraftTag(id) != null || !focused) return;
+        Dispatcher.UIThread.Post(() =>
         {
-            combo.ItemsSource = options;
-            combo.SelectedItem = options.FirstOrDefault(option => selected != null && option.Id == selected) ?? options[0];
-        }
-        finally { _localizingSearchOptions = false; }
-        Control<Button>("ArchiveAddTagInclude").IsEnabled = Control<Button>("ArchiveAddTagExclude").IsEnabled = options.Length > 1;
+            if (_ended) return;
+            ClosableTag? chip = Control<WrapPanel>("ArchiveDraftTags").Children.OfType<ClosableTag>().FirstOrDefault(tag => tag.Tag is Guid tagId && tagId == id);
+            if (chip?.Content is StackPanel { Children: [Control toggle, ..] }) toggle.Focus(NavigationMethod.Tab);
+            else ArchiveTagChoice.Focus(NavigationMethod.Tab);
+        }, DispatcherPriority.Loaded);
     }
 
     private void LocalizeTagFilterEditor()
     {
         SetOptions("ArchiveTagMode", "tags.filter.matchAll", "tags.filter.matchAny");
-        Control<Button>("ArchiveAddTagInclude").Content = Texts.T("tags.filter.include");
-        Control<Button>("ArchiveAddTagExclude").Content = Texts.T("tags.filter.exclude");
-        ToolTip.SetTip(Control<Button>("ArchiveAddTagInclude"), Texts.T("tags.filter.includeHint"));
-        ToolTip.SetTip(Control<Button>("ArchiveAddTagExclude"), Texts.T("tags.filter.excludeHint"));
-        AutomationProperties.SetName(Control<Button>("ArchiveAddTagInclude"), Texts.T("tags.filter.includeHint"));
-        AutomationProperties.SetName(Control<Button>("ArchiveAddTagExclude"), Texts.T("tags.filter.excludeHint"));
-        AutomationProperties.SetName(Control<ComboBox>("ArchiveTagChoice"), Texts.T("tags.filter.label"));
-        AutomationProperties.SetName(Control<ComboBox>("ArchiveTagMode"), Texts.T("tags.filter.matchLabel"));
+        ArchiveTagChoice.IncludeHint = Texts.T("tags.filter.includeHint");
+        ArchiveTagChoice.ExcludeHint = Texts.T("tags.filter.excludeHint");
+        ArchiveTagChoice.ApplyTexts();
+        AutomationProperties.SetName(ArchiveTagMode, Texts.T("tags.filter.matchLabel"));
     }
 
     // Names can change (rename) and tags can appear or disappear while the page is open.
@@ -172,9 +254,9 @@ public partial class ArchivePage
     private static ArchiveTagFilter? CopyTagFilter(ArchiveTagFilter? tags, string field, string? value) => tags == null ? null : field switch
     {
         "tags" => null,
-        "tagInclude" => ArchiveTagFilter.OrNull(tags.Include.Where(id => id.ToString("D") != value), tags.Exclude, tags.Match),
-        "tagExclude" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude.Where(id => id.ToString("D") != value), tags.Match),
-        "tagMatch" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude),
+        "tagInclude" => ArchiveTagFilter.OrNull(tags.Include.Where(id => id.ToString("D") != value), tags.Exclude, tags.Match, ArchiveTagFilter.MaximumConfigurableTagsPerList),
+        "tagExclude" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude.Where(id => id.ToString("D") != value), tags.Match, ArchiveTagFilter.MaximumConfigurableTagsPerList),
+        "tagMatch" => ArchiveTagFilter.OrNull(tags.Include, tags.Exclude, ArchiveTagMatch.All, ArchiveTagFilter.MaximumConfigurableTagsPerList),
         _ => tags
     };
 

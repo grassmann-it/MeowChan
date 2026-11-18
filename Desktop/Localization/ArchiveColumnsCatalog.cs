@@ -4,8 +4,11 @@ internal static class ArchiveColumnsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     [
-        ("archive.columns", "Columns", "Spalten"),
-        ("archive.columnsReset", "Reset to mode defaults", "Auf Modus-Standard zurücksetzen"),
+        ("archive.columnsReset", "Reset columns", "Spalten zurücksetzen"),
+        ("archive.columnsReset.hint", "Sets the columns of this list back to the default of the work view.", "Setzt die Spalten dieser Liste auf den Standard der Arbeitsansicht zurück."),
+        ("archive.columnsFit", "Fit column", "Spalte anpassen"),
+        ("archive.columnsFitAll", "Fit all columns", "Alle Spalten anpassen"),
+        ("archive.columns.favorite", "Favorite", "Favorit"),
         ("archive.columns.identity", "Source / board", "Quelle / Board"),
         ("archive.columns.title", "Title / ID", "Titel / ID"),
         ("archive.columns.posts", "Posts", "Posts"),
@@ -15,9 +18,9 @@ internal static class ArchiveColumnsCatalog
         ("archive.media.countUnavailable", "Saved media versions: unavailable", "Gespeicherte Medienversionen: nicht verfügbar"),
         ("archive.media.countHint", "Total archived versions across the thread's recorded media folders, independent of media filters. File presence and length checked; checksums are verified when opened.", "Gesamtbestand in den erfassten Medienordnern des Threads, unabhängig von Medienfiltern. Dateiverfügbarkeit und Länge geprüft; Prüfsummen werden beim Öffnen geprüft."),
         ("archive.media.missingVersions", "Not counted: {0:N0} recorded files are missing or have changed.", "Nicht mitgezählt: {0:N0} erfasste Dateien fehlen oder haben sich verändert."),
-        ("archive.media.currentProgress", "Current download work: {0}", "Aktueller Downloadauftrag: {0}"),
+        ("archive.media.currentProgress", "Current download work: {0}", "Aktueller Download: {0}"),
         ("archive.columns.source", "Source", "Quelle"),
-        ("archive.columns.work", "Work", "Arbeit"),
+        ("archive.columns.work", "Work", "Downloads"),
         ("archive.columns.lastCapture", "Last capture", "Letzte Erfassung"),
         ("archive.columns.tags", "Tags", "Tags"),
         ("archive.columns.name", "File name", "Dateiname"),

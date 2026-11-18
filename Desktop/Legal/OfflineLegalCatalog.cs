@@ -75,6 +75,11 @@ public sealed class OfflineLegalCatalog
                 "Assets/icons/feather/LICENSE · https://github.com/feathericons/feather/tree/1b002399e8758fb2bccea4d07312dc9e0f43dcb8",
                 feather));
 
+            entries.Add(new Entry("Noto Sans (reading font)", "2.015 (subset)", "SIL Open Font License 1.1",
+                "Copyright 2022 The Noto Project Authors",
+                "Assets/Fonts/NotoSans-*.ttf · https://github.com/notofonts/latin-greek-cyrillic",
+                Section(notices, "Noto Sans fonts — SIL Open Font License 1.1")));
+
             string videoIntro = Section(notices, "Gallery video dependencies (2026-10-20)");
             string lgpl = Section(notices, "VideoLAN / LibVLCSharp — LGPL 2.1");
             foreach (string line in videoIntro.Split('\n'))

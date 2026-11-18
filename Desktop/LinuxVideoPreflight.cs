@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
+using System.Threading.Tasks;
 
 namespace MeowChan.Desktop;
 
@@ -37,16 +38,41 @@ internal static class LinuxVideoPreflight
     // use predate this release; codec/output coverage is checked by package playback gates.
     internal const string MinimumVersion = "3.0.20";
 
-    internal static LinuxVideoPreflightResult Check() => !OperatingSystem.IsLinux()
-        ? new(LinuxVideoPreflightErrorKind.None)
-        : Check(AppContext.BaseDirectory, LinuxVideoRuntimePolicy.CurrentRid,
-            NativeVideoRuntime.GetLinuxVersion, NativeVideoRuntime.ProbeLinuxEngine);
+    private static readonly object BeginGate = new();
+    private static Task<LinuxVideoPreflightResult>? _begun;
+
+    // Starts the check on a pool thread, so its bundle hashing and engine probe overlap the XAML load and
+    // the window preparation that do not depend on it. The result still gates the first window: CheckBegun
+    // waits for it and rethrows what Check() would have thrown on the calling thread.
+    internal static void Begin()
+    {
+        lock (BeginGate) _begun ??= OperatingSystem.IsLinux() ? Task.Run(() => Check()) : Task.FromResult(Check());
+    }
+
+    internal static LinuxVideoPreflightResult CheckBegun()
+    {
+        Begin();
+        return _begun!.GetAwaiter().GetResult();
+    }
+
+    // Validates the runtime's own policy instance: the native initializer and loader then
+    // reuse this process's successful result instead of hashing the same bundle again.
+    internal static LinuxVideoPreflightResult Check()
+    {
+        if (!OperatingSystem.IsLinux()) return new(LinuxVideoPreflightErrorKind.None);
+        // An unsupported architecture still throws to the startup handler, as before.
+        _ = LinuxVideoRuntimePolicy.CurrentRid;
+        return Check(() => NativeVideoRuntime.LinuxRuntimePolicy, NativeVideoRuntime.GetLinuxVersion, NativeVideoRuntime.ProbeLinuxEngine);
+    }
 
     // Dependencies allow policy/integrity checks to be tested without loading native code.
     internal static LinuxVideoPreflightResult Check(string directory, string rid, Func<string> version, Action engine)
+        => Check(() => LinuxVideoRuntimePolicy.Read(directory, rid), version, engine);
+
+    internal static LinuxVideoPreflightResult Check(Func<LinuxVideoRuntimePolicy> read, Func<string> version, Action engine)
     {
         LinuxVideoRuntimePolicy policy;
-        try { policy = LinuxVideoRuntimePolicy.Read(directory, rid); }
+        try { policy = read(); }
         catch (Exception e) when (e is not OutOfMemoryException) { return new(LinuxVideoPreflightErrorKind.InvalidPackageMetadata, Diagnostic: e.Message); }
         try
         {
@@ -83,6 +109,15 @@ internal sealed class LinuxVideoRuntimePolicy
     internal string BundleRoot { get; }
     private readonly Dictionary<string, string> _files;
     private readonly string _canonicalRoot;
+    // In memory only: this instance read one manifest for one directory. A fresh Read, or
+    // a new process, hashes the payload again. Only a complete success is remembered; a
+    // failed pass leaves it unset, so every later call repeats the full check and throws.
+    private readonly object _validation = new();
+    private bool _validated;
+    private int _validationPasses;
+
+    // Evidence: full manifest/hash/directory passes this instance has started.
+    internal int ValidationPasses { get { lock (_validation) return _validationPasses; } }
 
     private LinuxVideoRuntimePolicy(string directory, string rid, bool bundled, Dictionary<string, string> files)
     {
@@ -128,6 +163,18 @@ internal sealed class LinuxVideoRuntimePolicy
     internal void ValidateBundle()
     {
         if (!Bundled) return;
+        // Concurrent callers wait for the pass in progress instead of trusting it early.
+        lock (_validation)
+        {
+            if (_validated) return;
+            _validationPasses++;
+            ValidatePayload();
+            _validated = true;
+        }
+    }
+
+    private void ValidatePayload()
+    {
         if (!_files.ContainsKey("lib/libvlc.so.5") || !_files.ContainsKey("lib/libvlccore.so.9") ||
             !_files.Keys.Any(p => p.StartsWith("lib/vlc/plugins/", StringComparison.Ordinal) && p.EndsWith(".so", StringComparison.Ordinal)))
             throw new InvalidDataException("The bundled VLC libraries or plugins are missing from the manifest.");

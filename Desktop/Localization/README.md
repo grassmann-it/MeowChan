@@ -1,7 +1,8 @@
 # Desktop language packs
 
-The desktop includes English (`en`) and German (`de`) plus bundled Spanish (`es`),
-French (`fr`) and Russian (`ru`) **Untested** translation previews. English is the
+The desktop includes English (`en`) and German (`de`) plus bundled **Untested**
+translation previews (`es`, `fr`, `ru`, `zh-Hans`, and `ja`, `ko`, `pt-BR`, `cs`,
+`it`, `pl` once their pack files exist; see the table in [Packs](Packs/README.md)). English is the
 initial language and the fallback for missing translations. Display text is
 formatted with the selected language's culture; the download engine's culture is
 not changed.
@@ -13,9 +14,11 @@ it does not create or write language packs. Select an accepted language in Setti
 
 ## Bundled Untested previews
 
-[Spanish, French and Russian](Packs/README.md) are embedded assembly resources,
-loaded at normal startup without copying files into a profile. The choices are
-`Español (Untested)`, `Français (Untested)` and `Русский (Untested)`.
+The [bundled packs](Packs/README.md) are embedded assembly resources, loaded at
+normal startup without copying files into a profile; the file name `Packs/<code>.json`
+is the language code. The choices read like `Español (Untested)` or
+`简体中文 (Untested)`. CJK text needs an installed CJK system font on Linux
+(Noto Sans CJK); see the pack README.
 They are AI-authored and not qualified-human-reviewed supported locales. Existing
 language selection is preserved; offering a bundle does not select it or write
 configuration. Full catalog-key coverage does not cover EN/DE-only helpers or
@@ -54,6 +57,16 @@ optionally followed by hyphen-separated ASCII letter/digit segments of two to
 eight characters, at most 35 characters total. `nativeName` must contain 1–64
 characters, without control characters. The displayed name is trimmed.
 
+Counted texts have a general (plural) base key and an optional `<key>.one` text for a
+count of exactly one, for example `archive.postsCount` and `archive.postsCount.one`.
+Languages with further number forms may add `<key>.few` (also `.many`, `.two`,
+`.zero`); Russian-style languages keep their "many" form in the base key and add
+`.one` and `.few` (Polish too; Czech keeps "other" in the base key). Chinese, Japanese
+and Korean have no number forms: their packs contain no variant keys. These variant keys are optional in a custom pack: a missing
+variant uses the pack's base text, and a variant must use the same placeholders as
+its base key. English, German and the bundled es/fr/ru previews supply the `.one` keys
+listed in `Desktop/Localization/CountCatalog.cs`.
+
 Missing keys fall back to English. Unknown translation keys are ignored, allowing
 a pack to include text introduced by a newer desktop version. A pack must contain
 at least one recognized key. Files are loaded in filename order; duplicate
@@ -65,8 +78,11 @@ may be reordered or repeated. For example, `{0}` cannot become `{1}` or `{0:N2}`
 the source's `{2:0.##}` must remain `{2:0.##}`. Literal braces use `{{` and `}}`.
 Strings are plain text: no XAML, HTML or executable expressions are interpreted.
 
-A file may be at most 2 MB, contain at most 2,000 string entries, and use at most
-10,000 characters per translation. Empty values, unsupported schemas, malformed
+A file may be at most 2 MiB (2,097,152 bytes), contain at most 8,000 string entries, and use at most
+10,000 characters per translation. These are fixed technical ceilings, not settings:
+the size limit bounds memory, the entry limit stops files of countless tiny entries.
+The bundled packs (about 2,900 entries, 250-340 KiB) are tested against 75 % of both
+ceilings so a growing catalog is noticed before the loader would refuse them. Empty values, unsupported schemas, malformed
 JSON, invalid placeholders and unknown metadata reject that file. Other valid
 packs and built-in languages remain usable. Warnings are exposed through
 `Texts.Warnings` for the desktop to display. If a previously selected pack is no

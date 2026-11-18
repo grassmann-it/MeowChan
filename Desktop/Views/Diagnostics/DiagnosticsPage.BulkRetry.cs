@@ -7,6 +7,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -14,7 +15,9 @@ namespace MeowChan;
 
 public partial class DiagnosticsPage
 {
+    // The table holds requests and problems; the platform facts (Information) are listed in their own group.
     private IReadOnlyList<DiagnosticEntry> _visibleDiagnostics = Array.Empty<DiagnosticEntry>();
+    private IReadOnlyList<DiagnosticEntry> _visiblePlatform = Array.Empty<DiagnosticEntry>();
     private string? _diagnosticSourceId;
     private bool _refreshingDiagnosticFilters;
     private bool _diagnosticFiltersReady;
@@ -61,6 +64,7 @@ public partial class DiagnosticsPage
         }
         ApplyDiagnosticFilters();
         RefreshSelection();
+        OnDiagnosticFilterStateChanged();
     }
 
     private void OnClearDiagnosticFilters(object? sender, RoutedEventArgs e)
@@ -76,6 +80,7 @@ public partial class DiagnosticsPage
         }
         finally { _refreshingDiagnosticFilters = false; }
         ApplyDiagnosticFilters(); RefreshSelection();
+        OnDiagnosticFilterStateChanged();
     }
 
     private void ApplyDiagnosticFilters()
@@ -84,7 +89,8 @@ public partial class DiagnosticsPage
         string? query = this.FindControl<TextBox>("DiagnosticTextFilter")!.Text;
         bool problems = this.FindControl<CheckBox>("DiagnosticProblemsOnly")!.IsChecked == true;
         bool includeWaiting = this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!.IsChecked == true;
-        DiagnosticEntry[] visible = _entries.Where(entry => DiagnosticRetryScope.Matches(entry, _diagnosticSourceId, query, problems, includeWaiting)).ToArray();
+        DiagnosticEntry[] matching = _entries.Where(entry => DiagnosticRetryScope.Matches(entry, _diagnosticSourceId, query, problems, includeWaiting)).ToArray();
+        DiagnosticEntry[] visible = matching.Where(entry => entry.Kind != DiagnosticKind.Information).ToArray();
         if (!_visibleDiagnostics.SequenceEqual(visible))
         {
             string? lead = (grid.SelectedItem as DiagnosticEntry)?.Key;
@@ -96,13 +102,55 @@ public partial class DiagnosticsPage
             {
                 _visibleDiagnostics = visible;
                 grid.ItemsSource = visible;
-                grid.SelectedItem = retained.FirstOrDefault(entry => entry.Key == lead) ?? retained.FirstOrDefault();
-                foreach (DiagnosticEntry item in retained)
-                    if (!grid.SelectedItems.Contains(item)) grid.SelectedItems.Add(item);
+                DataGridSelection.Select(grid, retained, retained.FirstOrDefault(entry => entry.Key == lead));
             }
             finally { _refreshingDiagnostics = false; }
         }
-        this.FindControl<TextBlock>("DiagnosticsEmpty")!.IsVisible = visible.Length == 0;
+        ApplyPlatformEntries(matching.Where(entry => entry.Kind == DiagnosticKind.Information).ToArray());
+        RefreshEmptyState();
+    }
+
+    private void ApplyPlatformEntries(DiagnosticEntry[] platform)
+    {
+        DataGrid grid = this.FindControl<DataGrid>("PlatformGrid")!;
+        if (!_visiblePlatform.SequenceEqual(platform))
+        {
+            string? key = (grid.SelectedItem as DiagnosticEntry)?.Key;
+            _syncingSelection = true;
+            try
+            {
+                _visiblePlatform = platform;
+                grid.ItemsSource = platform;
+                grid.SelectedItem = platform.FirstOrDefault(entry => entry.Key == key);
+            }
+            finally { _syncingSelection = false; }
+        }
+        RefreshPlatformHeader();
+    }
+
+    // "Platform (2)": the group's header carries the count of its rows; with no row (a filter hides them) the group is not shown.
+    private void RefreshPlatformHeader()
+    {
+        Expander section = this.FindControl<Expander>("DiagnosticPlatformSection")!;
+        section.IsVisible = _visiblePlatform.Count > 0;
+        section.Header = Texts.T("diagnostics.platform") + " (" + _visiblePlatform.Count + ")";
+    }
+
+    // The table is empty when nothing is current (the healthy state) or when the filters hide everything; the text says which.
+    private void RefreshEmptyState()
+    {
+        TextBlock empty = this.FindControl<TextBlock>("DiagnosticsEmpty")!;
+        empty.IsVisible = _visibleDiagnostics.Count == 0;
+        empty.Text = Texts.T(_entries.Any(entry => entry.Kind != DiagnosticKind.Information) ? "diagnostics.noMatch" : "diagnostics.empty");
+    }
+
+    /// <summary>Primary+F on the Diagnostics page (AP2): the message filter is the page's search field.</summary>
+    internal void FocusSearch()
+    {
+        TextBox text = this.FindControl<TextBox>("DiagnosticTextFilter")!;
+        if (!text.IsEffectivelyVisible) return;
+        text.Focus(Avalonia.Input.NavigationMethod.Tab);
+        text.SelectAll();
     }
 
     private void RefreshDiagnosticFilterLabels()
@@ -112,10 +160,14 @@ public partial class DiagnosticsPage
         AutomationProperties.SetName(sources, Texts.T("sources.title"));
         AutomationProperties.SetName(text, Texts.T("diagnostics.filterText"));
         text.PlaceholderText = Texts.T("diagnostics.filterText");
+        ToolTip.SetTip(text, MeowChan.Desktop.Commands.CommandBindings.Tooltip("input.focus-diagnostics-search"));
         this.FindControl<CheckBox>("DiagnosticProblemsOnly")!.Content = Texts.T("diagnostics.onlyProblems");
-        // Preserve the wrapping TextBlock content; Refresh localizes it using the latest language.
+        // Preserve the TextBlock content; Refresh localizes it using the latest language.
         AutomationProperties.SetName(this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!, Texts.T("diagnostics.includeWaiting"));
-        this.FindControl<Button>("DiagnosticClearFilters")!.Content = Texts.T("diagnostics.clearFilters");
+        SetIconLabel(this.FindControl<Button>("DiagnosticClearFilters")!, "x", Texts.T("diagnostics.clearFilters"));
+        RefreshPlatformHeader();
+        RefreshEmptyState();
+        RefreshWorkViewTexts();
     }
 
     private bool CanRetryScope(IReadOnlyList<DiagnosticRetryTarget> scope) => !_ended && _available && !_retryBusy
@@ -124,7 +176,7 @@ public partial class DiagnosticsPage
 
     private bool CanSubmitFrozen(DiagnosticRetryTarget item, bool media)
     {
-        if (_ended || !_available || !StillHasProblem(item, media)) return false;
+        if (_ended || !_available || IsRemoved(item.Target) || !StillHasProblem(item, media)) return false;
         bool admitted = media ? RetryMediaAsync != null && CanRetryMedia?.Invoke(item.Target) == true
             : _retry != null && _canRetry?.Invoke(item.Target) == true;
         // An advisory callback can itself refresh/end the owner synchronously.
@@ -146,8 +198,14 @@ public partial class DiagnosticsPage
             ToolTip.SetTip(button, Texts.T("diagnostics.retryScope"));
             AutomationProperties.SetHelpText(button, Texts.T("diagnostics.retryScope"));
         }
-        this.FindControl<TextBlock>("DiagnosticFilterSummary")!.Text = Texts.T("diagnostics.filterCount",
-            _visibleDiagnostics.Count, _entries.Count, selected.Length, selection.Length);
+        // One selected target does what "Check now" does: the selection button only exists for a set of several targets.
+        this.FindControl<Button>("RetryDiagnosticSelectionButton")!.IsVisible = selection.Length > 1;
+        // "a / b entries · c selected" only while it says something: a filter is set or rows are selected.
+        TextBlock summary = this.FindControl<TextBlock>("DiagnosticFilterSummary")!;
+        summary.IsVisible = ActiveDiagnosticFilterCount > 0 || selected.Length > 0;
+        summary.Text = summary.IsVisible
+            ? Texts.T("diagnostics.filterCount", _visibleDiagnostics.Count, _entries.Count(entry => entry.Kind != DiagnosticKind.Information), selected.Length)
+            : string.Empty;
     }
 
     private async void OnRetryDiagnosticSelection(object? sender, RoutedEventArgs e)

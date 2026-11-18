@@ -494,7 +494,7 @@ public sealed class NativePrivateApplyRequestNegativeTests
     public void BeforeAfterAndFavoriteBackupImagesAreIndividuallyValidated(int category, int slot, string field)
     {
         NativePrivateMetadataSelection selection = SelectionFor(category);
-        long cap = category == 2 ? PostBookmarkStore.MaximumDocumentBytes : FavoriteStore.MaximumBytes;
+        long cap = category == 2 ? PostBookmarkStore.MaximumDocumentBytes : ProfileStoreLimits.FavoriteFileCeilingBytes;
         NativePrivateApplyStoreImage invalid = field switch
         {
             "schema-low" => Image(schema: 0),

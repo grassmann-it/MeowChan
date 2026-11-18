@@ -1,0 +1,43 @@
+{
+  "schemaVersion": 1,
+  "revision": 2,
+  "groups": [
+    {
+      "id": "1a0251a0-0000-4000-8000-000000000011",
+      "name": "both sources",
+      "members": [
+        {
+          "source": "4chan",
+          "board": "g",
+          "thread": "123"
+        },
+        {
+          "source": "8kun",
+          "board": "g",
+          "thread": "123"
+        },
+        {
+          "source": "4chan",
+          "board": "a",
+          "thread": "9"
+        }
+      ]
+    },
+    {
+      "id": "1a0251a0-0000-4000-8000-000000000012",
+      "name": "empty group",
+      "members": []
+    },
+    {
+      "id": "1a0251a0-0000-4000-8000-000000000013",
+      "name": "caf\u00E9 \u0022quoted\u0022 \\ \uD83D\uDE00",
+      "members": [
+        {
+          "source": "8kun",
+          "board": "g",
+          "thread": "123"
+        }
+      ]
+    }
+  ]
+}

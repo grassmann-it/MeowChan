@@ -53,7 +53,7 @@ public partial class RulesPage
         {
             _filterRenderedDraft = _draft; panel.Children.Clear(); _filterEditor = null;
             panel.IsEnabled = IsEditable && RuleEnabled;
-            panel.Children.Add(RuleFieldLabel(Texts.T("plugins.ruleFilter")));
+            // The block's title is the header of its expander (RefreshPluginFilterHeader), with the filter state beside it.
             ComboBox mode = new() { HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch,
                 ItemsSource = new[] { Texts.T("plugins.filterInherit"), Texts.T("plugins.filterDisabled"), Texts.T("plugins.filterPlugin") }, SelectedIndex = (int)_draft.ImageFilter.Mode };
             AutomationProperties.SetName(mode, Texts.T("plugins.ruleFilter"));
@@ -75,8 +75,8 @@ public partial class RulesPage
                 }
                 _filterRenderedDraft = null; DraftChanged(); RefreshFilterEditor();
             };
-            panel.Children.Add(mode);
-            panel.Children.Add(FilterLabel(Texts.T("plugins.ruleEffect")));
+            // Like the rows above the block: the mode in the 280 dip control column, its effect as the hint on the left.
+            panel.Children.Add(RuleRow(mode, HintLabel(Texts.T("plugins.ruleEffect"))));
             if (_draft.ImageFilter.Mode != MediaImageFilterMode.Plugin) return;
             FilterChoice[] choices = FilterChoices();
             FilterChoice? selectedFilter = choices.FirstOrDefault(choice => choice.PluginId == _draft.ImageFilter.PluginId && choice.Filter.Key == _draft.ImageFilter.FilterKey);
@@ -88,8 +88,7 @@ public partial class RulesPage
                 _draft.ImageFilter = new(MediaImageFilterMode.Plugin, choice.PluginId, choice.Filter.Key, choice.Filter.Settings.Version);
                 _draft.FilterParameters = null; _draft.FilterValidationErrors = Array.Empty<FieldValidationError>(); _draft.FilterSchemaAcknowledged = false; _filterRenderedDraft = null; DraftChanged(); RefreshFilterEditor();
             };
-            panel.Children.Add(RuleFieldLabel(Texts.T("plugins.filterChoice")));
-            panel.Children.Add(select);
+            panel.Children.Add(RuleRow(select, RuleFieldLabel(Texts.T("plugins.filterChoice"))));
             if (selectedFilter == null)
             {
                 panel.Children.Add(FilterLabel(Texts.T("plugins.filterMissing", _draft.ImageFilter.PluginId, _draft.ImageFilter.FilterKey)));
@@ -115,8 +114,8 @@ public partial class RulesPage
             }
             BindFilterParameterChanges(_draft);
             _filterEditor = new(_draft.FilterParameters, FilterScopeIdentity(_draft.Scope)); _filterEditor.ShowErrors(_draft.FilterValidationErrors); panel.Children.Add(_filterEditor);
-            panel.Children.Add(FilterLabel(selectedFilter.Filter.Description));
-            panel.Children.Add(FilterLabel(Texts.T("plugins.filterFormats", string.Join(", ", selectedFilter.Filter.SupportedMimeTypes))));
+            panel.Children.Add(HintLabel(selectedFilter.Filter.Description));
+            panel.Children.Add(HintLabel(Texts.T("plugins.filterFormats", string.Join(", ", selectedFilter.Filter.SupportedMimeTypes))));
             AddGrantControls(panel, selectedFilter);
         }
         finally { _filterRefreshing = false; }
@@ -207,6 +206,7 @@ public partial class RulesPage
         && first.PluginId == second.PluginId && first.FilterKey == second.FilterKey && first.SchemaVersion == second.SchemaVersion
         && first.Parameters.Count == second.Parameters.Count && first.Parameters.All(pair => second.Parameters.TryGetValue(pair.Key, out string? value) && value == pair.Value);
     private static TextBlock FilterLabel(string text) => new() { Text = text, TextWrapping = TextWrapping.Wrap };
+    private static TextBlock HintLabel(string text) { TextBlock label = FilterLabel(text); label.Classes.Add("workspace-help"); return label; }
     private static TextBlock RuleFieldLabel(string text)
     {
         TextBlock label = FilterLabel(text); label.Classes.Add("workspace-field-label"); return label;
@@ -231,7 +231,7 @@ public partial class RulesPage
         AutomationProperties.SetLabeledBy(board, boardLabel);
         AutomationProperties.SetName(board, Texts.T("plugins.grantBoard")); boardField.Children.Add(board);
         TextBlock status = FilterLabel(string.Empty); status.Name = "RuleFilterGrantStatus"; panel.Children.Add(status);
-        StackPanel origins = new() { Spacing = 6 }; panel.Children.Add(origins);
+        StackPanel origins = new() { Spacing = 8 }; panel.Children.Add(origins);
         MediaRuleScope ruleScope = _draft.Scope;
         PluginGrantScope Scope() => new(source.Text?.Trim() ?? string.Empty,
             string.IsNullOrWhiteSpace(board.Text) ? null : board.Text.Trim(), FilterScopeIdentity(ruleScope));
@@ -258,7 +258,7 @@ public partial class RulesPage
         }
         source.TextChanged += (_, _) => { target.Source = source.Text ?? string.Empty; Status(); };
         board.TextChanged += (_, _) => { target.Board = board.Text ?? string.Empty; Status(); }; Status();
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 6 };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8 };
         Button allow = new() { Content = Texts.T("plugins.grantRequired") };
         allow.Click += async (_, _) => await ChangeRuleGrantAsync(filter, Scope(), filter.Filter.RequiredAccess);
         actions.Children.Add(allow); panel.Children.Add(actions);

@@ -1,13 +1,16 @@
+using MeowChan.Desktop.WorkViews;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
@@ -17,20 +20,20 @@ public partial class ArchivePage
 {
     private ArchiveSearchSpec _query = new ArchiveSearchSpec();
     private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
-        int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error);
+        int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error, bool AutoExpanded = false);
     private sealed record ReaderHistoryEntry(ArchivedThreadView View, int Offset, ReaderAnchor? Anchor,
         IReadOnlyList<InlineReplyState> Replies);
 
     private InlineReplyState[] CaptureInlineReplyState() =>
-        (Control<ListBox>("ArchivePosts").ItemsSource as IEnumerable<ArchivePostRow>)?
+        (ArchivePosts.ItemsSource as IEnumerable<ArchivePostRow>)?
             .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError)
             .Select(row => new InlineReplyState(row.Id, row.RepliesExpanded, row.RepliesLoaded,
-                row.BacklinkCount, row.RepliesOffset, Array.AsReadOnly(row.Replies.ToArray()), row.RepliesError))
+                row.BacklinkCount, row.RepliesOffset, Array.AsReadOnly(row.Replies.ToArray()), row.RepliesError, row.RepliesAutoExpanded))
             .ToArray() ?? Array.Empty<InlineReplyState>();
 
     private void RestoreInlineReplyState(IReadOnlyList<InlineReplyState> states)
     {
-        if (Control<ListBox>("ArchivePosts").ItemsSource is not IEnumerable<ArchivePostRow> rows) return;
+        if (ArchivePosts.ItemsSource is not IEnumerable<ArchivePostRow> rows) return;
         Dictionary<string, InlineReplyState> byId = states.ToDictionary(state => state.PostId, StringComparer.Ordinal);
         foreach (ArchivePostRow row in rows)
         {
@@ -41,6 +44,7 @@ public partial class ArchivePage
             else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
             row.SetRepliesError(state.Error);
             row.RepliesExpanded = state.Expanded;
+            row.RepliesAutoExpanded = state.Expanded && state.AutoExpanded;
         }
     }
     private readonly LinkedList<ReaderHistoryEntry> _history = new();
@@ -54,16 +58,29 @@ public partial class ArchivePage
     private void LocalizeSearch()
     {
         UpdateSuggestionHint();
-        Control<TextBox>("ArchiveSearchText").PlaceholderText = Texts.T("archive.searchHint");
-        Control<IdentitySuggestionBox>("ArchiveSourceFilter").PlaceholderText = Texts.T("archive.sourceFilter");
-        Control<IdentitySuggestionBox>("ArchiveBoardFilter").PlaceholderText = Texts.T("archive.boardFilter");
-        Control<Expander>("ArchiveFilters").Header = Texts.T("archive.filters");
+        ArchiveSearchText.PlaceholderText = Texts.T("archive.searchHint");
+        // Short placeholders; the visible label above each field names what it filters.
+        ArchiveSourceFilter.PlaceholderText = Texts.T("archive.filter.all");
+        ArchiveBoardFilter.PlaceholderText = Texts.T("archive.filter.all");
+        foreach ((string field, string key) in new[] {
+            ("ArchiveSourceFilter", "archive.filter.source"), ("ArchiveBoardFilter", "archive.filter.board"),
+            ("ArchiveStateFilter", "archive.filter.state"), ("ArchiveTagChoice", "tags.filter.label"),
+            ("ArchiveTagMode", "tags.filter.matchLabel"), ("ArchiveCaptureFilter", "archive.filter.capture"),
+            ("ArchivePostsFilter", "archive.filter.content"), ("ArchiveWorkFilter", "archive.filter.work"),
+            ("ArchiveSort", "archive.filter.sort") })
+        {
+            Control<TextBlock>(field + "Label").Text = Texts.T(key);
+            // The tag picker names itself ("Add tag…", labelled by this label); the others carry the label as their name.
+            if (field != "ArchiveTagChoice") AutomationProperties.SetName(Control<Control>(field), Texts.T(key));
+        }
+        UpdateArchiveFilterToggle();
         SetOptions("ArchiveStateFilter", "archive.allStates", "archive.sourceActive", "archive.sourceArchived", "archive.sourceMissing");
         SetOptions("ArchiveCaptureFilter", "archive.allCapture", "archive.captureEnabled", "archive.captureDisabled");
         SetOptions("ArchivePostsFilter", "archive.allContent", "archive.withPosts", "archive.withoutPosts");
         SetOptions("ArchiveWorkFilter", "gallery.allWork", "gallery.watching", "gallery.followup",
             "gallery.intervention", "gallery.completed", "gallery.stopped");
-        SetOptions("ArchiveSort", "archive.latest", "archive.oldest", "archive.titleSort");
+        SetOptions("ArchiveSort", "archive.latest", "archive.oldest", "archive.titleSort", "archive.relevanceSort");
+        LocalizeTextScope();
         LocalizeSearchEditors(); UpdateAppliedFilters(); UpdateSuggestionHint();
     }
     private void SetOptions(string name, params string[] keys)
@@ -78,17 +95,38 @@ public partial class ArchivePage
         }
         finally { _localizingSearchOptions = false; }
     }
-    private async void OnSearchClick(object? sender, RoutedEventArgs e) => await ApplySearchAsync();
+    private async void OnSearchClick(object? sender, RoutedEventArgs e)
+    {
+        // AP2: in the File name and SHA-256 scopes the one Search button opens that scope's results.
+        if (ArchiveScope != MeowChan.Desktop.Controls.SearchScope.Text) { RunArchiveScope(ArchiveScopedBox); return; }
+        await ApplySearchAsync();
+    }
     private async void OnSearchKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;
         e.Handled = true;
+        // Enter in a source or board field with text adds it; the user sees the chip before searching.
+        // Enter on an empty field or in the text field searches.
+        if (sender is IdentitySuggestionBox editor && !string.IsNullOrWhiteSpace(editor.Text))
+        { await AddIdentityAsync(ReferenceEquals(editor, ArchiveBoardFilter)); return; }
         await ApplySearchAsync();
     }
     internal async Task ApplySearchAsync()
     {
         if (IsFilenameSearchOpen || _busy || _ended || !CanRead) return;
         long validation = ++_searchValidationGeneration;
+        // Leftover state, source or board input is added first, exactly like Enter in its field. Only an invalid
+        // value stops the search; its message stays under that field alone while the field can be shown.
+        AddChosenState();
+        foreach (IdentitySuggestionBox editor in new[] { ArchiveSourceFilter, ArchiveBoardFilter })
+        {
+            if (await AddIdentityAsync(ReferenceEquals(editor, ArchiveBoardFilter))) continue;
+            if (validation != _searchValidationGeneration || !DataValidationErrors.GetHasErrors(editor)) return;
+            _invalidSearchEditor = editor;
+            ShowSearchError(DataValidationErrors.GetErrors(editor)?.OfType<object>().FirstOrDefault()?.ToString() ?? string.Empty, validation);
+            return;
+        }
+        if (validation != _searchValidationGeneration || _busy || _ended || !CanRead) return;
         try
         {
             ArchiveSearchRequest request = CreateSearchRequest(ReadSearchDraft());
@@ -96,21 +134,28 @@ public partial class ArchivePage
             _showReader = false; UpdateLayoutMode();
             await LoadListAsync(NewListLoad(request));
         }
-        catch (Exception exception)
-        {
-            SearchEditorError(exception.Message);
-            RevealSearchValidationError(validation);
-        }
+        catch (Exception exception) { ShowSearchError(exception.Message, validation); }
+    }
+    // A field error stands once, directly under its field. The line above the toolbar carries it only when
+    // the field cannot show it (filter surface closed, field hidden) and for errors without a field.
+    private void ShowSearchError(string message, long validation)
+    {
+        RevealSearchValidationError(validation); // Opens the filter surface for a field error.
+        Control? field = _invalidSearchEditor == null ? null : ValidationFocusTarget(_invalidSearchEditor);
+        bool underField = field != null && IsFilterSurfaceOpen && field.IsEffectivelyVisible
+            && (DataValidationErrors.GetHasErrors(field) || DataValidationErrors.GetHasErrors(_invalidSearchEditor!));
+        SearchEditorError(underField ? string.Empty : message);
     }
     private void CancelReferences()
     {
         ++_referenceRequest;
         _referenceCancellation?.Cancel();
         _backlinkPost = null;
-        Control<ListBox>("ArchiveReferences").ItemsSource = null;
-        Control<TextBlock>("ArchiveReferencesTitle").Text = string.Empty;
-        Control<Button>("PreviousReferences").IsEnabled = false;
-        Control<Button>("NextReferences").IsEnabled = false;
+        ArchiveReferences.ItemsSource = null;
+        ArchiveReferencesTitle.Text = string.Empty;
+        ShowReferencesTab(null);
+        PreviousReferences.IsEnabled = false;
+        NextReferences.IsEnabled = false;
     }
     private async void OnQuoteClick(object? sender, RoutedEventArgs e)
     {
@@ -119,9 +164,10 @@ public partial class ArchivePage
     internal async Task NavigateQuoteAsync(ArchiveQuoteRow row)
     {
         if (_ended || IsFilenameSearchOpen || _busy || !CanRead || _openReader == null) return;
-        ReaderAnchor? originAnchor = row.Backlink && Control<TabControl>("ArchiveContentTabs").SelectedIndex == 2
+        ReaderAnchor? originAnchor = row.Backlink && ArchiveContentTabs.SelectedIndex == 2
             ? _backlinkOriginAnchor ?? CaptureReaderAnchor() : CaptureReaderAnchor();
         CancelReferences();
+        CloseQuotePreview();
         int request = _referenceRequest;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _referenceCancellation = loading;
@@ -145,14 +191,30 @@ public partial class ArchivePage
             }
             ShowCapturedView(resolved.View, resolved.PostIndex.Value / PageSize * PageSize, resolved.Post!.PostId);
             await FocusPostAsync(resolved.Post.PostId);
+            if (!_ended && request == _referenceRequest) _ = FlashPostAsync(resolved.Post.PostId);
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
         catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }
         finally { if (ReferenceEquals(_referenceCancellation, loading)) _referenceCancellation = null; }
     }
+    /// <summary>
+    /// The large reader's entry for a thread (the "Large reader" button, Enter and double-click on a row, the menu entries, Downloads): the embedded
+    /// reader's own thread keeps its page, selected post and scroll place (the same anchor the paging and the live refresh keep); another thread starts
+    /// at its first post, a jump of any kind (a quote, "Show in thread", a bookmark) goes its own way and wins over both.
+    /// <paramref name="openReader"/> moves the pane to the large reader; the place is taken before that, while the pane still lies where the user left it.
+    /// </summary>
+    internal Task OpenReaderOnThreadAsync(ResourceId id, Action openReader, ArchivedThreadView? preparedThread = null)
+    {
+        ArgumentNullException.ThrowIfNull(openReader);
+        ReaderAnchor? kept = !_largeReader && !_busy && !_ended && _thread?.Summary.Id == id ? CaptureReaderAnchor() : null;
+        openReader();
+        return LoadThreadAsync(id, resetPage: kept == null, preparedThread, null, entryAnchor: kept);
+    }
+
     private void ShowCapturedView(ArchivedThreadView view, int offset, string? postId = null)
     {
         InvalidateFilenameSearch();
+        if (_unreadMark?.Thread != view.Summary.Id) _unreadMark = null;
         ++_contentRequest;
         BeginContentFeedback();
         _contentCancellation?.Cancel();
@@ -163,12 +225,14 @@ public partial class ArchivePage
         _thread = view;
         ReaderSnapshotLoaded();
         _postOffset = offset;
+        // With a post, the page is the one that holds it in the shown order (the offset is the thread's own page).
+        _projectionPagePost = postId;
         _assets = Array.Empty<ArchiveAssetRow>();
         _showReader = true;
         RenderThread();
         UpdateLayoutMode();
-        Control<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
-        ListBox posts = Control<ListBox>("ArchivePosts");
+        ArchiveContentTabs.SelectedIndex = 0;
+        ListBox posts = ArchivePosts;
         if (posts.ItemsSource is IEnumerable<ArchivePostRow> rows && postId != null)
         {
             posts.SelectedItem = rows.FirstOrDefault(post => post.Id == postId);
@@ -177,6 +241,28 @@ public partial class ArchivePage
         Message(string.Empty);
         MediaLoadTask = LoadMediaAsync(view);
     }
+    // The large reader names where Close goes ("Back to Archive", "Back to Downloads"); without a known target it stays "Close".
+    // Presentation only: the command, Escape and the way back are those of reader.close.
+    private string? _readerCloseTargetKey;
+
+    internal string ReaderCloseLabel => _readerCloseTargetKey is { } key ? Texts.T(key) : CommandCatalog.Label("reader.close");
+
+    internal void SetReaderCloseTarget(string? textKey)
+    {
+        if (_readerCloseTargetKey == textKey) return;
+        _readerCloseTargetKey = textKey;
+        ApplyReaderCloseLabel();
+    }
+
+    private void ApplyReaderCloseLabel()
+    {
+        if (_readerCloseTargetKey is { } key) CommandBindings.ApplyLabeled(ArchiveCloseReader, "reader.close", Texts.T(key));
+        else CommandBindings.Apply(ArchiveCloseReader, "reader.close", iconWithLabel: true);
+    }
+
+    // State, not the button: the toolbar may keep ArchiveHistoryBack under More or hide it for the layout, and Alt+Left still has to go back.
+    internal bool CanGoHistoryBack => !_busy && !_ended && !IsFilenameSearchOpen && _history.Last != null;
+    internal void GoHistoryBackByShortcut() { if (CanGoHistoryBack) OnHistoryBack(null, new RoutedEventArgs()); }
     private async void OnHistoryBack(object? sender, RoutedEventArgs e)
     {
         if (IsFilenameSearchOpen) return;
@@ -189,15 +275,21 @@ public partial class ArchivePage
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);
     }
-    private async void OnBacklinksClick(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// The References tab exists only while captured replies are listed. A known count above zero shows it as "References (n)";
+    /// null hides it (or, with present, keeps it shown while the list loads); zero hides it.
+    /// </summary>
+    private void ShowReferencesTab(int? total, bool present = false)
     {
-        if (_thread == null || sender is not Button { DataContext: ArchivePostRow row }) return;
-        _backlinkOriginAnchor = CaptureReaderAnchor();
-        CancelReferences();
-        _backlinkPost = new ArchivePostId(_thread.Summary.Id, row.Id);
-        _referenceOffset = 0;
-        await LoadBacklinksAsync();
+        _referencesCount = total;
+        bool show = present || total is > 0;
+        if (!show && ArchiveContentTabs.SelectedItem == ArchiveReferencesTab) ArchiveContentTabs.SelectedIndex = 0;
+        WorkViewGate.Apply(ArchiveReferencesTab, ArchiveWorkView, show); // data access: shown in every view whenever it has replies
+        ArchiveReferencesTab.Header = ReferencesTabHeader();
     }
+    private int? _referencesCount;
+    private string ReferencesTabHeader() => _referencesCount is > 0 and var count
+        ? Texts.T("archive.referencesCount", count.ToString(Texts.Culture)) : Texts.T("archive.references");
     private async Task LoadBacklinksAsync()
     {
         if (_busy || _ended || !CanRead || _openReader == null || _backlinkPost == null) return;
@@ -207,19 +299,23 @@ public partial class ArchivePage
         _referenceCancellation = loading;
         ClearOperationError("reference");
         ArchivePostId post = _backlinkPost;
-        Control<TabControl>("ArchiveContentTabs").SelectedIndex = 2;
-        Control<TextBlock>("ArchiveReferencesTitle").Text = Texts.T("archive.loading");
+        ShowReferencesTab(null, present: true); // present while loading, so the selection below is a visible tab
+        ArchiveContentTabs.SelectedIndex = 2;
+        ArchiveReferencesTitle.Text = Texts.T("archive.loading");
         try
         {
             await using ArchiveReader reader = await _openReader(loading.Token);
             ArchiveQuotePage result = await reader.GetBacklinksAsync(post, _referenceOffset, PageSize, loading.Token);
             if (_ended || request != _referenceRequest) return;
             _referenceTotal = result.TotalCount;
-            Control<ListBox>("ArchiveReferences").ItemsSource = result.Items.Select(quote => new ArchiveQuoteRow(quote, true)).ToArray();
-            Control<TextBlock>("ArchiveReferencesTitle").Text = Texts.T(result.TotalCount == 0 ? "archive.noBacklinks" : "archive.backlinks", post.PostId);
-            Control<TextBlock>("ArchiveReferencesPage").Text = PageLabel(_referenceOffset, _referenceTotal);
-            Control<Button>("PreviousReferences").IsEnabled = _referenceOffset > 0;
-            Control<Button>("NextReferences").IsEnabled = _referenceOffset + PageSize < _referenceTotal;
+            ArchiveReferences.ItemsSource = result.Items.Select(quote => new ArchiveQuoteRow(quote, true)).ToArray();
+            ArchiveReferencesTitle.Text = Texts.T(result.TotalCount == 0 ? "archive.noBacklinks" : "archive.backlinks", post.PostId);
+            ArchiveReferencesPage.Text = PageLabel(_referenceOffset, _referenceTotal);
+            PreviousReferences.IsEnabled = _referenceOffset > 0;
+            NextReferences.IsEnabled = _referenceOffset + PageSize < _referenceTotal;
+            // A post nobody replied to has nothing to list: the tab goes away and the reader shows the posts again.
+            ShowReferencesTab(_referenceTotal);
+            if (_referenceTotal == 0) ArchiveContentTabs.SelectedIndex = 0;
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested) { }
         catch (Exception exception) { if (!_ended && request == _referenceRequest) OperationMessage("reference", exception.Message, true); }

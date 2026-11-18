@@ -58,9 +58,26 @@ public sealed class GalleryPlaybackPreferenceTests
         Assert.Equal("Manual", config.GalleryPlaybackMode);
         Assert.Equal(expected, config.GallerySlideshowSeconds);
         Assert.False(config.GalleryMediaFocus);
-        Assert.False(config.GalleryOverlayControls);
-        Assert.False(config.GalleryAutoHideControls);
+        Assert.True(config.GalleryOverlayControls); // damaged reads as the default, which is on
+        Assert.True(config.GalleryAutoHideControls);
         Assert.False(config.GalleryOverlayPostContext);
+    }
+
+    [Fact]
+    public void ControlsOverlayIsOnByDefaultAndAnExplicitlySavedChoiceIsKept()
+    {
+        Assert.True(new Config().GalleryOverlayControls);
+        Assert.True(new Config().GalleryAutoHideControls);
+        Assert.True(new GalleryPlaybackPreferences().OverlayControls);
+        using Profile profile = new();
+        Assert.True(GalleryPlaybackPreferences.FromConfig(Config.LoadConfig(profile.Path)).OverlayControls); // no profile: the default
+        File.WriteAllText(Path.Combine(profile.Path, "settings.json"), "{\"VideoVolume\":29}");
+        Assert.True(Config.LoadConfig(profile.Path).GalleryOverlayControls); // a profile without the key: the default
+        File.WriteAllText(Path.Combine(profile.Path, "settings.json"), "{\"GalleryOverlayControls\":false,\"GalleryAutoHideControls\":false}");
+        Config saved = Config.LoadConfig(profile.Path);
+        Assert.False(saved.GalleryOverlayControls); // a saved off stays off
+        Assert.False(saved.GalleryAutoHideControls);
+        Assert.False(GalleryPlaybackPreferences.FromConfig(saved).OverlayControls);
     }
 
     [Fact]
@@ -69,9 +86,9 @@ public sealed class GalleryPlaybackPreferenceTests
         Config live = new();
         Config draft = live.Clone();
         draft.GallerySlideshowSeconds = 17;
-        new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat, 7, true, true, true, true).ApplyTo(live);
+        new GalleryPlaybackPreferences(GalleryPlaybackMode.Manual, 7, true, true, true, true, VideoRepeat: true).ApplyTo(live);
         live.CopySettingsFieldsFrom(draft);
-        Assert.Equal(new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat, 17, true, true, true, true),
+        Assert.Equal(new GalleryPlaybackPreferences(GalleryPlaybackMode.Manual, 17, true, true, true, true, VideoRepeat: true),
             GalleryPlaybackPreferences.FromConfig(live));
     }
 
@@ -79,10 +96,11 @@ public sealed class GalleryPlaybackPreferenceTests
     public void DirectModeChangeDoesNotOverwriteUnrelatedNewerSettings()
     {
         var shown = new GalleryPlaybackPreferences();
-        var edited = shown with { Mode = GalleryPlaybackMode.Repeat };
+        var edited = shown with { Mode = GalleryPlaybackMode.Slideshow, VideoRepeat = true };
         Config current = new() { GallerySlideshowSeconds = 19, GalleryOverlayControls = true };
         edited.ApplyChangesTo(current, shown);
-        Assert.Equal("Repeat", current.GalleryPlaybackMode);
+        Assert.Equal("Slideshow", current.GalleryPlaybackMode);
+        Assert.True(current.GalleryVideoRepeat);
         Assert.Equal(19, current.GallerySlideshowSeconds);
         Assert.True(current.GalleryOverlayControls);
     }
@@ -97,12 +115,12 @@ public sealed class GalleryPlaybackPreferenceTests
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             Config draft = host.Config.Clone();
             draft.GallerySlideshowSeconds = 21;
-            var direct = new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat, 8, true, true, true, false);
+            var direct = new GalleryPlaybackPreferences(GalleryPlaybackMode.Manual, 8, true, true, true, false, VideoRepeat: true);
             await host.SaveViewPreferencesAsync(direct.ApplyTo).WaitAsync(TimeSpan.FromSeconds(15));
             await host.ApplySettingsAsync(draft).WaitAsync(TimeSpan.FromSeconds(15));
             Assert.Equal(direct with { ImageSeconds = 21 }, GalleryPlaybackPreferences.FromConfig(host.Config));
         }
-        Assert.Equal(new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat, 21, true, true, true, false),
+        Assert.Equal(new GalleryPlaybackPreferences(GalleryPlaybackMode.Manual, 21, true, true, true, false, VideoRepeat: true),
             GalleryPlaybackPreferences.FromConfig(Config.LoadConfig(profile.Path)));
     }
 
@@ -117,8 +135,8 @@ public sealed class GalleryPlaybackPreferenceTests
         Config initial = new() { AutomaticUpdateChecks = false, VideoAutoplay = false, VideoStartMuted = true };
         new GalleryPlaybackPreferences(GalleryPlaybackMode.Slideshow).WithControlsOverlay(initiallyEnabled).ApplyTo(initial);
         initial.SaveConfig(profile.Path);
-        var expected = new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat, 21, true,
-            !initiallyEnabled, !initiallyEnabled, true);
+        var expected = new GalleryPlaybackPreferences(GalleryPlaybackMode.Manual, 21, true,
+            !initiallyEnabled, !initiallyEnabled, true, VideoRepeat: true);
         await using (var host = new DesktopSessionHost(profile.Path, Array.Empty<IImageBoard>()))
         {
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
@@ -135,7 +153,7 @@ public sealed class GalleryPlaybackPreferenceTests
             // Newer direct choices land after the settings draft has captured its baseline.
             await host.SaveViewPreferencesAsync(config =>
             {
-                new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat, 8, editPair, OverlayPostContext: editPair)
+                new GalleryPlaybackPreferences(GalleryPlaybackMode.Manual, 8, editPair, OverlayPostContext: editPair, VideoRepeat: true)
                     .WithControlsOverlay(editPair ? initiallyEnabled : !initiallyEnabled).ApplyTo(config);
                 if (editPair) config.VideoVolume = 29;
             }).WaitAsync(TimeSpan.FromSeconds(15));
@@ -155,7 +173,7 @@ public sealed class GalleryPlaybackPreferenceTests
     }
 
     [Theory]
-    [InlineData(" repeat ", "Repeat")]
+    [InlineData(" repeat ", "Manual")]
     [InlineData("SLIDESHOW", "Slideshow")]
     [InlineData("unexpected", "Manual")]
     public void ModeIsNormalizedWithoutInventingAnActiveSession(string value, string expected)
@@ -197,14 +215,14 @@ public sealed class GalleryPlaybackPreferenceTests
     [InlineData("true", "false", true)]
     [InlineData("false", "false", false)]
     [InlineData("true", "true", true)]
-    [InlineData(null, "true", false)]
+    [InlineData(null, "true", true)]
     [InlineData("true", null, true)]
-    [InlineData(null, null, false)]
-    [InlineData("null", "true", false)]
-    [InlineData("{}", "true", false)]
-    [InlineData("[]", "true", false)]
-    [InlineData("\"true\"", "true", false)]
-    [InlineData("42", "true", false)]
+    [InlineData(null, null, true)]
+    [InlineData("null", "true", true)]
+    [InlineData("{}", "true", true)]
+    [InlineData("[]", "true", true)]
+    [InlineData("\"true\"", "true", true)]
+    [InlineData("42", "true", true)]
     [InlineData("true", "null", true)]
     [InlineData("true", "[]", true)]
     [InlineData("true", "{}", true)]
@@ -282,8 +300,8 @@ public sealed class GalleryPlaybackPreferenceTests
         live.CopySettingsFieldsFrom(draft);
         AssertPair(live, !initiallyEnabled);
         Assert.Equal(29, live.VideoVolume);
-        Assert.Equal(new GalleryPlaybackPreferences(GalleryPlaybackMode.Repeat, 19, true,
-            !initiallyEnabled, !initiallyEnabled, true), GalleryPlaybackPreferences.FromConfig(live));
+        Assert.Equal(new GalleryPlaybackPreferences(GalleryPlaybackMode.Manual, 19, true,
+            !initiallyEnabled, !initiallyEnabled, true, VideoRepeat: true), GalleryPlaybackPreferences.FromConfig(live));
     }
 
     [Theory]

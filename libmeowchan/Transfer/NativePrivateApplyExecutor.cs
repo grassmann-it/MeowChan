@@ -114,7 +114,9 @@ internal static class NativePrivateApplyExecutor
             {
                 cursor = ProcessStore(journal, request, lease, admission, cursor, kind,
                     cancellationToken);
-                if (cursor.HasTerminalReceipt)
+                // Recovery can be terminal in the chain without receipt.json.
+                // Stop before another store or a synthetic Completed receipt.
+                if (cursor.HasTerminalReceipt || NativePrivateApplyRecovery.IsTerminal(cursor.State.Phase))
                     return new(cursor, isReplay: false);
             }
             catch (OperationCanceledException)
@@ -288,16 +290,20 @@ internal static class NativePrivateApplyExecutor
         NativePrivateApplyStoreKind kind, CancellationToken token)
     {
         NativePrivateApplyStoreFence fence = FenceFor(request, kind);
+        // Retirement validates the backup it is handed against the batch's own fence: a pre-existing
+        // primary must be re-supplied, otherwise the fallback backup is expected. Passing the backup
+        // unconditionally made a successful publication fail afterwards and left recovery work.
+        NativePrivateApplyStoreImage? backup = fence.Before?.Exists == true ? fence.Before : fence.BeforeBackup;
         return kind switch
         {
             NativePrivateApplyStoreKind.ThreadFavorites =>
                 ((ThreadFavoriteStore)prepared.Store).RetirePreparedBatchMarkerAdmitted(
                     prepared.Batch, request.OperationId, request.ContentPlanSha256, kind,
-                    fence.ExpectedAfter, fence.BeforeBackup, admission, token),
+                    fence.ExpectedAfter, backup, admission, token),
             NativePrivateApplyStoreKind.MediaFavorites =>
                 ((FavoriteStore)prepared.Store).RetirePreparedBatchMarkerAdmitted(
                     prepared.Batch, request.OperationId, request.ContentPlanSha256, kind,
-                    fence.ExpectedAfter, fence.BeforeBackup, admission, token),
+                    fence.ExpectedAfter, backup, admission, token),
             NativePrivateApplyStoreKind.PostBookmarksAndNotes =>
                 ((PostBookmarkStore)prepared.Store).RetirePreparedBatchMarkerAdmitted(
                     prepared.Batch, request.OperationId, request.ContentPlanSha256, kind,

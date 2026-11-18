@@ -14,6 +14,9 @@ internal static class ClipboardChecks
 {
     private static FixtureClipboard? _clipboard;
 
+    // Null without the isolated fixture (non-Linux); drop checks compare it before and after.
+    internal static int? FixtureReadCount => _clipboard?.ReadCount;
+
     // Avalonia X11 resolves the window clipboard through this platform service.
     // Install after platform services, before App creates any windows.
     public static void Install()
@@ -26,7 +29,7 @@ internal static class ClipboardChecks
     }
 
     internal static async Task<bool> CheckIsolatedCopyAsync(Window window, Func<Task> copy,
-        IReadOnlyList<string> requiredValues, IReadOnlyList<string> forbiddenValues)
+        IReadOnlyList<string> requiredValues, IReadOnlyList<string> forbiddenValues, string? exactText = null)
     {
         if (_clipboard == null)
         {
@@ -41,8 +44,9 @@ internal static class ClipboardChecks
         await WaitUntilAsync(() => clipboard.WriteCount == writes + 1);
         string payload = clipboard.WrittenText ?? string.Empty;
         if (clipboard.ReadCount != reads || requiredValues.Any(value => !payload.Contains(value, StringComparison.Ordinal))
-            || forbiddenValues.Any(value => payload.Contains(value, StringComparison.Ordinal)))
-            throw new InvalidOperationException("Technical copy omitted a full identity, exposed draft/settings text, or read the clipboard.");
+            || forbiddenValues.Any(value => payload.Contains(value, StringComparison.Ordinal))
+            || (exactText != null && !string.Equals(payload, exactText, StringComparison.Ordinal)))
+            throw new InvalidOperationException("Technical copy changed the requested text, omitted a full identity, exposed draft/settings text, or read the clipboard.");
         return true;
     }
 

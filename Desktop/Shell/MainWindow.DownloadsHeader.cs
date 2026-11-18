@@ -8,6 +8,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Commands;
 using Ursa.Controls;
 
@@ -18,22 +19,24 @@ public partial class MainWindow
 
     private void InitializeDownloadsHeader()
     {
-        WorkspaceControl<Button>("DownloadsColumnsButton").Command = new DelegateCommand(
-            () => OnDownloadsColumnsClick(WorkspaceControl<Button>("DownloadsColumnsButton"), new RoutedEventArgs()),
+        DownloadsColumnsButton.Command = new DelegateCommand(
+            () => OnDownloadsColumnsClick(DownloadsColumnsButton, new RoutedEventArgs()),
             () => !_isClosing);
-        WorkspaceControl<Button>("CopyAllUrlsButton").Command = new DelegateCommand(
+        CopyAllUrlsButton.Command = new DelegateCommand(
             async () => await CopyUrlsAsync(UrlList.Select(row => row.Url).Concat(BoardsList.Select(row => row.Url))),
             () => !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0));
-        ComboBox modes = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
+        ComboBox modes = WorkspaceModeComboBox;
         RefreshWorkspaceModeSelectionPresentation(modes);
         modes.DropDownOpened += (_, _) => RefreshWorkspaceModeDescriptions();
         modes.DropDownClosed += (_, _) => RefreshWorkspaceModeDescriptions();
     }
 
     internal static void RefreshWorkspaceModeSelectionPresentation(ComboBox modes) =>
+        // The selector has a fixed width in the footer: a long view name ("Zaawansowany", "Расширенный") ends in an ellipsis instead of
+        // running under the drop-down arrow (narrow-window sweep, 16.11.2026); the full name is the item's own text in the open list.
         modes.SelectionBoxItemTemplate = new FuncDataTemplate<object>((value, _) => new TextBlock
         {
-            Text = WorkspaceModeSelectionText(value)
+            Text = WorkspaceModeSelectionText(value), TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis
         });
 
     private static string? WorkspaceModeSelectionText(object? value) => value switch
@@ -45,7 +48,7 @@ public partial class MainWindow
 
     private void RefreshWorkspaceModeDescriptions()
     {
-        ComboBox modes = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
+        ComboBox modes = WorkspaceModeComboBox;
         bool open = modes.IsDropDownOpen;
         foreach ((string name, string mode) in new[] { ("BarebonesModeItem", "barebones"), ("SimpleModeItem", "simple"), ("AdvancedModeItem", "advanced") })
         {
@@ -53,15 +56,15 @@ public partial class MainWindow
             string title = Texts.T("mode." + mode);
             if (open)
             {
-                item.Content = new StackPanel { Spacing = 3, MaxWidth = 320, Children =
+                item.Content = new StackPanel { Spacing = 4, MaxWidth = 320, Children =
                 {
                     new TextBlock { Text = title },
-                    new TextBlock { Text = Texts.T("mode." + mode + "Description"), FontSize = 12, TextWrapping = Avalonia.Media.TextWrapping.Wrap },
-                    new TextBlock { Text = Texts.T("mode.sameSession"), FontSize = 11, TextWrapping = Avalonia.Media.TextWrapping.Wrap }
+                    new TextBlock { Text = Texts.T("workview.description." + mode), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.MetaText(),
+                    new TextBlock { Text = Texts.T("mode.sameSession"), TextWrapping = Avalonia.Media.TextWrapping.Wrap }.CaptionText()
                 }};
             }
             else item.Content = title;
-            AutomationProperties.SetName(item, open ? title + ". " + Texts.T("mode." + mode + "Description") + ". " + Texts.T("mode.sameSession") : title);
+            AutomationProperties.SetName(item, open ? title + ". " + Texts.T("workview.description." + mode) + ". " + Texts.T("mode.sameSession") : title);
         }
         // The selected item object stays the same when its label is localized. Avalonia
         // can keep the TextBlock built by SelectionBoxItemTemplate, so replace that
@@ -72,14 +75,11 @@ public partial class MainWindow
     private void UpdateDownloadsHeaderLayout()
     {
         if (!_workspaceInitialized) return;
-        OverflowMode mode = _config.WorkspaceMode == "Barebones" ? OverflowMode.Always : OverflowMode.AsNeeded;
-        foreach (string name in new[] { "DownloadsColumnsButton", "CopyAllUrlsButton" })
-        {
-            Button button = WorkspaceControl<Button>(name);
-            ToolBar.SetOverflowMode(button, mode);
-            CommandBindings.Refresh(button);
-        }
-        ActionToolBar toolbar = WorkspaceControl<ActionToolBar>("WorkspaceListActions");
+        // Search, Columns…, Copy URLs and Details follow the view (WorkViewPolicy.Downloads); under "More" their shortcuts keep working.
+        ActionToolBar toolbar = WorkspaceListActions;
+        WorkViewPresenter.ApplyToolBar(toolbar, ConfiguredWorkView);
+        foreach (string name in new[] { "DownloadSearchButton", "DownloadsColumnsButton", "CopyAllUrlsButton" })
+            CommandBindings.Refresh(WorkspaceControl<Button>(name));
         AutomationProperties.SetName(toolbar, Texts.T("downloads.title"));
         toolbar.RefreshOverflowLabel();
         toolbar.InvalidateMeasure();

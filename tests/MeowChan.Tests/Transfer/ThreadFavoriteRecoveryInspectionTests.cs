@@ -278,7 +278,7 @@ public sealed class ThreadFavoriteRecoveryInspectionTests
         if (oversize)
         {
             using FileStream file = File.Create(Primary(temp.Path));
-            file.SetLength(ThreadFavoriteStore.MaximumBytes + 1L);
+            file.SetLength(ProfileStoreLimits.DefaultFavoriteFileBytes + 1L);
         }
         else File.WriteAllBytes(Primary(temp.Path), [0xff, 0xfe, 0x80]);
         InspectUnchanged(lease, MissingFence(), PrivateStoreBatchInspection.Unreadable);

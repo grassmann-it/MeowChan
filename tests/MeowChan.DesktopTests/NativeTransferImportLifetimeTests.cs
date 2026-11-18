@@ -47,6 +47,43 @@ public sealed class NativeTransferImportLifetimeTests
         Assert.Equal(DesktopSessionState.Ready, f.Host.State);
     }
 
+    // AP-07a: the dialog always inspects with an explicit scope. Without a receiving consent path a package with a
+    // private component must be typed-rejected on every scope; an explicit New must not silently import only the public
+    // part (native-private-batch-apply-v1 §3.3, private-package-component-v1 "Boundaries and ownership").
+    [Theory]
+    [InlineData("new")]
+    [InlineData("merge")]
+    [InlineData("none")]
+    public async Task PrivatePackageIsTypedRejectedOnEveryScopeAndNeverSilentlyImportedPublicOnly(string scope)
+    {
+        await using Fixture f = await Fixture.StartAsync();
+        string source = await f.WritePackageAsync("private");
+        string before = f.TargetSnapshot();
+        int commits = 0;
+        f.Host.BeforeNativeImportCommitForTests = () => { Interlocked.Increment(ref commits); return Task.CompletedTask; };
+        await using NativeTransferImportSession session = f.Host.CreateNativeTransferImportSession(f.Work);
+
+        NativeTransferImportSnapshot inspected = await (scope switch
+        {
+            "new" => session.InspectAsync(source, NativeTransferImportScope.New),
+            "merge" => session.InspectAsync(source, NativeTransferImportScope.Merge),
+            _ => session.InspectAsync(source)
+        }).WaitAsync(Deadline);
+
+        Assert.Equal(NativeTransferImportState.Unsupported, inspected.State);
+        Assert.Equal(NativeTransferImportError.PrivateMetadataUnsupported, inspected.Error);
+        Assert.Null(inspected.Plan);
+        Assert.Null(inspected.Result);
+        Assert.True(inspected.PrivateOffer?.Available);
+        AssertOpaque(inspected, f, source);
+        NativeTransferImportSnapshot attempted = await session.ApplyAsync(inspected.Generation).WaitAsync(Deadline);
+        Assert.Equal(inspected, attempted);
+        Assert.Equal(0, Volatile.Read(ref commits));
+        Assert.Empty(Directory.GetFileSystemEntries(f.Work));
+        Assert.Equal(before, f.TargetSnapshot());
+        Assert.Equal(DesktopSessionState.Ready, f.Host.State);
+    }
+
     [Fact]
     public async Task MultithreadSetAppliesEachThreadSequentiallyAndReplaysAsMerge()
     {
@@ -83,6 +120,35 @@ public sealed class NativeTransferImportLifetimeTests
             Assert.Equal(2, f.Count("archive_threads")); // Idempotent: no duplicate threads.
         }
         Assert.Empty(Directory.GetFileSystemEntries(f.Work));
+    }
+
+    [Fact]
+    public async Task CanceledMultithreadApplyPublishesPartialReceiptForExplicitRecheck()
+    {
+        await using Fixture f = await Fixture.StartAsync();
+        string source = await f.WritePackageAsync("multithread");
+        await using NativeTransferImportSession session = f.Host.CreateNativeTransferImportSession(f.Work);
+        int commits = 0;
+        f.Host.BeforeNativeImportCommitForTests = () => { Interlocked.Increment(ref commits); return Task.CompletedTask; };
+        f.Host.NativeImportCheckpointForTests = phase =>
+        {
+            if (phase == NativeMediaImportPhase.SqlCommitted && Volatile.Read(ref commits) == 1)
+                session.Cancel();
+        };
+
+        NativeTransferImportSnapshot ready = await session.InspectAsync(source, NativeTransferImportScope.New).WaitAsync(Deadline);
+        NativeTransferImportSnapshot canceled = await session.ApplyAsync(ready.Generation).WaitAsync(Deadline);
+
+        Assert.Equal(NativeTransferImportState.Canceled, canceled.State);
+        NativeTransferImportResult result = Assert.IsType<NativeTransferImportResult>(canceled.Result);
+        Assert.Equal(1, result.ThreadsApplied);
+        Assert.Equal(2, result.ThreadsTotal);
+        Assert.True(NativeTransferImportDialog.IsPartialSetResult(result));
+        Assert.Equal("transfer.import.error.apply", NativeTransferImportDialog.PartialResultNoticeKey(result));
+        Assert.False(NativeTransferImportDialog.IsPartialSetResult(result with { ThreadsApplied = result.ThreadsTotal }));
+        Assert.Equal(string.Empty, NativeTransferImportDialog.PartialResultNoticeKey(result with { ThreadsApplied = result.ThreadsTotal }));
+        Assert.Equal(1, Volatile.Read(ref commits));
+        Assert.Equal(canceled, await session.ApplyAsync(ready.Generation).WaitAsync(Deadline));
     }
 
     [Fact]

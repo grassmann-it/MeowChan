@@ -48,15 +48,22 @@ jobs:
           [[ "$LINUX_RUN" =~ ^[0-9]+$ ]]
           [[ "$RELEASE_ID" =~ ^[0-9]+$ ]]
           [[ "$RETAINED_SOURCE" =~ ^[0-9a-f]{40}$ ]]
-          gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion > retained-run.json
-          gh run view "$LINUX_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion > linux-run.json
-          python3 - <<'PY'
-          import json, os
-          for file, source in [('retained-run.json', 'RETAINED_SOURCE'), ('linux-run.json', 'SOURCE_COMMIT')]:
-              r = json.load(open(file))
-              assert r['headSha'] == os.environ[source]
-              assert r['status'] == 'completed' and r['conclusion'] == 'success'
-          PY
+          # Overall success is not enough: a manually selected run must also
+          # contain the explicit candidate gate (and the Linux distribution
+          # gate for the separate Linux run). Missing job evidence rejects the
+          # upload instead of silently accepting a partial/diagnostic run.
+          gh run view "$SOURCE_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion,jobs > retained-run.json
+          gh run view "$LINUX_RUN" --repo "$GITHUB_REPOSITORY" --json headSha,status,conclusion,jobs > linux-run.json
+          python3 scripts/aggregate-release-gates.py run \
+            --json-file retained-run.json \
+            --expected-sha "$RETAINED_SOURCE" \
+            --required-job "Release candidate gate" \
+            --report retained-release-run-gate.json
+          python3 scripts/aggregate-release-gates.py run \
+            --json-file linux-run.json \
+            --expected-sha "$SOURCE_COMMIT" \
+            --required-job linux-distribution \
+            --report linux-release-run-gate.json
       - name: Download accepted candidates and the immutable common source base
         run: |
           python3 - <<'PY'

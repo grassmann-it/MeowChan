@@ -24,9 +24,16 @@ internal static class ReaderInteractionChecks
 {
     internal static async Task RunAsync(MainWindow window, ArchivePage page)
     {
-        await CheckReaderMediaActivationAsync(window, page);
-        await CheckPendingReaderMediaLifetimeAsync(window);
-        await CheckNativeMediaKeysAsync(page);
+        // Enter on a post follows "Clicking a medium" (sidebar by default); these checks are about the gallery path, so they choose it.
+        ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery);
+        try
+        {
+            await CheckReaderMediaActivationAsync(window, page);
+            await CheckSpaceOnSelectedPostAsync(window, page);
+            await CheckPendingReaderMediaLifetimeAsync(window);
+            await CheckNativeMediaKeysAsync(page);
+        }
+        finally { ReaderSmokeSetup.Restore(page, mediaBefore); }
         Console.WriteLine("SMOKE reader native controls and media Enter passed.");
         await CheckReaderShortcutsAsync(page);
         Console.WriteLine("SMOKE current-thread reader shortcuts and dialog input protection passed.");
@@ -172,6 +179,47 @@ internal static class ReaderInteractionChecks
         }
     }
 
+    // Space on the selected post's medium under the gallery setting (compile-checked; run with the reader smokes): it opens the gallery at the post's first
+    // medium with an origin inside that post, so closing the gallery returns the focus to the same post; Down then moves on; a held Space acts once.
+    private static async Task CheckSpaceOnSelectedPostAsync(MainWindow window, ArchivePage page)
+    {
+        ResourceId thread = page.CurrentThread!.Summary.Id;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        var open = page.OpenGallery;
+        int opens = 0;
+        Control? origin = null;
+        try
+        {
+            page.OpenGallery = (_, _, from) => { opens++; origin = from; return Task.CompletedTask; };
+            window.Activate();
+            await Program.WaitUntilAsync(() => window.IsActive);
+            await page.FocusPostAsync("1001");
+            await page.MediaLoadTask;
+            await FlushAsync();
+            object? selected = posts.SelectedItem;
+            posts.Focus();
+            // Keep the first key down until the repeat probe. Press() also sends
+            // KeyUp, which would test a second press rather than an auto-repeat.
+            posts.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space });
+            await page.ReaderMediaActivationTask;
+            Require(opens == 1, "Space on the selected post did not open its medium in the gallery under the gallery setting.");
+            Require(origin != null && origin.GetSelfAndVisualAncestors().OfType<ListBoxItem>().Any(item => ReferenceEquals(item.DataContext, selected)),
+                "The gallery origin of Space is not inside the selected post, so closing the gallery could not return the focus to it.");
+            posts.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Space });
+            await page.ReaderMediaActivationTask;
+            Require(opens == 1, "A held Space opened the gallery twice.");
+            posts.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space });
+            Press(posts, Key.Down);
+            Require(!ReferenceEquals(posts.SelectedItem, selected), "Down did not move on from the post after Space.");
+            Console.WriteLine("SMOKE reader Space on the selected post: gallery setting, origin inside the post, held key and Down passed.");
+        }
+        finally
+        {
+            page.OpenGallery = open;
+            await page.LoadThreadAsync(thread); await page.FocusPostAsync("1000"); await page.MediaLoadTask;
+        }
+    }
+
     private static async Task CheckPendingReaderMediaLifetimeAsync(MainWindow owner)
     {
         ResourceId thread = new("4chan", "g", "1000");
@@ -187,6 +235,7 @@ internal static class ReaderInteractionChecks
                     await release.Task;
                     return await MediaAssetReader.OpenAsync(directory, CancellationToken.None);
                 }) { IsAvailable = true, ReaderRefreshAllowed = () => false };
+            ReaderSmokeSetup.Choose(page, ReaderMediaClickMode.Gallery); // a private page: not restored
             Control pane = page.DetachReader();
             var window = new Window { Width = 1000, Height = 800, Content = pane, Title = "Private Reader media lifetime " + change };
             page.OpenGallery = (_, key, _) => { opens++; opened = key; return Task.CompletedTask; };
@@ -223,8 +272,16 @@ internal static class ReaderInteractionChecks
     // Seed ReaderUxChecks first. No synthetic-key fallback is used in this path.
     internal static async Task RunMediaActivationInputAsync(MainWindow window)
     {
+        // Enter on a post follows "Clicking a medium"; the real-input flow is about the gallery path, so it chooses it for its run.
+        ReaderMediaPreferences mediaBefore = ReaderSmokeSetup.Choose(window.ArchivePage, ReaderMediaClickMode.Gallery);
+        try { await RunMediaActivationInputCoreAsync(window); }
+        finally { ReaderSmokeSetup.Restore(window.ArchivePage, mediaBefore); }
+    }
+
+    private static async Task RunMediaActivationInputCoreAsync(MainWindow window)
+    {
         const ulong enter = MediaNativeInput.Enter, up = MediaNativeInput.Up, down = MediaNativeInput.Down;
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         ArchivePage page = window.ArchivePage;
         await Program.WaitUntilAsync(() => !page.IsBusy);
         page.FindControl<TextBox>("ArchiveSearchText")!.Text = "Reader UX 1000";
@@ -334,7 +391,21 @@ internal static class ReaderInteractionChecks
             pointerSeen = new(TaskCreationOptions.RunContinuationsAsynchronously);
             try
             {
-                await input.ClickAsync(body, new Point(16, 10));
+                // A stretched SelectableTextBlock is hit-testable only where it draws.
+                // Its rectangle center can be blank (ARM 43908445672 and X11), even
+                // though the intended text point is live. Keep strict center checks
+                // on the painted post container and independently prove the actual
+                // requested coordinate hits this exact body before native delivery.
+                await input.ClickAsync(() => Task.FromResult(body.GetVisualAncestors().OfType<ListBoxItem>()
+                    .Single(item => item.DataContext is ArchivePostRow { Id: "1001" })), item =>
+                {
+                    Point bodyPoint = new(16, 10);
+                    if (body.TranslatePoint(bodyPoint, item) is not { } itemPoint
+                        || window.InputHitTest(window.PointToClient(body.PointToScreen(bodyPoint))) is not Visual hit
+                        || !hit.GetSelfAndVisualAncestors().Contains(body))
+                        throw new ArgumentException("Native reader text point does not hit the requested body.", nameof(body));
+                    return Task.FromResult<Point?>(itemPoint);
+                });
                 await pointerSeen.Task.WaitAsync(TimeSpan.FromSeconds(5));
                 await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
                 Evidence("after-native-body-click");
@@ -491,15 +562,28 @@ internal static class ReaderInteractionChecks
                 body.ContextMenu = new ContextMenu { Items = { new MenuItem { Header = "Fixture menu action" } } };
                 body.ContextMenu.Open(body);
                 await input.KeyAsync(MediaNativeInput.Space);
+                // The native key may have started an async activation just before the
+                // popup consumed it. Drain that task before taking the dialog baseline,
+                // so a late callback cannot be misattributed to dialog protection.
+                await page.ReaderMediaActivationTask;
                 Require(opens == before, "An open native menu leaked Reader activation.");
                 body.ContextMenu.Close(); body.ContextMenu = null;
             }
             finally { foreach (Control control in native) host.Children.Remove(control); }
 
             int protectedBefore = opens;
-            await input.ClickAsync(page.FindControl<Button>("ExportArchiveButton")!);
+            // This is setup for the native dialog-protection assertion, not an export-input check.
+            // ExportArchiveButton may be reparented under ReaderToolbar.More and therefore has no
+            // native hit-testable layout on macOS; keep the real native key checks below intact.
+            Click(page.FindControl<Button>("ExportArchiveButton")!);
             await Program.WaitUntilAsync(() => page.IsReaderDialogOpen);
-            page.FindControl<TextBox>("ArchiveExportDestination")!.Focus();
+            TextBox exportDestination = page.FindControl<TextBox>("ArchiveExportDestination")!;
+            // The dialog first resolves its export state and keeps the destination disabled.
+            // Do not post the native key while focus is still on the retired Reader control:
+            // a slow cross-platform layout/lookup would otherwise make this guard flaky.
+            await Program.WaitUntilAsync(() => exportDestination.IsEffectivelyEnabled
+                && exportDestination.Focus()
+                && ReferenceEquals(window.FocusManager?.GetFocusedElement(), exportDestination));
             await input.KeyAsync(MediaNativeInput.Space);
             Require(opens == protectedBefore && page.IsReaderDialogOpen, "Native export dialog leaked Reader activation.");
             await input.ClickAsync(page.FindControl<Button>("ArchiveExportClose")!);
@@ -731,13 +815,13 @@ internal static class ReaderInteractionChecks
             Click(star);
             page.RefreshArchiveFavoriteControls();
             Require(star.IsChecked == false && (AutomationProperties.GetName(star) ?? string.Empty).Contains("Fixture favorite write denied"), "Favorite refresh hid the failure or claimed success.");
-            Require(star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"), "Favorite failure is not visible at the medium.");
+            // The reason is in the star's tooltip (opened once for a new error) and its error edge, not in the card layout.
+            Require((ToolTip.GetTip(star) as string)?.Contains("Fixture favorite write denied") == true
+                && !star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"),
+                "Favorite failure is not in the star's tooltip or still pushes text into the card.");
             Require(star.Focusable && AutomationProperties.GetLiveSetting(star) == AutomationLiveSetting.Assertive, "Favorite failure is not keyboard/automation reachable.");
             await FlushAsync();
             await Task.Delay(120);
-            Require(star.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == "Fixture favorite write denied"
-                    && text.Bounds.Height > 0 && text.Foreground?.Opacity > 0 && text.IsEffectivelyVisible),
-                "Favorite failure has no laid-out visible text.");
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             Point? top = star.TranslatePoint(default, posts);
             Require(top != null && top.Value.Y >= 0 && top.Value.Y + star.Bounds.Height <= posts.Bounds.Height,
@@ -764,6 +848,14 @@ internal static class ReaderInteractionChecks
         Click(page.FindControl<Button>("ArchiveHistoryBack")!);
         await FlushAsync();
         (string Id, double Top) after = Top(posts);
+        // Restoring is a settling loop (up to eight layout passes while the virtualizer revises its estimates; the tail
+        // clearance under the cross adds passes near the end of a page): wait for it instead of racing one flush.
+        for (int wait = 0; wait < 100 && !(before.Id == after.Id && Math.Abs(before.Top - after.Top) < 2); wait++)
+        {
+            await Task.Delay(50);
+            await FlushAsync();
+            after = Top(posts);
+        }
         Require(before.Id == after.Id && Math.Abs(before.Top - after.Top) < 2 && (posts.SelectedItem as ArchivePostRow)?.Id == "1048",
             "Cross-page quote back did not restore the exact visible/selected post and offset.");
         await page.FocusPostAsync("1000");

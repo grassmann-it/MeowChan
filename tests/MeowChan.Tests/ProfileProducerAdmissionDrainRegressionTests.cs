@@ -1,5 +1,7 @@
 using System.Reflection;
+using MeowChan.Booru;
 using MeowChan.Downloader;
+using MeowChan.Interfaces;
 using MeowChan.Persistence;
 
 namespace MeowChan.Tests;
@@ -88,6 +90,69 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
                 await epoch.Close();
                 epoch.Dispose();
             }
+        }
+    }
+
+    [Fact]
+    public async Task FailedPeerDrainFencesBooruWaitersAndReleasesItsGenerationOnlyAfterUseAndStop()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        DownloadQueue queue = new(1, 1024 * 1024);
+        BooruProducerLifecycle booru = new(lease.Admission);
+        FailingPeerDrainParticipant participant = new(booru);
+        await using Registry registry = new(Array.Empty<IImageBoard>(), queue, directory.Path, TimeSpan.FromMinutes(1), 60,
+            persistSession: false, workStore: new MemoryWorkStateStore());
+        registry.PrepareProfileProducers(lease);
+        registry.RegisterProfileFinalWriteParticipant(participant);
+        List<Task> started = [];
+        Task<ProfileExclusiveOutcome<bool>> owner = Task.FromResult(ProfileExclusiveOutcome<bool>.RecoveryRequired(false));
+        BooruProducerUse? use = null;
+        Task<BooruProducerUse>? waiting = null;
+        try
+        {
+            await AwaitStartedAsync(RestoreWithStartupAsync(registry, lease), started);
+            lease.Admission.CompleteStartup();
+            registry.InstallReadyProfileEpoch();
+            await AwaitStartedAsync(registry.ActivatePreparedProfileProducersAsync(), started);
+            await AwaitStartedAsync(registry.DrainBackgroundTasksAsync(), started);
+            booru.Open();
+            use = booru.TryEnter();
+            Assert.NotNull(use);
+            owner = registry.RunWithProfileExclusiveAsync(_ =>
+                Task.FromResult(ProfileExclusiveOutcome<bool>.SafeToResume(true)));
+            await participant.CutEntered.Task.WaitAsync(Deadline);
+            waiting = booru.EnterAsync();
+            Assert.False(owner.IsCompleted);
+            Assert.False(waiting.IsCompleted);
+
+            use!.Dispose();
+            use = null;
+            await Assert.ThrowsAsync<IOException>(() => owner.WaitAsync(Deadline));
+            await Assert.ThrowsAsync<InvalidOperationException>(() => waiting!.WaitAsync(Deadline));
+            Assert.Equal(BooruProducerPhase.RecoveryRequired, booru.Phase);
+            Assert.Equal(ProfileAdmissionPhase.RecoveryFailed, lease.Admission.Phase);
+            Assert.Throws<InvalidOperationException>(() => lease.Admission.EnterOrdinaryWriter());
+            Assert.Throws<InvalidOperationException>(() => lease.Admission.EnterExclusiveAsync());
+
+            lease.Admission.BeginShutdown();
+            Task admissionDrain = lease.Admission.DrainAsync();
+            Task stop = registry.StopAsync();
+            await stop.WaitAsync(Deadline);
+            await admissionDrain.WaitAsync(Deadline);
+            lease.Admission.CompleteShutdown();
+            Assert.Equal(ProfileAdmissionPhase.Stopped, lease.Admission.Phase);
+        }
+        finally
+        {
+            use?.Dispose();
+            lease.Admission.BeginShutdown();
+            Task stop = registry.StopAsync();
+            try { await Task.WhenAll(Task.WhenAll(started.Select(ObserveAny)), ObserveAny(owner), stop); }
+            catch (Exception) { }
+            await lease.Admission.DrainAsync();
+            if (lease.Admission.Phase == ProfileAdmissionPhase.Stopping)
+                lease.Admission.CompleteShutdown();
         }
     }
 
@@ -345,6 +410,12 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
         catch (InvalidOperationException) { } // Teardown only; normal-path result is asserted in the test.
     }
 
+    private static async Task ObserveAny(Task task)
+    {
+        try { await task; }
+        catch (Exception) { }
+    }
+
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private static async Task AwaitQueueRegistryDeliveryIdleAsync(DownloadQueue queue, Registry registry)
@@ -426,6 +497,28 @@ public sealed class ProfileProducerAdmissionDrainRegressionTests
         // No observation monitor remains held while testing the actual tasks.
         Assert.False(stop.IsCompleted);
         Assert.False(owner.IsCompleted);
+    }
+
+    private sealed class FailingPeerDrainParticipant(BooruProducerLifecycle booru) : IProfileFinalWriteParticipant
+    {
+        internal TaskCompletionSource CutEntered { get; } = Signal();
+
+        public void CloseTransitionCommandIngress() => booru.BeginTransition();
+
+        public Task CutAndDrainAsync()
+        {
+            Task booruDrain = booru.CutAndDrainAsync();
+            CutEntered.TrySetResult();
+            return Task.WhenAll(booruDrain, Task.FromException(new IOException("Synthetic peer drain failure.")));
+        }
+
+        public void ReleaseDrainedEpoch() => booru.ReleaseDrained();
+        public void InstallReadyEpoch() { }
+        public void OpenAfterProducerActivation() { }
+        public void FailTransition(Exception error) { }
+        public void RequireRecovery(Exception error) => booru.RequireRecovery();
+        public void AbortBeforeCut() => booru.AbortTransition();
+        public void ReleaseStoppedEpoch() { }
     }
 
     private static WorkResource Resource(string root) => new()

@@ -78,10 +78,10 @@ public sealed class GalleryErrorPresentationTests
     {
         var state = new GalleryOverlayActivity(Overlay: true, AutoHide: true, Available: true,
             ActiveWindow: true, Focused: false, Captured: false, Popup: false, Reading: false, Notice: true);
-        Assert.True(state.CanHide(TimeSpan.FromSeconds(1)));
-        Assert.False((state with { Captured = true }).CanHide(TimeSpan.FromSeconds(1)));
-        Assert.False((state with { Popup = true }).CanHide(TimeSpan.FromSeconds(1)));
-        Assert.False((state with { Reading = true }).CanHide(TimeSpan.FromSeconds(1)));
+        Assert.True(state.CanHide(TimeSpan.FromSeconds(2)));
+        Assert.False((state with { Captured = true }).CanHide(TimeSpan.FromSeconds(2)));
+        Assert.False((state with { Popup = true }).CanHide(TimeSpan.FromSeconds(2)));
+        Assert.False((state with { Reading = true }).CanHide(TimeSpan.FromSeconds(2)));
     }
 
     private static void Set(GalleryViewer viewer, string name, object value) =>

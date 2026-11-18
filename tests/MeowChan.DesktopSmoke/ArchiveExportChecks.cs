@@ -4,8 +4,10 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
@@ -56,11 +58,16 @@ internal static class ArchiveExportChecks
             {
                 fixture.IsAvailable = true;
                 await fixture.LoadThreadAsync(readerIdentity);
-                holdReader = true;
-                Task delayedReader = fixture.LoadThreadAsync(readerIdentity);
                 await fixture.OpenExportForThreadAsync(saved.Summary.Id, fixture.FindControl<Button>("ExportArchiveButton"));
                 Require(fixture.FindControl<Button>("ArchiveExportOpen")!.IsVisible && !fixture.FindControl<Button>("ArchiveExportOpen")!.IsEnabled, "Current result folder action must be visible and disabled before success.");
                 Require(fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export action did not open its workflow.");
+                Require(!fixture.FindControl<Button>("ArchiveExportPrevious")!.IsVisible && !fixture.FindControl<Button>("ArchiveExportAssociate")!.IsVisible
+                    && fixture.FindControl<CheckBox>("ArchiveExportMedia")!.IsVisible && fixture.FindControl<Control>("ArchiveExportOptionsLabel") == null,
+                    "Without export history the history actions must be hidden together and no Options heading may remain above the media checkbox.");
+                // A busy page refuses to open an export (readiness gate), so the independent
+                // reader load starts only once the context export dialog is open.
+                holdReader = true;
+                Task delayedReader = fixture.LoadThreadAsync(readerIdentity);
                 string output = Path.Combine(destinationRoot, "thread-export");
                 fixture.FindControl<TextBox>("ArchiveExportDestination")!.Text = output;
                 await fixture.OpenExportForThreadAsync(readerIdentity, fixture.FindControl<Button>("ExportArchiveButton"));
@@ -99,7 +106,7 @@ internal static class ArchiveExportChecks
                 Button openResult = fixture.FindControl<Button>("ArchiveExportOpen")!;
                 TextBlock resultStatus = fixture.FindControl<TextBlock>("ArchiveExportStatus")!;
                 TextBlock resultError = fixture.FindControl<TextBlock>("ArchiveExportError")!;
-                Ursa.Controls.Banner errorBanner = fixture.FindControl<Ursa.Controls.Banner>("ArchiveExportErrorBanner")!;
+                MeowChan.Desktop.Controls.WorkspaceBanner errorBanner = fixture.FindControl<MeowChan.Desktop.Controls.WorkspaceBanner>("ArchiveExportErrorBanner")!;
                 string? publishedStatus = resultStatus.Text;
                 string expectedPublishedStatus = Texts.T("archive.exportDone", result.PostCount, result.FileCount,
                     result.Omissions.Count, result.Warnings.Count) + "\n" + result.Directory;
@@ -191,12 +198,16 @@ internal static class ArchiveExportChecks
                 Require(fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Cancelling lookup closed the dialog before its work ended.");
                 fixture.FindControl<Button>("ArchiveExportLegacyFind")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => fixture.FindControl<Button>("ArchiveExportLegacyFind")!.IsEnabled);
-                Require(fixture.FindControl<TextBlock>("ArchiveExportStatus")!.Text!.StartsWith("Found ", StringComparison.Ordinal),
-                    "Retrying a cancelled legacy lookup reused its cancelled token.");
+                // The fixture folder holds no legacy candidate, so a live retry ends with the explained
+                // empty result. A reused cancelled token would instead end with the cancelled status.
+                string lookupStatus = fixture.FindControl<TextBlock>("ArchiveExportStatus")!.Text ?? string.Empty;
+                Require(lookupStatus == Texts.T("export.legacyNone"),
+                    "Retrying a cancelled legacy lookup reused its cancelled token. status=" + lookupStatus);
                 Console.WriteLine("SMOKE portable export index: " + Path.Combine(moved, "index.html"));
                 fixture.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
                 Require(!fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Export workflow did not close with Escape.");
-                Require(fixture.FindControl<Button>("ExportArchiveButton")!.IsFocused, "Closing export did not restore its real origin focus.");
+                RequireExportOriginFocus(fixture, "Closing export did not restore its real origin focus.");
+                await CheckExportOriginFocusAsync(fixture, saved.Summary.Id);
                 await ArchiveCollectionExportChecks.RunAsync(fixture, saved.Summary.Id, readerIdentity, destinationRoot, value => exportGate = value, () => opened);
                 await ArchiveResultsExportChecks.RunAsync(window, fixture, profile, exportLease, destinationRoot, value => exportGate = value);
             }
@@ -204,6 +215,58 @@ internal static class ArchiveExportChecks
         }
         finally { Directory.Delete(profile, true); if (evidence == null) Directory.Delete(destinationRoot, true); }
         Console.WriteLine("SMOKE HTML export: real shared library writer, verified PNG, retained reply, internal quote, relocation and no-overwrite conflict passed.");
+    }
+    // The origin is the toolbar action itself while it is a visible direct item. In a closed
+    // More popup it has no window presentation and cannot hold focus, so the visible More
+    // toggle that carries it is the real origin; focus must never be left on nothing.
+    private static void RequireExportOriginFocus(ArchivePage page, string message)
+    {
+        Button origin = page.FindControl<Button>("ExportArchiveButton")!;
+        ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
+        bool direct = origin.IsEffectivelyVisible && origin.Bounds.Width > 0 && origin.Bounds.Height > 0
+            && origin.GetVisualAncestors().Contains(toolbar);
+        bool overflowed = toolbar.OverflowHost?.Children.Contains(origin) == true;
+        Control? expected = direct ? origin : overflowed ? toolbar.More : null;
+        object? focused = TopLevel.GetTopLevel(page)?.FocusManager?.GetFocusedElement();
+        string focusedName = (focused as Control)?.Name ?? focused?.GetType().Name ?? "none";
+        Require(expected != null && ReferenceEquals(focused, expected), message
+            + $" direct={direct}, overflowed={overflowed}, originBounds={origin.Bounds}, "
+            + $"moreVisible={toolbar.More?.IsEffectivelyVisible}, focused={focusedName}, window={TopLevel.GetTopLevel(page)?.Bounds}");
+    }
+    // Both presentations of the same action must return focus: wide enough to stay a direct
+    // item, and narrow enough to sit in the closed More popup.
+    private static async Task CheckExportOriginFocusAsync(ArchivePage page, ResourceId id)
+    {
+        Button origin = page.FindControl<Button>("ExportArchiveButton")!;
+        ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
+        double width = toolbar.Width, maxWidth = toolbar.MaxWidth;
+        try
+        {
+            foreach (bool overflow in new[] { false, true })
+            {
+                toolbar.Width = overflow ? double.NaN : 3000;
+                toolbar.MaxWidth = overflow ? 200 : double.PositiveInfinity;
+                string state = overflow ? "overflowed" : "direct";
+                await Program.WaitUntilAsync(() =>
+                {
+                    page.UpdateLayout();
+                    return overflow
+                        ? toolbar.OverflowHost?.Children.Contains(origin) == true && toolbar.More?.IsEffectivelyVisible == true
+                        : toolbar.OverflowHost?.Children.Contains(origin) != true && origin.IsEffectivelyVisible
+                            && origin.Bounds.Width > 0 && origin.GetVisualAncestors().Contains(toolbar);
+                });
+                await page.OpenExportForThreadAsync(id, origin);
+                Border dialog = page.FindControl<Border>("ArchiveExportDialog")!;
+                Require(dialog.IsVisible, $"Export from the {state} origin did not open.");
+                page.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+                Require(!dialog.IsVisible, $"Export from the {state} origin did not close with Escape.");
+                RequireExportOriginFocus(page, $"Closing export from the {state} origin did not restore its focus.");
+                // A queued toolbar repair must not move the restored focus either.
+                await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+                RequireExportOriginFocus(page, $"A deferred toolbar repair moved the focus restored for the {state} origin.");
+            }
+        }
+        finally { toolbar.Width = width; toolbar.MaxWidth = maxWidth; page.UpdateLayout(); }
     }
     private static async Task CheckCompactLayoutsAsync(MainWindow window, ArchivePage page)
     {
@@ -225,21 +288,9 @@ internal static class ArchiveExportChecks
                 {
                     Texts.SetLanguage(language);
                     Application.Current!.RequestedThemeVariant = theme;
-                    await Program.WaitUntilAsync(() =>
-                    {
-                        window.UpdateLayout();
-                        Border dialog = page.FindControl<Border>("ArchiveExportDialog")!;
-                        Border card = (Border)dialog.Child!;
-                        ScrollViewer body = card.GetVisualDescendants().OfType<ScrollViewer>().First();
-                        return PresentationChecks.MatchesRequestedSize(window, width, height)
-                            && page.Bounds.Width > 0 && page.Bounds.Height > 0
-                            && dialog.Bounds.Width <= page.Bounds.Width + 1
-                            && Fits(window, page.FindControl<Button>("ArchiveExportClose")!)
-                            && Fits(window, page.FindControl<Button>("ArchiveExportOpen")!)
-                            && Fits(window, page.FindControl<Button>("ArchiveExportStart")!)
-                            && card.Bounds.Width <= 680 && body.Viewport.Height > 30
-                            && body.Extent.Width <= body.Viewport.Width + 1;
-                    });
+                    await Program.WaitUntilAsync(
+                        () => CompactExportLayoutReady(window, page, width, height),
+                        () => DescribeCompactExportLayout(window, page, width, height));
                     Program.CaptureWindow(window, $"smoke-export-{mode.ToLowerInvariant()}-{language}-{theme.ToString().ToLowerInvariant()}.png");
                 }
             }
@@ -252,6 +303,62 @@ internal static class ArchiveExportChecks
             window.Width = widthBefore; window.Height = heightBefore; window.UpdateLayout();
         }
     }
+    private static bool CompactExportLayoutReady(MainWindow expectedOwner, ArchivePage page, double width, double height)
+    {
+        expectedOwner.UpdateLayout();
+        page.UpdateLayout();
+        Window? owner = TopLevel.GetTopLevel(page) as Window;
+        if (!ReferenceEquals(owner, expectedOwner)) return false;
+
+        Border dialog = page.FindControl<Border>("ArchiveExportDialog")!;
+        if (dialog.Child is not Border card) return false;
+        // Resize the actual overlay/card after the owner has acknowledged the native resize. The
+        // dialog owns the scroll body; updating only the page can leave the card on its old measure
+        // during the first pass after a mode or window-size change.
+        dialog.UpdateLayout();
+        card.UpdateLayout();
+        ScrollViewer? body = card.GetVisualDescendants().OfType<ScrollViewer>()
+            .FirstOrDefault(viewer => viewer.Name == DialogFrame.BodyName);
+        if (body == null) return false;
+        Control dialogHost = dialog.Parent as Control ?? page;
+        return PresentationChecks.MatchesRequestedSize(owner, width, height)
+            && page.Bounds.Width > 0 && page.Bounds.Height > 0
+            && dialog.IsEffectivelyVisible && dialogHost.Bounds.Width > 0 && dialogHost.Bounds.Height > 0
+            && dialog.Bounds.Width <= dialogHost.Bounds.Width + 1
+            && Fits(owner, page.FindControl<Button>("ArchiveExportClose")!)
+            && Fits(owner, page.FindControl<Button>("ArchiveExportOpen")!)
+            && Fits(owner, page.FindControl<Button>("ArchiveExportStart")!)
+            && card.Bounds.Width <= 680 + 1 && body.Viewport.Height > 30
+            && body.Extent.Width <= body.Viewport.Width + 1;
+    }
+
+    private static string DescribeCompactExportLayout(MainWindow expectedOwner, ArchivePage page, double width, double height)
+    {
+        expectedOwner.UpdateLayout();
+        Window? owner = TopLevel.GetTopLevel(page) as Window;
+        Border? dialog = page.FindControl<Border>("ArchiveExportDialog");
+        Border? card = dialog?.Child as Border;
+        ScrollViewer? body = card?.GetVisualDescendants().OfType<ScrollViewer>()
+            .FirstOrDefault(viewer => viewer.Name == DialogFrame.BodyName);
+        Control? dialogHost = dialog?.Parent as Control;
+        Button? close = page.FindControl<Button>("ArchiveExportClose");
+        Button? open = page.FindControl<Button>("ArchiveExportOpen");
+        Button? start = page.FindControl<Button>("ArchiveExportStart");
+        string FitState(Control? control) => owner == null || control == null
+            ? "missing"
+            : Fits(owner, control).ToString();
+        string Geometry(Control? control) => control == null ? "missing" : control.Bounds.ToString();
+        return $"requested={width}x{height}; actual={owner?.Bounds.Size.ToString() ?? "none"}; "
+            + $"ownerMatch={ReferenceEquals(owner, expectedOwner)}; page={Geometry(page)}; "
+            + $"dialog={Geometry(dialog)}; host={Geometry(dialogHost)}; card={Geometry(card)}; "
+            + $"body={Geometry(body)}; viewport={body?.Viewport.ToString() ?? "none"}; extent={body?.Extent.ToString() ?? "none"}; "
+            + $"visible={dialog?.IsEffectivelyVisible.ToString() ?? "missing"}; "
+            + $"fits=close:{FitState(close)},open:{FitState(open)},start:{FitState(start)}; "
+            + $"cardWidth={card?.Bounds.Width.ToString() ?? "missing"}; "
+            + $"bodyHeight={body?.Viewport.Height.ToString() ?? "missing"}; "
+            + $"bodyHorizontalOverflow={(body == null ? "missing" : (body.Extent.Width - body.Viewport.Width).ToString())}";
+    }
+
     private static bool Fits(Window window, Control control)
     {
         Point? point = control.TranslatePoint(default, window);

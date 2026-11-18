@@ -18,7 +18,7 @@ public partial class MainWindow
 
     private void InitializeReaderGroups()
     {
-        MenuItem item = this.FindControl<MenuItem>("ReaderGroupsMenuItem")!;
+        MenuItem item = ReaderGroupsMenuItem;
         CommandBindings.Apply(item, "reader-groups.open-manager");
         item.Click += async (_, _) => await OpenReaderGroupsAsync(item);
         ArchivePage.OpenReaderGroupsRequested = async origin => await OpenReaderGroupsAsync(origin);
@@ -32,7 +32,7 @@ public partial class MainWindow
         if (_shortcutRouter == null || _archivePage == null) return;
         _shortcutRouter.Register(new CommandRegistration("reader-groups.open-manager", this,
             () => !_largeReaderOpen && _gallery == null,
-            () => CanOpenReaderGroups, () => _ = OpenReaderGroupsAsync(), Priority: 0));
+            () => CanOpenReaderGroups, () => OpenActions.Start(() => OpenReaderGroupsAsync(), "readerGroups.open"), Priority: 0));
         Control pane = _archivePage.FindControl<Control>("ArchiveReaderPane")!;
         _shortcutRouter.Register(new CommandRegistration("reader.skip-unavailable-group-member", pane,
             () => _largeReaderOpen && (_gallery == null || _gallerySuspended),
@@ -47,10 +47,8 @@ public partial class MainWindow
             CommandBindings.Apply(menu, "reader-groups.open-manager");
             menu.IsEnabled = CanOpenReaderGroups;
         }
-        if (_archivePage != null)
-            foreach (string name in new[] { "ArchiveReaderGroups", "ArchiveReaderGroupsEmpty" })
-                if (_archivePage.FindControl<Button>(name) is Button button)
-                { CommandBindings.Apply(button, "reader-groups.open-manager"); button.IsEnabled = CanOpenReaderGroups; }
+        if (_archivePage?.FindControl<Button>("ArchiveReaderGroups") is Button button)
+        { CommandBindings.Apply(button, "reader-groups.open-manager"); button.IsEnabled = CanOpenReaderGroups; }
     }
 
     internal async Task OpenReaderGroupsAsync(Control? origin = null)
@@ -81,6 +79,11 @@ public partial class MainWindow
         _readerGroupReturn = request;
         ArchivePage page = ArchivePage;
         OpenLargeReader(_readerGroupsOrigin, request.Threads);
+        if (!_largeReaderOpen)
+        {
+            ReturnToReaderGroups(restoreOrigin: true);
+            return;
+        }
         page.BeginReaderGroupScope(request.Threads);
         int scopeGeneration = page.ReaderGroupScopeGeneration;
         bool loaded = await page.LoadReaderGroupThreadAsync(request.Threads[0]);

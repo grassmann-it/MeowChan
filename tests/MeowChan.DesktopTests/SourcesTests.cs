@@ -1,6 +1,7 @@
 using System.Net;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Plugins;
 using MeowChan.Downloader;
 using MeowChan.Http;
 using MeowChan.Interfaces;
@@ -22,8 +23,8 @@ public sealed class SourcesTests
             new FailureInfo(FailureKind.Http, "Thread missing", HttpStatusCode.NotFound), new DownloadCounts(2, 1)), "4chan", "g");
         DesktopSessionView view = new DesktopSessionView([thread], [], [], DesktopSessionState.Ready, null);
         IReadOnlyList<SourceRow> rows = SourcesSnapshot.From([Provider("4chan"), Provider("8kun")], view);
-        Assert.Contains("1 threads", rows[0].Summary);
-        Assert.Contains("2 queued", rows[0].Summary);
+        Assert.Contains("Threads: 1", rows[0].Summary);
+        Assert.Contains("Queued: 2", rows[0].Summary);
         SourceWatchRow watch = Assert.Single(rows[0].Watches);
         Assert.Equal(new DiagnosticTarget(DiagnosticTargetKind.Thread, 42), watch.Target);
         Assert.Contains("25", watch.Observation);
@@ -58,6 +59,32 @@ public sealed class SourcesTests
         Assert.Null(SourcesSnapshot.FindPolicy("source", [old, current with { IsActive = false }]));
         Assert.Null(SourcesSnapshot.FindPolicy("source", [old with { IsActive = true }, current]));
         Assert.Same(old, SourcesSnapshot.FindPolicy("source", [old]));
+    }
+
+    [Fact]
+    public void SourcesAreSortedByMaturityThenAlphabeticallyAndEveryRowCarriesItsBadges()
+    {
+        Texts.Initialize(); Texts.SetLanguage("en");
+        DesktopSessionView empty = new DesktopSessionView([], [], [], DesktopSessionState.Ready, null);
+        SourceMediaIntegrityPolicyView Policy(string id, SourceWordingMaintenance maintenance, SourceWordingMaturity maturity, bool active = true) =>
+            new(new("profile", "owner." + id, id, false, 1), false, active, SourceMaturity.Unspecified,
+                new SourceWordingClassification(id, id, maintenance, maturity));
+        ProviderDescriptor[] providers = [Provider("zeta"), Provider("Beta"), Provider("alpha"), Provider("omega"), Provider("gamma")];
+        IReadOnlyList<SourceRow> rows = SourcesSnapshot.From(providers, empty,
+        [
+            Policy("zeta", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Stable),
+            Policy("Beta", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Experimental),
+            Policy("alpha", SourceWordingMaintenance.MeowChan, SourceWordingMaturity.Experimental),
+            Policy("omega", SourceWordingMaintenance.Unknown, SourceWordingMaturity.Unclassified, active: false)
+            // "gamma" has no policy at all: unclassified, built in.
+        ]);
+        // Stable, then unclassified (alphabetical), then experimental (alphabetical); case never splits a group.
+        Assert.Equal(["zeta", "gamma", "omega", "alpha", "Beta"], rows.Select(row => row.Id));
+        Assert.Equal(["Plugin", "MeowChan", "Stable", "Active"], rows[0].Badges.Select(badge => badge.Value));
+        Assert.Empty(rows[0].Badges.Where(badge => badge.Deviates));
+        Assert.Equal("Built-in", rows[1].Badges[0].Value);
+        Assert.Equal(["Maintenance unverified", "Not activated"], rows[2].Badges.Where(badge => badge.Deviates).Select(badge => badge.ChipText));
+        Assert.True(rows[3].Badges.Single(badge => badge.Kind == SourceBadgeKind.Maturity).Warning);
     }
 
     private static ProviderDescriptor Provider(string id) => new ProviderDescriptor(id, id,

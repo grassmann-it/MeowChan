@@ -35,7 +35,8 @@ internal static class GalleryFitChecks
         string directory = Path.Combine(TemporaryWorkspacePaths.TempRoot, "meowchan-fit-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         object? previousContent = window.Content;
-        GalleryViewer viewer = new();
+        await using GalleryViewer initialViewer = new();
+        GalleryViewer viewer = initialViewer;
         DecodeProbe probe = new();
         viewer.DecodeImageAsync = probe.DecodeAsync;
         Image image = null!;
@@ -45,6 +46,7 @@ internal static class GalleryFitChecks
         async Task ReplaceViewerAsync()
         {
             await viewer.StopAsync();
+            await viewer.DisposeAsync();
             viewer = new GalleryViewer { DecodeImageAsync = probe.DecodeAsync };
             window.Content = viewer;
             await Program.WaitUntilAsync(() => viewer.GetGalleryVisualDescendants().Any(control => control is Image { Name: "GalleryImage" }));
@@ -58,6 +60,7 @@ internal static class GalleryFitChecks
             await ReplaceViewerAsync(); await ResizeAsync(viewer, 760, 500);
             await viewer.ShowAsync(entry, CancellationToken.None); await SettledAsync();
         }
+        Exception? failureBeforeCleanup = null;
         try
         {
             GalleryEntry large = await FixtureAsync(directory, "large", 6000, 4000, SKColors.DarkOrange);
@@ -237,6 +240,26 @@ internal static class GalleryFitChecks
                 Require(image.Source == null, "Canceled session published a noncancelable decode result.");
             }
 
+            // Plan V4: a rotation is a view transform. The picture turns, Fit follows the swapped shape, nothing is decoded again
+            // for it, a new medium is upright, and the live region says it.
+            await ResetAsync(large);
+            double uprightZoom = viewer.CaptureState().PhysicalZoom;
+            int beforeRotate = probe.Calls.Count;
+            Click(viewer, "GalleryRotate"); await SettledAsync();
+            Require(viewer.Rotation == 90 && viewer.CaptureState().Rotation == 90 && !viewer.CaptureState().ManualZoom,
+                "Rotating a fitted image did not turn it and keep Fit.");
+            Require(viewer.CaptureState().PhysicalZoom < uprightZoom, "A turned 3:2 picture did not fit its swapped shape.");
+            Require(image.RenderTransform is Avalonia.Media.TransformGroup group && group.Children.OfType<Avalonia.Media.RotateTransform>().Single().Angle == 90,
+                "The image's render transform did not carry the rotation.");
+            Require(probe.Calls.Skip(beforeRotate).All(call => call.Request is GalleryDecodeRequest.Fit), "Rotating requested Original.");
+            await Program.WaitUntilAsync(() => viewer.ViewAnnouncementText.Contains("90"));
+            for (int turn = 0; turn < 3; turn++) viewer.RotateView();
+            await SettledAsync();
+            Require(viewer.Rotation == 0 && Math.Abs(viewer.CaptureState().PhysicalZoom - uprightZoom) < 1e-9, "Four turns did not return to the upright Fit.");
+            viewer.RotateView(); await SettledAsync();
+            await viewer.ShowAsync(small, CancellationToken.None); await SettledAsync();
+            Require(viewer.Rotation == 0, "A new medium did not start upright.");
+
             List<long> resident = new(); List<double> latencies = new();
             int perfStart = probe.Calls.Count;
             for (int cycle = 0; cycle < 6; cycle++)
@@ -271,12 +294,16 @@ internal static class GalleryFitChecks
             }));
             Console.WriteLine("SMOKE gallery-fit: physical targets, trailing latest resize, retained shrink, single worker, switch/zoom/stop/cancel races, small original reuse, failure/retry and real decode memory cycles passed.");
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            probe.ReleaseAll(); await viewer.StopAsync();
-            await Program.WaitUntilAsync(() => probe.Active == 0);
-            window.Content = previousContent;
-            Directory.Delete(directory, true);
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+            {
+                probe.ReleaseAll(); await viewer.StopAsync(); await viewer.DisposeAsync();
+                await Program.WaitUntilAsync(() => probe.Active == 0);
+                window.Content = previousContent;
+                Directory.Delete(directory, true);
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryFitChecks: " + exception));
         }
     }
 
@@ -338,9 +365,14 @@ internal static class GalleryFitChecks
             double mediaBottom = mediaOrigin.Y + viewport.Bounds.Height;
             double toolsBottom = toolsOrigin.Y + tools.Bounds.Height;
             double captionBottom = captionOrigin.Y + caption.Bounds.Height;
-            double footerHeight = tools.Bounds.Height + tools.Margin.Top + tools.Margin.Bottom
+            // GL1: a bottom filmstrip band shown in the dock is the dock's first row, so the tools no longer sit directly under the
+            // viewport: the band (its height and margins) sits between them. A hidden or top strip adds nothing.
+            Control? band = viewer.GetGalleryVisualDescendants().OfType<Control>()
+                .FirstOrDefault(control => control.Name == "GalleryFilmstrip" && control.IsEffectivelyVisible && control.Parent is Control { Name: "GalleryDock" });
+            double bandSpace = band == null ? 0 : band.Bounds.Height + band.Margin.Top + band.Margin.Bottom;
+            double footerHeight = bandSpace + tools.Bounds.Height + tools.Margin.Top + tools.Margin.Bottom
                 + caption.Bounds.Height + caption.Margin.Top + caption.Margin.Bottom;
-            return Math.Abs(mediaOrigin.Y) < 1 && Math.Abs(mediaBottom + tools.Margin.Top - toolsOrigin.Y) < 1
+            return Math.Abs(mediaOrigin.Y) < 1 && Math.Abs(mediaBottom + bandSpace + tools.Margin.Top - toolsOrigin.Y) < 1
                 && Math.Abs(toolsBottom + tools.Margin.Bottom + caption.Margin.Top - captionOrigin.Y) < 1
                 && Math.Abs(captionBottom + caption.Margin.Bottom - height) < 1
                 && Math.Abs(viewport.Bounds.Height + footerHeight - height) < 1;

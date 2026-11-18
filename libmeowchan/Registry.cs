@@ -54,6 +54,9 @@ public sealed partial class Registry : IAsyncDisposable
         new Dictionary<string, ThreadWorkSnapshot>(StringComparer.Ordinal));
     private readonly Dictionary<ResourceKey, WorkResource> _workResources = new();
     private readonly ThreadContentRuntime? _contentRuntime;
+    // Optional until a profile is prepared; once bound, this is the profile-owned
+    // additive Booru catalog used by the later search/queue slices.
+    private BooruCatalogStore? _booruCatalog;
     private string _outputDirectory;
     private TimeSpan _threadInterval;
     private TimeSpan _boardInterval;
@@ -187,6 +190,8 @@ public sealed partial class Registry : IAsyncDisposable
     public bool IsPaused => _queue.IsPaused;
     /// <summary>Cumulative received media bytes for the current session, including failed attempts.</summary>
     public long ReceivedMediaBytes => _queue.ReceivedMediaBytes;
+    /// <summary>Profile-bound additive Booru metadata store, available after producer preparation.</summary>
+    internal BooruCatalogStore? BooruCatalog => _booruCatalog;
     public void SetPaused(bool paused) => SetPausedAsync(paused).GetAwaiter().GetResult();
 
     public async Task SetPausedAsync(bool paused)
@@ -308,6 +313,14 @@ public sealed partial class Registry : IAsyncDisposable
     }
 
     /// <summary>Explicitly restores before user admissions. No partial restore snapshot is saved.</summary>
+    /// <remarks>
+    /// This method does not bootstrap a freshly acquired profile lease. For a new
+    /// profile-bound session, await <see cref="StartAsync"/> instead: it performs
+    /// recovery and restore before activating producers, including when persistence
+    /// is disabled. Calling RestoreAsync after successful startup is a no-op.
+    /// Unbound registries and new registries borrowing an already-ready lease may
+    /// use RestoreAsync directly. A stopped registry cannot be restarted.
+    /// </remarks>
     public async Task RestoreAsync()
     {
         using ProfileAdmissionToken? admission = EnterRegistryWriter();
@@ -325,6 +338,11 @@ public sealed partial class Registry : IAsyncDisposable
             ObjectDisposedException.ThrowIf(_stopping, this);
             if (_restored) return;
             if (_hasMutations) throw new InvalidOperationException("Restore the session before adding or removing watches.");
+            // Validate the additive Booru catalog at the same admitted restore
+            // boundary used by both public standalone startup and the desktop host.
+            // An absent file remains the normal offline migration; malformed or
+            // future data must fail closed before any watch is restored.
+            _booruCatalog?.Read();
             SessionLoadResult loaded = _sessionStore == null || !_persistSession
                 ? new SessionLoadResult(new SessionSnapshot(), null, false)
                 : await _sessionStore.LoadAsync().ConfigureAwait(false);
@@ -333,7 +351,17 @@ public sealed partial class Registry : IAsyncDisposable
             Dictionary<string, string> canonicalUrls = new Dictionary<string, string>(StringComparer.Ordinal);
             HashSet<string> threads = NormalizeRestoredUrls(loaded.Snapshot.ThreadUrls, true, resources, canonicalUrls, warnings);
             HashSet<string> boards = NormalizeRestoredUrls(loaded.Snapshot.BoardUrls, false, resources, canonicalUrls, warnings);
-            IReadOnlyList<WorkResource> durable = _workStore?.LoadResources() ?? Array.Empty<WorkResource>();
+            // Once per session, before any watch is bound or a generation changes (the gate is held).
+            // Off the caller's thread: an effective run copies the whole journal first.
+            if (_workStore is WorkStateStore journalStore
+                && (await Task.Run(() => journalStore.PruneSupersededMedia(admission)).ConfigureAwait(false)).Warning is { } pruneWarning)
+                warnings.Add(pruneWarning);
+            WorkResourceLoad journal = _workStore == null ? new WorkResourceLoad(Array.Empty<WorkResource>(), Array.Empty<UnreadableWorkRow>())
+                : WorkStateAccess.For(_workStore).LoadReadableResources();
+            IReadOnlyList<WorkResource> durable = journal.Resources;
+            HashSet<string> unreadable = journal.Unreadable.Select(row => row.Url).ToHashSet(StringComparer.Ordinal);
+            foreach (UnreadableWorkRow row in journal.Unreadable)
+                warnings.Add($"Could not read durable watch '{row.Url}' ({row.Reason}); it was not restored and its journal entry was retained.");
             Dictionary<string, WorkResource> byUrl = durable.ToDictionary(item => item.Url, StringComparer.Ordinal);
             foreach (WorkResource saved in durable)
             {
@@ -361,6 +389,10 @@ public sealed partial class Registry : IAsyncDisposable
                         boards.Remove(resource.Url);
                     }
                 }
+                // An unreadable intent is unknown, not absent: never admit or re-create it at
+                // generation 1. Its saved projection entry is kept for a later repair.
+                foreach (Resource resource in resources.Values.ToArray())
+                    if (unreadable.Contains(resource.Url)) resources.Remove(resource.Key);
                 if (!_persistSession) { resources.Clear(); threads.Clear(); boards.Clear(); }
             }
             HashSet<string> suppressedUrls = new HashSet<string>(StringComparer.Ordinal);
@@ -440,7 +472,7 @@ public sealed partial class Registry : IAsyncDisposable
                 { warnings.Add($"Session projection could not be saved: {exception.Message}"); }
             }
             _session = normalized;
-            RefreshWorkCache();
+            RefreshWorkCache(warnings);
             _restored = true;
             _restoreRequired = false;
             foreach (Resource resource in resources.Values)
@@ -903,8 +935,8 @@ public sealed partial class Registry : IAsyncDisposable
         => _persistSession && _sessionStore != null ? SaveStoreSessionAsync(CopySnapshot(snapshot), admission) : Task.CompletedTask;
 
     private Task SaveStoreSessionAsync(SessionSnapshot snapshot, ProfileAdmissionToken? admission)
-        => _sessionStore is SessionStore sqlite && admission != null
-            ? sqlite.SaveAdmittedAsync(snapshot, admission) : _sessionStore!.SaveAsync(snapshot);
+        => _sessionStore is IAdmittedSessionStore admitted && admission != null
+            ? admitted.SaveAdmittedAsync(snapshot, admission) : _sessionStore!.SaveAsync(snapshot);
 
     private void EnsureRestoredForPersistence()
     {

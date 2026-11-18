@@ -109,6 +109,8 @@ internal static class HtmlExportActionLayoutChecks
                 var sceneActions = collection ? Actions.Where(action => action.Name is
                     "ArchiveExportPrevious" or "ArchiveExportAssociate").ToArray() : Actions;
                 string priorDestination = collection ? collectionDestination : singleDestination;
+                // The update options live in the dialog's folded extras section (work views, §1.14); measure them open.
+                Need<Expander>(page, "ArchiveExportMoreOptions").IsExpanded = true;
                 if (!collection) Need<Expander>(page, "ArchiveExportLegacySection").IsExpanded = true;
                 await SettleAsync(host);
                 CheckScene(page, collection, priorDestination);

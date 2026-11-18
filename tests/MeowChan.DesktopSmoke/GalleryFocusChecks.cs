@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Gallery;
@@ -135,8 +136,12 @@ internal static class GalleryFocusChecks
             int teardownPreferenceWrites = 0;
             viewer.PlaybackPreferencesChanged += _ => teardownPreferenceWrites++;
             await viewer.StopAsync();
-            Require(toggle.IsChecked == true && !fit.IsVisible && teardownPreferenceWrites == 0,
-                "Closing overwrote the remembered focus choice or published a lifecycle preference change.");
+            // After StopAsync the overlay subtree is released from the window, so effective visibility of its
+            // tools is no longer defined; the remembered focus choice is still the hidden tool group.
+            bool toolsHidden = fit.GetSelfAndVisualAncestors().OfType<Visual>().Any(visual => !visual.IsVisible);
+            Require(toggle.IsChecked == true && toolsHidden && teardownPreferenceWrites == 0,
+                "Closing overwrote the remembered focus choice or published a lifecycle preference change."
+                + $" toggle={toggle.IsChecked} toolsHidden={toolsHidden} writes={teardownPreferenceWrites}");
             GalleryViewer fresh = new();
             object? previousContent = window.Content;
             try

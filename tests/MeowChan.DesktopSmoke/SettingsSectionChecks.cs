@@ -47,8 +47,17 @@ internal static class SettingsSectionChecks
                 var before = scroll.Offset;
                 Texts.SetLanguage(language == "en" ? "de" : "en");
                 await Task.Delay(50);
-                Require(numericText.IsFocused && timer.Text == raw && scroll.Offset == before,
-                    "Passive language refresh stole focus, scrolled or replaced raw input.");
+                Require(numericText.IsFocused, "Passive language refresh stole numeric input focus.");
+                Require(timer.Text == raw && timer.Value == value && path.Text == "relative unfinished folder ü" && commits == 0,
+                    "Passive language refresh changed raw input, draft values or saved settings.");
+                // Translated labels can shrink the page below the old offset. ScrollViewer
+                // must clamp to its new bounds; that is not an unsolicited navigation.
+                // Require the exact old offset everywhere it remains representable.
+                var expected = new Avalonia.Vector(
+                    Math.Clamp(before.X, 0, Math.Max(0, scroll.Extent.Width - scroll.Viewport.Width)),
+                    Math.Clamp(before.Y, 0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height)));
+                Require(scroll.Offset == expected,
+                    $"Passive language refresh scrolled: before={before}, expected={expected}, actual={scroll.Offset}.");
             }
             Console.WriteLine("SMOKE settings sections: explicit targets, draft/raw preservation and passive language focus passed.");
         }
@@ -64,12 +73,29 @@ internal static class SettingsSectionChecks
     internal static Task OpenFieldAsync(SettingsEditor editor, string field) => OpenAsync(editor, field switch
     {
         "WorkspaceModeInput" or "LanguageInput" or "ThemeInput" or "CompactDensityInput" => "settings.interface",
-        "VideoVolumeInput" or "ReadingFontSizeInput" or "RememberReadingPositionInput" or "ForgetReadingPositionButton" => "settings.reading-media",
-        "ReserveInput" or "ProductionWorkersInput" or "WorkerIdleMinutesInput" or "SourceHeapMiBInput" or "FilterHeapMiBInput" => "settings.worker-budgets",
+        "VideoVolumeInput" or "VideoStartMutedInput" or "ReadingFontSizeInput" or "RememberReadingPositionInput" or "ForgetReadingPositionButton"
+            or "ReaderThumbnailWidthInput" or "ReaderDateStyleInput" or "ReaderSpoilersInput" or "ReaderFoldLinesInput"
+            or "ReaderPreviewLinesInput" or "ReaderPreviewDelayMsInput" or "ReaderReplyStepInput" or "ReaderReplyLinesInput" or "ReaderExpandRepliesInput"
+            or "ReaderPageSizeInput" or "ReaderThreadingDepthInput" or "ReadingHistoryLimitInput" or "ReadingHistoryMenuEntriesInput" or "ReaderTextlessLargeImagesInput" or "ReaderTextlessMediaWidthInput" or "ReaderFocusedMediaEnlargeInput" or "ReaderFocusedMediaScalePercentInput" or "ReaderHoverEnlargeInput" or "ReaderHoverEnlargeSizeInput" or "ReaderHoverEnlargeDelayMsInput" or "ReaderMediaSidebarInput" or "ReaderMediaSidebarScopeInput" or "ReaderMediaSidebarSideInput" or "ReaderNavigationModeInput" or "ReaderNavigationShowPositionInput" or "ReaderMediaSidebarWidthInput" or "ReaderMediaSidebarMinimumWidthInput" or "ReaderMediaClickInput" or "ReaderInlineVideoAutoplayMutedInput" or "ReaderKeepImagesExpandedInput" or "ReaderSidebarVideoAutoplayInput" or "ReaderSidebarVideoLoopInput" or "ReaderSidebarVideoStartMutedInput" or "ReaderInlineVideoMaxPlayersInput" or "ReaderInlineVideoMaxFileMiBInput" or "ReaderMediaStripLimitInput" or "ReaderMediaGridInput" or "ReaderMediaGridTextLimitInput" or "ReaderPreviewPrefetchPostsInput" or "ReaderPreviewSizeMemoryInput" or "GalleryFitUpscaleInput" or "GalleryFitMaxUpscalePercentInput" => "settings.reading-media",
+        "ReserveInput" or "ProductionWorkersInput" or "WorkerIdleMinutesInput" or "SourceHeapMiBInput" or "FilterHeapMiBInput"
+            or "PrivateTagLimitInput" or "PrivateTagFileMiBInput" or "MediaIndexCacheMiBInput" or "PostFilterRuleLimitInput" or "HiddenPostLimitInput"
+            or "FavoriteEntryLimitInput" or "FavoriteFileLimitMiBInput" or "PostBookmarkLimitInput" or "SavedSearchLimitInput" or "ReaderGroupLimitInput" or "ProfileRegistryLimitInput" or "SourcesWatchPreviewRowsInput" or "ExportConfirmFilesInput" or "ExportConfirmGiBInput" or "PosterCacheLimitMiBInput" or "PosterCacheFileLimitInput" or "AudioProbeCacheLimitMiBInput" or "AudioProbeCacheEntriesInput" or "ThumbnailCacheTilesInput" or "GalleryImageCacheMiBInput" or "GalleryPreloadAheadInput" or "GalleryPreloadBehindInput" or "ClipboardUrlLimitInput" or "ClipboardTextLimitKiBInput" or "ImportMaxFilesPerBatchInput" or "ImportMaxBatchGiBInput" or "ImportMaxFileMiBInput" or "ImportMaxTotalFilesInput" or "ImportCatalogLimitMiBInput" or "ImportMaxTagsPerBatchInput" or "ImportMaxBatchesInput" or "MediaIndexMaxEntriesInput" or "MediaIndexMaxThreadsInput" => "settings.worker-budgets",
         "AboutSettingsButton" => "settings.behavior",
         "DownloadPathInput" or "BrowseButton" or "RecheckTimerInput" or "BandwidthInput" or "ParallelDownloadsInput" => "settings.downloads",
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, "No settings category mapping for this field.")
     });
+
+    /// <summary>The numeric field's editing TextBox after the field was opened. The settings groups are collapsible
+    /// Expanders; a field inside a collapsed group is not attached to the visual tree (so it has no TopLevel, layout or
+    /// template) until its groups are expanded and laid out.</summary>
+    internal static TextBox NumericEditingSurface(SettingsEditor editor, NumericUpDown input)
+    {
+        for (var parent = input.Parent; parent != null; parent = parent.Parent)
+            if (parent is Expander group) group.IsExpanded = true;
+        (TopLevel.GetTopLevel(editor) as Avalonia.Layout.Layoutable)?.UpdateLayout();
+        input.ApplyTemplate();
+        return input.GetVisualDescendants().OfType<TextBox>().Single(control => control.Name == "PART_TextBox");
+    }
 
     internal static async Task OpenAsync(SettingsEditor editor, string section)
     {

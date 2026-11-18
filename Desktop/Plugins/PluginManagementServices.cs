@@ -39,6 +39,8 @@ internal sealed class PluginManagementServices
     internal Func<IReadOnlyList<PluginWorkerSnapshot>>? GetWorkerSnapshots { get; init; }
     internal Func<IReadOnlyList<PluginProductionWorkerSnapshot>>? GetProductionWorkerSnapshots { get; init; }
     internal Func<IReadOnlyList<MeowChan.Rules.MediaRuleScope>>? GetRuleScopes { get; init; }
+    /// <summary>Session evidence that the plugin's exact running build (plugin ID, execution revision) failed with sdk-mismatch.</summary>
+    internal Func<string, string, bool>? HasSdkMismatch { get; init; }
     internal Func<PluginArtifact, CancellationToken, Task<PluginDescription>> DescribeTestAsync { get; }
     internal Func<PluginArtifact, PluginConfiguration, CancellationToken, Task<IPluginWorkerClient>> StartTestWorkerAsync { get; }
     internal Func<PluginDescription, string, IPluginWorkerClient, PluginOperationContext, CancellationToken, Task<object>> ProbeAsync { get; }
@@ -59,7 +61,9 @@ internal sealed class PluginManagementServices
         PluginInventory inventory = await Inventory.ScanAsync(PluginDirectory, cancellationToken).ConfigureAwait(false);
         List<PluginCatalogEntry> entries = new();
         HashSet<string> seen = new(StringComparer.Ordinal);
-        foreach (PluginActivationSnapshot plugin in profile.Plugins)
+        // A bundled identity that a delivered family plugin replaced is history, not a plugin to manage or repair.
+        IReadOnlySet<string> superseded = SupersededBundledPlugins.InProfile(profile, ChanSourceFamilies.Successors);
+        foreach (PluginActivationSnapshot plugin in profile.Plugins.Where(plugin => !superseded.Contains(plugin.PluginId)))
         {
             foreach (PluginCandidateSnapshot candidate in plugin.Candidates)
             {

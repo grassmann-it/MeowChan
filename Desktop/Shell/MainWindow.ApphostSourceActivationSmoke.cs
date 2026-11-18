@@ -1,3 +1,5 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -64,21 +66,23 @@ public partial class MainWindow
             // The author workflow requires active delivered adapters; establish that
             // prerequisite explicitly without granting a source-integrity exception.
             installed = await EnableApphostFixtureSourcesAsync(plugins, installed);
+            RequireApphostBundledInventory(plugins, installed);
             startupProfile = installed;
             RequireAuthorStartupState(installed, startupWarnings, startupPaused.Value, phase);
             foreach (var plugin in installed.Plugins)
             {
-                RequireWorkflow(plugin.Enabled && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
+                RequireWorkflow(plugin.Enabled == ApphostFixturePluginEnabled(plugin.PluginId) && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
                 revisions[plugin.PluginId] = plugin.Active!.ExecutionRevision;
             }
             if (phase == "install")
             {
+                // The vichan family serves Lainchan; an author copy keeps the family identity.
                 string lainchan = Path.Combine(plugins.PluginDirectory, "Author Lainchan source.cs");
-                File.Copy(Path.Combine(AppContext.BaseDirectory, "plugins", "sources", "Lainchan.cs"), lainchan);
+                File.Copy(Path.Combine(AppContext.BaseDirectory, "plugins", "sources", "VichanFamily.cs"), lainchan);
                 string filter = await WriteAuthorFilterSourceAsync(plugins.PluginDirectory);
                 foreach ((string local, string delivered, string pluginId) in new[]
                 {
-                    (lainchan, "plugins/sources/Lainchan.cs", "meowchan.source.lainchan"),
+                    (lainchan, "plugins/sources/VichanFamily.cs", ChanSourceFamilies.Vichan),
                     (filter, "plugins/sources/ImageDimensionsFilter.cs", AuthorFilterId)
                 })
                 {
@@ -97,7 +101,7 @@ public partial class MainWindow
                         RequireWorkflow((await worker.ValidateSettingsAsync(new(SettingScope.Plugin, config.PluginSettings), CancellationToken.None)).Count == 0, "Author plugin settings test failed.");
                         foreach (var source in config.SourceSettings)
                             RequireWorkflow((await worker.ValidateSettingsAsync(new(SettingScope.Source, source.Value, SourceId: source.Key), CancellationToken.None)).Count == 0, "Author source settings test failed.");
-                        if (pluginId == "meowchan.source.lainchan")
+                        if (pluginId == ChanSourceFamilies.Vichan)
                         {
                             object probe = await PluginProbe.ReadAsync(description, ApphostPluginFixtures.ThreadUrl("lainchan"), worker, new("author-probe", 1), CancellationToken.None);
                             RequireWorkflow(probe is MeowChan.PluginSdk.ThreadSnapshot thread && thread.Snapshot.Posts.Count == 2, "Author source probe did not return normalized posts.");
@@ -234,30 +238,7 @@ public partial class MainWindow
             }, AuthorJson));
         }
     }
-    internal static void RequireAuthorStartupState(PluginProfileSnapshot installed, IReadOnlyList<string> warnings, bool isPaused, string phase)
-    {
-        RequireWorkflow(isPaused, "Source activation startup is not paused.");
-        RequireWorkflow(phase is "install" or "acquire" or "offline", "Unknown author startup phase.");
-        const string selectedAdvisory = "Multiple candidates exist; the selected candidate is retained.";
-        string[] authorIds = { "meowchan.source.lainchan", AuthorFilterId };
-        List<string> expectedWarnings = new();
-        foreach (var plugin in installed.Plugins)
-        {
-            RequireWorkflow(plugin.Enabled && plugin.Active != null, "Source activation inventory is unavailable: " + plugin.PluginId);
-            if (phase != "install" && authorIds.Contains(plugin.PluginId, StringComparer.Ordinal))
-            {
-                RequireWorkflow(plugin.Problem == selectedAdvisory && plugin.SelectedCandidateId == plugin.Active!.CandidateId
-                    && plugin.Pending == null && plugin.Candidates.Count == 2
-                    && plugin.Candidates.All(candidate => candidate.IsPresent && candidate.Problem == null),
-                    "Author selection advisory/state differs: " + plugin.PluginId);
-                expectedWarnings.Add(plugin.Active!.Description.Name + ": " + selectedAdvisory);
-            }
-            else RequireWorkflow(plugin.Problem == null, "Unexpected author startup problem: " + plugin.PluginId + ": " + plugin.Problem);
-        }
-        RequireWorkflow(phase == "install" || expectedWarnings.Count == 2
-            && authorIds.All(id => installed.Plugins.Count(plugin => plugin.PluginId == id) == 1), "Both explicitly selected author candidates must be present.");
-        RequireWorkflow(warnings.OrderBy(value => value, StringComparer.Ordinal).SequenceEqual(expectedWarnings.OrderBy(value => value, StringComparer.Ordinal)),
-            "Author startup warning inventory differs: " + string.Join(" | ", warnings));
-    }
     private static string AuthorHash(string path) => Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
 }
+
+#endif

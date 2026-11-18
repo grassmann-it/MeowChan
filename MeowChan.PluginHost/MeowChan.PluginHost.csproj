@@ -15,5 +15,8 @@
     <ProjectReference Include="../libmeowchan/libmeowchan.csproj" />
     <Compile Include="../Shared/PluginProtocol/**/*.cs" Link="Protocol/%(Filename)%(Extension)" />
     <InternalsVisibleTo Include="MeowChan.PluginFilters.Tests" />
+    <InternalsVisibleTo Include="MeowChan.PluginRuntime.Tests" />
+    <!-- The desktop Danbooru composition maps validated SDK posts to core claims (BooruClaimMapper). -->
+    <InternalsVisibleTo Include="MeowChan" />
   </ItemGroup>
 </Project>

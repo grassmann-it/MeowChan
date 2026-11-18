@@ -122,7 +122,27 @@ internal static class CompilerWire
 
     internal static async Task<ToolchainManifest> ReadToolchainAsync(string directory, CancellationToken cancellationToken)
     {
-        byte[] json = await ReadBoundedAsync(ResolvePath(directory, "toolchain.json"), MaximumResponseBytes, cancellationToken);
+        ToolchainManifest manifest = ParseToolchainManifest(
+            await ReadBoundedAsync(ResolvePath(directory, "toolchain.json"), MaximumResponseBytes, cancellationToken));
+        long total = 0;
+        foreach (ToolchainFile file in manifest.Files)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            (long length, string sha256) = await HashBoundedAsync(ResolvePath(directory, file.Path), MaximumToolchainFileBytes, cancellationToken);
+            total += length;
+            if (total > MaximumToolchainBytes || sha256 != file.Sha256)
+                throw new InvalidDataException($"Compiler toolchain integrity check failed: {file.Path}");
+        }
+        CheckToolchainFingerprints(manifest);
+        return manifest;
+    }
+
+    internal const int MaximumToolchainFileBytes = 64 * 1024 * 1024;
+    internal const long MaximumToolchainBytes = 256 * 1024 * 1024;
+
+    /// <summary>Shape rules of toolchain.json; the caller still has to hash every listed file.</summary>
+    internal static ToolchainManifest ParseToolchainManifest(byte[] json)
+    {
         ToolchainManifest manifest = JsonSerializer.Deserialize<ToolchainManifest>(json, JsonOptions)
             ?? throw new InvalidDataException("Missing toolchain manifest.");
         if (manifest.SchemaVersion != 1 || manifest.TargetFramework != "net10.0" || manifest.Options != Options ||
@@ -132,19 +152,15 @@ internal static class CompilerWire
             manifest.Files.Count(f => f.Role == "sdk") != 1 || manifest.Files.Count(f => f.Role == "compiler") < 3 ||
             manifest.Files.Count(f => f.Role == "framework") < 1)
             throw new InvalidDataException("Unsupported or incomplete compiler toolchain manifest.");
-        long total = 0;
-        foreach (ToolchainFile file in manifest.Files)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            (long length, string sha256) = await HashBoundedAsync(ResolvePath(directory, file.Path), 64 * 1024 * 1024, cancellationToken);
-            total += length;
-            if (total > 256 * 1024 * 1024 || sha256 != file.Sha256)
-                throw new InvalidDataException($"Compiler toolchain integrity check failed: {file.Path}");
-        }
+        return manifest;
+    }
+
+    /// <summary>The fingerprints toolchain.json claims must follow from its (verified) file hashes.</summary>
+    internal static void CheckToolchainFingerprints(ToolchainManifest manifest)
+    {
         if (FileSetHash(manifest.Files.Where(f => f.Role == "compiler")) != manifest.CompilerFingerprint ||
             FileSetHash(manifest.Files.Where(f => f.Role != "compiler")) != manifest.ReferenceFingerprint ||
             manifest.Files.Single(f => f.Role == "sdk").Sha256 != manifest.SdkFingerprint)
             throw new InvalidDataException("Compiler toolchain fingerprint mismatch.");
-        return manifest;
     }
 }

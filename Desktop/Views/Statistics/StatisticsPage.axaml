@@ -1,0 +1,263 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:ursa="https://irihi.tech/ursa"
+             xmlns:wv="using:MeowChan.Desktop.WorkViews"
+             xmlns:stats="clr-namespace:MeowChan.Desktop.Stats"
+             x:Class="MeowChan.StatisticsPage">
+    <UserControl.Styles>
+        <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
+        <Style Selector="DataGridRow.stats-total-row DataGridCell"><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" /><Setter Property="BorderThickness" Value="0,1,0,0" /></Style>
+    </UserControl.Styles>
+    <Grid>
+    <ScrollViewer x:Name="StatisticsScroll" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel x:Name="StatisticsContent" Margin="{StaticResource Workspace.Inset.Page}" Spacing="{StaticResource Workspace.Space.8}">
+            <StackPanel x:Name="StatisticsHeader" Classes="workspace-page-header">
+                <TextBlock x:Name="StatisticsTitle" Classes="page-title" Text="Statistics" />
+                <TextBlock x:Name="StatisticsSubtitle" Classes="muted" TextWrapping="Wrap" />
+            </StackPanel>
+            <Border x:Name="LoadNoticePanel" wv:WorkViewElement.Id="statistics.load-notice" Classes="workspace-warning" IsVisible="False">
+                <TextBlock x:Name="LoadNoticeText" TextWrapping="Wrap" />
+            </Border>
+            <Border x:Name="PersistErrorPanel" wv:WorkViewElement.Id="statistics.persist-error" Classes="workspace-warning" IsVisible="False">
+                <TextBlock x:Name="PersistErrorText" TextWrapping="Wrap" />
+            </Border>
+
+            <Border wv:WorkViewElement.Id="statistics.now" Classes="workspace-section">
+                <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.24}" LineSpacing="{StaticResource Workspace.Space.8}">
+                        <StackPanel MinWidth="130"><TextBlock x:Name="NetCaption" Classes="muted" /><TextBlock x:Name="NetValue" Classes="stats-value" /></StackPanel>
+                        <StackPanel MinWidth="130"><TextBlock x:Name="NetUpCaption" Classes="muted" /><TextBlock x:Name="NetUpValue" Classes="stats-value" /></StackPanel>
+                        <StackPanel MinWidth="130"><TextBlock x:Name="DiskWriteCaption" Classes="muted" /><TextBlock x:Name="DiskWriteValue" Classes="stats-value" /></StackPanel>
+                        <StackPanel MinWidth="130"><TextBlock x:Name="DiskReadCaption" Classes="muted" /><TextBlock x:Name="DiskReadValue" Classes="stats-value" /></StackPanel>
+                        <StackPanel MinWidth="130"><TextBlock x:Name="RequestsCaption" Classes="muted" /><TextBlock x:Name="RequestsValue" Classes="stats-value" /></StackPanel>
+                    </WrapPanel>
+                    <Grid wv:WorkViewElement.Id="statistics.history" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}">
+                        <TextBlock x:Name="HistoryTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <!-- Work views: Reset is destructive and rare, so Barebones and Simple keep it under More. It sits in the history bar, left of the numbers: the right edge is for Back and Close. -->
+                        <desktop:ActionToolBar x:Name="StatisticsActions" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                        <Button x:Name="ResetStatisticsButton" wv:WorkViewElement.Id="statistics.reset" ursa:ToolBar.OverflowMode="AsNeeded" Click="OnResetClick">
+                            <FlyoutBase.AttachedFlyout>
+                                <Flyout Placement="BottomEdgeAlignedRight" Opened="OnResetConfirmationOpened" Closed="OnResetConfirmationClosed">
+                                    <Border x:Name="ResetConfirmPanel" wv:WorkViewElement.Id="statistics.reset-confirm" MaxWidth="320" KeyDown="OnResetConfirmKeyDown">
+                                        <StackPanel Spacing="{StaticResource Workspace.Space.12}">
+                                            <!-- MD4 overlay header: a short title, then the cross (cancel) at the right edge like a dialog (HeaderBar end slot);
+                                                 the footer keeps the safe answer first and the destructive one right-most (OverlayFrame). -->
+                                            <controls:HeaderBar x:Name="ResetConfirmHeader">
+                                                <TextBlock x:Name="ResetConfirmTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                                <Button x:Name="ResetConfirmClose" controls:HeaderBar.IsEnd="True" Click="OnCancelResetClick" />
+                                            </controls:HeaderBar>
+                                            <TextBlock x:Name="ResetQuestion" TextWrapping="Wrap" />
+                                            <WrapPanel Classes="workspace-toolbar" HorizontalAlignment="Right">
+                                                <Button x:Name="CancelResetButton" Click="OnCancelResetClick" />
+                                                <Button x:Name="ConfirmResetButton" Classes="danger" Click="OnConfirmResetClick" />
+                                            </WrapPanel>
+                                        </StackPanel>
+                                    </Border>
+                                </Flyout>
+                            </FlyoutBase.AttachedFlyout>
+                        </Button>
+                        </desktop:ActionToolBar>
+                        <!-- Apply retains this column's measured width on reset, without keeping an invisible peak value in the accessibility tree. -->
+                        <Grid x:Name="PeakSlot" Grid.Column="2" IsHitTestVisible="False" VerticalAlignment="Center">
+                            <TextBlock x:Name="PeakText" Classes="muted stats-num" />
+                        </Grid>
+                    </Grid>
+                    <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                        <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                    <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.AccentSurface}" />
+                                    <Path Data="M 0,4 L 30,4" Stroke="{DynamicResource Workspace.Accent}" StrokeThickness="1.5" />
+                                </Panel>
+                                <TextBlock x:Name="NetTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="NetScale" Grid.Column="2" Classes="muted stats-num" />
+                            </Grid>
+                            <!-- Every graph has the same axes: the scale at the top and half way on the left, the time span underneath. -->
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="56,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" RowSpacing="{StaticResource Workspace.Space.4}">
+                                <Grid Width="82" RowDefinitions="*,*">
+                                    <TextBlock x:Name="ScaleTop" Classes="muted stats-num" VerticalAlignment="Top" />
+                                    <TextBlock x:Name="ScaleHalf" Grid.Row="1" Classes="muted stats-num" VerticalAlignment="Top" />
+                                </Grid>
+                                <controls:IoGraph x:Name="NetGraph" Grid.Column="1" Source="NetDown" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
+                                                  Stroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                                  Focusable="False" />
+                                <TextBlock x:Name="HistoryEmpty" Grid.Column="1" Classes="muted" TextWrapping="Wrap" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                    <TextBlock x:Name="HistoryStart" Classes="muted" FontFeatures="tnum" />
+                                    <TextBlock x:Name="HistoryEnd" Grid.Column="1" Classes="muted" />
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                    <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
+                                    <Path Data="M 0,4 L 30,4" Stroke="{DynamicResource Workspace.Stats.Disk}" StrokeThickness="1.5" />
+                                </Panel>
+                                <TextBlock x:Name="DiskWriteTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="DiskWriteScale" Grid.Column="2" Classes="muted stats-num" />
+                            </Grid>
+                            <!-- Every graph has the same axes: the scale at the top and half way on the left, the time span underneath. -->
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="56,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" RowSpacing="{StaticResource Workspace.Space.4}">
+                                <Grid Width="82" RowDefinitions="*,*">
+                                    <TextBlock x:Name="WriteScaleTop" Classes="muted stats-num" VerticalAlignment="Top" />
+                                    <TextBlock x:Name="WriteScaleHalf" Grid.Row="1" Classes="muted stats-num" VerticalAlignment="Top" />
+                                </Grid>
+                                <controls:IoGraph x:Name="DiskWriteGraph" Grid.Column="1" Source="DiskWrite" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
+                                                  Stroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                                  Focusable="False" />
+                                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                    <TextBlock x:Name="WriteHistoryStart" Classes="muted" FontFeatures="tnum" />
+                                    <TextBlock x:Name="WriteHistoryEnd" Grid.Column="1" Classes="muted" />
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
+                        <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <Panel Width="30" Height="14" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                    <Path Data="M 0,13 L 0,4 L 30,4 L 30,13 Z" Fill="{DynamicResource Workspace.Stats.ReadSurface}" />
+                                    <Path Data="M 0,4 L 30,4" Stroke="{DynamicResource Workspace.Stats.Read}" StrokeThickness="1.5" />
+                                </Panel>
+                                <TextBlock x:Name="DiskReadTitle" Grid.Column="1" TextTrimming="CharacterEllipsis" />
+                                <TextBlock x:Name="DiskReadScale" Grid.Column="2" Classes="muted stats-num" />
+                            </Grid>
+                            <!-- Every graph has the same axes: the scale at the top and half way on the left, the time span underneath. -->
+                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="56,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" RowSpacing="{StaticResource Workspace.Space.4}">
+                                <Grid Width="82" RowDefinitions="*,*">
+                                    <TextBlock x:Name="ReadScaleTop" Classes="muted stats-num" VerticalAlignment="Top" />
+                                    <TextBlock x:Name="ReadScaleHalf" Grid.Row="1" Classes="muted stats-num" VerticalAlignment="Top" />
+                                </Grid>
+                                <controls:IoGraph x:Name="DiskReadGraph" Grid.Column="1" Source="DiskRead" ShowDisk="False" Height="56" HorizontalAlignment="Stretch" LineThickness="1.5"
+                                                  Stroke="{DynamicResource Workspace.Stats.Read}" Fill="{DynamicResource Workspace.Stats.ReadSurface}" GuideStroke="{DynamicResource Workspace.Border}"
+                                                  Focusable="False" />
+                                <Grid Grid.Row="1" Grid.Column="1" ColumnDefinitions="*,Auto">
+                                    <TextBlock x:Name="ReadHistoryStart" Classes="muted" FontFeatures="tnum" />
+                                    <TextBlock x:Name="ReadHistoryEnd" Grid.Column="1" Classes="muted" />
+                                </Grid>
+                            </Grid>
+                        </StackPanel>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border wv:WorkViewElement.Id="statistics.sources" Classes="workspace-section">
+                <StackPanel Spacing="{StaticResource Workspace.Space.8}" SizeChanged="OnSourcesSizeChanged">
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock x:Name="SourcesTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                        <controls:HelpButton x:Name="StatisticsHelpButton" Grid.Column="1" HelpKey="help.stats" />
+                    </Grid>
+                    <TextBlock x:Name="SourcesEmpty" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
+                    <DataGrid x:Name="StatisticsGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                              CanUserSortColumns="False" CanUserReorderColumns="False" CanUserResizeColumns="False"
+                              GridLinesVisibility="Horizontal" HeadersVisibility="Column" RowHeight="34" ColumnHeaderHeight="72"
+                              HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <DataGrid.Columns>
+                            <DataGridTemplateColumn Width="*" MinWidth="140">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <controls:TrimTipTextBlock Text="{Binding Name}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <TextBlock Classes="stats-num" Text="{Binding Now}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <TextBlock Classes="stats-num" Text="{Binding Session}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <TextBlock Classes="stats-num" Text="{Binding Today}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="90">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <TextBlock Classes="stats-num" Text="{Binding Retained}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="116">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <TextBlock Classes="stats-num" Text="{Binding DiskWritten}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="116">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <TextBlock Classes="stats-num" Text="{Binding DiskRead}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="84">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <TextBlock Classes="stats-num" Text="{Binding Requests}" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Width="70">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate x:DataType="stats:StatisticsRow">
+                                        <!-- A count above zero leads to the problems of that source in the diagnostics segment (click or Enter). -->
+                                        <Panel>
+                                            <TextBlock Classes="stats-num" Text="{Binding Errors}" FontWeight="{Binding Weight}" VerticalAlignment="Center" IsVisible="{Binding !CanOpenDiagnostics}" />
+                                            <Button Classes="subtle stats-error-link" Content="{Binding Errors}" FontWeight="{Binding Weight}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                    IsVisible="{Binding CanOpenDiagnostics}" AutomationProperties.Name="{Binding ErrorsLinkText}" ToolTip.Tip="{Binding ErrorsLinkText}" />
+                                        </Panel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                    <StackPanel x:Name="CompactSources" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
+                        <Grid ColumnDefinitions="*,90,90,64" ColumnSpacing="{StaticResource Workspace.Space.8}" Margin="32,0,12,0">
+                            <TextBlock x:Name="CompactSourceHeader" TextWrapping="Wrap" />
+                            <TextBlock x:Name="CompactRateHeader" Grid.Column="1" TextWrapping="Wrap" TextAlignment="Right" />
+                            <TextBlock x:Name="CompactSessionHeader" Grid.Column="2" TextWrapping="Wrap" TextAlignment="Right" />
+                            <TextBlock x:Name="CompactErrorsHeader" Grid.Column="3" TextWrapping="Wrap" TextAlignment="Right" />
+                        </Grid>
+                        <ItemsControl x:Name="StatisticsCompactList">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate x:DataType="stats:StatisticsRow">
+                                    <Expander HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch" AutomationProperties.Name="{Binding Name}">
+                                        <Expander.Header>
+                                            <Grid ColumnDefinitions="*,90,90,64" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                                <TextBlock Text="{Binding Name}" FontWeight="{Binding Weight}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="1" Text="{Binding Now}" Classes="stats-num" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="2" Text="{Binding Session}" Classes="stats-num" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                                <TextBlock Grid.Column="3" Text="{Binding Errors}" Classes="stats-num" FontWeight="{Binding Weight}" VerticalAlignment="Center" />
+                                            </Grid>
+                                        </Expander.Header>
+                                        <StackPanel Margin="12,4" Spacing="{StaticResource Workspace.Space.4}">
+                                            <TextBlock Text="{Binding Details}" TextWrapping="Wrap" FontFeatures="tnum" />
+                                            <Button Classes="subtle stats-error-link" Content="{Binding ErrorsLinkText}" HorizontalAlignment="Left" IsVisible="{Binding CanOpenDiagnostics}" />
+                                        </StackPanel>
+                                    </Expander>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+    <!-- Transient result overlays the page; neither asking nor completing a reset moves the content. -->
+    <Border x:Name="ResetStatusPanel" Classes="workspace-section" IsVisible="False" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="12" MaxWidth="360">
+        <TextBlock x:Name="StatisticsStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+    </Border>
+    </Grid>
+</UserControl>

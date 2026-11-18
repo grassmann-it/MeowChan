@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
 
 namespace MeowChan.Persistence;
@@ -33,6 +34,9 @@ public sealed class ProfileLease : IDisposable
     // It is intentionally internal: the kernel is not a public import/apply API.
     internal ProfileAdmission Admission => _admission;
 
+    /// <summary>Write limits of the profile's private lists (user settings); the defaults are the former fixed values.</summary>
+    internal ProfileStoreLimits StoreLimits { get; } = new();
+
     private ProfileLease(string profileDirectory, FileStream lockStream, bool wasEmpty)
     {
         ProfileDirectory = profileDirectory;
@@ -59,13 +63,13 @@ public sealed class ProfileLease : IDisposable
         {
             try
             {
-                stream = new FileStream(lockPath, FileMode.CreateNew, FileAccess.ReadWrite, FileShare.None);
+                stream = AcquireLock(lockPath, FileMode.CreateNew, FileAccess.ReadWrite);
                 createdLock = true;
             }
             catch (IOException) when (File.Exists(lockPath))
             {
                 // CreateNew is the atomic provenance decision, never a prior existence sample.
-                stream = new FileStream(lockPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+                stream = AcquireLock(lockPath, FileMode.Open, FileAccess.ReadWrite);
                 createdLock = false;
             }
         }
@@ -84,9 +88,9 @@ public sealed class ProfileLease : IDisposable
                 {
                     try
                     {
-                        using FileStream legacy = new FileStream(
+                        using FileStream legacy = AcquireLock(
                             Path.Combine(directory, LegacyLockName),
-                            FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                            FileMode.OpenOrCreate, FileAccess.ReadWrite);
                         PublishProtocolMarker(directory);
                     }
                     catch (IOException ex)
@@ -108,6 +112,25 @@ public sealed class ProfileLease : IDisposable
             stream.Dispose();
             throw;
         }
+    }
+
+    /// <summary>
+    /// Whether an owner (another window of this app, or this one) holds the lease of <paramref name="profileDirectory"/>
+    /// right now. A probe only: it never creates the folder, the lock file or the marker, and a folder without a lock file
+    /// is not in use. An unreadable lock counts as in use, so a caller never starts a second owner on a guess.
+    /// </summary>
+    internal static bool IsInUse(string profileDirectory)
+    {
+        string lockPath = Path.Combine(NormalizeDirectory(profileDirectory), LockName);
+        try
+        {
+            using FileStream probe = AcquireLock(lockPath, FileMode.Open, FileAccess.Read);
+            return false;
+        }
+        catch (FileNotFoundException) { return false; }
+        catch (DirectoryNotFoundException) { return false; }
+        catch (IOException) { return true; }
+        catch (UnauthorizedAccessException) { return true; }
     }
 
     private static bool HasProtocolMarker(string directory)
@@ -165,6 +188,47 @@ public sealed class ProfileLease : IDisposable
         }
     }
 
+    private static FileStream AcquireLock(string path, FileMode mode, FileAccess access)
+    {
+        // On Unix, .NET backs FileShare.None with flock(LOCK_EX | LOCK_NB), which
+        // does not block either; a conflict would surface only as a generic
+        // IOException. Open the durable inode with sharing enabled instead (for
+        // which .NET takes an implicit flock(LOCK_SH | LOCK_NB) where the file
+        // system supports it) and then request LOCK_EX | LOCK_NB explicitly, so a
+        // conflict is told apart from other failures by its errno. flock(2)
+        // converts the shared lock non-atomically, but exclusivity still holds:
+        // the conversion fails while any other descriptor holds a lock, and no
+        // other process can convert or acquire one while ours is exclusive.
+        if (OperatingSystem.IsWindows())
+            return new FileStream(path, mode, access, FileShare.None);
+
+        FileStream stream = new FileStream(path, mode, access, FileShare.ReadWrite);
+        try
+        {
+            if (UnixFlock(stream.SafeFileHandle.DangerousGetHandle(), LockExclusive | LockNonBlocking) == 0)
+                return stream;
+
+            int error = Marshal.GetLastPInvokeError();
+            if (IsUnixLockConflict(error))
+                throw new IOException("The profile lock is already held.");
+            throw new IOException($"The profile lock could not be acquired (errno {error}).");
+        }
+        catch
+        {
+            stream.Dispose();
+            throw;
+        }
+    }
+
+    private static bool IsUnixLockConflict(int error) =>
+        error == (OperatingSystem.IsMacOS() ? 35 : 11);
+
+    private const int LockExclusive = 2;
+    private const int LockNonBlocking = 4;
+
+    [DllImport("libc", EntryPoint = "flock", SetLastError = true)]
+    private static extern int UnixFlock(IntPtr fileDescriptor, int operation);
+
     // Single coordinator per lease lifetime; a claim supplies no writer authority.
     // Keep failed claims owned so another Registry cannot resume partial startup.
     internal void ClaimStartupOwner(object owner)
@@ -211,6 +275,13 @@ public sealed class ProfileLease : IDisposable
     internal T RunPrivateStoreCommit<T>(ProfileAdmissionToken admission, Func<T> operation) =>
         _admission.RunWithToken(admission, () => RunExclusive(operation),
             ProfileAdmissionKind.Startup, ProfileAdmissionKind.Exclusive);
+
+    /// <summary>
+    /// Whether the OS lease is still held, read without the lease monitor. For a store with its own file and its own lock
+    /// whose reads must not queue behind every other store's writes (the folder source catalog); writes still use
+    /// <see cref="RunStoreWrite{T}"/>.
+    /// </summary>
+    internal bool IsHeld => System.Threading.Volatile.Read(ref _lockStream) != null;
 
     internal T RunExclusive<T>(Func<T> operation)
     {

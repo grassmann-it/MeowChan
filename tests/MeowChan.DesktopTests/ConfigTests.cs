@@ -81,7 +81,7 @@ public sealed class ConfigTests
 
         Assert.False(Directory.Exists(profile));
         Assert.Null(config.LoadWarning);
-        Assert.Equal("Barebones", config.WorkspaceMode);
+        Assert.Equal("Simple", config.WorkspaceMode);
         Assert.Equal(60, config.RecheckTimer);
         Assert.Equal(5, config.MaxParallelDownloads);
         Assert.Equal(1024 * 1024, config.BandwidthLimiter);
@@ -598,6 +598,32 @@ public sealed class ConfigTests
     }
 
     [Fact]
+    public void OnlyAPositivelyNewProfileStartsInSimpleAndKeepsItAfterSaving()
+    {
+        using TempDirectory fresh = new TempDirectory();
+        Config created = Config.LoadConfig(fresh.Path);
+        Assert.Equal(ProfileOrigin.ConfirmedNew, created.Origin);
+        Assert.Equal("Simple", created.WorkspaceMode);
+        created.SaveConfig();
+        Assert.Equal("Simple", Config.LoadConfig(fresh.Path).WorkspaceMode);
+
+        // Other files but no settings.json is not a new profile: it keeps the historical default.
+        using TempDirectory legacy = new TempDirectory();
+        File.WriteAllText(Path.Combine(legacy.Path, "saved_urls.json"), "[]");
+        Config existing = Config.LoadConfig(legacy.Path);
+        Assert.Equal(ProfileOrigin.ExistingMissingSettings, existing.Origin);
+        Assert.Equal("Barebones", existing.WorkspaceMode);
+
+        // A stored mode wins, and a stored file without a mode keeps Barebones.
+        using TempDirectory stored = new TempDirectory();
+        File.WriteAllText(SettingsPath(stored), "{\"WorkspaceMode\":\"Barebones\"}");
+        Assert.Equal("Barebones", Config.LoadConfig(stored.Path).WorkspaceMode);
+        using TempDirectory unset = new TempDirectory();
+        File.WriteAllText(SettingsPath(unset), "{\"RecheckTimer\":120}");
+        Assert.Equal("Barebones", Config.LoadConfig(unset.Path).WorkspaceMode);
+    }
+
+    [Fact]
     public void PresentationPreferencesCloneCopyAndRoundTripThroughTheBoundProfile()
     {
         using TempDirectory directory = new TempDirectory();
@@ -605,13 +631,13 @@ public sealed class ConfigTests
         Config candidate = original.Clone();
         candidate.Theme = "Light";
         candidate.Language = "de";
-        candidate.WorkspaceMode = "Simple";
+        candidate.WorkspaceMode = "Advanced";
         candidate.CompactDensity = true;
         candidate.SaveConfig();
 
         Assert.Equal("Dark", original.Theme);
         Assert.Equal("en", original.Language);
-        Assert.Equal("Barebones", original.WorkspaceMode);
+        Assert.Equal("Simple", original.WorkspaceMode);
         Assert.False(original.CompactDensity);
 
         original.CopyFrom(candidate);
@@ -619,7 +645,7 @@ public sealed class ConfigTests
         Assert.Null(loaded.LoadWarning);
         Assert.Equal("Light", loaded.Theme);
         Assert.Equal("de", loaded.Language);
-        Assert.Equal("Simple", loaded.WorkspaceMode);
+        Assert.Equal("Advanced", loaded.WorkspaceMode);
         Assert.True(loaded.CompactDensity);
         Assert.Equal(loaded.Theme, original.Theme);
         Assert.Equal(loaded.Language, original.Language);
@@ -700,7 +726,7 @@ public sealed class ConfigTests
         Assert.True(loaded.ShowShortcutHelp);
         Assert.False(loaded.GalleryContextOpen);
         Assert.Equal("List", loaded.ArchiveThreadLayout);
-        Assert.Equal(270, loaded.ArchiveSplitWidth);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, loaded.ArchiveSplitWidth);
 
         Config changed = loaded.Clone();
         changed.Theme = "System";
@@ -725,6 +751,84 @@ public sealed class ConfigTests
         Assert.Equal(360, roundTrip.ArchiveSplitWidth);
     }
 
+    [Theory]
+    [InlineData(270d, 330d)]     // the previous default reads as "never customised" and follows the new default
+    [InlineData(300d, 300d)]     // any other saved width stays
+    [InlineData(331d, 331d)]
+    [InlineData(100d, 180d)]     // outside the limits: clamped
+    [InlineData(5000d, 1200d)]
+    public void ASavedArchiveListWidthKeepsItsValueAndOnlyThePreviousDefaultMovesToTheNewOne(double saved, double expected)
+    {
+        Assert.Equal(330d, Config.ArchiveSplitWidthDefault);
+        Assert.Equal(180d, Config.ArchiveSplitWidthMinimum);
+        Assert.Equal(1200d, Config.ArchiveSplitWidthMaximum);
+        string width = saved.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        foreach (string json in new[]
+        {
+            "{\"ArchiveSplitWidth\":" + width + "}",
+            "{\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":" + width + "}}}",
+        })
+        {
+            using TempDirectory directory = new();
+            File.WriteAllText(SettingsPath(directory), json);
+            Assert.Equal(expected, Config.LoadConfig(directory.Path).ArchiveSplitWidth);
+        }
+    }
+
+    [Fact]
+    public void ARevisionOneFileKeepsA270ListWidthThroughLoadCloneCopyAndSaveWhileAnOldFileMovesOnceAndIsStampedOnSave()
+    {
+        Assert.Equal(1, new Config().PreferenceDefaultsRevision);
+        const string old = "{\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":270},\"Advanced\":{\"ArchiveSplitWidth\":270}}}";
+        using (TempDirectory directory = new())
+        {
+            File.WriteAllText(SettingsPath(directory), old);
+            Config loaded = Config.LoadConfig(directory.Path);
+            Assert.Equal(1, loaded.PreferenceDefaultsRevision);
+            Assert.Equal(330d, loaded.GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            Assert.Equal(330d, loaded.GetLayoutProfile("Advanced").ArchiveSplitWidth);
+            // The person drags it back to 270 (keyboard steps of 10): neither a clone nor a save nor the next load may move it again.
+            loaded.GetLayoutProfile("Barebones").ArchiveSplitWidth = 270;
+            Config copy = new();
+            copy.CopyFrom(loaded.Clone());
+            Assert.Equal(270d, loaded.Clone().GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            Assert.Equal(270d, copy.GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            loaded.SaveConfig();
+            using (JsonDocument saved = JsonDocument.Parse(File.ReadAllText(SettingsPath(directory))))
+                Assert.Equal(1, saved.RootElement.GetProperty("PreferenceDefaultsRevision").GetInt32());
+            Config again = Config.LoadConfig(directory.Path);
+            Assert.Equal(270d, again.GetLayoutProfile("Barebones").ArchiveSplitWidth);
+            Assert.Equal(330d, again.GetLayoutProfile("Advanced").ArchiveSplitWidth);
+        }
+        foreach (string json in new[]
+        {
+            "{\"PreferenceDefaultsRevision\":1,\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":270}}}",
+            "{\"LayoutProfiles\":{\"Barebones\":{\"ArchiveSplitWidth\":270}},\"PreferenceDefaultsRevision\":1}",
+        })
+        {
+            using TempDirectory directory = new();
+            File.WriteAllText(SettingsPath(directory), json);
+            Assert.Equal(270d, Config.LoadConfig(directory.Path).GetLayoutProfile("Barebones").ArchiveSplitWidth);
+        }
+    }
+
+    [Fact]
+    public void TheSettingsBoxOfThePanelSuggestionLimitReadsTheConfigConstants()
+    {
+        Assert.Equal((decimal)Config.QuickTagPanelSuggestionLimitMinimum, SettingsEditor.QuickTagPanelSuggestionLimitMinimum);
+        Assert.Equal((decimal)Config.QuickTagPanelSuggestionLimitMaximum, SettingsEditor.QuickTagPanelSuggestionLimitMaximum);
+    }
+
+    [Fact]
+    public void AnUnsavedArchiveListWidthIsTheNewDefaultAndAnExplicitChoiceOfThePreviousDefaultSurvivesTheSession()
+    {
+        using TempDirectory directory = new();
+        Config config = Config.LoadConfig(directory.Path);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, config.ArchiveSplitWidth);
+        config.ArchiveSplitWidth = Config.ArchiveSplitWidthPreviousDefault;
+        Assert.Equal(Config.ArchiveSplitWidthPreviousDefault, config.ArchiveSplitWidth);
+    }
+
     [Fact]
     public void MalformedNewPresentationPreferencesDoNotDiscardDownloadSettings()
     {
@@ -740,7 +844,7 @@ public sealed class ConfigTests
         Assert.True(loaded.VideoAutoplay);
         Assert.True(loaded.ShowShortcutHelp);
         Assert.Equal(70, loaded.VideoVolume);
-        Assert.Equal(270, loaded.ArchiveSplitWidth);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, loaded.ArchiveSplitWidth);
     }
 
     [Fact]
@@ -802,7 +906,7 @@ public sealed class ConfigTests
         Assert.Empty(config.ColumnVisibility);
         Assert.Empty(config.ColumnOrder);
         Assert.Equal("List", config.ArchiveThreadLayout);
-        Assert.Equal(270, config.ArchiveSplitWidth);
+        Assert.Equal(Config.ArchiveSplitWidthDefault, config.ArchiveSplitWidth);
         Assert.True(config.ArchiveMediaTiles);
         Assert.False(config.CompactDensity);
         Assert.Equal("Normal", config.ReadingFontSize);

@@ -88,7 +88,7 @@ public sealed class PluginFooterLanguageTransitionBoundaryTests
                     selected.Content = expected;
                     presenter.Content = details
                         ? new StackPanel { Children = { new TextBlock { Text = expected },
-                            new TextBlock { Text = Texts.T("mode.advancedDescription") } } }
+                            new TextBlock { Text = Texts.T("workview.description.advanced") } } }
                         : selected;
                     MainWindow.RefreshWorkspaceModeSelectionPresentation(modes);
                     TextBlock current = Render(presenter);

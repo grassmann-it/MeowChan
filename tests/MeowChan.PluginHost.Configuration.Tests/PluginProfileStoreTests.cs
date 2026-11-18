@@ -488,7 +488,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
             }
             finally { File.Move(hidden, store.StorePath); }
         }
-        PluginProfileSnapshot observed = await pending.WaitAsync(TimeSpan.FromSeconds(3));
+        PluginProfileSnapshot observed = await pending.WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(state.Revision, observed.Revision);
         Assert.Equal("a", Assert.Single(observed.Plugins).Active!.ExecutionRevision);
     }
@@ -789,7 +789,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task BundledGrantInheritanceIsBlockedAcrossRelocationAndInPlaceUpdate(bool samePath)
+    public async Task BundledGrantInheritanceIsBlockedAcrossRelocationButCarriedOverInPlace(bool samePath)
     {
         var old = await Delivered("install", "one");
         var store = Store(); var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
@@ -797,6 +797,15 @@ public sealed partial class PluginProfileStoreTests : IDisposable
         byte[] grants = SdkJson.Serialize(state.Grants);
         var moved = await Delivered(samePath ? "install" : "moved", "two");
         state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        if (samePath)
+        {
+            // Decision #130: the same shipped manifest, rebuilt in place, keeps its existing grant without review.
+            Assert.Equal(moved.Candidate.Artifact!.ExecutionRevision, Active(state).ExecutionRevision);
+            Assert.Null(state.Plugins[0].Problem);
+            Assert.Empty((await store.PreviewBundledRepairsAsync()).Rows);
+            Assert.Equal(grants, SdkJson.Serialize(state.Grants));
+            return;
+        }
         Assert.Null(state.Plugins[0].Active);
         var row = Assert.Single((await store.PreviewBundledRepairsAsync()).Rows);
         Assert.Equal("inherited-grants", row.BlockedReason);
@@ -1449,12 +1458,13 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     }
 
     private async Task<(PluginCandidateObservation Candidate, DeliveredCandidateProvenance Proof)> Delivered(string installation, string build,
-        string fileName = "fixture.plugin.json", bool source = false, bool requiredSetting = false, SettingsSchema? settings = null)
+        string fileName = "fixture.plugin.json", bool source = false, bool requiredSetting = false, SettingsSchema? settings = null,
+        string? sdkFingerprint = null)
     {
         string root = Path.Combine(profile, installation, "plugins"); Directory.CreateDirectory(root);
         byte[] assembly = Encoding.UTF8.GetBytes("synthetic offline assembly " + build);
         string sha = Convert.ToHexStringLower(SHA256.HashData(assembly));
-        string sdk = new('b', 64), compiler = new('c', 64);
+        string sdk = sdkFingerprint ?? new('b', 64), compiler = new('c', 64);
         string compilation = FixtureHashParts("prebuilt-v1", sha, sdk, compiler);
         string execution = FixtureHashParts("artifact-v1", compilation);
         string cache = Path.Combine(profile, "test-artifacts", execution); Directory.CreateDirectory(cache);

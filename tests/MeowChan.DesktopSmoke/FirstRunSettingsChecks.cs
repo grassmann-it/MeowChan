@@ -48,9 +48,11 @@ internal static class FirstRunSettingsChecks
         DesktopSessionHost? host = null;
         MainWindow? shell = null;
         bool? savedUnrelated = null;
+        Exception? failureBeforeCleanup = null;
         try
         {
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
+            await using DesktopSessionHost ownedHost = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHost;
             Require(host.Config.Origin == ProfileOrigin.ConfirmedNew, "Fixture must start from a genuinely empty new profile.");
             // No environment/profile redirection: only this explicit private host is used.
             // No providers, watches, media, update checks, tray or audio in these journeys.
@@ -61,7 +63,8 @@ internal static class FirstRunSettingsChecks
             host.Config.MinimizeToTray = false;
             host.Config.WorkspaceMode = "Advanced";
             Directory.CreateDirectory(host.Config.DownloadPath);
-            shell = new MainWindow(host);
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             SettingsEditor eager = shell.SettingsEditor;
             bool unrelatedDraft = !eager.ShowWarningNotifications;
             if (action == "accept")
@@ -70,6 +73,7 @@ internal static class FirstRunSettingsChecks
                 eager.ParallelDownloadsSafetyLimit = 64; // setup does not own this unrelated draft
             }
             shell.Show(owner);
+            host = ownedHost;
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             await Program.WaitUntilAsync(() => shell.OwnedWindows.OfType<FirstRunSetupWindow>().Any(w => w.IsVisible));
             FirstRunSetupWindow dialog = shell.OwnedWindows.OfType<FirstRunSetupWindow>().Single(w => w.IsVisible);
@@ -118,7 +122,7 @@ internal static class FirstRunSettingsChecks
             if (action == "accept")
             {
                 await SettingsSectionChecks.OpenAsync(eager, "settings.behavior");
-                CheckBox unrelated = eager.FindControl<CheckBox>("BoardAdmissionWizardInput")!;
+                ToggleSwitch unrelated = eager.FindControl<ToggleSwitch>("BoardAdmissionWizardInput")!;
                 bool changed = !(unrelated.IsChecked ?? false);
                 unrelated.IsChecked = changed;
                 savedUnrelated = changed;
@@ -133,13 +137,16 @@ internal static class FirstRunSettingsChecks
                 await CheckEditorAsync(shell, expected);
             }
             await CloseAsync(shell);
+            await shell.DisposeAsync();
             await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
             Require(!shell.IsVisible && host.IsProfileReleased, "Shell/host did not release the private profile.");
             shell = null;
             host = null;
             if (action != "accept") return;
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using DesktopSessionHost ownedHostSecond = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHostSecond;
+            await using MainWindow ownedShellSecond = new(host);
+            shell = ownedShellSecond;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
             await Program.WaitUntilAsync(() => shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
@@ -148,18 +155,23 @@ internal static class FirstRunSettingsChecks
             Require(!shell.OwnedWindows.OfType<FirstRunSetupWindow>().Any(), "Completed profile offered setup again.");
             await CheckEditorAsync(shell, host.Config);
         }
+        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            if (shell != null)
+            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
-                foreach (FirstRunSetupWindow modal in shell.OwnedWindows.OfType<FirstRunSetupWindow>().ToArray())
+                if (shell != null)
                 {
-                    await Program.WaitUntilAsync(() => !modal.IsWorking);
-                    modal.Close();
+                    foreach (FirstRunSetupWindow modal in shell.OwnedWindows.OfType<FirstRunSetupWindow>().ToArray())
+                    {
+                        await Program.WaitUntilAsync(() => !modal.IsWorking);
+                        modal.Close();
+                    }
+                    await CloseAsync(shell);
+                    await shell.DisposeAsync();
                 }
-                await CloseAsync(shell);
-            }
-            if (host != null) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
+                if (host != null) await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(15));
+            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in FirstRunSettingsChecks: " + exception));
         }
     }
 

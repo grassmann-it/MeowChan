@@ -20,11 +20,23 @@ public sealed partial class MediaPage
     private readonly TextBlock _exportAllText = new() { Name = "MediaExportAllConfirmText", TextWrapping = Avalonia.Media.TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _exportAllYes = new() { Name = "MediaExportAllConfirmYes" };
     private readonly Button _exportAllNo = new() { Name = "MediaExportAllConfirmNo" };
-    private readonly WrapPanel _exportAllAsk = new() { Name = "MediaExportAllConfirm", ItemSpacing = 8, LineSpacing = 6, IsVisible = false };
+    private readonly WrapPanel _exportAllAsk = new() { Name = "MediaExportAllConfirm", ItemSpacing = 8, LineSpacing = 8, IsVisible = false };
     private IReadOnlyList<MediaLibraryTile>? _exportAllPending;
 
-    /// <summary>Count and bytes above which "export all" asks first. Tests lower it; the page never changes it.</summary>
-    internal (int Files, long Bytes) ExportAllConfirmAbove { get; set; } = (MediaLibraryExportSize.ConfirmAboveFiles, MediaLibraryExportSize.ConfirmAboveBytes);
+    private (int Files, long Bytes)? _exportAllConfirmAbove;
+
+    /// <summary>The settings-backed threshold (Settings, Storage and limits); read at every export so a change applies at once.</summary>
+    internal Func<(int Files, long Bytes)>? ExportAllConfirmSource { get; set; }
+
+    /// <summary>
+    /// Count and bytes above which "export all" asks first: the setting, or the former fixed values when the page has none.
+    /// Tests may set it; the page never changes it.
+    /// </summary>
+    internal (int Files, long Bytes) ExportAllConfirmAbove
+    {
+        get => _exportAllConfirmAbove ?? ExportAllConfirmSource?.Invoke() ?? (MediaLibraryExportSize.ConfirmAboveFiles, MediaLibraryExportSize.ConfirmAboveBytes);
+        set => _exportAllConfirmAbove = value;
+    }
     internal bool ExportAllAsking => _exportAllAsk.IsVisible;
 
     private Control BuildExportAllAsk()
@@ -56,19 +68,9 @@ public sealed partial class MediaPage
             reason, ExportOriginals != null, "media.exportAll.hint");
     }
 
-    private MenuItem ExportAllMenuItem()
-    {
-        MenuItem item = new() { Header = Texts.T("media.exportAll"), IsEnabled = _exportAll.IsEnabled };
-        item.Click += (_, _) => _exportAll.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
-        return item;
-    }
+    private static string AskText(MediaLibraryExportSize size) => Texts.Count("media.exportAll.confirm", size.Files, size.Files.ToString("N0", Texts.Culture), FormatBytes(size.Bytes));
 
-    private static string AskText(MediaLibraryExportSize size) => Texts.T("media.exportAll.confirm", size.Files.ToString("N0", Texts.Culture), FormatBytes(size.Bytes));
-
-    // The tile detail shows decimal megabytes; larger totals read better in gigabytes.
-    private static string FormatBytes(long bytes) => bytes >= 1_000_000_000L
-        ? (bytes / 1_000_000_000d).ToString("0.#", Texts.Culture) + " GB"
-        : (bytes / 1_000_000d).ToString("0.#", Texts.Culture) + " MB";
+    private static string FormatBytes(long bytes) => MeowChan.Desktop.SizeText.Format(bytes);
 
     private void DismissExportAllAsk()
     {

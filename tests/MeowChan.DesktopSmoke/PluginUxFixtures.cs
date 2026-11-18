@@ -18,7 +18,7 @@ internal sealed class PluginUxFixture
     internal const string SourceKey = "pux-source-candidate";
     internal const string FilterKey = "pux-filter-candidate";
     internal const string UnknownKey = "pux-unknown-candidate";
-    internal const string AlternateKey = "pux-source-alternate";
+    internal const string SecondSourceKey = "pux-source-candidate-2";
     internal const string SourcePluginId = "sample.arbitrary.purpose";
     internal const string FilterPluginId = "sample.arbitrary.filter";
     internal const string SourceId = "pux-source";
@@ -30,9 +30,11 @@ internal sealed class PluginUxFixture
     internal PluginCandidateObservation Filter { get; }
     internal int ForbiddenCalls { get; private set; }
     private readonly Inventory _inventory;
+    private readonly string _root;
 
     private PluginUxFixture(string root)
     {
+        _root = root;
         Store = new(root);
         SettingsSchema empty = new("1", Array.Empty<SettingDefinition>());
         SettingsSchema settings = new("1", new[] { new SettingDefinition("label", SettingScope.Plugin,
@@ -86,12 +88,14 @@ internal sealed class PluginUxFixture
         return await Store.SaveConfigurationAsync(SourcePluginId, SourceKey, configuration, state.Revision);
     }
 
-    internal async Task AddAlternateAsync()
+    /// <summary>A second file for the source plugin (same plugin ID, another build): the page must show one card for both files.</summary>
+    internal async Task AddSecondSourceFileAsync()
     {
+        PluginCandidateObservation second = Source with { CandidateId = SecondSourceKey, Artifact = Artifact(_root, 'c'),
+            CandidatePath = Path.Combine(_root, "source files", "discussion reader v2.cs") };
+        _inventory.Add(new PluginInstallationCandidate(SecondSourceKey, second.CandidatePath!, PluginCandidateKind.Source, 100, Array.Empty<PluginBuildDiagnostic>()));
         PluginProfileSnapshot state = await Store.ReadAsync();
-        await Store.ObserveCandidateAsync(Source with { CandidateId = AlternateKey,
-            Artifact = Source.Artifact! with { ExecutionRevision = new string('c', 64) },
-            CandidatePath = Path.Combine(Path.GetDirectoryName(Source.CandidatePath!)!, "discussion reader alternate.cs") }, state.Revision);
+        await Store.ApplyStartupAsync(new[] { Source, second, Filter }, state.Revision);
     }
 
     internal async Task FailSourceAsync(bool missing)
@@ -116,6 +120,7 @@ internal sealed class PluginUxFixture
     private sealed class Inventory(IEnumerable<PluginInstallationCandidate> candidates) : IPluginInstallationInventory
     {
         private readonly List<PluginInstallationCandidate> _candidates = candidates.ToList();
+        internal void Add(PluginInstallationCandidate candidate) => _candidates.Add(candidate);
         internal void Remove(string key) => _candidates.RemoveAll(c => c.CandidateId == key);
         public Task<PluginInventory> ScanAsync(string directory, CancellationToken cancellationToken = default)
             => Task.FromResult(new PluginInventory(_candidates.ToArray(), false, Array.Empty<PluginBuildDiagnostic>()));

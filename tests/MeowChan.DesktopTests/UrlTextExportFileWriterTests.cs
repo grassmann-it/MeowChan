@@ -28,6 +28,52 @@ public sealed class UrlTextExportFileWriterTests
     }
 
     [Theory]
+    [InlineData(1, 1_048_576)]
+    [InlineData(2, 2_097_152)]
+    [InlineData(64, 67_108_864)]
+    public void ConfiguredMiBBudgetUsesInclusiveByteBoundsWithoutLargeAllocations(int limitMiB, int expectedBytes)
+    {
+        var writer = new UrlTextExportFileWriter(limitMiB);
+        Assert.Equal(expectedBytes, writer.LimitBytes);
+        Assert.True(writer.IsWithinByteLimit(1));
+        Assert.True(writer.IsWithinByteLimit(expectedBytes));
+        Assert.False(writer.IsWithinByteLimit(expectedBytes + 1));
+        Assert.False(writer.IsWithinByteLimit(0));
+        Assert.False(writer.IsWithinByteLimit(-1));
+        Assert.False(writer.IsWithinByteLimit(int.MinValue));
+        Assert.False(writer.IsWithinByteLimit(int.MaxValue));
+        // This tests the real writer's size policy, NOT a >1 MiB plan: the plan's independent format bounds remain.
+        Assert.Equal(1_048_576, new UrlTextExportFileWriter().LimitBytes);
+    }
+
+    [Theory]
+    [InlineData(int.MinValue)]
+    [InlineData(0)]
+    [InlineData(65)]
+    [InlineData(2048)]
+    [InlineData(int.MaxValue)]
+    public void InvalidMiBBudgetsCannotOverflowIntoAnAcceptedByteLimit(int limitMiB) =>
+        Assert.Equal("limitMiB", Assert.Throws<ArgumentOutOfRangeException>(() => new UrlTextExportFileWriter(limitMiB)).ParamName);
+
+    [Theory]
+    [InlineData(1)]
+    [InlineData(64)]
+    public async Task ConfiguredWriterKeepsNoClobberAndPathGuards(int limitMiB)
+    {
+        using Workspace workspace = new();
+        string destination = Path.Combine(workspace.Root, "out.txt");
+        var writer = new UrlTextExportFileWriter(limitMiB);
+        var plan = Plan();
+        Assert.Equal(UrlTextExportFileWriteStatus.Saved, (await writer.WriteAsync(plan, destination)).Status);
+        Assert.Equal(plan.CopyUtf8(), File.ReadAllBytes(destination));
+        Assert.Equal(UrlTextExportFileWriteError.DestinationExists, (await writer.WriteAsync(plan, destination)).Error);
+        Assert.Equal(plan.CopyUtf8(), File.ReadAllBytes(destination));
+        Assert.Equal(UrlTextExportFileWriteError.InvalidDestination, (await writer.WriteAsync(plan, "../out.txt")).Error);
+        Assert.Equal(UrlTextExportFileWriteError.InvalidPlan, (await writer.WriteAsync(null, destination)).Error);
+        Assert.Single(Directory.GetFileSystemEntries(workspace.Root));
+    }
+
+    [Theory]
     [InlineData("4chan", "out.txt")]
     [InlineData("8kun", "out")]
     [InlineData("4chan", "chosen.other")]

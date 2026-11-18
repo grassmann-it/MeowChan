@@ -1,127 +1,203 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
-             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
-    <Grid x:Name="ArchiveRoot" Margin="12" RowDefinitions="Auto,*,Auto" RowSpacing="8">
-        <Grid x:Name="ArchivePageHeader" ColumnDefinitions="*,Auto" ColumnSpacing="12">
-            <StackPanel Spacing="5">
+             xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" xmlns:wv="using:MeowChan.Desktop.WorkViews" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
+    <Grid x:Name="ArchiveRoot" Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
+        <!-- The shared page head (PageHeader): the header toolbar stands top right while it leaves the title its room, else under the title
+             (the toolbar still folds what does not fit into "More"), so the title and description are never pushed out of a narrow window. -->
+        <controls:PageHeader x:Name="ArchivePageHeader">
+            <StackPanel Classes="workspace-page-header">
                 <TextBlock Tag="nav.archive" Classes="page-title localized" />
                 <TextBlock x:Name="ArchiveSubtitle" Tag="archive.subtitle" Classes="muted localized" TextWrapping="Wrap" />
             </StackPanel>
-            <WrapPanel Grid.Column="1" VerticalAlignment="Top" ItemSpacing="8" LineSpacing="6">
-                <Button x:Name="ArchiveTransferPreview" Click="OnTransferPreviewClick" />
-                <Button x:Name="ArchiveCleanupOpen" Click="OnArchiveCleanupClick" />
-                <Button x:Name="RefreshArchiveButton" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" />
-            </WrapPanel>
-        </Grid>
-        <Grid x:Name="ArchiveSplit" Grid.Row="1" ColumnDefinitions="270,6,*" ColumnSpacing="6" Grid.IsSharedSizeScope="True">
-            <Grid x:Name="ArchiveListPane" RowSpacing="6">
+            <!-- WV2: the header tools are one toolbar, so a view that moves one off the bar keeps it under the same "More". -->
+            <desktop:ActionToolBar x:Name="ArchiveHeaderActions" controls:PageHeader.Role="Actions" VerticalAlignment="Top">
+                <Button x:Name="ArchiveTransferPreview" wv:WorkViewElement.Id="archive.header.transfer-preview" Click="OnTransferPreviewClick" ursa:ToolBar.OverflowMode="AsNeeded" />
+                <Button x:Name="ArchiveTransferExport" wv:WorkViewElement.Id="archive.header.transfer-export" Click="OnTransferExportClick" ursa:ToolBar.OverflowMode="AsNeeded" />
+                <Button x:Name="ArchiveCleanupOpen" wv:WorkViewElement.Id="archive.header.cleanup" Click="OnArchiveCleanupClick" ursa:ToolBar.OverflowMode="AsNeeded" />
+                <Button x:Name="RefreshArchiveButton" wv:WorkViewElement.Id="archive.header.refresh" Tag="archive.refresh" Classes="localized" Click="OnRefreshClick" ursa:ToolBar.OverflowMode="AsNeeded" />
+            </desktop:ActionToolBar>
+        </controls:PageHeader>
+        <!-- ARCH-DENSE-01: while no error banner is shown the split also spans the empty
+             status row, so both boxes end at the page margin. -->
+        <Grid x:Name="ArchiveSplit" Grid.Row="1" Grid.RowSpan="2" ColumnDefinitions="330,6,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+            <Grid x:Name="ArchiveListPane" RowSpacing="{StaticResource Workspace.Space.8}">
                 <Grid.RowDefinitions>
                     <!-- Collapsed search tools use only their content height;
                          expanded tools scroll at the cap instead of pushing results down. -->
                     <RowDefinition Height="Auto" MaxHeight="260" />
                     <RowDefinition Height="2*" />
-                    <RowDefinition Height="Auto" SharedSizeGroup="ArchiveFooter" />
                 </Grid.RowDefinitions>
-                <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="6">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                        <TextBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown" />
+                <ScrollViewer x:Name="ArchiveSearchPanelScroll" MaxHeight="260" HorizontalScrollBarVisibility="Disabled"><Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" RowSpacing="0">
+                    <!-- AP2: one search field with its scope chip inside (Text / File name / SHA-256), the same as in the reader
+                         find bar. Each scope keeps its own draft in its own box; only the chosen one is shown and holds the chip. -->
+                    <Grid x:Name="ArchiveSearchRow" wv:WorkViewElement.Id="archive.search.field" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                        <controls:SearchBox x:Name="ArchiveSearchText" MaxLength="512" KeyDown="OnSearchKeyDown">
+                            <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ArchiveSearchScope" wv:WorkViewElement.Id="archive.search.scope" /></controls:SearchBox.ScopeChip>
+                        </controls:SearchBox>
+                        <controls:SearchBox x:Name="ArchiveFilenameQuery" MaxLength="512" IsVisible="False" />
+                        <controls:SearchBox x:Name="ArchiveHashQuery" MaxLength="256" IsVisible="False" />
                         <Button x:Name="SearchArchiveButton" Grid.Column="1" Tag="archive.search" Classes="localized" Click="OnSearchClick" />
                     </Grid>
-                    <Expander x:Name="ArchiveFilters" Grid.Row="1" HorizontalAlignment="Stretch">
-                        <StackPanel Spacing="8">
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                <desktop:IdentitySuggestionBox x:Name="ArchiveSourceFilter" KeyDown="OnSearchKeyDown" />
-                                <Button x:Name="ArchiveAddSource" Grid.Column="1" Click="OnAddSource" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftSources" ItemSpacing="6" LineSpacing="6" />
-                            <ComboBox x:Name="ArchiveBoardScope" HorizontalAlignment="Stretch"  />
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                <desktop:IdentitySuggestionBox x:Name="ArchiveBoardFilter" KeyDown="OnSearchKeyDown" />
-                                <Button x:Name="ArchiveAddBoard" Grid.Column="1" Click="OnAddBoard" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftBoards" ItemSpacing="6" LineSpacing="6" />
-                            <TextBlock x:Name="ArchiveSuggestionsHint" TextWrapping="Wrap" Classes="muted" FontSize="11" />
-                            <Button x:Name="ArchiveRetrySuggestions" HorizontalAlignment="Left" IsVisible="False" />
-                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="6">
-                                <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                                <Button x:Name="ArchiveAddState" Grid.Column="1" Click="OnAddState" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftStates" ItemSpacing="6" LineSpacing="6" />
-                            <!-- Own tags: include, exclude, and how several included tags combine. -->
-                            <ComboBox x:Name="ArchiveTagChoice" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <Grid ColumnDefinitions="*,*" ColumnSpacing="6">
-                                <Button x:Name="ArchiveAddTagInclude" HorizontalAlignment="Stretch" Click="OnAddTagInclude" />
-                                <Button x:Name="ArchiveAddTagExclude" Grid.Column="1" HorizontalAlignment="Stretch" Click="OnAddTagExclude" />
-                            </Grid>
-                            <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="6" LineSpacing="6" />
-                            <ComboBox x:Name="ArchiveTagMode" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <Button x:Name="ArchiveTagManage" HorizontalAlignment="Left" Click="OnManageTags" />
-                            <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" />
-                            <TextBlock x:Name="ArchiveDateTitle" TextWrapping="Wrap" />
-                            <TextBlock x:Name="ArchiveDateFromLabel" />
-                            <desktop:ArchiveDateEditor x:Name="ArchiveStartDate" />
-                            <TextBlock x:Name="ArchiveDateToLabel" />
-                            <desktop:ArchiveDateEditor x:Name="ArchiveEndDate" />
-                            <TextBlock x:Name="ArchiveDateZone" TextWrapping="Wrap" Classes="muted" />
-                            <Button x:Name="ArchiveUseDeviceZone" Click="OnUseDeviceZone" HorizontalAlignment="Left" />
-                            <TextBlock x:Name="ArchiveDateHint" TextWrapping="Wrap" Classes="muted" FontSize="11" />
-                        </StackPanel>
-                    </Expander>
-                    <WrapPanel x:Name="ArchiveAppliedFilters" Grid.Row="2" ItemSpacing="6" LineSpacing="6" />
-                    <StackPanel Grid.Row="3" Spacing="6">
+                    <!-- P2/S2: the filter toggle is a ToggleButton with the active-filter count (IsChecked, command, draft marker);
+                         its fields open as ArchiveFilterSurface over the results instead of pushing them down inside this capped search area. -->
+                    <controls:FilterToggleButton x:Name="ArchiveFilters" wv:WorkViewElement.Id="archive.filters.expander" Grid.Row="1" HorizontalAlignment="Stretch" Margin="0,8,0,0" />
+                    <WrapPanel x:Name="ArchiveAppliedFilters" wv:WorkViewElement.Id="archive.filters.applied" Grid.Row="2" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" />
+                    <StackPanel x:Name="ArchiveSearchErrorHost" Grid.Row="3" Spacing="{StaticResource Workspace.Space.8}">
+                        <controls:SearchCarryOffer x:Name="ArchiveSearchCarryOffer" />
+                        <TextBlock x:Name="ArchiveSearchScopeHint" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsVisible="False" Classes="workspace-help" AutomationProperties.LiveSetting="Polite" />
                         <TextBlock x:Name="ArchiveSearchError" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                         <Button x:Name="ArchiveRetrySearch" Click="OnRetrySearch" IsVisible="False" HorizontalAlignment="Left" />
                     </StackPanel>
-                    <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4">
-                        <ToggleButton x:Name="ArchiveLayoutList" Content="List" Classes="media-control" ursa:ToolBar.OverflowMode="Never" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" Content="Table" Classes="media-control" ursa:ToolBar.OverflowMode="Never" />
-                        <Button x:Name="ArchiveResultsGallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveThreadColumnsButton" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
-                        <Button x:Name="ArchiveFavoritesOverview" Content="★ Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveFilenameSearchOpen" Click="OnFilenameSearchClick" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveResultsExport" ursa:ToolBar.OverflowMode="AsNeeded" />
-                        <Button x:Name="ArchiveReaderGroups" Content="Reader groups" Click="OnReaderGroupsClick" />
-                        <Button x:Name="ArchiveSaveSearch" Click="OnSaveCurrentSearchClick" />
-                        <Button x:Name="ArchiveSavedSearches" Click="OnSavedSearchesClick" />
+                    <!-- 8-dip rhythm: the gaps are margins of what is shown (the empty rows between cost nothing), so the view
+                         toggle sits 8 below "Filters and sorting" and 8 above the first card. -->
+                    <!-- Primary result actions lead; Columns and the joined List/Table pair dock right.
+                         The shared panel owns item/group spacing, including when actions move under More. -->
+                    <desktop:ActionToolBar x:Name="ArchiveResultActions" Grid.Row="4" Margin="0,8,0,0">
+                        <Button x:Name="ArchiveResultsGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.gallery" Tag="gallery.results" Classes="localized" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveResultsOpenInMedia" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.open-in-media" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveFavoritesOverview" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="archive.results.favorites" Content="Favorites" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <Button x:Name="ArchiveResultsExport" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.export" ursa:ToolBar.OverflowMode="AsNeeded" />
+                        <!-- AP2: saving and opening saved searches are one split button; the arrow holds "Save applied search…". -->
+                        <SplitButton x:Name="ArchiveSavedSearches" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.saved-searches" Click="OnSavedSearchesClick" ursa:ToolBar.OverflowMode="AsNeeded">
+                            <SplitButton.Flyout><MenuFlyout Placement="BottomEdgeAlignedLeft" /></SplitButton.Flyout>
+                        </SplitButton>
+                        <Button x:Name="ArchiveReaderGroups" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.reader-groups" Content="Reader groups" Click="OnReaderGroupsClick" />
+                        <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
+                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
-                <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="panel">
-                    <Grid>
-                        <ListBox x:Name="ArchiveThreads" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                <!-- P2: local filter surface anchored over the result list. Same controls and
+                     names as before; Search applies via the existing path, Escape closes. -->
+                <Border x:Name="ArchiveFilterSurface" Grid.Row="1" ZIndex="10" Classes="workspace-overlay" Padding="{StaticResource Workspace.Inset.Overlay}"
+                        VerticalAlignment="Top" IsVisible="{Binding #ArchiveFilters.IsChecked}"
+                        KeyboardNavigation.TabNavigation="Cycle">
+                    <!-- MD4 overlay header: an overlay card looks like a dialog, so its cross stands at the right edge after the surface's name (HeaderBar end slot, OverlayFrame); no back slot, no separator. -->
+                    <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
+                        <controls:HeaderBar x:Name="ArchiveFilterSurfaceHeader">
+                            <TextBlock x:Name="ArchiveFilterSurfaceTitle" Classes="section-title" VerticalAlignment="Center" TextWrapping="Wrap" />
+                            <Button x:Name="ArchiveFilterSurfaceClose" controls:HeaderBar.IsEnd="True" Click="OnFilterCloseClick" />
+                        </controls:HeaderBar>
+                        <ScrollViewer x:Name="ArchiveFilterSurfaceScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">
+                            <StackPanel x:Name="ArchiveFilterFields" Spacing="{StaticResource Workspace.Space.8}" Margin="0,0,12,0">
+                                <!-- Every field has a visible label above it, like Settings; the placeholders stay short.
+                                     WV2: each field is a group with a work-view id. Where the view moves a group off the surface it
+                                     goes into ArchiveMoreFilters ("More filters"); a field with a value or an error stays out of it. -->
+                                <StackPanel x:Name="ArchiveFilterGroupSource" wv:WorkViewElement.Id="archive.filters.source" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveSourceFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                        <desktop:IdentitySuggestionBox x:Name="ArchiveSourceFilter" KeyDown="OnSearchKeyDown" AutomationProperties.LabeledBy="{Binding #ArchiveSourceFilterLabel}" />
+                                        <Button x:Name="ArchiveAddSource" Grid.Column="1" Click="OnAddSource" />
+                                    </Grid>
+                                    <WrapPanel x:Name="ArchiveDraftSources" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" AutomationProperties.LiveSetting="Polite" />
+                                </StackPanel>
+                                <StackPanel x:Name="ArchiveFilterGroupBoard" wv:WorkViewElement.Id="archive.filters.board" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveBoardFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveBoardScope" HorizontalAlignment="Stretch"  />
+                                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                        <desktop:IdentitySuggestionBox x:Name="ArchiveBoardFilter" KeyDown="OnSearchKeyDown" AutomationProperties.LabeledBy="{Binding #ArchiveBoardFilterLabel}" />
+                                        <Button x:Name="ArchiveAddBoard" Grid.Column="1" Click="OnAddBoard" />
+                                    </Grid>
+                                    <WrapPanel x:Name="ArchiveDraftBoards" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" AutomationProperties.LiveSetting="Polite" />
+                                    <TextBlock x:Name="ArchiveSuggestionsHint" TextWrapping="Wrap" Classes="muted" FontSize="{StaticResource Workspace.Text.Caption}" />
+                                    <Button x:Name="ArchiveRetrySuggestions" HorizontalAlignment="Left" IsVisible="False" />
+                                </StackPanel>
+                                <!-- Choosing a state adds it at once; no separate Add step. -->
+                                <StackPanel x:Name="ArchiveFilterGroupState" wv:WorkViewElement.Id="archive.filters.state" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveStateFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveStateFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveStateFilterLabel}" />
+                                    <WrapPanel x:Name="ArchiveDraftStates" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" AutomationProperties.LiveSetting="Polite" />
+                                </StackPanel>
+                                <!-- Own tags: include, exclude, and how several included tags combine. -->
+                                <StackPanel x:Name="ArchiveFilterGroupTags" wv:WorkViewElement.Id="archive.filters.tags" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveTagChoiceLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <!-- Same pattern as the Media page: a popover with a search over the own tags adds one to the draft (Enter includes, Shift+Enter or a leading "-" excludes); the draft chips carry the state toggle. The host shows the unfinished-entry mark. -->
+                                    <DataValidationErrors x:Name="ArchiveTagChoiceHost">
+                                        <controls:TagFilterPicker x:Name="ArchiveTagChoice" AutomationProperties.LabeledBy="{Binding #ArchiveTagChoiceLabel}" />
+                                    </DataValidationErrors>
+                                    <WrapPanel x:Name="ArchiveDraftTags" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" AutomationProperties.LiveSetting="Polite" />
+                                    <Button x:Name="ArchiveTagManage" HorizontalAlignment="Left" Click="OnManageTags" />
+                                </StackPanel>
+                                <StackPanel x:Name="ArchiveFilterGroupTagMode" wv:WorkViewElement.Id="archive.filters.tag-mode" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveTagModeLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveTagMode" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveTagModeLabel}" />
+                                </StackPanel>
+                                <StackPanel x:Name="ArchiveFilterGroupCapture" wv:WorkViewElement.Id="archive.filters.capture" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveCaptureFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveCaptureFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveCaptureFilterLabel}" />
+                                </StackPanel>
+                                <StackPanel x:Name="ArchiveFilterGroupPosts" wv:WorkViewElement.Id="archive.filters.posts" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchivePostsFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchivePostsFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchivePostsFilterLabel}" />
+                                </StackPanel>
+                                <StackPanel x:Name="ArchiveFilterGroupWork" wv:WorkViewElement.Id="archive.filters.work" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveWorkFilterLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveWorkFilter" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveWorkFilterLabel}" />
+                                </StackPanel>
+                                <!-- Where the search text has to occur: Title · Title and opening post · All posts (the default). -->
+                                <StackPanel x:Name="ArchiveFilterGroupTextScope" wv:WorkViewElement.Id="archive.filters.text-scope" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveTextScopeLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveTextScope" HorizontalAlignment="Stretch" SelectedIndex="2" AutomationProperties.LabeledBy="{Binding #ArchiveTextScopeLabel}" />
+                                </StackPanel>
+                                <StackPanel x:Name="ArchiveFilterGroupSort" wv:WorkViewElement.Id="archive.filters.sort" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveSortLabel" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                    <ComboBox x:Name="ArchiveSort" HorizontalAlignment="Stretch" SelectedIndex="0" AutomationProperties.LabeledBy="{Binding #ArchiveSortLabel}" />
+                                </StackPanel>
+                                <StackPanel x:Name="ArchiveFilterGroupDate" wv:WorkViewElement.Id="archive.filters.date" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveDateTitle" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="ArchiveDateFromLabel" TextWrapping="Wrap" />
+                                    <desktop:ArchiveDateEditor x:Name="ArchiveStartDate" />
+                                    <TextBlock x:Name="ArchiveDateToLabel" TextWrapping="Wrap" />
+                                    <desktop:ArchiveDateEditor x:Name="ArchiveEndDate" />
+                                    <TextBlock x:Name="ArchiveDateHint" TextWrapping="Wrap" Classes="muted" FontSize="{StaticResource Workspace.Text.Caption}" />
+                                </StackPanel>
+                                <!-- The device time zone the dates are read in; shown with any date value. -->
+                                <StackPanel x:Name="ArchiveFilterGroupZone" wv:WorkViewElement.Id="archive.filters.zone" Spacing="{StaticResource Workspace.Space.8}">
+                                    <TextBlock x:Name="ArchiveDateZone" TextWrapping="Wrap" Classes="muted" />
+                                    <Button x:Name="ArchiveUseDeviceZone" Click="OnUseDeviceZone" HorizontalAlignment="Left" />
+                                </StackPanel>
+                                <Expander x:Name="ArchiveMoreFilters" wv:WorkViewElement.Id="archive.filters.more" IsVisible="False" HorizontalAlignment="Stretch">
+                                    <StackPanel x:Name="ArchiveMoreFilterFields" Spacing="{StaticResource Workspace.Space.8}" Margin="0,8,0,0" />
+                                </Expander>
+                            </StackPanel>
+                        </ScrollViewer>
+                        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                            <Button x:Name="ArchiveFilterApply" Tag="archive.search" Classes="localized" Click="OnFilterApplyClick" />
+                            <Button x:Name="ArchiveFilterClose" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
+                        </Grid>
+                    </Grid>
+                </Border>
+                <Border x:Name="ArchiveResultsSurface" Grid.Row="1" Classes="workspace-section-flush">
+                    <Grid RowDefinitions="*,Auto">
+                        <ListBox x:Name="ArchiveThreads" Classes="workspace-selection-bar" SelectionMode="Multiple" SelectionChanged="OnThreadSelected" DoubleTapped="OnThreadDoubleTapped" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                             <ListBox.ItemTemplate>
                                 <DataTemplate x:DataType="desktop:ArchiveThreadRow">
-                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8" Margin="8">
+                                    <!-- Relevance: the first row of each tier carries the group header ("In title · 3"). It is part of the row, not
+                                         an item, so selection, keyboard steps and marking only see threads; a click on it does nothing (ArchivePage.Relevance). -->
+                                    <StackPanel>
+                                    <Border IsVisible="{Binding HasMatchGroupHeader}" Background="Transparent" Padding="8,8,8,2"
+                                            PointerPressed="OnArchiveMatchGroupHeaderPressed" PointerReleased="OnArchiveMatchGroupHeaderReleased"
+                                            Tapped="OnArchiveMatchGroupHeaderTapped" DoubleTapped="OnArchiveMatchGroupHeaderTapped">
+                                        <controls:TrimTipTextBlock Text="{Binding MatchGroupHeader}" Classes="workspace-meta" FontWeight="SemiBold" />
+                                    </Border>
+                                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}" Margin="8">
                                         <Grid.ContextMenu>
-                                            <ContextMenu Opening="OnArchiveSelectionMenuOpening">
-                                                <MenuItem Header="{Binding GalleryLabel}" Click="OnThreadGalleryMenu" />
-                                                <MenuItem Header="{Binding ReadLabel}" Click="OnThreadReadMenu" />
-                                                <MenuItem Tag="selection.export" Classes="localized" Header="Export selection…" Click="OnThreadExportMenu" />
-                                                <MenuItem Tag="action.details" Classes="localized" Header="Details" Click="OnArchiveSelectionDetails" />
-                                                <MenuItem Tag="check.action" Classes="localized" Header="Check now" Click="OnArchiveCheckSelection" />
-                                                <MenuItem Tag="work.retry" Classes="localized" Header="Retry missing media" Click="OnArchiveRetrySelection" />
-                                                <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" CommandParameter="rules" Click="OnArchiveLeadAction" />
-                                                <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" CommandParameter="folder" Click="OnArchiveLeadAction" />
-                                                <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" CommandParameter="browser" Click="OnArchiveLeadAction" />
-                                                <MenuItem Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" Click="OnArchiveCopySelection" />
-                                                <MenuItem Tag="selection.remove" Classes="localized" Header="Remove selection" Click="OnArchiveRemoveSelection" />
-                                            </ContextMenu>
+                                            <ContextMenu Opening="OnArchiveSelectionMenuOpening" />
                                         </Grid.ContextMenu>
                                         <Panel x:DataType="desktop:ArchiveThreadRow" IsVisible="{Binding HasPreviewAttachment}">
                                             <desktop:ArchiveAttachmentView DataContext="{Binding PreviewAttachment}" Width="76" />
                                         </Panel>
                                         <desktop:ArchiveThreadFavoriteButton Grid.Column="2" />
-                                        <StackPanel Grid.Column="1" Spacing="2">
+                                        <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.2}">
                                             <TextBlock Text="{Binding TitleOrId}" ToolTip.Tip="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" FontWeight="Medium" />
                                             <TextBlock Text="{Binding PreviewText}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                             <TextBlock Text="{Binding Identity}" ToolTip.Tip="{Binding Identity}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
-                                            <TextBlock Text="{Binding Status}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
+                                            <controls:TrimTipTextBlock Text="{Binding Status}" Classes="workspace-meta" />
                                             <TextBlock Text="{Binding TagsText}" ToolTip.Tip="{Binding TagsText}" IsVisible="{Binding HasTags}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" Classes="workspace-meta" />
                                         </StackPanel>
                                     </Grid>
+                                    </StackPanel>
                                 </DataTemplate>
                             </ListBox.ItemTemplate>
                         </ListBox>
@@ -139,212 +215,447 @@
                             </DataGrid.Styles>
                             <DataGrid.Columns>
                                 <DataGridTemplateColumn Header="Source / board" SortMemberPath="Identity" Width="150" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding Identity}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Identity}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Title / ID" SortMemberPath="TitleOrId" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8" VerticalAlignment="Center"><TextBlock Text="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TitleOrId}" VerticalAlignment="Center" /><desktop:ArchiveThreadFavoriteButton Grid.Column="1" VerticalAlignment="Center" /></Grid></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Posts" Width="65" MinWidth="55" Binding="{Binding Posts, DataType=desktop:ArchiveThreadRow}" />
-                                <DataGridTemplateColumn Header="Saved versions" SortMemberPath="SavedMediaCount" Width="145" MinWidth="110"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactMedia}" ToolTip.Tip="{Binding MediaStatus}" AutomationProperties.HelpText="{Binding MediaStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Source" SortMemberPath="CompactSource" Width="90" MinWidth="75"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactSource}" ToolTip.Tip="{Binding SourceStatus}" AutomationProperties.HelpText="{Binding SourceStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
-                                <DataGridTextColumn Header="Last capture" Width="145" MinWidth="125" Binding="{Binding LastCapture, DataType=desktop:ArchiveThreadRow}" />
+                                <DataGridTemplateColumn Header="Title / ID" SortMemberPath="TitleOrId" Width="*" MinWidth="220"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding TitleOrId}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding TitleOrId}" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <!-- A1: numbers and dates never wrap; the default widths come from ArchivePage.ColumnFit (ThreadDefaultWidths is only the fallback). -->
+                                <DataGridTemplateColumn Header="Posts" SortMemberPath="Posts" Width="70" MinWidth="55"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><controls:TrimTipTextBlock Text="{Binding Posts}" TextAlignment="Right" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Saved versions" SortMemberPath="SavedMediaCount" Width="120" MinWidth="110"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactMedia}" TextAlignment="Right" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding MediaStatus}" AutomationProperties.HelpText="{Binding MediaStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Source" SortMemberPath="CompactSource" Width="90" MinWidth="75"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactSource}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding SourceStatus}" AutomationProperties.HelpText="{Binding SourceStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Work" SortMemberPath="CompactWork" Width="110" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding CompactWork}" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding WorkStatus}" AutomationProperties.HelpText="{Binding WorkStatus}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Last capture" SortMemberPath="LastCapture" Width="145" MinWidth="125"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><controls:TrimTipTextBlock Text="{Binding LastCapture}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                 <DataGridTemplateColumn Header="Tags" SortMemberPath="TagColumnText" Width="170" MinWidth="90"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock AutomationProperties.AutomationId="ArchiveThreadTagCell" Text="{Binding TagColumnText}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding TagColumnTip}" AutomationProperties.HelpText="{Binding TagColumnTip}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <!-- A2: the favourite star is the last column by key (saved widths and orders of older versions stay valid) and the first by
+                                     display (ArchivePage.ViewPreferences pins it at DisplayIndex 0). 48 dip, not resizable or movable; the button is a 24 dip square
+                                     (the width the 12 dip cell padding leaves) with the 18 dip star. -->
+                                <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <!-- Relevance: where the search text was found; appended after the favourite key so saved layouts keep their meaning, shown only for a ranked result. -->
+                                <DataGridTemplateColumn Header="Found in" SortMemberPath="FoundInSortKey" Width="140" MinWidth="90" IsVisible="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding FoundIn}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding FoundIn}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>
-                            <DataGrid.ContextMenu><ContextMenu Opening="OnArchiveSelectionMenuOpening">
-                                <MenuItem x:Name="ArchiveTableGalleryMenu" Header="Open in gallery" Click="OnThreadGalleryMenu" />
-                                <MenuItem x:Name="ArchiveTableReadMenu" Header="Read posts" Click="OnThreadReadMenu" />
-                                <MenuItem x:Name="ArchiveTableExportMenu" Header="Export selection…" Click="OnThreadExportMenu" />
-                                <MenuItem Tag="selection.copyUrls" Classes="localized" Header="Copy selected URLs" Click="OnArchiveCopySelection" />
-                                <MenuItem Tag="action.details" Classes="localized" Header="Details" Click="OnArchiveSelectionDetails" />
-                                <MenuItem Tag="check.action" Classes="localized" Header="Check now" Click="OnArchiveCheckSelection" />
-                                <MenuItem Tag="work.retry" Classes="localized" Header="Retry missing media" Click="OnArchiveRetrySelection" />
-                                <MenuItem Tag="nav.rules" Classes="localized" Header="Rules" CommandParameter="rules" Click="OnArchiveLeadAction" />
-                                <MenuItem Tag="action.openFolder" Classes="localized" Header="Open folder" CommandParameter="folder" Click="OnArchiveLeadAction" />
-                                <MenuItem Tag="action.openBrowser" Classes="localized" Header="Open in browser" CommandParameter="browser" Click="OnArchiveLeadAction" />
-                                <Separator />
-                                <MenuItem x:Name="ArchiveTableRemoveMenu" Tag="selection.remove" Classes="localized" Header="Remove selection" Click="OnArchiveRemoveSelection" />
-                            </ContextMenu></DataGrid.ContextMenu>
+                            <DataGrid.ContextMenu><ContextMenu Opening="OnArchiveSelectionMenuOpening" /></DataGrid.ContextMenu>
                         </DataGrid>
-                        <StackPanel x:Name="ArchiveEmptyState" Margin="12" Spacing="8" IsVisible="False">
-                            <TextBlock x:Name="ArchiveEmpty" Classes="muted" TextWrapping="Wrap" />
-                            <Button x:Name="ArchiveReaderGroupsEmpty" Content="Reader groups" Click="OnReaderGroupsClick" />
-                            <Button x:Name="ArchiveResetFilters" HorizontalAlignment="Left" Click="OnResetArchiveFiltersClick" />
-                        </StackPanel>
+                        <!-- Same pattern as the empty Downloads list: centred, one sentence, one primary next step. -->
+                        <controls:WorkspaceEmptyState x:Name="ArchiveEmptyState" IsVisible="False">
+                            <TextBlock x:Name="ArchiveEmpty" Classes="workspace-empty-text" />
+                            <Button x:Name="ArchiveGoDownloads" Classes="primary" HorizontalAlignment="Center" Click="OnGoDownloadsClick" />
+                            <Button x:Name="ArchiveResetFilters" Classes="primary" HorizontalAlignment="Center" Click="OnResetArchiveFiltersClick" />
+                            <Button x:Name="ArchiveEmptySearchInMedia" HorizontalAlignment="Center" IsVisible="False" Click="OnEmptySearchInMediaClick" />
+                        </controls:WorkspaceEmptyState>
+                        <!-- ARCH-DENSE-01 slice 2: the pager is docked under the list inside the results
+                             box; it is its own row, so it never covers a list row. -->
+                        <Border x:Name="ArchiveResultsBar" wv:WorkViewElement.Id="archive.results.bar" Grid.Row="1" BorderThickness="0,1,0,0" BorderBrush="{DynamicResource Workspace.Border}" Padding="8,4">
+                            <StackPanel x:Name="ArchiveResultsFooter" Spacing="{StaticResource Workspace.Space.4}">
+                                <!-- ARCH-DENSE-01: pager and range share one line when both fit. -->
+                                <desktop:ArchiveFooterLayout x:Name="ArchiveResultsRange">
+                                    <ursa:Pagination x:Name="ArchiveResultsPagination" PageSize="50" ShowPageSizeSelector="False" ShowQuickJump="False" CurrentPageChanged="OnResultsPageChanged">
+                                        <ursa:Pagination.Styles><Style Selector="ursa|PaginationButton"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.ControlCompact}" /><Setter Property="Width" Value="{StaticResource Workspace.Size.ControlCompact}" /><Setter Property="Padding" Value="2" /></Style></ursa:Pagination.Styles>
+                                    </ursa:Pagination>
+                                    <TextBlock x:Name="ArchiveThreadPage" Classes="workspace-meta tnum" />
+                                </desktop:ArchiveFooterLayout>
+                                <TextBlock x:Name="ArchiveSelectionSummary" Classes="workspace-meta tnum" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
+                                <Button x:Name="PreviousThreadsButton" IsVisible="False" Click="OnPreviousThreads" />
+                                <Button x:Name="NextThreadsButton" IsVisible="False" Click="OnNextThreads" />
+                            </StackPanel>
+                        </Border>
                     </Grid>
                 </Border>
-                <StackPanel x:Name="ArchiveResultsFooter" Grid.Row="2" Spacing="4" Margin="8,0" VerticalAlignment="Top">
-                    <ursa:Pagination x:Name="ArchiveResultsPagination" PageSize="50" ShowPageSizeSelector="False" ShowQuickJump="False" CurrentPageChanged="OnResultsPageChanged" HorizontalAlignment="Center">
-                        <ursa:Pagination.Styles><Style Selector="ursa|PaginationButton"><Setter Property="MinWidth" Value="24" /><Setter Property="Width" Value="24" /><Setter Property="Padding" Value="2" /></Style></ursa:Pagination.Styles>
-                    </ursa:Pagination>
-                    <TextBlock x:Name="ArchiveThreadPage" Classes="workspace-meta" HorizontalAlignment="Center" />
-                    <TextBlock x:Name="ArchiveSelectionSummary" Classes="workspace-meta" TextWrapping="NoWrap" TextTrimming="CharacterEllipsis" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
-                    <Button x:Name="PreviousThreadsButton" IsVisible="False" Click="OnPreviousThreads" />
-                    <Button x:Name="NextThreadsButton" IsVisible="False" Click="OnNextThreads" />
-                </StackPanel>
             </Grid>
             <GridSplitter x:Name="ArchiveSplitter" Grid.Column="1" Width="6" ResizeDirection="Columns" PointerReleased="OnArchiveSplitReleased" KeyUp="OnArchiveSplitKeyUp" />
-            <Grid x:Name="ArchiveReaderPane" Grid.Column="2" RowSpacing="6">
+            <Grid x:Name="ArchiveReaderPane" Grid.Column="2" RowSpacing="{StaticResource Workspace.Space.8}">
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="Auto" SharedSizeGroup="ArchiveFooter" />
                 </Grid.RowDefinitions>
-                <StackPanel Spacing="3">
-                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
-                        <Button x:Name="ArchiveBackButton" Tag="archive.back" Classes="localized" Click="OnBackClick" />
-                        <TextBlock x:Name="ArchiveReaderTitle" Grid.Column="1" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                        <Button x:Name="CapturePostsButton" Grid.Column="2" Click="OnCaptureClick" />
-                    </Grid>
-                    <WrapPanel x:Name="ReaderToolbar" HorizontalAlignment="Left" ItemSpacing="8" LineSpacing="6">
-                        <WrapPanel.Styles><Style Selector="Button"><Setter Property="MinWidth" Value="38" /><Setter Property="Height" Value="32" /></Style></WrapPanel.Styles>
-                    <Button x:Name="ArchiveCloseReader" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
-                    <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" />
-                    <Button x:Name="ReaderTagsOpen" Click="OnOpenThreadTags" />
-                    <Button x:Name="ArchiveOpenGallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <Button x:Name="ReaderFilenameSearchOpen" Click="OnFilenameSearchClick" />
-                    <Button x:Name="ReaderHashSearchOpen" Click="OnHashSearchClick" />
-                    <Button x:Name="ReaderFindOpen" Click="OnOpenThreadFind" />
-                    <Button x:Name="ArchiveReadPosts" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
-                    <Button x:Name="ArchiveGalleryReturn" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
-                    <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
-                    <Button x:Name="ArchiveMediaReturn" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
-                    <Button x:Name="ArchiveReaderFullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
-                    <Button x:Name="ExportArchiveButton" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                <StackPanel Spacing="{StaticResource Workspace.Space.4}">
+                    <!-- Tom's rule (14.11. evening): the ways back of the reader stand at the far left of its header row, before the title and
+                         apart from it by a gap and a thin separator (HeaderBar back slot), first in the row's tab order: the state returns,
+                         the narrow "Back to thread list" and the large reader's "Back to {origin}". The toolbar below keeps only the
+                         reader's own actions. -->
+                    <controls:HeaderBar x:Name="ReaderHeaderBar">
+                        <Button x:Name="ArchiveGalleryReturn" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.gallery-return" Content="Back to gallery" IsVisible="False" Click="OnGalleryReturnClick" />
+                        <!-- MEDIA103-NAV: shown instead of the gallery return while a "show in thread" from the Medien page can go back. -->
+                        <Button x:Name="ArchiveMediaReturn" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.media-return" Content="Back to media" IsVisible="False" Click="OnMediaReturnClick" />
+                        <Button x:Name="ArchiveBackButton" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.header.back" Tag="archive.back" Classes="localized" Click="OnBackClick" />
+                        <Button x:Name="ArchiveCloseReader" controls:HeaderBar.IsBack="True" wv:WorkViewElement.Id="reader.toolbar.close" Tag="reader.close" Classes="localized" IsVisible="False" Click="OnCloseReaderClick" />
+                        <!-- Narrow-window sweep: the thread title trims beside the ways back; trimmed, its full text is the tooltip (TrimTipTextBlock). -->
+                        <controls:TrimTipTextBlock x:Name="ArchiveReaderTitle" Classes="section-title" VerticalAlignment="Center" />
+                    </controls:HeaderBar>
+                    <!-- WV3: every item has a work-view id. The view decides what sits under More; PrioritizedOverflow makes the
+                         policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
+                    <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
+                        <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /></Style></desktop:ActionToolBar.Styles>
+                    <!-- RL1 (15.11.): the bar's visual order is its groups, with a thin line between them (ActionToolBar.Group): the thread mark and
+                         the returns of a state (0), the main actions Large reader, Gallery, Find (1), what concerns the thread: Tags, Export, Thread (2), the
+                         settings gear (3), the history return (4). What a narrow window moves under More first is the policy's ReaderToolbarKeepVisibleOrder. -->
+                    <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" wv:WorkViewElement.Id="reader.toolbar.thread-favorite" />
+                    <Button x:Name="ReaderUnreadReturn" wv:WorkViewElement.Id="reader.toolbar.unread-return" IsVisible="False" Click="OnReaderUnreadReturnClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
-                    <Button x:Name="ReaderSkipUnavailableGroupMember" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
-                    <Button x:Name="ArchiveHistoryBack" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    </WrapPanel>
-                    <TextBlock x:Name="ReaderGroupAvailabilityMessage" IsVisible="False" TextWrapping="Wrap" />
-                    <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="4">
-                        <WrapPanel ItemSpacing="6" LineSpacing="4">
-                            <TextBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged" />
+                    <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
+                    <Button x:Name="ArchiveReadPosts" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
+                    <Button x:Name="ArchiveOpenGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
+                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
+                    <Button x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
+                    <Button x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
+                    <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
+                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
+                         remove watch) in one menu; the settings gear next to it is the reader's own look. -->
+                    <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
+                    <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
+                    <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
+                    <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
+                    <!-- Full screen ends the bar and is the first action to move under More when room runs out (review 15.11.); the header button and F11 carry it too. -->
+                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    </desktop:ActionToolBar>
+                    <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
+                    <StackPanel x:Name="ReaderFindBar" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
+                        <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
+                             dialogs on Enter or Search, Text finds in the open thread as before. -->
+                        <controls:HeaderBar x:Name="ReaderFindRow">
+                        <!-- The inline find bar keeps its × at the right edge (HeaderBar end slot, Tom's item 35), the drawn cross with its name. -->
+                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
+                            <controls:SearchBox x:Name="ReaderFindQuery" Width="240" TextChanged="OnThreadFindQueryChanged">
+                                <controls:SearchBox.ScopeChip><controls:SearchScopeChip x:Name="ReaderFindScope" /></controls:SearchBox.ScopeChip>
+                            </controls:SearchBox>
+                            <controls:SearchBox x:Name="ReaderFilenameQuery" Width="240" MaxLength="512" IsVisible="False" />
+                            <controls:SearchBox x:Name="ReaderHashQuery" Width="240" MaxLength="256" IsVisible="False" />
+                            <Button x:Name="ReaderFindSearch" IsVisible="False" Click="OnReaderScopeSearchClick" />
                             <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
                             <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
-                            <Button x:Name="ReaderFindClose" Click="OnCloseThreadFind" />
                         </WrapPanel>
+                        <Button x:Name="ReaderFindClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadFind" />
+                        </controls:HeaderBar>
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
+                        <controls:SearchCarryOffer x:Name="ReaderFindCarryOffer" />
                         <TextBlock x:Name="ReaderFindExcerpt" TextWrapping="Wrap" />
                     </StackPanel>
                     <!-- Own thread tags: inline like reader find, always bound to the open thread. -->
-                    <StackPanel x:Name="ReaderTagBar" IsVisible="False" Spacing="4">
-                        <WrapPanel x:Name="ReaderTagChips" ItemSpacing="6" LineSpacing="4" />
-                        <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="6" LineSpacing="4" IsVisible="False" />
-                        <WrapPanel ItemSpacing="6" LineSpacing="4">
-                            <TextBox x:Name="ReaderTagInput" Width="240" />
+                    <StackPanel x:Name="ReaderTagBar" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
+                        <WrapPanel x:Name="ReaderTagChips" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" />
+                        <WrapPanel x:Name="ReaderTagSuggestions" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False" />
+                        <controls:HeaderBar x:Name="ReaderTagRow">
+                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
+                            <desktop:IdentitySuggestionBox x:Name="ReaderTagInput" Width="240" />
                             <Button x:Name="ReaderTagAdd" Click="OnAddThreadTag" />
                             <Button x:Name="ReaderTagManage" Click="OnManageTags" />
-                            <Button x:Name="ReaderTagClose" Click="OnCloseThreadTags" />
                         </WrapPanel>
+                        <Button x:Name="ReaderTagClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadTags" />
+                        </controls:HeaderBar>
                         <TextBlock x:Name="ReaderTagStatus" TextWrapping="Wrap" IsVisible="False" />
                     </StackPanel>
                     <WrapPanel x:Name="ReaderStatusLine" Orientation="Horizontal">
-                        <TextBlock x:Name="ArchiveReaderStatus" Classes="muted" TextWrapping="Wrap" FontSize="12" VerticalAlignment="Center" Margin="0,0,16,0" />
-                        <CheckBox x:Name="ReaderFollowLive" IsEnabled="False" IsCheckedChanged="OnReaderFollowLiveChanged" Margin="0,0,12,0" />
-                        <TextBlock x:Name="ReaderNewPostsNotice" IsVisible="False" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <Button x:Name="ReaderShowNewPosts" IsVisible="False" Click="OnShowReaderUpdates" />
+                        <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
+                        <!-- R3: following live is "Show new posts automatically" in the settings popover (section Thread); this line only says whether it is on. -->
+                        <TextBlock x:Name="ReaderLiveState" wv:WorkViewElement.Id="reader.status.follow-live" Classes="workspace-meta" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
+                        <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>
                 </StackPanel>
-                <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="panel">
+                <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="workspace-section-flush">
                     <Grid x:Name="ReaderContentSurface">
-                        <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" Margin="16" />
+                        <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
-                            <TabItem x:Name="ArchivePostsTab" Header="Posts">
-                                <Grid RowDefinitions="*,Auto" RowSpacing="8">
+                            <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
+                                <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
                                     <Grid>
-                                        <ListBox x:Name="ArchivePosts" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <!-- Reader post cards (study 2026-11-13, variant A): each post is a card with a
+                                             1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
+                                             AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
+                                             shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
+                                        <desktop:ReaderPostList x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                                 ScrollViewer.BringIntoViewOnFocusChange="False"
+                                                 Background="{DynamicResource Workspace.Background}" Padding="0,4"
+                                                 ContainerPrepared="OnReaderPostContainerPrepared">
                                             <ListBox.Styles>
-                                                <Style Selector="ListBoxItem"><Setter Property="HorizontalContentAlignment" Value="Stretch" /></Style>
+                                                <Style Selector="ListBoxItem">
+                                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                    <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+                                                    <Setter Property="Margin" Value="8,4" />
+                                                    <Setter Property="Padding" Value="2,0" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.CardEdge}" />
+                                                    <Setter Property="BorderThickness" Value="1" />
+                                                    <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem:pointerover /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem:pressed /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.Card}" />
+                                                </Style>
+                                                <!-- Opening post: no card, directly on the page (classic imageboard order: OP, then
+                                                     reply cards). The transparent 1-px edge keeps its geometry; selected, it becomes
+                                                     the active card like every post (the styles below win). -->
+                                                <Style Selector="ListBoxItem.reader-op">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-op /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderBrush" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-op:pointerover /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-op:pressed /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <!-- Post width "fit to content" (default): a card is as wide as its header, text and media need, left-aligned and
+                                                     capped at the reading width (ReaderNavigationLayout.CardMaxWidth); "full width" omits this class on the list. -->
+                                                <Style Selector="ListBox.reader-fit-width ListBoxItem">
+                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    <Setter Property="MaxWidth" Value="1120" />
+                                                </Style>
+                                                <!-- Post width "centred column": cards stretch to the same cap, so the column sits in the middle. -->
+                                                <Style Selector="ListBox.reader-column-width ListBoxItem">
+                                                    <Setter Property="MaxWidth" Value="1120" />
+                                                </Style>
+                                                <!-- The selected (focused) card: its media can be drawn larger (R6, ReaderPostLayout.Focused is inherited by
+                                                     everything in the card), on the active surface with the accent edge. -->
                                                 <Style Selector="ListBoxItem:selected">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
+                                                    <Setter Property="desktop:ReaderPostLayout.Focused" Value="True" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
                                                     <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
-                                                    <Setter Property="BorderThickness" Value="3,0,0,0" />
+                                                    <Setter Property="BorderThickness" Value="3,1,1,1" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
-                                                    <Setter Property="BorderThickness" Value="3,0,0,0" />
+                                                    <Setter Property="BorderThickness" Value="3,1,1,1" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected:pointerover /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem:selected:pressed /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:selected:focus /template/ ContentPresenter">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderActiveSurface}" />
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
                                                 </Style>
                                                 <Style Selector="ListBoxItem:focus-visible /template/ ContentPresenter">
                                                     <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+                                                    <Setter Property="BorderThickness" Value="3,2,2,2" />
+                                                </Style>
+                                                <Style Selector="Button.reader-post-number">
+                                                    <Setter Property="HorizontalAlignment" Value="Left" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="Padding" Value="4,2" />
+                                                    <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.ControlCompact}" />
+                                                    <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
+                                                </Style>
+                                                <Style Selector="ItemsControl.reader-quote-keys:not(:focus-within):not(.reader-quotes-visible)">
+                                                    <Setter Property="MaxHeight" Value="0" />
+                                                    <Setter Property="ClipToBounds" Value="True" />
+                                                </Style>
+                                                <!-- Reference buttons (keyboard quote row, expanded backlinks) read as links, not raised buttons. -->
+                                                <Style Selector="Button.reader-reply-toggle">
+                                                    <Setter Property="Padding" Value="4,0" />
+                                                    <Setter Property="MinHeight" Value="0" />
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                </Style>
+                                                <Style Selector="Button.reader-reply-card">
+                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderCodeSurface}" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+                                                    <Setter Property="Padding" Value="8,4" />
+                                                    <Setter Property="MinHeight" Value="0" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+                                                </Style>
+                                                <Style Selector="Button.reader-quote">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                    <Setter Property="BorderThickness" Value="0" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource Workspace.Accent}" />
+                                                    <Setter Property="Padding" Value="4,2" />
+                                                    <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.ControlCompact}" />
+                                                </Style>
+                                                <!-- Reader view: a placeholder for a post the view hides shows no card, only its edge; a post a
+                                                     filter highlights gets a warning edge. Selection and keyboard focus keep their own edges. -->
+                                                <Style Selector="ListBoxItem.reader-stub:not(:selected)">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-stub:not(:selected) /template/ ContentPresenter">
+                                                    <Setter Property="Background" Value="Transparent" />
+                                                </Style>
+                                                <Style Selector="ListBoxItem.reader-highlight:not(:selected):not(:focus-visible) /template/ ContentPresenter">
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Warning}" />
                                                     <Setter Property="BorderThickness" Value="3,1,1,1" />
                                                 </Style>
                                             </ListBox.Styles>
                                             <ListBox.ItemTemplate>
                                                 <DataTemplate x:DataType="desktop:ArchivePostRow">
-                                                    <StackPanel Margin="8,8,8,12" Spacing="6">
-                                                        <TextBlock Text="{Binding Header}" Classes="workspace-meta" />
-                                                        <TextBlock Text="{Binding Subject}" Classes="section-title" TextWrapping="Wrap" />
-                                                        <desktop:ReaderPostLayout>
-                                                            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding HasAttachments}" HorizontalAlignment="Left">
+                                                    <Panel>
+                                                    <!-- Reading mark: its own row between two cards, never inside one. The marked post's container reserves the
+                                                         gap as extra top margin (8 dip of air each side); the host arranges the line into it across the full list width. -->
+                                                    <desktop:ReaderUnreadLineHost HorizontalAlignment="Left" VerticalAlignment="Top" IsHitTestVisible="False" IsVisible="{Binding HasUnreadLine}"
+                                                                                  AutomationProperties.Name="{Binding UnreadLabel}">
+                                                        <Grid ColumnDefinitions="14,Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                                            <Rectangle Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
+                                                            <TextBlock Grid.Column="1" Text="{Binding UnreadLabel}" Classes="workspace-meta" FontWeight="SemiBold" Foreground="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
+                                                            <Rectangle Grid.Column="2" Height="2" Fill="{DynamicResource Workspace.Accent}" VerticalAlignment="Center" />
+                                                        </Grid>
+                                                    </desktop:ReaderUnreadLineHost>
+                                                    <StackPanel Margin="8,8,8,12" Spacing="{StaticResource Workspace.Space.8}" AutomationProperties.HelpText="{Binding DepthLabel}">
+                                                        <!-- Placeholder of a post the view hides: number, reason and Show instead of the post. -->
+                                                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.2}" IsVisible="{Binding IsStub}">
+                                                            <TextBlock Text="{Binding StubText}" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                            <Button Classes="reader-quote reader-view-show" Content="{Binding ShowStubLabel}" AutomationProperties.Name="{Binding ShowStubLabel}"
+                                                                    Click="OnReaderStubShowClick" VerticalAlignment="Center" />
+                                                        </WrapPanel>
+                                                        <!-- One header line: Subject · Name · Date · No.; the number copies ">>No.".
+                                                             The reply counter at the right opens the nested reply cards below the text. -->
+                                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" IsVisible="{Binding !IsStub}">
+                                                            <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.2}" VerticalAlignment="Center">
+                                                                <TextBlock Text="{Binding Subject}" IsVisible="{Binding HasSubject}" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Author}" IsVisible="{Binding HasAuthor}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding Posted}" IsVisible="{Binding HasPosted}" ToolTip.Tip="{Binding PostedFull}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                                <Button Classes="link reader-post-number" Content="{Binding NumberLabel}" ToolTip.Tip="{Binding CopyNumberLabel}"
+                                                                        AutomationProperties.Name="{Binding CopyNumberLabel}" Click="OnCopyPostNumberClick" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding RemovedLabel}" IsVisible="{Binding IsDeleted}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                            </WrapPanel>
+                                                            <Button Grid.Column="1" Classes="link reader-reply-toggle" IsVisible="{Binding HasReplyToggle}"
+                                                                    ToolTip.Tip="{Binding ReplyToggleLabel}" AutomationProperties.Name="{Binding ReplyToggleLabel}"
+                                                                    Click="OnReplyToggleClick" VerticalAlignment="Center">
+                                                                <StackPanel Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.4}">
+                                                                    <TextBlock Text="{Binding BacklinkCountLabel}" Classes="workspace-meta" VerticalAlignment="Center" />
+                                                                    <Path Classes="reader-reply-chevron" Data="M 0,0 L 3.5,3.5 L 7,0" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.5"
+                                                                          IsVisible="{Binding !RepliesExpanded}" VerticalAlignment="Center" />
+                                                                    <Path Classes="reader-reply-chevron" Data="M 0,3.5 L 3.5,0 L 7,3.5" Stroke="{DynamicResource Workspace.Muted}" StrokeThickness="1.5"
+                                                                          IsVisible="{Binding RepliesExpanded}" VerticalAlignment="Center" />
+                                                                </StackPanel>
+                                                            </Button>
+                                                        </Grid>
+                                                        <!-- An explicit jump or Show revealed a post this view hides; it can be hidden again. -->
+                                                        <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.2}" IsVisible="{Binding IsRevealed}">
+                                                            <TextBlock Text="{Binding RevealedLabel}" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                            <Button Classes="reader-quote reader-view-hide-again" Content="{Binding HideAgainLabel}" AutomationProperties.Name="{Binding HideAgainLabel}"
+                                                                    Click="OnReaderHideAgainClick" VerticalAlignment="Center" />
+                                                        </WrapPanel>
+                                                        <desktop:ReaderPostLayout IsVisible="{Binding !IsStub}" MediaWidth="{Binding MediaWidth}">
+                                                            <ItemsControl ItemsSource="{Binding Attachments}" IsVisible="{Binding ShowsMedia}" HorizontalAlignment="Left">
+                                                                <!-- R11: one file per line, except in a post laid out as a grid (two columns); the panel reads that from the post. -->
+                                                                <ItemsControl.ItemsPanel><ItemsPanelTemplate><desktop:ReaderMediaPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
                                                                 <ItemsControl.ItemTemplate>
                                                                     <DataTemplate x:DataType="desktop:ArchiveAttachmentRow">
                                                                         <desktop:ArchiveAttachmentView Margin="0,2,0,8" />
                                                                     </DataTemplate>
                                                                 </ItemsControl.ItemTemplate>
                                                             </ItemsControl>
-                                                            <StackPanel Spacing="6">
-                                                                <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference. -->
-                                                                <desktop:ReaderBodyTextBlock Text="{Binding Body}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}" TextWrapping="Wrap" />
-                                                                <ItemsControl ItemsSource="{Binding Quotes}">
-                                                                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                                                    <ItemsControl.ItemTemplate>
-                                                                        <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                            <Button Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
-                                                                        </DataTemplate>
-                                                                    </ItemsControl.ItemTemplate>
-                                                                </ItemsControl>
-                                                                <TextBlock Text="{Binding BacklinksLabel}" IsVisible="{Binding HasConfirmedNoReplies}" Classes="muted" FontSize="12" />
-                                                                <Expander Header="{Binding BacklinksLabel}" IsVisible="{Binding CanExpandReplies}" IsExpanded="{Binding RepliesExpanded, Mode=TwoWay}"
-                                                                          Expanded="OnRepliesExpanded" Collapsed="OnRepliesCollapsed" HorizontalAlignment="Left" MinHeight="0" Padding="0">
-                                                                    <StackPanel Margin="12,4,0,4" Spacing="4">
-                                                                        <ItemsControl ItemsSource="{Binding Replies}">
-                                                                            <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                                                            <ItemsControl.ItemTemplate>
-                                                                                <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                                    <Button Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" Margin="0,2,6,2" HorizontalAlignment="Left" />
-                                                                                </DataTemplate>
-                                                                            </ItemsControl.ItemTemplate>
-                                                                        </ItemsControl>
-                                                                        <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" />
-                                                                        <StackPanel Orientation="Horizontal" Spacing="8" IsVisible="{Binding HasMoreReplies}">
-                                                                            <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
-                                                                            <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" />
-                                                                        </StackPanel>
-                                                                    </StackPanel>
-                                                                </Expander>
+                                                            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                                                                <!-- "Hide media": the slot gives way to one short line; the hidden thumbnails never load. -->
+                                                                <TextBlock Text="{Binding MediaHiddenLabel}" IsVisible="{Binding HasMediaHiddenLine}" Classes="workspace-meta" />
+                                                                <StackPanel>
+                                                                    <!-- The Semi text theme sets FontSize locally; explicitly honor the reader preference.
+                                                                         Greentext and >>No. are runs over the plain text; a click on >>No. opens it like the buttons. -->
+                                                                    <desktop:ReaderBodyTextBlock x:Name="PostBody" Classes="reader-body" Document="{Binding BodyDocument}" SpoilersRevealed="{Binding SpoilersRevealed, Mode=TwoWay}" Expanded="{Binding Expanded, Mode=TwoWay}" IsTextOnly="{Binding IsTextOnly}" FontSize="{Binding $parent[ListBox].FontSize}"
+                                                                                                 TextWrapping="Wrap" QuoteInvoked="OnInlineQuoteInvoked" LinkInvoked="OnInlineLinkInvoked" QuoteHover="OnInlineQuoteHover" />
+                                                                    <!-- A body over 24 lines shows 18 and a fade; this button unfolds it (and folds it again). -->
+                                                                    <Button Classes="reader-quote reader-fold" IsVisible="{Binding #PostBody.IsFoldable}" Content="{Binding #PostBody.FoldLabel}"
+                                                                            Click="OnFoldToggleClick" HorizontalAlignment="Left" />
+                                                                    <!-- Keyboard/screen-reader path for the inline references (inline runs are not focusable):
+                                                                         after the text in tab and reading order, zero height until it holds keyboard focus. -->
+                                                                    <ItemsControl ItemsSource="{Binding Quotes}" Classes="reader-quote-keys" Classes.reader-quotes-visible="{Binding HasUnplacedQuotes}"
+                                                                                  AutomationProperties.Name="{Binding QuotesLabel}">
+                                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><WrapPanel /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                                                                                <Button Classes="reader-quote" Content="{Binding Label}" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited" Margin="0,2,8,2" HorizontalAlignment="Left" />
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                </StackPanel>
+                                                                <!-- I2: replies as nested cards, one level deep: a left rail, the header and the first lines of each reply.
+                                                                     The header counter above opens and closes them; "Show more replies" adds the next five. -->
+                                                                <StackPanel IsVisible="{Binding RepliesExpanded}" Margin="12,2,0,2" Spacing="{StaticResource Workspace.Space.8}">
+                                                                    <ItemsControl ItemsSource="{Binding Replies}">
+                                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.8}" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                                                                        <ItemsControl.ItemTemplate>
+                                                                            <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                                                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                                                                    <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
+                                                                                    <Button Grid.Column="1" Classes="reader-reply-card" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
+                                                                                            commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited"
+                                                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                                                                        <StackPanel Spacing="{StaticResource Workspace.Space.2}">
+                                                                                            <TextBlock Text="{Binding ReplyCardHeader}" Classes="workspace-meta" TextWrapping="Wrap" />
+                                                                                            <TextBlock Text="{Binding ReplyExcerpt}" IsVisible="{Binding HasReplyExcerpt}" TextWrapping="Wrap" />
+                                                                                        </StackPanel>
+                                                                                    </Button>
+                                                                                </Grid>
+                                                                            </DataTemplate>
+                                                                        </ItemsControl.ItemTemplate>
+                                                                    </ItemsControl>
+                                                                    <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" TextWrapping="Wrap" />
+                                                                    <!-- Narrow-window sweep: the button and its range share a line while they fit; in a narrow card the range wraps below. -->
+                                                                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="{Binding HasMoreReplies}">
+                                                                        <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
+                                                                        <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
+                                                                    </WrapPanel>
+                                                                </StackPanel>
                                                                 <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                                                             </StackPanel>
                                                         </desktop:ReaderPostLayout>
                                                     </StackPanel>
+                                                    </Panel>
                                                 </DataTemplate>
                                             </ListBox.ItemTemplate>
-                                        </ListBox>
+                                        </desktop:ReaderPostList>
                                         <TextBlock x:Name="ArchiveNoPosts" Tag="archive.noPosts" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
+                                        <!-- One accent wash for the post a jump lands on (fades out once in 400 ms; never per post). -->
+                                        <Border x:Name="ReaderJumpFlash" IsVisible="False" IsHitTestVisible="False" Opacity="0" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                CornerRadius="{StaticResource Workspace.Radius.Control}" Background="{DynamicResource Workspace.Accent}" />
+                                        <!-- P3: the quoted post is outlined while its reference is hovered or focused (one overlay, no animation, never per post). -->
+                                        <Border x:Name="ReaderQuoteHighlight" IsVisible="False" IsHitTestVisible="False" HorizontalAlignment="Left" VerticalAlignment="Top"
+                                                CornerRadius="{StaticResource Workspace.Radius.Control}" BorderThickness="2" BorderBrush="{DynamicResource Workspace.Accent}" />
+                                        <!-- An external link opens only after this confirmation: the full address, its host in ASCII form and highlighted. -->
+                                        <Border x:Name="ReaderLinkDialog" IsVisible="False" Background="{DynamicResource Workspace.Scrim}" ZIndex="5">
+                                            <Border Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="1"
+                                                    CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="16" MaxWidth="520" Margin="16" HorizontalAlignment="Center" VerticalAlignment="Center">
+                                                <StackPanel Spacing="{StaticResource Workspace.Space.12}">
+                                                    <!-- MD4 overlay header: the question, then the cross (cancel) at the right edge like a dialog (HeaderBar end slot, OverlayFrame). -->
+                                                    <controls:HeaderBar x:Name="ReaderLinkHeader">
+                                                        <TextBlock x:Name="ReaderLinkTitle" Classes="section-title" TextWrapping="Wrap" VerticalAlignment="Center" />
+                                                        <Button x:Name="ReaderLinkClose" controls:HeaderBar.IsEnd="True" Click="OnReaderLinkCancel" />
+                                                    </controls:HeaderBar>
+                                                    <SelectableTextBlock x:Name="ReaderLinkUrl" TextWrapping="Wrap" />
+                                                    <TextBlock x:Name="ReaderLinkHint" Classes="workspace-meta" TextWrapping="Wrap" />
+                                                    <CheckBox x:Name="ReaderLinkRemember" />
+                                                    <WrapPanel HorizontalAlignment="Right" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}">
+                                                        <Button x:Name="ReaderLinkCancel" Click="OnReaderLinkCancel" />
+                                                        <Button x:Name="ReaderLinkOpen" Classes="primary" Click="OnReaderLinkOpen" />
+                                                    </WrapPanel>
+                                                </StackPanel>
+                                            </Border>
+                                        </Border>
                                     </Grid>
-                                    <Grid x:Name="ArchivePostNavigation" Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="8">
+                                    <Grid x:Name="ArchivePostNavigation" Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                         <Button x:Name="PreviousPostsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousPosts" />
-                                        <TextBlock x:Name="ArchivePostPage" Grid.Column="1" Classes="muted" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="ArchivePostPage" Grid.Column="1" Classes="muted tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         <Button x:Name="NextPostsButton" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextPosts" />
                                     </Grid>
                                 </Grid>
                             </TabItem>
-                            <TabItem x:Name="ArchiveMediaTab" Header="Media">
-                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="6" Margin="6,2">
-                                    <WrapPanel Orientation="Horizontal" ItemSpacing="8" LineSpacing="6">
-                                        <Button x:Name="ArchiveMediaMode" Tag="gallery.tiles" Classes="localized" Click="OnMediaModeClick" />
-                                        <Button x:Name="ArchiveMediaColumnsButton" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
-                                        <Button x:Name="ArchiveFavoritesFilter" Content="☆ Favorites only" Click="OnArchiveFavoritesFilterClick" />
-                                        <ComboBox x:Name="ArchiveRatingFilter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
-                                        <ComboBox x:Name="ArchiveMediaSort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
-                                        <ComboBox x:Name="ArchiveVersionScope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
-                                    </WrapPanel>
+                            <TabItem x:Name="ArchiveMediaTab" wv:WorkViewElement.Id="reader.tabs.media" Header="Media">
+                                <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}" Margin="8,2">
+                                    <!-- WV3: one bar instead of a wrapping row; what the view does not show directly sits under More.
+                                         An active favourites/rating filter or all versions stays on the bar (R6). -->
+                                    <desktop:ActionToolBar x:Name="ReaderMediaTools" PrioritizedOverflow="True">
+                                        <!-- 16.11.: the Tiles/Table choice is the Archive results bar's joined pair (segment classes, icon before text, the one on is highlighted),
+                                             not one button that names the other view. -->
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
+                                        <Button x:Name="ArchiveMediaColumnsButton" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
+                                        <Button x:Name="ArchiveFavoritesFilter" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
+                                        <ComboBox x:Name="ArchiveRatingFilter" wv:WorkViewElement.Id="reader.media.rating-filter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
+                                        <ComboBox x:Name="ArchiveMediaSort" wv:WorkViewElement.Id="reader.media.sort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
+                                        <ComboBox x:Name="ArchiveVersionScope" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
+                                    </desktop:ActionToolBar>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
-                                        <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Single" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
+                                        <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
                                             <DataGrid.Columns>
                                                 <DataGridTemplateColumn Width="*" MinWidth="220" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                                 <DataGridTextColumn Width="85" MinWidth="70" Binding="{Binding Size, DataType=desktop:ArchiveAssetRow}" />
@@ -352,86 +663,145 @@
                                                 <DataGridTextColumn Width="130" MinWidth="100" Binding="{Binding RatingLabel, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
                                         </DataGrid>
-                                        <ListBox x:Name="ArchiveMediaTiles" IsVisible="False" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
+                                        <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
-                                            <ListBox.ItemsPanel><ItemsPanelTemplate><desktop:MediaTilePanel /></ItemsPanelTemplate></ListBox.ItemsPanel>
+                                            <!-- The tile panel is made in code (ArchivePage.TileSize.cs): its cell follows the tile size. -->
                                             <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow">
                                                 <desktop:ArchiveMediaTileView />
                                             </DataTemplate></ListBox.ItemTemplate>
                                         </ListBox>
-                                        <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,40,8,8" />
+                                        <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,32,8,8" />
                                     </Grid>
-                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="6"><TextBlock x:Name="ArchiveRatingStatus" Classes="error" TextWrapping="Wrap" IsVisible="False" /><WrapPanel HorizontalAlignment="Right" ItemSpacing="8" LineSpacing="6"><Button x:Name="ArchiveEditRatingButton" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /></WrapPanel></StackPanel>
+                                    <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}"><TextBlock x:Name="ArchiveRatingStatus" wv:WorkViewElement.Id="reader.media.rating-error" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
+                                        <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
+                                        <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
+                                            <TextBlock x:Name="ArchiveMediaSelectionStatus" VerticalAlignment="Center" TextWrapping="Wrap" />
+                                            <Button x:Name="ArchiveMediaSelectionTag" Click="OnMediaSelectionTagClick" />
+                                            <Button x:Name="ArchiveMediaSelectionQueue" Click="OnMediaSelectionQueueClick" />
+                                            <Button x:Name="ArchiveMediaSelectionGallery" Click="OnMediaSelectionGalleryClick" />
+                                            <Button x:Name="ArchiveMediaSelectionExport" Click="OnMediaSelectionExportClick" />
+                                            <Button x:Name="ArchiveMediaSelectionClear" Click="OnMediaSelectionClearClick" />
+                                        </WrapPanel><desktop:ActionToolBar x:Name="ReaderMediaActions" HorizontalAlignment="Right" PrioritizedOverflow="True"><Button x:Name="ArchiveEditRatingButton" wv:WorkViewElement.Id="reader.media.edit-rating" IsEnabled="False" Click="OnEditMediaRatingClick" /><Button x:Name="PreviewArchiveMediaButton" wv:WorkViewElement.Id="reader.media.preview" Tag="archive.preview" Classes="localized" Click="OnPreviewClick" /><Button x:Name="ArchiveManageRatingsButton" wv:WorkViewElement.Id="reader.media.manage-ratings" Click="OnManageMediaRatingsClick" /></desktop:ActionToolBar></StackPanel>
                                 </Grid>
                             </TabItem>
-                            <TabItem x:Name="ArchiveReferencesTab">
-                                <Grid RowDefinitions="Auto,*,Auto" Margin="8" RowSpacing="8">
-                                    <TextBlock x:Name="ArchiveReferencesTitle" TextWrapping="Wrap" Classes="muted" />
-                                    <ListBox x:Name="ArchiveReferences" Grid.Row="1">
+                            <!-- Only present while there are captured replies to show: LoadBacklinksAsync shows it with its count. -->
+                            <TabItem x:Name="ArchiveReferencesTab" wv:WorkViewElement.Id="reader.tabs.references" IsVisible="False">
+                                <Grid RowDefinitions="Auto,Auto,*,Auto" Margin="8" RowSpacing="{StaticResource Workspace.Space.8}">
+                                    <StackPanel Spacing="{StaticResource Workspace.Space.2}">
+                                        <TextBlock x:Name="ArchiveReferencesHelp" Tag="archive.referencesHelp" Classes="muted localized" TextWrapping="Wrap" />
+                                        <TextBlock x:Name="ArchiveReferencesTitle" TextWrapping="Wrap" FontWeight="SemiBold" />
+                                    </StackPanel>
+                                    <ListBox x:Name="ArchiveReferences" Grid.Row="2">
                                         <ListBox.ItemTemplate><DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                            <Button Content="{Binding Label}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" HorizontalAlignment="Stretch" Margin="0,3" />
+                                            <Button Classes="reader-reference" Content="{Binding Label}" commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick"
+                                                    PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited" HorizontalAlignment="Stretch" Margin="0,4" />
                                         </DataTemplate></ListBox.ItemTemplate>
                                     </ListBox>
-                                    <Grid x:Name="ArchiveReferencesNavigation" Grid.Row="2" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                                    <Grid x:Name="ArchiveReferencesNavigation" Grid.Row="3" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                         <Button x:Name="PreviousReferences" Tag="archive.previous" Classes="localized" Click="OnPreviousReferences" />
-                                        <TextBlock x:Name="ArchiveReferencesPage" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Center" />
+                                        <TextBlock x:Name="ArchiveReferencesPage" Grid.Column="1" Classes="tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         <Button x:Name="NextReferences" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextReferences" />
                                     </Grid>
                                 </Grid>
                             </TabItem>
                         </TabControl>
-                        <WrapPanel x:Name="ReaderNavigation" IsVisible="False" HorizontalAlignment="Right"
-                                   VerticalAlignment="Bottom" Margin="0,0,24,56" ZIndex="1">
-                            <Border Classes="raised" Padding="4" CornerRadius="8">
-                                <Grid RowDefinitions="32,32,32" ColumnDefinitions="32,32,32" RowSpacing="2" ColumnSpacing="2">
-                                    <Grid.Styles>
+                        <!-- The quote preview: one at a time, filled from the thread's post index when it opens, for the Posts and the References tab alike.
+                             The quoted post's first medium comes first (QuotePreviewMediaHost, sized by QuotePreviewMediaRules), its text below. It takes the
+                             pointer: it stays open while the pointer is on it, and a click opens the quoted post. -->
+                        <Popup x:Name="QuotePreviewPopup" Placement="Bottom" IsLightDismissEnabled="False">
+                            <Border x:Name="QuotePreviewCard" Background="{DynamicResource Workspace.Card}" BorderBrush="{DynamicResource Workspace.Accent}" Cursor="Hand"
+                                    BorderThickness="1" CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="12,8" MaxWidth="480" MaxHeight="320">
+                                <StackPanel x:Name="QuotePreviewContent" Spacing="{StaticResource Workspace.Space.4}">
+                                    <Panel x:Name="QuotePreviewMediaHost" IsVisible="False" HorizontalAlignment="Left" />
+                                    <TextBlock x:Name="QuotePreviewHeader" Classes="workspace-meta" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="QuotePreviewSubject" Classes="section-title" TextWrapping="Wrap" />
+                                    <TextBlock x:Name="QuotePreviewBody" TextWrapping="Wrap" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Border>
+                        </Popup>
+                        <Border x:Name="ReaderNavigationHitHost" Background="Transparent" IsVisible="{Binding #ReaderNavigation.IsHitTestVisible}"
+                                IsHitTestVisible="True" HorizontalAlignment="Right" VerticalAlignment="Bottom" ZIndex="1000">
+                        <WrapPanel x:Name="ReaderNavigation" Classes="reader-cross" Background="{DynamicResource Workspace.Card}" IsVisible="False" HorizontalAlignment="Right"
+                                   VerticalAlignment="Bottom" Margin="0,0,24,32">
+                            <!-- The navigation bar is an overlay above the content, one capsule of 40 dip: [thread arrow, counter, thread arrow | post arrow,
+                                 counter, post arrow]. The whole capsule takes the pointer (a click in a gap never reaches the post below); below
+                                 ReaderNavigationLayout.CompactBelowSurfaceWidth (or with the position switched off) the two counters are hidden. MaxWidth and
+                                 the counter's MinWidth are ReaderNavigationLayout.BarMaxWidth and CounterMinWidth (a test pins both). -->
+                            <!-- WrapPanel only hit-tests its children. Keep an explicit transparent surface around the capsule so separator/counter gaps
+                                 cannot fall through to the reader content; the surface remains inside ReaderNavigation for the overlay contract. -->
+                            <Border x:Name="ReaderNavigationHitSurface" Background="Transparent" IsHitTestVisible="True">
+                                <Border x:Name="ReaderNavigationBar" Classes="workspace-overlay" Padding="3" MaxWidth="320" Focusable="True" IsTabStop="True">
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <StackPanel.Styles>
                                         <Style Selector="Button">
-                                            <Setter Property="Width" Value="32" /><Setter Property="Height" Value="32" />
-                                            <Setter Property="MinWidth" Value="32" /><Setter Property="MinHeight" Value="32" /><Setter Property="Padding" Value="4" />
+                                            <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
+                                            <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Input}" />
+                                            <Setter Property="Padding" Value="4" /><Setter Property="VerticalAlignment" Value="Center" />
                                         </Style>
-                                    </Grid.Styles>
-                                    <Button x:Name="ReaderPreviousPost" Grid.Column="1" Tag="reader.previousPost" Classes="localized" Click="OnReaderNavigationClick" />
-                                    <Button x:Name="ReaderNextPost" Grid.Row="2" Grid.Column="1" Tag="reader.nextPost" Classes="localized" Click="OnReaderNavigationClick" />
-                                    <Button x:Name="ReaderPreviousThread" Grid.Row="1" Tag="reader.previousThread" Classes="localized" Click="OnReaderNavigationClick" />
-                                    <Button x:Name="ReaderNextThread" Grid.Row="1" Grid.Column="2" Tag="reader.nextThread" Classes="localized" Click="OnReaderNavigationClick" />
-                                </Grid>
+                                    </StackPanel.Styles>
+                                    <StackPanel x:Name="ReaderThreadGroup" Orientation="Horizontal">
+                                        <Button x:Name="ReaderPreviousThread" Tag="reader.previousThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <TextBlock x:Name="ReaderThreadPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
+                                        <Button x:Name="ReaderNextThread" Tag="reader.nextThread" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                    </StackPanel>
+                                    <Border x:Name="ReaderNavigationSeparator" Width="1" Height="24" Margin="8,0" VerticalAlignment="Center" Background="{DynamicResource Workspace.ControlBorder}" />
+                                    <StackPanel x:Name="ReaderPostGroup" Orientation="Horizontal">
+                                        <Button x:Name="ReaderPreviousPost" Tag="reader.previousPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                        <TextBlock x:Name="ReaderPostPosition" Classes="tnum workspace-meta" MinWidth="56" Margin="4,0" TextAlignment="Center" VerticalAlignment="Center" TextWrapping="NoWrap" />
+                                        <Button x:Name="ReaderNextPost" Tag="reader.nextPost" Classes="localized ghost" ToolTip.ShowOnDisabled="True" Click="OnReaderNavigationClick" />
+                                    </StackPanel>
+                                    </StackPanel>
+                                </Border>
                             </Border>
                         </WrapPanel>
+                        </Border>
                     </Grid>
                 </Border>
-                <TextBlock x:Name="ArchivePartialHint" Grid.Row="2" Tag="archive.partial" Classes="muted localized" FontSize="12" TextWrapping="Wrap" />
             </Grid>
-        </Grid>
-        <StackPanel Grid.Row="2" Spacing="6">
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <ursa:LoadingIcon x:Name="ArchiveContentLoading" Width="16" Height="16" Focusable="False" IsVisible="False" />
-                <TextBlock x:Name="ArchiveContentLoadingText" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                <TextBlock x:Name="ArchiveMessage" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Spacing="8">
-                <ursa:LoadingIcon x:Name="ArchiveMediaLoading" Width="16" Height="16" Focusable="False" IsVisible="False" />
-                <TextBlock x:Name="ArchiveMediaLoadingText" Classes="muted" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-            </StackPanel>
-            <ursa:Banner x:Name="ArchiveErrorBanner" Type="Error" CanClose="False" IsVisible="False" HorizontalContentAlignment="Stretch">
-                <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
-            </ursa:Banner>
-        </StackPanel>
-        <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="panel" Padding="12" IsVisible="False">
-            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="10">
-                <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                    <TextBlock x:Name="PreviewTitle" Classes="section-title" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                    <Button x:Name="ClosePreviewButton" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnClosePreview" />
+            <!-- ARCH-DENSE-01 (user decision 11.11.2026): loading and status messages reserve
+                 no layout height. They float at the bottom left of the reader column (or of the
+                 stacked list), above that column's docked footer, only while there is something
+                 to show; hidden, the overlay is not hit-tested at all. Shown, it takes the pointer
+                 only over its own small box, for the full-text tooltip; hovering keeps a message,
+                 a click dismisses it, and messages expire on their own (ArchivePage.Feedback). -->
+            <Border x:Name="ArchiveStatusOverlay" Grid.Column="2" Classes="workspace-overlay" Padding="8,4" Margin="8" MaxWidth="560"
+                    HorizontalAlignment="Left" VerticalAlignment="Bottom" ZIndex="2"
+                    IsVisible="False" Focusable="False">
+                <Grid x:Name="ArchiveStatusLine">
+                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                        <ursa:LoadingIcon x:Name="ArchiveContentLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ArchiveContentLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="ArchiveMessage" Classes="muted" TextWrapping="Wrap" MaxLines="3" TextTrimming="CharacterEllipsis" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                        <ursa:LoadingIcon x:Name="ArchiveMediaLoading" Width="16" Height="16" Focusable="False" IsVisible="False" VerticalAlignment="Center" />
+                        <TextBlock x:Name="ArchiveMediaLoadingText" Classes="muted" TextWrapping="Wrap" IsVisible="False" VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                    </WrapPanel>
                 </Grid>
+            </Border>
+        </Grid>
+        <!-- ARCH-DENSE-01: the error banner stays in layout flow (it can be long and is
+             important); its row takes space only while an error is shown. Status and
+             loading messages are an overlay inside ArchiveSplit instead. -->
+        <StackPanel x:Name="ArchiveStatusStrip" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}" IsVisible="False">
+            <controls:WorkspaceBanner x:Name="ArchiveErrorBanner" Type="Error" IsVisible="False">
+                <ScrollViewer MaxHeight="104" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ArchiveErrorText" TextWrapping="Wrap" Classes="workspace-error" AutomationProperties.LiveSetting="Assertive" /></ScrollViewer>
+            </controls:WorkspaceBanner>
+        </StackPanel>
+        <Border x:Name="ArchivePreview" Grid.RowSpan="3" Classes="workspace-section" IsVisible="False">
+            <Grid RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
+                <controls:HeaderBar>
+                    <controls:TrimTipTextBlock x:Name="PreviewTitle" Classes="section-title" VerticalAlignment="Center" />
+                    <Button x:Name="ClosePreviewButton" controls:HeaderBar.IsEnd="True" Click="OnClosePreview" />
+                </controls:HeaderBar>
                 <Grid Grid.Row="1">
                     <Image x:Name="ArchivePreviewImage" Stretch="Uniform" />
                     <TextBlock x:Name="ArchivePreviewMessage" Classes="muted" TextWrapping="Wrap" />
                 </Grid>
-                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                <Grid Grid.Row="2" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                     <TextBox x:Name="ArchivePreviewPath" IsReadOnly="True" />
                     <Button Grid.Column="1" Tag="action.openFolder" Classes="localized" Click="OnOpenMediaFolder" />
                 </Grid>
             </Grid>
         </Border>
-        <Border x:Name="ArchiveExportDialog" IsVisible="False" Background="#A6000000" Grid.RowSpan="3" ZIndex="20" />
+        <Border x:Name="ArchiveExportDialog" IsVisible="False" Background="{DynamicResource Workspace.Scrim}" Grid.RowSpan="3" ZIndex="20" />
     </Grid>
 </UserControl>

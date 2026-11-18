@@ -1,0 +1,721 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Controls.Documents;
+using Avalonia.Controls.Templates;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.LogicalTree;
+using Avalonia.Markup.Xaml.MarkupExtensions;
+using Avalonia.Media;
+using Avalonia.Styling;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
+
+namespace MeowChan;
+
+/// <summary>
+/// The search of the settings page: a field in the page header and, below it, the ranked hits of every group. The editors,
+/// their groups and their text stay where they are; the search reads them once per language (labels, hints, keys), lists
+/// what matches, and jumps to the chosen setting: it opens its group, unfolds collapsed sections and marks the row.
+/// Typing only updates the list (after a short pause); the jump happens on Enter or a click on a hit, and the groups it opened
+/// fold again when the search ends. Matching is in <see cref="SettingsSearchMatcher"/>, the behaviour in <see cref="SettingsSearchSession"/>.
+/// </summary>
+public partial class SettingsEditor
+{
+    private sealed record SearchTarget(string CategoryId, Control Element, IReadOnlyList<Expander> Expanders);
+
+    private sealed class SearchEntryBuilder
+    {
+        public required Control Element;
+        public required string CategoryId;
+        public required string Group;
+        public IReadOnlyList<Expander> Expanders = Array.Empty<Expander>();
+        public string Label = string.Empty;
+        public readonly List<string> Hints = new();
+        public string? Key;
+    }
+
+    private SearchBox? _searchBox;
+    private Border? _searchPanel;
+    private ListBox? _searchList;
+    private TextBlock? _searchNone, _searchKeys, _searchCurrent;
+    private SettingsSearchIndex? _searchIndex;
+    private string? _searchIndexLanguage;
+    private bool _searchIndexPrepareQueued;
+    private bool _searchJumping;
+    private Dictionary<Control, bool>? _inputMemo;
+    private SettingsSearchSession? _searchSession;
+    private readonly SettingsSearchGroups _searchGroups = new();
+    private Dictionary<string, SearchTarget> _searchTargets = new(StringComparer.Ordinal);
+    // The same targets by setting id (SettingsFieldId: the input name without "Input"), for "All settings" of a quick settings popover.
+    private Dictionary<string, SearchTarget> _searchTargetsById = new(StringComparer.Ordinal);
+    private bool _searchIndexDirty = true;
+    private bool _searchSuppressSelection;
+    private IReadOnlyList<SettingsSearchHit> _searchHits => _searchSession?.Hits ?? Array.Empty<SettingsSearchHit>();
+    private Control? _searchMarked;
+    private readonly SettingsSearchEnterGuard _searchEnterGuard = new();
+    // The conditional rows (SettingsConditional) the search showed for its jump; they go back with the visit.
+    private readonly SettingsConditionalReveal _conditionalReveal = new();
+
+    private static readonly string[] HitClasses = { "settings-search-hit" };
+
+    private void InitializeSearch()
+    {
+        _searchSession = new SettingsSearchSession(() => { EnsureSearchIndex(); return _searchIndex!; }, CommitSearchHit);
+        // UX-LEDGER-09: the field fills the content-column header, leaving room only for the More button.
+        _searchBox = new SearchBox { Name = "SettingsSearchBox", MaxLength = 100, HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Stretch };
+        SettingsSearchSession.Configure(_searchBox);
+        AddHandler(TextBox.TextChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(Avalonia.Controls.Primitives.ToggleButton.IsCheckedChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(Avalonia.Controls.Primitives.SelectingItemsControl.SelectionChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        AddHandler(NumericUpDown.ValueChangedEvent, OnSettingValueChanged, RoutingStrategies.Bubble, handledEventsToo: true);
+        _searchBox.QueryChanged += (_, _) => OnSearchQueryChanged();
+        _searchBox.ExitRequested += (_, e) => { FocusSettingsContent(); e.Handled = true; };
+        _searchBox.AddHandler(KeyDownEvent, OnSearchKeyDown, RoutingStrategies.Tunnel);
+        // A held Enter must not click the control that just took the focus: repeats are swallowed until Enter is released.
+        AddHandler(KeyDownEvent, (_, e) => { if (_searchEnterGuard.SwallowKeyDown(e.Key)) e.Handled = true; }, RoutingStrategies.Tunnel, handledEventsToo: true);
+        AddHandler(KeyUpEvent, (_, e) => _searchEnterGuard.KeyUp(e.Key), RoutingStrategies.Tunnel, handledEventsToo: true);
+        // The key-up of a held Enter is lost when the window is deactivated (Alt-Tab): follow the window, forget the press on deactivation.
+        AttachedToVisualTree += (_, _) => _searchEnterGuard.Follow(TopLevel.GetTopLevel(this) as Window);
+        DetachedFromVisualTree += (_, _) => { _searchEnterGuard.Follow(null); _searchEnterGuard.Reset(); };
+        if (TopLevel.GetTopLevel(this) is Window attachedWindow) _searchEnterGuard.Follow(attachedWindow);
+        LostFocus += (_, _) => { if (!IsKeyboardFocusWithin) _searchEnterGuard.Reset(); };
+        _searchBox.GotFocus += (_, _) =>
+        {
+            QueueSearchIndexPreparation();
+            if (_searchHits.Count > 0 && _searchBox.HasText) ShowSearchPanel();
+        };
+        _searchBox.LostFocus += (_, _) => Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosed || _searchBox == null || _searchBox.IsKeyboardFocusWithin || _searchPanel?.IsPointerOver == true) return;
+            if (_searchPanel != null) _searchPanel.IsVisible = false;
+        }, DispatcherPriority.Input);
+
+        _searchList = new ListBox
+        {
+            Name = "SettingsSearchResults",
+            SelectionMode = SelectionMode.Single,
+            Background = Brushes.Transparent,
+            MaxHeight = 232,
+            Focusable = false,
+            ItemTemplate = new FuncDataTemplate<SettingsSearchHit>((hit, _) => hit == null ? new Control() : BuildSearchRow(hit), supportsRecycling: false)
+        };
+        _searchList.Styles.Add(new Style(selector => selector.OfType<ListBoxItem>())
+        {
+            Setters = { new Setter(Avalonia.Input.InputElement.FocusableProperty, false), new Setter(Layoutable.MinHeightProperty, 0d) }
+        });
+        _searchList.SelectionChanged += OnSearchSelectionChanged;
+        _searchList.Tapped += OnSearchListTapped;
+        AutomationProperties.SetLiveSetting(_searchList, AutomationLiveSetting.Polite);
+        _searchList.SelectionChanged += (_, _) => AnnounceSearchSelection();
+
+        _searchNone = new TextBlock { Name = "SettingsSearchNone", TextWrapping = TextWrapping.Wrap, Margin = new Thickness(Space(8), Space(4)), IsVisible = false };
+        // Avalonia has no active-descendant link from the field to the list: the hit the arrow keys have reached is spoken by this
+        // polite line (and mirrored in the field's help text), "3 of 12: Download folder, Downloads".
+        _searchCurrent = new TextBlock { Name = "SettingsSearchCurrent", TextWrapping = TextWrapping.Wrap, IsVisible = false,
+            Margin = new Thickness(Space(8), Space(2), Space(8), 0) };
+        _searchCurrent[!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Meta");
+        _searchCurrent[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+        AutomationProperties.SetLiveSetting(_searchCurrent, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(_searchNone, AutomationLiveSetting.Polite);
+        _searchKeys = new TextBlock { Name = "SettingsSearchKeys", Margin = new Thickness(Space(8), Space(4), Space(8), Space(2)), TextWrapping = TextWrapping.Wrap };
+        _searchKeys[!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Meta");
+        _searchKeys[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+
+        var content = new StackPanel { Spacing = Space(2) };
+        content.Children.Add(_searchList);
+        content.Children.Add(_searchNone);
+        content.Children.Add(_searchCurrent);
+        content.Children.Add(_searchKeys);
+        // The one in-window overlay look (surface, edge, radius); it lies over the page right under the search field and is as wide as the field.
+        _searchPanel = new Border
+        {
+            Name = "SettingsSearchPanel",
+            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Left,
+            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top,
+            Padding = new Thickness(Space(2)),
+            IsVisible = false,
+            Child = content
+        };
+        _searchPanel.Classes.Add("workspace-overlay");
+        Grid.SetRowSpan(_searchPanel, SettingsRoot.RowDefinitions.Count);
+        _searchBox.SizeChanged += (_, _) => PositionSearchPanel();
+        SettingsRoot.SizeChanged += (_, _) => PositionSearchPanel();
+        // A wrapped title/navigation or a breakpoint can move the field without resizing it.
+        bool subscribed = false;
+        void OnSearchPanelLayoutUpdated(object? sender, EventArgs e) { if (_searchPanel.IsVisible) PositionSearchPanel(); }
+        void SubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (subscribed) return;
+            SettingsContentColumn.LayoutUpdated += OnSearchPanelLayoutUpdated;
+            subscribed = true;
+        }
+        void UnsubscribeLayout(object? sender, Avalonia.VisualTreeAttachmentEventArgs e)
+        {
+            if (!subscribed) return;
+            SettingsContentColumn.LayoutUpdated -= OnSearchPanelLayoutUpdated;
+            subscribed = false;
+        }
+        SettingsContentColumn.AttachedToVisualTree += SubscribeLayout;
+        SettingsContentColumn.DetachedFromVisualTree += UnsubscribeLayout;
+
+        WorkViewElement.SetId(_searchBox, "settings.search");
+        SettingsSearchHost.Content = _searchBox;
+        SettingsRoot.Children.Add(_searchPanel);
+        SettingsConditional.RowAppeared += OnConditionalRowAppeared;
+        DetachedFromLogicalTree += (_, _) => SettingsConditional.RowAppeared -= OnConditionalRowAppeared;
+        AttachedToLogicalTree += (_, _) => { SettingsConditional.RowAppeared -= OnConditionalRowAppeared; SettingsConditional.RowAppeared += OnConditionalRowAppeared; };
+        AddHandler(KeyDownEvent, OnSlashFocusesSearch, RoutingStrategies.Bubble);
+        ApplySearchTexts();
+    }
+
+    // Under the field, as wide as the field, in the coordinates of the page (the panel is a child of the page's root grid).
+    private void PositionSearchPanel()
+    {
+        if (_searchPanel == null || _searchBox == null || _isClosed) return;
+        Point? origin = _searchBox.TranslatePoint(new Point(0, _searchBox.Bounds.Height + Space(4)), SettingsRoot);
+        if (origin == null || _searchBox.Bounds.Width <= 0) return;
+        _searchPanel.Width = _searchBox.Bounds.Width;
+        _searchPanel.Margin = new Thickness(origin.Value.X, origin.Value.Y, 0, 0);
+    }
+
+    // "/" puts the caret in the search field when no text is being typed (Ctrl+F is the command; both do the same).
+    private void OnSlashFocusesSearch(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _isClosed || _searchBox == null) return;
+        bool typing = SlashBelongsToEditor(e.Source);
+        if (!SettingsSearchShortcut.IsSlash(e.KeySymbol, e.KeyModifiers, typing)) return;
+        e.Handled = true;
+        FocusSearch();
+    }
+
+    // Closed selectors historically yield slash to search; open selectors and all other editors keep it.
+    internal static bool SlashBelongsToEditor(object? source) => source is Visual visual
+        && visual.GetSelfAndVisualAncestors().Any(node => PointerFocusReclaim.IsTextInput(node)
+            && node is not ComboBox { IsDropDownOpen: false });
+
+    // The row that appeared under its parent is read out by the page's polite line (its own label; no new text).
+    private void OnConditionalRowAppeared(Control row)
+    {
+        if (_isClosed || !IsKeyboardFocusWithin || !this.IsLogicalAncestorOf(row)) return;
+        SettingsConditionalAnnouncement.Text = SettingsConditional.LabelOf(row);
+    }
+
+    /// <summary>Primary+F: puts the caret in the search field, with its text selected.</summary>
+    public void FocusSearch()
+    {
+        if (_searchBox == null || _isClosed) return;
+        _searchBox.Focus(NavigationMethod.Tab);
+        _searchBox.SelectAll();
+    }
+
+    /// <summary>
+    /// Runs <paramref name="query"/> and commits its first hit as Enter does (the work-views smoke: the search finds every setting,
+    /// also in a collapsed group, and opens what it jumps to). Null when nothing matches.
+    /// </summary>
+    internal (string Label, string CategoryId, int Groups, bool AllOpen)? ProbeSearchJump(string query)
+    {
+        if (_searchBox == null || _isClosed) return null;
+        _searchBox.Text = query;
+        OnSearchQueryChanged();
+        if (_searchHits.Count == 0 || !_searchTargets.TryGetValue(_searchHits[0].Document.Id, out SearchTarget? target)) return null;
+        CommitSearchHit(_searchHits[0]);
+        return (_searchHits[0].Document.Label, target.CategoryId, target.Expanders.Count, target.Expanders.All(expander => expander.IsExpanded));
+    }
+
+    /// <summary>
+    /// Opens the group of the setting <paramref name="id"/> (a <see cref="SettingsFieldId"/>), unfolds the sections around it, marks
+    /// the row and moves the focus into it: what a quick settings popover's "All settings" link does. False when the page has no
+    /// such setting (a work view does not show it, or the id is wrong).
+    /// </summary>
+    internal bool RevealSetting(string id)
+    {
+        if (_isClosed || string.IsNullOrEmpty(id)) return false;
+        EnsureSearchIndex();
+        if (!_searchTargetsById.TryGetValue(id, out SearchTarget? target)) return false;
+        JumpToSearchTarget(target, focus: true);
+        return true;
+    }
+
+    /// <summary>Whether the page offers a setting with this id (tests and smokes).</summary>
+    internal bool HasSetting(string id)
+    {
+        if (_isClosed) return false;
+        EnsureSearchIndex();
+        return _searchTargetsById.ContainsKey(id);
+    }
+
+    /// <summary>A language change or a rebuilt navigation: texts and the read index are stale.</summary>
+    private void SearchLanguageRefreshed()
+    {
+        InvalidateSearchIndex();
+        RefreshGroupHeaders();
+        if (_searchBox == null) return;
+        ApplySearchTexts();
+        if (_searchBox.HasText) OnSearchQueryChanged();
+    }
+
+    /// <summary>
+    /// The page changed its structure or texts (a rebuilt navigation, a language or work-view change): the read index is stale.
+    /// It is rebuilt when the UI is idle, so the first keystroke after the change does not pay for the scan.
+    /// </summary>
+    internal void InvalidateSearchIndex()
+    {
+        _searchIndexDirty = true;
+        QueueSearchIndexPreparation();
+    }
+
+    private void QueueSearchIndexPreparation()
+    {
+        if (_searchIndexPrepareQueued || _isClosed || !_searchIndexDirty && _searchIndex != null) return;
+        _searchIndexPrepareQueued = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _searchIndexPrepareQueued = false;
+            // A hidden page is prepared on the field's first focus; the first keystroke is the fallback.
+            if (_isClosed || !IsEffectivelyVisible) return;
+            EnsureSearchIndex();
+        }, DispatcherPriority.Background);
+    }
+
+    private void ApplySearchTexts()
+    {
+        if (_searchBox == null) return;
+        _searchBox.PlaceholderText = Texts.T("settings.search.placeholder");
+        ToolTip.SetTip(_searchBox, CommandBindings.Tooltip("input.focus-settings-search"));
+        if (_searchList != null) AutomationProperties.SetName(_searchList, Texts.T("settings.search.results"));
+        if (_searchKeys != null) _searchKeys.Text = Texts.T("settings.search.keys");
+    }
+
+    // The list follows the typed text (after the field's pause): no jump, no page switch, no group opened. That is Enter's job.
+    private void OnSearchQueryChanged()
+    {
+        if (_searchBox == null || _searchList == null || _searchPanel == null || _searchNone == null || _searchSession == null || _isClosed) return;
+        string query = _searchBox.Text ?? string.Empty;
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            _searchSession.Search(null);
+            SetSearchItems(_searchHits);
+            _searchPanel.IsVisible = false;
+            _searchBox.ResultText = null;
+            ShowSearchAnnouncement(null);
+            MarkSearchTarget(null);
+            _searchGroups.Release();
+            _conditionalReveal.Release();
+            return;
+        }
+        IReadOnlyList<SettingsSearchHit> hits = _searchSession.Search(query);
+        _searchNone.IsVisible = hits.Count == 0;
+        _searchNone.Text = Texts.T("settings.search.none", query.Trim()) + " " + Texts.T("settings.search.noneHint");
+        _searchList.IsVisible = hits.Count > 0;
+        _searchKeys!.IsVisible = hits.Count > 0;
+        _searchBox.ResultText = hits.Count > 0 ? Texts.Count("search.count", hits.Count) : null;
+        SetSearchItems(hits);
+        ShowSearchPanel();
+        if (hits.Count == 0) { ShowSearchAnnouncement(SettingsSearchAnnouncement.None(query)); return; }
+        ApplySearchHighlight();
+    }
+
+    // The session's highlight into the list, without the list's selection change reaching the page, and its announcement.
+    private void ApplySearchHighlight()
+    {
+        if (_searchList == null || _searchSession == null) return;
+        _searchSuppressSelection = true;
+        try { _searchList.SelectedIndex = _searchSession.Highlight; }
+        finally { _searchSuppressSelection = false; }
+        AnnounceSearchSelection();
+    }
+
+    // The current hit as the sentence a screen reader hears; the empty result is announced by its own text.
+    private void AnnounceSearchSelection()
+    {
+        if (_searchSuppressSelection || _searchList == null || _searchHits.Count == 0) return;
+        if (_searchList.SelectedItem is not SettingsSearchHit hit) return;
+        int position = _searchList.SelectedIndex + 1;
+        ShowSearchAnnouncement(SettingsSearchAnnouncement.Current(position, _searchHits.Count, hit.Document.Label, hit.Document.Group));
+    }
+
+    private void ShowSearchAnnouncement(string? text)
+    {
+        if (_searchCurrent == null || _searchBox == null) return;
+        string value = text ?? string.Empty;
+        if (!string.Equals(_searchCurrent.Text, value, StringComparison.Ordinal)) _searchCurrent.Text = value;
+        _searchCurrent.IsVisible = _searchHits.Count > 0 && value.Length > 0;
+        AutomationProperties.SetHelpText(_searchBox, value.Length > 0 ? value : null);
+        if (_searchList != null) AutomationProperties.SetHelpText(_searchList, _searchHits.Count > 0 && value.Length > 0 ? value : null);
+    }
+
+    private void SetSearchItems(IReadOnlyList<SettingsSearchHit> hits)
+    {
+        _searchSuppressSelection = true;
+        try { _searchList!.ItemsSource = hits; }
+        finally { _searchSuppressSelection = false; }
+    }
+
+    private void ShowSearchPanel()
+    {
+        if (_searchPanel == null || _searchBox == null || !_searchBox.HasText) return;
+        PositionSearchPanel();
+        // The list never takes more than about a third of the page, so the settings below it stay in view.
+        double room = Bounds.Height > 0 ? Bounds.Height * 0.38 : 232;
+        if (_searchList != null) _searchList.MaxHeight = Math.Clamp(room, 112, 300);
+        _searchPanel.IsVisible = true;
+    }
+
+    private void OnSearchSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        // A selection is a highlight: the page moves on a commit only.
+        if (_searchSuppressSelection || _searchList == null || _searchSession == null) return;
+        _searchSession.Select(_searchList.SelectedIndex);
+    }
+
+    private void OnSearchListTapped(object? sender, TappedEventArgs e)
+    {
+        if (e.Source is not Visual visual) return;
+        ListBoxItem? item = visual.GetSelfAndVisualAncestors().OfType<ListBoxItem>().FirstOrDefault();
+        if (item?.DataContext is SettingsSearchHit hit) CommitSearchHit(hit);
+    }
+
+    private void OnSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (_searchList == null || _searchSession == null || e.KeyModifiers != KeyModifiers.None) return;
+        if (e.Key is not (Key.Down or Key.Up or Key.PageDown or Key.PageUp or Key.Enter)) return;
+        // A pause that has not elapsed yet must not leave the keys on a stale list.
+        _searchBox?.FlushQuery();
+        int count = _searchHits.Count;
+        switch (e.Key)
+        {
+            case Key.Down or Key.Up or Key.PageDown or Key.PageUp when count > 0:
+                e.Handled = true;
+                if (_searchPanel is { IsVisible: false }) { ShowSearchPanel(); return; }
+                int step = e.Key is Key.PageDown or Key.PageUp ? 5 : 1;
+                int direction = e.Key is Key.Down or Key.PageDown ? 1 : -1;
+                _searchSession.Move(direction * step);
+                ApplySearchHighlight();
+                _searchList.ScrollIntoView(_searchSession.Highlight);
+                break;
+            case Key.Enter when count > 0:
+                e.Handled = true;
+                _searchEnterGuard.Arm();
+                _searchSession.Commit();
+                break;
+        }
+    }
+
+    private void CommitSearchHit(SettingsSearchHit hit)
+    {
+        if (!_searchTargets.TryGetValue(hit.Document.Id, out SearchTarget? target)) return;
+        JumpToSearchTarget(target, focus: true);
+        if (_searchPanel != null) _searchPanel.IsVisible = false;
+    }
+
+    // The group opens, collapsed sections unfold, the row is marked and scrolled into view; a commit also moves focus into it.
+    private void JumpToSearchTarget(SearchTarget target, bool focus)
+    {
+        if (_isClosed) return;
+        _searchJumping = true;
+        try
+        {
+            SelectCategory(target.CategoryId);
+            _searchGroups.Open(target.Expanders);
+            // A row that only applies under a condition is shown with its parent while the search holds it.
+            _conditionalReveal.Reveal(target.Element);
+        }
+        finally { _searchJumping = false; }
+        MarkSearchTarget(target.Element);
+        void Reveal()
+        {
+            if (_isClosed) return;
+            target.Element.BringIntoView();
+            if (focus) FocusSearchTarget(target.Element);
+        }
+        // The group may have just become visible: scrolling and focus need its layout.
+        Dispatcher.UIThread.Post(() => { Reveal(); Dispatcher.UIThread.Post(() => { if (!_isClosed) target.Element.BringIntoView(); }, DispatcherPriority.Background); }, DispatcherPriority.Loaded);
+    }
+
+    // Spacing tokens (Workspace.Space.N), read once; the number itself is the fallback when the resource is missing.
+    private static double Space(int token) =>
+        Application.Current?.TryGetResource("Workspace.Space." + token, null, out object? value) == true && value is double size ? size : token;
+
+    /// <summary>The marked row and the open list belong to a visit of the page: leaving it clears them (the typed text stays).</summary>
+    internal void EndSearchVisit()
+    {
+        MarkSearchTarget(null);
+        _searchGroups.Release();
+        _conditionalReveal.Release();
+        if (_searchPanel != null) _searchPanel.IsVisible = false;
+    }
+
+    // The user changed a value: the search-opened groups around it stay open from now on.
+    private void OnSettingValueChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_isClosed || _searchJumping || e.Source is not Control source || !IsSettingInput(source)) return;
+        // Opening a collapsed section creates numeric/choice templates. Their text boxes
+        // publish deferred TextChanged after _searchJumping has ended; formatting the
+        // loaded value is not an edit and must not surrender the restoration ledger.
+        // The owning setting reports actual changes through ValueChanged/SelectionChanged.
+        if (source.TemplatedParent != null) return;
+        _conditionalReveal.NoteEdited(source);
+        if (_searchGroups.OpenedCount == 0) return;
+        _searchGroups.NoteEdited(source.GetSelfAndLogicalAncestors().OfType<Expander>());
+    }
+
+    private void MarkSearchTarget(Control? element)
+    {
+        if (ReferenceEquals(_searchMarked, element)) return;
+        _searchMarked?.Classes.Remove(HitClasses[0]);
+        _searchMarked = element;
+        element?.Classes.Add(HitClasses[0]);
+    }
+
+    private static void FocusSearchTarget(Control element)
+    {
+        Control? input = element.GetSelfAndLogicalDescendants().OfType<Control>()
+            .FirstOrDefault(control => IsSettingInput(control) && control.IsEffectivelyVisible && control.IsEffectivelyEnabled);
+        (input ?? element).Focus(NavigationMethod.Tab);
+    }
+
+    // Leaving the field with Escape (it is already empty): the first editor of the open group takes the focus.
+    private void FocusSettingsContent()
+    {
+        Control? page = CategoryPages().FirstOrDefault(item => item.Id == _selectedCategoryId).Page;
+        Control? input = page?.GetSelfAndLogicalDescendants().OfType<Control>()
+            .FirstOrDefault(control => IsSettingInput(control) && control.IsEffectivelyVisible && control.IsEffectivelyEnabled);
+        if (input != null) input.Focus(NavigationMethod.Tab);
+        else OpenSectionNavigation();
+    }
+
+    // One hit: the label (the typed text marked), the section as a chip at the end, and under them the group inside the section and the hint.
+    private Control BuildSearchRow(SettingsSearchHit hit)
+    {
+        var label = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center };
+        AppendHighlighted(label, hit.Document.Label, hit.LabelRanges);
+        // Narrow-window sweep: every trimmed part of a hit keeps its full text as tooltip (a narrow page cuts label, chip and hint).
+        ToolTip.SetTip(label, hit.Document.Label);
+        (string section, string? inner) = SettingsSearchChip.Split(hit.Document.Group);
+        var chipText = new TextBlock { Text = section, TextTrimming = TextTrimming.CharacterEllipsis, MaxWidth = 190 };
+        ToolTip.SetTip(chipText, section);
+        chipText.Classes.Add("chip-label");
+        var chip = new Border { Child = chipText, Margin = new Thickness(Space(12), 0, 0, 0), VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center, IsHitTestVisible = false };
+        chip.Classes.Add("chip-badge");
+        chip.Classes.Add("chip-compact");
+        chip.Classes.Add(SettingsSearchChip.ChipClass);
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), Margin = new Thickness(Space(2), Space(2) / 2) };
+        grid.Children.Add(label);
+        Grid.SetColumn(chip, 1);
+        grid.Children.Add(chip);
+        bool hasHint = !string.IsNullOrWhiteSpace(hit.Document.Hint);
+        if (hasHint || inner != null)
+        {
+            var hint = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis };
+            hint[!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Meta");
+            hint[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Muted");
+            if (inner != null) (hint.Inlines ??= new InlineCollection()).Add(new Run(hasHint ? inner + " · " : inner));
+            if (hasHint) AppendHighlighted(hint, hit.Document.Hint, hit.HintRanges);
+            ToolTip.SetTip(hint, inner == null ? hit.Document.Hint : hasHint ? inner + " · " + hit.Document.Hint : inner);
+            Grid.SetRow(hint, 1);
+            Grid.SetColumnSpan(hint, 2);
+            grid.Children.Add(hint);
+        }
+        AutomationProperties.SetName(grid, hit.Document.Label + ", " + hit.Document.Group);
+        return grid;
+    }
+
+    private void AppendHighlighted(TextBlock block, string text, IReadOnlyList<SettingsTextRange> ranges)
+    {
+        InlineCollection inlines = block.Inlines ??= new InlineCollection();
+        int at = 0;
+        foreach (SettingsTextRange range in ranges)
+        {
+            if (range.Start < at || range.Start + range.Length > text.Length) continue;
+            if (range.Start > at) inlines.Add(new Run(text[at..range.Start]));
+            var run = new Run(text.Substring(range.Start, range.Length)) { FontWeight = FontWeight.SemiBold };
+            run[!TextElement.ForegroundProperty] = new DynamicResourceExtension("Workspace.Accent"); // follows theme and colour changes
+            inlines.Add(run);
+            at = range.Start + range.Length;
+        }
+        if (at < text.Length) inlines.Add(new Run(text[at..]));
+    }
+
+    // ---- reading the page into the index ----
+
+    private void EnsureSearchIndex()
+    {
+        // A language that changed since the read makes the index stale even when nobody marked it.
+        if (_searchIndex != null && !_searchIndexDirty && string.Equals(_searchIndexLanguage, Texts.Language, StringComparison.Ordinal)) return;
+        var documents = new List<SettingsSearchDocument>();
+        var targets = new Dictionary<string, SearchTarget>(StringComparer.Ordinal);
+        var targetsById = new Dictionary<string, SearchTarget>(StringComparer.Ordinal);
+        List<SearchEntryBuilder> entries;
+        _inputMemo = new Dictionary<Control, bool>();
+        try { entries = ScanSearchEntries(); }
+        finally { _inputMemo = null; }
+        foreach (SearchEntryBuilder entry in entries)
+        {
+            string id = "s" + documents.Count;
+            string hint = string.Join(" · ", entry.Hints.Distinct(StringComparer.Ordinal));
+            var english = new List<string>();
+            if (!string.Equals(Texts.Language, "en", StringComparison.OrdinalIgnoreCase))
+            {
+                english.Add(string.Join(' ', Texts.EnglishEquivalents(entry.Label)));
+                foreach (string text in entry.Hints) english.AddRange(Texts.EnglishEquivalents(text));
+            }
+            documents.Add(new SettingsSearchDocument(id, entry.Label, hint, entry.Group, entry.Key,
+                SettingsSearchAliases.For(entry.Key, entry.CategoryId), english));
+            targets[id] = new SearchTarget(entry.CategoryId, entry.Element, entry.Expanders);
+            if (entry.Key != null) targetsById.TryAdd(entry.Key, targets[id]);
+        }
+        _searchTargets = targets;
+        _searchTargetsById = targetsById;
+        _searchIndex = SettingsSearchMatcher.Build(documents);
+        _searchIndexLanguage = Texts.Language;
+        _searchIndexDirty = false;
+    }
+
+    private List<SearchEntryBuilder> ScanSearchEntries()
+    {
+        var result = new List<SearchEntryBuilder>();
+        foreach ((string id, Control page) in CategoryPages())
+        {
+            // The overview filters are not Config fields, even after its table has been built.
+            if (id == "settings.workviews") continue;
+            if (page is ShortcutEditor)
+            {
+                string title = Texts.T("shortcuts.title");
+                result.Add(new SearchEntryBuilder { Element = page, CategoryId = id, Group = SettingsTitle, Label = title, Key = "shortcuts",
+                    Expanders = ((ShortcutEditor)page).MoreGroup is { } shortcutGroup ? [shortcutGroup] : Array.Empty<Expander>() });
+                continue;
+            }
+            if (page is not Panel panel) continue;
+            string pageTitle = panel.Children.Select(child => child as TextBlock ?? SectionHeadingOf(child)).FirstOrDefault(block => block != null && IsSearchHeading(block))?.Text ?? SettingsTitle;
+            ScanFlow(panel, id, pageTitle, pageTitle, Array.Empty<Expander>(), result, pageRoot: true);
+        }
+        return result;
+    }
+
+    private void ScanFlow(Panel panel, string categoryId, string pageTitle, string group, IReadOnlyList<Expander> expanders,
+        List<SearchEntryBuilder> output, bool pageRoot)
+    {
+        SearchEntryBuilder? last = null;
+        bool firstHeading = pageRoot;
+        foreach (Control child in panel.Children.ToArray())
+        {
+            // The media folder list is a live view of the host (names, paths, counts), not a setting: its heading is the entry.
+            if (child.Name is "MediaFoldersHost" or "FooterLayoutHost") continue;
+            // SP1: the section heading shares its row with "Reset" (and a help button): the heading is the entry, the row is not.
+            if ((child as TextBlock ?? SectionHeadingOf(child)) is { } heading && IsSearchHeading(heading))
+            {
+                string text = heading.Text ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(text)) continue;
+                bool pageHeading = firstHeading;
+                firstHeading = false;
+                if (!pageHeading) group = pageTitle + " › " + text;
+                last = new SearchEntryBuilder { Element = heading, CategoryId = categoryId, Expanders = expanders, Label = text,
+                    Group = pageHeading ? SettingsTitle : pageTitle, Key = heading.Name == "LimitsFolderSourcesHeading" ? "FolderSourceLimits" : null };
+                output.Add(last);
+                continue;
+            }
+            if (child is Expander expander && expander.Content is Panel inner && IsComposite(inner))
+            {
+                string header = expander.Header as string ?? string.Empty;
+                // The "More settings" groups of the work views are containers, not settings: their content is listed, they are not.
+                if (!string.IsNullOrWhiteSpace(header) && WorkViewElement.GetId(expander) == null)
+                    output.Add(new SearchEntryBuilder { Element = expander, CategoryId = categoryId, Group = group, Label = header,
+                        Expanders = expanders });
+                ScanFlow(inner, categoryId, pageTitle, group, expanders.Append(expander).ToArray(), output, pageRoot: false);
+                last = null;
+                continue;
+            }
+            if (child is StackPanel nested && IsComposite(nested))
+            {
+                ScanFlow(nested, categoryId, pageTitle, group, expanders, output, pageRoot: false);
+                last = null;
+                continue;
+            }
+            if (child is TextBlock hint)
+            {
+                // Text under a row is that row's hint; under a heading it is the group's introduction.
+                if (last != null && !string.IsNullOrWhiteSpace(hint.Text) && !IsStatusText(hint)) last.Hints.Add(hint.Text!);
+                continue;
+            }
+            SearchEntryBuilder? leaf = BuildSearchLeaf(child, categoryId, group, expanders);
+            if (leaf != null) { output.Add(leaf); last = leaf; }
+        }
+    }
+
+    private static SearchEntryBuilder? BuildSearchLeaf(Control unit, string categoryId, string group, IReadOnlyList<Expander> expanders)
+    {
+        Control[] parts = unit.GetSelfAndLogicalDescendants().OfType<Control>().ToArray();
+        Control[] inputs = parts.Where(IsSettingInput).ToArray();
+        string? label = inputs.Select(AutomationProperties.GetName).FirstOrDefault(name => !string.IsNullOrWhiteSpace(name));
+        TextBlock[] texts = parts.OfType<TextBlock>().Where(block => !IsStatusText(block) && !string.IsNullOrWhiteSpace(block.Text)).ToArray();
+        label ??= texts.FirstOrDefault(block => block.Classes.Contains("workspace-field-label"))?.Text;
+        label ??= parts.OfType<ContentControl>().Select(control => control.Content as string).FirstOrDefault(content => !string.IsNullOrWhiteSpace(content));
+        label ??= (unit as Expander)?.Header as string;
+        label ??= texts.FirstOrDefault()?.Text;
+        if (string.IsNullOrWhiteSpace(label)) return null;
+        var entry = new SearchEntryBuilder { Element = unit, CategoryId = categoryId, Group = group, Label = label, Expanders = expanders };
+        if (unit is Expander own) entry.Expanders = expanders.Append(own).ToArray();
+        foreach (TextBlock block in texts)
+            if (!string.Equals(block.Text, label, StringComparison.Ordinal)) entry.Hints.Add(block.Text!);
+        foreach (Control input in inputs)
+            if (AutomationProperties.GetHelpText(input) is { Length: > 0 } help && !string.Equals(help, label, StringComparison.Ordinal)) entry.Hints.Add(help);
+        string? name = inputs.Select(control => control.Name).FirstOrDefault(n => !string.IsNullOrEmpty(n)) ?? unit.Name;
+        entry.Key = SettingsFieldId.FromInputName(name);
+        return entry;
+    }
+
+    // The heading of a section header row (heading and "Reset" on one row): null for every other control.
+    private static TextBlock? SectionHeadingOf(Control control) =>
+        control is Grid grid && grid.Classes.Contains("settings-section-header")
+            ? grid.GetLogicalDescendants().OfType<TextBlock>().FirstOrDefault(IsSearchHeading) : null;
+
+    private static bool IsSettingInput(Control control) =>
+        control is TextBox or ComboBox or CheckBox or NumericUpDown or ToggleSwitch or Slider or RadioButton;
+
+    private static bool IsSearchHeading(TextBlock block) =>
+        block.Classes.Contains("section-title") || block.Name?.EndsWith("Heading", StringComparison.Ordinal) == true
+        || block.Classes.Contains("workspace-field-label") && block.FontWeight >= FontWeight.SemiBold;
+
+    private static bool IsStatusText(TextBlock block) =>
+        block.Classes.Contains("workspace-error") || block.Name is { } name
+        && (name.EndsWith("Error", StringComparison.Ordinal) || name.EndsWith("Status", StringComparison.Ordinal) || name.EndsWith("Warning", StringComparison.Ordinal));
+
+    // A panel that holds several settings of its own (a sub-section, the content of a collapsible group) is read item by item;
+    // one that holds a single setting with its helper controls is one entry. The subtree answers are memoised while the page
+    // is scanned: every level asks about its children, so each subtree is walked once instead of once per level.
+    private bool IsComposite(Panel panel) =>
+        panel is StackPanel { Orientation: Avalonia.Layout.Orientation.Vertical }
+        && CountChildrenWithInput(panel, 2) >= 2;
+
+    private int CountChildrenWithInput(Panel panel, int enough)
+    {
+        int count = 0;
+        foreach (Control child in panel.Children)
+            if (HoldsSettingInput(child) && ++count >= enough) break;
+        return count;
+    }
+
+    private bool HoldsSettingInput(Control control)
+    {
+        if (_inputMemo != null && _inputMemo.TryGetValue(control, out bool known)) return known;
+        bool result = IsSettingInput(control);
+        if (!result)
+        {
+            foreach (ILogical child in control.GetLogicalChildren())
+                if (child is Control inner && HoldsSettingInput(inner)) { result = true; break; }
+        }
+        _inputMemo?.TryAdd(control, result);
+        return result;
+    }
+}

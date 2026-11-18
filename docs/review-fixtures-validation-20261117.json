@@ -1,0 +1,320 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-17",
+  "seed": 20261117,
+  "matrix_media": 1000,
+  "matrix": {
+    "expected": 260,
+    "captured": 260,
+    "failed": 0,
+    "core": 240,
+    "gallery": 20,
+    "widths": [
+      760,
+      900,
+      1099,
+      1100,
+      1440
+    ],
+    "height": 920,
+    "themes": [
+      "Light",
+      "Dark"
+    ],
+    "languages": [
+      "de",
+      "en"
+    ]
+  },
+  "verification": {
+    "sha256_files": 1560,
+    "controls_checked": 1319765,
+    "unnamed_controls": 0,
+    "host_path_text_or_tooltip_hits": 0,
+    "archive_overview_assertions": 20,
+    "large_reader_assertions": 20
+  },
+  "scene_timings_ms": {
+    "mean": 1091.9034034615383,
+    "maximum": 3060.7364
+  },
+  "prechecks": {
+    "counts": {
+      "byte-identical-english": 1042,
+      "extra-language-key": 30,
+      "missing-language-key": 40,
+      "missing-plural-form": 219,
+      "spacing-literal-not-token-reference": 688,
+      "spacing-off-token-scale": 33
+    },
+    "incomplete": [],
+    "contrast_pairs_measured": 82,
+    "contrast_failures": 0,
+    "shortcuts": [
+      {
+        "check": "shortcuts",
+        "platform": "Windows",
+        "commands": 356,
+        "issues": 0
+      },
+      {
+        "check": "shortcuts",
+        "platform": "Linux",
+        "commands": 356,
+        "issues": 0
+      },
+      {
+        "check": "shortcuts",
+        "platform": "MacOS",
+        "commands": 356,
+        "issues": 0
+      }
+    ],
+    "plural_missing_by_language": {
+      "cs": 66,
+      "pl": 65,
+      "ru": 88
+    }
+  },
+  "fixture": {
+    "schema_version": 1,
+    "seed": 20261117,
+    "media": 1000,
+    "tag_counts": [
+      0,
+      1,
+      8,
+      30,
+      128
+    ],
+    "thread_sizes": [
+      1,
+      50,
+      250,
+      1250
+    ],
+    "admitted_vocabulary": 4096,
+    "requested_vocabulary": 4096,
+    "vocabulary_limit": 20000,
+    "generated_ms": 969.8152,
+    "privacy": "entirely synthetic; no source profile read",
+    "video": true
+  },
+  "scale_validation": {
+    "scales": [
+      {
+        "media": 0,
+        "actual_files": 0,
+        "wall_seconds": 1.0499332549516112,
+        "thread_sizes": [],
+        "tag_distribution": {
+          "0": 0
+        },
+        "fixture": {
+          "schema_version": 1,
+          "seed": 20261117,
+          "media": 0,
+          "tag_counts": [
+            0,
+            1,
+            8,
+            30,
+            128
+          ],
+          "thread_sizes": [
+            1,
+            50,
+            250,
+            1250
+          ],
+          "admitted_vocabulary": 0,
+          "requested_vocabulary": 4096,
+          "vocabulary_limit": 20000,
+          "generated_ms": 403.4216,
+          "privacy": "entirely synthetic; no source profile read",
+          "video": false
+        }
+      },
+      {
+        "media": 1,
+        "actual_files": 1,
+        "wall_seconds": 1.381895444006659,
+        "thread_sizes": [
+          1
+        ],
+        "tag_distribution": {
+          "0": 1
+        },
+        "fixture": {
+          "schema_version": 1,
+          "seed": 20261117,
+          "media": 1,
+          "tag_counts": [
+            0,
+            1,
+            8,
+            30,
+            128
+          ],
+          "thread_sizes": [
+            1,
+            50,
+            250,
+            1250
+          ],
+          "admitted_vocabulary": 4096,
+          "requested_vocabulary": 4096,
+          "vocabulary_limit": 20000,
+          "generated_ms": 542.2473,
+          "privacy": "entirely synthetic; no source profile read",
+          "video": false
+        }
+      },
+      {
+        "media": 100,
+        "actual_files": 100,
+        "wall_seconds": 1.3265428259619512,
+        "thread_sizes": [
+          1,
+          50,
+          49
+        ],
+        "tag_distribution": {
+          "1": 20,
+          "8": 20,
+          "30": 20,
+          "128": 20,
+          "0": 20
+        },
+        "fixture": {
+          "schema_version": 1,
+          "seed": 20261117,
+          "media": 100,
+          "tag_counts": [
+            0,
+            1,
+            8,
+            30,
+            128
+          ],
+          "thread_sizes": [
+            1,
+            50,
+            250,
+            1250
+          ],
+          "admitted_vocabulary": 4096,
+          "requested_vocabulary": 4096,
+          "vocabulary_limit": 20000,
+          "generated_ms": 577.0906,
+          "privacy": "entirely synthetic; no source profile read",
+          "video": true
+        }
+      },
+      {
+        "media": 1000,
+        "actual_files": 1000,
+        "wall_seconds": 1.9666145149967633,
+        "thread_sizes": [
+          1,
+          50,
+          250,
+          699
+        ],
+        "tag_distribution": {
+          "1": 200,
+          "8": 200,
+          "30": 200,
+          "128": 200,
+          "0": 200
+        },
+        "fixture": {
+          "schema_version": 1,
+          "seed": 20261117,
+          "media": 1000,
+          "tag_counts": [
+            0,
+            1,
+            8,
+            30,
+            128
+          ],
+          "thread_sizes": [
+            1,
+            50,
+            250,
+            1250
+          ],
+          "admitted_vocabulary": 4096,
+          "requested_vocabulary": 4096,
+          "vocabulary_limit": 20000,
+          "generated_ms": 1170.6331,
+          "privacy": "entirely synthetic; no source profile read",
+          "video": true
+        }
+      },
+      {
+        "media": 10000,
+        "actual_files": 10000,
+        "wall_seconds": 4.53068386297673,
+        "thread_sizes": [
+          1,
+          50,
+          250,
+          1250,
+          1250,
+          1250,
+          1250,
+          1250,
+          1250,
+          1250,
+          949
+        ],
+        "tag_distribution": {
+          "1": 200,
+          "8": 200,
+          "30": 200,
+          "128": 200,
+          "0": 9200
+        },
+        "fixture": {
+          "schema_version": 1,
+          "seed": 20261117,
+          "media": 10000,
+          "tag_counts": [
+            0,
+            1,
+            8,
+            30,
+            128
+          ],
+          "thread_sizes": [
+            1,
+            50,
+            250,
+            1250
+          ],
+          "admitted_vocabulary": 4096,
+          "requested_vocabulary": 4096,
+          "vocabulary_limit": 20000,
+          "generated_ms": 3693.3495,
+          "privacy": "entirely synthetic; no source profile read",
+          "video": true
+        }
+      }
+    ],
+    "reproducible_media_compared": 100
+  },
+  "upper_scale_gui_probes": [
+    {
+      "scene": "media-1440-dark-de",
+      "media": 10000,
+      "passed": true
+    },
+    {
+      "scene": "archive-large-reader-760-dark-de",
+      "media": 10000,
+      "passed": true
+    }
+  ]
+}

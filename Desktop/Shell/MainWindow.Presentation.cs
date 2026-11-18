@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan;
 
@@ -29,52 +30,54 @@ public partial class MainWindow
     private CoalescedUiUpdate? _workspaceRefresh;
     private string? _appliedWorkspaceMode;
     private double _workspaceInspectorWidth = 320;
-    private double _normalWorkspaceWidth = 1380;
-    private double _normalWorkspaceHeight = 850;
-    private WindowState _normalWorkspaceState;
+    private readonly BarebonesWindowGeometry _barebonesGeometry = new();
 
     private void InitializeWorkspace()
     {
         if (_workspaceInitialized) return;
         _workspaceInitialized = true;
         _workspaceRefresh = new CoalescedUiUpdate(RefreshWorkspace);
+        // Escape clears the typed search first (SearchBox); in an empty field it closes the search bar.
+        DownloadSearchInput.ExitRequested += (_, e) => { if (_downloadSearchOpen) { OnDownloadSearchClose(DownloadSearchInput, new RoutedEventArgs()); e.Handled = true; } };
         UrlList.CollectionChanged += OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged += OnWorkspaceCollectionChanged;
         Texts.Changed += OnWorkspaceLanguageChanged;
         SizeChanged += OnWorkspaceSizeChanged;
-        WorkspaceControl<Grid>("WorkspaceBody").SizeChanged += OnWorkspaceBodySizeChanged;
-        WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").PropertyChanged += OnShellFeedbackVisibilityChanged;
+        WorkspaceBody.SizeChanged += OnWorkspaceBodySizeChanged;
+        ShellActionErrorBanner.PropertyChanged += OnShellFeedbackVisibilityChanged;
+        ApplyWindowChrome();
         PropertyChanged += OnWindowChromePropertyChanged;
         KeyDown += OnWorkspaceKeyDown;
         InitializeShellPresentation();
         InitializeDownloadsHeader();
+        InitializeWorkViews();
         SetupInspectorLocalActions();
-        WorkspaceControl<TextBlock>("WorkspaceVersion").Text = "v" + (typeof(MainWindow).Assembly
+        WorkspaceVersion.Text = "v" + (typeof(MainWindow).Assembly
             .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
             ?? typeof(MainWindow).Assembly.GetName().Version?.ToString(3) ?? string.Empty);
         ApplyWorkspacePreferences();
         InitializeWindowPreferences();
+        InstallMacMenu();
         StartSpeedSampling();
     }
 
     private void DisposeWorkspace()
     {
+        // Pages install this before InitializeWorkspace: also release it on partial construction and before fallible cleanup.
+        DisposeMediaFocusChrome();
         CloseGallery(restoreOrigin: false);
         CloseLargeReader(restoreOrigin: false);
         if (!_workspaceInitialized) return;
         _workspaceInitialized = false;
-        _speedTimer?.Stop();
-        if (_speedTimer != null) _speedTimer.Tick -= OnSpeedSample;
-        _speedTimer = null;
-        _downloadRate = null;
+        StopSpeedSampling();
         DisposeWorkspacePages();
         _workspaceRefresh?.Dispose();
         UrlList.CollectionChanged -= OnWorkspaceCollectionChanged;
         BoardsList.CollectionChanged -= OnWorkspaceCollectionChanged;
         Texts.Changed -= OnWorkspaceLanguageChanged;
         SizeChanged -= OnWorkspaceSizeChanged;
-        WorkspaceControl<Grid>("WorkspaceBody").SizeChanged -= OnWorkspaceBodySizeChanged;
-        WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").PropertyChanged -= OnShellFeedbackVisibilityChanged;
+        WorkspaceBody.SizeChanged -= OnWorkspaceBodySizeChanged;
+        ShellActionErrorBanner.PropertyChanged -= OnShellFeedbackVisibilityChanged;
         PropertyChanged -= OnWindowChromePropertyChanged;
         KeyDown -= OnWorkspaceKeyDown;
         DisposeShellPresentation();
@@ -90,27 +93,44 @@ public partial class MainWindow
     {
         if (e.Property == IsVisibleProperty) UpdateWorkspaceLayout();
     }
-    // A persistent shell error changes the page allocation without resizing the window.
-    private void OnWorkspaceBodySizeChanged(object? sender, SizeChangedEventArgs e) => UpdateWorkspaceLayout();
+    // A persistent shell error or an expanded result report changes the page allocation without resizing the window.
+    private void OnWorkspaceBodySizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateWorkspaceLayout();
+        KeepSelectedDownloadVisible();
+    }
+
+    private void KeepSelectedDownloadVisible()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_isClosing || _selectedPage != WorkspacePage.Downloads || DownloadsTabs.SelectedIndex != 0) return;
+            if (ThreadsDataGrid.SelectedItem is { } selected) ThreadsDataGrid.ScrollIntoView(selected, null);
+        }, DispatcherPriority.Background);
+    }
     private void OnWorkspaceSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         RefreshWorkspaceMinimumAfterResize();
-        WorkspaceControl<DownloadSpeedGraph>("TransferSpeedGraph").IsVisible = Bounds.Width >= 1000;
-        WorkspaceControl<Grid>("TransferSpeed").IsVisible = Bounds.Width >= 760;
-        if (WorkspaceControl<Border>("ShellHelpOverlay").IsVisible)
-            WorkspaceControl<Border>("ShellHelpOverlay").MaxHeight = Math.Max(180, ClientSize.Height - 40);
+        ApplyHeaderGraphMode(); // below 1000 DIPs every graph goes and the labelled values stay; two blocks need 1280
+        ApplyHeaderMonitorVisibility(); // gone below 760 DIPs (more with "Continue reading" shown) and with the setting "Off"
+        if (ShellHelpOverlay.IsVisible)
+            ShellHelpOverlay.MaxHeight = Math.Max(180, ClientSize.Height - 40);
         RememberNormalGeometry();
         QueueWindowPreferences();
         UpdateWorkspaceLayout();
         UpdateDownloadsHeaderLayout();
+        // A compact intake/results panel can change the grid viewport without changing
+        // the selected item. Keep that item reachable after a resize or an expanded
+        // admission report instead of leaving selection below the clipped viewport.
+        KeepSelectedDownloadVisible();
     }
 
     private void OnWorkspaceKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || IsNativeShortcutSource(e.Source) || _largeReaderOpen || (_gallery != null && !_gallerySuspended)) return;
-        if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceControl<Border>("WorkspaceInspector").IsVisible) return;
+        if (_selectedPage != WorkspacePage.Downloads || e.Key != Key.Escape || !WorkspaceInspector.IsVisible) return;
         OnDetailsToggleClick(sender, e);
-        WorkspaceControl<DataGrid>(WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1
+        WorkspaceControl<DataGrid>(DownloadsTabs.SelectedIndex == 1
             ? "BoardsDataGrid" : "ThreadsDataGrid").Focus();
         e.Handled = true;
     }
@@ -135,12 +155,28 @@ public partial class MainWindow
         _updatingWorkspacePreferences = true;
         try
         {
+            // Both pages exist before InitializeWorkspace. Apply on every save, not only a view change.
+            if (_archivePage != null)
+            {
+                _archivePage.ArchiveTagFilterTagsPerListPreference = _config.ArchiveTagFilterTagsPerList;
+                _archivePage.UrlTextExportLimitMiBPreference = _config.UrlTextExportLimitMiB;
+                _archivePage.SlashTagSuggestionCountPreference = _config.SlashTagSuggestionCount;
+            }
+            if (_mediaPage != null) _mediaPage.ArchiveTagFilterTagsPerListPreference = _config.ArchiveTagFilterTagsPerList;
+            UpdateMediaFocusChrome(); // the "hide the app header" setting applies to a focus mode that is already on
+            if (_gallery?.TagPanelController is { } tagPanel
+                && tagPanel.Suggestions.Options.SlashSuggestionCount != _config.SlashTagSuggestionCount)
+            {
+                tagPanel.Suggestions.Options = QuickTagSettings.ContextOptions(_config);
+                _gallery.ReloadTagPanel(); // re-rank without replacing the session/undo stack
+            }
+            _barebonesGeometry.DiscardIfDisabled(_config.ShrinkWindowForBarebones);
             string mode = _config.WorkspaceMode;
-            bool barebones = mode == "Barebones";
-            bool advanced = mode == "Advanced";
+            WorkView view = WorkViewSetting.Parse(mode);
+            bool barebones = WorkViewDensity.Compact(view);
             bool modeChanged = _appliedWorkspaceMode != mode;
-            Classes.Set("workspace-advanced", advanced);
-            ComboBox modeChoice = WorkspaceControl<ComboBox>("WorkspaceModeComboBox");
+            ApplyWorkViewClasses(view);
+            ComboBox modeChoice = WorkspaceModeComboBox;
             modeChoice.SelectedItem = modeChoice.Items.OfType<ComboBoxItem>()
                 .First(item => string.Equals(item.Tag as string, mode, StringComparison.Ordinal));
 
@@ -152,56 +188,49 @@ public partial class MainWindow
                     _normalWorkspaceNarrowInspectorVisible = _workspaceNarrowInspectorVisible;
                     // Initial mode selects presentation only. Persisted geometry is
                     // already installed before the first native window is opened.
-                    if (_appliedWorkspaceMode != null)
+                    if (_barebonesGeometry.Capture(_config.ShrinkWindowForBarebones, _appliedWorkspaceMode != null,
+                            Width, Height, WindowState, _lastNormalClient))
                     {
-                        _normalWorkspaceWidth = double.IsFinite(Width) ? Width : 1380;
-                        _normalWorkspaceHeight = double.IsFinite(Height) ? Height : 850;
-                        _normalWorkspaceState = WindowState;
                         WindowState = WindowState.Normal;
                         SetWorkspaceWindowSize(850, 530);
                     }
                     _workspaceInspectorVisible = false;
                     _workspaceNarrowInspectorVisible = false;
                 }
-                else if (_appliedWorkspaceMode == "Barebones")
+                else if (_appliedWorkspaceMode != null && WorkViewDensity.Compact(WorkViewSetting.Parse(_appliedWorkspaceMode)))
                 {
-                    SetWorkspaceWindowSize(Math.Max(WorkspaceMinimumSize.Width, _normalWorkspaceWidth),
-                        Math.Max(WorkspaceMinimumSize.Height, _normalWorkspaceHeight));
-                    WindowState = _normalWorkspaceState;
+                    if (_barebonesGeometry.TakeRestore(_config.ShrinkWindowForBarebones) is { } geometry)
+                    {
+                        SetWorkspaceWindowSize(Math.Max(WorkspaceMinimumSize.Width, geometry.Width),
+                            Math.Max(WorkspaceMinimumSize.Height, geometry.Height));
+                        WindowState = geometry.State;
+                    }
                     _workspaceInspectorVisible = _normalWorkspaceInspectorVisible;
                     _workspaceNarrowInspectorVisible = _normalWorkspaceNarrowInspectorVisible;
                 }
                 _appliedWorkspaceMode = mode;
+                _workViews.Set(view);
                 ApplyArchiveModePreferences();
             }
 
-            WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !barebones;
+            WorkspaceHeading.IsVisible = WorkViewGate.Visible(WorkspaceHeading, view);
             UpdatePageNavigation();
-            WorkspaceControl<TextBlock>("WorkspaceSubtitle").IsVisible = !barebones;
-            WorkspaceControl<TextBlock>("WorkspaceVersion").IsVisible = true;
-            WorkspaceControl<Grid>("WorkspaceHeader").Margin = barebones ? new Thickness(12, 0) : new Thickness(20, 0);
-            Grid body = WorkspaceControl<Grid>("WorkspaceBody");
-            body.Margin = barebones ? new Thickness(12) : new Thickness(20);
-            body.RowSpacing = barebones ? 8 : 10;
+            WorkspaceVersion.IsVisible = true;
+            WorkspaceHeader.Margin = barebones ? new Thickness(12, 0) : new Thickness(16, 0);
+            Grid body = WorkspaceBody;
+            body.Margin = new Thickness(WorkspacePageInset);
+            body.RowSpacing = 8;
 
-            DataGrid threads = WorkspaceControl<DataGrid>("ThreadsDataGrid");
+            DataGrid threads = ThreadsDataGrid;
             _applyingColumnProfile = true;
             try
             {
             foreach (DataGridColumn column in threads.Columns)
             {
-                // Simple keeps task truth visible; Advanced adds independently sortable technical columns.
-                bool defaultVisible = column.SortMemberPath switch
-                {
-                    nameof(ThreadRow.SourceBoard) => !barebones,
-                    nameof(ThreadRow.MissingMedia) or nameof(ThreadRow.EarliestRetry) => false,
-                    nameof(ThreadRow.ThreadNumber) or nameof(ThreadRow.Status)
-                        or nameof(ThreadRow.Queued) or nameof(ThreadRow.Active) => advanced,
-                    _ => true
-                };
+                // Simple keeps task truth visible; Advanced adds independently sortable technical columns (WorkViewPolicy.Downloads).
                 string key = "ThreadsDataGrid." + column.SortMemberPath;
-                column.IsVisible = IsAdvancedWorkColumn(column) ? advanced && (_config.ColumnVisibility.TryGetValue(key, out bool workVisible) && workVisible)
-                    : _config.ColumnVisibility.TryGetValue(key, out bool visible) ? visible : defaultVisible;
+                column.IsVisible = WorkViewPolicy.ColumnVisible(WorkViewPolicy.DownloadColumnId("ThreadsDataGrid", column.SortMemberPath), view,
+                    _config.ColumnVisibility.TryGetValue(key, out bool visible) ? visible : null);
             }
             foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
             {
@@ -215,7 +244,7 @@ public partial class MainWindow
                         if (_config.ColumnWidths.TryGetValue(key, out double width) && double.IsFinite(width) && width >= 32)
                             column.Width = new DataGridLength(width);
                         else if (column.SortMemberPath == nameof(ThreadRow.Completion) && gridName == "ThreadsDataGrid")
-                            column.Width = new DataGridLength(advanced ? 140 : 300);
+                            column.Width = new DataGridLength(WorkViewDensity.DownloadCompletionWidth(view));
                         else if (_defaultColumnWidths.TryGetValue(key, out DataGridLength defaultWidth))
                             column.Width = defaultWidth;
                     }
@@ -239,7 +268,7 @@ public partial class MainWindow
             finally { _applyingColumnProfile = false; }
             double rowHeight = barebones || _config.CompactDensity ? WorkspaceMetrics.CompactRowHeight : WorkspaceMetrics.NormalRowHeight;
             threads.RowHeight = rowHeight;
-            WorkspaceControl<DataGrid>("BoardsDataGrid").RowHeight = rowHeight;
+            BoardsDataGrid.RowHeight = rowHeight;
             LocalizeWorkspace();
             UpdateWorkspaceLayout();
             RefreshWorkspace();
@@ -254,7 +283,7 @@ public partial class MainWindow
     {
         if (!_workspaceInitialized) return;
         foreach (Control control in this.GetLogicalDescendants().OfType<Control>()) LocalizeWorkspaceControl(control);
-        if (WorkspaceControl<Button>("ToolsNavigationButton").Flyout is MenuFlyout tools)
+        if (ToolsNavigationButton.Flyout is MenuFlyout tools)
             foreach (MenuItem item in tools.Items.OfType<MenuItem>()) LocalizeWorkspaceControl(item);
         foreach (string gridName in new[] { "ThreadsDataGrid", "BoardsDataGrid" })
         {
@@ -281,31 +310,45 @@ public partial class MainWindow
                 if (key != null) column.Header = Texts.T(key);
             }
         }
-        WorkspaceControl<TextBox>("UrlInput").PlaceholderText = Texts.T("downloads.urlPlaceholder");
-        AutomationProperties.SetName(WorkspaceControl<TextBox>("UrlInput"), Texts.T("downloads.urlPlaceholder"));
+        UrlInput.PlaceholderText = Texts.T("downloads.urlPlaceholder");
+        AutomationProperties.SetName(UrlInput, Texts.T("downloads.urlPlaceholder"));
         RefreshWorkspaceModeDescriptions();
-        AutomationProperties.SetName(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
-        ToolTip.SetTip(WorkspaceControl<ComboBox>("WorkspaceModeComboBox"), Texts.T("shell.mode"));
+        RefreshWorkViewNotice();
+        AutomationProperties.SetName(WorkspaceModeComboBox, Texts.T("shell.mode"));
+        ToolTip.SetTip(WorkspaceModeComboBox, Texts.T("shell.mode"));
         SetupInspectorLocalActions();
         RefreshAdmissionResults();
+        RefreshArchiveBridgeHint();
         UpdateThemeIcon();
         RefreshBrandNavigation();
         LocalizeDownloadsColumnsButton();
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("AddUrlButton"), "watch.add-url", Texts.T("action.add"));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("DownloadSearchButton"), "input.focus-download-search", Texts.T("downloads.search"));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("CopyAllUrlsButton"), "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenFolderButton"), "location.open-folder", Texts.T("action.openFolder"));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorOpenBrowserButton"), "location.open-source", Texts.T("action.openBrowser"));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorMediaRetryButton"), "watch.retry-media", Texts.T("work.retry"));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorCopyUrlButton"), "selection.copy-links", Texts.T("action.copyUrl"));
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorRemoveButton"), "watch.remove", Texts.T("action.remove"));
+        CommandBindings.ApplyLabeled(AddUrlButton, "watch.add-url", Texts.T("action.add"));
+        CommandBindings.Apply(ThreadsEmptyImportButton, "watch.import-clipboard", iconWithLabel: true);
+        CommandBindings.Apply(BoardsEmptyImportButton, "watch.import-clipboard", iconWithLabel: true);
+        CommandBindings.ApplyLabeled(DownloadSearchButton, "input.focus-download-search", Texts.T("downloads.search"));
+        CommandBindings.ApplyLabeled(CopyAllUrlsButton, "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
+        CommandBindings.ApplyLabeled(InspectorOpenFolderButton, "location.open-folder", Texts.T("action.openFolder"));
+        CommandBindings.ApplyLabeled(InspectorOpenBrowserButton, "location.open-source", Texts.T("action.openBrowser"));
+        CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
+        CommandBindings.ApplyLabeled(InspectorCopyUrlButton, "selection.copy-links", Texts.T("action.copyUrl"));
+        CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
+        // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
+        CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
+        CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");
+        CommandBindings.EnsureIconBeforeText(DownloadSearchClear, "x");
+        CommandBindings.EnsureIconBeforeText(WorkViewNoticeAdvanced, "eye");
+        CommandBindings.EnsureIconBeforeText(WorkViewNoticeDismiss, "check");
+        CommandBindings.ApplyLabeled(ShellFeedbackDiagnosticsButton, "navigation.diagnostics", Texts.T("feedback.open"));
         RefreshShellCommands();
         RefreshSpeedLabel();
-        ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceSubtitle"), Texts.T("shell.subtitle"));
-        ToolTip.SetTip(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails") + " · Esc");
-        AutomationProperties.SetName(WorkspaceControl<Button>("InspectorCloseButton"), Texts.T("action.hideDetails"));
-        AutomationProperties.SetName(WorkspaceControl<MenuItem>("WorkspaceMenuItem"), Texts.T("nav.settings"));
-        ToolTip.SetTip(WorkspaceControl<ProgressBar>("InspectorProgressBar"), Texts.T("detail.knownHint"));
+        ShowStoreLimitWarning();
+        LocalizeHeaderTagline();
+        LocalizeDownloadSearchClose();
+        LocalizeAdmissionDismiss();
+        ToolTip.SetTip(InspectorCloseButton, Texts.T("action.hideDetails") + " · Esc");
+        AutomationProperties.SetName(InspectorCloseButton, Texts.T("action.hideDetails"));
+        AutomationProperties.SetName(WorkspaceMenuItem, CommandCatalog.Label("navigation.app-menu")); // A24: the application menu, not "Settings"
+        ToolTip.SetTip(InspectorProgressBar, Texts.T("detail.knownHint"));
         UpdateWindowControls();
         RefreshSourcesPage();
         UpdateDownloadsHeaderLayout();
@@ -332,8 +375,8 @@ public partial class MainWindow
             // Covered by the gallery: only the small always-visible shell state stays current. Filtering,
             // collection reconciliation, counts and the inspector are marked dirty and run once on return.
             _sessionDirtyWhileCovered = true;
-            WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
-            WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
+            SettingsNavigationButton.IsEnabled = SettingsMenuItem.IsEnabled;
+            DownloadsNavigationButton.IsEnabled = SettingsMenuItem.IsEnabled;
             RefreshWorkspaceStatusText();
             return;
         }
@@ -346,24 +389,23 @@ public partial class MainWindow
         RefreshMediaRetryControls();
         DesktopSessionProjection priorityFrame = _appliedSessionProjection ?? _session.Projection;
         foreach (ThreadRow row in UrlList) row.ApplyUserPriority(priorityFrame.HighPriorityWatches.Contains(row.WatchId));
-        string summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
-            UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
-        var concurrency = priorityFrame.MediaConcurrency;
-        string fullSummary = summary + " · " + Texts.T("downloads.protectionDetails", concurrency.Configured, concurrency.Effective);
-        if (concurrency.DeferredSlots > 0)
+        string summary, fullSummary;
+        if (DownloadResultsCurrent)
         {
-            summary += " · " + Texts.T("downloads.protectionShort", concurrency.Effective);
+            summary = Texts.T("downloads.statusSummary", UrlList.Count, BoardsList.Count,
+                UrlList.Sum(row => (long)row.Queued), UrlList.Sum(row => (long)row.Active));
+            var concurrency = priorityFrame.MediaConcurrency;
+            fullSummary = summary + " · " + Texts.T("downloads.protectionDetails", concurrency.Configured, concurrency.Effective);
+            if (concurrency.DeferredSlots > 0)
+                summary += " · " + Texts.T("downloads.protectionShort", concurrency.Effective);
         }
-        WorkspaceControl<TextBlock>("WorkspaceCounts").Text = summary;
-        ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceCounts"), fullSummary);
-        AutomationProperties.SetName(WorkspaceControl<TextBlock>("WorkspaceCounts"), fullSummary);
-        WorkspaceControl<TabItem>("ThreadsTab").Header = Texts.T("downloads.threadsCount", _startupPreviewShown ? HistoricThreads.Count : VisibleThreads.Count);
-        WorkspaceControl<TabItem>("BoardsTab").Header = Texts.T("downloads.boardsCount", VisibleBoards.Count);
-        WorkspaceControl<TextBlock>("ThreadsEmptyState").IsVisible = VisibleThreads.Count == 0 && !_startupPreviewShown;
-        WorkspaceControl<TextBlock>("BoardsEmptyState").IsVisible = VisibleBoards.Count == 0;
-        WorkspaceControl<Button>("SettingsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
-        WorkspaceControl<Button>("DownloadsNavigationButton").IsEnabled = WorkspaceControl<MenuItem>("SettingsMenuItem").IsEnabled;
-        Button sessionUrls = WorkspaceControl<Button>("CopyAllUrlsButton");
+        else summary = fullSummary = DownloadResultsPendingText;
+        WorkspaceCounts.Text = summary;
+        ToolTip.SetTip(WorkspaceCounts, fullSummary);
+        AutomationProperties.SetName(WorkspaceCounts, fullSummary);
+        SettingsNavigationButton.IsEnabled = SettingsMenuItem.IsEnabled;
+        DownloadsNavigationButton.IsEnabled = SettingsMenuItem.IsEnabled;
+        Button sessionUrls = CopyAllUrlsButton;
         sessionUrls.IsEnabled = !_isClosing && (UrlList.Count > 0 || BoardsList.Count > 0);
         CommandBindings.ApplyLabeled(sessionUrls, "watch.copy-all-links", Texts.T("downloads.copySessionUrls", UrlList.Count + BoardsList.Count));
         ToolTip.SetTip(sessionUrls, Texts.T("downloads.copySessionUrlsHint"));
@@ -383,22 +425,40 @@ public partial class MainWindow
             DesktopSessionState.Stopping or DesktopSessionState.Stopped => "shell.stopping",
             _ => "shell.starting"
         };
-        WorkspaceControl<TextBlock>("WorkspaceStatus").Text = Texts.T(stateKey);
-        ToolTip.SetTip(WorkspaceControl<TextBlock>("WorkspaceStatus"), _session.StartupError);
+        WorkspaceStatus.Text = Texts.T(stateKey);
+        ToolTip.SetTip(WorkspaceStatus, _session.StartupError);
+        RefreshStoreLimitWarning();
     }
 
     private void RefreshDetailsToggleIcon()
     {
-        bool visible = WorkspaceControl<Border>("WorkspaceInspector").IsVisible;
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("DetailsToggleButton"),
+        bool visible = WorkspaceInspector.IsVisible;
+        CommandBindings.ApplyLabeled(DetailsToggleButton,
             visible ? "inspector.close" : "thread.details",
             Texts.T(visible ? "action.hideDetails" : "action.showDetails"));
+        if (_workspaceInitialized) RefreshDownloadsToolbarEmptiness(!string.IsNullOrWhiteSpace(DownloadSearchText));
+    }
+
+    private bool _statusColumnVisible;
+
+    // With the Status column shown, the compact status in the transfer column only appears when it adds something.
+    private void InitializeStatusColumnRedundancy()
+    {
+        DataGridColumn? status = ThreadsDataGrid.Columns.FirstOrDefault(column => column.SortMemberPath == nameof(ThreadRow.Status));
+        if (status == null) return;
+        void Sync()
+        {
+            _statusColumnVisible = status.IsVisible;
+            foreach (ThreadRow row in _threadRows.Values) row.StatusColumnVisible = _statusColumnVisible;
+        }
+        status.PropertyChanged += (_, e) => { if (e.Property == DataGridColumn.IsVisibleProperty) Sync(); };
+        Sync();
     }
 
     private object? GetWorkspaceSelection()
     {
         if (_sessionRowsApplying) return null;
-        if (WorkspaceControl<TabControl>("DownloadsTabs").SelectedIndex == 1)
+        if (DownloadsTabs.SelectedIndex == 1)
         {
             BoardRow? board = LeadBoard;
             return board != null && BoardsList.Contains(board) ? board : null;
@@ -420,8 +480,8 @@ public partial class MainWindow
         RefreshInspectorLocalActions();
         object? selected = GetWorkspaceSelection();
         bool hasSelection = selected != null;
-        WorkspaceControl<TextBlock>("InspectorEmptyState").IsVisible = !hasSelection;
-        WorkspaceControl<StackPanel>("InspectorSelection").IsVisible = hasSelection;
+        InspectorEmptyState.IsVisible = !hasSelection;
+        InspectorSelection.IsVisible = hasSelection;
         if (selected == null) return;
 
         bool isThread = selected is ThreadRow;
@@ -441,11 +501,11 @@ public partial class MainWindow
             directory = thread.DownloadDirectory;
             error = thread.IssueDetails;
             context = thread.ContextDetails;
-            WorkspaceControl<SelectableTextBlock>("InspectorProgress").Text = thread.Progress;
-            WorkspaceControl<ProgressBar>("InspectorProgressBar").Value = thread.Completion;
-            AutomationProperties.SetName(WorkspaceControl<ProgressBar>("InspectorProgressBar"), thread.Progress);
-            WorkspaceControl<TextBlock>("InspectorKnownMedia").Text = Texts.T("detail.knownMedia", thread.KnownMedia, thread.ExcludedMedia);
-            WorkspaceControl<TextBlock>("InspectorQueue").Text = Texts.T("detail.queue") + ": " + thread.Queued + " / " + thread.Active;
+            InspectorProgress.Text = thread.Progress;
+            InspectorProgressBar.Value = thread.Completion;
+            AutomationProperties.SetName(InspectorProgressBar, thread.Progress);
+            InspectorKnownMedia.Text = Texts.T("detail.knownMedia", thread.KnownMedia, thread.ExcludedMedia);
+            InspectorQueue.Text = Texts.T("detail.queue") + ": " + thread.Queued + " / " + thread.Active;
         }
         else
         {
@@ -457,32 +517,41 @@ public partial class MainWindow
             directory = board.DownloadDirectory;
             error = board.ErrorDetails;
         }
-        WorkspaceControl<TextBlock>("InspectorKind").Text = Texts.T(isThread ? "detail.thread" : "detail.board");
-        WorkspaceControl<SelectableTextBlock>("InspectorTitle").Text = title;
-        WorkspaceControl<SelectableTextBlock>("InspectorSource").Text = source;
-        WorkspaceControl<SelectableTextBlock>("InspectorStatus").Text = status;
-        WorkspaceControl<SelectableTextBlock>("InspectorUrl").Text = url;
-        WorkspaceControl<SelectableTextBlock>("InspectorDirectory").Text = directory;
-        WorkspaceControl<StackPanel>("InspectorMediaSection").IsVisible = isThread;
-        SelectableTextBlock workContext = WorkspaceControl<SelectableTextBlock>("InspectorContext");
+        InspectorKind.Text = Texts.T(isThread ? "detail.thread" : "detail.board");
+        InspectorTitle.Text = title;
+        InspectorSource.Text = source;
+        InspectorStatus.Text = status;
+        InspectorUrl.Text = url;
+        InspectorDirectory.Text = directory;
+        InspectorMediaSection.IsVisible = isThread;
+        SelectableTextBlock workContext = InspectorContext;
         workContext.Text = context;
         workContext.IsVisible = !string.IsNullOrWhiteSpace(context);
-        SelectableTextBlock errors = WorkspaceControl<SelectableTextBlock>("InspectorError");
+        SelectableTextBlock errors = InspectorError;
         errors.Text = string.IsNullOrWhiteSpace(error) ? Texts.T("detail.noError") : error;
-        errors.Classes.Set("error", !string.IsNullOrWhiteSpace(error));
-        WorkspaceControl<StackPanel>("InspectorErrorSection").IsVisible = !string.IsNullOrWhiteSpace(error);
-        WorkspaceControl<TextBlock>("InspectorRemoveHint").Text = Texts.T(isThread ? "detail.removeHint" : "detail.boardRemoveHint");
+        InspectorErrorSection.IsVisible = !string.IsNullOrWhiteSpace(error);
+        // A retry is the one useful action when the work needs it: it gets the primary look and a named next step.
+        bool needsRetry = selected is ThreadRow { NeedsIntervention: true } && !_isClosing;
+        InspectorMediaRetryButton.Classes.Set("primary", needsRetry);
+        InspectorMediaRetryButton.Classes.Set("subtle", !needsRetry);
+        InspectorNextStep.IsVisible = needsRetry;
+        InspectorNextStep.Text = needsRetry ? WorkNextStep.Text(CommandCatalog.Label("watch.retry-media"),
+            CommandCatalog.ShortcutDisplay("watch.retry-media")) : string.Empty;
+        InspectorRemoveHint.Text = Texts.T(isThread ? "detail.removeHint" : "detail.boardRemoveHint");
         foreach (string name in new[] { "InspectorOpenFolderButton", "InspectorOpenBrowserButton", "InspectorCopyUrlButton" })
             WorkspaceControl<Button>(name).IsEnabled = !_isClosing;
-        WorkspaceControl<Button>("InspectorRemoveButton").IsEnabled = _restoreCompleted && !_isClosing;
+        InspectorRemoveButton.IsEnabled = _restoreCompleted && !_isClosing;
         DiagnosticTarget target = selected is ThreadRow selectedThread
             ? new DiagnosticTarget(DiagnosticTargetKind.Thread, selectedThread.WatchId)
             : new DiagnosticTarget(DiagnosticTargetKind.Board, ((BoardRow)selected).WatchId);
-        CommandBindings.ApplyLabeled(WorkspaceControl<Button>("InspectorCheckButton"), "watch.check",
+        CommandBindings.ApplyLabeled(InspectorCheckButton, "watch.check",
             Texts.T(isThread ? "check.action" : "check.boardAction"));
-        WorkspaceControl<Button>("InspectorCheckButton").IsEnabled = _restoreCompleted && !WorkspaceCommandBusy
+        InspectorCheckButton.IsEnabled = _restoreCompleted && !WorkspaceCommandBusy
             && _session.CanRequestCheck(target);
     }
+
+    // Same value as the Workspace.Inset.Page token (12): every work view has the same page margin.
+    private const double WorkspacePageInset = 12;
 
     private void UpdateWorkspaceLayout()
     {
@@ -490,51 +559,61 @@ public partial class MainWindow
         _updatingWorkspaceLayout = true;
         try
         {
-            Grid content = WorkspaceControl<Grid>("WorkspaceContentGrid");
-            Border inspector = WorkspaceControl<Border>("WorkspaceInspector");
-            GridSplitter splitter = WorkspaceControl<GridSplitter>("WorkspaceInspectorSplitter");
+            Grid content = WorkspaceContentGrid;
+            Border inspector = WorkspaceInspector;
+            GridSplitter splitter = WorkspaceInspectorSplitter;
             bool narrow = Bounds.Width > 0 && Bounds.Width < 1120;
             bool shortWindow = Bounds.Height > 0 && Bounds.Height < 760;
             bool compactIntake = Bounds.Height > 0 && Bounds.Height < 840;
-            bool barebones = _config.WorkspaceMode == "Barebones";
+            WorkView view = ConfiguredWorkView;
+            bool barebones = WorkViewDensity.Compact(view);
             bool reducedChrome = barebones || shortWindow;
-            bool retainedErrorLayout = shortWindow && WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").IsVisible;
-            Grid feedbackLayout = WorkspaceControl<Grid>("ShellFeedbackLayout");
-            ScrollViewer shellError = WorkspaceControl<ScrollViewer>("ShellActionErrorScroll");
-            Button diagnostics = WorkspaceControl<Button>("ShellFeedbackDiagnosticsButton");
-            Grid.SetColumnSpan(shellError, retainedErrorLayout ? 1 : 2);
-            Grid.SetColumn(diagnostics, retainedErrorLayout ? 1 : 0);
-            Grid.SetRow(diagnostics, retainedErrorLayout ? 0 : 1);
-            feedbackLayout.RowSpacing = retainedErrorLayout ? 0 : 4;
-            feedbackLayout.ColumnSpacing = retainedErrorLayout ? 8 : 0;
+            bool retainedErrorLayout = shortWindow && ShellActionErrorBanner.IsVisible;
+            Grid feedbackLayout = ShellFeedbackLayout;
+            ScrollViewer shellError = ShellActionErrorScroll;
+            Button diagnostics = ShellFeedbackDiagnosticsButton;
+            // The action sits beside the message at every height (UX round 3); only a very narrow window stacks it below.
+            bool feedbackBeside = ShellFeedbackPlacement.ActionBeside(Bounds.Width);
+            Grid.SetColumnSpan(shellError, feedbackBeside ? 1 : 2);
+            Grid.SetColumn(diagnostics, feedbackBeside ? 1 : 0);
+            Grid.SetRow(diagnostics, feedbackBeside ? 0 : 1);
+            diagnostics.VerticalAlignment = feedbackBeside ? Avalonia.Layout.VerticalAlignment.Top : Avalonia.Layout.VerticalAlignment.Stretch;
+            feedbackLayout.RowSpacing = feedbackBeside ? 0 : 4;
+            feedbackLayout.ColumnSpacing = feedbackBeside ? 8 : 0;
             shellError.MaxHeight = retainedErrorLayout ? 32 : 64;
-            WorkspaceControl<Ursa.Controls.Banner>("ShellActionErrorBanner").Padding = retainedErrorLayout ? new Thickness(8, 4) : new Thickness(12);
-            WorkspaceControl<Grid>("WorkspaceHeading").IsVisible = !reducedChrome;
-            WorkspaceControl<TextBlock>("UrlInputHint").IsVisible = !reducedChrome && _config.WorkspaceMode == "Advanced";
+            ShellActionErrorBanner.Padding = retainedErrorLayout ? new Thickness(8, 4) : new Thickness(12);
+            WorkspaceHeading.IsVisible = !shortWindow && WorkViewGate.Visible(WorkspaceHeading, view);
+            UrlInputHint.IsVisible = !shortWindow && WorkViewGate.Visible(UrlInputHint, view);
             UpdatePageNavigation();
             // All pages and the mode selector remain reachable in compact windows.
-            WorkspaceControl<StackPanel>("WorkspaceNavigationButtons").IsVisible = true;
+            WorkspaceNavigationButtons.IsVisible = true;
             // Keep the shared footer's height and padding from XAML in every view.
-            Grid body = WorkspaceControl<Grid>("WorkspaceBody");
-            body.RowSpacing = retainedErrorLayout ? 4 : reducedChrome ? 8 : 10;
-            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : 12, 6)
-                : barebones ? new Thickness(12) : shortWindow ? new Thickness(16, 12) : new Thickness(20);
+            Grid body = WorkspaceBody;
+            body.RowSpacing = retainedErrorLayout ? 4 : 8;
+            body.Margin = retainedErrorLayout ? new Thickness(barebones ? 8 : WorkspacePageInset, 8)
+                : new Thickness(WorkspacePageInset);
             // Keep intake and the latest results usable without allowing large pasted
             // batches to push the table's header and first complete row offscreen.
-            WorkspaceControl<TextBox>("UrlInput").MaxHeight = retainedErrorLayout ? 36 : compactIntake ? 40 : 72;
-            WorkspaceControl<Border>("WorkspaceIntakeCard").Padding = retainedErrorLayout ? new Thickness(4)
-                : compactIntake ? new Thickness(8) : new Thickness(12, 10);
-            WorkspaceControl<StackPanel>("WorkspaceIntakeStack").Spacing = retainedErrorLayout ? 3 : 7;
+            UrlInput.MaxHeight = retainedErrorLayout ? 36 : compactIntake ? 40 : 72;
+            WorkspaceIntakeCard.Padding = retainedErrorLayout ? new Thickness(4)
+                : compactIntake ? new Thickness(8) : new Thickness(12);
+            WorkspaceIntakeStack.Spacing = retainedErrorLayout ? 4 : 8;
             // Reserve tabs, the column header and one complete data row. Extra-long
             // repair/report content scrolls in intake instead of reducing the table to zero.
             double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
-            double tableMinimum = Math.Max(38, WorkspaceControl<TabControl>("DownloadsTabs").Bounds.Height) + 32 + rowHeight + 4;
-            content.MinHeight = retainedErrorLayout ? tableMinimum : 0;
-            WorkspaceControl<ScrollViewer>("WorkspaceIntakeScroll").MaxHeight = retainedErrorLayout
+            // The grid's actual header+first-row footprint includes the row spacing already; the extra
+            // four-DIP gap used here previously let the intake child overlap the content grid by two DIP at 640×480.
+            double tableMinimum = Math.Max(38, DownloadsTabs.Bounds.Height) + 32 + rowHeight + 2;
+            bool reserveTable = retainedErrorLayout || compactIntake;
+            content.MinHeight = reserveTable ? tableMinimum : 0;
+            WorkspaceIntakeScroll.MaxHeight = reserveTable
                 ? Math.Max(0, body.Bounds.Height - 2 * body.RowSpacing - tableMinimum)
                 : double.PositiveInfinity;
-            WorkspaceControl<Ursa.Controls.Banner>("AdmissionRepairPanel").Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
-            Expander admissionResults = WorkspaceControl<Expander>("AdmissionResultsExpander");
+            AdmissionRepairPanel.Padding = compactIntake ? new Thickness(8, 4) : new Thickness(12);
+            SizeAdmissionDismiss(compactIntake);
+            Expander admissionResults = AdmissionResultsExpander;
+            // The 32 dip help button would double the header of the compact one-row report; the popover returns with the normal layout.
+            AdmissionResultsHelpButton.IsVisible = !compactIntake;
             // Semi's expander spaces its header/content through resource keys rather
             // than the control's Padding. Scope compact spacing to this one report.
             if (compactIntake)
@@ -547,8 +626,8 @@ public partial class MainWindow
                 admissionResults.Resources.Remove("ExpanderHeaderMargin");
                 admissionResults.Resources.Remove("ExpanderContentPadding");
             }
-            WorkspaceControl<StackPanel>("AdmissionResultRows").Margin = new Thickness(0, compactIntake ? 4 : 6, 0, 0);
-            WorkspaceControl<ScrollViewer>("AdmissionResultsScroll").MaxHeight = compactIntake ? 32 : 140;
+            AdmissionResultRows.Margin = new Thickness(0, compactIntake ? 4 : 8, 0, 0);
+            AdmissionResultsScroll.MaxHeight = compactIntake ? 32 : 140;
             if (!_workspaceNarrowLayout && content.ColumnDefinitions[2].ActualWidth > 0)
                 _workspaceInspectorWidth = Math.Clamp(content.ColumnDefinitions[2].ActualWidth, 260, 520);
             _workspaceNarrowLayout = narrow;
@@ -586,16 +665,18 @@ public partial class MainWindow
         RefreshWorkspace();
     }
 
-    private void OnOpenWorkspaceDetailsClick(object? sender, RoutedEventArgs e) => OpenWorkspaceDetails();
     private void OnWorkspaceSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_refreshingDownloadSearch) return;
         RefreshWorkspace();
     }
     private void OnWorkspaceTabChanged(object? sender, SelectionChangedEventArgs e) => RefreshWorkspace();
-    private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e)
+    private void OnDownloadsNavigationClick(object? sender, RoutedEventArgs e) => GoToDownloads();
+
+    // The footer button and the empty states of Archive and Media share this destination.
+    private void GoToDownloads()
     {
-        if (NavigateWorkspace(WorkspacePage.Downloads)) WorkspaceControl<TextBox>("UrlInput").Focus();
+        if (NavigateWorkspace(WorkspacePage.Downloads)) UrlInput.Focus();
     }
     private void OnSettingsNavigationClick(object? sender, RoutedEventArgs e) => OnSettingsMenuItemClick(sender, e);
 
@@ -615,5 +696,41 @@ public partial class MainWindow
     {
         if (GetWorkspaceSelection() is ThreadRow) OnRemoveThreadMenuItemClick(sender, e);
         else if (GetWorkspaceSelection() is BoardRow) OnRemoveBoardMenuItemClick(sender, e);
+    }
+}
+
+// Owns the Barebones restore geometry, not inspector/view state. The enabled startup case retains
+// the historical default restore size without resizing at startup. Disabled shrinking owns no restore.
+internal sealed class BarebonesWindowGeometry
+{
+    private (double Width, double Height, WindowState State)? _captured;
+
+    internal void DiscardIfDisabled(bool enabled)
+    {
+        if (!enabled) _captured = null;
+    }
+
+    // Width/Height follow the native client, so outside Normal they hold the maximized or fullscreen size.
+    // The window's last normal client is then the size to restore underneath that state.
+    internal bool Capture(bool enabled, bool hasPreviousMode, double width, double height, WindowState state, Size? lastNormal = null)
+    {
+        if (!enabled) { _captured = null; return false; }
+        if (!hasPreviousMode)
+        {
+            _captured = (1380, 850, WindowState.Normal);
+            return false; // persisted startup geometry is not resized
+        }
+        if (state != WindowState.Normal && lastNormal is { Width: > 0, Height: > 0 } normal
+            && double.IsFinite(normal.Width) && double.IsFinite(normal.Height))
+            (width, height) = (normal.Width, normal.Height);
+        _captured = (double.IsFinite(width) ? width : 1380, double.IsFinite(height) ? height : 850, state);
+        return true;
+    }
+
+    internal (double Width, double Height, WindowState State)? TakeRestore(bool enabled)
+    {
+        var captured = _captured;
+        _captured = null;
+        return enabled ? captured : null;
     }
 }

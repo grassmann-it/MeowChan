@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Media.Imaging;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -117,14 +118,27 @@ internal static class SelectionChecks
         Require(!window.FindControl<ContentControl>("ReaderHost")!.IsVisible
             && grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds),
             "Enter opened an ambiguous multiple-watch reader or changed the selection.");
+        // Navigation back from the export dialog can leave a native row frame in
+        // flight even though the old selection is still painted.  Delete is a
+        // list command, so wait for that frame to become authoritative before
+        // injecting the key; otherwise the shell correctly ignores the command
+        // as a stale-control action and this check waits on an impossible state.
+        await Program.WaitUntilAsync(() => !window.SessionRowsApplying
+            && grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order().SequenceEqual(selectedIds),
+            () => $"rowsApplying={window.SessionRowsApplying}, urls={window.UrlList.Count}, selected="
+                + string.Join(",", grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order()));
+        grid.Focus();
+        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Input);
         PressKey(grid, Key.Delete);
-        await Program.WaitUntilAsync(() => window.UrlList.Count == 0);
+        await Program.WaitUntilAsync(() => window.UrlList.Count == 0,
+            () => $"rowsApplying={window.SessionRowsApplying}, urls={window.UrlList.Count}, selected="
+                + string.Join(",", grid.SelectedItems.Cast<ThreadRow>().Select(row => row.WatchId).Order()));
         await using (ArchiveReader reader = await window.SessionHost.OpenArchiveReaderAsync(CancellationToken.None))
             Require((await reader.SelectThreadIdsAsync(new ArchiveThreadQuery(), CancellationToken.None)).Count == 52,
                 "Removing watches deleted archived posts.");
         Console.WriteLine("SMOKE selection watches: native Ctrl/Shift range+arrow, selected/unselected right-click, EN/DE/modes, narrow logo, input shielding, frozen batch-export return, single-watch Enter, ambiguous multi-watch Enter blocked and non-destructive batch Delete passed.");
 
-        Click(window.FindControl<MenuItem>("ArchiveMenuItem")!);
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
         await Program.WaitUntilAsync(() => !page.IsBusy && page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource.Cast<object>().Count() == 50);
         Click(page.FindControl<Button>("ArchiveLayoutTable")!);
         DataGrid table = page.FindControl<DataGrid>("ArchiveThreadTable")!;
@@ -137,6 +151,7 @@ internal static class SelectionChecks
         await Task.Delay(80);
         Require(table.IsEffectivelyVisible && !page.FindControl<Grid>("ArchiveReaderPane")!.IsEffectivelyVisible,
             "Selecting a narrow archive table row hid the list before an explicit reader action.");
+        await CheckKeyboardContextAsync(table, table.ContextMenu!, singleArchiveSelection: true);
         await PressAsync(window, Row(table, archived[3]), KeyModifiers.Shift);
         Require(table.IsEffectivelyVisible && !page.FindControl<Grid>("ArchiveReaderPane")!.IsEffectivelyVisible,
             "Selecting a narrow archive table range hid the list before an explicit reader action.");
@@ -145,9 +160,10 @@ internal static class SelectionChecks
         await PressAsync(window, Row(table, archived[3]), right: true);
         Require(table.SelectedItems.Count == 4, "Archive selected right-click collapsed the set.");
         Require(table.ContextMenu!.IsOpen, "Archive table right-click did not open its context menu.");
+        RequireArchiveMenuOrder(table.ContextMenu, single: false);
         table.ContextMenu!.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-        await CheckKeyboardContextAsync(table, table.ContextMenu);
+        await CheckKeyboardContextAsync(table, table.ContextMenu, singleArchiveSelection: false);
         ResourceId[] archiveIds = table.SelectedItems.Cast<ArchiveThreadRow>().Select(row => row.Summary.Id).ToArray();
         Texts.SetLanguage("de"); await Task.Delay(80);
         Require(table.SelectedItems.Count == 4, "Archive language refresh collapsed the set.");
@@ -172,6 +188,7 @@ internal static class SelectionChecks
             .Select(control => control.ContextMenu).First(menu => menu != null)!;
         Require(cards.SelectedItems.Count == 2 && cardMenu.IsOpen,
             "Archive card right-click changed the selected set or failed to open its attached menu.");
+        RequireArchiveMenuOrder(cardMenu, single: false);
         cardMenu.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
         await PressAsync(window, await CardForAsync(window, cards, firstCardId));
@@ -197,8 +214,8 @@ internal static class SelectionChecks
     {
         await Task.Delay(80); window.UpdateLayout();
         Image logo = window.FindControl<Image>("WorkspaceLogo")!;
-        Require(logo.Source != null && logo.IsEffectivelyVisible && logo.Bounds.Width == 30 && logo.Bounds.Height == 30,
-            "The compact header lost its cat asset.");
+        Require(logo.Source is Bitmap && logo.IsEffectivelyVisible && logo.Bounds.Width == 30 && logo.Bounds.Height == 30,
+            "The compact header lost its theme-specific cat asset.");
         foreach (Control item in new Control[] { logo, window.FindControl<TextBlock>("WorkspaceVersion")!, window.FindControl<ComboBox>("WorkspaceModeComboBox")!, window.FindControl<MenuItem>("WorkspaceMenuItem")! })
         {
             Point? position = item.TranslatePoint(default, window);
@@ -236,13 +253,34 @@ internal static class SelectionChecks
     }
     private static Point CardSelectionPoint(ListBoxItem row) => new(
         Math.Min(Math.Max(112, row.Bounds.Width / 2), Math.Max(8, row.Bounds.Width - 8)), row.Bounds.Height / 2);
-    private static async Task CheckKeyboardContextAsync(Control list, ContextMenu menu)
+    private static void RequireArchiveMenuOrder(ContextMenu menu, bool single)
+    {
+        // Keep the existing ArchiveCommandChecks batch contract exact. Page-URL
+        // text export accepts one thread, not a batch; validate its single-target
+        // slot too instead of silently ignoring extra commands or sorting tags.
+        var expected = new List<string>
+        {
+            "thread.favorite-toggle", "thread.read", "gallery.open", "thread.details", "thread.show-in-media", "post-bookmarks.open-manager", "export.open-html-dialog",
+            "selection.copy-links", "location.open-folder", "location.open-source", "watch.check", "watch.retry-media",
+            "rules.edit-scope", "watch.remove", "archive.delete-permanently"
+        };
+        // One thread only: its own tags follow Show in Media; the URL-text export follows the HTML export.
+        if (single) { expected.Insert(5, "thread.tags"); expected.Insert(8, "export.open-urltext-dialog"); }
+        string[] actual = menu.Items.OfType<MenuItem>().Where(item => item.Tag is string)
+            .Select(item => (string)item.Tag!).ToArray();
+        Require(actual.SequenceEqual(expected),
+            $"Archive {(single ? "single" : "batch")} context menu action order differs from the shared contract: "
+            + string.Join(", ", actual) + "; expected: " + string.Join(", ", expected));
+    }
+
+    private static async Task CheckKeyboardContextAsync(Control list, ContextMenu menu, bool? singleArchiveSelection = null)
     {
         // Avalonia translates ContextMenu/Shift+F10 into a positionless request.
         // Inject that native routed request, rather than bypassing it with menu.Open().
         list.Focus();
         list.RaiseEvent(new ContextRequestedEventArgs { RoutedEvent = Control.ContextRequestedEvent });
         await Program.WaitUntilAsync(() => menu.IsOpen);
+        if (singleArchiveSelection is bool single) RequireArchiveMenuOrder(menu, single);
         menu.Close();
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
@@ -272,6 +310,12 @@ internal static class SelectionChecks
             throw;
         }
         PressAt(window, point, modifiers, right);
+        // ContextRequested is intentionally opened on the next input turn so the
+        // DataGrid has committed the pointer selection first. Wait for that
+        // native popup instead of sampling immediately after the synthetic
+        // release; this keeps the contract about the real menu, not a timing race.
+        if (right && row.GetSelfAndVisualAncestors().OfType<DataGrid>().FirstOrDefault() is { } owner)
+            await Program.WaitUntilAsync(() => owner.ContextMenu?.IsOpen == true);
         // Complete queued native context-menu processing before the fixture closes
         // a menu or injects the next pointer action.
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
@@ -294,13 +338,13 @@ internal static class SelectionChecks
     {
         await Program.WaitUntilAsync(() => !window.SessionRowsApplying);
         PressKey(grid, Key.F1);
-        Border help = window.FindControl<Border>("ShellHelpOverlay")!;
-        await Program.WaitUntilAsync(() => help.IsEffectivelyVisible);
-        string text = window.FindControl<TextBlock>("ShellHelpText")!.Text ?? string.Empty;
+        await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true });
+        var help = MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window)!;
+        string text = help.PlainText;
         Require(text.Contains(CommandCatalog.Label("thread.read"), StringComparison.Ordinal) == expected,
             $"Shortcut help advertised Read posts for an unavailable selection or hid it for one thread: expected={expected}, selected={grid.SelectedItems.Count}, applying={window.SessionRowsApplying}, text={text}.");
-        Click(window.FindControl<Button>("ShellHelpClose")!);
-        await Program.WaitUntilAsync(() => !help.IsVisible);
+        help.RequestClose();
+        await Program.WaitUntilAsync(() => MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) == null);
     }
 
     private static void Click(Control control) => SmokeActionClick.Execute(control);

@@ -3,7 +3,7 @@ internal static class CollectionExportCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
-        ("export.resultsAction", "Export all {0} results as HTML…", "Alle {0} Treffer als HTML exportieren…"),
+        ("export.resultsAction", "Export all {0} results", "Alle {0} Treffer exportieren"),
         ("export.resultsScope", "All matching threads across every results page. Page selection is unchanged.", "Alle passenden Threads über sämtliche Ergebnisseiten. Die Seitenauswahl bleibt erhalten."),
         ("export.resultsTitle", "Export all matching threads as HTML", "Alle passenden Threads als HTML exportieren"),
         ("export.resultsResolving", "Resolving all matching threads… Close to cancel.", "Alle passenden Threads werden ermittelt… Schließen bricht die Suche ab."),
@@ -20,8 +20,8 @@ internal static class CollectionExportCatalog
         ("export.collectionSelection", "Export {0} selected threads together", "{0} ausgewählte Threads gemeinsam exportieren"),
         ("export.collectionHint", "Create one independent offline folder with a landing page, individual thread pages and shared media. Uses the latest local capture of each thread; nothing is downloaded.", "Ein eigenständiger Offlineordner mit Startseite, einzelnen Threadseiten und gemeinsamen Medien. Verwendet die letzte lokale Erfassung jedes Threads; es wird nichts heruntergeladen."),
         ("export.collectionKnown", "This selection has previous collection exports. Choose a target and how to export.", "Diese Auswahl wurde bereits gemeinsam exportiert. Ziel und Exportart wählen."),
-        ("export.collectionProgress", "Threads {0}/{1} · Posts {2} · Shared media files {3}", "Threads {0}/{1} · Beiträge {2} · Gemeinsame Mediendateien {3}"),
-        ("export.collectionDone", "Exported {0} threads · {1} posts · {2} shared media files · {3} omissions · {4} warnings", "{0} Threads exportiert · {1} Beiträge · {2} gemeinsame Mediendateien · {3} Auslassungen · {4} Hinweise"),
-        ("export.collectionMemberDone", "{0}: {1} posts · {2} omissions", "{0}: {1} Beiträge · {2} Auslassungen")
+        ("export.collectionProgress", "Threads {0}/{1} · Posts {2} · Shared media files {3}", "Threads {0}/{1} · Posts {2} · Gemeinsame Mediendateien {3}"),
+        ("export.collectionDone", "Exported – threads: {0} · posts: {1} · shared media files: {2} · omissions: {3} · warnings: {4}", "Exportiert – Threads: {0} · Posts: {1} · gemeinsame Mediendateien: {2} · Auslassungen: {3} · Hinweise: {4}"),
+        ("export.collectionMemberDone", "{0} – posts: {1} · omissions: {2}", "{0} – Posts: {1} · Auslassungen: {2}")
     };
 }

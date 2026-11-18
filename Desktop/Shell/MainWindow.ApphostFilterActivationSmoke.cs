@@ -1,3 +1,5 @@
+#if DEBUG
+using static MeowChan.Desktop.ApphostAcceptanceAssertions;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -159,7 +161,7 @@ public partial class MainWindow
                         helpAndError = AutomationProperties.GetHelpText(editor.FindField(field.Key)!)
                     }).ToArray(),
                     localErrors = editor.GetVisualDescendants().OfType<TextBlock>()
-                        .Where(value => value.Classes.Contains("error") && value.IsVisible).Select(value => value.Text).ToArray()
+                        .Where(value => value.Classes.Contains("workspace-error") && value.IsVisible).Select(value => value.Text).ToArray()
                 };
                 Console.WriteLine("APPHOST_FILTER_UI " + JsonSerializer.Serialize(new
                 {
@@ -224,3 +226,5 @@ public partial class MainWindow
         await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
 }
+
+#endif

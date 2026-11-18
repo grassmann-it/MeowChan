@@ -46,7 +46,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public int MissingMedia => Snapshot.Work?.MissingMedia ?? Math.Max(0, SelectedMedia - CompletedMedia);
     public int MediaErrorCount => Snapshot.Work?.Media.Count(item => item.Status is MeowChan.Persistence.MediaWorkStatus.NeedsIntervention or MeowChan.Persistence.MediaWorkStatus.Expired)
         ?? Snapshot.MediaFailures.Count;
-    public string MissingMediaText => Texts.T("work.missingAndErrors", MissingMedia, MediaErrorCount);
+    public string MissingMediaText => Texts.Count("work.missingAndErrors", MediaErrorCount, MissingMedia, MediaErrorCount);
     public DateTimeOffset? EarliestRetry => Snapshot.Work?.NextDueAt;
     public string EarliestRetryText => EarliestRetry?.ToLocalTime().ToString("g", Texts.Culture) ?? "—";
     public string ExceptionHint { get; private set; } = string.Empty;
@@ -63,11 +63,28 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
     public string Status { get; private set; } = string.Empty;
     // Row-only projection: never use this in the authoritative detail/status column.
     public string CompactStatus { get; private set; } = string.Empty;
+    // The shell sets this while the Status column is visible: the same words twice in one row only cost room
+    // for the real addition (hint, pause, cooldown). The text stays in tooltip and accessible name.
+    private bool _statusColumnVisible;
+    internal bool StatusColumnVisible
+    {
+        get => _statusColumnVisible;
+        set
+        {
+            if (_statusColumnVisible == value) return;
+            _statusColumnVisible = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ShowCompactStatus)));
+        }
+    }
+    public bool ShowCompactStatus => !(_statusColumnVisible && CompactStatus == Status);
+    /// <summary>The next step for this row is the retry command (the generic "needs a retry" state).</summary>
+    public bool NeedsIntervention { get; private set; }
     public bool IsHighPriority { get; private set; }
-    public string PriorityBadge => IsHighPriority ? "↑" : string.Empty;
     public string PriorityDescription => IsHighPriority
-        ? (Texts.Language == "de" ? "Hohe Priorität · nächste ausführbare Dateien; laufende Downloads bleiben unverändert."
-            : "High priority · next runnable files; active downloads are unchanged.") : string.Empty;
+        ? Texts.T("priority.rowDescription") : string.Empty;
+    /// <summary>The arrow's tooltip and name: what the priority means, and that a click restores normal priority.</summary>
+    public string PriorityActionDescription => IsHighPriority
+        ? Texts.T("priority.rowDescription") + "\n" + Texts.T("priority.rowRestore") : string.Empty;
 
     // Authoritative host projection only; do not optimistically change on click.
     internal void ApplyUserPriority(bool high)
@@ -75,8 +92,8 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         if (IsHighPriority == high) return;
         IsHighPriority = high;
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsHighPriority)));
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityBadge)));
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityDescription)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PriorityActionDescription)));
     }
 
     public string CompactDetails => string.Join(Environment.NewLine,
@@ -139,6 +156,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             ThreadActivity.Error => Texts.T("status.error"),
             ThreadActivity.NotFound => Texts.T("status.notFound"),
             ThreadActivity.Stopped => Texts.T("status.stopped"),
+            ThreadActivity.SourceUnavailable => Texts.T("status.sourceUnavailable"),
             _ => Texts.T("status.unknown")
         };
         string? request = RequestStatus.Format(snapshot.RequestProgress);
@@ -147,9 +165,12 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
             activity += " · " + request;
         }
 
-        if (snapshot.LastCheckFailure != null)
+        // One failure, one wording: the row carries the same headline Downloads details, Diagnostics and Sources use.
+        string? checkHeadline = snapshot.LastCheckFailure is FailureInfo checkFailure
+            ? DiagnosticFailurePresentation.Headline(checkFailure, DiagnosticOperation.Thread) : null;
+        if (checkHeadline != null)
         {
-            activity = Texts.T("status.checkFailed", activity);
+            activity = Texts.T("status.checkFailed", activity) + " · " + checkHeadline;
         }
 
         Status = snapshot.SourceState switch
@@ -160,27 +181,32 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         };
         Completion = snapshot.SelectedMedia == 0 ? 0 : 100d * snapshot.CompletedMedia / snapshot.SelectedMedia;
         Progress = Texts.T("progress.media", CompletedMedia, SelectedMedia, Completion);
-        ExceptionHint = snapshot.MediaFailures.Count > 0 ? Texts.T("work.errorSummary", snapshot.MediaFailures.Count) : string.Empty;
+        ExceptionHint = snapshot.MediaFailures.Count > 0 ? Texts.Count("work.errorSummary", snapshot.MediaFailures.Count) : string.Empty;
         if (snapshot.Content?.ExcludedMedia > 0)
             Progress += " · " + Texts.T("progress.excluded", snapshot.Content.ExcludedMedia);
         Queued = snapshot.Downloads.Queued;
         Active = snapshot.Downloads.Active;
-        string[] mediaErrors = snapshot.MediaFailures.Values.Select(mediaFailure => mediaFailure.Message).Distinct().Take(5).ToArray();
-        ErrorDetails = string.Join(Environment.NewLine, mediaErrors);
+        string[] allMediaErrors = snapshot.MediaFailures.Values
+            .Select(mediaFailure => DiagnosticFailurePresentation.Line(mediaFailure, DiagnosticOperation.Media)).Distinct().ToArray();
+        string[] mediaErrors = allMediaErrors.Take(5).ToArray();
+        ErrorDetails = string.Join(Environment.NewLine, allMediaErrors.Length > 5 ? mediaErrors.Append(Texts.T("work.moreItems", allMediaErrors.Length - 5)) : mediaErrors);
         if (snapshot.LastCheckFailure is FailureInfo failure)
         {
-            ErrorDetails = string.IsNullOrEmpty(ErrorDetails) ? failure.Message : failure.Message + Environment.NewLine + ErrorDetails;
+            string inspector = DiagnosticFailurePresentation.Inspector(failure, DiagnosticOperation.Thread);
+            ErrorDetails = string.IsNullOrEmpty(ErrorDetails) ? inspector : inspector + Environment.NewLine + ErrorDetails;
         }
         if (snapshot.Content?.CaptureFailure is FailureInfo captureFailure)
-            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.archive") + ": " + captureFailure.Message;
+            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.archive") + ": " + DiagnosticFailurePresentation.Line(captureFailure, DiagnosticOperation.Capture);
         if (snapshot.Content?.SelectionFailure is FailureInfo selectionFailure)
-            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.rules") + ": " + selectionFailure.Message;
+            ErrorDetails += (ErrorDetails.Length == 0 ? string.Empty : Environment.NewLine) + Texts.T("nav.rules") + ": " + DiagnosticFailurePresentation.Line(selectionFailure, DiagnosticOperation.Selection);
 
         IssueDetails = ErrorDetails;
         ContextDetails = string.Empty;
+        NeedsIntervention = false;
         if (snapshot.Work is ThreadWorkSnapshot work)
         {
             WorkStatusPresentation presentation = WorkStatusFormatter.Format(work, _isPaused);
+            NeedsIntervention = presentation.NeedsIntervention;
             Status = presentation.Status;
             IssueDetails = string.Join(Environment.NewLine, new[] { presentation.IssueDetails, ErrorDetails }.Where(value => !string.IsNullOrEmpty(value)));
             ContextDetails = presentation.ContextDetails;
@@ -203,7 +229,7 @@ public sealed class ThreadRow : INotifyPropertyChanged, IDisposable
         // Durable media work does not erase the current check failure. Keep the
         // full failure in details and the lifecycle cue in the compact surface.
         if (snapshot.Work != null && snapshot.LastCheckFailure != null)
-            CompactStatus = Texts.T("status.checkFailed", CompactStatus);
+            CompactStatus = Texts.T("status.checkFailed", CompactStatus) + " · " + checkHeadline;
         if (snapshot.Work == null && _isPaused
             && snapshot.Activity is not (ThreadActivity.Stopped or ThreadActivity.Finished or ThreadActivity.NotFound))
             CompactStatus += " · " + Texts.T("work.paused");

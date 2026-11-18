@@ -7,13 +7,14 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Localization;
 using MeowChan.Interfaces;
 
 namespace MeowChan;
 
 public partial class ArchivePage
 {
-    private const int InlineReplyPageSize = 20;
+    // InlineReplyPageSize, ReplyCardMaxLines and ReplyCardMaxCharacters are clamped instance properties (ArchivePage.ReaderLimits.cs).
     private CancellationTokenSource? _inlineRepliesCancellation;
     private int _inlineRepliesRequest;
     private ArchivePostRow[] _inlineReplyRows = Array.Empty<ArchivePostRow>();
@@ -22,6 +23,7 @@ public partial class ArchivePage
     private void RefreshInlineReplies(ArchivePostRow[] rows)
     {
         CancelInlineReplies();
+        _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
         _inlineReplyRows = rows;
         if (rows.Length == 0 || _thread == null || _openReader == null || !CanRead || _ended) return;
         int request = _inlineRepliesRequest;
@@ -56,6 +58,7 @@ public partial class ArchivePage
             }
             Func<Task>? restoreLayout = CaptureReaderCountLayoutCorrection();
             foreach (ArchivePostRow row in rows) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
+            ApplyAutomaticRepliesToRealised(rows);
             if (restoreLayout != null) await restoreLayout();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -70,12 +73,18 @@ public partial class ArchivePage
         => !_ended && request == _inlineRepliesRequest && ReferenceEquals(rows, _inlineReplyRows)
             && _thread?.Summary.Id == thread;
 
-    private async void OnRepliesExpanded(object? sender, RoutedEventArgs e)
+    // The header counter opens and closes the nested reply cards; the first opening loads the first page.
+    private async void OnReplyToggleClick(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Expander { DataContext: ArchivePostRow row } || row.RepliesLoaded) return;
-        await LoadInlineRepliesAsync(row);
+        if (sender is Button { DataContext: ArchivePostRow row }) await SetRepliesExpandedAsync(row, !row.RepliesExpanded);
     }
-    private void OnRepliesCollapsed(object? sender, RoutedEventArgs e) { }
+
+    internal async Task SetRepliesExpandedAsync(ArchivePostRow row, bool open)
+    {
+        RememberReplyChoice(row, open);
+        row.RepliesExpanded = open;
+        if (open && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
+    }
     private async void OnMoreRepliesClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: ArchivePostRow row }) await LoadInlineRepliesAsync(row);
@@ -89,6 +98,7 @@ public partial class ArchivePage
         ArchivePostRow[] rows = _inlineReplyRows;
         ResourceId thread = _thread.Summary.Id;
         CancellationToken token = _inlineRepliesCancellation?.Token ?? _lifetime.Token;
+        int loadedBefore = row.Replies.Count;
         row.SetRepliesLoading(true);
         row.SetRepliesError(null);
         try
@@ -96,8 +106,9 @@ public partial class ArchivePage
             await using ArchiveReader reader = await _openReader(token);
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
                 row.Replies.Count, InlineReplyPageSize, token);
-            if (!InlineReplyPageCurrent(rows, thread, request)) return;
-            row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => new ArchiveQuoteRow(quote, true, thread))).ToArray()),
+            // A history restore may have put loaded pages on the row while this one was on its way; its offset is then stale.
+            if (!InlineReplyPageCurrent(rows, thread, request) || row.Replies.Count != loadedBefore) return;
+            row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -106,5 +117,16 @@ public partial class ArchivePage
             if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesError(exception.Message);
         }
         finally { if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesLoading(false); }
+    }
+
+    // A reply of this thread becomes a card with its header and the first lines of its text; a reply from another
+    // thread (or one that was never captured) keeps the plain reference.
+    private ArchiveQuoteRow ReplyCard(ArchiveQuote quote, ResourceId thread)
+    {
+        ArchiveQuoteRow row = new(quote, true, thread);
+        if (PreviewPost(row) is not { } post) return row;
+        (string header, string excerpt) = ArchivePresentation.PostExcerpt(post, ReplyCardMaxLines, ReplyCardMaxCharacters,
+            ReaderDateStyle, ExcerptOpeningPostAt(row), DateTimeOffset.Now);
+        return row with { ReplyHeader = header, ReplyExcerpt = PostFilterReplyExcerpt(post, excerpt) };
     }
 }

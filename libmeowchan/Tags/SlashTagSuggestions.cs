@@ -10,7 +10,11 @@ namespace MeowChan.Tags;
 /// </summary>
 internal static class SlashTagSuggestions
 {
-    internal const int MaximumSuggestions = 8;
+    internal const int DefaultSuggestionCount = 8;
+    internal const int MinimumSuggestionCount = 3;
+    internal const int MaximumSuggestionCount = 20;
+    // Compatibility name: the old no-options API still offers at most eight suggestions.
+    internal const int MaximumSuggestions = DefaultSuggestionCount;
     /// <summary>Per input text; later text is not inspected.</summary>
     internal const int MaximumScannedCharacters = 8192;
     internal const int MaximumTokenCharacters = 32;
@@ -20,15 +24,20 @@ internal static class SlashTagSuggestions
     /// boundary on both sides (not a letter, digit or slash), so paths, URLs and dates do not match.
     /// The token is lowercased; equality follows the normal tag-name comparison.
     /// </summary>
-    internal static IReadOnlyList<PrivateTagName> Detect(params string?[] texts)
+    internal static IReadOnlyList<PrivateTagName> Detect(params string?[] texts) => Detect(DefaultSuggestionCount, texts);
+
+    /// <summary>The result count is configurable; the per-text scan and per-token safety ceilings are unchanged.</summary>
+    internal static IReadOnlyList<PrivateTagName> Detect(int suggestionCount, params string?[] texts)
     {
+        if (suggestionCount is < MinimumSuggestionCount or > MaximumSuggestionCount)
+            throw new ArgumentOutOfRangeException(nameof(suggestionCount));
         ArgumentNullException.ThrowIfNull(texts);
         List<PrivateTagName> found = new();
         foreach (string? text in texts)
         {
             if (string.IsNullOrEmpty(text)) continue;
             int limit = Math.Min(text.Length, MaximumScannedCharacters);
-            for (int index = 0; index < limit && found.Count < MaximumSuggestions; index++)
+            for (int index = 0; index < limit && found.Count < suggestionCount; index++)
             {
                 if (text[index] != '/' || index > 0 && IsWordOrSlash(text[index - 1])) continue;
                 int end = index + 1;
@@ -46,7 +55,7 @@ internal static class SlashTagSuggestions
                     found.Add(name!);
                 index = end; // The closing slash is consumed and cannot open another marker.
             }
-            if (found.Count >= MaximumSuggestions) break;
+            if (found.Count >= suggestionCount) break;
         }
         return found.AsReadOnly();
     }

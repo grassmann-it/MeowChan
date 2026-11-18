@@ -24,8 +24,9 @@ public sealed class SevenChanPlugin : ISourcePlugin
     private static readonly Regex CatalogAnchor = new Regex(
         @"<a\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bcattile\b[^""']*[""'])[^>]*\bhref\s*=\s*[""'](?<href>[^""']+)[""'][^>]*>(?<body>.*?)</a\s*>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
+    // Kusaba X prints the post id unquoted (<div class="post" id=677>); quoted ids stay accepted.
     private static readonly Regex PostOpen = new Regex(
-        @"<div\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bpost\b[^""']*[""'])[^>]*\bid\s*=\s*[""'](?<id>[0-9]+)[""'][^>]*>",
+        @"<div\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bpost\b[^""']*[""'])[^>]*\bid\s*=\s*(?:[""'](?<id>[0-9]+)[""']|(?<id>[0-9]+)(?=[\s/>]))[^>]*>",
         RegexOptions.Compiled | RegexOptions.IgnoreCase | RegexOptions.Singleline);
     private static readonly Regex Attribute = new Regex(
         @"\b(?<name>[A-Za-z][A-Za-z0-9:_-]*)\s*=\s*[""'](?<value>[^""']*)[""']",
@@ -205,7 +206,22 @@ public sealed class SevenChanPlugin : ISourcePlugin
     private static List<SourceAttachment> ParseAttachments(SourceThreadId thread, string postId, string html)
     {
         List<SourceAttachment> attachments = new List<SourceAttachment>();
-        foreach (Match anchor in Anchors(html))
+        // A file is linked several times (name, download icon, thumbnail); one original is one attachment.
+        HashSet<string> seen = new HashSet<string>(StringComparer.Ordinal);
+        List<Match> anchors = Anchors(html).ToList();
+        // The poster's file name is only printed in the download icon's attribute; the first link of a file in a
+        // multi-file post reads "pdf (5.75MB)" (type and size), which is not a file name.
+        Dictionary<string, string> downloadNames = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (Match anchor in anchors)
+        {
+            string? download = AttributeValue(anchor.Groups["attrs"].Value, "download");
+            string? target = AttributeValue(anchor.Groups["attrs"].Value, "href");
+            if (!string.IsNullOrWhiteSpace(download) && target is not null
+                && Uri.TryCreate(Origin, WebUtility.HtmlDecode(target).Trim(), out Uri? linked) && linked is not null)
+                downloadNames.TryAdd(linked.AbsoluteUri, WebUtility.HtmlDecode(download).Trim());
+        }
+        Dictionary<string, SourceSizeHint> sizeHints = SizeHints(anchors, html);
+        foreach (Match anchor in anchors)
         {
             string href = AttributeValue(anchor.Groups["attrs"].Value, "href") ?? string.Empty;
             if (!Uri.TryCreate(Origin, WebUtility.HtmlDecode(href).Trim(), out Uri? candidate)
@@ -213,16 +229,57 @@ public sealed class SevenChanPlugin : ISourcePlugin
                 || candidate.Query.Length != 0 || candidate.Fragment.Length != 0
                 || !candidate.AbsolutePath.StartsWith("/" + thread.BoardId + "/src/", StringComparison.Ordinal)
                 || !SafeMediaPath(candidate.AbsolutePath)) continue;
+            if (!seen.Add(candidate.AbsoluteUri)) continue;
             string fileName = candidate.AbsolutePath[(candidate.AbsolutePath.LastIndexOf('/') + 1)..];
             if (fileName.Length == 0) throw new InvalidDataException("An original media link has no file name.");
+            string? extension = Extension(fileName);
             string? displayName = StripTags(anchor.Groups["body"].Value).Trim();
+            downloadNames.TryGetValue(candidate.AbsoluteUri, out string? downloadName);
             attachments.Add(new SourceAttachment(attachments.Count,
                 postId + "-" + attachments.Count.ToString(CultureInfo.InvariantCulture),
-                Url: candidate, OriginalFileName: string.IsNullOrEmpty(displayName) ? fileName : displayName,
-                Extension: Extension(fileName)));
+                Url: candidate, OriginalFileName: FileNameOf(extension, displayName, downloadName, fileName),
+                Extension: extension) { ProviderSizeHint = sizeHints.GetValueOrDefault(candidate.AbsoluteUri) });
             if (attachments.Count > 1024) throw new InvalidDataException("Too many attachments.");
         }
         return attachments;
+    }
+
+    // 7chan prints a rounded size, always in KiB/MiB/GiB steps: "(355.92KB, 2048x1536, a.jpg)" after a single file
+    // and "pdf (5.75MB)" as the text of the first link of a file in a multi-file post. It is an annotation, not an
+    // exact byte count, so it is reported as a rounded size hint and never as ExpectedSize.
+    private static readonly Regex DisplayedSize = new Regex(
+        @"\(\s*(?<value>[0-9]{1,12}(?:\.[0-9]{1,3})?)\s*(?<unit>[KMG]?B)\b", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex DashedSize = new Regex(@"(?<![\w.])-\s*" + DisplayedSize.ToString(),
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+    private static readonly Regex TypeAndSizeLabel = new Regex(
+        @"^[A-Za-z0-9]{1,32}\s*\(\s*[0-9]{1,12}(?:\.[0-9]{1,3})?\s*[KMG]?B\s*\)$", RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
+    private static Dictionary<string, SourceSizeHint> SizeHints(List<Match> anchors, string html)
+    {
+        Dictionary<string, SourceSizeHint> hints = new Dictionary<string, SourceSizeHint>(StringComparer.Ordinal);
+        void Add(string? href, string text, Regex pattern)
+        {
+            Match size = pattern.Match(text);
+            if (!size.Success || href is null
+                || !Uri.TryCreate(Origin, WebUtility.HtmlDecode(href).Trim(), out Uri? target) || target is null) return;
+            hints.TryAdd(target.AbsoluteUri,
+                new SourceSizeHint(size.Groups["value"].Value, size.Groups["unit"].Value, SourceSizePrecision.Rounded));
+        }
+        // Multi-file post: the text of the first link is the whole label.
+        foreach (Match anchor in anchors)
+        {
+            string label = StripTags(anchor.Groups["body"].Value).Trim();
+            if (TypeAndSizeLabel.IsMatch(label)) Add(AttributeValue(anchor.Groups["attrs"].Value, "href"), label, DisplayedSize);
+        }
+        // Single-file post: the file_size paragraph holds the file link and, after it, the size.
+        foreach (Match block in Regex.Matches(html,
+            @"<p\b(?=[^>]*\bclass\s*=\s*[""'][^""']*\bfile_size\b[^""']*[""'])[^>]*>(?<body>.*?)</p\s*>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            Match? first = Anchors(block.Groups["body"].Value).FirstOrDefault();
+            if (first is not null) Add(AttributeValue(first.Groups["attrs"].Value, "href"), StripTags(block.Groups["body"].Value), DashedSize);
+        }
+        return hints;
     }
 
     private static IEnumerable<Match> Anchors(string html)
@@ -301,7 +358,24 @@ public sealed class SevenChanPlugin : ISourcePlugin
     private static string? Extension(string name)
     {
         int dot = name.LastIndexOf('.');
-        return dot > 0 && dot < name.Length - 1 ? name[dot..] : null;
+        string? extension = dot > 0 && dot < name.Length - 1 ? name[dot..] : null;
+        return extension is not null && Regex.IsMatch(extension, @"^\.[A-Za-z0-9]{1,32}$", RegexOptions.CultureInvariant)
+            ? extension : null;
+    }
+
+    // The first name that ends in the extension of the linked file: the link text (a plain file name for a single
+    // file), the download attribute, then the link's own file name. "pdf (5.75MB)" ends in ".75MB)" and is skipped.
+    private static string FileNameOf(string? extension, string? displayName, string? downloadName, string urlFileName)
+    {
+        foreach (string? candidate in new[] { displayName, downloadName })
+            if (!string.IsNullOrEmpty(candidate) && candidate.Length <= 255
+                && candidate.IndexOfAny(['/', '\\', '\0', '\r', '\n']) < 0
+                && (extension is null
+                    ? Extension(candidate) is null
+                    : candidate.EndsWith(extension, StringComparison.OrdinalIgnoreCase) && candidate.Length > extension.Length))
+                return candidate;
+        string decoded = Uri.UnescapeDataString(urlFileName);
+        return decoded.IndexOfAny(['/', '\\', '\0', '\r', '\n']) < 0 && decoded.Length <= 255 ? decoded : urlFileName;
     }
 
     private static Uri ThreadUri(string board, string thread)

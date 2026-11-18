@@ -15,22 +15,24 @@ public sealed class FirstRunWindowChromeTests
 
         Assert.Equal("BorderOnly", (string?)window.Attribute("WindowDecorations"));
         Assert.Equal("True", (string?)window.Attribute("ExtendClientAreaToDecorationsHint"));
-        Assert.Equal("48", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
-        Assert.Equal("720", (string?)window.Attribute("Width"));
-        Assert.Equal("700", (string?)window.Attribute("Height"));
-        Assert.Equal("440", (string?)window.Attribute("MinWidth"));
-        Assert.Equal("400", (string?)window.Attribute("MinHeight"));
+        Assert.Equal("{x:Static desktop:WorkspaceMetrics.TitleBarHeight}", (string?)window.Attribute("ExtendClientAreaTitleBarHeightHint"));
+        // Modals plan MD3: the size comes from the dialog factory's L step, not from XAML literals.
+        foreach (string literal in new[] { "WindowStartupLocation", "Width", "Height", "MinWidth", "MinHeight" })
+            Assert.Null(window.Attribute(literal));
+        Assert.Contains("DialogWindow.Configure(this, DialogSize.L, modal: true);", File.ReadAllText(Source("Desktop/Views/Settings/FirstRunSetupWindow.axaml.cs")));
 
         XElement root = window.Elements().Single(e => e.Name.LocalName == "Grid");
-        Assert.Equal("48,*", (string?)root.Attribute("RowDefinitions"));
+        Assert.Equal("Auto,*", (string?)root.Attribute("RowDefinitions"));
         Assert.Equal("{DynamicResource Workspace.Background}", (string?)root.Attribute("Background"));
         Assert.Single(root.Elements().Where(e => e.Name.LocalName == "WindowChromeBar"));
 
         XElement content = root.Elements().Single(e => e.Name.LocalName == "Grid" &&
             (string?)e.Attribute(x + "Name") == null);
-        Assert.Equal("Auto,*,Auto", (string?)content.Attribute("RowDefinitions"));
-        Assert.Equal("20", (string?)content.Attribute("Margin"));
-        Assert.Equal("12", (string?)content.Attribute("RowSpacing"));
+        // UX103 P7 dialog frame: header, error strip, scrolling body, full-width footer.
+        // The 20 px content inset moved from the frame grid onto header and body.
+        Assert.Equal("Auto,Auto,*,Auto", (string?)content.Attribute("RowDefinitions"));
+        Assert.Null(content.Attribute("Margin"));
+        Assert.Equal("16,16,16,8", (string?)content.Elements().Single(e => (string?)e.Attribute(x + "Name") == "DialogFrameHeader").Attribute("Padding"));
     }
 
     [Fact]

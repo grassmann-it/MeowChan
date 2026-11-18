@@ -14,6 +14,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -33,13 +34,12 @@ internal sealed class ArchiveCleanupDialog : Window
     private readonly TextBlock _selectionSummary = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly TextBox _search = new();
+    private readonly MeowChan.Desktop.Controls.SearchBox _search = new();
     private readonly ComboBox _filter = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ListBox _list = new();
     private readonly StackPanel _inventoryControls = new() { Spacing = 8 };
     private readonly TextBox _details = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 52, MaxHeight = 100 };
     private readonly Expander _detailsSection = new() { HorizontalAlignment = HorizontalAlignment.Stretch, IsVisible = false };
-    private readonly TextBlock _heading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _candidatesHeading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _lossHeading = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _loss = new() { TextWrapping = TextWrapping.Wrap };
@@ -84,8 +84,9 @@ internal sealed class ArchiveCleanupDialog : Window
         _execute = (plan, token, _) => execute(plan, token);
         _openThreads = openThreads; _openFolder = openFolder;
         _lifetime = CancellationTokenSource.CreateLinkedTokenSource(lifetime);
-        Name = "ArchiveCleanupDialog"; Width = 820; Height = 700; MinWidth = 360; MinHeight = 380;
-        WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        // Modals plan MD2: the list step of the dialog factory (modal, fitted to the screen); the title stands in the title bar only.
+        Name = "ArchiveCleanupDialog";
+        DialogWindow.Configure(this, DialogSize.L, modal: true);
         NameScope names = new(); NameScope.SetNameScope(this, names);
         T Named<T>(T control, string suffix) where T : Control
         { string name = "ArchiveCleanup" + suffix; control.Name = name; names.Register(name, control); return control; }
@@ -96,9 +97,11 @@ internal sealed class ArchiveCleanupDialog : Window
         Named(_confirm, "Confirm"); Named(_back, "Back"); Named(_cancel, "Cancel"); Named(_close, "Close"); Named(_folder, "OpenFolder");
         _error.Classes.Add("workspace-error");
         _hint.Classes.Add("workspace-help"); _scope.Classes.Add("workspace-meta"); _loss.Classes.Add("workspace-warning");
-        _heading.Classes.Add("page-title"); _candidatesHeading.Classes.Add("section-title");
+        _candidatesHeading.Classes.Add("section-title");
         _lossHeading.Classes.Add("section-title"); _selectionSummary.Classes.Add("section-title");
         _review.Classes.Add("primary"); _confirm.Classes.Add("danger");
+        // I1b: the secondary tools carry a catalog icon before their text (primary and danger actions stay text).
+        MeowChan.Desktop.Controls.IconButtons.WithText(_refresh, "refresh-cw"); MeowChan.Desktop.Controls.IconButtons.WithText(_selectShown, "check-square"); MeowChan.Desktop.Controls.IconButtons.WithText(_clear, "x");
         _back.Classes.Add("subtle"); _close.Classes.Add("subtle");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
@@ -131,17 +134,17 @@ internal sealed class ArchiveCleanupDialog : Window
                     directory = Path.GetDirectoryName(Path.TrimEndingDirectorySeparator(directory)) ?? directory;
                 _openFolder?.Invoke(directory);
             }
-            catch (Exception error) { _error.Text = T("Could not open the storage folder.", "Speicherordner konnte nicht geöffnet werden.") + "\n" + error.Message; }
+            catch (Exception error) { _error.Text = Texts.T("archive.cleanup.error.openFolder") + "\n" + Texts.T("error.detail", error.Message); }
         };
         Named(_hint, "Hint");
+        // Fixed header: task, protection rules and archive scope stay in view while the inventory scrolls.
         StackPanel header = new() { Spacing = 12 };
-        header.Children.Add(_heading); header.Children.Add(_hint); header.Children.Add(_scope);
+        header.Children.Add(_hint); header.Children.Add(_scope);
         _inventoryControls.Children.Add(_candidatesHeading);
         _inventoryControls.Children.Add(_search);
         _inventoryControls.Children.Add(_filter);
         WrapPanel choose = new() { ItemSpacing = 8, LineSpacing = 8 };
         choose.Children.Add(_selectShown); choose.Children.Add(_clear); _inventoryControls.Children.Add(choose);
-        header.Children.Add(_inventoryControls);
         StackPanel detailsContent = new() { Spacing = 8 };
         detailsContent.Children.Add(_details); detailsContent.Children.Add(_folder);
         _detailsSection.Content = detailsContent;
@@ -153,31 +156,25 @@ internal sealed class ArchiveCleanupDialog : Window
         // Visibility follows the confirmation itself, without a blank warning surface in the preview.
         _confirmation.PropertyChanged += (_, e) => { if (e.Property == IsVisibleProperty) warning.IsVisible = _confirmation.IsVisible; };
         warning.IsVisible = false; bottom.Children.Add(warning);
-        _outcome.Children.Add(_status); _outcome.Children.Add(_error);
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        actions.Classes.Add("workspace-actions");
-        foreach (Button button in new[] { _refresh, _close, _cancel, _back, _review, _confirm }) actions.Children.Add(button);
-        StackPanel footerContent = new() { Spacing = 12 };
-        footerContent.Children.Add(new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
-        footerContent.Children.Add(actions);
-        Border footer = new() { Child = footerContent }; footer.Classes.Add("workspace-dialog-footer");
-        // Inventory/loss details scroll independently; the next safe action stays in the fixed footer.
-        Grid body = new() { Margin = new Thickness(16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 16 };
-        body.Children.Add(header); body.Children.Add(_list); Grid.SetRow(_list, 1);
+        _outcome.Children.Add(_status);
+        // The outcome keeps the full width above the actions; the confirm step's action stands right-most (review and confirm never show together).
+        Border footer = DialogFooter.Build(_confirm, new Control[] { _refresh, _close, _cancel, _back, _review },
+            new ScrollViewer { Content = _outcome, MaxHeight = 200, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled }, statusAbove: true);
+        // Inventory, details and loss summary scroll; the next safe action stays in the fixed footer.
+        Grid body = new() { Margin = new Thickness(16, 0, 16, 16), RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 16 };
+        body.Children.Add(_inventoryControls); body.Children.Add(_list); Grid.SetRow(_list, 1);
         body.Children.Add(bottom); Grid.SetRow(bottom, 2);
         _list.MinHeight = 100; _list.Height = 240;
-        Grid layout = new() { RowDefinitions = new RowDefinitions("*,Auto") };
-        layout.Children.Add(new ScrollViewer { Content = body, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled });
-        layout.Children.Add(footer); Grid.SetRow(footer, 1); Content = layout;
-        KeyboardNavigation.SetTabNavigation(layout, KeyboardNavigationMode.Cycle);
+        DialogWindow.Frame(this, DialogFrame.Build(header, body, footer, DialogFrame.ErrorStrip(_error)), modal: true);
         names.Complete();
         Localize();
-        KeyDown += (_, e) =>
+        // Escape cancels the running operation, then the confirmation step, then closes (RequestClose defers while busy).
+        DialogEscape.Attach(this, () =>
         {
-            if (e.Key != Key.Escape) return;
-            e.Handled = true;
-            if (_busy) CancelOperation(); else if (_plan != null) EndConfirmation(); else RequestClose();
-        };
+            if (_busy) { CancelOperation(); return true; }
+            if (_plan == null) return false;
+            EndConfirmation(); return true;
+        }, close: RequestClose);
         Closing += (_, e) =>
         {
             if (!_busy) return;
@@ -188,7 +185,6 @@ internal sealed class ArchiveCleanupDialog : Window
         Opened += async (_, _) => { _refresh.Focus(); await RefreshAsync(); };
     }
 
-    private static string T(string en, string de) => ArchiveCleanupText.Get(en, de);
     private void OnLanguageChanged(object? sender, EventArgs args)
     {
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(Localize); return; }
@@ -197,37 +193,35 @@ internal sealed class ArchiveCleanupDialog : Window
     private void Localize()
     {
         if (_closed) return;
-        Title = ArchiveCleanupText.Title; _heading.Text = Title;
-        _candidatesHeading.Text = T("Archive inventory", "Archivbestand");
-        _detailsSection.Header = T("Selected thread: details and storage", "Gewählter Thread: Details und Speicherort");
-        _lossHeading.Text = T("This local data will be permanently deleted", "Diese lokalen Daten werden endgültig gelöscht");
-        _hint.Text = T("Review the whole archive. Candidates have 0–2 verified saved asset versions, including history and variants. Favorites, ratings, bookmarks, groups, reading positions and unfinished work are protected. Unknown storage is never treated as empty.",
-            "Prüft das gesamte Archiv. Kandidaten haben 0–2 nachgewiesene gespeicherte Assetfassungen, einschließlich Historie und Varianten. Favoriten, Bewertungen, Lesezeichen, Gruppen, Lesestellen und unerledigte Aufträge sind geschützt. Unbekannter Speicher gilt niemals als leer.");
-        _search.PlaceholderText = T("Search identity or title", "Identität oder Titel suchen");
+        Title = ArchiveCleanupText.Title;
+        _candidatesHeading.Text = Texts.T("archive.cleanup.inventory");
+        _detailsSection.Header = Texts.T("archive.cleanup.details.heading");
+        _lossHeading.Text = Texts.T("archive.cleanup.loss.heading");
+        _hint.Text = Texts.T("archive.cleanup.hint");
+        _search.PlaceholderText = Texts.T("archive.cleanup.search");
         AutomationProperties.SetName(_search, _search.PlaceholderText);
-        AutomationProperties.SetName(_filter, T("Preview filter", "Vorschaufilter"));
-        AutomationProperties.SetName(_list, T("Archive inventory — use the checkboxes to select candidates", "Archivbestand — Kandidaten über Kontrollkästchen auswählen"));
-        AutomationProperties.SetName(_details, T("Thread details and storage location", "Threaddetails und Speicherort"));
+        AutomationProperties.SetName(_filter, Texts.T("archive.cleanup.filter.label"));
+        AutomationProperties.SetName(_list, Texts.T("archive.cleanup.list.label"));
+        AutomationProperties.SetName(_details, Texts.T("archive.cleanup.details.label"));
         int filter = Math.Max(0, _filter.SelectedIndex);
         _localizing = true;
         try
         {
-            _filter.ItemsSource = new[] { T("All archive threads", "Alle Archivthreads"), T("Candidates", "Kandidaten"),
-                T("Protected", "Geschützt"), T("Unfinished work", "Unerledigte Aufträge"),
-                T("Unknown or unconfirmed storage", "Unbekannt oder Speicherort unbestätigt"), T("Keep: more than 2", "Behalten: mehr als 2") };
+            _filter.ItemsSource = new[] { Texts.T("archive.cleanup.filter.all"), Texts.T("archive.cleanup.filter.candidates"),
+                Texts.T("archive.cleanup.state.protected"), Texts.T("archive.cleanup.filter.active"),
+                Texts.T("archive.cleanup.filter.unknown"), Texts.T("archive.cleanup.filter.kept") };
             _filter.SelectedIndex = filter;
         }
         finally { _localizing = false; }
-        _refresh.Content = T("Check again", "Neu prüfen");
-        _selectShown.Content = T("Select shown candidates", "Sichtbare Kandidaten auswählen");
-        _clear.Content = T("Clear selection", "Auswahl leeren");
-        _review.Content = T("Review deletion…", "Löschung prüfen…");
-        _confirm.Content = T("Permanently delete locally", "Lokal endgültig löschen");
-        _back.Content = T("Back to selection", "Zurück zur Auswahl");
-        _cancel.Content = T("Cancel operation", "Vorgang abbrechen"); _close.Content = T("Close", "Schließen");
-        _folder.Content = T("Open storage folder", "Speicherordner öffnen");
-        _ack.Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = T("I understand: the selected local archive data will be permanently deleted, without a recycle bin.",
-            "Ich verstehe: Die ausgewählten lokalen Archivdaten werden endgültig ohne Papierkorb gelöscht.") };
+        _refresh.Content = Texts.T("archive.cleanup.refresh");
+        _selectShown.Content = Texts.T("archive.cleanup.selectShown");
+        _clear.Content = Texts.T("archive.cleanup.clearSelection");
+        _review.Content = Texts.T("archive.cleanup.review");
+        _confirm.Content = Texts.T("archive.cleanup.confirm");
+        _back.Content = Texts.T("archive.cleanup.back");
+        _cancel.Content = Texts.T("archive.cleanup.cancelOperation"); _close.Content = Texts.T("action.close");
+        _folder.Content = Texts.T("archive.cleanup.openFolder");
+        _ack.Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = Texts.T("archive.cleanup.acknowledge") };
         RenderRows(); UpdateSummary(); UpdateLoss(); UpdateActions();
     }
 
@@ -258,8 +252,8 @@ internal sealed class ArchiveCleanupDialog : Window
         identity.Classes.Add("workspace-meta"); text.Children.Add(identity);
         StackPanel state = new() { Spacing = 4 };
         state.Children.Add(new TextBlock { Text = row.Media.SavedAssetCount is int count
-            ? T($"{count:N0} saved versions", $"{count:N0} gespeicherte Fassungen")
-            : T("Saved versions: unknown", "Gespeicherte Fassungen: unbekannt"), TextWrapping = TextWrapping.Wrap });
+            ? Texts.Count("archive.cleanup.row.versions", count)
+            : Texts.T("archive.cleanup.row.versionsUnknown"), TextWrapping = TextWrapping.Wrap });
         TextBlock protection = new() { Text = ArchiveCleanupText.State(row.Eligibility)
             + (row.Reasons.Count > 0 ? " · " + ArchiveCleanupText.Reasons(row) : ""), TextWrapping = TextWrapping.Wrap };
         protection.Classes.Add("workspace-meta"); state.Children.Add(protection);
@@ -287,21 +281,22 @@ internal sealed class ArchiveCleanupDialog : Window
         _details.IsVisible = row != null;
         _folder.MaxWidth = 300;
         _folder.Content = new TextBlock { TextWrapping = TextWrapping.Wrap, Text = row?.Media.SavedAssetCount == null
-            ? T("Open parent storage folder", "Übergeordneten Speicherordner öffnen")
-            : T("Open storage folder", "Speicherordner öffnen") };
+            ? Texts.T("archive.cleanup.openParentFolder")
+            : Texts.T("archive.cleanup.openFolder") };
         _folder.IsVisible = row != null && _openFolder != null; UpdateActions();
     }
     private void UpdateSummary()
     {
         var preview = _selection.Preview;
-        _scope.Text = preview == null ? T("Inventory has not been checked.", "Bestand noch nicht geprüft.")
-            : T($"Whole archive: {preview.Rows.Count:N0} threads · {preview.Rows.Count(row => row.Eligibility == ArchiveCleanupEligibility.Candidate):N0} candidates. ",
-                $"Gesamtes Archiv: {preview.Rows.Count:N0} Threads · {preview.Rows.Count(row => row.Eligibility == ArchiveCleanupEligibility.Candidate):N0} Kandidaten. ")
-                + (!preview.Complete ? T("Incomplete inventory — selection is locked.", "Bestand unvollständig — Auswahl gesperrt.")
-                    : _selection.Invalidated || preview.IsStale ? ArchiveCleanupText.Stale : T("Nothing is selected automatically.", "Es wird nichts automatisch ausgewählt."));
+        _scope.Text = preview == null ? Texts.T("archive.cleanup.scope.unchecked")
+            : Texts.T("archive.cleanup.scope.whole", preview.Rows.Count,
+                preview.Rows.Count(row => row.Eligibility == ArchiveCleanupEligibility.Candidate))
+                + (!preview.Complete ? Texts.T("archive.cleanup.scope.incomplete")
+                    : _selection.Invalidated || preview.IsStale ? ArchiveCleanupText.Stale : Texts.T("archive.cleanup.scope.nothingSelected"));
         var selected = _selection.SelectedRows;
-        _selectionSummary.Text = T($"Selected across all filters: {selected.Count:N0} threads · {selected.Sum(row => (long)row.PostCount):N0} posts · {selected.Sum(row => (long)(row.Media.SavedAssetCount ?? 0)):N0} saved versions · {selected.Sum(row => row.Media.VerifiedBytes):N0} verified media bytes.",
-            $"Über alle Filter ausgewählt: {selected.Count:N0} Threads · {selected.Sum(row => (long)row.PostCount):N0} Beiträge · {selected.Sum(row => (long)(row.Media.SavedAssetCount ?? 0)):N0} gespeicherte Fassungen · {selected.Sum(row => row.Media.VerifiedBytes):N0} nachgewiesene Medienbytes.");
+        _selectionSummary.Text = Texts.T("archive.cleanup.selection.summary", selected.Count,
+            selected.Sum(row => (long)row.PostCount), selected.Sum(row => (long)(row.Media.SavedAssetCount ?? 0)),
+            selected.Sum(row => row.Media.VerifiedBytes));
     }
     private void UpdateActions()
     {
@@ -328,11 +323,10 @@ internal sealed class ArchiveCleanupDialog : Window
     private void UpdateLoss()
     {
         if (_plan == null) return;
-        _loss.Text = T($"Permanently remove {_plan.SelectedIds.Count:N0} selected threads, {_plan.PostCount:N0} archived posts and {_plan.AssetCount:N0} saved asset versions. The confirmed owned file plan contains {_plan.OwnedBytes:N0} bytes, including archive housekeeping.\n",
-            $"{_plan.SelectedIds.Count:N0} ausgewählte Threads, {_plan.PostCount:N0} archivierte Beiträge und {_plan.AssetCount:N0} gespeicherte Assetfassungen endgültig entfernen. Der bestätigte Dateiplan umfasst {_plan.OwnedBytes:N0} Bytes einschließlich Archivverwaltungsdateien.\n")
+        _loss.Text = Texts.T("archive.cleanup.loss.summary", _plan.SelectedIds.Count,
+            _plan.PostCount, _plan.AssetCount, _plan.OwnedBytes)
             + string.Join("\n", _plan.SelectedIds.Select(ArchiveCleanupText.Identity)) + "\n"
-            + T("Exports and unrelated files remain. Download and watch jobs remain unchanged.",
-                "Exporte und fremde Dateien bleiben erhalten. Download- und Beobachtungsaufträge bleiben unverändert.");
+            + Texts.T("archive.cleanup.loss.remains");
     }
 
     private CancellationTokenSource BeginOperation(bool executing = false)
@@ -356,7 +350,7 @@ internal sealed class ArchiveCleanupDialog : Window
         int generation = ++_generation;
         _selection.Invalidate(); _plan = null; _ack.IsChecked = false; RenderRows();
         var operation = BeginOperation();
-        _status.Text = T("Checking local archive and protection data…", "Lokales Archiv und Schutzdaten werden geprüft…");
+        _status.Text = Texts.T("archive.cleanup.status.checking");
         try
         {
             ResourceId[] open = _openThreads().Distinct().ToArray();
@@ -365,12 +359,12 @@ internal sealed class ArchiveCleanupDialog : Window
             operation.Token.ThrowIfCancellationRequested();
             _selection.Load(preview); RenderRows();
             _error.Text = string.Join("\n", preview.Errors);
-            _status.Text = preview.IsStale ? ArchiveCleanupText.Stale : T("Inventory checked. Choose the candidates you want to remove.", "Bestand geprüft. Gewünschte Kandidaten bewusst auswählen.");
+            _status.Text = preview.IsStale ? ArchiveCleanupText.Stale : Texts.T("archive.cleanup.status.checked");
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
-        { if (!_closed) _status.Text = T("Check canceled. Check again before selecting.", "Prüfung abgebrochen. Vor der Auswahl neu prüfen."); }
+        { if (!_closed) _status.Text = Texts.T("archive.cleanup.status.checkCanceled"); }
         catch (Exception error)
-        { if (!_closed) _error.Text = T("The inventory could not be verified. Nothing is selected.", "Bestand konnte nicht geprüft werden. Es ist nichts ausgewählt.") + "\n" + error.Message; }
+        { if (!_closed) _error.Text = Texts.T("archive.cleanup.error.inventory") + "\n" + Texts.T("error.detail", error.Message); }
         finally { EndOperation(operation); if (!_closed) { RenderRows(); FocusAfterLayout(_refresh, _outcome); } }
     }
     private async Task ReviewAsync()
@@ -379,7 +373,7 @@ internal sealed class ArchiveCleanupDialog : Window
         ArchiveCleanupPreview preview = _selection.Preview!;
         ResourceId[] ids = _selection.FreezeSelected();
         var operation = BeginOperation();
-        _status.Text = T("Rechecking this exact selection before confirmation…", "Genau diese Auswahl wird vor der Bestätigung erneut geprüft…");
+        _status.Text = Texts.T("archive.cleanup.status.rechecking");
         try
         {
             ResourceId[] open = _openThreads().Distinct().ToArray();
@@ -394,12 +388,12 @@ internal sealed class ArchiveCleanupDialog : Window
                 _error.Text = string.Join("\n", plan.Reasons); RenderRows(); return;
             }
             _plan = plan; _ack.IsChecked = false; UpdateLoss();
-            _status.Text = T("Review the loss summary. Deletion needs your explicit confirmation.", "Verlustübersicht prüfen. Erst die bewusste Bestätigung erlaubt das Löschen.");
+            _status.Text = Texts.T("archive.cleanup.status.reviewLoss");
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
-        { if (!_closed) { _selection.Invalidate(); _status.Text = T("Review canceled. Check again.", "Prüfung abgebrochen. Neu prüfen."); } }
+        { if (!_closed) { _selection.Invalidate(); _status.Text = Texts.T("archive.cleanup.status.reviewCanceled"); } }
         catch (Exception error)
-        { if (!_closed) { _selection.Invalidate(); _status.Text = ArchiveCleanupText.Stale; _error.Text = error.Message; } }
+        { if (!_closed) { _selection.Invalidate(); _status.Text = ArchiveCleanupText.Stale; _error.Text = Texts.T("archive.cleanup.error.preview", error.Message); } }
         finally
         {
             EndOperation(operation);
@@ -415,7 +409,7 @@ internal sealed class ArchiveCleanupDialog : Window
     {
         if (_busy || _closed || _plan is not { CanExecute: true } plan || _ack.IsChecked != true || !_selection.CanChoose) return;
         var operation = BeginOperation(executing: true);
-        _status.Text = T("Rechecking and deleting the confirmed local selection…", "Bestätigte lokale Auswahl wird erneut geprüft und gelöscht…");
+        _status.Text = Texts.T("archive.cleanup.status.deleting");
         // A confirmation can be consumed only once, including failed or canceled attempts.
         _plan = null; _ack.IsChecked = false;
         try
@@ -426,18 +420,18 @@ internal sealed class ArchiveCleanupDialog : Window
             var result = await Task.Run(() => _execute(plan, operation.Token, open));
             if (_closed) return;
             ArchiveChanged |= result.DeletedThreads.Count > 0 || result.DeletedFileCount > 0;
-            _status.Text = T($"Deleted {result.DeletedThreads.Count:N0} threads and {result.DeletedFileCount:N0} owned files ({result.DeletedBytes:N0} bytes). {result.RemainingThreads.Count:N0} selected threads remain. ",
-                $"{result.DeletedThreads.Count:N0} Threads und {result.DeletedFileCount:N0} zugeordnete Dateien ({result.DeletedBytes:N0} Bytes) gelöscht. {result.RemainingThreads.Count:N0} ausgewählte Threads verbleiben. ")
-                + (result.Canceled ? T("The operation was canceled. ", "Der Vorgang wurde abgebrochen. ") : "")
-                + (result.RequiresNewPreview ? ArchiveCleanupText.Stale : T("Check again before another selection.", "Vor einer weiteren Auswahl neu prüfen."));
+            _status.Text = Texts.T("archive.cleanup.status.deleted", result.DeletedThreads.Count,
+                result.DeletedFileCount, result.DeletedBytes, result.RemainingThreads.Count)
+                + (result.Canceled ? Texts.T("archive.cleanup.status.operationCanceled") : "")
+                + (result.RequiresNewPreview ? ArchiveCleanupText.Stale : Texts.T("archive.cleanup.status.checkAgain"));
             _error.Text = string.Join("\n", result.Errors);
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested)
-        { if (!_closed) _status.Text = T("Deletion canceled. Recheck the inventory; any already removed data remains removed.", "Löschung abgebrochen. Bestand neu prüfen; bereits entfernte Daten bleiben entfernt."); }
+        { if (!_closed) _status.Text = Texts.T("archive.cleanup.status.deleteCanceled"); }
         catch (Exception error)
         {
             ArchiveChanged = true;
-            if (!_closed) { _status.Text = T("Deletion did not finish. Check the inventory again; some files may already be removed.", "Löschung nicht abgeschlossen. Bestand neu prüfen; einzelne Dateien können bereits entfernt sein."); _error.Text = error.Message; }
+            if (!_closed) { _status.Text = Texts.T("archive.cleanup.status.deleteUnfinished"); _error.Text = Texts.T("archive.cleanup.error.delete", error.Message); }
         }
         finally
         {
@@ -472,10 +466,13 @@ internal sealed class ArchiveCleanupDialog : Window
     {
         if (!_busy || _operation == null) return;
         _operation.Cancel();
-        _status.Text = _executing ? T("Canceling; already committed deletions will be reported…", "Abbruch läuft; bereits abgeschlossene Löschungen werden gemeldet…")
-            : T("Canceling…", "Wird abgebrochen…");
+        _status.Text = _executing ? Texts.T("archive.cleanup.status.cancelingCommitted")
+            : Texts.T("archive.cleanup.status.canceling");
         UpdateActions();
     }
+    /// <summary>The app is quitting: the running operation is cancelled (as the dialog's Cancel does); the dialog stays until it is closed.</summary>
+    internal void CancelForShutdown() => CancelOperation();
+
     internal void RequestClose()
     {
         if (_busy) { _closeWhenIdle = true; CancelOperation(); }

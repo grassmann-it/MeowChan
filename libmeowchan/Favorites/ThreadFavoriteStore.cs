@@ -33,8 +33,12 @@ public sealed record ThreadFavoriteCommit(ResourceId Thread, bool Favorite, bool
 /// <summary>Profile-owned thread marks, independent of media, archive membership and watch state.</summary>
 public sealed partial class ThreadFavoriteStore
 {
-    public const int MaximumEntries = 50_000;
-    public const int MaximumBytes = 8_000_000;
+    /// <summary>The default entry limit, not a maximum: the limit is the FavoriteEntryLimit setting (<see cref="ProfileStoreLimits.FavoriteEntries"/>); reads accept up to <see cref="ProfileStoreLimits.FavoriteEntryCeiling"/>.</summary>
+    [Obsolete("Use ProfileStoreLimits.DefaultFavoriteEntries; the effective limit is the FavoriteEntryLimit setting.")]
+    public const int MaximumEntries = ProfileStoreLimits.DefaultFavoriteEntries;
+    /// <summary>The default file limit (8 MiB), not a maximum: the limit is the FavoriteFileLimitMiB setting (<see cref="ProfileStoreLimits.FavoriteFileBytes"/>); reads accept up to <see cref="ProfileStoreLimits.FavoriteFileCeilingBytes"/>.</summary>
+    [Obsolete("Use ProfileStoreLimits.DefaultFavoriteFileBytes; the effective limit is the FavoriteFileLimitMiB setting.")]
+    public const int MaximumBytes = ProfileStoreLimits.DefaultFavoriteFileBytes;
     private sealed record Document(int Version, long Revision, List<ResourceId> Threads,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] Guid? InstanceId = null,
         [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] PrivateStoreOperationMarker? OperationMarker = null);
@@ -87,16 +91,18 @@ public sealed partial class ThreadFavoriteStore
         if (unchanged) return new ThreadFavoriteCommit(thread, favorite, false, current);
         if (favorite)
         {
-            if (document.Threads.Count >= MaximumEntries)
-                throw new InvalidDataException("The thread favorites index has reached its entry limit.");
+            if (document.Threads.Count >= _lease.StoreLimits.FavoriteEntries)
+                throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteEntries, _lease.StoreLimits.FavoriteEntries,
+                    "The thread favorites index has reached its entry limit.");
             document.Threads.Add(thread);
         }
         else document.Threads.RemoveAt(index);
         document = document with { Revision = checked(document.Revision + 1) };
         string json = JsonSerializer.Serialize(document);
         byte[] bytes = StrictUtf8.GetBytes(json);
-        if (bytes.Length > MaximumBytes)
-            throw new InvalidDataException("The thread favorites index has reached its size limit.");
+        if (bytes.Length > _lease.StoreLimits.FavoriteFileBytes && bytes.Length > ProfileStoreLimits.FileLength(_path))
+            throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.FavoriteFile, _lease.StoreLimits.FavoriteFileBytes,
+                "The thread favorites index has reached its size limit.");
         // A future or malformed backup must never be rotated away by an older writer.
         AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
         return new ThreadFavoriteCommit(thread, favorite, true, Snapshot(document, bytes));
@@ -153,7 +159,7 @@ public sealed partial class ThreadFavoriteStore
     {
         using FileStream stream = RegularProfileFile.OpenRead(path);
         long length = stream.Length;
-        if (length > MaximumBytes)
+        if (length > ProfileStoreLimits.FavoriteFileCeilingBytes)
             throw new InvalidDataException("The thread favorites index exceeds its size limit.");
 
         byte[] bytes = new byte[checked((int)length)];
@@ -190,7 +196,7 @@ public sealed partial class ThreadFavoriteStore
                 throw new InvalidDataException("The thread favorites index version or revision is invalid.");
 
             JsonElement threads = root.GetProperty("Threads");
-            if (threads.ValueKind != JsonValueKind.Array || threads.GetArrayLength() > MaximumEntries)
+            if (threads.ValueKind != JsonValueKind.Array || threads.GetArrayLength() > ProfileStoreLimits.FavoriteEntryCeiling)
                 throw new InvalidDataException("The thread favorites index entry count is invalid.");
 
             List<ResourceId> values = new(threads.GetArrayLength());

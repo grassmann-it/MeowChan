@@ -1,23 +1,34 @@
 <Window xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ExperimentalActivationDialog"
-        Width="620" Height="460" MinWidth="360" MinHeight="330"
-        WindowStartupLocation="CenterOwner" ShowInTaskbar="False">
-    <Grid RowDefinitions="*,Auto" KeyboardNavigation.TabNavigation="Cycle">
-        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+        xmlns:ursa="https://irihi.tech/ursa" x:Class="MeowChan.ExperimentalActivationDialog">
+    <!-- Shared dialog frame (Desktop/Controls/DialogFrame.cs) rebuilt in XAML: fixed heading,
+         local error strip, scrolling explanation/scope and fixed actions with the busy status. -->
+    <Grid RowDefinitions="Auto,Auto,*,Auto" KeyboardNavigation.TabNavigation="Cycle">
+        <Border x:Name="DialogFrameHeader" Padding="16,16,16,8">
+            <TextBlock x:Name="ActivationHeading" Classes="section-title" TextWrapping="Wrap" />
+        </Border>
+        <Border x:Name="DialogFrameErrorStrip" Grid.Row="1" Padding="16,0,16,8" IsVisible="False">
+            <Border x:Name="ActivationStatusPanel" Classes="workspace-error">
+                <ScrollViewer MaxHeight="120" HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="ActivationStatus" Classes="workspace-error" TextWrapping="Wrap"
+                               AutomationProperties.LiveSetting="Assertive" />
+                </ScrollViewer>
+            </Border>
+        </Border>
+        <ScrollViewer x:Name="DialogFrameBody" Grid.Row="2" HorizontalScrollBarVisibility="Disabled">
             <Border Classes="workspace-dialog-body">
                 <StackPanel Classes="workspace-dialog-content">
-                    <TextBlock x:Name="ActivationHeading" Classes="section-title" TextWrapping="Wrap" />
                     <TextBlock x:Name="ActivationExplanation" TextWrapping="Wrap" />
                     <TextBlock x:Name="ActivationScope" Classes="workspace-meta" TextWrapping="Wrap" />
-                    <Border x:Name="ActivationStatusPanel" Classes="workspace-warning" IsVisible="False">
-                        <TextBlock x:Name="ActivationStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
-                    </Border>
-                    <ursa:LoadingIcon x:Name="ActivationBusy" IsVisible="False" IsLoading="False" HorizontalAlignment="Left" />
                 </StackPanel>
             </Border>
         </ScrollViewer>
-        <Border Grid.Row="1" Classes="workspace-dialog-footer">
-            <StackPanel Spacing="8">
+        <Border x:Name="DialogFrameFooter" Grid.Row="3" Classes="workspace-dialog-footer">
+            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                <Grid x:Name="ActivationBusyPanel" ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
+                    <ursa:LoadingIcon x:Name="ActivationBusy" IsVisible="False" IsLoading="False" VerticalAlignment="Center" />
+                    <TextBlock x:Name="ActivationBusyStatus" Grid.Column="1" Classes="workspace-meta" TextWrapping="Wrap"
+                               VerticalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                </Grid>
                 <Button x:Name="ActivationCancel" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center" />
                 <Button x:Name="ActivationConfirm" Classes="primary" HorizontalAlignment="Stretch" HorizontalContentAlignment="Center">
                     <TextBlock x:Name="ActivationConfirmLabel" TextWrapping="Wrap" TextAlignment="Center" />

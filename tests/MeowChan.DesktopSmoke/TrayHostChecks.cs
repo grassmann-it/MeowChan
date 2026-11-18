@@ -1,6 +1,8 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Stats;
 using Tmds.DBus.Protocol;
 
 namespace MeowChan.DesktopSmoke;
@@ -48,6 +50,7 @@ internal static class TrayHostChecks
         await CheckIndependentPreferencesAsync(window);
         Click(window, "WindowMinimizeButton");
         await AssertHiddenAsync(window, "first minimize");
+        CheckTrayStatistics(window);
         await ControlAsync("activate");
         await AssertRestoredAsync(window, "DBus tray activation");
 
@@ -78,6 +81,24 @@ internal static class TrayHostChecks
         await ControlAsync("drop-watcher");
         await AssertRestoredAsync(window, "lost watcher");
         Console.WriteLine("SMOKE tray host: native DBus registration; actual Activate toggled visible/hidden/minimized windows independent of minimize preference; Open menu item only restored; first minimize/close removed taskbar access; host loss, watcher restart and watcher loss remained reachable.");
+    }
+
+    // Text-only statistics in the tray: two filled lines and a separator ahead of the old entries, and no sampling timer while the
+    // window is hidden and nothing downloads (the tray holds its claim, but the hub starts a timer only for active downloads).
+    private static void CheckTrayStatistics(MainWindow window)
+    {
+        TrayIcon icon = TrayIcon.GetIcons(Application.Current!)!.Single();
+        NativeMenu menu = icon.Menu ?? throw new InvalidOperationException("The tray icon has no menu.");
+        if (menu.Items[0] is not NativeMenuItem rates || menu.Items[1] is not NativeMenuItem disk || menu.Items[2] is not NativeMenuItem detail || menu.Items[3] is not NativeMenuItemSeparator)
+            throw new InvalidOperationException("The tray menu does not start with the three statistics lines and a separator.");
+        if (!rates.IsEnabled || !disk.IsEnabled || !detail.IsEnabled || !rates.IsVisible || string.IsNullOrEmpty(rates.Header) || string.IsNullOrEmpty(disk.Header) || string.IsNullOrEmpty(detail.Header))
+            throw new InvalidOperationException("The tray statistics lines are not enabled and filled: '" + rates.Header + "' / '" + disk.Header + "' / '" + detail.Header + "'.");
+        IoStatsHub hub = window.SessionHost.IoStats;
+        if (hub.SamplingMode != IoStatsVisibility.None)
+            throw new InvalidOperationException("A sampling timer runs while the window is hidden and idle: " + hub.SamplingMode + ".");
+        if (icon.ToolTipText is null || !icon.ToolTipText.StartsWith("MeowChan", StringComparison.Ordinal) || icon.ToolTipText.Length > TrayStatsModel.MaxTooltipLength)
+            throw new InvalidOperationException("Unexpected tray tooltip: " + icon.ToolTipText);
+        Console.WriteLine("SMOKE tray statistics: lines '" + rates.Header + "' / '" + disk.Header + "' / '" + detail.Header + "', tooltip '" + icon.ToolTipText + "', hidden timers=" + hub.ActiveTimerCount + ".");
     }
 
     private static async Task CheckIndependentPreferencesAsync(MainWindow window)

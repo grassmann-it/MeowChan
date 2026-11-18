@@ -12,8 +12,11 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
+using MeowChan.PluginSdk;
 using Ursa.Controls;
 
 namespace MeowChan;
@@ -40,6 +43,10 @@ public partial class PluginsPage
         var list = C<SelectionList>("PluginCards");
         list.AddHandler(PointerPressedEvent, OnPluginActionPointerPressed, RoutingStrategies.Tunnel);
         list.AddHandler(ContextRequestedEvent, OnPluginActionContextRequested, RoutingStrategies.Tunnel);
+        // Both menu buttons are the "⋯" overflow of the shell header: the catalog's more-horizontal icon, the label
+        // "Actions" as tooltip and (with the plugin's name) as accessible name. The menus and their commands are unchanged.
+        foreach (string name in new[] { "PluginMoreActions" })
+            CommandBindings.Apply(C<Button>(name), "plugins.actions", iconOnly: true);
     }
 
     private PluginCatalogEntry? PluginActionEntry(PluginActionTarget target) =>
@@ -102,11 +109,11 @@ public partial class PluginsPage
             || !_busy && _selectedKey != _pluginMenuTarget.Key))
             ClosePluginActionMenu();
 
+        UpdateAddAction();
         PluginActionTarget? target = CaptureSelectedPluginActionTarget();
-        foreach (string name in new[] { "PluginMoreActions", "PluginListActions" })
+        foreach (string name in new[] { "PluginMoreActions" })
         {
             if (this.FindControl<Button>(name) is not { } button) continue;
-            button.Content = Texts.T("plugins.actions");
             AutomationProperties.SetName(button, target == null ? Texts.T("plugins.actions") : Texts.T("plugins.actionsFor", Selected!.Name));
             CommandBindings.BindExisting(button, "plugins.actions");
             button.IsEnabled = target != null && !IsDiscardConfirmationOpen && !_ended;
@@ -118,9 +125,28 @@ public partial class PluginsPage
         BindAction("PluginRollback", "plugins.rollback");
         BindAction("PluginWatches", "plugins.watches");
         if (this.FindControl<Button>("PluginSettingsAction") != null) BindAction("PluginSettingsAction", "plugins.show-settings");
-        PluginEntryPresentation view = PluginEntryPresentation.Create(entry);
+        PluginEntryPresentation view = PluginEntryPresentation.Create(entry, sdkMismatch: _services?.HasSdkMismatch);
         C<Button>("PluginSelectCandidate").IsVisible = view.CandidateChoiceRequired;
-        C<Button>("PluginWatches").IsVisible = view.Sources.Count > 0;
+        Button sdkTransition = C<Button>("PluginApproveSdkTransition");
+        sdkTransition.Content = Texts.T("plugins.sdkTransition.action");
+        CommandBindings.EnsureIconBeforeText(sdkTransition, "check"); // The same icon the Sources page gives its copy of this action.
+        sdkTransition.IsVisible = view.HasAutomaticSdkTransition;
+        sdkTransition.IsEnabled = view.HasAutomaticSdkTransition && !_busy && !IsDiscardConfirmationOpen;
+        AutomationProperties.SetName(sdkTransition, Texts.T("plugins.sdkTransition.action"));
+        AutomationProperties.SetHelpText(sdkTransition, view.HasAutomaticSdkTransition && view.AutomaticSdkTransition is { } transition
+            ? Texts.T("plugins.sdkTransition.automaticHint", transition.FromSdkVersion, transition.ToSdkVersion, transition.ExecutionRevision)
+            : string.Empty);
+        Button reviewRepair = C<Button>("PluginReviewRepair");
+        // One name for every entry point of the review dialog (Plugins header, this card, the Danbooru page, the dialog title).
+        reviewRepair.Content = Texts.T("plugins.repair.review");
+        CommandBindings.EnsureIconBeforeText(reviewRepair, "check");
+        reviewRepair.IsVisible = view.NeedsRepairReview;
+        reviewRepair.IsEnabled = view.NeedsRepairReview && !_busy && !IsDiscardConfirmationOpen;
+        AutomationProperties.SetName(reviewRepair, Texts.T("plugins.repair.review"));
+        AutomationProperties.SetHelpText(reviewRepair, !view.NeedsRepairReview ? string.Empty
+            : view.HasSdkMismatch ? PluginContentPresentation.SdkMismatchHint() : view.ActivationProblem ?? string.Empty);
+        // Watches: under the plugin's More actions in Barebones (the menu lists them in every view).
+        WorkViewGate.Apply(C<Button>("PluginWatches"), _workView, view.Sources.Count > 0);
         if (view.CandidateChoiceRequired) ShowReasons("PluginActivationReasons", "PluginEnabled", "PluginSelectCandidate");
         else ShowReasons("PluginActivationReasons", "PluginEnabled");
         if (this.FindControl<SelectableTextBlock>("PluginRecoveryReasons") != null)
@@ -192,7 +218,8 @@ public partial class PluginsPage
             case "plugins.show-grants":
                 Select(action.Target.Key); RevealPluginActionSection(action.Target, C<Expander>("PluginGrantExpander")); break;
             case "plugins.show-developer-tools":
-                Select(action.Target.Key); RevealPluginActionSection(action.Target, C<Expander>("PluginDeveloperExpander")); break;
+                Select(action.Target.Key); RevealDeveloperArea(expand: false);
+                RevealPluginActionSection(action.Target, C<Expander>("PluginDeveloperExpander")); break;
             case "plugins.watches":
                 var sources = PluginEntryPresentation.Create(PluginActionEntry(action.Target)!).Sources;
                 string? sourceId = action.SourceId ?? (sources.Count == 1 ? sources[0].SourceId : null);
@@ -203,7 +230,6 @@ public partial class PluginsPage
 
     private void RevealPluginActionSection(PluginActionTarget target, Control section)
     {
-        _pluginSectionNavigation?.CancelPendingNavigation();
         if (section is Expander expander) expander.IsExpanded = true;
         foreach (Expander parent in section.GetVisualAncestors().OfType<Expander>()) parent.IsExpanded = true;
         Dispatcher.UIThread.Post(() =>
@@ -215,11 +241,7 @@ public partial class PluginsPage
 
     private void OnPluginMoreActionsClick(object? sender, RoutedEventArgs e)
     { if (_selectedKey is { } key) OpenPluginActionMenu(key, C<Button>("PluginMoreActions"), details: true); }
-    private void OnPluginListActionsClick(object? sender, RoutedEventArgs e)
-    { if (_selectedKey is { } key) OpenPluginActionMenu(key, C<Button>("PluginListActions")); }
-    private async void OnPluginSettingsActionClick(object? sender, RoutedEventArgs e) => await ExecutePluginControlActionAsync("PluginSettingsAction");
-
-    private Control PluginActionOrigin(string key) => _cards.TryGetValue(key, out var card) && card.IsEffectivelyVisible
+    private Control PluginActionOrigin(string key) => _cards.TryGetValue(CardKey(key), out var card) && card.IsEffectivelyVisible
         ? card : this.FindControl<Button>("PluginMoreActions") ?? (Control)C<ComboBox>("PluginCategory");
 
     private void OnPluginActionPointerPressed(object? sender, PointerPressedEventArgs e)
@@ -230,6 +252,8 @@ public partial class PluginsPage
         SelectionListItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<SelectionListItem>().FirstOrDefault();
         string? key = row == null ? null : _cards.FirstOrDefault(pair => ReferenceEquals(pair.Value, row)).Key;
         if (key == null) { ClosePluginActionMenu(); return; }
+        // The card stands for all files of its plugin: on the shown plugin the menu is that of the file shown.
+        if (_selectedKey != null && CardKey(_selectedKey) == key) key = _selectedKey;
         OpenPluginActionMenu(key, row!, anchor: e.GetPosition(row!));
     }
 
@@ -240,7 +264,7 @@ public partial class PluginsPage
         e.Handled = true;
         // Pointer requests were resolved against a real row in PointerPressed, never the old selection.
         if (e.TryGetPosition(list, out _)) return;
-        if (_selectedKey is { } key && _cards.TryGetValue(key, out var row) && list.Items.Contains(row))
+        if (_selectedKey is { } key && _cards.TryGetValue(CardKey(key), out var row) && list.Items.Contains(row))
             OpenPluginActionMenu(key, row);
     }
 
@@ -267,49 +291,61 @@ public partial class PluginsPage
         // Inspecting another row while busy must not call SelectCore, which cancels the operation.
         if (!_busy && _selectedKey != key) SelectCore(key, openDetails: false);
         var target = PluginActionTarget.Capture(entry, _catalog.Profile.Revision);
-        var menu = new ContextMenu();
         var reasons = new List<string>();
+        ContextMenuBuilder builder = new ContextMenuBuilder().Named(Texts.T("plugins.actions"));
         if (!details) Add("plugins.details");
         Add(entry.Activation?.Enabled == true ? "plugins.disable" : "plugins.enable");
-        menu.Items.Add(new Separator());
+        builder.Section();
         if (HasPluginSettings(entry)) Add("plugins.show-settings");
-        if (PluginEntryPresentation.Create(entry).Sources.Count > 0) AddWatches(menu, target, origin, reasons);
         PluginEntryPresentation view = PluginEntryPresentation.Create(entry);
+        IReadOnlyList<SourceDescription> sources = view.Sources;
+        if (sources.Count > 0) Add("plugins.watches");
         if (view.CandidateChoiceRequired || details)
-        { menu.Items.Add(new Separator()); if (view.CandidateChoiceRequired) Add("plugins.select-candidate"); }
+        {
+            builder.Section();
+            if (view.CandidateChoiceRequired) Add("plugins.select-candidate");
+        }
         if (details)
         {
             Add("plugins.rollback");
-            menu.Items.Add(new Separator());
+            builder.Section();
             if (view.Filters.Count > 0) Add("plugins.show-grants");
             Add("plugins.show-developer-tools");
         }
-        if (_drafts.Values.Any(draft => draft.Dirty)) AddPluginMenuInformation(menu, Texts.T("plugins.actionsDirtyHint"));
-        AddPluginMenuReasons(menu, reasons);
+        if (sources.Count > 0 && PluginActionUnavailableReason(CapturePluginActionInvocation("plugins.watches", target)) is { } watchesWhy)
+            reasons.Add(CommandCatalog.Label("plugins.watches") + ": " + watchesWhy);
+        // Information and reasons are appended through the builder: Build makes the menu one ItemsSource, so menu.Items.Add afterwards would throw.
+        if (_drafts.Values.Any(draft => draft.Dirty)) builder.Append(PluginMenuInformation(Texts.T("plugins.actionsDirtyHint")));
+        builder.Append(PluginMenuReasons(reasons));
+        ContextMenu menu = builder.Build()!;
+        if (sources.Count > 1 && menu.Items.OfType<MenuItem>().FirstOrDefault(item => Equals(item.Tag, "plugins.watches")) is { } watches)
+        {
+            watches.Command = null;
+            foreach (SourceDescription source in sources)
+            {
+                PluginActionInvocation action = CapturePluginActionInvocation("plugins.watches", target, source.SourceId);
+                watches.Items.Add(CreatePluginSourceMenuItem(action, origin, source.Name + " · " + source.SourceId));
+            }
+        }
         OpenPreparedPluginMenu(menu, target, origin, anchor);
 
         void Add(string id)
         {
-            var action = CapturePluginActionInvocation(id, target);
-            menu.Items.Add(CreatePluginActionMenuItem(action, origin));
-            if (PluginActionUnavailableReason(action) is { } why) reasons.Add(CommandCatalog.Label(id) + ": " + why);
+            PluginActionInvocation action = CapturePluginActionInvocation(id, target);
+            bool CanExecute() => PluginActionUnavailableReason(action) == null;
+            string? Reason() => PluginActionUnavailableReason(action);
+            bool available = CanExecute();
+            string? why = Reason();
+            string label = CommandCatalog.Label(id);
+            if (id is "plugins.select-candidate" or "plugins.rollback")
+            {
+                string? version = id == "plugins.select-candidate" ? entry.Candidate?.Description?.PluginVersion : entry.Activation?.LastGood?.Description.PluginVersion;
+                if (!string.IsNullOrEmpty(version)) label += " · " + version;
+            }
+            builder.Command(id, () => _ = ExecutePluginActionAsync(action, origin), available, why, label,
+                availableWhen: CanExecute, reasonWhen: Reason);
+            if (why != null) reasons.Add(label + ": " + why);
         }
-    }
-
-    private MenuItem CreatePluginActionMenuItem(PluginActionInvocation action, Control origin)
-    {
-        PluginCatalogEntry? entry = PluginActionEntry(action.Target);
-        string? version = action.CommandId switch
-        {
-            "plugins.select-candidate" => entry?.Candidate?.Description?.PluginVersion,
-            "plugins.rollback" => entry?.Activation?.LastGood?.Description.PluginVersion,
-            _ => null
-        };
-        string Label() => CommandCatalog.Label(action.CommandId) + (string.IsNullOrEmpty(version) ? string.Empty : " · " + version);
-        var item = CommandBindings.CreateMenuItem(action.CommandId, () => _ = ExecutePluginActionAsync(action, origin),
-            () => PluginActionUnavailableReason(action) == null, () => PluginActionUnavailableReason(action), Label);
-        item.Tag = action.CommandId;
-        return item;
     }
 
     private MenuItem CreatePluginSourceMenuItem(PluginActionInvocation action, Control origin, string label)
@@ -327,46 +363,35 @@ public partial class PluginsPage
         return item;
     }
 
-    private void AddWatches(ContextMenu menu, PluginActionTarget target, Control origin, List<string> reasons)
-    {
-        var action = CapturePluginActionInvocation("plugins.watches", target);
-        MenuItem item = CreatePluginActionMenuItem(action, origin);
-        var sources = PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources;
-        if (sources.Count > 1)
-        {
-            item.Command = null;
-            foreach (var source in sources)
-            {
-                MenuItem choice = CreatePluginSourceMenuItem(action with { SourceId = source.SourceId }, origin, source.Name + " · " + source.SourceId);
-                item.Items.Add(choice);
-            }
-        }
-        menu.Items.Add(item);
-        if (PluginActionUnavailableReason(action) is { } why) reasons.Add(CommandCatalog.Label(action.CommandId) + ": " + why);
-    }
-
     private void OpenPluginSourcesMenu(PluginActionTarget target, Control origin)
     {
         ClosePluginActionMenu();
-        var menu = new ContextMenu();
-        foreach (var source in PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources)
+        ContextMenuBuilder builder = new ContextMenuBuilder();
+        int index = 0;
+        foreach (SourceDescription source in PluginEntryPresentation.Create(PluginActionEntry(target)!).Sources)
         {
-            MenuItem item = CreatePluginSourceMenuItem(CapturePluginActionInvocation("plugins.watches", target, source.SourceId), origin, source.Name + " · " + source.SourceId);
-            menu.Items.Add(item);
+            PluginActionInvocation action = CapturePluginActionInvocation("plugins.watches", target, source.SourceId);
+            bool CanExecute() => PluginActionUnavailableReason(action) == null;
+            builder.Item("plugins.watches." + index++, source.Name + " · " + source.SourceId,
+                () => _ = ExecutePluginActionAsync(action, origin),
+                available: CanExecute(), reason: PluginActionUnavailableReason(action), availableWhen: CanExecute,
+                reasonWhen: () => PluginActionUnavailableReason(action));
         }
+        ContextMenu menu = builder.Build()!;
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>()) item.Icon = CommandBindings.Icon("plugins.watches");
         OpenPreparedPluginMenu(menu, target, origin);
     }
 
-    private static void AddPluginMenuInformation(ContextMenu menu, string text)
+    private static Control PluginMenuInformation(string text)
     {
         var item = new MenuItem { Header = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap, MaxWidth = 320 } };
         AutomationProperties.SetName(item, text); AutomationProperties.SetHelpText(item, text);
-        menu.Items.Add(item);
+        return item;
     }
 
-    private static void AddPluginMenuReasons(ContextMenu menu, IReadOnlyList<string> reasons)
+    private static Control[] PluginMenuReasons(IReadOnlyList<string> reasons)
     {
-        if (reasons.Count == 0) return;
+        if (reasons.Count == 0) return [];
         var info = new MenuItem { Header = Texts.T("plugins.unavailableActions"), Icon = CommandBindings.Icon("thread.details") };
         AutomationProperties.SetName(info, Texts.T("plugins.unavailableActions"));
         AutomationProperties.SetHelpText(info, string.Join(Environment.NewLine, reasons));
@@ -375,7 +400,7 @@ public partial class PluginsPage
             var explanation = new MenuItem { Header = new TextBlock { Text = reason, TextWrapping = TextWrapping.Wrap, MaxWidth = 320 } };
             AutomationProperties.SetName(explanation, reason); info.Items.Add(explanation);
         }
-        menu.Items.Add(new Separator()); menu.Items.Add(info);
+        return [new Separator(), info];
     }
 
     private void OpenPreparedPluginMenu(ContextMenu menu, PluginActionTarget target, Control origin, Point? anchor = null)
@@ -440,9 +465,9 @@ public partial class PluginsPage
             if (_ended || !IsEffectivelyVisible || IsDiscardConfirmationOpen) return;
             if (_selectedKey == key && origin.IsAttachedToVisualTree() && origin.IsEffectivelyVisible && origin.IsEffectivelyEnabled)
             { origin.Focus(); return; }
-            if (_selectedKey == key && key != null && _cards.TryGetValue(key, out var row) && row.IsEffectivelyVisible)
+            if (_selectedKey == key && key != null && _cards.TryGetValue(CardKey(key), out var row) && row.IsEffectivelyVisible)
             { row.BringIntoView(); row.Focus(); return; }
-            if (Selected == null) C<ComboBox>("PluginCategory").Focus();
+            if (Selected == null) FocusListOrFilter();
         }, DispatcherPriority.Loaded);
     }
 }

@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Desktop.Localization;
 using MeowChan.Favorites;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -14,7 +15,8 @@ namespace MeowChan.Desktop;
 internal sealed record ArchivePermanentDeletionPlan(ArchiveDeletionPlan Catalog, ArchiveFilesPlan Files, int RatingCount = 0);
 
 internal sealed record ArchivePermanentDeletionResult(IReadOnlyList<ResourceId> DeletedThreads,
-    IReadOnlyList<string> Errors, ArchiveFilesResult? Files, IReadOnlyList<ResourceId>? RatingCleanupThreads = null);
+    IReadOnlyList<string> Errors, ArchiveFilesResult? Files, IReadOnlyList<ResourceId>? RatingCleanupThreads = null,
+    IReadOnlyList<ResourceId>? TagCleanupThreads = null);
 
 internal sealed partial class DesktopSessionHost
 {
@@ -60,6 +62,7 @@ internal sealed partial class DesktopSessionHost
             ValidateMediaRatingsForDeletion(plan.Catalog.Threads.Select(thread => thread.Summary.Id).ToArray());
             List<string> errors = new();
             IReadOnlyList<ResourceId>? ratingCleanupThreads = null;
+            IReadOnlyList<ResourceId>? tagCleanupThreads = null;
             List<ResourceId> deleted = new();
             HashSet<string> evictedPosters = new(StringComparer.Ordinal);
             ArchiveFilesResult? files = null;
@@ -183,8 +186,7 @@ internal sealed partial class DesktopSessionHost
                     catch (Exception exception) when (exception is not OutOfMemoryException)
                     {
                         ratingCleanupThreads = Array.AsReadOnly(deleted.ToArray());
-                        errors.Add(MediaRatingText.Get("The archive was deleted, but ratings were not cleaned up. Reimporting the same media identities may restore their ratings. ",
-                            "Das Archiv wurde gelöscht, aber Bewertungen wurden nicht bereinigt. Beim erneuten Import derselben Medienidentitäten können deren Bewertungen wieder erscheinen. ")
+                        errors.Add(Texts.T("media.rating.error.cleanupAfterDelete")
                             + string.Join(", ", deleted.Select(id => id.Source + "/" + id.Board + "/" + id.Thread)) + ": " + exception.Message);
                     }
                     try
@@ -207,11 +209,15 @@ internal sealed partial class DesktopSessionHost
                     // Own tags of a permanently deleted thread go with it, like favorites and ratings.
                     try { CleanupPrivateTags(deleted, admission); }
                     catch (Exception exception) when (exception is not OperationCanceledException)
-                    { errors.Add($"The archive was deleted, but tags could not be updated: {exception.Message}"); }
+                    {
+                        // Visible and retryable: the deleted threads' assignments stay until a retry succeeds.
+                        tagCleanupThreads = Array.AsReadOnly(deleted.ToArray());
+                        errors.Add($"The archive was deleted, but tags could not be updated: {exception.Message}");
+                    }
                 }
                 SignalChanged();
                 return new ArchivePermanentDeletionResult(Array.AsReadOnly(deleted.ToArray()),
-                    Array.AsReadOnly(errors.ToArray()), files, ratingCleanupThreads);
+                    Array.AsReadOnly(errors.ToArray()), files, ratingCleanupThreads, tagCleanupThreads);
             }
             finally
             {

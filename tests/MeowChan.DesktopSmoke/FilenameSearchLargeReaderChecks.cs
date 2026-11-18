@@ -48,7 +48,7 @@ internal static class FilenameSearchLargeReaderChecks
             && before.FindPostIndex(Post) == 250 && rows.SequenceEqual(new[] { Post })
             && selected is ArchivePostRow { Id: Post }, "Nontrivial original revision/page/selection missing.");
         if (scenario == "tab-return") f.DelayReturn = f.Hold();
-        Click(f.Named<Button>("ReaderFilenameSearchOpen"));
+        Click(UnifiedSearchEntry.ReaderScope(f.Page, MeowChan.Desktop.Controls.SearchScope.FileName)); // AP2 product entry
         Task run = f.Page.FilenameSearchTask;
         FilenameSearchDialog dialog = await f.Shown.Task.WaitAsync(Deadline);
         Require(f.Page.IsFilenameSearchOpen && f.Page.IsReaderDialogOpen && !run.IsCompleted
@@ -64,7 +64,7 @@ internal static class FilenameSearchLargeReaderChecks
         {
             Barrier held = f.Arm();
             Named<TextBox>(dialog, "FilenameSearchQuery").Text = Needle;
-            await TurnAsync();
+            await SmokeDispatcher.SettleAsync();
             Click(Named<Button>(dialog, "FilenameSearchSubmit"));
             CancellationToken token = await held.Entered.Task.WaitAsync(Deadline);
             Require(dialog.Session.Current.Busy && dialog.IsVisible && !run.IsCompleted,
@@ -83,7 +83,7 @@ internal static class FilenameSearchLargeReaderChecks
         else
         {
             Named<TextBox>(dialog, "FilenameSearchQuery").Text = Needle;
-            await TurnAsync();
+            await SmokeDispatcher.SettleAsync();
             Click(Named<Button>(dialog, "FilenameSearchSubmit"));
             await UntilAsync(() => dialog.Session.Current is { Busy: false, StatusKey: "filename.search.ready" });
             var hits = dialog.Session.Current.Rows;
@@ -96,7 +96,9 @@ internal static class FilenameSearchLargeReaderChecks
                     && hit.OriginalName == Needle + ".png"),
                 "Actual search omitted the current reader's off-page claim or returned an unexpected claim.");
             ListBox results = Named<ListBox>(dialog, "FilenameSearchResults");
-            Require(results.Items.Count == 4, "Actual native result list did not bind all four session hits.");
+            // The dialog renders session changes through a posted Refresh; give that turn a chance before judging.
+            try { await UntilAsync(() => results.Items.Count == 4); }
+            catch (TimeoutException) { Require(false, "Actual native result list did not bind all four session hits."); }
             int index = Enumerable.Range(0, hits.Length).Single(i => hits[i].Thread == Target && hits[i].Post == Post);
             ArchiveFilenameHit hit = hits[index];
             Require(hit.Post == Post && hit.Position == 3 && hit.Variant == "preview"
@@ -111,7 +113,7 @@ internal static class FilenameSearchLargeReaderChecks
             }
             Barrier? navigation = scenario is "select" or "close-navigation" or "reattach-navigation" ? f.Arm() : null;
             Named<ListBox>(dialog, "FilenameSearchResults").SelectedIndex = index;
-            await TurnAsync();
+            await SmokeDispatcher.SettleAsync();
             Click(Named<Button>(dialog, "FilenameSearchSelect"));
             ArchiveFilenameHit? actual = await f.NativeShow!.WaitAsync(Deadline);
             Require(ReferenceEquals(actual, hit), "Real native modal did not return exact immutable selected hit.");
@@ -162,7 +164,7 @@ internal static class FilenameSearchLargeReaderChecks
                         "Actual selected return was not held after native Close.");
                     // A reader content tab is NOT a workspace/surface invalidation. The pane survives.
                     f.Named<TabControl>("ArchiveContentTabs").SelectedIndex = 1;
-                    await TurnAsync();
+                    await SmokeDispatcher.SettleAsync();
                     Require(f.Named<TabControl>("ArchiveContentTabs").SelectedIndex == 1
                         && f.Named<TabItem>("ArchiveMediaTab").IsSelected && f.Pane.IsEffectivelyVisible
                         && ReferenceEquals(TopLevel.GetTopLevel(f.Pane), f.ReaderWindow)
@@ -172,7 +174,7 @@ internal static class FilenameSearchLargeReaderChecks
                 }
                 await run.WaitAsync(Deadline);
                 await f.Page.MediaLoadTask.WaitAsync(Deadline);
-                await TurnAsync();
+                await SmokeDispatcher.SettleAsync();
                 if (scenario == "stale-revision") Unchanged();
                 else
                 {
@@ -195,9 +197,9 @@ internal static class FilenameSearchLargeReaderChecks
                     {
                         object? targetSelection = f.Posts.SelectedItem;
                         f.Named<TabControl>("ArchiveContentTabs").SelectedIndex = 1;
-                        await TurnAsync();
+                        await SmokeDispatcher.SettleAsync();
                         f.Named<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
-                        await TurnAsync();
+                        await SmokeDispatcher.SettleAsync();
                         Require(ReferenceEquals(view, f.Page.CurrentThread)
                             && ReferenceEquals(targetSelection, f.Posts.SelectedItem) && f.Rows().SequenceEqual(new[] { Post }),
                             "Post-return tab roundtrip changed frozen revision or selected post.");
@@ -303,13 +305,13 @@ internal static class FilenameSearchLargeReaderChecks
                 f.Page.BeforeInlineReplyCountsPublicationAsync = _ => { finalCounts.TrySetResult(true); return Task.CompletedTask; };
                 f.Page.ShowPost(Post);
                 await finalCounts.Task.WaitAsync(Deadline);
-                await TurnAsync();
+                await SmokeDispatcher.SettleAsync();
                 f.ReaderWindow.UpdateLayout();
                 Require(f.ReaderWindow.IsVisible && f.ReaderWindow.TryGetPlatformHandle()?.Handle is nint handle && handle != 0
                     && f.Pane.IsEffectivelyVisible && ReferenceEquals(TopLevel.GetTopLevel(f.Pane), f.ReaderWindow)
                     && !ReferenceEquals(TopLevel.GetTopLevel(f.Page), f.ReaderWindow)
                     && f.Named<Button>("ArchiveCloseReader").IsVisible
-                    && f.Named<Button>("ReaderFilenameSearchOpen").IsEffectivelyVisible,
+                    && f.Named<Button>("ReaderFindOpen").IsEffectivelyVisible,
                     "Production detached large-reader surface not actually attached/reachable.");
                 return f;
             }
@@ -398,18 +400,13 @@ internal static class FilenameSearchLargeReaderChecks
         button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     }
     private static TaskCompletionSource<T> Signal<T>() => new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private static async Task TurnAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
-    }
     private static async Task UntilAsync(Func<bool> condition)
     {
         DateTime end = DateTime.UtcNow + Deadline;
         while (!condition())
         {
             if (DateTime.UtcNow >= end) throw new TimeoutException("Large-reader filename condition not reached.");
-            await TurnAsync();
+            await SmokeDispatcher.SettleAsync();
         }
     }
     private static void Require(bool condition, string message)

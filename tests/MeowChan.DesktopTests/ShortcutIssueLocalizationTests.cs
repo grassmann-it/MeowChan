@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Views.Shortcuts;
 using MeowChan.Desktop.Localization;
 using MeowChan.Testing;
 using Ursa.Controls;
@@ -31,7 +32,7 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
     ];
 
     [Fact]
-    public void AllSixteenProducedHostReasonsHaveDistinctCatalogKeysAndPreservePublicDiagnostics()
+    public void AllSeventeenProducedHostReasonsHaveDistinctCatalogKeysAndPreservePublicDiagnostics()
     {
         var reasons = new List<ShortcutIssueReason>();
         foreach (var (gestureText, code) in InvalidGestures)
@@ -49,18 +50,23 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
             reasons.Add(issue.Reason);
         }
         reasons.Add(EffectiveShortcutBindings.InvalidIssueReason(new("K", [], "!"), ShortcutPlatform.Linux)!);
+        // A macOS system key (sweep S3): the same reason on a Mac only, never on Windows or Linux (⌘ is Meta there, which is its own reservedSystem).
+        var macSystem = EffectiveShortcutBindings.InvalidIssueReason(ShortcutGesture.Parse("Primary+H"), ShortcutPlatform.MacOS)!;
+        Assert.Equal("reservedMacSystem", macSystem.Code);
+        Assert.Equal("reservedSystem", EffectiveShortcutBindings.InvalidIssueReason(ShortcutGesture.Parse("Meta+H"), ShortcutPlatform.Linux)!.Code);
+        reasons.Add(macSystem);
         reasons.Add(ReasonFor(Read("""{"SchemaVersion":99,"Overrides":{"future":{}}}"""), "unsupportedSchema"));
         reasons.Add(ReasonFor(Read("""{"SchemaVersion":1,"Overrides":{"future.command":{"keep":true}}}"""), "unknownAction"));
         reasons.Add(ReasonFor(Read("""{"SchemaVersion":1,"Overrides":{"navigation.archive":{"Mode":"Replace","Gestures":[]}}}"""), "invalidMode"));
         var entries = Enumerable.Range(0, 512).ToDictionary(i => "future." + i, _ => (object)new { });
         entries.Add(ActionId, new { Mode = "Unbound", Gestures = Array.Empty<object>() });
         reasons.Add(ReasonFor(Read(JsonSerializer.Serialize(new { SchemaVersion = 1, Overrides = entries })), "limitsExceeded"));
-        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Up")]), "defaultYields"));
-        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("post.copy-link", [ShortcutGesture.Parse("Shift+F10")]), "notImplemented"));
+        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Shift+Up")]), "defaultYields"));
+        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]), "notImplemented"));
         reasons.Add(ReasonFor(ConflictDraft(), "conflictingActions"));
 
-        Assert.Equal(16, ShortcutIssueCatalog.Entries.Length);
-        Assert.Equal(16, ShortcutIssueCatalog.Entries.Select(e => e.Key).Distinct().Count());
+        Assert.Equal(17, ShortcutIssueCatalog.Entries.Length);
+        Assert.Equal(17, ShortcutIssueCatalog.Entries.Select(e => e.Key).Distinct().Count());
         Assert.Equal(ShortcutIssueCatalog.Entries.Select(e => e.Key).Order(),
             reasons.Select(r => ShortcutIssueCatalog.Prefix + r.Code).Order());
         foreach (string language in new[] { "en", "de" })
@@ -276,8 +282,8 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
         var warningDraft = code switch
         {
             "unknownAction" => Read("""{"SchemaVersion":1,"Overrides":{"future.command":{"future":[1,2]}}}"""),
-            "defaultYields" => new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Up")]),
-            "notImplemented" => new ShortcutBindingsSection().Set("post.copy-link", [ShortcutGesture.Parse("Shift+F10")]),
+            "defaultYields" => new ShortcutBindingsSection().Set("gallery.previous", [ShortcutGesture.Parse("Shift+Up")]),
+            "notImplemented" => new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]),
             _ => throw new ArgumentOutOfRangeException(nameof(code))
         };
         editor.Load(warningDraft);
@@ -427,14 +433,14 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
     { using var document = JsonDocument.Parse(json); return new(document.RootElement); }
     private static ShortcutIssueReason ReasonFor(ShortcutBindingsSection section, string code) => Assert.Single(
         EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux).Issues.Where(i => i.Reason?.Code == code)).Reason!;
-    private static T Get<T>(ShortcutEditor editor, string field) =>
-        (T)typeof(ShortcutEditor).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(editor)!;
-    private static void Select(ShortcutEditor editor, string id)
+    private static T Get<T>(ShortcutBindingsEditor editor, string field) =>
+        (T)typeof(ShortcutBindingsEditor).GetField(field, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(editor)!;
+    private static void Select(ShortcutBindingsEditor editor, string id)
     {
         var list = Get<ListBox>(editor, "_actions");
         list.SelectedItem = list.Items.OfType<ListBoxItem>().Single(item => item.Tag as string == id);
     }
-    private static void Click(ShortcutEditor editor, string suffix) => Controls(editor).OfType<Button>()
+    private static void Click(ShortcutBindingsEditor editor, string suffix) => Controls(editor).OfType<Button>()
         .Single(button => button.Content as string == Texts.T("settings.shortcutsEditor." + suffix))
         .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static IEnumerable<Control> Controls(Control control)
@@ -452,19 +458,19 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
     }
     private sealed class EditorFixture : IDisposable
     {
-        public ShortcutEditor Editor { get; } = new();
+        public ShortcutBindingsEditor Editor { get; } = new();
         private readonly EventHandler _refresh;
         public EditorFixture()
         {
             Assert.False(ShortcutService.IsCapturing);
-            _refresh = typeof(ShortcutEditor).GetMethod("OnLanguageChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
+            _refresh = typeof(ShortcutBindingsEditor).GetMethod("OnLanguageChanged", BindingFlags.Instance | BindingFlags.NonPublic)!
                 .CreateDelegate<EventHandler>(Editor);
             Texts.Changed += _refresh;
         }
         public void Dispose()
         {
             Texts.Changed -= _refresh;
-            typeof(ShortcutEditor).GetMethod("StopCapture", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(Editor, null);
+            typeof(ShortcutBindingsEditor).GetMethod("StopCapture", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(Editor, null);
         }
     }
 }

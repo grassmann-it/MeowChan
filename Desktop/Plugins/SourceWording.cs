@@ -11,6 +11,12 @@ namespace MeowChan.Desktop.Plugins;
 internal enum SourceWordingMaintenance { Unknown, MeowChan, ThirdParty }
 internal enum SourceWordingMaturity { Stable, Experimental, Unclassified }
 
+internal enum SourceBadgeKind { Type, Maintenance, Maturity, Status }
+
+/// <summary>One fact of a source. <paramref name="Value"/> is the one-word value for the meta line; <paramref name="ChipText"/> is
+/// what the list chip says, and the chip exists only when <paramref name="Deviates"/>. <paramref name="Warning"/> picks the warning tone.</summary>
+internal sealed record SourceBadge(SourceBadgeKind Kind, string Value, string ChipText, bool Deviates, bool Warning);
+
 /// <summary>Presentation-only wording. Maintenance, delivery and maturity are independent and grant no execution authority.</summary>
 internal sealed record SourceWordingClassification(
     string SourceId, string SourceName, SourceWordingMaintenance Maintenance, SourceWordingMaturity Maturity);
@@ -102,6 +108,50 @@ internal static class SourceWording
             ? Texts.T("sources.tier.meowchanExperimental")
             : Texts.T("sources.classificationCompact",
                 Texts.T(MaintenanceKey(classification.Maintenance)), Texts.T(MaturityKey(classification.Maturity)));
+
+    /// <summary>
+    /// The four facts of a source as one-word values: type, maintenance, maturity, status, in that order.
+    /// The Sources list shows a chip only where a source deviates from the norm (<see cref="SourceBadge.Deviates"/>);
+    /// the detail view always shows all four. No classification means unverified and unclassified, never a guess.
+    /// Presentation only: none of this grants execution authority.
+    /// </summary>
+    internal static IReadOnlyList<SourceBadge> Badges(SourceWordingClassification? classification, bool isActive, bool isBuiltIn)
+    {
+        SourceWordingMaintenance maintenance = classification?.Maintenance ?? SourceWordingMaintenance.Unknown;
+        SourceWordingMaturity maturity = classification?.Maturity ?? SourceWordingMaturity.Unclassified;
+        bool unverified = maintenance is not (SourceWordingMaintenance.MeowChan or SourceWordingMaintenance.ThirdParty);
+        string maintenanceValue = maintenance switch
+        {
+            SourceWordingMaintenance.MeowChan => Texts.T("sources.badge.maintenance.meowchan"),
+            SourceWordingMaintenance.ThirdParty => Texts.T("sources.maintenance.thirdParty"),
+            _ => Texts.T("sources.maintenance.unverifiedDetail")
+        };
+        return Array.AsReadOnly(new[]
+        {
+            new SourceBadge(SourceBadgeKind.Type, Texts.T(isBuiltIn ? "sources.badge.type.builtin" : "sources.badge.type.plugin"),
+                string.Empty, false, false),
+            new SourceBadge(SourceBadgeKind.Maintenance, maintenanceValue,
+                unverified ? Texts.T("sources.maintenance.unverified") : maintenanceValue, unverified, false),
+            // Stable and Unclassified are the quiet cases; only Experimental is a deviation worth a chip, in the warning tone.
+            new SourceBadge(SourceBadgeKind.Maturity, Texts.T(MaturityKey(maturity)), Texts.T(MaturityKey(maturity)),
+                maturity == SourceWordingMaturity.Experimental, maturity == SourceWordingMaturity.Experimental),
+            new SourceBadge(SourceBadgeKind.Status, Texts.T(isActive ? "sources.badge.status.active" : "sources.badge.status.inactive"),
+                Texts.T("sources.badge.status.inactive"), !isActive, false)
+        });
+    }
+
+    /// <summary>The full meta line of the detail view: type, maintenance, maturity and status, always all four.</summary>
+    internal static string DescribeMeta(IReadOnlyList<SourceBadge> badges) => Texts.T("sources.metaLine",
+        badges.Single(badge => badge.Kind == SourceBadgeKind.Type).Value, badges.Single(badge => badge.Kind == SourceBadgeKind.Maintenance).Value,
+        badges.Single(badge => badge.Kind == SourceBadgeKind.Maturity).Value, badges.Single(badge => badge.Kind == SourceBadgeKind.Status).Value);
+
+    /// <summary>The maturity sort of the Sources list: stable first, then unclassified, experimental last.</summary>
+    internal static int MaturityRank(SourceWordingClassification? classification) => classification?.Maturity switch
+    {
+        SourceWordingMaturity.Stable => 0,
+        SourceWordingMaturity.Experimental => 2,
+        _ => 1
+    };
 
     internal static string DescribeCompact(IReadOnlyList<SourceWordingClassification> classifications)
     {

@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginHost.Installation;
+using MeowChan.TestSupport;
 
 [assembly: CollectionBehavior(DisableTestParallelization = true)]
 namespace MeowChan.PluginCompiler.Tests;
@@ -19,8 +20,8 @@ public sealed class CompilerIntegrationTests : IDisposable
     public CompilerIntegrationTests()
     {
         Directory.CreateDirectory(_root);
-        _bundle = Environment.GetEnvironmentVariable("MEOWCHAN_COMPILER_TEST_BUNDLE") ?? Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "../../../../../MeowChan.PluginCompiler/bin/Release/net10.0"));
+        _bundle = Environment.GetEnvironmentVariable("MEOWCHAN_COMPILER_TEST_BUNDLE") ??
+            BuiltTestBinaries.AppHostDirectory("MeowChan.PluginCompiler");
         Assert.True(File.Exists(Executable), "A built/published bundled compiler apphost is required: " + Executable);
     }
     private PluginCompilationService Service(string? executable = null, TimeSpan? timeout = null, string? bundle = null) =>
@@ -139,6 +140,33 @@ public sealed class CompilerIntegrationTests : IDisposable
     }
 
     [Fact]
+    public async Task ScopedCleanupRemovesOnlyTheNamedUnretainedBuilds()
+    {
+        string path = await SourceAsync();
+        PluginBuildResult kept = await Service().BuildAsync(path);
+        await File.WriteAllTextAsync(path, ValidSource + "\n// retired");
+        PluginBuildResult retired = await Service().BuildAsync(path);
+        await File.WriteAllTextAsync(path, ValidSource + "\n// unrelated");
+        PluginBuildResult unrelated = await Service().BuildAsync(path);
+        Success(kept); Success(retired); Success(unrelated);
+        HashSet<string> empty = new();
+        // A named build that something still retains is never removed.
+        PluginCacheCleanupResult guarded = await Service().CleanupOnlyAsync(new HashSet<string> { kept.Artifact!.ExecutionRevision },
+            new HashSet<string> { kept.CompilationFingerprint! }, new HashSet<string> { kept.Artifact.ExecutionRevision }, new HashSet<string> { kept.CompilationFingerprint! });
+        Assert.Equal(0, guarded.RemovedArtifacts + guarded.RemovedCompilations);
+        PluginCacheCleanupResult cleanup = await Service().CleanupOnlyAsync(new HashSet<string> { retired.Artifact!.ExecutionRevision },
+            new HashSet<string> { retired.CompilationFingerprint! }, empty, empty);
+        Assert.Empty(cleanup.Diagnostics);
+        Assert.Equal(1, cleanup.RemovedArtifacts);
+        Assert.Equal(1, cleanup.RemovedCompilations);
+        Assert.Null(await Service().FindArtifactAsync(retired.Artifact.ExecutionRevision));
+        // Builds that were not named stay, even though nothing retains them.
+        Assert.NotNull(await Service().FindArtifactAsync(kept.Artifact.ExecutionRevision));
+        Assert.NotNull(await Service().FindArtifactAsync(unrelated.Artifact!.ExecutionRevision));
+        Assert.Equal(0, (await Service().CleanupOnlyAsync(empty, empty, empty, empty)).RemovedArtifacts);
+    }
+
+    [Fact]
     public async Task CancelAndTimeoutKillRealCompilerProcessTreeWithoutPartialPublication()
     {
         if (OperatingSystem.IsWindows()) return; // Linux shell process fixture; Windows native package verification is separate.
@@ -154,7 +182,9 @@ public sealed class CompilerIntegrationTests : IDisposable
         Assert.Equal(PluginBuildStatus.Cancelled, cancelled.Status);
         AssertProcessGone(pid);
         File.Delete(marker);
-        PluginBuildResult timedOut = await Service(wrapper, TimeSpan.FromMilliseconds(300)).BuildAsync(path);
+        // The timeout has to outlast the shell's start so that its first command (the marker) has run; the sleep that follows
+        // keeps the build running until the timeout kills it, however long that takes.
+        PluginBuildResult timedOut = await Service(wrapper, TimeSpan.FromSeconds(3)).BuildAsync(path);
         Assert.Equal(PluginBuildStatus.TimedOut, timedOut.Status);
         pid = int.Parse(await File.ReadAllTextAsync(marker));
         AssertProcessGone(pid);
@@ -362,22 +392,104 @@ public sealed class CompilerIntegrationTests : IDisposable
         using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
         {
             Success(await pass.ImportBundleAsync(bundle.ManifestPath));
-            // This pass already verified every toolchain file; the unchanged-in-pass result is reused (the saved work).
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            // The pass's one verification is reused only while no verified file changed: a change after hashing fails closed.
             await DamageAsync();
+            AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+            await File.WriteAllBytesAsync(reference, original);
             Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
         }
         // A new pass and a plain import always verify the whole toolchain again.
+        await DamageAsync();
         using (IPluginBundleImportBatch next = installer.BeginImportBatch())
         {
-            PluginBuildResult damaged = await next.ImportBundleAsync(bundle.ManifestPath);
-            Assert.Equal(PluginBuildStatus.IntegrityError, damaged.Status);
-            Assert.Contains(damaged.Diagnostics, d => d.Message.Contains("toolchain integrity", StringComparison.OrdinalIgnoreCase));
-            Assert.Equal(PluginBuildStatus.IntegrityError, (await installer.ImportBundleAsync(bundle.ManifestPath)).Status);
+            AssertToolchainRejected(await next.ImportBundleAsync(bundle.ManifestPath));
+            AssertToolchainRejected(await installer.ImportBundleAsync(bundle.ManifestPath));
             // A failed verification is not remembered: once the file is restored the same pass succeeds.
             await File.WriteAllBytesAsync(reference, original);
             Assert.True((await next.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
         }
         Assert.True((await installer.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+    }
+
+    [Fact]
+    public async Task ToolchainChangedBetweenHashingAndUseFailsClosed()
+    {
+        PrebuiltFixture bundle = await PrebuiltBundleAsync("toolchain race bundle");
+        string copy = Path.Combine(_root, "raced toolchain");
+        CopyDirectory(_bundle, copy);
+        PluginCompilationService importer = Service(bundle: copy);
+        IPluginBundleInstaller installer = importer;
+        Success(await importer.ImportBundleAsync(bundle.ManifestPath));
+        string reference = Path.Combine(copy, "references", "System.Runtime.dll");
+        string sdk = Path.Combine(copy, "MeowChan.PluginSdk.dll");
+        byte[] original = await File.ReadAllBytesAsync(reference);
+        byte[] damaged = (byte[])original.Clone();
+        damaged[^1] ^= 1;
+
+        // Changed right after the batch began hashing (in the background, outside the build gate): whether the hash saw
+        // the old or the new bytes, the import must not accept the toolchain.
+        using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
+        {
+            await File.WriteAllBytesAsync(reference, damaged);
+            AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+        }
+        await File.WriteAllBytesAsync(reference, original);
+
+        // Same length, write time set back: only the file identity (status-change time / inode) still shows the write.
+        using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
+        {
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            DateTime written = File.GetLastWriteTimeUtc(reference);
+            await File.WriteAllBytesAsync(reference, damaged);
+            File.SetLastWriteTimeUtc(reference, written);
+            if (OperatingSystem.IsLinux()) AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+            await File.WriteAllBytesAsync(reference, original);
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+        }
+
+        // A verified file replaced by another file is re-verified before use: other bytes fail, identical bytes pass.
+        using (IPluginBundleImportBatch pass = installer.BeginImportBatch())
+        {
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            string other = Path.Combine(copy, "replacement.tmp");
+            await File.WriteAllBytesAsync(other, damaged);
+            File.Move(other, reference, overwrite: true);
+            AssertToolchainRejected(await pass.ImportBundleAsync(bundle.ManifestPath));
+            await File.WriteAllBytesAsync(other, original);
+            File.Move(other, reference, overwrite: true);
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+            // A missing verified file is a failure, not a skipped check.
+            File.Move(sdk, sdk + ".away");
+            PluginBuildResult missing = await pass.ImportBundleAsync(bundle.ManifestPath);
+            Assert.False(missing.Succeeded);
+            File.Move(sdk + ".away", sdk);
+            Assert.True((await pass.ImportBundleAsync(bundle.ManifestPath)).CacheHit);
+        }
+    }
+
+    [Fact]
+    public async Task DisposingDuringTheBackgroundToolchainVerificationLeavesNothingRunning()
+    {
+        PrebuiltFixture bundle = await PrebuiltBundleAsync("disposed pass bundle");
+        PluginCompilationService importer = Service(executable: Path.Combine(_root, "compiler need not exist"));
+        IPluginBundleInstaller installer = importer;
+        installer.BeginImportBatch().Dispose(); // Cancels its verification at once; nothing observes the outcome.
+        IPluginBundleImportBatch pass = installer.BeginImportBatch();
+        Task<PluginBuildResult> import = pass.ImportBundleAsync(bundle.ManifestPath);
+        await importer.DisposeAsync(); // Waits for the import and for the verification it may still be running.
+        PluginBuildResult result = await import;
+        Assert.True(result.Succeeded || result.Status == PluginBuildStatus.Cancelled, result.Status.ToString());
+        Assert.Equal(PluginBuildStatus.Cancelled, (await pass.ImportBundleAsync(bundle.ManifestPath)).Status);
+        pass.Dispose();
+        // A service that is stopping starts no verification for a new pass.
+        Assert.Equal(PluginBuildStatus.Cancelled, (await installer.BeginImportBatch().ImportBundleAsync(bundle.ManifestPath)).Status);
+    }
+
+    private static void AssertToolchainRejected(PluginBuildResult result)
+    {
+        Assert.Equal(PluginBuildStatus.IntegrityError, result.Status);
+        Assert.Contains(result.Diagnostics, d => d.Message.Contains("toolchain integrity", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -464,11 +576,12 @@ public sealed class CompilerIntegrationTests : IDisposable
             ProcessStartInfo start = new("/usr/bin/mkfifo") { UseShellExecute = false }; start.ArgumentList.Add(path);
             using Process process = Process.Start(start)!; await process.WaitForExitAsync(); Assert.Equal(0, process.ExitCode);
         }
-        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
-        PluginInventory inventory = await new PluginInstallationInventory().ScanAsync(plugins, timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+        // Reading a FIFO blocks for ever, so the limits only need to tell "never returns" from "returns"; they are no speed bound.
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(30));
+        PluginInventory inventory = await new PluginInstallationInventory().ScanAsync(plugins, timeout.Token).WaitAsync(TimeSpan.FromSeconds(30));
         Assert.Equal(2, inventory.Candidates.Count);
         Assert.All(inventory.Candidates, candidate => Assert.NotEmpty(candidate.Diagnostics));
-        PluginBuildResult result = await Service().BuildAsync(sourceFifo, cancellationToken: timeout.Token).WaitAsync(TimeSpan.FromSeconds(5));
+        PluginBuildResult result = await Service().BuildAsync(sourceFifo, cancellationToken: timeout.Token).WaitAsync(TimeSpan.FromSeconds(30));
         Assert.False(result.Succeeded);
         Assert.NotEqual(PluginBuildStatus.Cancelled, result.Status);
         Assert.False(timeout.IsCancellationRequested);
@@ -480,7 +593,7 @@ public sealed class CompilerIntegrationTests : IDisposable
         if (!OperatingSystem.IsLinux()) return;
         string path = await SourceAsync();
         string wrapper = await WrapperAsync("head -c 1100000 /dev/zero\nsleep 30\n");
-        PluginBuildResult result = await Service(wrapper, TimeSpan.FromSeconds(5)).BuildAsync(path);
+        PluginBuildResult result = await Service(wrapper, TimeSpan.FromSeconds(20)).BuildAsync(path);
         Assert.Equal(PluginBuildStatus.CompilerError, result.Status);
         Assert.Contains(result.Diagnostics, d => d.Message.Contains("size limit", StringComparison.Ordinal));
         Assert.Empty(Directory.GetDirectories(Path.Combine(Cache, "artifacts")));

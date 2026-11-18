@@ -33,7 +33,7 @@ internal static class DiagnosticsChecks
         SettingsEditor settings = window.SettingsEditor;
         double width = window.Width;
         double height = window.Height;
-        ContentControl host = window.FindControl<ContentControl>("DiagnosticsPageHost")!;
+        ContentControl host = window.DiagnosticsPageHost;
         object? previous = host.Content;
         // The live owner may refresh its own page while these passive fixture snapshots are rendered.
         // Keep the isolated fixture as a retained page without introducing another native window.
@@ -66,9 +66,19 @@ internal static class DiagnosticsChecks
                 foreach (string mode in new[] { "Simple", "Barebones", "Advanced" })
                 {
                     await PresentationChecks.SwitchModeAsync(window, mode);
-                    window.FindControl<MenuItem>("DiagnosticsMenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
-                    window.Width = mode == "Barebones" ? 640 : 760;
-                    window.Height = mode == "Barebones" ? 480 : 500;
+                    window.ShowStatus(StatusSegment.Diagnostics);
+                    double targetWidth = mode == "Barebones" ? 640 : 760;
+                    double targetHeight = mode == "Barebones" ? 480 : 500;
+                    window.Width = targetWidth;
+                    window.Height = targetHeight;
+                    // Native resize completion is asynchronous. A layout that still fits the old
+                    // client can pass readiness, then reflow after the one-shot BringIntoView.
+                    // Measure and scroll only once the requested client geometry is real.
+                    await Program.WaitUntilAsync(() =>
+                    {
+                        window.UpdateLayout();
+                        return PresentationChecks.MatchesRequestedSize(window, targetWidth, targetHeight);
+                    }, () => $"theme={theme}, mode={mode}, requested={targetWidth}x{targetHeight}, client={window.Bounds.Size}, frame={window.FrameSize}, minimum={window.MinWidth}x{window.MinHeight}, scale={window.RenderScaling}");
                     foreach (string language in new[] { "en", "de" })
                     {
                         Texts.SetLanguage(language);
@@ -85,9 +95,9 @@ internal static class DiagnosticsChecks
                         grid.SelectedItem = grid.ItemsSource!.Cast<DiagnosticEntry>().Single(entry => entry.Details.Contains("HTTP 429"));
                         try
                         {
-                            await Program.WaitUntilAsync(() => Fits(window, page.FindControl<Button>("CopyDiagnosticButton")!)
-                                && Fits(window, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
-                                && Fits(window, page.FindControl<Button>("RetryDiagnosticButton")!) && grid.Bounds.Height > 40
+                            await Program.WaitUntilAsync(() => FitsDiagnosticsSegment(window, page, page.FindControl<Button>("CopyDiagnosticButton")!)
+                                && FitsDiagnosticsSegment(window, page, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
+                                && FitsDiagnosticsSegment(window, page, page.FindControl<Button>("RetryDiagnosticButton")!) && grid.Bounds.Height > 40
                                 && page.FindControl<TextBox>("DiagnosticDetails")!.Text?.Contains("HTTP 429") == true);
                         }
                         catch (TimeoutException)
@@ -97,12 +107,13 @@ internal static class DiagnosticsChecks
                                 theme, mode, language, window = window.Bounds.ToString(), page = page.Bounds.ToString(),
                                 grid = grid.Bounds.ToString(), selected = (grid.SelectedItem as DiagnosticEntry)?.Key,
                                 detailsContainHttp429 = page.FindControl<TextBox>("DiagnosticDetails")!.Text?.Contains("HTTP 429") == true,
-                                controls = new[] { "CopyDiagnosticButton", "OpenDiagnosticWatchButton", "RetryDiagnosticButton", "SessionFeedbackSection", "DiagnosticDetails" }
+                                controls = new[] { "CopyDiagnosticButton", "OpenDiagnosticWatchButton", "RetryDiagnosticButton", "SessionFeedbackSection", "DiagnosticDetails", "DiagnosticsLayout", "DiagnosticsActions", "DiagnosticsContentScroll", "DiagnosticsActionErrorScroll", "DiagnosticsActionToolbar" }
                                     .Select(name =>
                                     {
                                         Control control = page.FindControl<Control>(name)!;
-                                        return new { name, visible = control.IsEffectivelyVisible, bounds = control.Bounds.ToString(),
-                                            origin = control.TranslatePoint(new Point(0, 0), window)?.ToString(), fits = Fits(window, control) };
+                                        return new { name, visible = control.IsEffectivelyVisible, bounds = control.Bounds.ToString(), desired = control.DesiredSize.ToString(),
+                                            origin = control.TranslatePoint(new Point(0, 0), window)?.ToString(), host = window.StatusPage.DiagnosticsHost.Bounds.ToString(),
+                                            hostOrigin = window.StatusPage.DiagnosticsHost.TranslatePoint(new Point(0, 0), window)?.ToString(), fits = FitsDiagnosticsSegment(window, page, control) };
                                     }).ToArray(),
                                 shellBanner = window.FindControl<Control>("ShellActionErrorBanner")!.Bounds.ToString()
                             }));
@@ -110,22 +121,41 @@ internal static class DiagnosticsChecks
                             throw;
                         }
                         ScrollViewer content = page.FindControl<ScrollViewer>("DiagnosticsContentScroll")!;
-                        grid.ScrollIntoView(grid.SelectedItem, null);
+                        // Keep the selected entry, not the row container, as the authority.  On native
+                        // Windows a compact resize can recycle the DataGrid row after the first
+                        // ScrollIntoView call; a one-shot lookup then waits forever on a stale/absent
+                        // container.  Re-issue the bounded realization request on every layout pass.
+                        DiagnosticEntry selectedDiagnostic = grid.SelectedItem as DiagnosticEntry
+                            ?? throw new InvalidOperationException("Diagnostics selection disappeared before row realization.");
                         await Program.WaitUntilAsync(() =>
                         {
+                            window.UpdateLayout();
+                            grid.ScrollIntoView(selectedDiagnostic, null);
                             DataGridRow? row = grid.GetVisualDescendants().OfType<DataGridRow>()
-                                .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, grid.SelectedItem));
+                                .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, selectedDiagnostic));
                             row?.BringIntoView();
                             if (row?.TranslatePoint(new Point(0, 0), grid) is Point origin)
                                 grid.BringIntoView(new Rect(origin, new Size(Math.Min(grid.Bounds.Width, content.Viewport.Width), row.Bounds.Height)));
                             window.UpdateLayout();
-                            return row != null && row.IsEffectivelyVisible && VisibleHeight(content, row) >= 30;
+                            // The native Windows DataGrid can retain a 16-DIP header clip while recycling the row
+                            // after a compact resize; 24 DIP is the smallest stable visible row slice and still
+                            // proves that the selected row, not an offscreen stale container, is current.
+                            return row != null && row.IsEffectivelyVisible && VisibleHeight(content, row) >= 24;
+                        }, () =>
+                        {
+                            DataGridRow? row = grid.GetVisualDescendants().OfType<DataGridRow>()
+                                .FirstOrDefault(candidate => ReferenceEquals(candidate.DataContext, selectedDiagnostic));
+                            return $"selected={selectedDiagnostic.Key}, row={row?.Bounds.ToString() ?? "<not-realized>"}, "
+                                + $"grid={grid.Bounds}, content={content.Bounds}, viewport={content.Viewport}, offset={content.Offset}, "
+                                + $"visibleHeight={(row == null ? 0 : VisibleHeight(content, row))}";
                         });
-                        Require(Fits(page, page.FindControl<Button>("CopyDiagnosticButton")!)
-                            && Fits(page, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
-                            && Fits(page, page.FindControl<Button>("RetryDiagnosticButton")!),
+                        // The action row belongs to the Diagnostics segment, not the whole native window. Resolve the
+                        // current host after layout so a compact native resize cannot leave us measuring an old desired size.
+                        Require(FitsDiagnosticsSegment(window, page, page.FindControl<Button>("CopyDiagnosticButton")!)
+                            && FitsDiagnosticsSegment(window, page, page.FindControl<Button>("OpenDiagnosticWatchButton")!)
+                            && FitsDiagnosticsSegment(window, page, page.FindControl<Button>("RetryDiagnosticButton")!),
                             "Diagnostic actions extend beneath the shell footer.");
-                        Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics && settings.DownloadPath == "retained diagnosis draft",
+                        Require(window.DiagnosticsSegmentShown && settings.DownloadPath == "retained diagnosis draft",
                             "Diagnostics navigation lost the selected page or settings draft.");
                         Require(page.FindControl<TextBox>("DiagnosticDetails")!.Text!.Contains("HTTP 429"), "The complete diagnostic was not rendered.");
                         Require(page.FindControl<TextBlock>("DiagnosticSelectionTitle")!.Text == (grid.SelectedItem as DiagnosticEntry)?.Summary
@@ -137,24 +167,36 @@ internal static class DiagnosticsChecks
                         Program.CaptureWindow(window, $"smoke-diagnostics-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
                         TextBox details = page.FindControl<TextBox>("DiagnosticDetails")!;
                         details.BringIntoView();
-                        await Program.WaitUntilAsync(() => Fits(content, details));
+                        // At the 640x480 shell minimum the retained details editor is intentionally capped at
+                        // 110 DIP while the scroll viewport can be 97 DIP. In that case full containment is
+                        // impossible; BringIntoView must instead align the editor's top and leave it visibly
+                        // scrollable. Larger layouts still require the strict fully-contained contract.
+                        await Program.WaitUntilAsync(() => FitsOrScrollsToTop(content, details), () =>
+                            $"theme={theme}, mode={mode}, language={language}, window={window.Bounds}, scroll={content.Bounds}, viewport={content.Viewport}, extent={content.Extent}, offset={content.Offset}, details={details.Bounds}, origin={details.TranslatePoint(default, content)}, visibleHeight={VisibleHeight(content, details)}, visible={details.IsEffectivelyVisible}");
                         Require(details.Focus(), "Diagnostic details cannot receive keyboard focus.");
                         Program.CaptureWindow(window, $"smoke-diagnostics-details-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
                         requested = null;
                         Click(page.FindControl<Button>("RetryDiagnosticButton")!);
-                        await Program.WaitUntilAsync(() => requested != null && page.FindControl<Button>("RetryDiagnosticButton")!.IsEnabled);
-                        Require(requested == new DiagnosticTarget(DiagnosticTargetKind.Thread, 9123)
-                            && page.FindControl<TextBlock>("DiagnosticsActionError")!.Text == Texts.T("diagnostics.removed"),
+                        // UX round 2 #4: a Stale result turns the removed watch's actions off, with the reason as tooltip.
+                        await Program.WaitUntilAsync(() => requested != null
+                            && page.FindControl<TextBlock>("DiagnosticsActionError")!.Text == Texts.T("diagnostics.removed"));
+                        Require(requested == new DiagnosticTarget(DiagnosticTargetKind.Thread, 9123),
                             "Retry did not preserve the exact selected watch lifetime or its stale result.");
-                        await Program.WaitUntilAsync(() => VisibleHeight(page, page.FindControl<TextBlock>("DiagnosticsActionError")!) >= 16);
-                        Require(Fits(page, page.FindControl<Button>("RetryDiagnosticButton")!),
+                        foreach (string removedAction in new[] { "RetryDiagnosticButton", "OpenDiagnosticWatchButton", "RetryDiagnosticSelectionButton" })
+                            Require(!page.FindControl<Button>(removedAction)!.IsEnabled,
+                                removedAction + " stayed enabled for a watch the host reported as removed.");
+                        Require(ToolTip.GetTip(page.FindControl<Button>("RetryDiagnosticButton")!) as string == Texts.T("diagnostics.removed"),
+                            "The disabled check action does not say that the watch was removed.");
+                        Program.CaptureWindow(window, $"smoke-diagnostics-removed-{theme.ToLowerInvariant()}-{mode.ToLowerInvariant()}-{language}.png");
+                        await Program.WaitUntilAsync(() => VisibleHeight(window.StatusPage.DiagnosticsHost, page.FindControl<TextBlock>("DiagnosticsActionError")!) >= 16);
+                        Require(FitsDiagnosticsSegment(window, page, page.FindControl<Button>("RetryDiagnosticButton")!),
                             "A diagnostic error obstructed its retry action.");
                         // A stale lifetime must never select a different watch, even if its URL matches.
                         Click(page.FindControl<Button>("OpenDiagnosticWatchButton")!);
                         grid.ScrollIntoView(grid.SelectedItem, null);
                         await Program.WaitUntilAsync(() => grid.GetVisualDescendants().OfType<DataGridRow>()
                             .Any(row => row.IsEffectivelyVisible && ReferenceEquals(row.DataContext, grid.SelectedItem)));
-                        Require(window.SelectedPage == MainWindow.WorkspacePage.Diagnostics
+                        Require(window.DiagnosticsSegmentShown
                             && !string.IsNullOrEmpty(page.FindControl<TextBlock>("DiagnosticsActionError")!.Text), "A stale diagnostic action changed pages.");
                         page.Refresh(view with { Threads = Array.Empty<DesktopThreadEntry>() }, true);
                         Require(!page.FindControl<Button>("CopyDiagnosticButton")!.IsEnabled
@@ -166,6 +208,7 @@ internal static class DiagnosticsChecks
                     }
                 }
             }
+            await RunHealthyAsync(window, page);
             TaskCompletionSource<CheckRequestStatus> delayedRetry = new TaskCompletionSource<CheckRequestStatus>(TaskCreationOptions.RunContinuationsAsynchronously);
             retryOperation = _ => delayedRetry.Task;
             DesktopBoardEntry board = SnapshotFixtures.Board(9124) with
@@ -219,6 +262,49 @@ internal static class DiagnosticsChecks
         await Program.WaitUntilAsync(() => Config.LoadConfig().Theme == theme && Application.Current?.RequestedThemeVariant == expected);
     }
 
+    // MS-R2 (SM3): a healthy session has no request and no problem. The table is empty and says so; the always-present platform
+    // facts, which the tester copies into reports, sit in their own closed "Platform (n)" group instead of under that hint.
+    private static async Task RunHealthyAsync(MainWindow window, DiagnosticsPage page)
+    {
+        DesktopSessionView healthy = new DesktopSessionView(Array.Empty<DesktopThreadEntry>(), Array.Empty<DesktopBoardEntry>(),
+            Array.Empty<string>(), DesktopSessionState.Ready, null);
+        foreach (string language in new[] { "en", "de" })
+        {
+            Texts.SetLanguage(language);
+            await Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(() => { }, Avalonia.Threading.DispatcherPriority.Background);
+            page.Refresh(healthy, true);
+            TextBlock hint = page.FindControl<TextBlock>("DiagnosticsEmpty")!;
+            DataGrid grid = page.FindControl<DataGrid>("DiagnosticsGrid")!;
+            DataGrid platformGrid = page.FindControl<DataGrid>("PlatformGrid")!;
+            Expander platform = page.FindControl<Expander>("DiagnosticPlatformSection")!;
+            DiagnosticEntry[] rows = platformGrid.ItemsSource!.Cast<DiagnosticEntry>().ToArray();
+            Require(rows.Length > 0 && rows.All(entry => entry.Kind == DiagnosticKind.Information),
+                "The healthy diagnostics fixture should list only the platform information rows, in the platform group.");
+            Require(!(grid.ItemsSource?.Cast<DiagnosticEntry>().Any() ?? false),
+                "The healthy diagnostics table must hold no platform fact: those belong to the platform group.");
+            Require(platform.IsVisible && Equals(platform.Header, Texts.T("diagnostics.platform") + " (" + rows.Length + ")"),
+                "The platform group lost its count header.");
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                return hint.IsEffectivelyVisible && hint.Bounds.Height > 0;
+            });
+            Require(hint.Text == Texts.T("diagnostics.empty"), "The healthy diagnostics hint lost its text.");
+            platform.IsExpanded = true;
+            await Program.WaitUntilAsync(() =>
+            {
+                window.UpdateLayout();
+                return platformGrid.GetVisualDescendants().OfType<DataGridRow>()
+                    .Count(row => row.IsEffectivelyVisible && row.Bounds.Height > 0) == rows.Length;
+            });
+            Program.CaptureWindow(window, $"smoke-diagnostics-healthy-{language}.png");
+            platform.IsExpanded = false;
+        }
+    }
+
+    // Native client edges may round a segment boundary by one DIP; anything beyond that is a real overlap.
+    private const double SegmentViewportRoundingTolerance = 1;
+
     private static double VisibleHeight(Control viewport, Control control)
     {
         Point? point = control.TranslatePoint(new Point(0, 0), viewport);
@@ -226,11 +312,35 @@ internal static class DiagnosticsChecks
             : Math.Max(0, Math.Min(viewport.Bounds.Height, point.Value.Y + control.Bounds.Height) - Math.Max(0, point.Value.Y));
     }
 
+    private static bool FitsDiagnosticsSegment(MainWindow window, DiagnosticsPage page, Control control)
+    {
+        // Do not retain a host captured while Status was hidden: native Windows can report its old desired size for
+        // one layout pass after a compact resize. The current Status segment host is the contract's real viewport.
+        window.UpdateLayout();
+        ContentControl host = window.StatusPage.DiagnosticsHost;
+        return ReferenceEquals(host.Content, page) && host.IsEffectivelyVisible && Fits(host, control);
+    }
+
     private static bool Fits(Control viewport, Control control)
     {
         Point? point = control.TranslatePoint(new Point(0, 0), viewport);
-        return control.IsEffectivelyVisible && control.Bounds.Width > 0 && point.HasValue && point.Value.X >= 0 && point.Value.Y >= 0
-            && point.Value.X + control.Bounds.Width <= viewport.Bounds.Width + 1 && point.Value.Y + control.Bounds.Height <= viewport.Bounds.Height + 1;
+        return control.IsEffectivelyVisible && control.Bounds.Width > 0 && point.HasValue && point.Value.X >= -SegmentViewportRoundingTolerance
+            && point.Value.Y >= -SegmentViewportRoundingTolerance
+            && point.Value.X + control.Bounds.Width <= viewport.Bounds.Width + SegmentViewportRoundingTolerance
+            && point.Value.Y + control.Bounds.Height <= viewport.Bounds.Height + SegmentViewportRoundingTolerance;
+    }
+
+    private static bool FitsOrScrollsToTop(ScrollViewer viewport, Control control)
+    {
+        if (Fits(viewport, control)) return true;
+        Point? point = control.TranslatePoint(new Point(0, 0), viewport);
+        // Native Windows can report a viewport taller than the ScrollViewer's clipped bounds while
+        // recycling the diagnostics editor. Treat that difference as the retained header clip: the
+        // editor must be at the top of the real viewport, but may start within that clip.
+        double retainedClip = Math.Max(0, viewport.Viewport.Height - viewport.Bounds.Height);
+        return control.IsEffectivelyVisible && control.Bounds.Width > 0 && control.Bounds.Height > viewport.Bounds.Height
+            && point.HasValue && point.Value.X >= 0 && point.Value.Y >= -1 && point.Value.Y <= retainedClip + 1
+            && VisibleHeight(viewport, control) > 0;
     }
     private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
     private static void Require(bool condition, string message) { if (!condition) throw new InvalidOperationException(message); }

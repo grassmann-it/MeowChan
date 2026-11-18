@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -50,7 +51,21 @@ internal static class MediaLibrarySelection
     {
         ArgumentNullException.ThrowIfNull(tiles);
         ArgumentNullException.ThrowIfNull(positions);
-        return positions.Where(index => index >= 0 && index < tiles.Count).Distinct().Order().Select(index => tiles[index]).ToArray();
+        // The grid reports its selection ascending and without repeats: one pass, no sort. Anything else is ordered first.
+        List<int> valid = new();
+        bool ascending = true;
+        int last = -1;
+        foreach (int index in positions)
+        {
+            if (index < 0 || index >= tiles.Count) continue;
+            if (index <= last) ascending = false;
+            last = index;
+            valid.Add(index);
+        }
+        IEnumerable<int> ordered = ascending ? valid : valid.Distinct().Order();
+        List<MediaLibraryTile> picked = new(valid.Count);
+        foreach (int index in ordered) picked.Add(tiles[index]);
+        return picked;
     }
 
     /// <summary>
@@ -67,17 +82,21 @@ internal static class MediaLibrarySelection
 }
 
 /// <summary>Why one occurrence cannot take a media tag.</summary>
-internal enum MediaTagBlock { None, NotSaved, NoPostVersion }
+internal enum MediaTagBlock { None, NotSaved, NoPostVersion, ProviderMedium }
 
-/// <summary>One occurrence offered to the tag dialog and the exact tag target it would be written to (null: not taggable).</summary>
-internal sealed record MediaTagCandidate(MediaLibraryEntry Entry, PrivateMediaTagTarget? Target)
+/// <summary>
+/// One occurrence offered to the tag dialog and the exact tag subject it would be written to (null: not taggable).
+/// A loose file gets a local subject from the same resolver the gallery and the media page state use.
+/// </summary>
+internal sealed record MediaTagCandidate(MediaLibraryEntry Entry, MediaTagSubject? Subject)
 {
-    internal MediaTagBlock Block => Target != null ? MediaTagBlock.None
-        : Entry.Presence != MediaLibraryPresence.Present ? MediaTagBlock.NotSaved : MediaTagBlock.NoPostVersion;
+    internal MediaTagBlock Block => Subject != null ? MediaTagBlock.None
+        : Entry.Presence != MediaLibraryPresence.Present ? MediaTagBlock.NotSaved
+        : Entry.BooruPostId != null ? MediaTagBlock.ProviderMedium : MediaTagBlock.NoPostVersion;
 }
 
 /// <summary>
-/// Which media tag targets a "tag the selection" action touches. Tags stay per occurrence: a grouped tile
+/// Which media tag subjects a "tag the selection" action touches. Tags stay per occurrence: a grouped tile
 /// offers every occurrence of its bytes, the caller decides which of them take part, and thread tags are never involved.
 /// </summary>
 internal static class MediaLibraryTagging
@@ -87,34 +106,30 @@ internal static class MediaLibraryTagging
     {
         ArgumentNullException.ThrowIfNull(tiles);
         return tiles.SelectMany(tile => tile.Occurrences).Distinct()
-            .Select(entry => new MediaTagCandidate(entry, MediaLibraryFilterEngine.TagTarget(entry))).ToArray();
+            .Select(entry => new MediaTagCandidate(entry, MediaTagSubjects.Of(entry))).ToArray();
     }
 
-    /// <summary>Targets of the chosen candidates that do not carry the tag yet.</summary>
-    internal static IReadOnlyList<PrivateMediaTagTarget> TargetsToAdd(PrivateTagStoreSnapshot snapshot, TagId tag,
+    /// <summary>Subjects of the chosen candidates that do not carry the tag yet.</summary>
+    internal static IReadOnlyList<MediaTagSubject> TargetsToAdd(PrivateTagStoreSnapshot snapshot, TagId tag,
         IEnumerable<MediaTagCandidate> chosen)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(chosen);
-        HashSet<PrivateMediaTagTarget> has = Carrying(snapshot, tag);
-        return Targets(chosen).Where(target => !has.Contains(target)).ToArray();
+        return Targets(chosen).Where(subject => !snapshot.Carries(tag, subject)).ToArray();
     }
 
-    /// <summary>Targets of the chosen candidates that carry the tag; the others are left alone.</summary>
-    internal static IReadOnlyList<PrivateMediaTagTarget> TargetsToRemove(PrivateTagStoreSnapshot snapshot, TagId tag,
+    /// <summary>Subjects of the chosen candidates that carry the tag; the others are left alone.</summary>
+    internal static IReadOnlyList<MediaTagSubject> TargetsToRemove(PrivateTagStoreSnapshot snapshot, TagId tag,
         IEnumerable<MediaTagCandidate> chosen)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         ArgumentNullException.ThrowIfNull(chosen);
-        HashSet<PrivateMediaTagTarget> has = Carrying(snapshot, tag);
-        return Targets(chosen).Where(has.Contains).ToArray();
+        return Targets(chosen).Where(subject => snapshot.Carries(tag, subject)).ToArray();
     }
 
-    private static HashSet<PrivateMediaTagTarget> Carrying(PrivateTagStoreSnapshot snapshot, TagId tag) =>
-        snapshot.MediaAssignments.Where(item => (TagId)item.TagId == tag).Select(item => item.Target).ToHashSet();
-
-    private static IEnumerable<PrivateMediaTagTarget> Targets(IEnumerable<MediaTagCandidate> chosen) =>
-        chosen.Select(candidate => candidate.Target).OfType<PrivateMediaTagTarget>().Distinct();
+    // Two views of the same loose file (for example two legacy posts) are one occurrence: one subject.
+    private static IEnumerable<MediaTagSubject> Targets(IEnumerable<MediaTagCandidate> chosen) =>
+        chosen.Select(candidate => candidate.Subject).OfType<MediaTagSubject>().Distinct();
 }
 
 /// <summary>Originals to export for a selection, and how many tiles could not be offered.</summary>
@@ -137,9 +152,20 @@ internal readonly record struct MediaLibraryExportSize(int Files, long Bytes, in
 
 internal static class MediaLibraryExport
 {
-    // The index facts BuildAsync needs before it opens a manifest; the same test decides count and plan, so they cannot drift.
-    private static bool HasOriginal(MediaLibraryEntry entry) => entry.Presence == MediaLibraryPresence.Present && entry.Directory != null
-        && entry.AssetId != null && entry.MediaId != null && entry.Variant == "original";
+    // The index facts BuildAsync needs before it opens a manifest. Count and plan both decide through this one method, so
+    // they cannot drift, and its non-null outputs carry the validated facts to the caller: a blank directory, asset id,
+    // media id or hash is "no original to offer" (FindById rejects a blank id, and a blank folder is not a manifest).
+    private static bool TryGetOriginal(MediaLibraryEntry entry, [NotNullWhen(true)] out string? directory,
+        [NotNullWhen(true)] out string? assetId, [NotNullWhen(true)] out string? mediaId, out string? sha256)
+    {
+        bool original = entry.Presence == MediaLibraryPresence.Present && entry.Variant == "original";
+        directory = original && !string.IsNullOrWhiteSpace(entry.Directory) ? entry.Directory : null;
+        assetId = original && !string.IsNullOrWhiteSpace(entry.AssetId) ? entry.AssetId : null;
+        mediaId = original && !string.IsNullOrWhiteSpace(entry.MediaId) ? entry.MediaId : null;
+        sha256 = original && !string.IsNullOrWhiteSpace(entry.Sha256) ? entry.Sha256 : null;
+        // A folder source file may not be hashed yet (PR2): its digest comes with its virtual manifest, so sha256 can be null for it.
+        return directory != null && assetId != null && mediaId != null && (sha256 != null || original && entry.FolderItemId != null);
+    }
 
     /// <summary>Count and bytes of the originals the tiles would offer, from the index only.</summary>
     internal static MediaLibraryExportSize Measure(IEnumerable<MediaLibraryTile> tiles)
@@ -149,7 +175,7 @@ internal static class MediaLibraryExport
         long bytes = 0;
         foreach (MediaLibraryTile tile in tiles)
         {
-            if (!HasOriginal(tile.Entry)) { notOffered++; continue; }
+            if (!TryGetOriginal(tile.Entry, out _, out _, out _, out _)) { notOffered++; continue; }
             files++;
             bytes += tile.Entry.Length ?? 0;
         }
@@ -173,16 +199,18 @@ internal static class MediaLibraryExport
         {
             cancellationToken.ThrowIfCancellationRequested();
             MediaLibraryEntry entry = tile.Entry;
-            if (!HasOriginal(entry)) { unavailable++; continue; }
-            if (!manifests.TryGetValue(entry.Directory, out MediaAssetSnapshot? manifest))
+            if (!TryGetOriginal(entry, out string? directory, out string? assetId, out string? mediaId, out string? sha256)) { unavailable++; continue; }
+            if (!manifests.TryGetValue(directory, out MediaAssetSnapshot? manifest))
             {
-                try { manifest = await openManifest(entry.Directory, cancellationToken).ConfigureAwait(false); }
+                try { manifest = await openManifest(directory, cancellationToken).ConfigureAwait(false); }
                 catch (Exception error) when (error is System.IO.IOException or UnauthorizedAccessException or System.IO.InvalidDataException) { manifest = null; }
-                manifests[entry.Directory] = manifest;
+                manifests[directory] = manifest;
             }
-            MediaAssetReference? asset = manifest?.FindById(entry.AssetId);
-            if (manifest == null || asset == null || !string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase)
-                || asset.MediaIdentifier != entry.MediaId || asset.Variant != entry.Variant) { unavailable++; continue; }
+            MediaAssetReference? asset = manifest?.FindById(assetId);
+            // A folder source file indexed before it was hashed learned its digest when its manifest was opened just now.
+            if (manifest == null || asset == null
+                || !(entry.FolderItemId != null && sha256 == null) && !string.Equals(asset.Sha256, sha256, StringComparison.OrdinalIgnoreCase)
+                || asset.MediaIdentifier != mediaId || asset.Variant != entry.Variant) { unavailable++; continue; }
             assets.Add(FavoriteExportAsset.From(entry.Thread, manifest, asset));
         }
         return new MediaLibraryExportPlan(assets, unavailable);

@@ -38,7 +38,7 @@ internal static class SourceFilterWaveChecks
             Language = "en", Theme = "Dark" }.SaveConfig(profile);
         using BlockedHttp http = new();
         await using DesktopSessionHost host = CreateHost(profile, http);
-        MainWindow window = new(host);
+        await using MainWindow window = new(host);
         window.Show(parent);
         try
         {
@@ -56,14 +56,14 @@ internal static class SourceFilterWaveChecks
                 await CheckActivationAsync(window, host, source, url, permission);
 
             RulesPage page = window.RulesPage;
-            SmokeActionClick.Execute(C<MenuItem>(window, "RulesMenuItem"));
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Rules);
             Require(window.SelectedPage == MainWindow.WorkspacePage.Rules, "Rules navigation failed.");
             page.EditScope(MediaRuleScope.Global);
             await page.RefreshPluginFiltersAsync();
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             ComboBox mode = Combo(page, "plugins.ruleFilter");
             mode.SelectedIndex = (int)MediaImageFilterMode.Plugin;
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
 
             foreach ((string pluginId, string[] keys) in new[]
             {
@@ -81,7 +81,7 @@ internal static class SourceFilterWaveChecks
                     "Delivered filter Describe omitted its expected fields: " + pluginId);
                 ComboBox choices = Combo(page, "plugins.filterChoice");
                 choices.SelectedItem = choices.Items.Cast<object>().Single(item => item.ToString() == described.Name + " · " + filter.Name);
-                await SettleAsync();
+                await SmokeDispatcher.SettleAsync();
                 Require(keys.All(key => Editor(page).FindField(key) != null), "Actual rule form omitted a delivered field: " + pluginId);
                 if (pluginId == HashPlugin)
                 {
@@ -167,7 +167,7 @@ internal static class SourceFilterWaveChecks
             {
                 modal.Width = modal.MinWidth; modal.Height = modal.MinHeight;
                 await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(modal, modal.MinWidth, modal.MinHeight));
-                await SettleAsync();
+                await SmokeDispatcher.SettleAsync();
                 Require(C<TextBlock>(modal, "ActivationExplanation").Text == Texts.T(permission ? "activation.explanation" : "activation.strictExplanation", target.SourceName),
                     "Experimental explanation does not distinguish activation from mismatch permission.");
                 Require(C<TextBlock>(modal, "ActivationConfirmLabel").Text == Texts.T(permission ? "activation.confirm" : "activation.strictConfirm"),
@@ -198,11 +198,11 @@ internal static class SourceFilterWaveChecks
             finally { if (modal.IsVisible) modal.Close(); }
         }
         AssertPolicy(host, source, permission);
-        SmokeActionClick.Execute(C<MenuItem>(window, "SourcesMenuItem"));
+        SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Sources);
         Require(window.SelectedPage == MainWindow.WorkspacePage.Sources, "Sources navigation failed.");
         SourcesPage page = (SourcesPage)C<ContentControl>(window, "SourcesPageHost").Content!;
         page.Refresh(host.GetProviderDescriptors(), host.GetView(), true); page.SelectSource(source);
-        await SettleAsync();
+        await SmokeDispatcher.SettleAsync();
         CheckBox checkbox = C<CheckBox>(page, "SourceAllowProviderMismatch");
         Require(C<StackPanel>(page, "SourceMediaIntegrityPanel").IsVisible == permission
             && (permission || !checkbox.IsEffectivelyVisible), "Strict source exposes a mismatch-permission checkbox.");
@@ -224,10 +224,10 @@ internal static class SourceFilterWaveChecks
         foreach (ThemeVariant theme in new[] { ThemeVariant.Dark, ThemeVariant.Light })
         {
             Texts.SetLanguage(language); Application.Current!.RequestedThemeVariant = theme;
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             Control field = Editor(page).FindField(key)!;
             field.BringIntoView();
-            await SettleAsync();
+            await SmokeDispatcher.SettleAsync();
             await Program.WaitUntilAsync(() => FullyVisible(window, field));
             Require(window.ActualThemeVariant.Equals(theme) && field.ActualThemeVariant.Equals(theme)
                 && PresentationChecks.MatchesRequestedSize(window, 640, 480), "Filter matrix lost actual minimum geometry/theme.");
@@ -236,9 +236,9 @@ internal static class SourceFilterWaveChecks
                 await page.SaveCurrentAsync(); // Revalidate with the actual delivered worker in every locale/theme cell.
                 field = Editor(page).FindField(key)!;
                 TextBlock error = Editor(page).GetLogicalDescendants().OfType<TextBlock>().Single(label =>
-                    label.Classes.Contains("error") && !string.IsNullOrWhiteSpace(label.Text));
+                    label.Classes.Contains("workspace-error") && !string.IsNullOrWhiteSpace(label.Text));
                 error.BringIntoView();
-                await SettleAsync();
+                await SmokeDispatcher.SettleAsync();
                 await Program.WaitUntilAsync(() => FullyVisible(window, error) && FullyVisible(window, field));
                 Require(((TextBox)field).Text == InvalidHashes && page.HasError
                     && (AutomationProperties.GetHelpText(field) ?? "").Contains(error.Text!, StringComparison.Ordinal),
@@ -261,11 +261,6 @@ internal static class SourceFilterWaveChecks
     {
         ComboBox input = (ComboBox)editor.FindField(key)!;
         input.SelectedItem = input.Items.Cast<ComboBoxItem>().Single(item => item.Tag as string == value);
-    }
-    private static async Task SettleAsync()
-    {
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
-        await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
     }
     private static bool FullyVisible(Window window, Control control)
     {

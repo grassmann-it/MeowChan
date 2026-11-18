@@ -49,17 +49,23 @@ internal static class AboutLinkChecks
                 "https://github.com/grassmann-it/MeowChan");
             await ClickAndVerifyAsync(about.FindControl<Button>("DonationLink")!, capture, 1,
                 "https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ");
+            await ClickAndVerifyAsync(about.FindControl<Button>("ContributeLink")!, capture, 2,
+                "https://github.com/grassmann-it/MeowChan/pulls");
+            await ClickAndVerifyAsync(about.FindControl<Button>("ReportIssueLink")!, capture, 3,
+                "https://github.com/grassmann-it/MeowChan/issues/new");
+            await ClickAndVerifyAsync(about.FindControl<Button>("TranslationLink")!, capture, 4,
+                "https://github.com/grassmann-it/MeowChan/blob/main/Desktop/Localization/README.md");
             if (!string.IsNullOrEmpty(about.FindControl<SelectableTextBlock>("LinkErrorText")!.Text))
                 throw new InvalidOperationException("About reported a launcher failure despite the successful fixture handoff.");
             about.Close();
             about = null;
             await UpdateGuiChecks.RunAsync(window, capture);
-            Console.WriteLine("SMOKE About project and PayPal buttons handed exact new-window URLs to the selected fake Firefox with sanitized Snap paths.");
+            Console.WriteLine("SMOKE About support, contribution, issue and translation buttons handed exact new-window URLs to the selected fake Firefox with sanitized Snap paths.");
         }
         finally
         {
             if (about?.IsVisible == true)
-                about.FindControl<Button>("CloseButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                about.Close();
             foreach (string key in keys)
                 Environment.SetEnvironmentVariable(key, original[key]);
         }

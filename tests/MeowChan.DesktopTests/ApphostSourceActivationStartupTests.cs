@@ -14,7 +14,7 @@ public sealed class ApphostSourceActivationStartupTests
     {
         using Fixture fixture = new();
         var (state, warnings) = await fixture.SelectedAsync();
-        MainWindow.RequireAuthorStartupState(state, warnings, true, phase);
+        MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, warnings, true, phase);
         Assert.Equal(2, state.Plugins.Count(plugin => plugin.Problem != null));
         Assert.All(state.Plugins, plugin => Assert.Null(plugin.Pending));
     }
@@ -28,12 +28,14 @@ public sealed class ApphostSourceActivationStartupTests
     [InlineData("wrong-selected")]
     [InlineData("pending")]
     [InlineData("third-candidate")]
+    [InlineData("disabled-default-enabled")]
+    [InlineData("fixture-source-disabled")]
     public async Task UnexpectedStartupStateFailsClosed(string fault)
     {
         using Fixture fixture = new();
         var (state, warnings) = await fixture.SelectedAsync();
         var plugins = state.Plugins.ToArray();
-        int target = Array.FindIndex(plugins, plugin => plugin.PluginId == "meowchan.source.lainchan");
+        int target = Array.FindIndex(plugins, plugin => plugin.PluginId == "meowchan.source.vichan");
         int other = Array.FindIndex(plugins, plugin => plugin.PluginId == "other.plugin");
         if (fault == "missing-warning") warnings = warnings[..1];
         if (fault == "extra-warning") warnings = [.. warnings, "unrelated warning"];
@@ -42,8 +44,14 @@ public sealed class ApphostSourceActivationStartupTests
         if (fault == "wrong-selected") plugins[target] = plugins[target] with { SelectedCandidateId = "wrong" };
         if (fault == "pending") plugins[target] = plugins[target] with { Pending = plugins[target].Active };
         if (fault == "third-candidate") plugins[target] = plugins[target] with { Candidates = [.. plugins[target].Candidates, plugins[target].Candidates[0] with { CandidateId = "third" }] };
+        if (fault == "disabled-default-enabled")
+        {
+            int disabled = Array.FindIndex(plugins, plugin => plugin.PluginId == "meowchan.source.sevenchan");
+            plugins[disabled] = plugins[disabled] with { Enabled = true };
+        }
+        if (fault == "fixture-source-disabled") plugins[target] = plugins[target] with { Enabled = false };
         state = state with { Plugins = plugins };
-        Assert.Throws<InvalidOperationException>(() => MainWindow.RequireAuthorStartupState(state, warnings, fault != "unpaused", "acquire"));
+        Assert.Throws<InvalidOperationException>(() => MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, warnings, fault != "unpaused", "acquire"));
     }
 
     [Fact]
@@ -51,20 +59,20 @@ public sealed class ApphostSourceActivationStartupTests
     {
         using Fixture fixture = new();
         var state = await fixture.Store.ApplyStartupAsync(fixture.Prebuilt, 0);
-        MainWindow.RequireAuthorStartupState(state, [], true, "install");
-        Assert.Throws<InvalidOperationException>(() => MainWindow.RequireAuthorStartupState(state, ["unrelated warning"], true, "install"));
+        MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, [], true, "install");
+        Assert.Throws<InvalidOperationException>(() => MeowChan.Desktop.ApphostAcceptanceAssertions.RequireAuthorStartupState(state, ["unrelated warning"], true, "install"));
     }
 
     private sealed class Fixture : IDisposable
     {
         private readonly string profile = Path.Combine(Path.GetTempPath(), "meowchan-author-startup-tests-" + Guid.NewGuid().ToString("N"));
         internal PluginProfileStore Store { get; }
-        internal PluginCandidateObservation[] Prebuilt { get; } = [Candidate("meowchan.source.lainchan", "prebuilt"), Candidate("meowchan.example.image-dimensions", "prebuilt"), Candidate("other.plugin", "prebuilt")];
-        internal Fixture() => Store = new(profile);
+        internal PluginCandidateObservation[] Prebuilt { get; } = [Candidate("meowchan.source.vichan", "prebuilt"), Candidate("meowchan.example.image-dimensions", "prebuilt"), Candidate("other.plugin", "prebuilt"), Candidate("meowchan.source.sevenchan", "prebuilt")];
+        internal Fixture() => Store = new(profile, MeowChan.Desktop.ApphostAcceptanceAssertions.ApphostFixturePluginEnabled);
         internal async Task<(PluginProfileSnapshot, string[])> SelectedAsync()
         {
             var state = await Store.ApplyStartupAsync(Prebuilt, 0);
-            PluginCandidateObservation[] authors = [Candidate("meowchan.source.lainchan", "author"), Candidate("meowchan.example.image-dimensions", "author")];
+            PluginCandidateObservation[] authors = [Candidate("meowchan.source.vichan", "author"), Candidate("meowchan.example.image-dimensions", "author")];
             foreach (var author in authors)
             {
                 state = await Store.ObserveCandidateAsync(author, state.Revision);

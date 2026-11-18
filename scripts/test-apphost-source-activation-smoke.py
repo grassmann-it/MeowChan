@@ -24,7 +24,7 @@ class AuthorEvidenceTests(unittest.TestCase):
         self.metrics['startup'] = dict(paused=True, warnings=[], plugins=[])
         for plugin_id, revision in self.metrics['revisions'].items():
             targeted = plugin_id in author.SOURCES
-            row = dict(pluginId=plugin_id, enabled=True, problem=author.SELECTED_ADVISORY if targeted else None,
+            row = dict(pluginId=plugin_id, enabled=plugin_id in author.plugin.FIXTURE_ENABLED_PLUGIN_IDS, problem=author.SELECTED_ADVISORY if targeted else None,
                 selectedCandidateId='a'*64, activeCandidateId='a'*64, activeExecutionRevision=revision,
                 pendingCandidateId=None, activePluginName=plugin_id, presentCandidateIds=['a'*64, 'b'*64] if targeted else ['a'*64])
             self.metrics['startup']['plugins'].append(row)
@@ -53,13 +53,36 @@ class AuthorEvidenceTests(unittest.TestCase):
     def test_author_requests_stay_at_two_sources_despite_expanded_bundles(self):
         self.assertEqual(6, len(author.AUTHOR_REQUESTS))
         self.assertEqual(12, len(author.plugin.REQUESTS))
-        self.assertEqual(16, len(self.metrics['revisions']))
+        self.assertEqual(20, len(self.metrics['revisions']))
         self.metrics['requests'] = list(author.plugin.REQUESTS)
         with self.assertRaises(ValueError): self.validate()
 
-    def test_sixteen_startup_rows_require_the_exact_bundled_plugin_ids(self):
+    def test_twenty_startup_rows_require_the_exact_bundled_plugin_ids(self):
         self.metrics['revisions']['foreign'] = self.metrics['revisions'].pop('meowchan.source.endchan')
         with self.assertRaises(ValueError): self.validate()
+
+    def test_each_startup_enabled_flag_must_preserve_fixture_defaults(self):
+        good = copy.deepcopy(self.metrics)
+        for plugin_id in author.plugin.PLUGIN_IDS:
+            with self.subTest(plugin_id=plugin_id):
+                self.metrics = copy.deepcopy(good)
+                row = next(row for row in self.metrics['startup']['plugins'] if row['pluginId'] == plugin_id)
+                row['enabled'] = not row['enabled']
+                with self.assertRaises(ValueError): self.validate()
+        self.metrics = good
+
+    def test_startup_rows_reject_missing_extra_duplicate_and_foreign_ids(self):
+        good = copy.deepcopy(self.metrics)
+        for fault in ('missing', 'extra', 'duplicate', 'foreign'):
+            with self.subTest(fault=fault):
+                self.metrics = copy.deepcopy(good)
+                rows = self.metrics['startup']['plugins']
+                if fault == 'missing': rows.pop()
+                elif fault == 'extra': rows.append(copy.deepcopy(rows[-1]))
+                elif fault == 'duplicate': rows[-1] = copy.deepcopy(rows[-2])
+                else: rows[-1]['pluginId'] = 'foreign'
+                with self.assertRaises(ValueError): self.validate()
+        self.metrics = good
 
     def test_wrong_active_candidate_rejected(self):
         self.metrics['candidates'][0]['activeCandidateId'] = 'd'*64

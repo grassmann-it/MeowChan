@@ -55,6 +55,10 @@ internal sealed class ReaderGroupStore
             if (current.Snapshot!.Revision != expectedRevision) throw new ReaderGroupsConflictException();
             // Even an unchanged draft is an admitted mutation request, not a passive read.
             if (ReaderGroupsValidation.SameGroups(current.Snapshot.Groups, captured.Groups)) return current.Snapshot;
+            // Only growth is refused: with the limit lowered below the saved count, renames and removals still work.
+            if (captured.Groups.Count > _lease.StoreLimits.ReaderGroups && captured.Groups.Count > current.Snapshot.Groups.Count)
+                throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.ReaderGroups, _lease.StoreLimits.ReaderGroups,
+                    "The reader group limit is reached.");
             ReaderGroupsSnapshot next = captured with { Revision = checked(expectedRevision + 1) };
             Publish(next, backup: true, admission, cancellationToken);
             AfterAdmittedSaveMutationForTests?.Invoke(admission);
@@ -94,9 +98,21 @@ internal sealed class ReaderGroupStore
             throw new InvalidDataException("Reader groups exceed the 16 MiB file limit.");
         if (backup && File.Exists(_path))
         {
-            Read(_path + ".bak", out bool futureBackup, out _);
-            if (futureBackup) throw new InvalidOperationException(
-                "The available backup uses a newer reader groups schema. No files were changed.");
+            // The save rotates the primary (valid: the load state allowed this save) over the backup. A damaged backup is set
+            // aside as .bad first, so the good primary is never lost and the evidence is kept; a backup of a newer version or
+            // one that cannot be opened is not ours to move, so the save is refused with a message that names the file.
+            string backupPath = _path + ".bak";
+            bool futureBackup = false;
+            try { Read(backupPath, out futureBackup, out _); }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            { throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable); }
+            catch (Exception error) when (error is JsonException or InvalidDataException or ArgumentException
+                or FormatException or OverflowException or InvalidOperationException)
+            {
+                if (AtomicJsonFile.SetAsideDamagedBackup(backupPath) == null)
+                    throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.Unreadable);
+            }
+            if (futureBackup) throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion);
         }
         if (backup) BeforeAdmittedSaveMutationForTests?.Invoke(admission);
         else BeforeAdmittedRestoreMutationForTests?.Invoke(admission);
@@ -162,15 +178,39 @@ internal sealed class ReaderGroupStore
             stream.ReadExactly(bytes);
         }
         catch (FileNotFoundException) { return null; }
+        // The system messages of these failures name the full profile path; keep the type, drop the path.
+        catch (UnauthorizedAccessException) { throw new UnauthorizedAccessException("The reader groups file could not be read."); }
+        catch (EndOfStreamException) { throw new InvalidDataException("The reader groups file changed while it was read."); }
+        catch (IOException error) when (error is not FileNotFoundException) { throw new IOException("The reader groups file could not be read."); }
         hash = Convert.ToHexString(SHA256.HashData(bytes));
+        // Strict like the other profile stores: an invalid byte is damage, never a U+FFFD that quietly renames a member.
+        if (!System.Text.Unicode.Utf8.IsValid(bytes)) throw new InvalidDataException("Reader groups are not valid UTF-8.");
         using JsonDocument document = JsonDocument.Parse(bytes);
-        if (document.RootElement.ValueKind != JsonValueKind.Object
-            || !document.RootElement.TryGetProperty("schemaVersion", out JsonElement version)
+        JsonElement root = document.RootElement;
+        if (root.ValueKind != JsonValueKind.Object
+            || !root.TryGetProperty("schemaVersion", out JsonElement version)
             || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out int schema))
             throw new InvalidDataException("Reader groups schema version is missing.");
         if (schema > 1) { future = true; return null; }
+        // The serializer keeps the last of two equal names (a second "groups" would replace every group) and fills a
+        // missing member with its default (revision 0 beside real groups): both are damage, not a smaller document.
+        if (JsonDuplicateProperties.Any(bytes)) throw new InvalidDataException("Reader groups repeat a property.");
+        RequireMembers(root, "revision", JsonValueKind.Number, "groups", JsonValueKind.Array);
+        foreach (JsonElement group in root.GetProperty("groups").EnumerateArray())
+        {
+            if (group.ValueKind != JsonValueKind.Object) throw new InvalidDataException("A reader group is not an object.");
+            RequireMembers(group, "id", JsonValueKind.String, "name", JsonValueKind.String, "members", JsonValueKind.Array);
+        }
         ReaderGroupsSnapshot snapshot = JsonSerializer.Deserialize(bytes, ReaderGroupsJsonContext.Default.ReaderGroupsSnapshot)
             ?? throw new InvalidDataException("Reader groups file is empty.");
         return ReaderGroupsValidation.Copy(snapshot);
+    }
+
+    /// <summary>Pairs of member name and kind that <paramref name="value"/> must carry.</summary>
+    private static void RequireMembers(JsonElement value, params object[] pairs)
+    {
+        for (int index = 0; index < pairs.Length; index += 2)
+            if (!value.TryGetProperty((string)pairs[index], out JsonElement member) || member.ValueKind != (JsonValueKind)pairs[index + 1])
+                throw new InvalidDataException("Reader groups lack a required member.");
     }
 }

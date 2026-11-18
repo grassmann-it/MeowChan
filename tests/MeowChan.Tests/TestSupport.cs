@@ -12,7 +12,61 @@ namespace MeowChan.Tests;
 internal sealed class TempDirectory : IDisposable
 {
     public string Path { get; } = TemporaryWorkspacePaths.CreateDirectory("meowchan-tests-");
-    public void Dispose() => Directory.Delete(Path, recursive: true);
+    public void Dispose() => TestDirectoryCleanup.Delete(Path);
+}
+
+internal static class TestDirectoryCleanup
+{
+    public static void Delete(string path)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            Directory.Delete(path, recursive: true);
+            return;
+        }
+
+        // Windows can release SQLite/native file handles just after the owning async
+        // disposable completed. Keep fixture cleanup deterministic without hiding a
+        // genuinely leaked handle.
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return;
+            }
+            catch (IOException) when (attempt < 19)
+            {
+                Thread.Sleep(50);
+            }
+            catch (UnauthorizedAccessException) when (attempt < 19)
+            {
+                Thread.Sleep(50);
+            }
+        }
+    }
+}
+
+public sealed class NonWindowsDirectoryRenameFactAttribute : FactAttribute
+{
+    public NonWindowsDirectoryRenameFactAttribute()
+    {
+        if (OperatingSystem.IsWindows())
+            Skip = "The test moves a directory containing an intentionally FileShare.None handle; Windows rejects that rename.";
+    }
+}
+
+public sealed class NonWindowsDirectoryRenameTheoryAttribute : TheoryAttribute
+{
+    public NonWindowsDirectoryRenameTheoryAttribute()
+    {
+        if (OperatingSystem.IsWindows())
+            Skip = "The test moves a directory containing an intentionally FileShare.None handle; Windows rejects that rename.";
+    }
 }
 
 internal static class TestWait

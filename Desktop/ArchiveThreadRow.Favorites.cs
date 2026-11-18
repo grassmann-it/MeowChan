@@ -13,6 +13,8 @@ internal sealed partial record ArchiveThreadRow : INotifyPropertyChanged
     public bool CanToggleThreadFavorite { get; private set; }
     public string? ThreadFavoriteError { get; private set; }
     public Func<Task>? ToggleThreadFavoriteAsync { get; set; }
+    /// <summary>Sort key of the favourite column: marked threads first on the first click, unmarked next, a state still loading last.</summary>
+    public int FavoriteSortKey => ThreadFavorite switch { true => 0, false => 1, null => 2 };
     public string ThreadFavoriteLabel => ThreadFavoriteText.Action(ThreadFavorite == true);
 
     internal void SetThreadFavorite(bool? marked, bool available, string? error)
@@ -29,17 +31,9 @@ internal sealed partial record ArchiveThreadRow : INotifyPropertyChanged
 
 internal static class ThreadFavoriteText
 {
-    internal static string Get(string english, string german) => Texts.Language == "de" ? german : english;
-    internal static string Action(bool marked) => marked
-        ? Get("Remove thread favorite", "Threadfavorit entfernen")
-        : Get("Favorite thread", "Thread als Favorit markieren");
-    internal static string Hint(bool marked) => Action(marked) + " · " + Get(
-        "Local thread mark in this profile; independent of media favorites.",
-        "Lokale Threadmarkierung in diesem Profil; unabhängig von Medienfavoriten.");
-    internal static string LoadError(string details) => Get(
-        "Thread favorites could not be loaded. Refresh the archive to retry.",
-        "Threadfavoriten konnten nicht geladen werden. Zum Wiederholen das Archiv aktualisieren.") + "\nDetails: " + details;
-    internal static string SaveError(ResourceId id, string details) => Get(
-        "Could not save the thread favorite", "Threadfavorit konnte nicht gespeichert werden")
-        + " (" + id.Source + " /" + id.Board + "/ " + id.Thread + ").\nDetails: " + details;
+    internal static string Action(bool marked) => Texts.T(marked ? "archive.threadFavorite.remove" : "archive.threadFavorite.add");
+    internal static string Hint(bool marked) => Action(marked) + " · " + Texts.T("archive.threadFavorite.hint");
+    internal static string LoadError(string details) => Texts.T("archive.threadFavorite.loadError", details);
+    internal static string SaveError(ResourceId id, string details) =>
+        Texts.T("archive.threadFavorite.saveError", id.Source, id.Board, id.Thread, details);
 }

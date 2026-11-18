@@ -47,6 +47,15 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         lockPath = Path.Combine(directory, "state.lock");
     }
 
+    /// <summary>Host-owned table of replaced bundled plugin identities (old ID → successor ID); see <see cref="SupersededBundledPlugins"/>.
+    /// Empty by default: no identity is ever treated as replaced unless the host says so.</summary>
+    public IReadOnlyDictionary<string, string> SupersededBundledPlugins { get; init; } = new Dictionary<string, string>(StringComparer.Ordinal);
+
+    /// <summary>Optional diagnostics sink. Startup writes one Information line per automatic in-place bundled
+    /// update that carried existing rights or accepted a narrowing-only declaration change without review, and one per
+    /// pinned release that was moved to its rebuilt build of the same version (#130).</summary>
+    public Serilog.ILogger? Logger { get; init; }
+
     public string StorePath => path;
     /// <summary>Immutable original v1 envelope, not an automatic recovery source. Restore only
     /// with the application closed and the matching full profile snapshot; older readers reject v2.</summary>
@@ -100,7 +109,9 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         foreach (PluginCandidateObservation candidate in observations) ValidateObservation(candidate);
         if (observations.Select(item => item.CandidateId).Distinct(StringComparer.Ordinal).Count() != observations.Length)
             throw new ArgumentException("Startup inventory contains duplicate candidate identities.");
-        return MutateStartupDocumentAsync(expectedRevision, async document =>
+        // Logged only after the profile write succeeded, so no line claims an update that was not saved.
+        List<(string PluginId, string From, string To, string Path, string Carried, string? PinnedVersion)> carryOvers = new();
+        return LogCarryOversAfter(carryOvers, MutateStartupDocumentAsync(expectedRevision, async document =>
         {
             if (proofs is not null)
             {
@@ -117,7 +128,13 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 document = document with { Provenance = evidence, RestrictedSourceIds = restricted ?? [] };
                 BundledCandidateMigration.Validate(document);
             }
-            document = WithCurrentRepairRestrictions(document);
+            // Capture the live authority itself, not only its union with persisted/startup
+            // restrictions: a removal during verification is a change too.
+            string[]? initialLiveRestrictions = repairRestrictedSources?.Invoke()
+                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+            if (initialLiveRestrictions is not null)
+                document = document with { RestrictedSourceIds = document.RestrictedSourceIds.Concat(initialLiveRestrictions)
+                    .Distinct(StringComparer.Ordinal).ToArray() };
             PluginProfileSnapshot state = document.Profile;
             state = ReleaseProvisionalOwners(state, observations);
             // A source file changing its declared plugin identity is an unavailable update of
@@ -130,11 +147,14 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     ? new PluginCandidateObservation(candidate.CandidateId, owner, null, null,
                         $"Candidate plugin identity changed from '{owner}' to '{candidate.PluginId}'. Install it as a separate candidate to select the new identity explicitly.", candidate.CandidatePath)
                     : candidate).ToArray();
+            // A bundled identity replaced by its delivered successor keeps its record but no longer claims sources.
+            HashSet<string> superseded = Configuration.SupersededBundledPlugins.AtStartup(state, startup, proofs, SupersededBundledPlugins);
             // Preserve the old ownership of active source IDs before any new candidates are considered.
             Dictionary<string, string> sourceOwners = new(StringComparer.Ordinal);
-            foreach (PluginActivationSnapshot old in state.Plugins.Where(plugin => plugin.Active is not null))
+            foreach (PluginActivationSnapshot old in state.Plugins.Where(plugin => plugin.Active is not null && !superseded.Contains(plugin.PluginId)))
                 foreach (SourceDescription source in old.Active!.Description.Sources) sourceOwners.TryAdd(source.SourceId, old.PluginId);
-            foreach ((string sourceId, string owner) in state.SelectedSourceOwners) sourceOwners[sourceId] = owner;
+            foreach ((string sourceId, string owner) in state.SelectedSourceOwners)
+                if (!superseded.Contains(owner)) sourceOwners[sourceId] = owner;
             List<PluginActivationSnapshot> plugins = new();
             IEnumerable<string> pluginIds = state.Plugins.Select(plugin => plugin.PluginId)
                 .Concat(startup.Select(candidate => candidate.PluginId)).Distinct(StringComparer.Ordinal);
@@ -148,12 +168,58 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 inventory.AddRange(present.Select(ToSnapshot));
                 string? selected = old.SelectedCandidateId;
                 if (selected is null && present.Length == 1) selected = present[0].CandidateId;
+                // A transition marker is evidence about the exact active executable.  Do not
+                // carry it through an activation attempt: a blocked/failed start must not
+                // present the old automatic approval as if the new build were still active.
                 PluginActivationSnapshot next = old with { Candidates = inventory, SelectedCandidateId = selected, Active = null,
-                    LastGood = old.Active ?? old.LastGood, LifecycleRevision = checked(old.LifecycleRevision + 1), Problem = null };
+                    LastGood = old.Active ?? old.LastGood, AutomaticSdkTransition = null,
+                    LifecycleRevision = checked(old.LifecycleRevision + 1), Problem = null };
                 PluginReleaseSnapshot? release = null;
                 BundledRepairBinding? automaticBinding = null;
-                if (old.Pinned is not null)
-                    release = old.Pending is not null && SameBuild(old.Pending, old.Pinned) ? old.Pending : old.Pinned;
+                (string From, string Path, string Carried)? carryOver = null;
+                bool sdkUpgrade = false, pinnedUpdate = false;
+                if (superseded.Contains(pluginId))
+                    next = next with { Problem = "Replaced by the bundled plugin '" + SupersededBundledPlugins[pluginId] + "', which serves the same sources." };
+                else if (old.Pinned is not null)
+                {
+                    release = BundledCandidateMigration.PinnedRelease(old)!;
+                    // #130: a pin means "stay on this release". The same file rebuilt with the same version and
+                    // declaration moves the pin to the new build; anything else keeps the pinned build as it is.
+                    PluginCandidateSnapshot? rebuilt = inventory.FirstOrDefault(item => item.CandidateId == old.Pinned.CandidateId);
+                    PreReplacementBasis pinnedBasis = BundledCandidateMigration.TrustedPreReplacementBasis(document, old);
+                    bool canSerializePinnedPermissions = repairRestrictedSources is null || repairPermissionGate is not null;
+                    if (canSerializePinnedPermissions && rebuilt?.Artifact is not null &&
+                        BundledCandidateMigration.CanAutomaticallyUpdatePinnedRelease(document, old, rebuilt, pinnedBasis, proofs, present.Length))
+                    {
+                        // The exact existing rights this update carries over, frozen before async IO (as on the unpinned path).
+                        string frozenPermissions = BundledRepairPermissionReview.Json(document, old, rebuilt);
+                        bool accepted;
+                        try
+                        {
+                            DeliveredCandidateProvenance proof = proofs!.Single(value => BundledCandidateMigration.Matches(value, rebuilt));
+                            await PluginInstallationInventory.VerifyRepairTargetAsync(proof, rebuilt.Artifact, rebuilt.Description!, cancellationToken)
+                                .ConfigureAwait(false);
+                            string[]? currentLiveRestrictions = repairRestrictedSources?.Invoke()
+                                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+                            if (currentLiveRestrictions is not null)
+                                document = document with { RestrictedSourceIds = document.RestrictedSourceIds.Concat(currentLiveRestrictions)
+                                    .Distinct(StringComparer.Ordinal).ToArray() };
+                            // Never carry over a right that appeared or changed during the verification IO.
+                            accepted = BundledCandidateMigration.CanAutomaticallyUpdatePinnedRelease(document, old, rebuilt, pinnedBasis, proofs, present.Length)
+                                && frozenPermissions == BundledRepairPermissionReview.Json(document, old, rebuilt);
+                        }
+                        catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or JsonException)
+                        { accepted = false; }
+                        // A failed verification keeps today's behavior: the pinned build stays and the review route remains.
+                        if (accepted)
+                        {
+                            carryOver = (pinnedBasis.ExecutionRevision!, rebuilt.CandidatePath ?? "",
+                                BundledCandidateMigration.DescribeInPlaceCarryOver(document, old, rebuilt, pinnedBasis, pinnedRelease: true) ?? "no special rights");
+                            release = new(rebuilt.CandidateId, rebuilt.Artifact, rebuilt.Description!, release.Configuration);
+                            pinnedUpdate = true;
+                        }
+                    }
+                }
                 else if (selected is null)
                     next = next with { Problem = present.Length > 1 ? "Multiple candidates require an explicit selection." : "Plugin is missing." };
                 else
@@ -175,10 +241,21 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         BundledCandidateMigration.IdenticalEstablishedLocalAlias(document, old, candidate, IsProfileLocal(candidate)) is not null;
                     bool bindingMatches = binding is not null && !previous.Missing && previous.Provenance?.SlotId == binding.SlotId &&
                         candidate?.Artifact?.ExecutionRevision == binding.TargetExecutionRevision &&
+                        (binding.ReviewedDescriptionFingerprint is null || candidate.Description is not null &&
+                            BundledCandidateMigration.DescriptionHash(candidate.Description) == binding.ReviewedDescriptionFingerprint) &&
                         document.Provenance.Any(p => p.SlotId == binding.SlotId && BundledCandidateMigration.Matches(p, candidate));
-                    bool automaticBundleUpdate = buildChanged && (repairRestrictedSources is null || repairPermissionGate is not null)
-                        && BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(
-                        document, old, candidate, previous, proofs, present.Length);
+                    bool canSerializePermissions = repairRestrictedSources is null || repairPermissionGate is not null;
+                    sdkUpgrade = buildChanged && canSerializePermissions && candidate?.Description is { } sdkDescription &&
+                        !startup.Any(other => other.PluginId != pluginId && other.Description is { } otherDescription &&
+                            sdkDescription.Sources.Any(source => otherDescription.Sources.Any(item => item.SourceId == source.SourceId))) &&
+                        BundledCandidateMigration.CanAutomaticallyUpgradeSdk(document, old, candidate, previous, proofs, present.Length);
+                    bool automaticBundleUpdate = sdkUpgrade || buildChanged && canSerializePermissions &&
+                        BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length);
+                    string? sdkPermissions = sdkUpgrade
+                        ? BundledRepairPermissionReview.Json(document, old, candidate!) : null;
+                    // #130: the exact existing rights an in-place update carries over, frozen before async IO.
+                    string? inPlacePermissions = automaticBundleUpdate && !sdkUpgrade
+                        ? BundledRepairPermissionReview.Json(document, old, candidate!) : null;
                     string? automaticUpdateProblem = null;
                     if (automaticBundleUpdate)
                     {
@@ -188,13 +265,42 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                             // Revalidate shipped bytes AND imported cache under the writer lease.
                             await PluginInstallationInventory.VerifyRepairTargetAsync(proof, candidate!.Artifact!, candidate.Description!, cancellationToken)
                                 .ConfigureAwait(false);
-                            document = WithCurrentRepairRestrictions(document);
-                            if (!BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length))
-                                throw new InvalidOperationException("Bundled update authority changed during integrity verification.");
-                            if (binding is not null)
+                            string[]? currentLiveRestrictions = repairRestrictedSources?.Invoke()
+                                .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+                            if (currentLiveRestrictions is not null)
+                                document = document with { RestrictedSourceIds = document.RestrictedSourceIds.Concat(currentLiveRestrictions)
+                                    .Distinct(StringComparer.Ordinal).ToArray() };
+                            bool authorityUnchanged = sdkUpgrade
+                                ? (initialLiveRestrictions is null || currentLiveRestrictions is not null &&
+                                    initialLiveRestrictions.SequenceEqual(currentLiveRestrictions, StringComparer.Ordinal)) &&
+                                    BundledCandidateMigration.CanAutomaticallyUpgradeSdk(document, old, candidate, previous, proofs, present.Length) &&
+                                    sdkPermissions == BundledRepairPermissionReview.Json(document, old, candidate!)
+                                : BundledCandidateMigration.CanAutomaticallyUpdateKnownBundle(document, old, candidate, previous, proofs, present.Length) &&
+                                    // Never carry over a right that appeared or changed during the verification IO.
+                                    inPlacePermissions == BundledRepairPermissionReview.Json(document, old, candidate!);
+                            if (!authorityUnchanged)
                             {
-                                automaticBinding = binding with { TargetExecutionRevision = candidate.Artifact!.ExecutionRevision };
-                                bindingMatches = true;
+                                automaticBundleUpdate = false;
+                                sdkUpgrade = false;
+                                automaticUpdateProblem = "Bundled update authority changed during integrity verification.";
+                            }
+                            else
+                            {
+                                if (binding is not null)
+                                {
+                                    // Explicit consent always belongs to the old exact executable, never this build.
+                                    // A narrowing-only declaration accepted here (#130) becomes the reviewed one,
+                                    // otherwise the next start would report the confirmed target as changed.
+                                    automaticBinding = binding with { TargetExecutionRevision = candidate.Artifact!.ExecutionRevision,
+                                        ReauthorizedPermissionFingerprint = null,
+                                        ReviewedDescriptionFingerprint = sdkUpgrade || binding.ReviewedDescriptionFingerprint is null
+                                            ? binding.ReviewedDescriptionFingerprint
+                                            : BundledCandidateMigration.DescriptionHash(candidate.Description!) };
+                                    bindingMatches = true;
+                                }
+                                if (!sdkUpgrade && previous.ExecutionRevision is { } fromExecution &&
+                                    BundledCandidateMigration.DescribeInPlaceCarryOver(document, old, candidate!, previous) is { } carried)
+                                    carryOver = (fromExecution, candidate!.CandidatePath ?? "", carried);
                             }
                         }
                         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ArgumentException or JsonException)
@@ -208,19 +314,20 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     else if (candidate is null || !candidate.IsPresent || candidate.Problem is not null || candidate.Artifact is null || candidate.Description is null)
                         next = next with { Problem = candidate?.Problem ?? "Selected candidate is unavailable." };
                     else if (binding is not null && !bindingMatches)
-                        next = next with { Problem = "Confirmed bundled target changed or disappeared; review repair again." };
+                        next = next with { Problem = PluginActivationProblems.ConfirmedTargetChanged };
                     else if (deliveredIdentity && !deliveredCandidate && !selectedLocalAlias)
-                        next = next with { Problem = "Bundled target has no matching delivered provenance; review is required." };
+                        next = next with { Problem = PluginActivationProblems.NoDeliveredProvenance };
                     else if (deliveredIdentity && previous.Missing)
-                        next = next with { Problem = "Bundled replacement has no unambiguous trusted pre-replacement basis; review is required." };
+                        next = next with { Problem = PluginActivationProblems.NoTrustedBasis };
                     else if (deliveredCandidate && buildChanged && !bindingMatches && !automaticBundleUpdate)
-                        next = next with { Problem = "Bundled executable changed; explicit repair review is required." };
+                        next = next with { Problem = PluginActivationProblems.ExecutableChanged };
                     // Persisted consent cannot replace serialization of a live permission authority.
                     // Legacy callers without its shared gate retain the raw inheritance guard.
-                    else if (deliveredCandidate && (repairRestrictedSources is not null && repairPermissionGate is null
+                    // An accepted automatic update (SDK bridge or #130 in-place carry-over) rechecked its rights above.
+                    else if (deliveredCandidate && !automaticBundleUpdate && (repairRestrictedSources is not null && repairPermissionGate is null
                         ? BundledCandidateMigration.HasInheritedRights(document, old, candidate, buildChanged)
                         : BundledCandidateMigration.HasUnreviewedInheritedRights(document, old, candidate, buildChanged)))
-                        next = next with { Problem = "Bundled replacement is blocked: existing grants cannot be inherited." };
+                        next = next with { Problem = PluginActivationProblems.InheritedGrantsBlocked };
                     else
                     {
                         PluginReleaseSnapshot? basis = MatchingBasis(old, candidate.CandidateId);
@@ -252,22 +359,60 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     {
                         PluginReleaseSnapshot? lastGood = old.LastGood;
                         if (old.Active is not null && !SameBuild(old.Active, release)) lastGood = old.Active;
+                        PluginSdkTransitionSnapshot? sdkTransition = sdkUpgrade
+                            ? new("1.0.0", "1.1.0", release.ExecutionRevision)
+                            : old.AutomaticSdkTransition is { } existingTransition &&
+                                old.Active?.ExecutionRevision == existingTransition.ExecutionRevision &&
+                                release.ExecutionRevision == existingTransition.ExecutionRevision &&
+                                release.Description.SdkVersion == existingTransition.ToSdkVersion
+                                    ? existingTransition : null;
                         next = next with { Active = release, Pending = null, LastGood = lastGood ?? release,
-                            Pinned = old.Pinned is null ? null : release,
+                            Pinned = old.Pinned is null ? null : release, AutomaticSdkTransition = sdkTransition,
                             LifecycleRevision = checked(old.LifecycleRevision + 1),
-                            Problem = present.Length > 1 ? "Multiple candidates exist; the selected candidate is retained." : null };
+                            Problem = present.Length > 1 ? "Multiple candidates exist; the selected candidate is retained."
+                                // Shown once on the plugin's card; the next start clears it (#130).
+                                : pinnedUpdate ? PluginActivationProblems.PinnedReleaseUpdatedInPlace : null };
                         // Advance an established binding only with the accepted activation,
                         // never while a later ownership/conflict check can still reject it.
                         if (automaticBinding is { } acceptedBinding)
                             document = document with { Bindings = document.Bindings
                                 .Select(value => value.PluginId == pluginId ? acceptedBinding : value).ToArray() };
+                        if (carryOver is { } accepted && accepted.From != release.ExecutionRevision)
+                            carryOvers.Add((pluginId, accepted.From, release.ExecutionRevision, accepted.Path, accepted.Carried,
+                                pinnedUpdate ? release.Description.PluginVersion : null));
+                        // Any accepted 1.1.0 build, automatic or explicitly reviewed, uses up the SDK bridge.
+                        if (release.Description.SdkVersion == "1.1.0" && document.Provenance.Any(p => p.PluginId == pluginId) &&
+                            !document.AcceptedSdkUpgrades.Any(u => u.PluginId == pluginId))
+                            document = document with { AcceptedSdkUpgrades = document.AcceptedSdkUpgrades
+                                .Append(new AcceptedSdkUpgrade(pluginId, release.ExecutionRevision)).ToArray() };
                     }
                 }
-                plugins.Add(next);
+                // The activation attempt above clears Active and advances the lifecycle fence so that a
+                // blocked or failed start never keeps presenting a stale active build. When the attempt
+                // ends exactly where it began, nothing changed: keep the persisted entry (and its fence)
+                // so a clean start on an unchanged profile writes nothing.
+                plugins.Add(SameExceptRevision(old, next) ? old : next);
             }
             return document with { Profile = state with { Plugins = plugins } };
-        }, cancellationToken);
+        }, cancellationToken));
     }
+
+    private async Task<PluginProfileSnapshot> LogCarryOversAfter(
+        List<(string PluginId, string From, string To, string Path, string Carried, string? PinnedVersion)> carryOvers, Task<PluginProfileSnapshot> write)
+    {
+        PluginProfileSnapshot result = await write.ConfigureAwait(false);
+        if (Logger is { } logger)
+            foreach ((string pluginId, string from, string to, string candidatePath, string carried, string? pinnedVersion) in carryOvers)
+                if (pinnedVersion is not null)
+                    logger.Information("Plugin {PluginId}: automatic pinned in-place bundled update {FromExecution} -> {ToExecution} kept the pin on release {PluginVersion}, now on the new build (the previous build stays the last good build for rollback), and carried over {Carried} without a repair review, because it is the same manifest {CandidatePath} in this app's own plugins folder with verified current delivery proof, the same plugin version and a declaration identical apart from the operational post order.",
+                        pluginId, from, to, pinnedVersion, carried, candidatePath);
+                else logger.Information("Plugin {PluginId}: automatic in-place bundled update {FromExecution} -> {ToExecution} carried over {Carried} without a repair review, because it is the same manifest {CandidatePath} in this app's own plugins folder with verified current delivery proof and its declaration adds no host, route, capability, filter, data access or source.",
+                    pluginId, from, to, carried, candidatePath);
+        return result;
+    }
+
+    private static bool SameExceptRevision(PluginActivationSnapshot old, PluginActivationSnapshot next) =>
+        SdkJson.Serialize(old).AsSpan().SequenceEqual(SdkJson.Serialize(next with { LifecycleRevision = old.LifecycleRevision }));
 
     private async Task<PluginProfileSnapshot> MutateStartupDocumentAsync(long expectedRevision,
         Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken)
@@ -275,7 +420,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         // Same lock order as explicit reselection: live source permissions, then
         // profile writer lease. Never inherit a permission added during async IO.
         if (repairPermissionGate is not null) await repairPermissionGate.WaitAsync(cancellationToken).ConfigureAwait(false);
-        try { return await MutateDocumentAsync(expectedRevision, update, cancellationToken).ConfigureAwait(false); }
+        try { return await MutateDocumentAsync(expectedRevision, update, cancellationToken, skipWriteWhenUnchanged: true).ConfigureAwait(false); }
         finally { repairPermissionGate?.Release(); }
     }
 
@@ -284,7 +429,11 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         cancellationToken.ThrowIfCancellationRequested();
         if (!Directory.Exists(directory)) return new(0, []);
         await using FileStream lease = await AcquireLockAsync(cancellationToken, FileAccess.Read).ConfigureAwait(false);
-        return BundledCandidateMigration.Preview(WithCurrentRepairRestrictions(await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false)));
+        BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken).ConfigureAwait(false);
+        BundledCandidateRepairPreview preview = BundledCandidateMigration.Preview(WithCurrentRepairRestrictions(document));
+        // A replaced bundled identity has nothing to repair: its successor serves its sources.
+        IReadOnlySet<string> superseded = Configuration.SupersededBundledPlugins.InProfile(document.Profile, SupersededBundledPlugins);
+        return superseded.Count == 0 ? preview : preview with { Rows = preview.Rows.Where(row => !superseded.Contains(row.PluginId)).ToArray() };
     }
 
     public Task<PluginProfileSnapshot> ConfirmBundledRepairAsync(BundledCandidateRepair repair, long expectedRevision,
@@ -317,7 +466,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             // selects a different execution at next startup. No owner/grant/pin/config rewrite.
             return document with
             {
-                Profile = Replace(document.Profile, plugin with { Pending = pending,
+                Profile = Replace(document.Profile, plugin with { Pending = pending, AutomaticSdkTransition = null,
                     Problem = "Confirmed bundled repair saved for next start; original selection and rollback retained." }),
                 Bindings = document.Bindings.Where(b => b.PluginId != plugin.PluginId).Append(binding).ToArray()
             };
@@ -353,6 +502,32 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             throw new InvalidOperationException("Use bundled repair preview and confirmation; ordinary candidate selection cannot bypass provenance or grants.");
     }
 
+    /// <summary>
+    /// Records the optional, explicit review of the exact build that was already
+    /// accepted through the one-time SDK bridge. This is deliberately not a repair,
+    /// activation or grant operation: cancelling the UI leaves the automatically
+    /// compatible active plugin untouched.
+    /// </summary>
+    public Task<PluginProfileSnapshot> ExplicitlyApproveSdkTransitionAsync(string pluginId,
+        string executionRevision, long expectedRevision, CancellationToken cancellationToken = default) =>
+        MutateAsync(expectedRevision, state =>
+        {
+            RequireIdentity(pluginId);
+            RequireIdentity(executionRevision);
+            PluginActivationSnapshot plugin = Find(state, pluginId);
+            PluginSdkTransitionSnapshot transition = plugin.AutomaticSdkTransition
+                ?? throw new InvalidOperationException("No automatic SDK transition is awaiting explicit review.");
+            if (transition.ExplicitlyApproved || transition.ExecutionRevision != executionRevision ||
+                transition.FromSdkVersion != "1.0.0" || transition.ToSdkVersion != "1.1.0" ||
+                plugin.Active is not { } active || active.ExecutionRevision != executionRevision ||
+                active.Description.SdkVersion != transition.ToSdkVersion)
+                throw new InvalidOperationException("The automatic SDK transition changed or is no longer active. Review it again.");
+            return Replace(state, plugin with
+            {
+                AutomaticSdkTransition = transition with { ExplicitlyApproved = true }
+            });
+        }, cancellationToken);
+
     public Task<PluginProfileSnapshot> SelectCandidateAsync(string pluginId, string candidateId, long expectedRevision,
         CancellationToken cancellationToken = default) => MutateDocumentAsync(expectedRevision, document =>
     {
@@ -367,6 +542,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         Dictionary<string, string> selectedSources = new(state.SelectedSourceOwners, StringComparer.Ordinal);
         foreach (SourceDescription source in candidate.Description!.Sources) selectedSources[source.SourceId] = pluginId;
         PluginProfileSnapshot next = Replace(state, plugin with { SelectedCandidateId = candidateId, Pinned = null, Pending = pending,
+            AutomaticSdkTransition = null,
             Problem = migration.Configuration is null ? "Selected candidate needs settings correction: " + string.Join("; ", migration.Issues.Select(issue => issue.Message)) : null })
             with { SelectedSourceOwners = selectedSources };
         return Task.FromResult(document with { Profile = next, Bindings = document.Bindings.Where(b => b.PluginId != pluginId).ToArray() });
@@ -393,7 +569,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             bool bound = document.Bindings.Any(b => b.PluginId == pluginId && b.SelectedCandidateId == plugin.SelectedCandidateId &&
                 b.TargetCandidateId == candidateId && b.TargetExecutionRevision == pending.ExecutionRevision);
             return Task.FromResult(document with { Profile = Replace(state, plugin with
-                { SelectedCandidateId = bound ? plugin.SelectedCandidateId : candidateId, Pending = pending, Problem = null }) });
+                { SelectedCandidateId = bound ? plugin.SelectedCandidateId : candidateId, Pending = pending,
+                    AutomaticSdkTransition = null, Problem = null }) });
         }, cancellationToken);
     }
 
@@ -404,7 +581,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         PluginReleaseSnapshot release = plugin.LastGood ?? throw new InvalidOperationException("No retained good release is available for rollback.");
         Dictionary<string, string> selectedSources = new(state.SelectedSourceOwners, StringComparer.Ordinal);
         foreach (SourceDescription source in release.Description.Sources) selectedSources[source.SourceId] = pluginId;
-        return Replace(state, plugin with { SelectedCandidateId = release.CandidateId, Pending = release, Pinned = release, Problem = null })
+        return Replace(state, plugin with { SelectedCandidateId = release.CandidateId, Pending = release, Pinned = release,
+            AutomaticSdkTransition = null, Problem = null })
             with { SelectedSourceOwners = selectedSources };
     }, cancellationToken);
 
@@ -455,7 +633,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         ArgumentException.ThrowIfNullOrWhiteSpace(problem);
         PluginActivationSnapshot plugin = Find(state, pluginId);
         if (plugin.Active?.ExecutionRevision != executionRevision) throw new InvalidOperationException("Failure belongs to a stale activation.");
-        return Replace(state, plugin with { Active = null, Problem = problem, LifecycleRevision = checked(plugin.LifecycleRevision + 1) });
+        return Replace(state, plugin with { Active = null, AutomaticSdkTransition = null, Problem = problem,
+            LifecycleRevision = checked(plugin.LifecycleRevision + 1) });
     }, cancellationToken);
 
     private Task<PluginProfileSnapshot> MutateAsync(long expectedRevision, Func<PluginProfileSnapshot, PluginProfileSnapshot> update,
@@ -464,17 +643,29 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
 
     private async Task<PluginProfileSnapshot> MutateDocumentAsync(long expectedRevision,
         Func<BundledProfileDocument, Task<BundledProfileDocument>> update, CancellationToken cancellationToken,
-        bool preserveReselectionBackup = false)
+        bool preserveReselectionBackup = false, bool skipWriteWhenUnchanged = false,
+        Func<byte[], CancellationToken, Task>? preserveOriginal = null)
     {
+        // Opt-in startup evidence: boundary markers only (inert without an active diagnostic run).
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "begin");
         Directory.CreateDirectory(directory);
         await using FileStream lease = await AcquireLockAsync(cancellationToken).ConfigureAwait(false);
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "locked");
         byte[]? original = null;
         int originalVersion = FormatVersion;
         BundledProfileDocument document = await ReadDocumentCoreAsync(cancellationToken,
             (bytes, version) => { original = bytes; originalVersion = version; }).ConfigureAwait(false);
         PluginProfileSnapshot state = document.Profile;
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "read");
         if (state.Revision != expectedRevision) throw new PluginProfileConflictException(expectedRevision, state.Revision);
         BundledProfileDocument updated = await update(document).ConfigureAwait(false);
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "decided");
+        // A startup observation that changes nothing must not advance the profile revision or
+        // rewrite the file; an existing profile stays byte-identical across clean starts.
+        // A v1 document is never skipped: every startup still carries it through the writer
+        // (pre-v2 backup policy and migration), exactly as before.
+        if (skipWriteWhenUnchanged && original is not null && originalVersion != FormatVersion && !preserveReselectionBackup &&
+            SdkJson.Serialize(document).AsSpan().SequenceEqual(SdkJson.Serialize(updated))) return Clone(state);
         if (preserveReselectionBackup && original is not null)
             updated = updated with { ReselectionBackupSha256 = document.ReselectionBackupSha256
                 ?? Convert.ToHexStringLower(SHA256.HashData(original)) };
@@ -488,6 +679,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         Envelope envelope = new(deliveredFormat ? DeliveredFormatVersion : FormatVersion, Convert.ToHexString(SHA256.HashData(payload)), payload);
         byte[] bytes = SdkJson.Serialize(envelope);
         if (bytes.Length > MaximumStoreBytes) throw new IOException("Plugin profile state exceeds its bounded store size.");
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "serialized", value: bytes.Length);
         // Preserve the first observed v1 envelope before even a v1 startup observation
         // can replace it. Later mutations verify, but never refresh, that original.
         // A conflicting/oversized/unreadable backup aborts rather than replacing evidence.
@@ -495,6 +687,9 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             await PreservePreV2Async(original, cancellationToken).ConfigureAwait(false);
         if (preserveReselectionBackup && original is not null)
             await PreserveReselectionBackupAsync(original, updated.ReselectionBackupSha256!, cancellationToken).ConfigureAwait(false);
+        // A caller-owned immutable copy of the exact replaced envelope (for example before a retirement); it aborts the write on failure.
+        if (preserveOriginal is not null && original is not null)
+            await preserveOriginal(original, cancellationToken).ConfigureAwait(false);
         string temporary = Path.Combine(directory, ".state-" + Guid.NewGuid().ToString("N") + ".tmp");
         bool preserveTemporary = false;
         try
@@ -504,6 +699,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 await stream.WriteAsync(bytes, cancellationToken).ConfigureAwait(false);
                 stream.Flush(flushToDisk: true);
             }
+            MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "flushed");
             cancellationToken.ThrowIfCancellationRequested();
             // Windows MoveFileEx can deny overwrite while a share-delete reader holds
             // the old revision open. ReplaceFile supports that reader and keeps its
@@ -526,6 +722,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             else File.Move(temporary, path);
         }
         finally { if (!preserveTemporary && File.Exists(temporary)) File.Delete(temporary); }
+        MeowChan.Diagnostics.PerformanceDiagnostics.Record("plugin.profile.write", "replaced");
         return Clone(next);
     }
 
@@ -575,7 +772,8 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             throw new IOException("Pre-v2 backup must be a regular file, not a symbolic link or reparse point.");
     }
 
-    private async Task PreserveExactFileAsync(string destination, byte[] original, int limit, CancellationToken token)
+    private async Task PreserveExactFileAsync(string destination, byte[] original, int limit, CancellationToken token,
+        string label = "Pre-v2 backup")
     {
         string temporary = Path.Combine(directory, ".pre-v2-" + Guid.NewGuid().ToString("N") + ".tmp");
         try
@@ -595,7 +793,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             byte[] saved = await ReadBoundedStateBytesAsync(destination, token, limit).ConfigureAwait(false);
             if (!saved.AsSpan().SequenceEqual(original) ||
                 !SHA256.HashData(saved).AsSpan().SequenceEqual(SHA256.HashData(original)))
-                throw new IOException("Pre-v2 backup differs from the original state. Preserve both files; upgrade was not published.");
+                throw new IOException(label + " differs from the original state. Preserve both files; the change was not published.");
         }
         finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
@@ -736,6 +934,12 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 ValidateObservation(new(release.CandidateId, plugin.PluginId, release.Artifact, release.Description));
                 ThrowValidation(SdkValidation.ValidateConfiguration(release.Description, release.Configuration));
             }
+            if (plugin.AutomaticSdkTransition is { } transition &&
+                (transition.FromSdkVersion != "1.0.0" || transition.ToSdkVersion != "1.1.0" ||
+                 string.IsNullOrWhiteSpace(transition.ExecutionRevision) || transition.ExecutionRevision.Length > 512 ||
+                 plugin.Active is not { } active || active.ExecutionRevision != transition.ExecutionRevision ||
+                 active.Description.SdkVersion != transition.ToSdkVersion))
+                throw new ArgumentException("Invalid automatic SDK transition marker.");
         }
         if (state.Grants.Any(grant => grant.Revision <= 0 || !state.Plugins.Any(plugin => plugin.PluginId == grant.PluginId))
             || state.Grants.GroupBy(grant => (grant.PluginId, grant.FilterKey, grant.Scope)).Any(group => group.Count() != 1))

@@ -18,7 +18,7 @@ internal static class PrivateStoreRecoveryInspection
         PrivateStoreOperationMarker.Validate(marker, kind);
         if (fence is null || fence.Kind != kind) throw PrivateStoreBatchFiles.Invalid();
         long cap = kind == NativePrivateApplyStoreKind.PostBookmarksAndNotes
-            ? PostBookmarkStore.MaximumDocumentBytes : FavoriteStore.MaximumBytes;
+            ? PostBookmarkStore.MaximumDocumentBytes : ProfileStoreLimits.FavoriteFileCeilingBytes;
         CheckImage(fence.Before, cap); CheckImage(fence.ExpectedAfter, cap);
         if (kind == NativePrivateApplyStoreKind.PostBookmarksAndNotes)
         {

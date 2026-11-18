@@ -12,8 +12,8 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>Geometry and decoder observations only; never fabricates input or playback state.</summary>
 internal static class MediaInteractionSmokeHelpers
 {
-    internal static bool EdgeHintVisible(Button target) => target.GetVisualDescendants().OfType<TextBlock>()
-        .Any(text => text.IsEffectivelyVisible && text.Opacity > .01);
+    internal static bool EdgeHintVisible(Button target) => target.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()
+        .Any(path => path.IsEffectivelyVisible && path.Opacity > .01);
 
     internal static void RequireBorderlessEdgeTarget(Button target)
     {
@@ -57,23 +57,117 @@ internal static class MediaInteractionSmokeHelpers
             throw new InvalidOperationException("Edge indicator is clipped outside the usable gallery/host: " + target.Name);
     }
 
-    internal static bool IsPointerTargetReady(Control target)
+    internal static bool IsPointerTargetReady(Control target, bool requireEnabled = true)
+    {
+        try
+        {
+            if (!IsNativeGeometryReady(target, requireEnabled) || TopLevel.GetTopLevel(target) is not { } root) return false;
+            PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
+            return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
+                && hit.GetSelfAndVisualAncestors().Contains(target);
+        }
+        catch (ArgumentException)
+        {
+            // A popup/control transfer can invalidate the target between the geometry
+            // probe and the cross-root hit test. Let the caller reacquire the current
+            // instance; never turn that transient native-root race into a smoke failure.
+            return false;
+        }
+    }
+
+    /// <summary>Checks the current native popup-root geometry without trusting a stale cross-root hit-test cache.</summary>
+    internal static bool IsNativeGeometryReady(Control target, bool requireEnabled = true)
     {
         if (!target.IsAttachedToVisualTree() || !target.IsArrangeValid || !target.IsEffectivelyVisible
-            || !target.IsEffectivelyEnabled || target.Bounds.Width <= 0 || target.Bounds.Height <= 0
-            || TopLevel.GetTopLevel(target) is not { } root) return false;
-        PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
-        return root.InputHitTest(root.PointToClient(pixel)) is Visual hit
-            && hit.GetSelfAndVisualAncestors().Contains(target);
+            || requireEnabled && !target.IsEffectivelyEnabled || target.Bounds.Width <= 0 || target.Bounds.Height <= 0
+            || TopLevel.GetTopLevel(target) is not { IsVisible: true } root) return false;
+        try
+        {
+            PixelPoint pixel = target.PointToScreen(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
+            Point local = root.PointToClient(pixel);
+            return new Rect(root.ClientSize).Contains(local);
+        }
+        catch (ArgumentException)
+        {
+            // Avalonia can retain a popup visual for one layout turn while its native
+            // root is being replaced. It is not a native target until the conversion
+            // succeeds; never synthesize a routed event for that interval.
+            return false;
+        }
+    }
+
+    /// <summary>Reveal an auto-hidden gallery transport, then wait for its current native hit geometry.</summary>
+    internal static async Task WaitForNativeTargetAsync(MediaNativeInput native, GalleryViewer viewer, Control target, string message, bool requireHitTest = true)
+    {
+        // Native macOS popup hit testing can take more than one compositor turn
+        // after the transport auto-hides. Re-issue a real pointer move rather
+        // than falling back to a routed/synthetic click.
+        const int revealAttempts = 8;
+        bool Ready() => requireHitTest ? IsPointerTargetReady(target) : IsNativeGeometryReady(target, requireEnabled: true);
+        for (int attempt = 0; attempt < revealAttempts && !Ready(); attempt++)
+        {
+            // First cross the reveal edge with real OS input. On macOS the
+            // transport can be a separate native presentation and its hit-test
+            // cache is not updated merely because Avalonia laid out the button.
+            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height - 2),
+                requireEnabled: false, requireHitTest: false);
+            await Task.Delay(100);
+            // Once the current target has geometry, cross into the actual
+            // control as well. This delivers the hover to the current native
+            // root and avoids checking a stale centre point after the edge
+            // reveal (the source of intermittent macOS GIF failures).
+            if (IsNativeGeometryReady(target, requireEnabled: true))
+            {
+                await native.MoveAsync(target, requireEnabled: true, requireHitTest: false);
+                await Task.Delay(100);
+            }
+        }
+        await Program.WaitUntilAsync(Ready, () => message);
     }
 
     internal static Point TrackPoint(Slider slider, double fraction)
     {
         if (fraction is < 0 or > 1) throw new ArgumentOutOfRangeException(nameof(fraction));
-        Track track = slider.GetVisualDescendants().OfType<Track>().Single();
+        slider.ApplyTemplate();
+        Track[] tracks = slider.GetVisualDescendants().OfType<Track>().ToArray();
+        if (tracks.Length != 1)
+            throw new InvalidOperationException($"Expected exactly one native slider track; found {tracks.Length} for {slider.Name}.");
+        Track track = tracks[0];
         double thumb = track.Thumb?.Bounds.Width ?? 12;
         return track.TranslatePoint(new Point(thumb / 2 + fraction * (track.Bounds.Width - thumb), track.Bounds.Height / 2), slider)
             ?? throw new InvalidOperationException("Native slider track has no transform.");
+    }
+
+    internal static Point ReadyTrackPoint(Slider slider, double fraction, bool requireEnabled = true)
+    {
+        bool ready = requireEnabled
+            ? IsPointerTargetReady(slider)
+            : IsNativeGeometryReady(slider, requireEnabled);
+        if (!ready)
+            throw new ArgumentException("Native slider geometry is not ready.", nameof(slider));
+        return TrackPoint(slider, fraction);
+    }
+
+    internal static async Task<Point> TrackPointAsync(Slider slider, double fraction)
+    {
+        const int maxAttempts = 24;
+        for (int attempt = 0; ; attempt++)
+        {
+            try
+            {
+                // TrackPoint and its slider must remain one attached presentation. A
+                // transfer can detach the retained PART_Track between TranslatePoint
+                // and native input; let the caller's current-target transaction resolve
+                // a new slider instead of pairing this point with another instance.
+                if (!slider.IsAttachedToVisualTree() || !slider.IsArrangeValid)
+                    throw new ArgumentException("Slider presentation changed during native coordinate conversion.", nameof(slider));
+                return TrackPoint(slider, fraction);
+            }
+            catch (ArgumentException) when (attempt < maxAttempts - 1)
+            {
+                await Task.Delay(25);
+            }
+        }
     }
 
     internal static bool HasDecodedFrames(GalleryVideoPlayer.PlaybackEvidence evidence) =>
