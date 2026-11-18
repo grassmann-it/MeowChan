@@ -223,7 +223,7 @@ public sealed class PageHeaderContractTests
     [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "StackPanel heading = new() { Name = \"TaggingHeading\", Classes = { \"workspace-page-header\" },\n            [!StackPanel.SpacingProperty] = new DynamicResourceExtension(\"Workspace.Space.8\"), Children = { _title, _subtitle } };")]
     public void TheMediaAndTaggingTitlesStandInAVerticalHeaderStackWithoutActionsBesideThem(string file, string stack)
     {
-        string code = File.ReadAllText(Root(file));
+        string code = File.ReadAllText(Root(file)).Replace("\r\n", "\n", StringComparison.Ordinal);
         Assert.Contains(stack, code);
         Assert.DoesNotContain("PageHeader.SetRole", code);
     }
