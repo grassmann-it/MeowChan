@@ -742,7 +742,7 @@ public sealed class RateAndTagSurfaceTests : IDisposable
 
         string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
         int selector = sidebar.IndexOf("TryRouteSidebarSelectionShortcut", StringComparison.Ordinal);
-        int selectorEnd = selector < 0 ? -1 : sidebar.IndexOf("// Puts the (hidden) sidebar", selector, StringComparison.Ordinal);
+        int selectorEnd = selector < 0 ? -1 : sidebar.IndexOf("private void MoveMediaSidebarTo(Grid host)", selector, StringComparison.Ordinal);
         Assert.True(selector >= 0 && selectorEnd > selector);
         string sidebarRoute = sidebar[selector..selectorEnd];
         Assert.Contains("CommandRouter.IsRoutingContextActive(sidebar, e.Source)", sidebar[..selector]);
@@ -758,7 +758,7 @@ public sealed class RateAndTagSurfaceTests : IDisposable
 
         string filters = Source("Desktop/Views/Archive/ArchivePage.PostFilter.cs");
         Assert.Contains("ArchiveReaderPane.AddHandler(KeyDownEvent, OnPostFilterKeyDown, RoutingStrategies.Tunnel);", filters);
-        Assert.Contains("CommandRouter.IsRoutingContextActive(ArchiveReaderPane, e.Source)", filters);
+        Assert.Contains("CommandRouter.IsRoutingContextActive(sender as Control ?? ArchiveReaderPane, e.Source)", filters);
         Assert.Contains("ReaderSelectionOwnsActivationKey(e)", filters);
     }
 

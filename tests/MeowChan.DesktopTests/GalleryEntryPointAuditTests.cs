@@ -69,12 +69,12 @@ public sealed class GalleryEntryPointAuditTests
         finally { ShortcutService.Publish(new ShortcutBindingsSection()); }
     });
 
-    // SILENT NO-OP: D while the slideshow cannot start was consumed without a word; now the slideshow's own status says why.
+    // SILENT NO-OP: Shift+D while the slideshow cannot start was consumed without a word; now the slideshow's own status says why.
     [Fact]
     public void TheSlideshowKeyThatCannotStartSaysWhy() => WithViewer(viewer =>
     {
         List<string> said = Explanations(viewer);
-        KeyEventArgs press = Key(viewer, Avalonia.Input.Key.D);
+        KeyEventArgs press = Key(viewer, Avalonia.Input.Key.D, KeyModifiers.Shift);
         viewer.RouteKeyForTests(press);
         Assert.True(press.Handled);
         Assert.False(viewer.CanExecutePlaybackAction("gallery.slideshow-toggle"));
