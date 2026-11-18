@@ -176,3 +176,36 @@ Steps 1–5 were committed and pushed individually in order (`65356c835`,
 `fe48ca051`, `9e44b219e`, `9860cb6ff`, `d35a0ceb5`).
 [PR #37](https://github.com/grassmann-it/MeowChan/pull/37) was opened after step 2
 against `goal/gesamtprogramm-profile-a`. No force push or assertion weakening.
+
+## 6. Current-goal follow-up: true missing keys stay explicit
+
+The current `origin/goal/gesamtprogramm-profile-a` audit base is `866ad8ea2`. Since the
+key-set counts recorded above, the reader activation contract added two non-empty source
+keys in `Desktop/Localization/ArchiveCatalog.cs`:
+
+- `reader.media.activation.contextChanged` — refusal when the reader context changed or is
+  no longer available; the user is told to focus the post and retry.
+- `reader.media.activation.missing` — refusal when the saved original is no longer
+  available locally.
+
+Both are ordinary non-counted strings with no format placeholders. Their source role and
+terminology are clear in the English/German catalog, but no reviewed translations exist in
+any of the ten preview packs. The packs therefore omit exactly these two keys each
+(**20 true missing pack entries total**) and deliberately fall back to English at runtime.
+This is a known, bounded gap—not a stale key, not a `savedSearch.*.None` sentinel, and not
+a reason to copy English into a non-English resource.
+
+The pack parity tests now enforce this distinction: every pack must have exactly the two
+allowlisted missing keys, no other selectable source key may be absent, no pack may add a
+value for either key without updating the audit, and the resolver must return the English
+fallback for both. The same tests continue to reject duplicate/unknown keys, invalid
+plural variants, whitespace-only values, and placeholder mismatches.
+
+The saved-search no-edit sentinels remain separate: `savedSearch.prompt.None` and
+`savedSearch.confirm.None` are empty in the built-in catalog, absent from every pack, and
+resolve to the empty string. They must not be filled with a translated “None” label.
+
+No resource translation was invented in this follow-up. A future translation change needs
+qualified review against the source role, the glossary terms *reader context*, *focus the
+post*, *saved original*, and *available locally*, plus the no-placeholder contract before
+removing either allowlist entry.

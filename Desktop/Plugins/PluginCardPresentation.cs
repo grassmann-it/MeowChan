@@ -47,6 +47,9 @@ internal sealed class PluginActivityTracker
 
     internal static bool IsBusy(PluginEntryPresentation presentation) => IsBusyState(presentation.Worker?.State);
 
+    /// <summary>Uses the plugin identity rather than a candidate file key, so changing the representative file does not reset the activity hold.</summary>
+    internal static string ActivityKey(string? pluginId, string cardKey) => pluginId ?? cardKey;
+
     /// <summary>Records the observation of one plugin and says whether it belongs to the running group now.</summary>
     internal bool Observe(string key, bool busyNow, DateTimeOffset now)
     {
