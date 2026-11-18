@@ -50,7 +50,7 @@
                                   Grid.IsSharedSizeScope="True" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                 <controls:IoGraph x:Name="TransferSpeedGraph" Source="NetworkIo" Width="128" MinWidth="120" Height="14" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw"
                                                   Stroke="{DynamicResource Workspace.Accent}" SecondaryStroke="{DynamicResource Workspace.Accent}" Fill="{DynamicResource Workspace.AccentSurface}" />
-                                <Grid x:Name="TransferSpeedText" Grid.Column="1" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.4}" RowSpacing="{StaticResource Workspace.Space.2}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <Grid x:Name="TransferSpeedText" Grid.Column="1" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.4}" RowSpacing="0" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderIoLabel" />
                                         <ColumnDefinition Width="Auto" MinWidth="56" SharedSizeGroup="HeaderIoRate" />
@@ -71,7 +71,7 @@
                                 </Grid>
                                 <controls:IoGraph x:Name="TransferDiskGraph" Grid.Row="1" Source="DiskIo" Width="128" MinWidth="120" Height="14" HistoryWindowSeconds="60" VerticalAlignment="Center" IsHitTestVisible="False" AutomationProperties.AccessibilityView="Raw"
                                                   Stroke="{DynamicResource Workspace.Stats.Disk}" SecondaryStroke="{DynamicResource Workspace.Stats.Disk}" Fill="{DynamicResource Workspace.Stats.DiskSurface}" />
-                                <Grid x:Name="TransferDiskText" Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.4}" RowSpacing="{StaticResource Workspace.Space.2}" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
+                                <Grid x:Name="TransferDiskText" Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.4}" RowSpacing="0" VerticalAlignment="Center" AutomationProperties.AccessibilityView="Raw">
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="Auto" SharedSizeGroup="HeaderIoLabel" />
                                         <ColumnDefinition Width="Auto" MinWidth="56" SharedSizeGroup="HeaderIoRate" />
