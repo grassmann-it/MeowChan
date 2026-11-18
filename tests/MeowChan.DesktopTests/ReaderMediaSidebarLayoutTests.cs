@@ -190,16 +190,23 @@ public sealed class ReaderMediaSidebarLayoutTests
                     previousHostHeight = host.Bounds.Height;
                 }
             }
-            // A responsive collapse returns the full column immediately; restoring it
-            // keeps the side and dragged-width preference, without navigation.
             ReaderMediaPreferences saved = page.ReaderMedia;
-            page.ApplyReaderMediaPreferences(saved with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum });
+            page.ApplyReaderMediaPreferences(saved with
+            {
+                SidebarWidth = ReaderDisplayPreferences.MediaSidebarWidthMaximum,
+                SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum
+            });
             Layout(root, geometries[0]);
             Assert.False(page.IsMediaSidebarShown);
-            Assert.Equal(host.Bounds.Width, largeReader ? pane.Bounds.Width : page.ReaderBox.Bounds.Width);
+            ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
+            Assert.True(toggle.IsVisible);
+            Assert.False(toggle.IsEnabled);
+            Assert.Equal(Ursa.Controls.OverflowMode.Always, Ursa.Controls.ToolBar.GetOverflowMode(toggle));
             page.ApplyReaderMediaPreferences(saved with { SidebarWidth = 620 });
             Layout(root, geometries[0]);
             Assert.True(page.IsMediaSidebarShown);
+            Assert.True(toggle.IsEnabled);
+            Assert.Equal(Ursa.Controls.OverflowMode.AsNeeded, Ursa.Controls.ToolBar.GetOverflowMode(toggle));
             Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
             Assert.Equal(ReaderMediaSidebarRules.EffectiveWidth(620, host.Bounds.Width, largeReader ? 0 : 2 * ReaderMediaSidebarRules.ArchiveViewGap), sidebar.Bounds.Width);
             Assert.Equal(host.Bounds.Height, sidebar.Bounds.Height);

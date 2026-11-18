@@ -253,8 +253,8 @@ public sealed class ReaderMultiMediaTests : IDisposable
         ReaderMediaPreferences off = ReaderMediaPreferences.Default with { Sidebar = false };
         Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off with { Sidebar = true }, true, 1600, "Ctrl+Shift+M"));
         Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off, largeReader: false, 1600, "Ctrl+Shift+M"));
-        Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off, true, 1279, "Ctrl+Shift+M"));
-        Assert.NotNull(ReaderMediaMultiRules.DiscoveryHint(off, true, 1280, "Ctrl+Shift+M"));
+        Assert.Null(ReaderMediaMultiRules.DiscoveryHint(off, true, 872, "Ctrl+Shift+M"));
+        Assert.NotNull(ReaderMediaMultiRules.DiscoveryHint(off, true, 873, "Ctrl+Shift+M"));
         // The sidebar is on by default (15.11.2026), so the hint only matters to someone who switched it off; it never changes a preference.
         Assert.True(new Config().ReaderMediaSidebar);
         Assert.False(ReaderMediaSidebarRules.IsShown(off, true, 1920));

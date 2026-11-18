@@ -33,9 +33,10 @@ internal static class ReaderMediaSidebarRules
     internal const int AnnounceDelayMs = 300;
     /// <summary>A medium that is not ready after this long shows its placeholder (a warm cache answers well before).</summary>
     internal const int PlaceholderDelayMs = 100;
-    /// <summary>The posts keep at least this width beside the sidebar (layout constant; the reader-width setting hides the sidebar first).</summary>
+    /// <summary>The posts keep at least this width beside the sidebar.</summary>
     internal const double PostsMinimumWidth = 480;
     internal const double SplitterWidth = 6;
+    internal const double MaximumReaderWidthFraction = 0.55;
 
     /// <summary>
     /// The archive view keeps a gap of this width on each side of the splitter beside the posts card (as the archive split does between
@@ -78,9 +79,13 @@ internal static class ReaderMediaSidebarRules
         return IsOn(media, largeReader: false) ? media with { SidebarAlways = false } : media with { Sidebar = true, SidebarAlways = true };
     }
 
-    /// <summary>Chosen, but hidden because the reader is narrower than the setting.</summary>
+    /// <summary>The earlier of the saved threshold and the width at which the configured sidebar occupies its allowed share.</summary>
+    internal static double MinimumReaderWidth(ReaderMediaPreferences media) =>
+        Math.Min(media.Clamped().SidebarMinimumReaderWidth, ClampWidth(media.SidebarWidth) / MaximumReaderWidthFraction);
+
+    /// <summary>Whether the configured sidebar would need more than its allowed share of the reader.</summary>
     internal static bool IsCollapsedByWidth(ReaderMediaPreferences media, double readerWidth) =>
-        media.Sidebar && double.IsFinite(readerWidth) && readerWidth > 0 && readerWidth < media.Clamped().SidebarMinimumReaderWidth;
+        double.IsFinite(readerWidth) && readerWidth > 0 && readerWidth < MinimumReaderWidth(media);
 
     /// <summary>A dragged width as the setting stores it: whole pixels within the setting's bounds.</summary>
     internal static int ClampWidth(double width) => double.IsFinite(width)
@@ -370,7 +375,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal ReaderMediaSidebar()
     {
         Name = "ReaderMediaSidebar";
-        Padding = new Thickness(16);
+        Padding = new Thickness(WorkspaceMetrics.SectionInset);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         _placeholder[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Card");
         _placeholder[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Control");

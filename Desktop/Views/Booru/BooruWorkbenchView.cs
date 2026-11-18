@@ -12,6 +12,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -96,7 +97,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TabItem _watchersTab = new();
     private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 170 };
     // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
-    private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false };
+    private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false, MaxWidth = 900, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Button _submit = new() { Name = SubmitName };
     private readonly Button _cancel = new() { Name = CancelName };
     private readonly SelectableTextBlock _queryLine = new() { Name = QueryName, Classes = { "workspace-meta", "mono" } };
@@ -112,7 +113,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TextBlock _pageInfo = new() { Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _pageLimit = new() { Classes = { "workspace-help" } };
     private readonly Button _createWatcher = new() { Name = CreateWatcherName, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _createHint = new() { Classes = { "workspace-help" } };
     private readonly Border _noticeHost = new();
     private readonly TextBlock _noticeText = new() { Name = NoticeName, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _results = new() { Name = ResultsName, Spacing = 8 };
@@ -342,11 +342,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _next.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page + 1);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
-        Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto"), ColumnSpacing = 8 };
+        Border actionDivider = new() { Width = 1, Margin = new Thickness(4, 5),
+            [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border") };
+        StackPanel searchActions = new() { Name = "BooruSearchActions", Orientation = Orientation.Horizontal, Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center, Children = { _submit, actionDivider, _createWatcher, _cancel } };
+        Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8 };
         inputRow.Children.Add(_mode);
         Grid.SetColumn(_input, 1); inputRow.Children.Add(_input);
-        Grid.SetColumn(_submit, 2); inputRow.Children.Add(_submit);
-        Grid.SetColumn(_cancel, 3); inputRow.Children.Add(_cancel);
+        Grid.SetColumn(searchActions, 2); inputRow.Children.Add(searchActions);
 
         _queryLine.TextWrapping = TextWrapping.Wrap;
         StackPanel status = new() { Spacing = 8 };
@@ -361,10 +364,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _pager.Children.Add(_pageInfo);
         _pager.Children.Add(_next);
 
-        StackPanel watcherRow = new() { Spacing = 4 };
-        watcherRow.Children.Add(_createWatcher);
-        watcherRow.Children.Add(_createHint);
-
         _noticeHost.Child = _noticeText;
         AutomationProperties.SetLiveSetting(_noticeText, AutomationLiveSetting.Polite);
 
@@ -374,7 +373,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(_inputIssue);
         tab.Children.Add(_queryLine);
         tab.Children.Add(_queryHint);
-        tab.Children.Add(watcherRow);
         tab.Children.Add(_noticeHost);
         tab.Children.Add(_statusHost);
         tab.Children.Add(_pager);
@@ -544,11 +542,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         _createWatcher.Content = Texts.T("booru.ui.watcher.create");
         _createWatcher.IsEnabled = model.CanCreateWatcher && !_model.Watchers.View.Creating;
-        _createHint.Text = Texts.T("booru.ui.watcher.createHint");
         string createName = Texts.T("booru.ui.watcher.create");
+        string createHelp = _createWatcher.IsEnabled ? Texts.T("booru.ui.watcher.createHint") : Texts.T("booru.ui.watcher.createNeedsTags");
         AutomationProperties.SetName(_createWatcher, createName);
-        AutomationProperties.SetHelpText(_createWatcher, _createWatcher.IsEnabled ? _createHint.Text : Texts.T("booru.ui.watcher.createNeedsTags"));
-        ToolTip.SetTip(_createWatcher, _createWatcher.IsEnabled ? _createHint.Text : Texts.T("booru.ui.watcher.createNeedsTags"));
+        AutomationProperties.SetHelpText(_createWatcher, createHelp);
+        ToolTip.SetTip(_createWatcher, createHelp);
 
         _loadMirror.Update(view.Rows.Select(row => (row.Post.PostId,
             row.Load == BooruRowLoad.Idle ? default((BooruRowLoad, string?)?) : (row.Load, row.LoadCode))), view.Notice);

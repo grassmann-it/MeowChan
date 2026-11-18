@@ -112,6 +112,13 @@ public partial class ArchivePage
             return false;
         ArchiveAttachmentRow row = snapshot.Rows[choice.Index];
         ArchiveAttachmentView? view = snapshot.Views[choice.Index];
+        if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && OpenGallery != null)
+        {
+            _readerMediaHeldKeys.Add(e.Key);
+            e.Handled = true;
+            ReaderMediaActivationTask = StartReaderMediumGalleryOpen(source, post, row, largeReaderOnly);
+            return true;
+        }
         ReaderInlineVideoOptions options = _inlineVideo.Options;
         ReaderMediumOutcome outcome = ReaderMediaActivation.Decide(choice, snapshot.Media[choice.Index], options, _mediaSidebarShown,
             snapshot.SidebarIndex == choice.Index, ReaderInlineVideoRules.CanOfferInPost(options, row) && view != null,

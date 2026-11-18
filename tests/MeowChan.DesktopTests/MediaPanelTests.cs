@@ -9,6 +9,7 @@ namespace MeowChan.DesktopTests;
 public sealed class MediaPanelTests
 {
     private const double GridMinimum = MediaPageLayoutPlan.MinimumGridWidth;
+    private const double CombinedContentMinimum = MediaPanelColumns.MinimumCombinedContentWidth;
     private const double Chrome = MediaPageLayoutPlan.BodyChrome + MediaPanelColumns.PanelChrome;
     private const int MinimumPage = MeowChan.Config.MediaPanelMinimumPageWidthDefault;
 
@@ -72,26 +73,21 @@ public sealed class MediaPanelTests
     }
 
     [Fact]
-    public void ThePanelIsCappedByTheRoomAndByItsRangeAndTheTagListYieldsFirst()
+    public void ThePanelAndTagListYieldBeforeTheToolbarCanBeClipped()
     {
-        // A wide saved panel takes the room the grid leaves: 1200 - 200 - chrome - 480 (468 with the 52 dip of chrome).
-        Assert.Equal(new MediaPanelColumns(true, false, 480, 1200 - GridMinimum - Chrome - 480), MediaPanelColumns.Of(WithTagList(480, 900), 1200, MinimumPage));
-        // Its range's maximum on a very wide page, even from a saved width above it.
+        Assert.Equal(new MediaPanelColumns(true, false, 1200 - CombinedContentMinimum - Chrome - 240, 240),
+            MediaPanelColumns.Of(WithTagList(480, 900), 1200, MinimumPage));
         Assert.Equal(900, MediaPanelColumns.Of(MediaPageLayout.Standard with { PanelWidth = 5000 }, 3000, MinimumPage).PanelWidth);
         Assert.Equal(240, MediaPanelColumns.Of(MediaPageLayout.Standard with { PanelWidth = 10 }, 3000, MinimumPage).PanelWidth);
-        // A narrow page with the tag list: the list gives way so the panel keeps its smallest width (700 - 200 - chrome - 240, 208 with 52 dip of chrome).
-        Assert.Equal(new MediaPanelColumns(true, false, 700 - GridMinimum - Chrome - 240, 240), MediaPanelColumns.Of(WithTagList(), 700, 600));
-        // Down to the list's minimum: the narrowest page that still shows both at their smallest widths.
-        double narrowest = GridMinimum + Chrome + MeowChan.Config.MediaTagListWidthMinimum + MeowChan.Config.MediaPanelWidthMinimum;
+        double narrowest = CombinedContentMinimum + Chrome + MeowChan.Config.MediaTagListWidthMinimum + MeowChan.Config.MediaPanelWidthMinimum;
         Assert.Equal(new MediaPanelColumns(true, false, 180, 240), MediaPanelColumns.Of(WithTagList(), narrowest, 600));
     }
 
     [Fact]
-    public void WithoutRoomForItsSmallestWidthThePanelHidesAndTheTagListGetsItsWidthBack()
+    public void WithoutRoomForTheToolbarAndBothSidebarsThePanelHidesAndTheTagListGetsItsWidthBack()
     {
-        // Above the minimum page width (600), but the list at its minimum (180) leaves the panel less than its 240 (660 - 252 - 180 = 228 with 52 dip of chrome).
-        Assert.True(660 - GridMinimum - Chrome - MeowChan.Config.MediaTagListWidthMinimum < MeowChan.Config.MediaPanelWidthMinimum);
-        Assert.Equal(new MediaPanelColumns(false, true, 256, 0), MediaPanelColumns.Of(WithTagList(), 660, 600));
+        double narrowest = CombinedContentMinimum + Chrome + MeowChan.Config.MediaTagListWidthMinimum + MeowChan.Config.MediaPanelWidthMinimum;
+        Assert.Equal(new MediaPanelColumns(false, true, 256, 0), MediaPanelColumns.Of(WithTagList(), narrowest - 1, 600));
     }
 
     [Fact]

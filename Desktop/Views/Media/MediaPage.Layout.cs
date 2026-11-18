@@ -264,6 +264,9 @@ public sealed partial class MediaPage
         if (_bodyRow is not { } row || _bodySurface is not { } surface || _contentGrid is not { } content) return;
         double bodyWidth = row.Bounds.Width;
         MediaPanelColumns panelColumns = MediaPanelColumns.Of(_layout, bodyWidth, PanelMinimumPageWidth);
+        bool panelDisplayCapable = !MediaPanelColumns.Of(_layout with { Panel = true }, bodyWidth, PanelMinimumPageWidth).CollapsedByWidth;
+        bool panelCapabilityChanged = panelDisplayCapable != _panelDisplayCapable;
+        _panelDisplayCapable = panelDisplayCapable;
         bool right = plan.TagListSide == MediaTagListSide.Right, shown = plan.TagList;
         int listColumn = right ? 2 : 0, contentColumn = right ? 0 : 2;
         Avalonia.Controls.Grid.SetColumn(_tagSidebar, listColumn);
@@ -327,6 +330,7 @@ public sealed partial class MediaPage
         }
         if (_panel is { } aligned) AlignPanel(aligned, panelRight, edge);
         ApplyToolbarAlignment();
+        if (panelCapabilityChanged) RefreshWorkView();
         if (focusLost) FocusGrid();
     }
 

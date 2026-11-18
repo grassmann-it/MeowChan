@@ -90,7 +90,8 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     [InlineData(true, false, false, 1920, false)]
     [InlineData(true, true, false, 1920, true)]   // Always: also the archive view
     [InlineData(true, true, true, 1920, true)]
-    [InlineData(true, true, false, 1279, false)]  // the archive view gives way to the posts below the reader width, like the large reader
+    [InlineData(true, true, false, 872, false)]
+    [InlineData(true, true, false, 873, true)]
     [InlineData(true, true, false, 0, true)]      // not laid out yet
     public void TheArchiveViewShowsItOnlyWithAlways(bool on, bool always, bool large, double width, bool shown)
     {
@@ -157,14 +158,15 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     [Theory]
     [InlineData(false, true, 1920, false)]   // not chosen
     [InlineData(true, false, 1920, false)]   // the embedded reader has no sidebar
-    [InlineData(true, true, 1279, false)]    // narrower than the setting: gives way to the posts
-    [InlineData(true, true, 1280, true)]
-    [InlineData(true, true, 0, true)]        // not laid out yet: no second layout pass on opening
+    [InlineData(true, true, 872, false)]
+    [InlineData(true, true, 873, true)]
+    [InlineData(true, true, 0, true)]
     public void ItIsShownOnlyWhenChosenInTheLargeReaderAndWideEnough(bool chosen, bool large, double width, bool shown)
     {
         ReaderMediaPreferences media = chosen ? On() : ReaderMediaPreferences.Default with { Sidebar = false };
         Assert.Equal(shown, ReaderMediaSidebarRules.IsShown(media, large, width));
-        Assert.Equal(chosen && width is > 0 and < 1280, ReaderMediaSidebarRules.IsCollapsedByWidth(media, width));
+        Assert.Equal(width is > 0 and < 480 / 0.55, ReaderMediaSidebarRules.IsCollapsedByWidth(media, width));
+        Assert.Equal(480 / 0.55, ReaderMediaSidebarRules.MinimumReaderWidth(media));
     }
 
     [Fact]

@@ -176,7 +176,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true);
         WorkViewGate.Apply(_booruMode, view);
         WorkViewGate.Apply(_layoutButton, view);
-        WorkViewGate.Apply(_panelToggle, view, stateVisible: CanTogglePanel);
+        WorkViewGate.Apply(_panelToggle, view, stateVisible: CanDisplayPanelToggle);
         WorkViewGate.Apply(_queueWalk, view, stateVisible: OpenTagQueueWalk != null);
         WorkViewGate.Apply(_taggingPageOpen, view, stateVisible: OpenTaggingPage != null);
         WorkViewGate.Apply(_queueAll, view, stateVisible: AddToTagQueue != null);

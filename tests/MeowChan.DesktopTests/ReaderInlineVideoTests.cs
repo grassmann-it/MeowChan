@@ -265,7 +265,7 @@ public sealed class ReaderInlineVideoTests : IDisposable
     }
 
     [Fact]
-    public async Task SpaceTogglesAndEnterPlays()
+    public async Task SpaceTogglesAndEnterIsNotAPlaybackKey()
     {
         ReaderInlineVideoController controller = await Controller(On());
         var video = Video();
@@ -277,7 +277,7 @@ public sealed class ReaderInlineVideoTests : IDisposable
         Assert.True(controller.IsPlaying(video.Owner));
         Assert.Single(video.Players);
 
-        Assert.Equal(ReaderInlineVideoRules.KeyAction.Toggle, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.None));
+        Assert.Equal(ReaderInlineVideoRules.KeyAction.None, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.None));
         Assert.Equal(ReaderInlineVideoRules.KeyAction.Toggle, ReaderInlineVideoRules.Classify(Key.Space, KeyModifiers.None));
         Assert.Equal(ReaderInlineVideoRules.KeyAction.None, ReaderInlineVideoRules.Classify(Key.Space, KeyModifiers.Shift));
         Assert.Equal(ReaderInlineVideoRules.KeyAction.None, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.Control));

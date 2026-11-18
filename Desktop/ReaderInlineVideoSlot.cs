@@ -189,7 +189,14 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
             HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch, IsVisible = false,
             Cursor = new Cursor(StandardCursorType.Hand)
         };
-        // A pointer click on the activator is told apart from Enter or Space on it: the pointer's play gives the focus back (PointerPlayFocus), the keyboard's moves it to the bar.
+        // A pointer click on the activator is told apart from Space on it: pointer play gives the focus back, keyboard play moves it to the bar.
+        // Enter opens the offered medium instead of invoking the button's native playback click.
+        Activator.AddHandler(InputElement.KeyDownEvent, (_, e) =>
+        {
+            if (e.Handled || e.Key != Key.Enter || e.KeyModifiers != KeyModifiers.None || _openGallery == null) return;
+            e.Handled = true;
+            _openGallery();
+        }, RoutingStrategies.Tunnel);
         Activator.AddHandler(InputElement.PointerPressedEvent, (_, _) => _pointerPlay = true, RoutingStrategies.Tunnel, handledEventsToo: true);
         Activator.AddHandler(InputElement.PointerReleasedEvent, (_, _) => Dispatcher.UIThread.Post(() => _pointerPlay = false, DispatcherPriority.Background),
             RoutingStrategies.Bubble, handledEventsToo: true);
@@ -392,9 +399,15 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
     private void OnKeyDown(KeyEventArgs e)
     {
         if (e.Handled || !IsOffered) return;
-        // Enter and Space on the video's own surface (never on one of its buttons, which handle both themselves).
+        // Enter opens the offered medium; Space controls playback. Buttons retain their native activation.
         if (e.Source is not Button)
         {
+            if (e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.None && _openGallery != null)
+            {
+                e.Handled = true;
+                _openGallery();
+                return;
+            }
             switch (ReaderInlineVideoRules.Classify(e.Key, e.KeyModifiers))
             {
                 case ReaderInlineVideoRules.KeyAction.Play:
@@ -402,8 +415,7 @@ internal sealed class ReaderInlineVideoSlot : IReaderInlineVideoOwner
                     OpenActions.Start(() => PlayAsync(), "reader.video.play");
                     return;
                 case ReaderInlineVideoRules.KeyAction.Toggle:
-                    // Space only when it is the toggle's binding (a person may have moved it); Enter is a fixed content key.
-                    if (ReaderVideoKeys.IsEnterToggle(e.Key, e.KeyModifiers) || CommandBindings.Matches(e, "video.play-pause") && !OwnerClaims(id => CommandBindings.Matches(e, id)))
+                    if (CommandBindings.Matches(e, "video.play-pause") && !OwnerClaims(id => CommandBindings.Matches(e, id)))
                     {
                         e.Handled = true;
                         OpenActions.Start(ToggleAsync, "reader.video.toggle");

@@ -47,6 +47,7 @@ public sealed partial class MediaPage
 
     /// <summary>Whether the switch can act now: the page is alive (the panel may still be hidden by a narrow page; the choice is kept then).</summary>
     internal bool CanTogglePanel => !_lifetime.IsCancellationRequested;
+    internal bool CanDisplayPanelToggle => CanTogglePanel && _panelDisplayCapable;
 
     /// <summary>The shortcut and the palette entry: the panel on or off in the layout (saved).</summary>
     internal void TogglePanelByShortcut()

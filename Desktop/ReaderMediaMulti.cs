@@ -113,12 +113,12 @@ internal static class ReaderMediaMultiRules
 
     /// <summary>
     /// The hint on the View menu's sidebar entry while the sidebar is off: only in the large reader, and only when the reader is wide
-    /// enough for it (an unknown width counts as wide enough). It names the shortcut the user currently has for it. Nothing turns on by itself.
+    /// enough for it (an unknown width counts as wide enough). It names the shortcut the user currently has for it.
     /// </summary>
     internal static string? DiscoveryHint(ReaderMediaPreferences media, bool largeReader, double readerWidth, string? shortcut)
     {
         if (media.Sidebar || !largeReader) return null;
-        if (double.IsFinite(readerWidth) && readerWidth > 0 && readerWidth < media.Clamped().SidebarMinimumReaderWidth) return null;
+        if (ReaderMediaSidebarRules.IsCollapsedByWidth(media, readerWidth)) return null;
         return string.IsNullOrWhiteSpace(shortcut) ? Texts.T("reader.sidebar.discoverNoKey") : Texts.T("reader.sidebar.discover", shortcut);
     }
 }
