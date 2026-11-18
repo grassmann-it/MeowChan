@@ -60,6 +60,47 @@ public sealed class QuickTagPopoverTests : IDisposable
     // ---- construction -------------------------------------------------------------------------------------------
 
     [Fact]
+    public async Task ACreateFailureDisposesItsSessionAndLeavesTheNextPopoverUsable()
+    {
+        using Fixture fixture = new();
+        QuickTagSession session = fixture.Session();
+        bool applied = false;
+        session.Applied += _ => applied = true;
+
+        Assert.Throws<InvalidOperationException>(() => QuickTagPopover.Create(new Border(), session, "x",
+            new QuickTagPopoverOptions { RestoreFocus = false }, () => throw new InvalidOperationException("create")));
+
+        await session.AddAsync("late");
+        Assert.False(applied, "a failed create must dispose the transferred session");
+
+        QuickTagPopover next = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        next.Close();
+        Assert.Null(QuickTagPopover.Current);
+    }
+
+    [Fact]
+    public void AShowAtFailureClosesOnceAndAllowsAReplacement()
+    {
+        using Fixture fixture = new();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        int closed = 0;
+        popover.Closed += _ => closed++;
+
+        Assert.Throws<InvalidOperationException>(() => popover.ShowAt((_, _) => throw new InvalidOperationException("show")));
+
+        Assert.True(popover.IsClosed);
+        Assert.False(popover.IsOpen);
+        Assert.Equal(1, closed);
+        Assert.Null(QuickTagPopover.Current);
+
+        QuickTagPopover next = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        next.ShowAt((_, _) => { });
+        Assert.Same(next, QuickTagPopover.Current);
+        next.Close();
+        Assert.Null(QuickTagPopover.Current);
+    }
+
+    [Fact]
     public void ACreatedPopoverIsClosedFramedAndCyclesTabInsideAndPutsTheSurfaceInTheFlyout()
     {
         using Fixture fixture = new();
