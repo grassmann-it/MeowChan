@@ -217,7 +217,6 @@ public sealed partial class MediaPage : UserControl
         Control bodyRow = WrapWithTagSidebar(surface); // MP4: the tag list of the Booru mode left of the grid (MediaPage.BooruMode.cs)
         // The header belongs to the grid/filter column, not above the media sidebar.
         // Both sidebar and divider span the page host independently of that column's chrome.
-        _contentHeader = header;
         _contentGrid!.Children.Add(header);
         Content = bodyRow;
         InstallLayout(); // MP5: finds the rows the layout shows or hides
