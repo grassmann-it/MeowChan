@@ -34,7 +34,7 @@ class FullSweepTests(unittest.TestCase):
                 return dict(mode=mode, passed=mode != "normal", actual_render_scaling=1)
             with patch.object(runner.shutil, "which", return_value="fake"), \
                     patch.object(runner, "run_mode", side_effect=fake) as run:
-                self.assertEqual(1, runner.main(["--assembly", str(assembly), "--output", str(output)]))
+                self.assertEqual(1, runner.main(["--assembly", str(assembly), "--output", str(output), "--allow-native-desktop"]))
             report = json.loads((output / "results.json").read_text())
             self.assertFalse(report["passed"])
             self.assertEqual(run.call_count, len(report["selected_modes"]))
@@ -50,7 +50,7 @@ class FullSweepTests(unittest.TestCase):
                 with patch.object(runner.shutil, "which", return_value="fake"), \
                         patch.object(runner, "run_mode", return_value=dict(
                             mode="normal", passed=False, actual_render_scaling=1, **failure)) as run:
-                    self.assertEqual(1, runner.main(["--assembly", str(assembly), "--output", str(output)]))
+                    self.assertEqual(1, runner.main(["--assembly", str(assembly), "--output", str(output), "--allow-native-desktop"]))
                 self.assertEqual(run.call_count, 1)
                 report = json.loads((output / "results.json").read_text())
                 self.assertTrue(all(row["status"] == "skipped" for row in report["results"][1:]))
