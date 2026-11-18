@@ -49,8 +49,9 @@ internal sealed class ThemeColorRow : Border
         BorderThickness = new Thickness(0, 0, 0, 1);
         this[!BorderBrushProperty] = new DynamicResourceExtension("Workspace.Border");
         _swatch = new Button { Name = "ThemeColorSwatch_" + role.Id, Padding = new Thickness(0), Width = ThemeColorsMetrics.Swatch, Height = ThemeColorsMetrics.Swatch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Top, Content = _swatchFill };
-        _swatchFill.Margin = new Thickness(3);
+        _swatchFill.Margin = new Thickness(4);
         _swatchFill.BorderThickness = new Thickness(1);
         _swatchFill[!Border.CornerRadiusProperty] = new DynamicResourceExtension("Workspace.Radius.Badge");
         _swatchFill[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
