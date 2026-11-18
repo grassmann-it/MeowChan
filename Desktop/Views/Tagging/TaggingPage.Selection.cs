@@ -26,7 +26,10 @@ public sealed partial class TaggingPage
     private readonly ActionToolBar _selectionActions = new() { Name = "TaggingSelectionActions", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Button _selTag = new() { Name = "TaggingSelectionTag" };
     private readonly Button _selStamp = new() { Name = "TaggingSelectionStamp" };
+    private readonly Button _selDone = new() { Name = "TaggingSelectionDone" };
+    private readonly Button _selSkipped = new() { Name = "TaggingSelectionSkipped" };
     private readonly Button _selState = new() { Name = "TaggingSelectionState" };
+    private readonly Button _selContinue = new() { Name = "TaggingSelectionContinue" };
     private readonly Button _selGroup = new() { Name = "TaggingSelectionGroup" };
     private readonly Button _selRemove = new() { Name = "TaggingSelectionRemove" };
     private readonly TextBlock _selStateText = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -40,7 +43,10 @@ public sealed partial class TaggingPage
     internal ActionToolBar SelectionActions => _selectionActions;
     internal Button SelectionTagButton => _selTag;
     internal Button SelectionStampButton => _selStamp;
+    internal Button SelectionDoneButton => _selDone;
+    internal Button SelectionSkippedButton => _selSkipped;
     internal Button SelectionStateButton => _selState;
+    internal Button SelectionContinueButton => _selContinue;
     internal Button SelectionGroupButton => _selGroup;
     internal Button SelectionRemoveButton => _selRemove;
     internal Button SelectionClearButton => _selClear;
@@ -48,18 +54,30 @@ public sealed partial class TaggingPage
     private Control BuildSelectionBar()
     {
         AutomationProperties.SetLiveSetting(_selectionText, AutomationLiveSetting.Polite);
-        foreach (Button button in new[] { _selTag, _selStamp, _selState, _selGroup, _selRemove })
+        _selectionActions.PrioritizedOverflow = true;
+        (Button Button, int Group)[] actions =
+        [
+            (_selTag, 0), (_selStamp, 0),
+            (_selDone, 1), (_selSkipped, 1), (_selState, 1), (_selContinue, 1),
+            (_selGroup, 2), (_selRemove, 2),
+        ];
+        foreach ((Button button, int group) in actions)
         {
             ToolBar.SetOverflowMode(button, OverflowMode.AsNeeded);
+            ActionToolBar.SetGroup(button, group);
             // Outlined like the selection row of the media page, so a disabled action still looks like a button (WorkspaceStyles.axaml;
             // the outline only applies on the bar itself, an item under "More" keeps the popup's plain rows).
             button.Classes.Add("bar-button");
             _selectionActions.Items.Add(button);
         }
+        _selRemove.Classes.Add("danger");
         _selTag.Click += (_, _) => _ = ExecuteSelectionAsync(Selected.Count > 1 ? TaggingCommands.TagTogether : TaggingCommands.Tag, _selTag);
         _selStamp.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ApplyStamp), "tagging.selection.stamp");
+        _selDone.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.MarkDone), "tagging.selection.done");
+        _selSkipped.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.MarkSkipped), "tagging.selection.skipped");
         _selRemove.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.Remove), "tagging.selection.remove");
         _selState.Click += (_, _) => _stateMenuHost?.Show(atPointer: false);
+        _selContinue.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ContinueHere, explain: true), "tagging.selection.continue");
         _selGroup.Click += (_, _) => _groupMenuHost?.Show(atPointer: false);
         _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent(), resolveOrigin: StateMenuOrigin);
         _groupMenuHost = new ContextMenuHost(_selGroup, ComposeGroupMenu, fallbackFocus: () => FocusContent());
@@ -72,12 +90,14 @@ public sealed partial class TaggingPage
         _selClear.Classes.Add(WorkspaceIcons.SquareClass);
         _selClear.Classes.Add("bar-button");
 
-        Grid bar = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
-        bar.Children.Add(_selectionText);
-        Grid.SetColumn(_selectionActions, 1);
+        Grid bar = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
+        Grid.SetColumn(_selectionActions, 0);
         bar.Children.Add(_selectionActions);
-        Grid.SetColumn(_selClear, 2);
-        bar.Children.Add(_selClear);
+        StackPanel trailing = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        trailing.Children.Add(_selectionText);
+        trailing.Children.Add(_selClear);
+        Grid.SetColumn(trailing, 1);
+        bar.Children.Add(trailing);
         _selectionBar.Child = bar;
         AutomationProperties.SetName(_selectionBar, Texts.T("tagging.page.selection.name"));
         return _selectionBar;
@@ -114,7 +134,7 @@ public sealed partial class TaggingPage
     private ContextMenuBuilder? ComposeStateMenu()
     {
         if (Lead == null) return null;
-        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.selection.state"));
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.selection.moreState"));
         TaggingCommandContext context = CommandContext();
         foreach (string id in TaggingCommands.Sections[1])
         {
@@ -150,11 +170,14 @@ public sealed partial class TaggingPage
         string tagId = count > 1 ? TaggingCommands.TagTogether : TaggingCommands.Tag;
         SetSelectionAction(_selTag, tagId, CommandCatalog.Label(tagId), context);
         SetSelectionAction(_selStamp, TaggingCommands.ApplyStamp, CommandCatalog.Label(TaggingCommands.ApplyStamp), context);
+        SetSelectionAction(_selDone, TaggingCommands.MarkDone, CommandCatalog.Label(TaggingCommands.MarkDone), context);
+        SetSelectionAction(_selSkipped, TaggingCommands.MarkSkipped, CommandCatalog.Label(TaggingCommands.MarkSkipped), context);
+        SetSelectionAction(_selContinue, TaggingCommands.ContinueHere, CommandCatalog.Label(TaggingCommands.ContinueHere), context);
         SetSelectionAction(_selRemove, TaggingCommands.Remove, Texts.T("tagging.page.selection.remove"), context);
-        // "State": available when any of the three marks applies to the selection.
+        // The direct decisions stay visible; the menu remains the compact "More status" fallback for the complete state set.
         TaggingCommandState[] marks = TaggingCommands.Sections[1].Select(id => TaggingRowCommands.Evaluate(id, context)).ToArray();
         bool any = marks.Any(state => state.Available);
-        string stateText = Texts.T("tagging.page.selection.state");
+        string stateText = Texts.T("tagging.page.selection.moreState");
         _selStateText.Text = stateText;
         _selState.IsEnabled = any;
         string stateTip = any ? Texts.T("tagging.page.selection.state.hint") : marks[0].Reason ?? string.Empty;

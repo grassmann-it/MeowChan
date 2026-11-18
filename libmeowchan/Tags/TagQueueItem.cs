@@ -173,10 +173,10 @@ internal sealed class TagQueueSnapshot
     internal IReadOnlyList<TagQueueGroup> Groups { get; }
     internal IReadOnlyList<TagQueueItem> Items { get; }
     internal TagQueueGroup? Group(string id) => Groups.FirstOrDefault(group => string.Equals(group.Id, id, StringComparison.Ordinal));
-    internal int CountFor(string? groupId) => groupId == null ? Count : Items.Count(item => item.GroupId == groupId);
-    internal int OpenFor(string? groupId) => groupId == null ? Open : Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Open);
-    internal int DoneFor(string? groupId) => groupId == null ? Done : Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Done);
-    internal int SkippedFor(string? groupId) => groupId == null ? Skipped : Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Skipped);
+    internal int CountFor(string? groupId) => Items.Count(item => item.GroupId == groupId);
+    internal int OpenFor(string? groupId) => Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Open);
+    internal int DoneFor(string? groupId) => Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Done);
+    internal int SkippedFor(string? groupId) => Items.Count(item => item.GroupId == groupId && item.State == TagQueueState.Skipped);
     internal TagQueueLoadState State { get; }
     internal int Count => Items.Count;
     internal int Open { get; }

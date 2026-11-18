@@ -590,8 +590,13 @@ public sealed class EffectiveShortcutBindings
         var ids = values.Keys.ToArray();
         for (int a = 0; a < ids.Length; a++) for (int b = a + 1; b < ids.Length; b++)
         {
-            bool edited = section.HasOverride(ids[a]) || section.HasOverride(ids[b]);
-            bool editorConflict = edited && ShortcutMeaning.Compete(ids[a], ids[b]);
+            // A saved binding and a generated default are not two user edits. Changed defaults
+            // have already yielded where their runtime contexts overlap; in disjoint contexts the
+            // default remains useful and must not turn the profile into a blocking conflict. The
+            // editor-only semantic conflict rule is for two explicit saved bindings only (including
+            // separate modal surfaces, where runtime context overlap is intentionally not required).
+            bool bothExplicit = section.HasOverride(ids[a]) && section.HasOverride(ids[b]);
+            bool editorConflict = bothExplicit && ShortcutMeaning.Compete(ids[a], ids[b]);
             if (!ContextsOverlap(ids[a], ids[b]) && !editorConflict) continue;
             foreach (var first in values[ids[a]]) foreach (var second in values[ids[b]])
                 if (Equivalent(first, second, os))

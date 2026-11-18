@@ -206,10 +206,20 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
                 : row.Preview == BooruPreviewState.None ? "booru.ui.post.noPreview" : "booru.ui.post.previewUnavailable"), false);
             return;
         }
-        string id = CurrentPostId;
-        MediaAssetReference asset = new(id, id, "preview", id + ".png", id + ".png", row.PreviewBytes.Length, "", "", id + ".png", true);
-        MediaAssetSnapshot snapshot = new("booru-preview", MediaManifestStatus.Missing, null, null, new[] { asset });
-        GalleryEntry entry = new(new(new ResourceId("danbooru", "preview", id), "booru-preview", id), snapshot, asset, null, null, false, true);
+        GalleryEntry entry = CreatePreviewEntry(row);
         _ = _viewer.ShowAsync(entry, CancellationToken.None);
+    }
+
+    /// <summary>Builds the synthetic display identity without losing the provider that owns the post.</summary>
+    internal static GalleryEntry CreatePreviewEntry(BooruResultRowView row)
+    {
+        if (row.PreviewBytes is not { Length: > 0 } bytes)
+            throw new ArgumentException("A ready Booru preview must contain bytes.", nameof(row));
+        string id = row.Post.PostId;
+        MediaAssetReference asset = new(id, id, "preview", id + ".png", id + ".png", bytes.Length, "", "", id + ".png", true);
+        MediaAssetSnapshot snapshot = new("booru-preview", MediaManifestStatus.Missing, null, null, new[] { asset });
+        // BooruPostId.SourceId is part of the identity contract; hard-coding Danbooru makes a
+        // non-Danbooru provider's synthetic entry report the wrong source to Gallery diagnostics.
+        return new(new(new ResourceId(row.Post.SourceId, "preview", id), "booru-preview", id), snapshot, asset, null, null, false, true);
     }
 }
