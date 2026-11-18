@@ -8,6 +8,14 @@ namespace MeowChan.DesktopTests;
 [Collection("Booru exact navigation")]
 public sealed class BooruComponentDispatcherTests
 {
+    [Fact]
+    public void WaitPumpsOnlyTheOwnedDispatcherForAsyncComponentWork() => BooruComponentDispatcher.Run(() =>
+    {
+        TaskCompletionSource<int> completion = new();
+        Dispatcher.UIThread.Post(() => completion.SetResult(42));
+        Assert.Equal(42, BooruComponentDispatcher.Wait(completion.Task));
+    });
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]

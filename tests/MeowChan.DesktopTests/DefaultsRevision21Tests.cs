@@ -86,14 +86,14 @@ public sealed class DefaultsRevision21Tests : IDisposable
     }
 
     [Fact]
-    public void TheStarTooltipsNameTheToggleAndOneAliasOnly()
+    public void TheStarTooltipsNameTheToggleAndEveryActiveAlias()
     {
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(null, ShortcutPlatform.Linux);
         Assert.Equal(Texts.T("viewer.favorite.add") + " · F / M", FavoriteKeys.Tooltip(false, "gallery", bindings));
         Assert.Equal(Texts.T("viewer.favorite.remove") + " · F / U", FavoriteKeys.Tooltip(true, "gallery", bindings));
-        // A profile with the old frozen list (M and B) still names the first key and one alias, never "F / M / B".
+        // A profile with the old frozen list (M and B) keeps both saved gestures visible: current UX names every active alias.
         EffectiveShortcutBindings frozen = EffectiveShortcutBindings.Build(
             new ShortcutBindingsSection().Set("favorites.add", [ShortcutGesture.Parse("M"), ShortcutGesture.Parse("B")]), ShortcutPlatform.Linux);
-        Assert.Equal(Texts.T("viewer.favorite.add") + " · F / M", FavoriteKeys.Tooltip(false, "media", frozen));
+        Assert.Equal(Texts.T("viewer.favorite.add") + " · F / M / B", FavoriteKeys.Tooltip(false, "media", frozen));
     }
 }
