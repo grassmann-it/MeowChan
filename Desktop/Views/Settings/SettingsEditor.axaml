@@ -77,7 +77,7 @@
             </StackPanel>
             <!-- The polite line that reads out a row which appeared under its parent (its own label; see SettingsConditional). -->
             <TextBlock x:Name="SettingsConditionalAnnouncement" Height="0" Opacity="0" IsHitTestVisible="False" Focusable="False" AutomationProperties.LiveSetting="Polite" />
-            <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" Margin="0,0,10,0" />
+            <TextBlock x:Name="SettingsResetStatus" IsVisible="False" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" HorizontalAlignment="Right" Margin="{x:Static local:SettingsHeaderLayout.ResetStatusMargin}" />
         </StackPanel>
         <Grid x:Name="SettingsFormLayout" Grid.Row="1" ColumnDefinitions="176,*" RowDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.16}" Margin="16,0,16,16" MaxWidth="1088" HorizontalAlignment="Center">
             <desktop:SectionNavigationControl x:Name="SettingsSections" Grid.ColumnSpan="2" Margin="0,0,0,12" />
@@ -87,7 +87,7 @@
             <!-- UX-LEDGER-09: search/actions and the form share the actual content column, not a second header grid.
                  The 10 dip inset matches SettingsContent; only the form scrolls. Hits overlay the page below the field. -->
             <Grid x:Name="SettingsContentColumn" Grid.Row="1" Grid.Column="1" RowDefinitions="Auto,*">
-                <Grid x:Name="SettingsSearchActions" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" Margin="10,0,10,12">
+                <Grid x:Name="SettingsSearchActions" ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" Margin="{x:Static local:SettingsHeaderLayout.SearchActionsMargin}">
                     <ContentControl x:Name="SettingsSearchHost" VerticalAlignment="Top" HorizontalContentAlignment="Stretch" />
                     <Button x:Name="SettingsMoreButton" Grid.Column="1" Classes="ghost" VerticalAlignment="Top" AutomationProperties.Name="{Binding SettingsMoreLabel}" Click="OnSettingsMoreClick" IsEnabled="{Binding IsEditable}" />
                 </Grid>

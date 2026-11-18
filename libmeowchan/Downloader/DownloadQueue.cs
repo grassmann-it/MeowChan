@@ -16,6 +16,7 @@ using MeowChan.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using Serilog;
+using Microsoft.Data.Sqlite;
 
 public enum DownloadPriority { Manual, BoardDiscovery }
 
@@ -299,12 +300,17 @@ public partial class DownloadQueue
             Task targetChanged = _targets.ChangeTask;
             try
             {
-                using Transition execution = BeginTransition(item);
-                if (await _targets.CheckAsync(TargetPath(item), item.ExpectedSize, linked.Token).ConfigureAwait(false)) return true;
+                if (await CheckTargetAsync(item, linked.Token).ConfigureAwait(false)) return true;
             }
             catch (ProducerSuspendedException) { continue; }
             await Task.WhenAny(changed, targetChanged).WaitAsync(linked.Token).ConfigureAwait(false);
         }
+    }
+
+    private async Task<bool> CheckTargetAsync(DownloadItem item, CancellationToken cancellationToken)
+    {
+        using Transition execution = BeginTransition(item);
+        return await _targets.CheckAsync(TargetPath(item), item.ExpectedSize, cancellationToken).ConfigureAwait(false);
     }
 
     private void OnFilterCapacityChanged()
@@ -525,32 +531,36 @@ public partial class DownloadQueue
         {
             if (mediaIdentifier != null && media.MediaIdentifier != mediaIdentifier) continue;
             if (media.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded || media.ManualAttempt) continue;
-            using (IDisposable resourceFence = WorkStateAccess.For(store).Enter(owner.Url))
-            {
-                MediaWork? current = WorkStateAccess.For(store).FindMedia(MediaWorkKey.Of(media));
-                if (current == null || !WorkStateComparison.Equal(current, media) || current.ManualAttempt
-                    || current.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) continue;
-                DownloadItem item = RestoreItem(thread, current, explicitRetry: true);
-                using IDisposable retryItemTransition = BeginTransition(item, admission);
-                PreparedDownload prepared = Prepare(item);
-                lock (_stateLock)
-                {
-                    if (!ItemOwnerCurrentLocked(item, owner) || CleanupWaitLocked(item) != null || _jobs.ContainsKey(prepared.Job)) continue;
-                }
-                MediaWork manual = current with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
-                if (!WorkStateAccess.For(store).TryCommitMedia(manual, current, admission)) continue;
-                lock (_stateLock)
-                {
-                    if (!ItemOwnerCurrentLocked(item, owner)) continue;
-                    _quarantined.Remove(prepared.Job);
-                    _scheduled[prepared.Job] = new ScheduledWork(item, manual);
-                    SignalScheduleLocked();
-                }
-            }
-            count++;
+            if (RequestMediaRetryItem(thread, owner, store, media, admission)) count++;
         }
         if (count > 0) _changes.Signal();
         return count;
+    }
+
+    private bool RequestMediaRetryItem(IThread thread, WorkResource owner, IWorkStateStore store, MediaWork media,
+        ProfileAdmissionToken? admission)
+    {
+        using IDisposable resourceFence = WorkStateAccess.For(store).Enter(owner.Url);
+        MediaWork? current = WorkStateAccess.For(store).FindMedia(MediaWorkKey.Of(media));
+        if (current == null || !WorkStateComparison.Equal(current, media) || current.ManualAttempt
+            || current.Status is MediaWorkStatus.Succeeded or MediaWorkStatus.Excluded) return false;
+        DownloadItem item = RestoreItem(thread, current, explicitRetry: true);
+        using Transition retryItemTransition = BeginTransition(item, admission);
+        PreparedDownload prepared = Prepare(item);
+        lock (_stateLock)
+        {
+            if (!ItemOwnerCurrentLocked(item, owner) || CleanupWaitLocked(item) != null || _jobs.ContainsKey(prepared.Job)) return false;
+        }
+        MediaWork manual = current with { ManualAttempt = true, DueAt = _timeProvider.GetUtcNow(), Status = MediaWorkStatus.Ready };
+        if (!WorkStateAccess.For(store).TryCommitMedia(manual, current, admission)) return false;
+        lock (_stateLock)
+        {
+            if (!ItemOwnerCurrentLocked(item, owner)) return false;
+            _quarantined.Remove(prepared.Job);
+            _scheduled[prepared.Job] = new ScheduledWork(item, manual);
+            SignalScheduleLocked();
+        }
+        return true;
     }
 
     private static DownloadItem RestoreItem(IThread thread, MediaWork media, bool explicitRetry = false)
@@ -589,117 +599,121 @@ public partial class DownloadQueue
             Task changed;
             TimeSpan? delay = null;
             List<ScheduledWork> expired = new();
-            lock (_stateLock)
-            {
-                if (_stopping) return;
-                if (_producerSuspended) continue;
-                pass = BeginTransition();
-                DateTimeOffset now = _timeProvider.GetUtcNow();
-                List<JobIdentity> expiredKeys = new();
-                foreach (KeyValuePair<JobIdentity, ScheduledWork> entry in _scheduled)
-                {
-                    ScheduledWork candidate = entry.Value;
-                    if (_quarantined.Contains(entry.Key)) continue;
-                    if (_cancelledThreads.TryGetValue(candidate.Item.Thread, out _) || !_workOwners.TryGetValue(candidate.Item.Thread, out WorkResource? owner)
-                        || owner.Generation != candidate.Work.Generation) continue;
-                    DateTimeOffset at = candidate.Work.DueAt ?? now;
-                    if (!candidate.Work.ManualAttempt && owner.EndObservedAt is DateTimeOffset end && candidate.Work.HttpStatus == 404)
-                    {
-                        DateTimeOffset deadline = end.AddHours(12);
-                        if (now >= deadline) { expiredKeys.Add(entry.Key); expired.Add(candidate); continue; }
-                        TimeSpan untilDeadline = deadline - now;
-                        if (delay == null || untilDeadline < delay) delay = untilDeadline;
-                        if (at >= deadline) continue;
-                    }
-                    if (_targets.IsBlocked(TargetPath(candidate.Item))) continue;
-                    if (at <= now && due == null) due = candidate;
-                    else if (at > now && (delay == null || at - now < delay)) delay = at - now;
-                }
-                foreach (ScheduledWork item in expired) _cleanupTransits.Add(item.Item);
-                foreach (JobIdentity key in expiredKeys) _scheduled.Remove(key);
-                if (due != null)
-                {
-                    _cleanupTransits.Add(due.Item);
-                    _scheduled.Remove(Prepare(due.Item).Job);
-                }
-                changed = _scheduleChanged.Task;
-            }
             try
             {
-            foreach (ScheduledWork item in expired)
-            {
-                try
+                lock (_stateLock)
                 {
-                    Cleanup cleanup = new();
-                    using (EnterDurable(item.Item, pass.Admission, continuation: true))
+                    if (_stopping) return;
+                    if (_producerSuspended) continue;
+                    pass = BeginTransition();
+                    DateTimeOffset now = _timeProvider.GetUtcNow();
+                    List<JobIdentity> expiredKeys = new();
+                    foreach (KeyValuePair<JobIdentity, ScheduledWork> entry in _scheduled)
                     {
-                        lock (_stateLock)
-                            if (!_workOwners.TryGetValue(item.Item.Thread, out WorkResource? owner)
-                                || !ItemOwnerCurrentLocked(item.Item, owner)) continue;
-                        // A manual request or new revision may have replaced this wait after the scan.
-                        MediaWork? current = _workStore == null ? null : WorkStateAccess.For(_workStore).FindMedia(MediaWorkKey.Of(item.Work));
-                        if (WorkStateComparison.Equal(current, item.Work) && _workStore != null
-                            && WorkStateAccess.For(_workStore).TryCommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null }, current, pass.Admission))
+                        ScheduledWork candidate = entry.Value;
+                        if (_quarantined.Contains(entry.Key)) continue;
+                        if (_cancelledThreads.TryGetValue(candidate.Item.Thread, out _) || !_workOwners.TryGetValue(candidate.Item.Thread, out WorkResource? owner)
+                            || owner.Generation != candidate.Work.Generation) continue;
+                        DateTimeOffset at = candidate.Work.DueAt ?? now;
+                        if (!candidate.Work.ManualAttempt && owner.EndObservedAt is DateTimeOffset end && candidate.Work.HttpStatus == 404)
                         {
-                            lock (_stateLock)
-                            {
-                                JobIdentity identity = Prepare(item.Item).Job;
-                                if (_jobs.TryGetValue(identity, out QueuedDownload? job) && !job.IsActive
-                                    && ReferenceEquals(job.Item.Thread, item.Item.Thread) && SameRetrieval(job.Item, item.Item))
-                                {
-                                    _pendingDownloads.Remove(job);
-                                    _interruptedDownloads.Remove(job);
-                                    _jobs.Remove(identity);
-                                    DetachFilter(job);
-                                    job.ThreadState.OutstandingJobs--;
-                                    RetireThreadIfIdleLocked(job.ThreadState, cleanup);
-                                    SignalIdleIfNeededLocked(cleanup);
-                                    PulseCapacityLocked();
-                                }
-                            }
+                            DateTimeOffset deadline = end.AddHours(12);
+                            if (now >= deadline) { expiredKeys.Add(entry.Key); expired.Add(candidate); continue; }
+                            TimeSpan untilDeadline = deadline - now;
+                            if (delay == null || untilDeadline < delay) delay = untilDeadline;
+                            if (at >= deadline) continue;
                         }
+                        if (_targets.IsBlocked(TargetPath(candidate.Item))) continue;
+                        if (at <= now && due == null) due = candidate;
+                        else if (at > now && (delay == null || at - now < delay)) delay = at - now;
                     }
-                    RunCleanup(cleanup);
-                }
-                catch (Exception error) { Quarantine(item.Item, error); }
-                finally { lock (_stateLock) _cleanupTransits.Remove(item.Item); }
-            }
-            if (expired.Count > 0) _changes.Signal();
-            if (due != null)
-            {
-                try
-                {
-                    if (!await _targets.CheckAsync(TargetPath(due.Item), due.Item.ExpectedSize, _lifetime.Token).ConfigureAwait(false))
+                    foreach (ScheduledWork item in expired) _cleanupTransits.Add(item.Item);
+                    foreach (JobIdentity key in expiredKeys) _scheduled.Remove(key);
+                    if (due != null)
                     {
-                        lock (_stateLock) _scheduled.TryAdd(Prepare(due.Item).Job, due);
-                        continue;
+                        _cleanupTransits.Add(due.Item);
+                        _scheduled.Remove(Prepare(due.Item).Job);
                     }
-                    // Due work becomes logical data again before capacity/target waits.
-                    // Its next execution obtains a fresh scope after any owner resume.
-                    lock (_stateLock) _scheduled.TryAdd(Prepare(due.Item).Job, due);
-                    pass.Dispose();
-                    pass = null;
-                    // Admission rechecks the exact scheduled row under its own resource fence.
-                    await EnqueueCoreAsync(due.Item, _lifetime.Token, due.Work).ConfigureAwait(false);
+                    changed = _scheduleChanged.Task;
                 }
-                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
-                catch (Exception error) { Quarantine(due.Item, error); }
-                finally { lock (_stateLock) _cleanupTransits.Remove(due.Item); }
-                continue;
-            }
-            pass?.Dispose();
-            pass = null;
-            lock (_stateLock) _scheduleFailures = 0;
-            if (delay == null) await changed.ConfigureAwait(false);
-            else
-            {
-                using CancellationTokenSource timer = new();
-                Task elapsed = Task.Delay(delay.Value, _timeProvider, timer.Token);
-                if (await Task.WhenAny(changed, elapsed).ConfigureAwait(false) == changed) timer.Cancel();
-            }
+                foreach (ScheduledWork item in expired)
+                {
+                    try
+                    {
+                        ExpireScheduledWork(item, pass.Admission);
+                    }
+                    catch (Exception error) { Quarantine(item.Item, error); }
+                    finally { lock (_stateLock) _cleanupTransits.Remove(item.Item); }
+                }
+                if (expired.Count > 0) _changes.Signal();
+                if (due != null)
+                {
+                    try
+                    {
+                        if (!await _targets.CheckAsync(TargetPath(due.Item), due.Item.ExpectedSize, _lifetime.Token).ConfigureAwait(false))
+                        {
+                            lock (_stateLock) _scheduled.TryAdd(Prepare(due.Item).Job, due);
+                            continue;
+                        }
+                        // Due work becomes logical data again before capacity/target waits.
+                        // Its next execution obtains a fresh scope after any owner resume.
+                        lock (_stateLock) _scheduled.TryAdd(Prepare(due.Item).Job, due);
+                        pass.Dispose();
+                        pass = null;
+                        // Admission rechecks the exact scheduled row under its own resource fence.
+                        await EnqueueCoreAsync(due.Item, _lifetime.Token, due.Work).ConfigureAwait(false);
+                    }
+                    catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+                    catch (Exception error) { Quarantine(due.Item, error); }
+                    finally { lock (_stateLock) _cleanupTransits.Remove(due.Item); }
+                    continue;
+                }
+                pass?.Dispose();
+                pass = null;
+                lock (_stateLock) _scheduleFailures = 0;
+                if (delay == null) await changed.ConfigureAwait(false);
+                else
+                {
+                    using CancellationTokenSource timer = new();
+                    Task elapsed = Task.Delay(delay.Value, _timeProvider, timer.Token);
+                    if (await Task.WhenAny(changed, elapsed).ConfigureAwait(false) == changed) timer.Cancel();
+                }
             }
             finally { pass?.Dispose(); }
         }
+    }
+
+    private void ExpireScheduledWork(ScheduledWork item, ProfileAdmissionToken? admission)
+    {
+        Cleanup cleanup = new();
+        using (EnterDurable(item.Item, admission, continuation: true))
+        {
+            lock (_stateLock)
+                if (!_workOwners.TryGetValue(item.Item.Thread, out WorkResource? owner)
+                    || !ItemOwnerCurrentLocked(item.Item, owner)) return;
+            MediaWork? current = _workStore == null ? null : WorkStateAccess.For(_workStore).FindMedia(MediaWorkKey.Of(item.Work));
+            if (WorkStateComparison.Equal(current, item.Work) && _workStore != null
+                && WorkStateAccess.For(_workStore).TryCommitMedia(item.Work with { Status = MediaWorkStatus.Expired, DueAt = null }, current, admission))
+            {
+                lock (_stateLock)
+                {
+                    JobIdentity identity = Prepare(item.Item).Job;
+                    if (_jobs.TryGetValue(identity, out QueuedDownload? job) && !job.IsActive
+                        && ReferenceEquals(job.Item.Thread, item.Item.Thread) && SameRetrieval(job.Item, item.Item))
+                    {
+                        _pendingDownloads.Remove(job);
+                        _interruptedDownloads.Remove(job);
+                        _jobs.Remove(identity);
+                        DetachFilter(job);
+                        job.ThreadState.OutstandingJobs--;
+                        RetireThreadIfIdleLocked(job.ThreadState, cleanup);
+                        SignalIdleIfNeededLocked(cleanup);
+                        PulseCapacityLocked();
+                    }
+                }
+            }
+        }
+        RunCleanup(cleanup);
     }
 
     /// <summary>Changes scheduling priority without changing HTTP policy or job identity.</summary>
@@ -838,17 +852,8 @@ public partial class DownloadQueue
                     // waiter cannot overwrite a newer admitted descriptor while awaiting target/capacity.
                     try
                     {
-                    using (Transition transition = EnterDurable(item))
-                    {
-                        if (!CanRunDurableLocked(item, transition.Admission)) return false;
-                        lock (_stateLock) changed = _capacityChanged.Task;
-                        bool accepted = TryEnqueuePrepared(item, prepared, out bool full, fromWaiter: true, expectedWaiter: waiter);
-                        if (!full)
-                        {
-                            lock (_stateLock) _preferManualAdmission = GetPriorityLocked(waiter.Thread) != DownloadPriority.Manual;
-                            return accepted;
-                        }
-                    }
+                        bool accepted = TryAdmitWaiter(item, prepared, waiter, out bool full, ref changed);
+                        if (!full) return accepted;
                     }
                     catch (ProducerSuspendedException) { continue; }
                 }
@@ -862,6 +867,21 @@ public partial class DownloadQueue
             lock (_stateLock) { _admissionWaiters.Remove(node); PulseCapacityLocked(); }
             waiter.Closed.Dispose();
         }
+    }
+
+    private bool TryAdmitWaiter(DownloadItem item, PreparedDownload prepared, AdmissionWaiter waiter,
+        out bool full, ref Task changed)
+    {
+        full = false;
+        using Transition transition = EnterDurable(item);
+        if (!CanRunDurableLocked(item, transition.Admission)) return false;
+        lock (_stateLock) changed = _capacityChanged.Task;
+        bool accepted = TryEnqueuePrepared(item, prepared, out full, fromWaiter: true, expectedWaiter: waiter);
+        if (!full)
+        {
+            lock (_stateLock) _preferManualAdmission = GetPriorityLocked(waiter.Thread) != DownloadPriority.Manual;
+        }
+        return accepted;
     }
 
     private static PreparedDownload Prepare(DownloadItem item)
@@ -1583,10 +1603,17 @@ public partial class DownloadQueue
             if (_jobs.TryGetValue(Prepare(item).Job, out QueuedDownload? job) && job.Replacement != null && !SameRetrieval(job.Replacement, item)) return;
             _quarantined.Add(Prepare(item).Job); _scheduled.Remove(Prepare(item).Job);
         }
-        string warning = $"Media work for {item.MediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
+        string warning = PersistenceWarning(item.MediaIdentifier, failure);
         _logger.Error(failure, "{Warning}", warning);
         RaisePersistenceFailed(warning);
         _changes.Signal();
+    }
+
+    internal static string PersistenceWarning(string mediaIdentifier, Exception failure)
+    {
+        if (failure is SqliteException { SqliteErrorCode: 10 } sqlite)
+            return $"Media work for {mediaIdentifier} could not be committed because the work journal reported SQLite I/O error 10/{sqlite.SqliteExtendedErrorCode}. Automatic retries are suspended to protect retry state. Check free space, profile folder write access, and whether its filesystem is available and writable.";
+        return $"Media work for {mediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
     }
 
     // A throwing subscriber must not abort the worker, schedule or quarantine path that reports the failure.

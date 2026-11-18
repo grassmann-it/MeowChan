@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -146,13 +147,24 @@ internal static class ReaderMediaSidebarChecks
             await CheckFullHeightAsync(sidebar, frame);
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarRight = false });
 
-            // A reader narrower than the setting hides the sidebar; it stays chosen and returns.
-            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = 3840 });
+            ReaderMediaPreferences widthPreferences = page.ReaderMedia;
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with
+            {
+                SidebarWidth = ReaderDisplayPreferences.MediaSidebarWidthMaximum,
+                SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum
+            });
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
-            Require(page.ReaderMedia.Sidebar && !page.FocusedMediaPresentedElsewhere && sidebar.Shown == null,
-                "A collapsed sidebar kept its picture or the focus enlargement stayed off.");
-            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthDefault });
+            ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
+            Require(!toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.Always,
+                "The unavailable narrow-width sidebar toggle stayed active in the direct toolbar.");
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with
+            {
+                SidebarWidth = widthPreferences.SidebarWidth,
+                SidebarMinimumReaderWidth = widthPreferences.SidebarMinimumReaderWidth
+            });
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
+            Require(toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.AsNeeded,
+                "The sidebar toggle did not return to the direct toolbar when enough width became available.");
 
             // Escape inside the sidebar only takes the focus back to the posts: the sidebar stays on (its choice is stored, only the × and the
             // switch change it) and the reader stays open.
@@ -182,19 +194,18 @@ internal static class ReaderMediaSidebarChecks
             "The pane did not return to its archive split column.");
         await CheckArchiveViewAsync(page, pane, posts);
         await ReaderSettingsProbe.CheckDisposalAsync(window);
-        Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, width collapse, Escape and return, archive view (Always) passed.");
+        Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, narrow-width overflow, Escape and return, archive view (Always) passed.");
     }
 
     // "Always": the archive view shows the full-height sidebar beside the posts and their header, with the same following and width rules;
-    // its switch there chooses Always or Large reader only, and a reader narrower than the setting hides it again.
+    // its switch there chooses Always or Large reader only, and a narrow reader moves the disabled toggle into overflow.
     private static async Task CheckArchiveViewAsync(ArchivePage page, Grid pane, ListBox posts)
     {
         Border content = page.FindControl<Border>("ArchiveReaderContent")!;
         ReaderMediaPreferences before = page.ReaderMedia;
         try
         {
-            // The window's reader is narrower than the default reader width here; the threshold logic itself is checked below.
-            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum });
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarWidth = ReaderDisplayPreferences.MediaSidebarWidthMinimum });
             Require(!page.IsMediaSidebarShown, "The archive view showed the sidebar while it is set to the large reader only.");
             page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.IsMediaSidebarInArchiveView && page.MediaSidebar!.IsEffectivelyVisible);
@@ -218,17 +229,27 @@ internal static class ReaderMediaSidebarChecks
                 await page.MediaSidebarTask;
                 await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia.Id, StringComparison.Ordinal));
             }
-            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum });
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with
+            {
+                SidebarWidth = ReaderDisplayPreferences.MediaSidebarWidthMaximum,
+                SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMaximum
+            });
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
-            Require(!sidebar.IsVisible && Grid.GetColumn(content) == 0 && pane.ColumnDefinitions[0].Width.IsStar,
-                "A narrow archive view did not give the posts card its whole width back.");
-            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = ReaderDisplayPreferences.MediaSidebarReaderWidthMinimum });
+            ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
+            Require(!toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.Always,
+                "The narrow archive-view sidebar toggle stayed active in the direct toolbar.");
+            page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarWidth = ReaderDisplayPreferences.MediaSidebarWidthMinimum });
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
             page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             Require(page.ReaderMedia.Sidebar && !page.ReaderMedia.SidebarAlways, "Hiding the archive view's sidebar took it from the large reader.");
         }
-        finally { page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarMinimumReaderWidth = before.SidebarMinimumReaderWidth, SidebarRight = before.SidebarRight }); }
+        finally { page.ApplyReaderMediaPreferences(page.ReaderMedia with
+        {
+            SidebarWidth = before.SidebarWidth,
+            SidebarMinimumReaderWidth = before.SidebarMinimumReaderWidth,
+            SidebarRight = before.SidebarRight
+        }); }
     }
 
     private static async Task CheckFullHeightAsync(ReaderMediaSidebar sidebar, Grid host)

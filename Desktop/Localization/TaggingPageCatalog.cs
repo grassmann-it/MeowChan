@@ -24,7 +24,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.title", "Tagging", "Taggen"),
         ("tagging.page.subtitle", "Work through the tagging queue: the gallery shows the open entries one after the other.", "Arbeite die Tagging-Warteschlange ab: Die Galerie zeigt dir die offenen Einträge nacheinander."),
         ("tagging.page.progress", "Open: {0} · Finished: {1} · Skipped: {2}", "Offen: {0} · Erledigt: {1} · Übersprungen: {2}"),
-        ("tagging.page.percent", "{0:P0} worked through", "{0:P0} abgearbeitet"),
+        ("tagging.page.percent", "{0:P0}", "{0:P0}"),
         ("tagging.page.progressName", "Progress of the tagging queue", "Fortschritt der Tagging-Warteschlange"),
         ("tagging.page.continue", "Continue at {0} of {1}", "Fortsetzen bei {0} von {1}"),
         ("tagging.page.lastShown", "Last shown: {0} · position {1} of {2}", "Zuletzt gezeigt: {0} · Position {1} von {2}"),

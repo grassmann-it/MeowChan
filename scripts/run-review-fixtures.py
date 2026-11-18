@@ -14,6 +14,17 @@ SURFACES = ('downloads', 'archive', 'archive-reader', 'archive-large-reader', 'm
 WIDTHS = (760, 900, 1099, 1100, 1440)
 ROOT = Path(__file__).resolve().parents[1]
 
+def parse_scene(scene):
+    for surface in sorted(SURFACES, key=len, reverse=True):
+        prefix = surface + '-'
+        if not scene.startswith(prefix): continue
+        parts = scene[len(prefix):].split('-')
+        if len(parts) != 3: continue
+        width, theme, language = parts
+        if width.isdigit() and int(width) > 0 and theme in ('light', 'dark') and language in ('de', 'en'):
+            return surface, int(width), theme.title(), language
+    return None
+
 def load(name, path):
     spec = importlib.util.spec_from_file_location(name, path)
     module = importlib.util.module_from_spec(spec)
@@ -30,9 +41,13 @@ def inventory(evidence, selected=None):
     captured = json.loads(source.read_text())['scenes'] if source.exists() else []
     by_id = {c['id']: c for c in captured}
     scenes = []
-    for lang, theme, width, surface in itertools.product(('de', 'en'), ('Light', 'Dark'), WIDTHS, SURFACES):
+    if selected:
+        surface, width, theme, language = parse_scene(selected)
+        cells = [(language, theme, width, surface)]
+    else:
+        cells = itertools.product(('de', 'en'), ('Light', 'Dark'), WIDTHS, SURFACES)
+    for lang, theme, width, surface in cells:
         scene_id = f'{surface}-{width}-{theme.lower()}-{lang}'
-        if selected and scene_id != selected: continue
         cell = by_id.get(scene_id, {'id': scene_id, 'surface': surface, 'status': 'missing', 'theme': theme, 'language': lang, 'geometry': {'width': width, 'height': 920}, 'error': 'No scene bundle produced (see run/output.log or review-artifacts/fatal.json)'})
         if cell['status'] == 'captured':
             try:
@@ -68,9 +83,10 @@ def main(argv=None):
     parser.add_argument('--media', type=int, choices=(0, 1, 100, 1000, 10000), default=100)
     parser.add_argument('--timeout', type=float, default=1800)
     parser.add_argument('--scene', help='One exact scene ID for harness debugging; omit for 260 scenes')
+    parser.add_argument('--view', choices=('Barebones', 'Simple', 'Advanced'))
     parser.add_argument('--generate-only', action='store_true')
     args = parser.parse_args(argv)
-    if args.scene and args.scene not in {f'{s}-{w}-{t}-{l}' for s, w, t, l in itertools.product(SURFACES, WIDTHS, ('light', 'dark'), ('de', 'en'))}:
+    if args.scene and parse_scene(args.scene) is None:
         parser.error('unknown scene ID')
     output = args.output.resolve()
     output.mkdir(parents=True, exist_ok=False)
@@ -80,6 +96,7 @@ def main(argv=None):
     environment = {k: v for k, v in os.environ.items() if not k.startswith(('MEOWCHAN_', 'OCHAN_'))}
     environment.update(MEOWCHAN_REVIEW_ARTIFACTS='1', MEOWCHAN_REVIEW_SEED=str(args.seed), MEOWCHAN_REVIEW_MEDIA=str(args.media))
     if args.scene: environment['MEOWCHAN_REVIEW_SCENE'] = args.scene
+    if args.view: environment['MEOWCHAN_REVIEW_VIEW'] = args.view
     try:
         result = smoke.run_mode('review-fixture-generate' if args.generate_only else 'review-fixtures', args.assembly.resolve(), output / 'run', environment, True, args.timeout)
     except (OSError, ValueError) as exc:

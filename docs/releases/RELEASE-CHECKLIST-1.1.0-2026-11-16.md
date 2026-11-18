@@ -33,6 +33,15 @@ platform=all
 scenario=all
 ```
 
+This is the supported current-source `1.1.0` assembly path: `current-source-inventory`
+uses `scripts/assemble-prerelease.py --channel stable` with the repository version.
+It produces Actions artifacts, not a published release. Do **not** use or change
+`upload-verified-release.yml` or `assemble-stable-release.py`; those intentionally
+remain `0.9.0`-only.
+
+Record the full candidate SHA, run URL/ID and attempt above; the dispatch ref must
+resolve to that SHA. All required jobs and artifacts must come from that same
+complete run/attempt, not earlier runs or focused retests, even at the same SHA.
 The run must finish without cancellation, timeout, skipped required jobs, or
 failed steps hidden by `continue-on-error`. The required matrix is:
 
@@ -48,11 +57,17 @@ failed steps hidden by `continue-on-error`. The required matrix is:
 - [ ] `validate (windows-2022, lane-b, false)`.
 - [ ] `validate (windows-2022, lane-c, false)`.
 - [ ] `validate (windows-2022, lane-d, false)`.
-- [ ] `validate (macos-15, native, true)` — Apple Silicon.
-- [ ] `validate (macos-15-intel, native, true)` — Intel.
+- [ ] `validate` on `macos-15` (Apple Silicon): `native` (`full=true`,
+      `mac_shard=1`) and `native-02` through `native-08` (`full=false`,
+      `mac_shard=2` through `8`) all pass.
+- [ ] `validate` on `macos-15-intel` (Intel): the same eight native lanes/shards
+      all pass; a single `native` lane is not complete macOS coverage.
+- [ ] `macos-offline-gate` passes exact source/inventory and executed TRX coverage
+      for all eight shards on each macOS architecture.
+- [ ] `desktop-offline-gate` passes exact source and four-lane coverage for both
+      Ubuntu architectures and Windows, including retained project ownership.
 - [ ] `library-package` is successful and its package-consumer evidence is
       present.
-- [ ] `package` is successful for every Windows/Linux runtime in its matrix.
 - [ ] `macos-package` is successful for both macOS runtimes.
 - [ ] `package-media` is successful for every configured runtime and its packaged
       playback/workflow smokes pass.
@@ -62,17 +77,40 @@ failed steps hidden by `continue-on-error`. The required matrix is:
       with both native DMGs.
 - [ ] `current-source-inventory` is successful; its legal files, managed-identity
       and asset-inventory checks are retained.
-- [ ] The final release-gate artifact
-      `artifacts/build-evidence/release-validation-gate.json` reports every
-      required step as passed. Do not treat the workflow's aggregate `success`
-      alone as proof when independent checks were allowed to continue.
+- [ ] `ap04-upgrade` passes the full offline upgrade and write/readback gate
+      against the same-run inventory-bound Linux x64 packages (see section 4).
+- [ ] Every validation cell's `artifacts/build-evidence/release-validation-gate.json`
+      reports all steps required for that cell as passed; inspect underlying
+      outcomes and evidence, not just job `success` after `continue-on-error`.
+- [ ] `release-candidate-gate` is successful and its
+      `artifacts/release-candidate-gate.json` records success for all ten required
+      dependencies listed above, from `validate` through `ap04-upgrade`.
+      An assembled inventory alone is not candidate admission.
 
-Optional `homebrew-macos` is not a substitute for the required native/package
-jobs. Run it separately if Homebrew publication is part of 1.1.0.
+Generic `package` may be skipped in `stable-candidate` by design; it is not a
+`release-candidate-gate` dependency. Windows comes from `package-media`, Linux
+from `linux-distribution`, and macOS from `macos-package`. Optional
+`homebrew-macos` is not a substitute for these required native/package jobs.
+Run it separately if Homebrew publication is part of 1.1.0.
 
 ## 3. Platform, package, and runtime evidence
 
-For the exact candidate SHA, download and archive the artifacts before cleanup.
+For the exact candidate SHA, download and archive the same-run artifacts before
+cleanup (candidate/gate artifacts can expire after seven days). Retain artifact
+names/IDs, run URL/ID and attempt, source bindings, reports, logs and actual TRX
+results—not screenshots of green jobs alone.
+
+- [ ] Archive `validation-*`, `desktop-offline-*`, `macos-offline-*`, both
+      `desktop-offline-coverage-<SHA>` and `macos-offline-coverage-<SHA>` reports,
+      and `release-candidate-gate-<SHA>`; verify the reports and executed coverage.
+- [ ] Archive `stable-candidate-<SHA>` and `candidate-binding-<SHA>` with
+      `candidate-inventory.json` and `SHA256SUMS`; verify full SHA/run binding and
+      independently check every assembled asset hash. Retain
+      `current-source-inventory-evidence-<SHA>` and producer evidence:
+      `library-package-candidate`, library/plugin package-consumer evidence,
+      `native-media-candidate-win-x64`, `linux-distribution-candidate-linux-*`,
+      `macos-native-candidate-osx-*`, and `macos-paired-candidate-<SHA>`.
+      Missing evidence or mismatched source/run/checksums is NO-GO.
 
 - [ ] Windows x64 ZIP exists, extracts successfully, has the expected apphost,
       bundled plugins and native video runtime, and passes the extracted-package
@@ -84,7 +122,9 @@ For the exact candidate SHA, download and archive the artifacts before cleanup.
       distribution gates.
 - [ ] macOS ARM64 and Intel ZIP/DMG artifacts exist, mount/copy successfully,
       contain the expected app structure, and pass apphost/workflow/playback
-      checks where enabled.
+      checks where enabled. Keep shipping Release artifacts distinct from the
+      separate non-shipping Debug acceptance builds used by native smokes; those
+      results do not establish final Release native/manual acceptance.
 - [ ] The library, Plugin SDK and Plugin Host `.nupkg` files are present and
       fresh-cache external consumers pass.
 - [ ] Plugin delivery is verified in both desktop and graphical-harness output.
@@ -103,6 +143,11 @@ For the exact candidate SHA, download and archive the artifacts before cleanup.
       an untracked local project output.
 - [ ] The `1.0.2` main upgrade test produces exactly one TRX result with outcome
       `Passed`; migrated-state checks also pass.
+- [ ] `ap04-upgrade-<SHA>` retains passing `upstream-gate.json`, `gate.json`,
+      `required-steps.json`, `ap04-stage.json`, full AP04 reports, cycle/write-readback
+      evidence, logs and TRX results. Confirm the full replay passed (not a bounded
+      attempt only) and its staged packages match the same-run inventory,
+      `SHA256SUMS`, candidate SHA and run ID.
 - [ ] Upgrade receipts and TRX files are retained in the final CI artifacts.
 - [ ] No upgrade test is merely discovered, skipped, or reported green without an
       executed passing test result.
@@ -153,9 +198,12 @@ rather than assumptions:
 
 - The repository version is `1.1.0`, but no remote `v1.1.0` tag was present when
   this checklist was written.
-- The latest observed candidate run was `43778166862` on an earlier SHA and was
-  still in progress; the preceding candidate run was cancelled/failed. It is not
-  final release evidence for the current source tip.
+- Current reported `main` is `ac97d76cc` (queue fix pushed), with UI changes at
+  `4dd056e2c`. These short references are context, not final candidate evidence:
+  record the full immutable SHA and final run above. Full suites and smokes have
+  not yet been completed for this tip; no passing result is claimed here.
+- Earlier candidate runs are not final evidence for the current source. A new
+  complete same-SHA, same-run gate and artifact set is still required.
 - Earlier runs contained native GUI, package-fixture, upgrade-replay, and macOS
   watchdog/lifecycle failures. Later fixes must be covered by one uncancelled
   stable-candidate run; old green sub-runs must not be mixed into its evidence.

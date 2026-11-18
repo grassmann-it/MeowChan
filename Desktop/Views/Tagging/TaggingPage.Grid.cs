@@ -75,6 +75,7 @@ public sealed partial class TaggingPage
             if (e.Container is ListBoxItem item && row != null) AutomationProperties.SetName(item, row.TileName(TagCountOf(row.Item)));
         };
         _gridMenuHost = new ContextMenuHost(_grid, ComposeRowMenu, fallbackFocus: () => FocusContent());
+        _grid.AddHandler(PointerPressedEvent, OnContextPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         _grid.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         // Like the list: a double-click that cannot continue says why (ExecuteRowCommandAsync explains) instead of doing nothing.
         _grid.DoubleTapped += (_, e) =>

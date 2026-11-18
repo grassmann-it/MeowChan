@@ -4,16 +4,16 @@ using static MeowChan.Desktop.WorkViews.Presence;
 namespace MeowChan.Desktop.WorkViews;
 
 // Plan AP5 §1.10: plugins page. Owned by WV6. Approval and activation flows (enable, candidate choice, SDK transition,
-// draft footer with its reasons, recovery) are never reduced; folders, adding files, watches and the developer area move
-// under More or fold. The "More actions" menu of a plugin already carries Watches and developer details in every view.
+// draft footer with its reasons, recovery) are never reduced; refresh, folders, watches and the developer area move
+// under More or fold. Adding a plugin remains direct. The plugin's More menu carries Watches and developer details in every view.
 public static partial class WorkViewPolicy
 {
     private static IEnumerable<WorkViewEntry> PluginsEntries() =>
     [
-        Same("plugins.header.refresh", WorkViewPage.Sources, WorkViewKind.Action, Direct, "plugins.refresh"),
-        // Adding a file and opening the plugin folder: under More in Barebones and Simple (the add file is a checked copy).
-        new("plugins.header.add", WorkViewPage.Sources, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 10),
-        new("plugins.header.folder", WorkViewPage.Sources, WorkViewKind.Action, Overflow, Overflow, Direct,
+        new("plugins.header.refresh", WorkViewPage.Sources, WorkViewKind.Action, Overflow, Overflow, Overflow,
+            "plugins.refresh", OverflowOrder: 10),
+        Same("plugins.header.add", WorkViewPage.Sources, WorkViewKind.Action, Direct),
+        new("plugins.header.folder", WorkViewPage.Sources, WorkViewKind.Action, Overflow, Overflow, Overflow,
             "plugins.folder", OverflowOrder: 20),
         // Repair review, inventory problems and the error banner appear when the state asks for them, in every view.
         Same("plugins.header.review-repairs", WorkViewPage.Sources, WorkViewKind.Action, Required, safety: true),

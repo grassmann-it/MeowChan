@@ -48,6 +48,9 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("flashbang", new Version(1, 1, 0), TaglineTone.Playful),
         new("workviews", new Version(1, 1, 0), TaglineTone.Playful),
         new("tags", new Version(1, 1, 0), TaglineTone.Playful),
+        new("vibetested", new Version(1, 1, 0), TaglineTone.Playful),
+        new("pink", new Version(1, 1, 0), TaglineTone.Playful),
+        new("workflow", new Version(1, 1, 0), TaglineTone.Playful),
     ];
 
     private readonly Func<string, string?> _lookup;

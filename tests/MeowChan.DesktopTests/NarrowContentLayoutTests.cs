@@ -3,6 +3,10 @@ using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.LogicalTree;
+using Avalonia.Platform;
+using MeowChan.Desktop;
+using MeowChan.Interfaces;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
@@ -15,6 +19,7 @@ namespace MeowChan.DesktopTests;
 /// layout of the real pages at the window minimum is not used: without a theme the Button, ListBox and ToolBar templates are not applied,
 /// so the measured bounds would not be the product's. The page captures at the minimum width (760 x 500, en and de) run centrally.
 /// </summary>
+[Collection("Gallery viewer construction")]
 public sealed class NarrowContentLayoutTests
 {
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
@@ -127,7 +132,35 @@ public sealed class NarrowContentLayoutTests
         string tagging = Source("Desktop/Views/Tagging/TaggingPage.cs");
         Assert.Contains("TextBlock header = new TrimTipTextBlock", tagging);
         // Rows of buttons and counters that held text in a horizontal StackPanel (measured at full length, never wrapped) now wrap.
-        Assert.Contains("WrapPanel counters = new() { ItemSpacing = 12, LineSpacing = 4, Children = { _progressText, _bar, _percent } };", tagging);
+        // Measuring the percent text needs a text shaper: the process-wide Skia platform (this collection is serialized).
+        using IDisposable platform = AvaloniaTestPlatform.EnterSkia();
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable scope = AvaloniaLocator.EnterScope();
+            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+            TokenApplication.Bind();
+            using TempDirectory temp = new();
+            DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+            try
+            {
+                using TaggingPage page = new(host);
+                Control[] controls = ((ILogical)page).GetLogicalDescendants().OfType<Control>().ToArray();
+                StackPanel progress = Assert.IsType<StackPanel>(controls.Single(control => control.Name == "TaggingProgress"));
+                WrapPanel meter = Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingProgressMeter"));
+                Assert.Equal(Orientation.Vertical, progress.Orientation);
+                Assert.Equal(new Control[] { page.ProgressText, meter }, progress.Children);
+                Assert.Equal(Avalonia.Media.TextWrapping.Wrap, page.ProgressText.TextWrapping);
+                Assert.Equal(new[] { "TaggingProgressBar", "TaggingPercent" }, meter.Children.Select(control => control.Name));
+                Assert.Equal(8, meter.ItemSpacing);
+                Assert.Equal(2, meter.LineSpacing);
+                meter.Children[1].Width = 60;
+                meter.Children[1].Height = 20;
+                Layout(meter, TaggingPage.MiniBarWidth + 20);
+                Assert.True(meter.Children[1].Bounds.Top >= meter.Children[0].Bounds.Bottom + meter.LineSpacing);
+                Assert.True(meter.DesiredSize.Height >= meter.Children[1].Bounds.Bottom);
+            }
+            finally { host.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
+        });
         Assert.Contains("private readonly WrapPanel _emptyActions = new() { Name = \"TaggingEmptyActions\"", tagging);
     }
 

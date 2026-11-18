@@ -11,6 +11,41 @@ namespace MeowChan.DesktopTests;
 [Collection("Booru exact navigation")]
 public sealed class MediaPagePanelLayoutTests
 {
+    [Fact]
+    public void PanelToggleAppearsOnlyWhenThePanelCanFitRegardlessOfSavedChoice()
+    {
+        using IDisposable platform = AvaloniaTestPlatform.EnterSkia();
+        MediaTileEnterTests.Run(fixture =>
+        {
+            MediaPage page = fixture.Page;
+            page.PanelMinimumPageWidthSource = () => 1000;
+
+            void Layout(double width)
+            {
+                for (int pass = 0; pass < 3; pass++)
+                {
+                    page.InvalidateMeasure();
+                    page.Measure(new Size(width, 800));
+                    page.Arrange(new Rect(0, 0, width, 800));
+                }
+            }
+
+            page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
+            Layout(900);
+            Assert.True(page.PageLayout.Panel);
+            Assert.False(page.PanelToggleButton.IsVisible);
+            Layout(1300);
+            Assert.True(page.PanelToggleButton.IsVisible);
+
+            page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
+            Layout(900);
+            Assert.False(page.PageLayout.Panel);
+            Assert.False(page.PanelToggleButton.IsVisible);
+            Layout(1300);
+            Assert.True(page.PanelToggleButton.IsVisible);
+        });
+    }
+
     [Theory]
     [InlineData(900, 600, true)]
     [InlineData(1100, 780, false)]

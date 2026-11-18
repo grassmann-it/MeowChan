@@ -86,7 +86,7 @@ public sealed class DisabledStyleTests
     public static IEnumerable<object[]> FixedClasses() => new[]
     {
         "Button.nav", "ToggleButton.filter-toggle", "ToggleButton.segment", "ToggleButton.breakdown-chip", "ToggleButton.status-toggle",
-        "ToggleButton.disclosure", "ToggleButton.gallery-favorite-badge", "ToggleButton.tile-favorite"
+        "ToggleButton.disclosure", "ToggleButton.gallery-favorite-badge", "ToggleButton.tile-favorite", "ToggleButton.accent-preset"
     }.Select(cls => new object[] { cls });
 
     // The disabled look of the product: dimmed to 0.75 like the disabled chip (and the label in Muted where the class has a theme label colour).

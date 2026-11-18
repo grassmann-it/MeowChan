@@ -131,9 +131,9 @@ internal static class ReaderInlineVideoRules
 
     internal enum KeyAction { None, Play, Toggle }
 
-    /// <summary>On the video (not on one of its buttons, which handle their own keys): Enter and Space play it or pause it.</summary>
+    /// <summary>On the video (not on one of its buttons, which handle their own keys): Space plays or pauses it; Enter opens it.</summary>
     internal static KeyAction Classify(Key key, KeyModifiers modifiers) => modifiers != KeyModifiers.None ? KeyAction.None
-        : key is Key.Enter or Key.Space ? KeyAction.Toggle : KeyAction.None;
+        : key == Key.Space ? KeyAction.Toggle : KeyAction.None;
 
     /// <summary>
     /// Whether a new inline player starts muted. Autoplay is always muted; otherwise the choice the person made with a speaker in this
@@ -152,7 +152,7 @@ internal enum ReaderVideoAction { None, PlayPause, Mute, Loop, StepBack, StepFor
 /// <summary>
 /// The reader's video keys. They are the gallery's own command ids (play / pause, mute, repeat, "," and "." seek step, X and C or [ ] speed,
 /// Backspace normal speed, Shift+. next frame), read from the effective bindings, never hard-coded: a changed or removed binding follows.
-/// Seeking by Ctrl+arrows is not among them (the arrows move between posts and threads). Enter, which is no command, plays or pauses too.
+/// Seeking by Ctrl+arrows is not among them (the arrows move between posts and threads).
 /// </summary>
 internal static class ReaderVideoKeys
 {
@@ -194,9 +194,6 @@ internal static class ReaderVideoKeys
         .Where(command => command.IsImplemented && !IsVideoCommand(command.Id)
             && EffectiveShortcutBindings.ConflictContexts(command.Id).Contains("reader", StringComparer.Ordinal))
         .Select(command => command.Id).ToArray());
-
-    /// <summary>Enter on the selected post's video: a fixed content key (no command) that plays or pauses.</summary>
-    internal static bool IsEnterToggle(Key key, KeyModifiers modifiers) => key == Key.Enter && modifiers == KeyModifiers.None;
 
     /// <summary>Keys that move between posts and threads (the reader's navigation).</summary>
     internal static bool IsNavigationKey(Key key) => key is Key.Up or Key.Down or Key.Left or Key.Right or Key.Home or Key.End or Key.PageUp or Key.PageDown;

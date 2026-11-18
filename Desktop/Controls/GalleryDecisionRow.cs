@@ -15,15 +15,6 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Controls;
 
-/// <summary>
-/// The favorite and rating row on top of the gallery tag panel and of the "Rate and tag…" popover (PT6, decision E2; design plan 16.11.2026): line one is
-/// the rating bar, five equal full-width star cells (no gaps, so the hit area is continuous) and the remove button; below it is a centered "☆ Favorite"
-/// as wide as the five stars, followed by the right-aligned rating caption ("4 of 5", "Unrated", "Ratings differ"). The row shows a <see cref="GalleryDecisionView"/> and raises requests; the
-/// viewer writes. The five stars are a group of toggle buttons of which exactly the rated one is checked (the radio role: a screen
-/// reader names "Rating: 4 of 5" and its state); the filled stars up to the rating carry the sight, and the stars under the pointer preview the rating they
-/// would set (never a request). The stars are one tab stop (the checked one, star 1 while unrated); Left, Right, Home and End rove along them. A click never takes the focus out of the
-/// tag field: when the field had it before the pointer went down, it gets it back, so the keys keep typing tags.
-/// </summary>
 internal sealed class GalleryDecisionRow : StackPanel
 {
     private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" } };
@@ -73,20 +64,8 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(_clear, 6);
         _group.Children.Add(_clear);
-        // Share the clear-button gutter, not a fixed width: the favourite always spans exactly the five star cells.
-        // Keep the caption below, rather than stealing width from the button or crushing translated/mixed-state text into the gutter.
-        Grid.SetIsSharedSizeScope(this, true);
-        _group.ColumnDefinitions[6].SharedSizeGroup = "DecisionClear";
-        Grid line = new()
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto"),
-            RowDefinitions = new RowDefinitions("Auto,Auto"), Name = name + "Line"
-        };
-        line.ColumnDefinitions[6].SharedSizeGroup = "DecisionClear";
-        Grid.SetColumnSpan(_favorite, 5);
-        _summary.Margin = new Thickness(0, 8, 0, 0);
-        Grid.SetRow(_summary, 1);
-        Grid.SetColumnSpan(_summary, 7);
+        Grid line = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Name = name + "Line" };
+        Grid.SetColumn(_summary, 1);
         line.Children.Add(_favorite);
         line.Children.Add(_summary);
         Children.Add(_group);

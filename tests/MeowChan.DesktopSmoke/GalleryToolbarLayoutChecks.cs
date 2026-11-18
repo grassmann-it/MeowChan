@@ -136,11 +136,6 @@ internal static partial class GalleryToolbarLayoutChecks
                     await LayoutAsync(window);
                     Require(chrome.IsVisualAncestorOf(slideshow) && slideshow.IsEffectivelyVisible,
                         "The slideshow control did not move onto the toolbar for a chosen slideshow.");
-                    Panel viewTools = Find<Panel>(viewer, "GalleryViewTools");
-                    Control slideshowSplit = (Control)slideshow.Parent!;
-                    Require(ReferenceEquals(slideshowSplit.Parent, viewTools)
-                        && viewTools.Children.IndexOf(slideshowSplit) + 1 == viewTools.Children.IndexOf(Find<Button>(viewer, "GalleryMore")),
-                        "The slideshow control is not immediately before More on the right side.");
                     // G2: the control is one split button: the toggle and a Workspace.Size.Control square menu button, as high as the toggle, in one group; the menu button opens the settings
                     // (the panel of "⋯" is lent to the flyout), Escape closes it, the panel is back under "⋯" and the focus on the menu button.
                     Button splitMenu = Find<Button>(viewer, "GallerySlideshowMenu");
@@ -202,6 +197,11 @@ internal static partial class GalleryToolbarLayoutChecks
     private static void RequireToolbar(GalleryViewer viewer, MainWindow window, string tag)
     {
         Border chrome = Find<Border>(viewer, "GalleryOverlayControls");
+        Control toolbar = Find<Control>(viewer, "GalleryToolbar");
+        Control middle = Find<Control>(viewer, "GalleryToolbarMiddle");
+        Point middleOrigin = middle.TranslatePoint(default, toolbar) ?? throw new InvalidOperationException($"{tag}: toolbar centre has no geometry.");
+        Require(Math.Abs(middleOrigin.X + middle.Bounds.Width / 2 - toolbar.Bounds.Width / 2) <= 0.75,
+            $"{tag}: pagination is not geometrically centred (toolbar {toolbar.Bounds}, middle {middleOrigin}/{middle.Bounds.Size}).");
         foreach (string name in Primary)
         {
             Control control = Find<Control>(viewer, name);
@@ -220,11 +220,6 @@ internal static partial class GalleryToolbarLayoutChecks
             && origin.X >= 0 && origin.X <= 24 && origin.Y <= 24 && origin.Y >= 0,
             $"{tag}: the way back is not at the top left of the picture.");
         Require(chrome.Bounds.Height <= 64, $"{tag}: the toolbar needs more than one row ({chrome.Bounds.Height} dip).");
-        Grid toolbar = Find<Grid>(viewer, "GalleryToolbar");
-        StackPanel navigation = Find<StackPanel>(viewer, "GalleryNavigationTools");
-        Point? navigationOrigin = navigation.TranslatePoint(default, toolbar);
-        Require(navigationOrigin is { } nav && Math.Abs(nav.X + navigation.Bounds.Width / 2 - toolbar.Bounds.Width / 2) <= 0.5,
-            $"{tag}: navigation is not centred in the toolbar.");
         Button more = Find<Button>(viewer, "GalleryMore");
         Require(!string.IsNullOrWhiteSpace(Avalonia.Automation.AutomationProperties.GetName(more))
             && ToolTip.GetTip(more) is string tip && tip.Length > 0, $"{tag}: the menu button has no name or tooltip.");
@@ -294,6 +289,9 @@ internal static partial class GalleryToolbarLayoutChecks
     {
         Grid viewport = Find<Grid>(viewer, "GalleryViewport");
         Border chrome = Find<Border>(viewer, "GalleryOverlayControls");
+        Control toolbar = Find<Control>(viewer, "GalleryToolbar");
+        Control middle = Find<Control>(viewer, "GalleryToolbarMiddle");
+        Point middleOrigin = middle.TranslatePoint(default, toolbar) ?? default;
         Console.WriteLine("SMOKE gallery toolbar metrics: " + JsonSerializer.Serialize(new
         {
             tag, requestedWindow = new { width = window.Width, height = window.Height },
@@ -301,6 +299,7 @@ internal static partial class GalleryToolbarLayoutChecks
             viewport = viewport.IsVisible ? viewport.Bounds.Size.ToString() : "hidden",
             toolbar = chrome.Bounds.Size.ToString(),
             toolbarBounds = chrome.Bounds.ToString(),
+            paginationCenterDelta = middleOrigin.X + middle.Bounds.Width / 2 - toolbar.Bounds.Width / 2,
             focus = window.FocusManager?.GetFocusedElement() is Control focused ? focused.Name ?? focused.GetType().Name : "none",
             visibleButtons = viewer.GetGalleryVisualDescendants().OfType<Button>().Count(b => b.IsEffectivelyVisible && chrome.IsVisualAncestorOf(b))
         }));

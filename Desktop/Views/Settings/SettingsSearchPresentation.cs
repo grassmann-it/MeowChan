@@ -45,8 +45,10 @@ internal static class SettingsHeaderLayout
     internal const double NavigationGap = 16;
     /// <summary>The window width from which the category navigation column is shown.</summary>
     internal const double CategoriesFromWidth = 820;
-    /// <summary>The inset of the settings content inside its scroll viewer on both sides (SettingsContent.Width = column - 20); the header row has the same margin.</summary>
+    /// <summary>The inset of the settings content inside its scroll viewer on both sides (SettingsContent.Width = column - 20); the header row takes the same margin from here.</summary>
     internal const double ContentInset = 10;
+    public static readonly Avalonia.Thickness SearchActionsMargin = new(ContentInset, 0, ContentInset, 12);
+    public static readonly Avalonia.Thickness ResetStatusMargin = new(0, 0, ContentInset, 0);
 
     internal static bool ShowsCategories(double editorWidth) => editorWidth >= CategoriesFromWidth;
 }

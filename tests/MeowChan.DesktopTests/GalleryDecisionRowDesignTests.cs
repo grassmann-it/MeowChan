@@ -183,32 +183,30 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     // ---- the favourite line --------------------------------------------------------------------------------------------------------
 
     [Theory]
-    [InlineData(440.0, 32.0), InlineData(336.0, 32.0), InlineData(280.0, 40.0), InlineData(160.0, 32.0)]
-    public void FavouriteSpansExactlyTheFiveStarsAndKeepsTheCaptionOutOfItsWidth(double width, double clearWidth)
+    [InlineData(440.0), InlineData(336.0), InlineData(280.0)]
+    public void FavouriteAndRatingCaptionShareOneRowAndFavouriteFillsTheRemainingWidth(double width)
     {
         GalleryDecisionRow row = new("DesignRow");
-        Grid bar = Assert.IsType<Grid>(row.RatingGroup);
         Grid line = Assert.IsType<Grid>(row.Children[1]);
-        Assert.True(Grid.GetIsSharedSizeScope(row));
-        Assert.Equal(bar.ColumnDefinitions[6].SharedSizeGroup, line.ColumnDefinitions[6].SharedSizeGroup);
-        Assert.Equal("DecisionClear", line.ColumnDefinitions[6].SharedSizeGroup);
-        Assert.Equal(5, Grid.GetColumnSpan(row.FavoriteButton));
-        Assert.Equal(1, Grid.GetRow(row.Summary));
-        Assert.Equal(7, Grid.GetColumnSpan(row.Summary));
-        // No application/text services: give both shared gutters the resolved clear width and remove text content.
-        // The shared-size contract above is what supplies that width in the visual tree.
-        bar.ColumnDefinitions[6].Width = new GridLength(clearWidth);
-        line.ColumnDefinitions[6].Width = new GridLength(clearWidth);
+        Assert.Equal(2, line.ColumnDefinitions.Count);
+        Assert.Equal(GridUnitType.Star, line.ColumnDefinitions[0].Width.GridUnitType);
+        Assert.Equal(GridLength.Auto, line.ColumnDefinitions[1].Width);
+        Assert.Equal(8, line.ColumnSpacing);
+        Assert.Equal(0, Grid.GetRow(row.FavoriteButton));
+        Assert.Equal(0, Grid.GetRow(row.Summary));
+        Assert.Equal(0, Grid.GetColumn(row.FavoriteButton));
+        Assert.Equal(1, Grid.GetColumn(row.Summary));
         row.FavoriteButton.Content = null;
-        row.Summary.IsVisible = false;
-        foreach (Grid grid in new[] { bar, line })
-        {
-            grid.Measure(new Size(width, double.PositiveInfinity));
-            grid.Arrange(new Rect(0, 0, width, 40));
-        }
-        Assert.Equal(row.StarButtons[0].Bounds.Left, row.FavoriteButton.Bounds.Left, 3);
-        Assert.Equal(row.StarButtons[4].Bounds.Right, row.FavoriteButton.Bounds.Right, 3);
-        Assert.Equal(width - clearWidth - 8, row.FavoriteButton.Bounds.Width, 3);
+        line.Children.Remove(row.Summary);
+        Border captionSlot = new() { Width = 64 };
+        Grid.SetColumn(captionSlot, 1);
+        line.Children.Add(captionSlot);
+        line.Measure(new Size(width, double.PositiveInfinity));
+        line.Arrange(new Rect(0, 0, width, 40));
+        Assert.Equal(0, row.FavoriteButton.Bounds.Left, 3);
+        Assert.Equal(width - 64, captionSlot.Bounds.Left, 3);
+        Assert.Equal(width, captionSlot.Bounds.Right, 3);
+        Assert.Equal(width - 72, row.FavoriteButton.Bounds.Width, 3);
     }
 
     [Fact]
@@ -301,8 +299,9 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.Same(row.RatingGroup, row.Children[0]);
         Assert.Contains(row.FavoriteButton, line.Children);
         Assert.Contains(row.Summary, line.Children);
-        Assert.Equal(1, Grid.GetRow(row.Summary));
-        Assert.Equal(7, Grid.GetColumnSpan(row.Summary));
+        Assert.Equal(0, Grid.GetRow(row.Summary));
+        Assert.Equal(1, Grid.GetColumn(row.Summary));
+        Assert.Equal(1, Grid.GetColumnSpan(row.Summary));
         Assert.Equal(Avalonia.Layout.HorizontalAlignment.Right, row.Summary.HorizontalAlignment);
         Assert.Equal(8, row.Spacing); // the two lines
     }

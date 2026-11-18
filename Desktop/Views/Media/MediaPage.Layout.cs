@@ -264,7 +264,11 @@ public sealed partial class MediaPage
         if (_bodyRow is not { } row || _bodySurface is not { } surface || _contentGrid is not { } content) return;
         double bodyWidth = row.Bounds.Width;
         MediaPanelColumns panelColumns = MediaPanelColumns.Of(_layout, bodyWidth, PanelMinimumPageWidth);
-        bool right = plan.TagListSide == MediaTagListSide.Right, shown = plan.TagList;
+        bool panelDisplayCapable = !MediaPanelColumns.Of(_layout with { Panel = true }, bodyWidth, PanelMinimumPageWidth).CollapsedByWidth;
+        bool panelCapabilityChanged = panelDisplayCapable != _panelDisplayCapable;
+        _panelDisplayCapable = panelDisplayCapable;
+        bool right = plan.TagListSide == MediaTagListSide.Right, shown = MediaPanelColumns.TagListShown(_layout, bodyWidth, panelColumns);
+        bool tagFocusLost = !shown && _tagSidebar.IsKeyboardFocusWithin;
         int listColumn = right ? 2 : 0, contentColumn = right ? 0 : 2;
         Avalonia.Controls.Grid.SetColumn(_tagSidebar, listColumn);
         Avalonia.Controls.Grid.SetColumn(_tagHandle, 1);
@@ -280,6 +284,7 @@ public sealed partial class MediaPage
         columns[contentColumn].MaxWidth = double.PositiveInfinity;
         columns[contentColumn].Width = new GridLength(1, GridUnitType.Star);
         _tagHandle.IsVisible = shown;
+        _tagSidebar.IsVisible = shown;
         _tagSidebar.Margin = right ? new Thickness(0, 0, SidebarMargin, 8) : new Thickness(SidebarMargin, 0, 0, 8);
 
         // The content column: the panel on its side, then its handle, then the grid.
@@ -327,7 +332,8 @@ public sealed partial class MediaPage
         }
         if (_panel is { } aligned) AlignPanel(aligned, panelRight, edge);
         ApplyToolbarAlignment();
-        if (focusLost) FocusGrid();
+        if (panelCapabilityChanged) RefreshWorkView();
+        if (focusLost || tagFocusLost) FocusGrid();
     }
 
     // The drag (or the arrow keys) on the tag list's handle ended: the width of the list as it is now becomes the saved width (one save).

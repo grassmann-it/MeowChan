@@ -56,7 +56,7 @@ public sealed class HeaderIoAlignmentTests
             Assert.Equal("TextBlock", word.Name.LocalName);
             Assert.Equal("muted", (string?)word.Attribute("Classes"));
             Assert.Equal("{StaticResource Workspace.Text.Caption}", (string?)word.Attribute("FontSize"));
-            Assert.Equal("14", (string?)word.Attribute("LineHeight"));
+            Assert.Equal("15", (string?)word.Attribute("LineHeight"));
             Assert.Equal("Normal", (string?)word.Attribute("FontWeight"));
             Assert.Equal("Raw", (string?)word.Attribute("AutomationProperties.AccessibilityView"));
         }
@@ -69,7 +69,7 @@ public sealed class HeaderIoAlignmentTests
             Assert.Equal("Normal", (string?)value.Attribute("FontWeight"));
             Assert.Equal("{StaticResource Workspace.Text.Meta}", (string?)value.Attribute("FontSize"));
             Assert.Equal("{DynamicResource Workspace.Text}", (string?)value.Attribute("Foreground"));
-            Assert.Equal("14", (string?)value.Attribute("LineHeight"));
+            Assert.Equal("15", (string?)value.Attribute("LineHeight"));
             Assert.Equal("Raw", (string?)value.Attribute("AutomationProperties.AccessibilityView"));
         }
         foreach (string name in new[] { "TransferNetworkTitle", "TransferDiskTitle" })
@@ -79,8 +79,9 @@ public sealed class HeaderIoAlignmentTests
             Assert.Equal("muted", (string?)title.Attribute("Classes"));
             Assert.Equal("Center", (string?)title.Attribute("HorizontalAlignment"));
             Assert.Equal("Center", (string?)title.Attribute("TextAlignment"));
+            Assert.Equal("{StaticResource Workspace.Text.HeaderMetricTitle}", (string?)title.Attribute("FontSize"));
             Assert.Equal("SemiBold", (string?)title.Attribute("FontWeight"));
-            Assert.Equal("10", (string?)title.Attribute("LineHeight"));
+            Assert.Equal("12", (string?)title.Attribute("LineHeight"));
             Assert.Equal("Raw", (string?)title.Attribute("AutomationProperties.AccessibilityView"));
         }
         foreach (string name in new[] { "TransferSpeedText", "TransferDiskText" })
@@ -126,7 +127,7 @@ public sealed class HeaderIoAlignmentTests
     public void StackedMetricBlocksSetTheirRateLinesTightSoTheTitleFitsTheTitleBar()
     {
         Grid grid = new();
-        TextBlock title = new() { LineHeight = 10 }, firstValue = new() { LineHeight = 14 }, secondValue = new() { LineHeight = 14 };
+        TextBlock title = new() { FontSize = 10, LineHeight = 12 }, firstValue = new() { LineHeight = 14 }, secondValue = new() { LineHeight = 14 };
         TextBlock firstText = new() { LineHeight = 14 }, secondText = new() { LineHeight = 14 };
         Grid firstWord = new() { Children = { firstText } }, secondWord = new() { Children = { secondText } };
 
@@ -134,10 +135,10 @@ public sealed class HeaderIoAlignmentTests
 
         foreach (TextBlock line in new[] { firstValue, secondValue, firstText, secondText })
             Assert.Equal(MainWindow.StackedRateLineHeight, line.LineHeight);
+        Assert.True(title.LineHeight >= title.FontSize, "The title line box must not clip its own glyphs.");
         double block = title.LineHeight + 2 * grid.RowSpacing + 2 * MainWindow.StackedRateLineHeight;
-        // Button padding (2 + 2) plus 3 dip on each side for the 11 dip title glyphs drawn above their 10 dip line.
-        Assert.True(block + 2 * 2 + 2 * 3 <= MeowChan.Desktop.WorkspaceMetrics.TitleBarHeight,
-            $"A {block} dip block with button padding and glyph room must fit the title bar.");
+        Assert.True(block + 2 * 2 <= MeowChan.Desktop.WorkspaceMetrics.TitleBarHeight,
+            $"A {block} dip block with button padding must fit the title bar.");
 
         MainWindow.ArrangeHeaderRates(grid, title, firstWord, firstValue, secondWord, secondValue, stacked: false);
         foreach (TextBlock line in new[] { firstValue, secondValue, firstText, secondText })

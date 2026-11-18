@@ -97,6 +97,11 @@ public sealed class WorkspaceTokenTests
             double.Parse(Entry(Root(), "Workspace.Size.TitleBar").Value, CultureInfo.InvariantCulture));
 
     [Fact]
+    public void SectionInsetTokenMatchesTheCodeMirror() =>
+        Assert.Equal(WorkspaceMetrics.SectionInset,
+            double.Parse(Entry(Root(), "Workspace.Inset.Section").Value, CultureInfo.InvariantCulture));
+
+    [Fact]
     public void ExistingKeysThatOtherCodeReadsAreStillDefined()
     {
         string[] legacy =

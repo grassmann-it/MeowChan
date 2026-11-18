@@ -656,6 +656,10 @@
         <x:Double x:Key="Workspace.Space.Card">12</x:Double>
         <x:Double x:Key="Workspace.Form.Gap">24</x:Double>
         <x:Double x:Key="Workspace.Form.ValueColumn">280</x:Double>
+        <SolidColorBrush x:Key="Workspace.Media.EdgeHint">#64969696</SolidColorBrush>
+        <SolidColorBrush x:Key="Workspace.Media.FocusDisc">#E6181A1F</SolidColorBrush>
+        <SolidColorBrush x:Key="Workspace.Media.FocusRing">#FFFFFF</SolidColorBrush>
+        <x:Double x:Key="Workspace.Text.HeaderMetricTitle">10</x:Double>
         <x:Double x:Key="Workspace.Text.Caption">11</x:Double>
         <!-- UI font (Inter) and reading font of post bodies only (bundled Noto Sans subset, Inter for missing glyphs).
              These are the static defaults; ReaderFonts.Apply republishes both keys in Application.Resources with the
@@ -712,6 +716,7 @@
         <x:Double x:Key="Workspace.Size.EmptyStateWidth">400</x:Double>
         <Thickness x:Key="Workspace.Inset.Footer">16,12</Thickness>
         <Thickness x:Key="Workspace.Inset.Chip">8,4</Thickness>
+        <Thickness x:Key="Workspace.Inset.MediaTools">8,6</Thickness>
         <Thickness x:Key="Workspace.Inset.ChipCompact">6,1</Thickness>
         <Thickness x:Key="Workspace.Inset.TagPill">12,0</Thickness>
         <Thickness x:Key="Workspace.Inset.TagPillKeyed">8,0,12,0</Thickness>
@@ -1030,6 +1035,16 @@
     <Style Selector="ToggleButton.accent-preset TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="ToggleButton.accent-preset:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.accent-preset:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.accent-preset:disabled, ToggleButton.accent-preset:pointerover:disabled, ToggleButton.accent-preset:pressed:disabled, ToggleButton.accent-preset:checked:disabled, ToggleButton.accent-preset:checked:pointerover:disabled, ToggleButton.accent-preset:checked:pressed:disabled">
+        <Setter Property="Opacity" Value="0.75" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.accent-preset:disabled TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" /></Style>
+    <Style Selector="ToggleButton.accent-preset:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.accent-preset:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.accent-preset:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.accent-preset:checked:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.accent-preset:checked:pointerover:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.accent-preset:checked:pressed:disabled /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <!-- Typography pass: a hint under a label (several lines in Settings) reads with 2 dip between its lines; see workspace-empty-text. -->
     <Style Selector="TextBlock.workspace-help, SelectableTextBlock.workspace-help"><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>

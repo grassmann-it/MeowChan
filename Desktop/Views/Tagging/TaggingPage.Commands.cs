@@ -80,6 +80,7 @@ public sealed partial class TaggingPage
         _listControls.Children.Add(_groupPanel);
         _listControls.Children.Add(_filterPanel);
         _listControls.Children.Add(_listPresentation);
+        _listControls.TrailingChild = _listPresentation;
         foreach (Control item in new Control[] { _columnsButton, _viewToggle })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
@@ -92,6 +93,7 @@ public sealed partial class TaggingPage
         _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
 
         _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
+        _list.AddHandler(PointerPressedEvent, OnContextPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         // A double-click on an entry runs "Continue here" like Enter; one that cannot (a finished entry, a busy queue) says why in the status line
         // instead of doing nothing (the gate used to sit here, so the sentence of ExecuteRowCommandAsync was never reached).
@@ -107,6 +109,23 @@ public sealed partial class TaggingPage
     // Dead-affordance audit: the middle click on an entry runs "Show in folder", as on the Media page's tiles and the other lists. It acts on the
     // entry that was clicked (the selection stays as it is), with the menu entry's own rules.
     private readonly MiddleClickTracker _middleClick = new();
+
+    private void OnContextPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is not ListBox surface || !e.GetCurrentPoint(surface).Properties.IsRightButtonPressed
+            || !MainWindow.IsListCommandSource(e.Source, surface)) return;
+        ListBoxItem? item = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+            .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), surface));
+        if (item?.DataContext is not TaggingQueueRow row) return;
+        TaggingQueueRow[] selected = surface.SelectedItems?.OfType<TaggingQueueRow>().ToArray() ?? Array.Empty<TaggingQueueRow>();
+        if (!selected.Contains(row)) surface.SelectedItem = row;
+        else if (!ReferenceEquals(surface.SelectedItem, row))
+        {
+            surface.SelectedItem = row;
+            foreach (TaggingQueueRow kept in selected.Where(kept => !ReferenceEquals(kept, row))) surface.SelectedItems?.Add(kept);
+        }
+        item.Focus();
+    }
 
     private void InstallMiddleClick(ListBox surface)
     {

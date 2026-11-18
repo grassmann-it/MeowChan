@@ -69,6 +69,7 @@ internal sealed partial class GalleryViewer
         _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
         GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, FillSuggestions = true, ReadSourceTags = owner.ReadSourceTags };
+        surface.UseSectionInset();
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
         surface.CounterText = PanelCounter(controller.CounterFor(entry));

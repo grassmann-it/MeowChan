@@ -172,11 +172,8 @@ public sealed class ReaderMediaClickTests : IDisposable
     [Fact]
     public void EnterIsAFixedContentKeyAndSpaceComesFromTheBindings()
     {
-        Assert.True(ReaderVideoKeys.IsEnterToggle(Key.Enter, KeyModifiers.None));
-        Assert.False(ReaderVideoKeys.IsEnterToggle(Key.Enter, KeyModifiers.Control));
-        Assert.False(ReaderVideoKeys.IsEnterToggle(Key.Space, KeyModifiers.None));
-        // Both keys toggle once a slot has the key (Enter, Space), nothing else does.
-        Assert.Equal(ReaderInlineVideoRules.KeyAction.Toggle, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.None));
+        Assert.Equal(ReaderInlineVideoRules.KeyAction.None, ReaderInlineVideoRules.Classify(Key.Enter, KeyModifiers.None));
+
         Assert.Equal(ReaderInlineVideoRules.KeyAction.Toggle, ReaderInlineVideoRules.Classify(Key.Space, KeyModifiers.None));
         Assert.Equal(ReaderInlineVideoRules.KeyAction.None, ReaderInlineVideoRules.Classify(Key.M, KeyModifiers.None));
     }

@@ -9,6 +9,7 @@ namespace MeowChan.DesktopTests;
 public sealed class MediaPanelTests
 {
     private const double GridMinimum = MediaPageLayoutPlan.MinimumGridWidth;
+    private const double CombinedContentMinimum = MediaPanelColumns.MinimumCombinedContentWidth;
     private const double Chrome = MediaPageLayoutPlan.BodyChrome + MediaPanelColumns.PanelChrome;
     private const int MinimumPage = MeowChan.Config.MediaPanelMinimumPageWidthDefault;
 
@@ -72,26 +73,89 @@ public sealed class MediaPanelTests
     }
 
     [Fact]
-    public void ThePanelIsCappedByTheRoomAndByItsRangeAndTheTagListYieldsFirst()
+    public void ThePanelAndTagListYieldBeforeTheToolbarCanBeClipped()
     {
-        // A wide saved panel takes the room the grid leaves: 1200 - 200 - chrome - 480 (468 with the 52 dip of chrome).
-        Assert.Equal(new MediaPanelColumns(true, false, 480, 1200 - GridMinimum - Chrome - 480), MediaPanelColumns.Of(WithTagList(480, 900), 1200, MinimumPage));
-        // Its range's maximum on a very wide page, even from a saved width above it.
+        Assert.Equal(new MediaPanelColumns(true, false, 1200 - CombinedContentMinimum - Chrome - 240, 240),
+            MediaPanelColumns.Of(WithTagList(480, 900), 1200, MinimumPage));
         Assert.Equal(900, MediaPanelColumns.Of(MediaPageLayout.Standard with { PanelWidth = 5000 }, 3000, MinimumPage).PanelWidth);
         Assert.Equal(240, MediaPanelColumns.Of(MediaPageLayout.Standard with { PanelWidth = 10 }, 3000, MinimumPage).PanelWidth);
-        // A narrow page with the tag list: the list gives way so the panel keeps its smallest width (700 - 200 - chrome - 240, 208 with 52 dip of chrome).
-        Assert.Equal(new MediaPanelColumns(true, false, 700 - GridMinimum - Chrome - 240, 240), MediaPanelColumns.Of(WithTagList(), 700, 600));
-        // Down to the list's minimum: the narrowest page that still shows both at their smallest widths.
-        double narrowest = GridMinimum + Chrome + MeowChan.Config.MediaTagListWidthMinimum + MeowChan.Config.MediaPanelWidthMinimum;
+        double narrowest = CombinedContentMinimum + Chrome + MeowChan.Config.MediaTagListWidthMinimum + MeowChan.Config.MediaPanelWidthMinimum;
         Assert.Equal(new MediaPanelColumns(true, false, 180, 240), MediaPanelColumns.Of(WithTagList(), narrowest, 600));
     }
 
     [Fact]
-    public void WithoutRoomForItsSmallestWidthThePanelHidesAndTheTagListGetsItsWidthBack()
+    public void TheTagListTemporarilyYieldsWhenItWouldPushTheToolbarBelowItsMinimum()
     {
-        // Above the minimum page width (600), but the list at its minimum (180) leaves the panel less than its 240 (660 - 252 - 180 = 228 with 52 dip of chrome).
-        Assert.True(660 - GridMinimum - Chrome - MeowChan.Config.MediaTagListWidthMinimum < MeowChan.Config.MediaPanelWidthMinimum);
-        Assert.Equal(new MediaPanelColumns(false, true, 256, 0), MediaPanelColumns.Of(WithTagList(), 660, 600));
+        MediaPageLayout layout = WithTagList() with { Panel = false };
+        double narrowest = CombinedContentMinimum + MediaPageLayoutPlan.BodyChrome + MeowChan.Config.MediaTagListWidthMinimum;
+        MediaPanelColumns below = MediaPanelColumns.Of(layout, narrowest - 1, 600);
+        MediaPanelColumns exact = MediaPanelColumns.Of(layout, narrowest, 600);
+
+        Assert.False(MediaPanelColumns.TagListShown(layout, narrowest - 1, below));
+        Assert.True(MediaPanelColumns.TagListShown(layout, narrowest, exact));
+        Assert.True(MediaPanelColumns.TagListShown(layout, double.NaN, exact));
+        Assert.False(MediaPanelColumns.TagListShown(layout with { TagList = false }, narrowest, exact));
+        Assert.True(layout.TagList);
+    }
+
+    // Narrowing with both sidebars wanted: the viewer folds first (it needs 616 + its own minimum beside the tag list), then the tag list yields
+    // below 826 DIP (616 center + 180 list + 30 chrome), and both come back in the reverse order on widening. The saved choices never change.
+    [Theory]
+    [InlineData(1400, true, true)]
+    [InlineData(1088, true, true)]   // 616 + 30 + 22 + 180 + 240: both sidebars at their minimum
+    [InlineData(1087, false, true)]  // the viewer folds first
+    [InlineData(827, false, true)]
+    [InlineData(826, false, true)]   // the tag list and a 616 DIP center fit exactly
+    [InlineData(825, false, false)]  // the tag list yields too
+    [InlineData(760, false, false)]  // the window minimum of Simple/Advanced
+    [InlineData(640, false, false)]  // the window minimum of Barebones
+    public void TheViewerCollapsesBeforeTheTagListWhichYieldsBelow826AndBothReturnOnWidening(double bodyWidth, bool viewer, bool tagList)
+    {
+        MediaPageLayout layout = WithTagList();
+        Assert.Equal(826, CombinedContentMinimum + MediaPageLayoutPlan.BodyChrome + MeowChan.Config.MediaTagListWidthMinimum);
+        MediaPanelColumns columns = MediaPanelColumns.Of(layout, bodyWidth, 600);
+        Assert.Equal(viewer, columns.PanelShown);
+        Assert.Equal(!viewer, columns.CollapsedByWidth);
+        Assert.Equal(tagList, MediaPanelColumns.TagListShown(layout, bodyWidth, columns));
+        // What stays for the center: never under 616 DIP while any sidebar is shown.
+        double center = bodyWidth - (tagList ? MediaPageLayoutPlan.BodyChrome + columns.TagListWidth : 0)
+            - (viewer ? MediaPanelColumns.PanelChrome + columns.PanelWidth : 0);
+        if (tagList || viewer) Assert.True(center + 0.5 >= CombinedContentMinimum, $"center {center} at {bodyWidth}");
+        Assert.True(layout.TagList && layout.Panel);
+    }
+
+    // Smoke finding 18.11.2026: with the viewer folded by the page-width setting (or switched off), the tag list kept its saved 256 DIP at an
+    // 832 DIP window and pushed the toolbar's More button out of the window. Beside the tag list the center keeps 616 DIP in every case.
+    [Theory]
+    [InlineData(true, 1100)]
+    [InlineData(true, 600)]
+    [InlineData(false, 600)]
+    public void BesideTheTagListTheCenterKeeps616WithOrWithoutTheViewer(bool panel, int minimumPageWidth)
+    {
+        foreach (int saved in new[] { 180, 256, 480 })
+        {
+            MediaPageLayout layout = WithTagList(saved) with { Panel = panel };
+            for (double width = 826; width <= 1600; width += 3)
+            {
+                MediaPanelColumns columns = MediaPanelColumns.Of(layout, width, minimumPageWidth);
+                Assert.True(MediaPanelColumns.TagListShown(layout, width, columns));
+                double center = width - MediaPageLayoutPlan.BodyChrome - columns.TagListWidth - (columns.PanelShown ? MediaPanelColumns.PanelChrome + columns.PanelWidth : 0);
+                Assert.True(center + 0.5 >= CombinedContentMinimum, $"{layout.Format()} @{width}: center {center}");
+                Assert.InRange(columns.TagListWidth, MeowChan.Config.MediaTagListWidthMinimum, saved);
+                // The drag handle cannot take the center under 616 either.
+                double dragLimit = MediaPanelColumns.MaximumTagListWidth(width, columns.PanelShown, columns.PanelWidth);
+                Assert.True(width - MediaPageLayoutPlan.BodyChrome - dragLimit - (columns.PanelShown ? MediaPanelColumns.PanelChrome + columns.PanelWidth : 0) + 0.5 >= CombinedContentMinimum,
+                    $"{layout.Format()} @{width}: drag limit {dragLimit}");
+            }
+        }
+        Assert.Equal(186, MediaPanelColumns.Of(WithTagList() with { Panel = panel }, 832, minimumPageWidth).TagListWidth);
+    }
+
+    [Fact]
+    public void WithoutRoomForTheToolbarAndBothSidebarsThePanelHidesAndTheTagListGetsItsWidthBack()
+    {
+        double narrowest = CombinedContentMinimum + Chrome + MeowChan.Config.MediaTagListWidthMinimum + MeowChan.Config.MediaPanelWidthMinimum;
+        Assert.Equal(new MediaPanelColumns(false, true, 256, 0), MediaPanelColumns.Of(WithTagList(), narrowest - 1, 600));
     }
 
     [Fact]

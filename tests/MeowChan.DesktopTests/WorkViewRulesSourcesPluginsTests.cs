@@ -53,15 +53,22 @@ public sealed class WorkViewRulesSourcesPluginsTests
         foreach (string id in new[] { "rules.scope.saved", "rules.plugin-filter", "sources.detail.capabilities",
                      "sources.detail.technical", "plugins.detail.info" })
             Assert.Equal(Presence.Collapsed, WorkViewPolicy.Resolve(id, WorkView.Barebones));
-        foreach (string id in new[] { "rules.templates", "plugins.header.add", "plugins.header.folder", "sources.detail.plugin",
+        foreach (string id in new[] { "rules.templates", "plugins.header.refresh", "plugins.header.folder", "sources.detail.plugin",
                      "plugins.detail.watches", "sources.detail.rules", "sources.detail.diagnostics", "plugins.detail.developer" })
             Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve(id, WorkView.Barebones));
+        foreach (WorkView view in WorkViewSetting.All)
+        {
+            Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("plugins.header.add", view));
+            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("plugins.header.refresh", view));
+            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("plugins.header.folder", view));
+        }
         // Nothing is hidden outright (the owner default: hidden tools live under More), and Advanced shows the page as before.
         foreach (WorkViewEntry entry in WorkViewPolicy.Entries.Where(entry => Pages.Contains(entry.Page)))
         {
             foreach (WorkView view in WorkViewSetting.All)
                 Assert.NotEqual(Presence.Hidden, entry.For(view));
-            Assert.NotEqual(Presence.Overflow, entry.For(WorkView.Advanced));
+            if (entry.Id is not ("plugins.header.refresh" or "plugins.header.folder"))
+                Assert.NotEqual(Presence.Overflow, entry.For(WorkView.Advanced));
         }
     }
 
@@ -121,19 +128,19 @@ public sealed class WorkViewRulesSourcesPluginsTests
     [Fact]
     public void MoreButtonsListOnlyWhatTheViewMovesAndAreHiddenWhenEmpty()
     {
-        Button add = new() { Content = "Add" }, folder = new() { Content = "Folder" }, stateHidden = new() { Content = "Hidden" };
-        WorkViewElement.SetId(add, "plugins.header.add");
+        Button refresh = new() { Content = "Refresh" }, folder = new() { Content = "Folder" }, stateHidden = new() { Content = "Hidden" };
+        WorkViewElement.SetId(refresh, "plugins.header.refresh");
         WorkViewElement.SetId(folder, "plugins.header.folder");
         WorkViewElement.SetId(stateHidden, "plugins.detail.watches");
-        WorkViewElement.SetStateVisible(add, true);
+        WorkViewElement.SetStateVisible(refresh, true);
         WorkViewElement.SetStateVisible(folder, true);
         WorkViewElement.SetStateVisible(stateHidden, false);
-        Button[] buttons = [add, folder, stateHidden];
+        Button[] buttons = [refresh, folder, stateHidden];
         try
         {
             WorkViewMoreSurface.Entry[] barebones = WorkViewMoreSurface.ForButtons(buttons, WorkView.Barebones).ToArray();
-            Assert.Equal(["Add", "Folder"], barebones.Select(entry => entry.Label()));
-            Assert.Empty(WorkViewMoreSurface.ForButtons(buttons, WorkView.Advanced));
+            Assert.Equal(["Refresh", "Folder"], barebones.Select(entry => entry.Label()));
+            Assert.Equal(["Refresh", "Folder"], WorkViewMoreSurface.ForButtons(buttons, WorkView.Advanced).Select(entry => entry.Label()));
             Button more = new();
             WorkViewMoreSurface.Configure(more, barebones.Length);
             Assert.True(more.IsVisible);

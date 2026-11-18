@@ -118,8 +118,8 @@ public partial class ArchivePage
     }
 
     /// <summary>
-    /// The selected post's medium keys. Enter (the command "Open medium of the post") and Space (play / pause, with the same action as its fallback) act on one medium
-    /// by one rule (<see cref="ReaderMediaActivation"/>): a video with a player toggles it; anything else does what a click does by the choice "Clicking a medium".
+    /// The selected post's medium keys. Enter opens the medium in the gallery; Space plays or pauses a video.
+    /// Other media activation follows <see cref="ReaderMediaActivation"/> and the configured click behavior.
     /// The gallery's other video keys (mute, repeat, seek step, speed, next frame) act on the same video. They are only taken where the focus is on the post's content (never in a
     /// text field, a button or a list of its own, which keep their keys) and yield to a saved reader or shell binding on the same gesture.
     /// </summary>
@@ -155,7 +155,7 @@ public partial class ArchivePage
 
     private void CreateSidebarVideo(ReaderMediaSidebar sidebar)
     {
-        // In the sidebar the slot's activator covers the poster also while idle: the focusable "Play video here" (Enter plays).
+        // In the sidebar the slot's activator covers the poster while idle: Space plays, while Enter opens the medium in the gallery.
         ReaderInlineVideoSlot slot = _sidebarVideo = new ReaderInlineVideoSlot(sidebar.FrameArea, activatorWhenIdle: true) { PointerPlayFocus = FocusPostsAfterPointerPlay };
         sidebar.VideoRow.Children.Add(slot.Below);
     }

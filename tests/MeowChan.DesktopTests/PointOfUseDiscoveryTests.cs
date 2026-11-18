@@ -54,10 +54,13 @@ public sealed class PointOfUseDiscoveryTests
 
     [Theory]
     [InlineData("reader", "reader.next-post")]
-    [InlineData("media", "media.open")]
+    // media.open is only a compatibility alias of gallery.open since 9e5853caa, and gallery.open also acts inside the gallery, so it would
+    // claim the gesture there too. The Media page's own binding is a Media-only command (the focus mode).
+    [InlineData("media", "media.focus-mode")]
     public void VideoHelpOmitsGesturesClaimedByItsHost(string context, string owner) => WithControls(() =>
     {
         // A page binding shadows video without removing its gesture in the gallery.
+        Assert.False(CommandCatalog.Get(owner).Scope.HasFlag(CommandScope.Gallery), owner + " must not act inside the gallery for this fixture.");
         Assert.True(CommandCatalog.TryGet(owner, out _));
         var gesture = ShortcutGesture.Parse("Alt+F9");
         ShortcutService.Publish(new ShortcutBindingsSection().Set("video.loop", [gesture]).Set(owner, [gesture]));

@@ -22,22 +22,23 @@ internal sealed class TaggingControlRow : Panel
     static TaggingControlRow() => AffectsMeasure<TaggingControlRow>(GroupSpacingProperty, LineSpacingProperty);
     public double GroupSpacing { get => GetValue(GroupSpacingProperty); set => SetValue(GroupSpacingProperty, value); }
     public double LineSpacing { get => GetValue(LineSpacingProperty); set => SetValue(LineSpacingProperty, value); }
+    public Control? TrailingChild { get; set; }
 
     protected override Size MeasureOverride(Size availableSize)
     {
         foreach (Control child in Children)
             child.Measure(new Size(availableSize.Width, double.PositiveInfinity));
-        return Place(availableSize.Width, arrange: false);
+        return Place(availableSize.Width);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
-        Place(finalSize.Width, arrange: true);
+        Place(finalSize.Width);
         foreach ((Control child, Rect bounds) in _placements) child.Arrange(bounds);
         return finalSize;
     }
 
-    private Size Place(double width, bool arrange)
+    private Size Place(double width)
     {
         HashSet<Control> nextStarts = new();
         _placements.Clear();
@@ -61,12 +62,15 @@ internal sealed class TaggingControlRow : Panel
         }
         _lineStarts.Clear();
         _lineStarts.UnionWith(nextStarts);
-        if (arrange && _placements.Count > 0 && double.IsFinite(width))
+        if (TrailingChild != null && double.IsFinite(width))
         {
-            // The last (presentation/feedback) group owns the trailing edge, not a dead strip outside the row.
-            var last = _placements[^1];
-            _placements[^1] = (last.Control, new Rect(Math.Max(last.Bounds.X, width - last.Bounds.Width),
-                last.Bounds.Y, last.Bounds.Width, last.Bounds.Height));
+            int index = _placements.FindIndex(item => ReferenceEquals(item.Control, TrailingChild));
+            if (index >= 0)
+            {
+                var trailing = _placements[index];
+                _placements[index] = (trailing.Control, new Rect(Math.Max(trailing.Bounds.X, width - trailing.Bounds.Width),
+                    trailing.Bounds.Y, trailing.Bounds.Width, trailing.Bounds.Height));
+            }
         }
         return new Size(usedWidth, y + lineHeight);
     }

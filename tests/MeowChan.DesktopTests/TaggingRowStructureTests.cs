@@ -57,6 +57,8 @@ public sealed class TaggingRowStructureTests
         TaggingControlRow actions = Find<TaggingControlRow>(page, "TaggingQueueActionRow");
         Assert.Equal(new[] { "TaggingActions", "TaggingFeedback" }, actions.Children.Select(c => c.Name));
         Assert.Equal(new[] { "TaggingProgress", "TaggingStatus" }, Find<StackPanel>(page, "TaggingFeedback").Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingProgressText", "TaggingProgressMeter" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingProgressBar", "TaggingPercent" }, Find<WrapPanel>(page, "TaggingProgressMeter").Children.Select(c => c.Name));
         Assert.Contains(page.ProgressText, ((ILogical)actions).GetLogicalDescendants());
         Assert.Contains(Find<ProgressBar>(page, "TaggingProgressBar"), ((ILogical)actions).GetLogicalDescendants());
         Assert.Contains(Find<TextBlock>(page, "TaggingPercent"), ((ILogical)actions).GetLogicalDescendants());
@@ -196,6 +198,9 @@ public sealed class TaggingRowStructureTests
         row.Children.Add(first); row.Children.Add(second); row.Children.Add(presentation);
         Layout(row, 620);
         Assert.Equal(0, presentation.Bounds.Y);
+        Assert.Equal(612, presentation.Bounds.Right);
+        row.TrailingChild = presentation;
+        Layout(row, 620);
         Assert.Equal(620, presentation.Bounds.Right);
         Layout(row, 600);
         Assert.Equal(40, presentation.Bounds.Y); // sum = 612: wrap, even far below the old 1100 threshold.

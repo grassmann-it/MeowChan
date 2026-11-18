@@ -37,7 +37,7 @@ public sealed class MediaBooruOverflowRegistrationTests
         Assert.Contains("UpdateMore(_more, items);", opening.Value);
         Assert.Contains("FillMore((MenuFlyout)_more.Flyout!, items);", opening.Value);
         Assert.Contains("WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true)", view);
-        Assert.Contains("WorkViewGate.Apply(_panelToggle, view, stateVisible: CanTogglePanel)", view);
+        Assert.Contains("WorkViewGate.Apply(_panelToggle, view, stateVisible: CanDisplayPanelToggle)", view);
         Assert.DoesNotContain("AddBooruOverflow", toolbar);
         Assert.DoesNotContain("flyout.Items.Insert", toolbar);
         Assert.All(WorkViewSetting.All, mode =>

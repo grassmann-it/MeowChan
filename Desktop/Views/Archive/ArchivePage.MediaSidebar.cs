@@ -477,20 +477,24 @@ public partial class ArchivePage
 
     // ---- switch and commands -------------------------------------------------------------------------------------------------
 
-    private (bool On, bool Enabled, string Label, string Tip)? _mediaSidebarTogglePresentation;
+    private (bool On, bool Enabled, bool Available, string Label, string Tip)? _mediaSidebarTogglePresentation;
 
     private void RefreshMediaSidebarToggle()
     {
         if (ReaderMediaSidebarToggle is not { } button) return;
-        // Checked means the saved choice for this host, not the responsive width collapse.
-        bool on = ReaderMediaSidebarRules.IsOn(ReaderMedia, _largeReader);
+        ReaderMediaPreferences media = ReaderMedia;
+        double width = (_largeReader ? _largeReaderFrame?.Bounds.Width : ArchiveReaderPane.Bounds.Width) ?? 0;
+        bool available = !ReaderMediaSidebarRules.IsCollapsedByWidth(media, width);
+        bool enabled = CanToggleMediaSidebar && available;
+        bool on = ReaderMediaSidebarRules.IsOn(media, _largeReader);
         string label = CommandCatalog.Label("reader.sidebar.toggle") + ": " + Texts.T(on ? "window.fullscreen.on" : "window.fullscreen.off");
         string tip = CommandBindings.Tooltip("reader.sidebar.toggle", MediaSidebarHint());
-        var presentation = (on, CanToggleMediaSidebar, label, tip);
+        var presentation = (on, enabled, available, label, tip);
         if (button.IsChecked != on) button.IsChecked = on;
         if (_mediaSidebarTogglePresentation == presentation) return;
         _mediaSidebarTogglePresentation = presentation;
-        button.IsEnabled = CanToggleMediaSidebar;
+        Ursa.Controls.ToolBar.SetOverflowMode(button, available ? Ursa.Controls.OverflowMode.AsNeeded : Ursa.Controls.OverflowMode.Always);
+        button.IsEnabled = enabled;
         button.Content = label;
         ToolTip.SetTip(button, tip);
         Avalonia.Automation.AutomationProperties.SetName(button, label);
@@ -502,11 +506,11 @@ public partial class ArchivePage
         ReaderMediaPreferences media = ReaderMedia;
         double width = (_largeReader ? _largeReaderFrame?.Bounds.Width : ArchiveReaderPane.Bounds.Width) ?? 0;
         bool on = ReaderMediaSidebarRules.IsOn(media, _largeReader);
-        if (on && ReaderMediaSidebarRules.IsCollapsedByWidth(media, width))
-            return Texts.T("reader.sidebar.collapsed", media.Clamped().SidebarMinimumReaderWidth);
+        if (ReaderMediaSidebarRules.IsCollapsedByWidth(media, width))
+            return Texts.T("reader.sidebar.collapsed", Math.Ceiling(ReaderMediaSidebarRules.MinimumReaderWidth(media)));
         // The archive view while the sidebar shows only in the large reader: it says where it is (the switch shows it here too).
         if (!_largeReader && media.Sidebar && !on) return Texts.T("reader.sidebar.largeOnly");
-        // Off and wide enough: the entry says what it does and which shortcut turns it on (nothing turns on by itself).
+        // Off: the entry says what it does and which shortcut turns it on.
         return ReaderMediaMultiRules.DiscoveryHint(media with { Sidebar = on }, largeReader: true, width, CommandCatalog.ShortcutDisplay("reader.sidebar.toggle"));
     }
 

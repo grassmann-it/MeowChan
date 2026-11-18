@@ -34,7 +34,6 @@ public sealed class TaggingResponsiveSelectionBarTests
             "tagging.selection.tag",
             "tagging.selection.done",
             "tagging.selection.skipped",
-            "tagging.selection.continue",
             "tagging.selection.clear",
         ];
 
@@ -83,7 +82,7 @@ public sealed class TaggingResponsiveSelectionBarTests
         Assert.Equal(OverflowMode.Never, modes[0]);
         Assert.Equal(OverflowMode.Never, modes[2]);
         Assert.Equal(OverflowMode.Never, modes[3]);
-        Assert.Equal(OverflowMode.Never, modes[5]);
+        Assert.Equal(OverflowMode.AsNeeded, modes[5]);
         Assert.Equal(OverflowMode.Always, modes[1]);
         Assert.Equal(OverflowMode.Always, modes[4]);
 
@@ -99,7 +98,7 @@ public sealed class TaggingResponsiveSelectionBarTests
 
         Assert.Equal(new[] { false, true, false, false, true, false, true, true }, overflow);
         Assert.True(width + 40 <= 500, $"selection bar uses {width} dip plus More but only has 500 dip");
-        foreach (int index in new[] { 0, 2, 3, 5 })
+        foreach (int index in new[] { 0, 2, 3 })
             Assert.False(overflow[index], $"required selection action {ids[index]} moved under More");
     }
 
