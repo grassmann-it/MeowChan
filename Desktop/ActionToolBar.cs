@@ -132,6 +132,7 @@ public sealed class ActionToolBar : ToolBar
             property.Changed.AddClassHandler<Control>((item, _) =>
             {
                 if (item.Parent is not ActionToolBar toolbar) return;
+                toolbar.DirectHost?.RefreshOverflow();
                 toolbar.DirectHost?.InvalidateMeasure();
                 toolbar.InvalidateMeasure();
             });
@@ -169,6 +170,7 @@ public sealed class ActionToolBar : ToolBar
             // The popup was emptied above and the items stand on the bar again (the panel moves them back out on its next arrange).
             ActionToolBarPanel.MarkReduced(item, false);
         }
+        DirectHost?.RefreshOverflow();
         if (ownedFocus) QueueAvailableActionFocus(focused);
     }
 
@@ -184,6 +186,7 @@ public sealed class ActionToolBar : ToolBar
         // button would stay behind with an empty menu (hidden Columns button, view switched). Re-run the overflow decision instead.
         if (e.Property == IsVisibleProperty && sender is Control)
         {
+            DirectHost?.RefreshOverflow();
             DirectHost?.InvalidateMeasure();
             InvalidateMeasure();
         }
@@ -214,6 +217,8 @@ public sealed class ActionToolBar : ToolBar
     protected override void OnApplyTemplate(TemplateAppliedEventArgs e)
     {
         if (_popup != null) { _popup.Opened -= OnPopupOpened; }
+        if (More != null) More.IsCheckedChanged -= OnMoreCheckedChanged;
+        _popup = null;
         if (OverflowHost != null)
         {
             OverflowHost.KeyDown -= OnOverflowKeyDown;
@@ -240,7 +245,16 @@ public sealed class ActionToolBar : ToolBar
             OverflowHost.KeyDown += OnOverflowKeyDown;
             OverflowHost.AddHandler(Button.ClickEvent, OnOverflowActionClick);
         }
+        if (More != null) More.IsCheckedChanged += OnMoreCheckedChanged;
+        SetOverflow(_overflowCount);
         RefreshOverflowLabel();
+    }
+
+    private void OnMoreCheckedChanged(object? sender, RoutedEventArgs e)
+    {
+        // A stale activation (including automation) must not open an empty popup,
+        // even before the next layout pass can consume the invalidated projection.
+        if (More?.IsChecked == true && _overflowCount == 0) SetOverflow(0);
     }
 
     private ToggleButton? _labelledMore;
@@ -298,8 +312,9 @@ public sealed class ActionToolBar : ToolBar
     private bool _overflowShown;
 
     /// <summary>
-    /// How many items the panel moved into "More". The pseudo-class acts only when "any" changes: it drives the visibility of
-    /// the More button, which the same measure pass already counted, so it is not deferred. The accessible name follows the count.
+    /// How many eligible actions the panel projects into "More" after visibility/context filtering and view omission.
+    /// Disabled actions remain entries under the existing explanatory-state policy. Zero entries hides the affordance
+    /// and closes its popup immediately; the pseudo-class and accessible count follow the same projection.
     /// </summary>
     internal void SetOverflow(int count)
     {
@@ -317,6 +332,7 @@ public sealed class ActionToolBar : ToolBar
             _overflowCount = count;
             RefreshOverflowLabel();
         }
+        if (!hasItems && _popup != null) _popup.IsOpen = false;
         if (!hasItems && More is ToggleButton more && (more.IsChecked == true || more.IsKeyboardFocusWithin))
         {
             more.IsChecked = false;
@@ -553,6 +569,21 @@ public sealed class ActionToolBarPanel : StackPanel
         for (int i = 0; i < count; i++) if (visible + margins[i] < naturals[i]) { fits = false; break; }
         for (int i = 0; i < count; i++) slots[i] = fits ? visible + margins[i] : naturals[i] + extra / count;
         return slots;
+    }
+
+    /// <summary>
+    /// Revalidate the last measured projection against live filtering, without
+    /// waiting for layout. IsEnabled deliberately does not filter: a disabled
+    /// action and its explanation remain discoverable under the existing policy.
+    /// New placements still belong to MeasureOverride; no controls are recreated.
+    /// </summary>
+    internal void RefreshOverflow()
+    {
+        if (Owner is not { } owner) return;
+        int count = 0;
+        foreach (Control item in owner.GeneratedItems)
+            if (_overflow.Contains(item) && item.IsVisible && !ActionToolBar.GetOmitted(item)) count++;
+        owner.SetOverflow(count);
     }
 
     protected override Size MeasureOverride(Size availableSize)
