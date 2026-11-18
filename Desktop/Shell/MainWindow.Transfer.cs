@@ -101,7 +101,7 @@ public partial class MainWindow
         grid.ColumnDefinitions = new ColumnDefinitions(stacked ? "Auto,Auto" : "Auto,Auto,Auto,Auto");
         grid.RowDefinitions = new RowDefinitions(stacked ? "Auto,Auto" : "Auto");
         grid.ColumnSpacing = 4;
-        grid.RowSpacing = 2;
+        grid.RowSpacing = 0;
         grid.ColumnDefinitions[0].SharedSizeGroup = "HeaderIoLabel";
         grid.ColumnDefinitions[1].SharedSizeGroup = "HeaderIoRate";
         grid.ColumnDefinitions[1].MinWidth = 56;
