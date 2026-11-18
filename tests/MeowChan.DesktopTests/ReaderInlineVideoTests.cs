@@ -394,7 +394,7 @@ public sealed class ReaderInlineVideoTests : IDisposable
         Assert.All(videos.Take(3), video => Assert.True(video.Players[0].Disposed));
     }
 
-    private sealed class SlowPlayer : IReaderInlineVideoPlayer
+    private sealed class SlowPlayer : IReaderInlineVideoPlayer, IDisposable
     {
         internal readonly TaskCompletionSource Disposal = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public bool IsPlaying { get; private set; }
@@ -402,13 +402,14 @@ public sealed class ReaderInlineVideoTests : IDisposable
         public Task PlayAsync() { IsPlaying = true; return Task.CompletedTask; }
         public Task PauseAsync() { IsPlaying = false; return Task.CompletedTask; }
         public ValueTask DisposeAsync() => new(Disposal.Task);
+        public void Dispose() => Disposal.TrySetResult();
     }
 
     [Fact]
     public async Task ASlowNativeCleanupIsAwaitedNotForgotten()
     {
         ReaderInlineVideoController controller = await Controller(On());
-        SlowPlayer player = new();
+        using SlowPlayer player = new();
         FakeOwner owner = new();
         await controller.PlayAsync(owner, () => player);
         Task released = controller.ReleaseAllAsync();
