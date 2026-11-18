@@ -29,6 +29,15 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         ["pl"] = "Polski (Untested)"
     };
 
+    // These source keys were added after the preview packs and deliberately remain English
+    // fallback until reviewed translations exist. Keep this allowlist exact: it must not hide
+    // a new missing key, and it must not turn an empty sentinel into a pack entry.
+    internal static readonly IReadOnlySet<string> KnownMissingKeys = new HashSet<string>(StringComparer.Ordinal)
+    {
+        "reader.media.activation.contextChanged",
+        "reader.media.activation.missing"
+    };
+
     [Fact]
     public void EveryBundledPackIsAnExpectedPreviewAndTheReadmeNamesAllOfThem()
     {
@@ -105,11 +114,16 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         HashSet<string> categories = new(Enumerable.Range(0, 1000).Select(count => PluralRules.Category(code, count)), StringComparer.Ordinal);
         // English "<key>.one" texts are required only where the language can select "one": zh/ja/ko never do and
         // use the base text for every count, so their packs omit those keys.
-        IEnumerable<string> expectedKeys = BuiltInCatalog.English
+        IEnumerable<string> selectableEnglishKeys = BuiltInCatalog.English
             .Where(entry => !string.IsNullOrWhiteSpace(entry.Value))
             .Select(entry => entry.Key)
             .Where(key => PluralRules.BaseKey(key) is not { } baseKey || !BuiltInCatalog.English.ContainsKey(baseKey)
                 || categories.Contains(key[(key.LastIndexOf('.') + 1)..]));
+        string[] actualMissingKeys = selectableEnglishKeys.Except(translations.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        Assert.Equal(
+            KnownMissingKeys.Order(StringComparer.Ordinal),
+            actualMissingKeys);
+        IEnumerable<string> expectedKeys = selectableEnglishKeys.Except(KnownMissingKeys, StringComparer.Ordinal);
         // Languages with more number forms than English add optional "<key>.few" style variants of an English key.
         string[] pluralVariants = translations.Keys.Where(key => !BuiltInCatalog.English.ContainsKey(key)).ToArray();
         Assert.All(pluralVariants, key =>
@@ -139,5 +153,11 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         Assert.Empty(Texts.Warnings);
         foreach (var (key, value) in translations)
             Assert.Equal(value, Texts.T(key));
+        foreach (string key in KnownMissingKeys)
+        {
+            Assert.False(translations.ContainsKey(key), code + " unexpectedly claims a translation for " + key);
+            Assert.Null(Texts.Own(key));
+            Assert.Equal(BuiltInCatalog.English[key], Texts.T(key));
+        }
     }
 }
