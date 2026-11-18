@@ -2,17 +2,17 @@
 
 Date: 2026-11-18
 Scope: oChan Package 6D — identical localization strings
-Base: `origin/goal/gesamtprogramm-profile-a` at `866ad8ea2`
+Base: `origin/goal/gesamtprogramm-profile-a` at `659f247c5` (updated by PR #127)
 
 ## Result
 
-No translation values were changed. The audit found no duplicate JSON properties,
+The catalog update added `media.layout.preset.gridSidebar` and `tagging.page.selection.moreState` to the bundled packs, and removed the obsolete `media.layout.preset.grid` key. No existing translation value was changed. The audit found no duplicate JSON properties,
 no duplicate source keys, and no proven untranslated value that justifies an
 artificial translation. The existing preview packs remain **Untested**; an exact
 English match is not, by itself, evidence of a linguistic defect.
 
 The audit compares every bundled pack with the compiled English source catalog
-(`BuiltInCatalog.English`). The source inventory contains **5,196 unique keys**;
+(`BuiltInCatalog.English`). The source inventory contains **5,197 unique keys**;
 two are deliberately empty saved-search sentinels and are not representable in a
 pack. Pack-specific plural variants are compared with their base source key and
 are not treated as duplicate keys.
@@ -21,19 +21,19 @@ are not treated as duplicate keys.
 
 | Pack | Pack entries | Exact English values | Repeated-value groups | Entries participating in repeated groups |
 |---|---:|---:|---:|---:|
-| `cs` | 5,240 | 93 | 374 | 997 |
-| `es` | 5,192 | 84 | 304 | 827 |
-| `fr` | 5,192 | 120 | 312 | 851 |
-| `it` | 5,198 | 126 | 328 | 901 |
-| `ja` | 5,091 | 58 | 328 | 966 |
-| `ko` | 5,091 | 53 | 331 | 956 |
-| `pl` | 5,241 | 93 | 389 | 997 |
-| `pt-BR` | 5,198 | 141 | 311 | 849 |
-| `ru` | 5,218 | 60 | 384 | 997 |
-| `zh-Hans` | 5,091 | 48 | 332 | 950 |
-| **Total** | **51,752** | **876** | — | — |
+| `cs` | 5,241 | 93 | 374 | 997 |
+| `es` | 5,193 | 84 | 304 | 827 |
+| `fr` | 5,193 | 120 | 312 | 851 |
+| `it` | 5,199 | 126 | 328 | 901 |
+| `ja` | 5,092 | 58 | 328 | 966 |
+| `ko` | 5,092 | 53 | 331 | 956 |
+| `pl` | 5,242 | 93 | 389 | 997 |
+| `pt-BR` | 5,199 | 141 | 311 | 849 |
+| `ru` | 5,219 | 60 | 384 | 997 |
+| `zh-Hans` | 5,092 | 48 | 332 | 950 |
+| **Total** | **51,762** | **876** | — | — |
 
-The total-entry cell is intentionally not used as a source invariant because the
+The total-entry cell is a report-only total because the
 packs have language-specific plural forms and intentionally omitted CJK `.one`
 forms. The exact per-pack counts are the invariant.
 
@@ -84,7 +84,7 @@ No pack key was merged, renamed, or removed to make repeated values disappear.
 
 ## Tests
 
-Focused audit command:
+Focused localization validation command:
 
 ```sh
 dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj \
@@ -93,8 +93,8 @@ dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj \
   -m:1 -p:UseSharedCompilation=false --logger 'console;verbosity=normal'
 ```
 
-The focused audit/regression run passed: **34/34** tests (the new audit plus the
-existing localization regression tests). The broader pre-existing completeness
+The current focused localization/reader validation passed: **68/68** tests, including the
+pack completeness checks, deterministic audit, and ReaderInlineVideo gate regression. The broader pre-existing completeness
 suite was also invoked from the same test project, but is not green on the base
 branch: **10** bundled-pack cases fail because the baseline expects
 `reader.media.activation.contextChanged` and `reader.media.activation.missing`,

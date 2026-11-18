@@ -154,8 +154,8 @@ public sealed class MediaSortToolbarContractTests
         Assert.Empty(MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Wide));
         // N6: Reduced moves the three first tools; Compact adds the tag list switch (MP5, formerly "Booru mode") and the Layout menu and drops the "Sort" prefix.
         Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced));
-        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.tag-list", "media.toolbar.layout"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
-        foreach (string layoutTool in new[] { "media.toolbar.tag-list", "media.toolbar.layout" })
+        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
+        foreach (string layoutTool in new[] { "media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel" })
         {
             Assert.False(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Reduced, layoutTool));
             Assert.True(MediaToolbarLayout.IsMovedUnderMore(MediaToolbarLayout.Level.Compact, layoutTool));
@@ -202,7 +202,7 @@ public sealed class MediaSortToolbarContractTests
     [Fact]
     public void MoreIsEmptyOnlyWhenNoToolIsUnderItAtTheWidthAndInTheView()
     {
-        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle",
+        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle",
             "media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.queue-all", "media.toolbar.folders",
             "media.toolbar.export-all", "media.toolbar.manage-ratings"];
         string[] Under(MediaToolbarLayout.Level level, WorkView view) => header
@@ -412,7 +412,7 @@ public sealed class MediaSortToolbarContractTests
     public void TheStagesKeepTheSearchAndTheFilterToggleAndMoveTheToolsOutInTheDocumentedOrder()
     {
         Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"], MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Reduced));
-        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.tag-list", "media.toolbar.layout"],
+        Assert.Equal(["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel"],
             MediaToolbarLayout.MovedUnderMore(MediaToolbarLayout.Level.Compact));
         foreach (MediaToolbarLayout.Level level in Enum.GetValues<MediaToolbarLayout.Level>())
         {

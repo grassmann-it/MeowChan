@@ -1,3 +1,6 @@
+using System;
+using System.Linq;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -22,14 +25,17 @@ internal static partial class MediaPageChecks
         window.RequestedThemeVariant = theme;
         Texts.SetLanguage(code);
         window.Width = 1400; window.Height = 900;
-        await UntilAsync(() => AutomationProperties.GetName(page.LayoutButton) == Texts.T("media.layout.name") && AutomationProperties.GetName(page.BooruModeButton) == Texts.T("media.tagList"));
+        await UntilAsync(() => AutomationProperties.GetName(page.LayoutButton) == Texts.T("media.layout.name")
+            && AutomationProperties.GetName(page.BooruModeButton) == Texts.T("media.tagList")
+            && AutomationProperties.GetName(page.PanelToggleButton) == Texts.T("command.media.panel.toggle"));
         MediaTagSidebar sidebar = page.TagSidebar;
         Control surface = C<Control>(page, "MediaGridSurface");
         Control chipRow = C<Control>(page, "MediaFilterChipRow"), statusRow = (Control)C<TextBlock>(page, "MediaStatus").Parent!;
         TextBlock subtitle = page.GetVisualDescendants().OfType<TextBlock>().First(text => text.Text == Texts.T("media.subtitle"));
         List<MediaPageLayout> saved = new();
         page.SaveLayoutAsync = layout => { saved.Add(layout); return Task.CompletedTask; };
-        Require(page.PageLayout == MediaPageLayout.Standard && page.LayoutButton.IsEffectivelyVisible && !page.IsBooruMode && page.TileAppearance == MediaTileMetrics.Standard,
+        Require(page.PageLayout == MediaPageLayout.Standard && page.LayoutButton.IsEffectivelyVisible && page.PanelToggleButton.IsEffectivelyVisible
+            && page.PanelToggleButton.IsChecked == true && !page.IsBooruMode && page.TileAppearance == MediaTileMetrics.Standard,
             state + ": the page must start with the standard layout and its Layout button on the toolbar.");
         // The standard layout has the media panel on (right of the grid); on this wide page it is on screen, and every step below keeps it.
         await UntilAsync(() => page.IsPanelShown && page.Panel is { IsEffectivelyVisible: true });
@@ -37,6 +43,9 @@ internal static partial class MediaPageChecks
         double X(Control control) => control.TranslatePoint(default, page)!.Value.X;
         Require(X(panel) > X(surface) && Math.Abs(panel.Bounds.Width - page.PageLayout.PanelWidth) < 0.5,
             state + ": the standard page must show the media panel right of the grid at its width: " + panel.Bounds + " / " + surface.Bounds);
+        Require(X(page.LayoutButton) < X(page.PanelToggleButton) && ToolTip.GetTip(page.PanelToggleButton) is string panelTip
+            && panelTip.StartsWith(Texts.T("command.media.panel.toggle"), StringComparison.Ordinal),
+            state + ": the media-sidebar switch must sit directly to the right of Layout and explain itself: " + page.LayoutButton.Bounds + " / " + page.PanelToggleButton.Bounds);
         Require(ToolTip.GetTip(page.LayoutButton) as string == Texts.T("media.layout.tip") && page.LayoutButton.Flyout == page.LayoutFlyout, state + ": the button must explain itself and open a menu.");
         int presents = page.PresentCount, counts = page.TagCountRuns, tiles = page.Tiles.Count;
         MediaLibraryTileView[] Realized() => page.Grid.GetVisualDescendants().OfType<MediaLibraryTileView>().ToArray();
