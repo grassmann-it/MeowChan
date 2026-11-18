@@ -1,6 +1,7 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Headless;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 
@@ -11,14 +12,21 @@ public sealed class CtsOwnerDisposalTests
 {
     private const BindingFlags Fields = BindingFlags.Instance | BindingFlags.NonPublic;
 
+    // A Window reads Application.ActualThemeVariant in its constructor, and every AvaloniaObject verifies the dispatcher it captured when it was
+    // created. TopLevel resolves that host through the locator (IThemeVariantHost / IGlobalStyles), not through Application.Current, and another
+    // class of this assembly may already have set the process-wide platform up on its own worker thread (AvaloniaTestPlatform.EnterSkia is a
+    // one-shot AppBuilder.Setup). Binding a fresh TokenApplication only as Application left those two entries pointing at that foreign instance,
+    // so the dialog's window verified a dispatcher this thread does not own. The scope now also rebinds the two interfaces TopLevel asks for.
     private static void OnDispatcher(Action test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = AvaloniaLocator.EnterScope();
-        // The existing test dispatcher deliberately has no windowing subsystem. Bind only a scoped headless window platform;
-        // do not start another Application/dispatcher or show a native window. Pinned to the test package's version.
+        // The test dispatcher deliberately has no windowing subsystem. Bind only a scoped headless window platform; do not start another
+        // Application/dispatcher or show a native window. Pinned to the test package's version.
         typeof(AvaloniaHeadlessPlatform).GetMethod("Initialize", BindingFlags.Static | BindingFlags.NonPublic)!
             .Invoke(null, [new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false }]);
-        TokenApplication.Bind();
+        TokenApplication app = TokenApplication.Bind();
+        AvaloniaLocator.CurrentMutable.Bind<IThemeVariantHost>().ToConstant(app);
+        AvaloniaLocator.CurrentMutable.Bind<IGlobalStyles>().ToConstant(app);
         test();
     });
 

@@ -8,8 +8,8 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     // Fault boundary after each synchronous hosting mutation; absent in production.
-    internal Action<string>? ReaderHostingStepCompleted { get; set; }
-    private void ReaderHostingStep(string step) => ReaderHostingStepCompleted?.Invoke(step);
+    internal Action<string>? ReaderHostingStepCompletedForTests { get; set; }
+    private void ReaderHostingStep(string step) => ReaderHostingStepCompletedForTests?.Invoke(step);
 
     // Includes shell attachment: a frame returned by DetachReader is not yet
     // owned by the window. Presentation/scope failures must undo that move too.

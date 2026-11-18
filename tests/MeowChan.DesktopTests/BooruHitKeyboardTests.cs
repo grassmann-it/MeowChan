@@ -231,7 +231,7 @@ public sealed class BooruHitKeyboardTests
             ContextMenuModel plain = Menu(view, cards[1], "102");
             Assert.Equal(new[] { BooruWorkbenchView.MenuLoad, BooruWorkbenchView.MenuOpenPost, BooruWorkbenchView.MenuCopyLink }, plain.Entries.Select(entry => entry.Id));
             Assert.All(plain.Entries, entry => Assert.True(entry.Available));
-            Assert.Equal("Load original", plain.Entries.First().Label);
+            Assert.Equal("Download original", plain.Entries.First().Label);
 
             // The entries run the card's own buttons: the link actions go through the same fake browser and clipboard.
             plain.Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuCopyLink).Invoke!();
@@ -239,6 +239,31 @@ public sealed class BooruHitKeyboardTests
             Assert.Equal(0, harness.Queue.Loads.Count);
             plain.Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuLoad).Invoke!();
             await BooruTestSupport.WaitAsync(() => harness.Queue.Loads.Count == 1, "the load");
+        }
+    });
+
+    // A card's link buttons belong to the card's own action toolbar: they are built without a panel of their own, so rendering the same
+    // hit again (a language change, a new local state) never moves a control that still has a visual parent.
+    [Fact]
+    public void TheLinkActionsOfAHitLiveInTheCardsOwnToolbarAndSurviveARerender() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model) using (view)
+        {
+            List<Border> cards = await SearchAsync(harness, model, view);
+            WrapPanel actions = cards[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
+            foreach (string name in new[] { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
+                Assert.Contains(actions.Children.OfType<Button>(), button => button.Name == name);
+
+            Texts.SetLanguage("de");
+            try
+            {
+                await Task.Delay(30);
+                Assert.Equal(3, Cards(view).Count);
+                WrapPanel rebuilt = Cards(view)[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
+                Assert.Contains(rebuilt.Children.OfType<Button>(), button => button.Name == BooruWorkbenchView.OpenPostPrefix + "101");
+            }
+            finally { Texts.SetLanguage("en"); }
         }
     });
 
@@ -478,11 +503,15 @@ public sealed class BooruHitKeyboardTests
 
     private static ContextMenuEntry[] Entries(ContextMenuModel menu) => menu.Entries.ToArray();
 
-    private static PointerPressedEventArgs MiddlePress(Visual root, object source) => new(source, new Avalonia.Input.Pointer(1, PointerType.Mouse, true), root,
+    // One synthetic mouse for every event of these fixtures: a press and its release must share the pointer (and its id) for the card to
+    // pair them, and nothing here ever captures, so the instance outlives the individual event args on purpose.
+    private static readonly Avalonia.Input.Pointer SyntheticMouse = new(1, PointerType.Mouse, true);
+
+    private static PointerPressedEventArgs MiddlePress(Visual root, object source) => new(source, SyntheticMouse, root,
         default, 0, new PointerPointProperties(RawInputModifiers.MiddleMouseButton, PointerUpdateKind.MiddleButtonPressed), KeyModifiers.None)
         { RoutedEvent = InputElement.PointerPressedEvent, Source = source };
 
-    private static PointerReleasedEventArgs MiddleRelease(object source) => new(source, new Avalonia.Input.Pointer(1, PointerType.Mouse, true), (Visual)source,
+    private static PointerReleasedEventArgs MiddleRelease(object source) => new(source, SyntheticMouse, (Visual)source,
         default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.MiddleButtonReleased), KeyModifiers.None, MouseButton.Middle)
         { RoutedEvent = InputElement.PointerReleasedEvent, Source = source };
 
@@ -490,7 +519,7 @@ public sealed class BooruHitKeyboardTests
     private static void Raise(Interactive source, RoutedEventArgs e) => source.RaiseEvent(e);
 
     private static TappedEventArgs DoubleTap(object card, object source) => new(InputElement.DoubleTappedEvent,
-        new PointerEventArgs(InputElement.PointerReleasedEvent, source, new Avalonia.Input.Pointer(1, PointerType.Mouse, true), null, default, 0,
+        new PointerEventArgs(InputElement.PointerReleasedEvent, source, SyntheticMouse, null, default, 0,
             PointerPointProperties.None, KeyModifiers.None)) { Source = source };
 
     // One actual Avalonia dispatcher owns creation, awaited continuations and assertions (as in BooruLinkLifetimeTests).
