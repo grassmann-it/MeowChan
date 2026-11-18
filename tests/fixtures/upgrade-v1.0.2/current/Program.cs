@@ -48,7 +48,7 @@ object? hostTags = null;
 LocalMediaObservation? localObservation = null;
 List<ResourceId> threadIds = new();
 Exception? primaryFailure = null;
-DesktopSessionHost host = new(profile,
+await using DesktopSessionHost host = new(profile,
     updateSessionFactory: (path, config) => new UpdateSession(path, config, offline.Client(), disableEnvironment: () => "1"),
     pluginTransportFactory: offline.Client);
 try
@@ -115,7 +115,7 @@ finally
 {
     // Do not publish a successful snapshot until every producer, plugin worker and lease has drained.
     try { await host.DisposeAsync().AsTask().WaitAsync(deadline); }
-    catch (Exception cleanup) when (primaryFailure != null)
+catch (Exception cleanup) when (primaryFailure != null)
     {
         Console.Error.WriteLine("Additional disposal failure (primary failure retained): " + cleanup);
     }
