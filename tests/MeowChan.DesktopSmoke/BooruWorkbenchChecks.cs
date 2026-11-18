@@ -122,6 +122,13 @@ internal static partial class BooruWorkbenchChecks
                     && button.Content is ChipOutline { IsDashed: true })
                 && AutomationProperties.GetName(chips101[0]) == "Add source tag sky (Artist) to the search",
                 "The source tag chips are not in Danbooru order or not named actions: " + string.Join(",", chips101.Select(button => button.Name)));
+            WrapPanel actionRow = Find<WrapPanel>(page, "BooruResultActions:101");
+            Button gallery = Find<Button>(page, "BooruView:101");
+            Require(actionRow.Children.OfType<Button>().Select(button => button.Name).SequenceEqual(new[]
+                    { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
+                && gallery.Parent is WrapPanel galleryActions && galleryActions.Classes.Contains("workspace-toolbar")
+                && Find<Button>(page, BooruWorkbenchView.LoadPrefix + "101").Content as string == "Download original",
+                "The result-card actions are not compact, grouped, or clearly named.");
             Require(Find<Button>(page, BooruWorkbenchView.PreviousName).IsVisible == false
                 || !Find<Button>(page, BooruWorkbenchView.PreviousName).IsEnabled, "Previous page enabled on page 1.");
             Capture(owner, shots, "search-light");

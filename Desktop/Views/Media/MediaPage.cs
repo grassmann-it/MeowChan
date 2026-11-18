@@ -876,15 +876,19 @@ public sealed partial class MediaPage : UserControl
             if (CommandBindings.Matches(e, "gallery.show-in-thread"))
             {
                 e.Handled = true;
-                if (_grid.Selection.Count == 1) await ShowSelectedInThreadAsync();
+                if (_grid.Selection.Count > 1) ShowSelectionNote(MediaMenuReasons.SeveralSelected);
+                else if (_grid.Selection.Count == 1) await ShowSelectedInThreadAsync();
+                else ShowSelectionNote(MediaMenuReasons.Unavailable);
                 return;
             }
             // The media rules of the thread the tile belongs to (the menu item's command).
             if (CommandBindings.Matches(e, "rules.edit-scope"))
             {
                 e.Handled = true;
-                if (!_lifetime.IsCancellationRequested && _building == null && SelectedRow is { } ruleRow
-                    && HasThreadRules(ruleRow.Entry)) EditThreadRules?.Invoke(ruleRow.Entry);
+                if (_grid.Selection.Count > 1) ShowSelectionNote(MediaMenuReasons.SeveralSelected);
+                else if (!_lifetime.IsCancellationRequested && _building == null && SelectedRow is { } ruleRow
+                    && HasThreadRules(ruleRow.Entry) && EditThreadRules != null) EditThreadRules(ruleRow.Entry);
+                else ShowSelectionNote(MediaMenuReasons.Unavailable);
                 return;
             }
             // media.tags.edit: several selected tiles tag together (the selection bar's action), one edits its own tags.
@@ -898,7 +902,8 @@ public sealed partial class MediaPage : UserControl
             if (CommandBindings.Matches(e, "media.queue.add"))
             {
                 e.Handled = true;
-                if (_grid.Selection.Count > 0 && _building == null) await AddSelectionToQueueAsync();
+                if (_grid.Selection.Count > 0 && _building == null && AddToTagQueue != null) await AddSelectionToQueueAsync();
+                else ExplainSelectionUnavailable();
                 return;
             }
             // tagging.remove (Delete): the selected media that are in the tagging queue leave it; otherwise the key does nothing. It never deletes a file.

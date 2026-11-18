@@ -240,8 +240,13 @@ public sealed partial class MediaPage
     internal Task RemoveSelectionFromQueueAsync()
     {
         if (RemoveFromTagQueue == null || _selectionBusy || _building != null || _lifetime.IsCancellationRequested || _queueKeys is not { Count: > 0 }
-            || _grid.Selection.Count == 0) return Task.CompletedTask;
+            || _grid.Selection.Count == 0)
+        {
+            ExplainSelectionUnavailable();
+            return Task.CompletedTask;
+        }
         IReadOnlyList<TagQueueKey> keys = TagQueueActions.RemovableKeys(SelectedTiles.Select(tile => tile.Entry), _queueKeys);
+        if (keys.Count == 0) ExplainSelectionUnavailable();
         return keys.Count == 0 ? Task.CompletedTask : RunQueueRemoveAsync(keys);
     }
 

@@ -25,7 +25,7 @@ internal static class MediaLayoutMenu
         CaptionNameId = IdPrefix + "caption.name", CaptionTagsId = IdPrefix + "caption.tags", CaptionQueueId = IdPrefix + "caption.queue",
         CaptionSourceId = IdPrefix + "caption.source", SizeSmallId = IdPrefix + "size.small", SizeMediumId = IdPrefix + "size.medium",
         SizeLargeId = IdPrefix + "size.large", PresetStandardId = IdPrefix + "preset.standard", PresetBooruId = IdPrefix + "preset.booru",
-        PresetGridId = IdPrefix + "preset.grid", ResetId = IdPrefix + "reset";
+        PresetGridSidebarId = IdPrefix + "preset.gridSidebar", ResetId = IdPrefix + "reset";
 
     /// <summary>The exclusive groups of the tag list's side, the media panel's side, the size and the presets.</summary>
     internal const string SideGroup = "side", PanelSideGroup = "panelSide", SizeGroup = "size", PresetGroup = "preset";
@@ -49,7 +49,7 @@ internal static class MediaLayoutMenu
     [
         (PresetStandardId, "media.layout.preset.standard", MediaLayoutPreset.Standard),
         (PresetBooruId, "media.layout.preset.booru", MediaLayoutPreset.BooruView),
-        (PresetGridId, "media.layout.preset.grid", MediaLayoutPreset.GridOnly)
+        (PresetGridSidebarId, "media.layout.preset.gridSidebar", MediaLayoutPreset.GridWithSidebar)
     ];
 
     /// <summary>The accessible name of the menu in its context-menu form.</summary>
