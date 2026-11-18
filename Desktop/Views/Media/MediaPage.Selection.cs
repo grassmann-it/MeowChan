@@ -392,7 +392,7 @@ public sealed partial class MediaPage
         TagContext context = QuickTagPopoverContext.ContextOf(lead?.Entry ?? tiles[0].Entry, _shown, lead?.Index ?? -1, selection: true);
         // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
-        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+        QuickTagSession? quick = options.NewSession(QuickTagTarget.For(session));
         _selectionBusy = true;
         UpdateSelectionBar();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
@@ -410,7 +410,8 @@ public sealed partial class MediaPage
         }
         try
         {
-            QuickTagPopover popover = QuickTagPopover.Open(host, quick, Texts.T("media.selection.count", tiles.Count), options with
+            if (quick is not { } sessionForPopover) throw new InvalidOperationException("The quick tag session was unavailable.");
+            QuickTagPopover popover = QuickTagPopover.Open(host, sessionForPopover, Texts.T("media.selection.count", tiles.Count), options with
             {
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_lifetime.IsCancellationRequested && IsEffectivelyVisible,
@@ -421,6 +422,8 @@ public sealed partial class MediaPage
                 // The rating (and favourite where the shell offers it) of every selected tile rides on top of the tag field.
                 Decision = DecisionForEntries?.Invoke(tiles.Select(tile => tile.Entry).ToArray(), initialFocus)
             });
+            // QuickTagPopover owns the session after a successful Open; retain a nullable local so an exception before transfer still disposes it.
+            quick = null;
             origin = popover.Origin;
             shown = popover;
             _selectionTagPopover = popover;
@@ -429,6 +432,7 @@ public sealed partial class MediaPage
         }
         finally
         {
+            quick?.Dispose();
             Release();
             if (!_lifetime.IsCancellationRequested)
             {
