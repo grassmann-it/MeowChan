@@ -66,6 +66,7 @@ public sealed partial class MediaPage
         _booruOpen.Click += (_, _) => InvokeBooruOverflow();
         WorkViewElement.SetId(_booruMode, "media.toolbar.tag-list"); // MP4 (the "Booru mode" switch, since MP5 "Tag list")
         WorkViewElement.SetId(_layoutButton, "media.toolbar.layout"); // MP5
+        WorkViewElement.SetId(_panelToggle, "media.toolbar.panel"); // S-4: direct media-sidebar affordance beside Layout
         WorkViewElement.SetId(_queueWalk, "media.toolbar.queue-walk"); // MP3
         WorkViewElement.SetId(_taggingPageOpen, "media.toolbar.tagging-page");
         WorkViewElement.SetId(_queueAll, "media.toolbar.queue-all"); // QW-A #10: "Add all shown to the tagging queue…" was only in the chip menu and the context menus
@@ -175,6 +176,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true);
         WorkViewGate.Apply(_booruMode, view);
         WorkViewGate.Apply(_layoutButton, view);
+        WorkViewGate.Apply(_panelToggle, view, stateVisible: CanTogglePanel);
         WorkViewGate.Apply(_queueWalk, view, stateVisible: OpenTagQueueWalk != null);
         WorkViewGate.Apply(_taggingPageOpen, view, stateVisible: OpenTaggingPage != null);
         WorkViewGate.Apply(_queueAll, view, stateVisible: AddToTagQueue != null);
@@ -204,7 +206,7 @@ public sealed partial class MediaPage
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
     // A tool the view leaves out of every surface (Hidden) is in no menu, so it neither fills More nor keeps its button alive (MediaToolbarLayout.IsUnderMore).
-    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)
+    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _panelToggle, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)
         .Where(control => MediaToolbarLayout.IsUnderMore(_toolbarLevel, WorkViewElement.GetId(control), WorkViewPolicy.Resolve(WorkViewElement.GetId(control)!, _workView))).ToList();
 
     // The selection line's More: what the view moved there and what the line's width moved there (FitSelectionLine), in policy order.

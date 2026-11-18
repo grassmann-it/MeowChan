@@ -185,6 +185,7 @@ public sealed partial class MediaPage
         ArgumentNullException.ThrowIfNull(layout);
         if (_lifetime.IsCancellationRequested) return;
         _layout = layout.Normalized();
+        SyncPanelToggle();
         SetBooruMode(_layout.TagList, save: false);
         ApplyLayoutPlan();
     }
@@ -198,6 +199,7 @@ public sealed partial class MediaPage
         bool tagListChanged = layout.TagList != _booruModeOn;
         if (layout == _layout && !tagListChanged) return;
         _layout = layout;
+        SyncPanelToggle();
         if (tagListChanged) SetBooruMode(layout.TagList, save: false);
         ApplyLayoutPlan();
         if (save) SaveLayout();

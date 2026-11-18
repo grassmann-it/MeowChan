@@ -186,6 +186,7 @@ public sealed partial class MediaPage : UserControl
         _cacheFile = cachePath == null ? null : new MediaLibraryIndexCacheFile(cachePath);
         Name = "MediaPage";
         InitializeLayoutButton(); // MP5: the "Layout" button of the toolbar (MediaPage.Layout.cs)
+        InitializePanelToggle(); // S-4: keep the media sidebar switch beside the layout action in the right toolbar cluster
         Grid tools = BuildToolbar(); // search and filters left, the order right (MediaPage.Toolbar.cs)
         // The page grid (M1): the head follows the other pages (workspace-page-header owns the 4 dip between title and the first line,
         // margin 12/8/12/8); the lines under it (search row, chips, status, filter section) are 8 apart.
@@ -1427,6 +1428,7 @@ public sealed partial class MediaPage : UserControl
         LocalizeFocus();
         LocalizeBooruMode();
         LocalizeLayout();
+        LocalizePanelToggle();
         LocalizePanel();
         LocalizeQueueTools();
         LocalizeWorkView();
