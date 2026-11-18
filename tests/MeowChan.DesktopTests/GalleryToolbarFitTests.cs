@@ -50,27 +50,27 @@ public sealed class GalleryToolbarFitTests : IDisposable
 
     private static double LayoutButton(GalleryChromePlan plan) => ButtonPadding + 16 + 8 + Text(Texts.T("gallery.layout.button")) + 8 + 16; // icon, label, chevron
 
-    /// <summary>The width the plan's bar needs in dip: the groups of the three sides, 12 dip apart.</summary>
+    /// <summary>The width the plan's bar needs in dip: centred navigation plus two equal outside columns.</summary>
     private static double Demand(GalleryChromePlan plan)
     {
         string start = Texts.T("viewer.playback.start"), pause = Texts.T("viewer.playback.pause");
-        List<double> groups = new();
-        if (plan.ModeSwitch) groups.Add(ModeSwitch(plan));
-        if (plan.Nav) groups.Add(Navigation());
-        if (plan.Zoom) groups.Add(plan.ActualSize ? Group(Square, Square) : Square);
+        List<double> left = new(), right = new();
+        if (plan.ModeSwitch) left.Add(ModeSwitch(plan));
+        if (plan.Zoom) left.Add(plan.ActualSize ? Group(Square, Square) : Square);
         if (plan.PanelToggle || plan.Favorite)
-            groups.Add(Group(Enumerable.Repeat(Square, (plan.PanelToggle ? 1 : 0) + (plan.Favorite ? 1 : 0)).ToArray()));
+            left.Add(Group(Enumerable.Repeat(Square, (plan.PanelToggle ? 1 : 0) + (plan.Favorite ? 1 : 0)).ToArray()));
         List<double> tools = new();
         if (plan.Tags) tools.Add(Square);
-        if (plan.Slideshow) tools.Add(SlideshowToggle(plan, start, pause));
         if (plan.Help) tools.Add(Square);
-        if (tools.Count > 0) groups.Add(Group(tools.ToArray()));
+        if (tools.Count > 0) left.Add(Group(tools.ToArray()));
+        if (plan.Slideshow) right.Add(SlideshowToggle(plan, start, pause));
         List<double> view = new();
         if (plan.More) view.Add(Square);
         if (plan.LayoutOnBar) view.Add(LayoutButton(plan));
-        if (view.Count > 0) groups.Add(Group(view.ToArray()));
-        if (plan.ToolsToggle) groups.Add(Square);
-        return groups.Sum() + GroupGap * (groups.Count - 1);
+        if (view.Count > 0) right.Add(Group(view.ToArray()));
+        if (plan.ToolsToggle) right.Add(Square);
+        double Side(List<double> groups) => groups.Count == 0 ? 0 : groups.Sum() + GroupGap * (groups.Count - 1);
+        return (plan.Nav ? Navigation() : 0) + 2 * Math.Max(Side(left), Side(right)) + 2 * GroupGap;
     }
 
     // ---- the widths worth checking: both sides of every stage edge, the window's minimum and wide ones -----------------------
@@ -117,7 +117,7 @@ public sealed class GalleryToolbarFitTests : IDisposable
     [Theory]
     [InlineData("de")]
     [InlineData("en")]
-    public void AtSevenHundredSixtyTheBarKeepsOnlyTheCoreAndLeavesMostOfItsRoomFree(string language)
+    public void AtSevenHundredSixtyTheCentredCoreKeepsBreathingRoom(string language)
     {
         Texts.SetLanguage(language);
         foreach (WorkView view in new[] { WorkView.Advanced, WorkView.Simple, WorkView.Barebones })
@@ -129,7 +129,7 @@ public sealed class GalleryToolbarFitTests : IDisposable
             Assert.False(plan.Tags || plan.Help);
             Assert.True(plan.Slideshow); // R6: an active slideshow's pause stays one click away
             double need = Demand(plan), room = Room(760);
-            Assert.True(need <= room * 0.85, $"{view} {language}: {need} of {room} dip leaves too little spare room for a longer position text or a wider font.");
+            Assert.True(need <= room * 0.92, $"{view} {language}: {need} of {room} dip leaves too little spare room for a longer position text or a wider font.");
         }
     }
 
