@@ -110,10 +110,9 @@ public sealed class TaggingLayoutRhythmTests
             Check(skipped, TaggingQueueFilter.Open, null, false, TaggingEmptyKind.AllDone, page.EmptyMediaButton);
             Check(open, TaggingQueueFilter.Done, null, false, TaggingEmptyKind.FilterNoHits, page.EmptyShowAllButton);
             Check(open, TaggingQueueFilter.All, group.Id, false, TaggingEmptyKind.GroupEmpty, page.EmptyShowAllButton);
-            // Neighbouring defect: empty "Without group" currently classifies as FilterNoHits (CountFor(null) counts the whole queue).
-            // Preserve that classifier here; both empty states must still have only one recommendation.
+            // An all-grouped queue has an empty "Without group" scope, so it uses the group-empty recommendation.
             Check(new TagQueueSnapshot(1, 0, Array.Empty<string>(), new[] { Item() with { GroupId = group.Id } }, TagQueueLoadState.Ready, new[] { group }), TaggingQueueFilter.All, null, true,
-                TaggingEmptyKind.FilterNoHits, page.EmptyShowAllButton);
+                TaggingEmptyKind.GroupEmpty, page.EmptyShowAllButton);
             RenderSnapshot(page, open);
             Assert.True(page.StartButton.Classes.Contains("primary"));
             Assert.False(page.EmptyMediaButton.Classes.Contains("primary"));

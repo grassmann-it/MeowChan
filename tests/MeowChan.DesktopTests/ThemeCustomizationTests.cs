@@ -182,11 +182,23 @@ public sealed class ThemeCustomizationTests
     }
 
     [Fact]
-    public void AWeakBorderOnlyWarns()
+    public void AWeakBorderIsRefusedWhenItMakesTheSwitchKnobUnreadable()
     {
         ThemePreview preview = ThemeCustomization.Preview(Base(ThemeTokenTheme.Dark), Seeds(("Workspace.ControlBorder", "#30353C")));
-        Assert.True(preview.Accepted);
-        Assert.Empty(preview.Contrast.Errors);
+        Assert.False(preview.Accepted);
+        Assert.Equal(3, preview.Contrast.Errors.Count);
+        Assert.Equal(new[]
+        {
+            "ToggleSwitchContainerUnCheckedDefaultBackground",
+            "ToggleSwitchContainerUnCheckedPointeroverBackground",
+            "ToggleSwitchContainerUnCheckedPressedBackground"
+        }, preview.Contrast.Errors.Select(issue => issue.Background).ToArray());
+        Assert.All(preview.Contrast.Errors, issue => Assert.True(issue is
+        {
+            Foreground: "ToggleSwitchIndicatorBackground",
+            Required: 4.5,
+            Kind: ContrastFailureKind.InsufficientContrast
+        }));
         ThemeContrastIssue issue = Assert.Single(preview.Contrast.Warnings, issue => issue is { Foreground: "Workspace.ControlBorder", Background: "Workspace.Panel" });
         Assert.Equal(ThemeContrastSeverity.Warning, issue.Severity);
         Assert.Equal(ContrastGate.GraphicMinimum, issue.Required);

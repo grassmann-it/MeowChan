@@ -29,6 +29,23 @@ internal static class BooruComponentDispatcher
         failure?.Throw();
     }
 
+    // Async component work must be waited for on the owner thread. A synchronous Result/Wait
+    // would block the dispatcher that the continuation needs, which is especially visible on
+    // slower ARM runners. Pump only this owned dispatcher; the outer Run join still owns the
+    // lifetime and bounds a genuinely stuck component.
+    internal static T Wait<T>(Task<T> task)
+    {
+        ArgumentNullException.ThrowIfNull(task);
+        Dispatcher owner = Dispatcher.UIThread;
+        owner.VerifyAccess();
+        while (!task.IsCompleted)
+        {
+            owner.RunJobs();
+            Thread.Yield();
+        }
+        return task.GetAwaiter().GetResult();
+    }
+
     private static void RunOnOwnedDispatcher(Action test)
     {
         FieldInfo primary = Field(typeof(Dispatcher), "s_uiThread");
