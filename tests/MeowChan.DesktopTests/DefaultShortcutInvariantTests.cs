@@ -202,7 +202,7 @@ public sealed class DefaultShortcutInvariantTests
         {
             ("S", new[] { "tagging.mark-skipped", "tags.queue.skip" }),
             ("Primary+Enter", new[] { "tags.queue.done-next", "tags.quick.commit-next" }),
-            ("Enter", new[] { "media.open", "reader.media.activate", "tagging.continue-here", "thread.read" })
+            ("Enter", new[] { "gallery.open", "reader.media.activate", "tagging.continue-here", "thread.read" })
         })
         {
             var key = ShortcutGesture.Parse(gesture).Resolve(platform);

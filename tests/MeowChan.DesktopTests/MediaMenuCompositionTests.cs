@@ -35,11 +35,9 @@ public sealed class MediaMenuCompositionTests : IDisposable
     {
         string[] expected = { "gallery.open", "favorites.toggle", "media.rating.edit", "media.queue.add", "media.export-original",
             "media.show-in-folder", "media.copy-path", "media.details", "gallery.show-in-thread" };
-        foreach (MediaMenuSurface surface in All.Where(item => item is not (MediaMenuSurface.MediaPage or MediaMenuSurface.Gallery or MediaMenuSurface.NativeVideoOverlay)))
+        // The media page opens with the same single gallery command (Enter) as every other surface.
+        foreach (MediaMenuSurface surface in All.Where(item => item is not (MediaMenuSurface.Gallery or MediaMenuSurface.NativeVideoOverlay)))
             Assert.Equal(expected, Ids(MediaMenuComposition.Compose(Full(surface))));
-        // The media page's open command is its own (Enter), the entry stays the same action in the same place.
-        Assert.Equal(expected.Select(id => id == "gallery.open" ? "media.open" : id),
-            Ids(MediaMenuComposition.Compose(Full(MediaMenuSurface.MediaPage))));
         // The gallery is the open gallery: everything else, in the same order.
         foreach (MediaMenuSurface surface in new[] { MediaMenuSurface.Gallery, MediaMenuSurface.NativeVideoOverlay })
             Assert.Equal(expected.Skip(1), Ids(MediaMenuComposition.Compose(Full(surface))));
