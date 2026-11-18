@@ -195,7 +195,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         foreach (bool externalRoot in new[] { false, true })
         foreach (bool postOverlay in new[] { false, true })
         {
-            GalleryViewer viewer = new();
+            await using GalleryViewer viewer = new();
             viewer.Configure(contextOpen: true, showShortcutHelp: true, videoAutoplay: false,
                 videoStartMuted: true, videoVolume: 0);
             if (externalRoot) ShellErrorSet(viewer, "_nativeOverlayActive", true);
@@ -342,7 +342,7 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         // Two real layout roots, even on software-video platforms. This isolates
         // terminal transport ownership from codecs and native audio availability.
-        GalleryVideoPlayer player = new();
+        await using GalleryVideoPlayer player = new();
         StackPanel external = new();
         Window host = new() { Width = 700, Height = 400, Content = player,
             Title = "Private transport retirement host" };
@@ -547,8 +547,6 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         string profile = TemporaryWorkspacePaths.CreateDirectory("meowchan-gallery-shell-errors-");
         string language = Texts.Language;
-        DesktopSessionHost? host = null;
-        MainWindow? shell = null;
         string settings = Path.Combine(profile, "settings.json");
         try
         {
@@ -561,71 +559,73 @@ internal static partial class GalleryPlaybackFeatureChecks
                 GalleryPlaybackMode = "Manual", GalleryContextOpen = false,
                 GalleryOverlayControls = false, GalleryAutoHideControls = false
             }.SaveConfig(profile);
-            host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
-            shell.Show(owner); shell.Activate();
-            await host.StartAsync().WaitAsync(Deadline);
-            await UntilAsync(() => shell.IsActive && shell.FindControl<Button>("AddUrlButton")!.IsEnabled
-                && ShellErrorField<bool>(shell, "_windowPreferencesReady"), "Child shell did not reach real Ready.");
-            ShellErrorStopTimers(shell);
-            await ((Task)ShellErrorCall(shell, "FlushWindowPreferencesAsync")!).WaitAsync(Deadline);
-            await host.FlushPreferencesAsync().WaitAsync(Deadline);
-            // Prevent unrelated geometry writes from retrying/merging the fault under test.
-            ShellErrorSet(shell, "_windowPreferencesReady", false);
-            ShellErrorStopTimers(shell);
-            await UntilAsync(() => host.PreferenceWriteCounts.Active == 0 && host.PreferenceWriteCounts.Pending == 0,
-                "Child shell startup preferences did not drain.");
-            await shell.OpenMediaGalleryLaidOutAsync([clip], clip.EntryKey).WaitAsync(Deadline);
-            GalleryViewer viewer = ShellErrorField<GalleryViewer>(shell, "_gallery");
-            GalleryVideoPlayer player = Player(viewer);
-            long? lastReadinessLog = null;
-            await UntilAsync(async () =>
+            await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+            await using MainWindow shell = new(host);
+            try
             {
-                var state = await player.InspectPlaybackAsync();
-                // Windows video chrome is hosted in its own owned native window.
-                // That valid input root can be active instead of the shell; do not
-                // misreport that focus handoff as missing audio readiness.
-                bool activeInput = shell.IsEnabled && viewer.IsEffectivelyVisible && viewer.IsEffectivelyEnabled
-                    && (shell.IsActive || shell.OwnedWindows.Any(window => viewer.OwnsOverlayWindow(window)
-                        && window.IsVisible && window.IsEnabled && window.IsActive));
-                bool decoded = HasRealFrames(state) && state.Time >= 500;
-                bool audio = state.AudioAvailable
-                    || state.AudioTracks > 0 && state.DecodedAudio > 0 && state.PlayedAudioBuffers == 0;
-                if (lastReadinessLog == null || System.Diagnostics.Stopwatch.GetElapsedTime(lastReadinessLog.Value).TotalSeconds >= 1
-                    || activeInput && decoded && audio)
+                shell.Show(owner); shell.Activate();
+                await host.StartAsync().WaitAsync(Deadline);
+                await UntilAsync(() => shell.IsActive && shell.FindControl<Button>("AddUrlButton")!.IsEnabled
+                    && ShellErrorField<bool>(shell, "_windowPreferencesReady"), "Child shell did not reach real Ready.");
+                ShellErrorStopTimers(shell);
+                await ((Task)ShellErrorCall(shell, "FlushWindowPreferencesAsync")!).WaitAsync(Deadline);
+                await host.FlushPreferencesAsync().WaitAsync(Deadline);
+                // Prevent unrelated geometry writes from retrying/merging the fault under test.
+                ShellErrorSet(shell, "_windowPreferencesReady", false);
+                ShellErrorStopTimers(shell);
+                await UntilAsync(() => host.PreferenceWriteCounts.Active == 0 && host.PreferenceWriteCounts.Pending == 0,
+                    "Child shell startup preferences did not drain.");
+                await shell.OpenMediaGalleryLaidOutAsync([clip], clip.EntryKey).WaitAsync(Deadline);
+                GalleryViewer viewer = ShellErrorField<GalleryViewer>(shell, "_gallery");
+                GalleryVideoPlayer player = Player(viewer);
+                long? lastReadinessLog = null;
+                await UntilAsync(async () =>
                 {
-                    lastReadinessLog = System.Diagnostics.Stopwatch.GetTimestamp();
-                    Console.WriteLine("SMOKE gallery-shell readiness: " + System.Text.Json.JsonSerializer.Serialize(new
+                    var state = await player.InspectPlaybackAsync();
+                    // Windows video chrome is hosted in its own owned native window.
+                    // That valid input root can be active instead of the shell; do not
+                    // misreport that focus handoff as missing audio readiness.
+                    bool activeInput = shell.IsEnabled && viewer.IsEffectivelyVisible && viewer.IsEffectivelyEnabled
+                        && (shell.IsActive || shell.OwnedWindows.Any(window => viewer.OwnsOverlayWindow(window)
+                            && window.IsVisible && window.IsEnabled && window.IsActive));
+                    bool decoded = HasRealFrames(state) && state.Time >= 500;
+                    bool audio = state.AudioAvailable
+                        || state.AudioTracks > 0 && state.DecodedAudio > 0 && state.PlayedAudioBuffers == 0;
+                    if (lastReadinessLog == null || System.Diagnostics.Stopwatch.GetElapsedTime(lastReadinessLog.Value).TotalSeconds >= 1
+                        || activeInput && decoded && audio)
                     {
-                        pausedCase = paused, shellActive = shell.IsActive, activeInput, decoded, audio,
-                        ownedRoots = shell.OwnedWindows.Select(window => new
-                        { overlay = viewer.OwnsOverlayWindow(window), window.IsActive, window.IsVisible, window.IsEnabled }).ToArray(),
-                        playback = state
-                    }));
+                        lastReadinessLog = System.Diagnostics.Stopwatch.GetTimestamp();
+                        Console.WriteLine("SMOKE gallery-shell readiness: " + System.Text.Json.JsonSerializer.Serialize(new
+                        {
+                            pausedCase = paused, shellActive = shell.IsActive, activeInput, decoded, audio,
+                            ownedRoots = shell.OwnedWindows.Select(window => new
+                            { overlay = viewer.OwnsOverlayWindow(window), window.IsActive, window.IsVisible, window.IsEnabled }).ToArray(),
+                            playback = state
+                        }));
+                    }
+                    return activeInput && decoded && audio;
+                }, "Shell fixture readiness failed; inspect gallery-shell readiness records for input ownership, video and audio evidence.");
+                if (paused)
+                {
+                    Click(Find<Button>(viewer, "GalleryVideoPlayPause"));
+                    await UntilAsync(async () => (await player.InspectPlaybackAsync()).State == "Paused", "Shell fixture did not pause.");
                 }
-                return activeInput && decoded && audio;
-            }, "Shell fixture readiness failed; inspect gallery-shell readiness records for input ownership, video and audio evidence.");
-            if (paused)
-            {
-                Click(Find<Button>(viewer, "GalleryVideoPlayPause"));
-                await UntilAsync(async () => (await player.InspectPlaybackAsync()).State == "Paused", "Shell fixture did not pause.");
+                string expected = paused ? "Paused" : "Playing";
+                await CheckRealShellPreferenceFailureAsync(shell, host, viewer, player, settings, expected);
+                await CheckRealShellReaderReturnAsync(shell, viewer, player, expected);
             }
-            string expected = paused ? "Paused" : "Playing";
-            await CheckRealShellPreferenceFailureAsync(shell, host, viewer, player, settings, expected);
-            await CheckRealShellReaderReturnAsync(shell, viewer, player, expected);
+            finally
+            {
+                // Only this newly created profile's path is faulted. Remove the owned empty
+                // directory before shutdown so final flush can retry, even after an assertion.
+                if (Directory.Exists(settings)) Directory.Delete(settings);
+                ShellErrorStopTimers(shell);
+                try { await ((Task)ShellErrorCall(shell, "FlushGalleryPreferencesAsync")!).WaitAsync(Deadline); }
+                finally { await ((Task)ShellErrorCall(shell, "CloseApplicationAsync")!).WaitAsync(Deadline); }
+            }
         }
         finally
         {
-            // Only this newly created profile's path is faulted. Remove the owned empty
-            // directory before shutdown so final flush can retry, even after an assertion.
-            if (Directory.Exists(settings)) Directory.Delete(settings);
-            if (shell != null)
-            {
-                ShellErrorStopTimers(shell);
-                try { await ((Task)ShellErrorCall(shell, "FlushGalleryPreferencesAsync")!).WaitAsync(Deadline); }
-                finally { await ((Task)ShellErrorCall(shell, "CloseApplicationAsync")!).WaitAsync(Deadline); await shell.DisposeAsync(); }
-            }
-            if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
             Texts.SetLanguage(language);
             ShortcutService.Publish(owner.SessionHost.Config.ShortcutBindings);
             Directory.Delete(profile, recursive: true);

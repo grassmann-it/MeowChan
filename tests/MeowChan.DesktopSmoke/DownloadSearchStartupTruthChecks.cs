@@ -100,7 +100,7 @@ internal static class DownloadSearchStartupTruthChecks
             string profile = Path.Combine(root, "cases", cache);
             Seed(profile, cache);
             StartupPreviewBarrier barrier = new(), readable = new();
-            DesktopSessionHost host = app.CreateHost(profile, barrier, false, out var store);
+            await using DesktopSessionHost host = app.CreateHost(profile, barrier, false, out var store);
             host.AfterCatalogReadableForTests = readable.HoldAsync;
             await using MainWindow child = new(host);
             try
@@ -293,7 +293,7 @@ internal static class DownloadSearchStartupTruthChecks
         string profile = Path.Combine(owner.SessionHost.ProfileDirectory, "cases", fail ? "failed" : "stopping");
         Seed(profile, "truncated");
         StartupPreviewBarrier barrier = new() { HoldCancellationDrain = !fail };
-        DesktopSessionHost host = app.CreateHost(profile, barrier, fail, out var store);
+        await using DesktopSessionHost host = app.CreateHost(profile, barrier, fail, out var store);
         await using MainWindow child = new(host);
         try
         {

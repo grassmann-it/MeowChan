@@ -306,7 +306,8 @@ internal static class StartupPreviewChecks
         string profile = CaseProfile(owner.SessionHost.ProfileDirectory, name);
         byte[] before = File.ReadAllBytes(CachePath(profile));
         StartupPreviewBarrier barrier = new() { HoldCancellationDrain = !failRestore };
-        DesktopSessionHost host = app.CreateHost(profile, barrier, failRestore, out var store);
+        await using DesktopSessionHost ownedHost = app.CreateHost(profile, barrier, failRestore, out var store);
+        DesktopSessionHost host = ownedHost;
         await using MainWindow window = new(host);
         window.Show(owner);
         try
@@ -390,7 +391,8 @@ internal static class StartupPreviewChecks
         string profile = CaseProfile(owner.SessionHost.ProfileDirectory, name);
         byte[] before = File.ReadAllBytes(CachePath(profile));
         StartupPreviewBarrier barrier = new();
-        DesktopSessionHost host = app.CreateHost(profile, barrier, false, out var store);
+        await using DesktopSessionHost ownedHost = app.CreateHost(profile, barrier, false, out var store);
+        DesktopSessionHost host = ownedHost;
         await using MainWindow window = new(host);
         window.Show(owner);
         try

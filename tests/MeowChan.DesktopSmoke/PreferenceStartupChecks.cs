@@ -76,8 +76,7 @@ internal static class PreferenceStartupChecks
             await using DesktopSessionHost ownedHost = new(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
             host = ownedHost;
             Require(host.Config.Origin == ProfileOrigin.ExistingValid, "Fixture did not bind a valid existing origin.");
-            await using MainWindow ownedShell = new(host); // Real shell owns StartAsync, event wiring and debounced saves.
-            shell = ownedShell;
+            shell = new MainWindow(host); // Real shell owns StartAsync, event wiring and debounced saves.
             shell.Show(owner);
             await restore.Entered.Task.WaitAsync(Deadline, token);
             await UntilAsync(() => shell.IsVisible && Get<bool>(shell, "_windowPreferencesReady")
@@ -145,13 +144,15 @@ internal static class PreferenceStartupChecks
 
             double persistedWidth = column.Width.Value;
             await CloseAsync(shell).WaitAsync(Deadline, token);
-            await host.DisposeAsync().AsTask().WaitAsync(Deadline, token);
+            await shell.DisposeAsync().AsTask().WaitAsync(Deadline, token);
             Require(!shell.IsVisible && host.State == DesktopSessionState.Stopped, "First shell did not close cleanly.");
+            shell = null;
+            host = null;
             using (ProfileLease released = ProfileLease.Acquire(directory)) { }
-            await using DesktopSessionHost reopenedHost = new(directory, Array.Empty<IImageBoard>());
-            host = reopenedHost;
-            await using MainWindow reopenedShell = new(host);
-            shell = reopenedShell;
+            await using DesktopSessionHost ownedHostSecond = new(directory, Array.Empty<IImageBoard>());
+            host = ownedHostSecond;
+            await using MainWindow ownedShellSecond = new(host);
+            shell = ownedShellSecond;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Deadline, token);
             await UntilAsync(() => shell.IsVisible && Get<bool>(shell, "_windowPreferencesReady")
@@ -176,6 +177,8 @@ internal static class PreferenceStartupChecks
             restore.Release.TrySetResult(new(new SessionSnapshot(), null, false));
             if (shell != null)
                 try { await CloseAsync(shell).WaitAsync(Deadline, token); } catch (Exception error) { cleanupFailures.Add(error); }
+            if (shell != null)
+                try { await shell.DisposeAsync().AsTask().WaitAsync(Deadline, CancellationToken.None); } catch (Exception error) { cleanupFailures.Add(error); }
             if (host != null)
                 try { await host.DisposeAsync().AsTask().WaitAsync(Deadline, CancellationToken.None); } catch (Exception error) { cleanupFailures.Add(error); }
             if ((host == null || host.IsProfileReleased) && (shell == null || !shell.IsVisible))

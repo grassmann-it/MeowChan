@@ -166,6 +166,7 @@ internal sealed class MediaTagSidebar : UserControl
         if (items.SequenceEqual(_items)) return;
         string? selected = (_list.SelectedItem as MediaTagListItem)?.Identity;
         bool focused = _list.IsKeyboardFocusWithin;
+        Control? focusedElement = focused ? TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Control : null;
         _items = items;
         _list.ItemsSource = items;
         if (selected == null) return;
@@ -176,7 +177,11 @@ internal sealed class MediaTagSidebar : UserControl
         // The containers are replaced with the rows: keyboard focus goes back on the same row once it is laid out.
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_list.IsEffectivelyVisible || _list.SelectedIndex != index) return;
+            if (!_list.IsEffectivelyVisible || _list.SelectedIndex != index
+                || (_list.SelectedItem as MediaTagListItem)?.Identity != selected) return;
+            object? current = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement();
+            if (current is Control currentControl && !ReferenceEquals(currentControl, focusedElement)
+                && !ReferenceEquals(currentControl, _list) && RowAt(currentControl)?.Identity != selected) return;
             _list.ScrollIntoView(index);
             (_list.ContainerFromIndex(index) ?? (Control)_list).Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);

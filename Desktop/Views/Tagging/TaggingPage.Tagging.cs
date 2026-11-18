@@ -71,7 +71,7 @@ public sealed partial class TaggingPage
         TagContext context = TagContextFor(taggable.Contains(lead) ? lead : taggable[0], selection: together);
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
         options = options with { Stamp = _queueWork.StampForActiveScope() };
-        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+        QuickTagSession? quick = null;
         string label = together ? Texts.T("media.selection.count", tiles.Count) : taggable[0].Name;
         _tagBusy = true;
         UpdateActions();
@@ -89,7 +89,8 @@ public sealed partial class TaggingPage
         }
         try
         {
-            QuickTagPopover popover = QuickTagPopover.Open(host, quick, label, options with
+            quick = options.NewSession(QuickTagTarget.For(session));
+            QuickTagPopoverOptions openOptions = options with
             {
                 ReadSourceTags = ReadBooruCatalog,
                 IsCurrent = () => !_queueWork.Ended && IsEffectivelyVisible,
@@ -98,7 +99,15 @@ public sealed partial class TaggingPage
                 Name = "TaggingTagPopover",
                 // R: the stars of the selected entries on top; the tag field takes focus (a Danbooru medium can be rated though it takes no own tags).
                 Decision = includeRating ? DecisionForEntries?.Invoke(Selected.Select(row => row.Item.ToLibraryEntry()).ToArray(), QuickTagInitialFocus.TagInput) : null
-            });
+            };
+            QuickTagPopover popover;
+            try { popover = QuickTagPopover.Open(host, quick, label, openOptions); }
+            catch
+            {
+                quick = null;
+                throw;
+            }
+            quick = null;
             shown = popover;
             _tagPopover = popover;
             popover.WhenClosed(Release);
@@ -106,6 +115,7 @@ public sealed partial class TaggingPage
         }
         finally
         {
+            quick?.Dispose();
             Release();
             // The new tags show in the counts at once; a popover opened again in the meantime keeps its anchor until it closed.
             if (!_queueWork.Ended && session.Changed)
