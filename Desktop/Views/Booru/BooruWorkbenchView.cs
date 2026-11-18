@@ -821,11 +821,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         WrapPanel actions = new() { Name = "BooruResultActions:" + post.PostId, Classes = { "workspace-toolbar" } };
         actions.Children.Add(load);
         if (BooruPostLinks.TryCanonical(post, out string canonical))
-        {
-            WrapPanel links = (WrapPanel)CreateLinkActions(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
-                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions);
-            foreach (Control link in links.Children) actions.Children.Add(link);
-        }
+            foreach (Button link in CreateLinkButtons(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
+                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions))
+                actions.Children.Add(link);
         info.Children.Add(actions);
 
         if (BooruText.Load(row) is { } loadText)
@@ -884,6 +882,16 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ICollection<Button> workViewActions)
     {
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
+        foreach (Button button in CreateLinkButtons(openName, copyName, url, openAccessibleName, copyAccessibleName, workViewActions))
+            actions.Children.Add(button);
+        return actions;
+    }
+
+    // The buttons without a panel of their own: a card that already has a toolbar adds them to it. Handing out the panel's children instead
+    // would reparent controls that still belong to it, which Avalonia refuses ("already has a visual parent").
+    private IReadOnlyList<Button> CreateLinkButtons(string openName, string copyName, string url, string openAccessibleName, string copyAccessibleName,
+        ICollection<Button> workViewActions)
+    {
         Button open = new() { Name = openName, Content = Texts.T("booru.ui.post.open") };
         open.Classes.Add("ghost");
         CommandBindings.ShowIconBeforeText(open, "external-link");
@@ -898,9 +906,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         AutomationProperties.SetName(copy, copyAccessibleName);
         ToolTip.SetTip(copy, url);
         copy.Click += async (_, _) => await CopyLinkAsync(url);
-        actions.Children.Add(open);
-        actions.Children.Add(copy);
-        return actions;
+        return new[] { open, copy };
     }
 
     private async Task OpenLinkAsync(string url)

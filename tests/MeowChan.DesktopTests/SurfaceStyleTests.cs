@@ -76,7 +76,9 @@ public sealed class SurfaceStyleTests
         string viewer = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.Viewer.cs"));
         Assert.Contains("ColumnDefinitions = new ColumnDefinitions(\"Auto,*\")", view);
         Assert.Contains("""Name = "BooruResultActions:" + post.PostId""", view);
-        Assert.Contains("foreach (Control link in links.Children) actions.Children.Add(link);", view);
+        // The link buttons join the card's one action row unparented; moving a panel's children would reparent attached controls.
+        Assert.Contains("foreach (Button link in CreateLinkButtons(", view);
+        Assert.DoesNotContain("links.Children", view);
         Assert.DoesNotContain("Grid.SetColumn(load, 2)", view);
         Assert.Contains("""Name = "BooruViewerActions:" + postId""", viewer);
         Assert.Contains("open.Classes.Add(\"ghost\")", viewer);
