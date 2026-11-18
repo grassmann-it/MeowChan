@@ -224,7 +224,7 @@ public partial class ArchivePage
         InitializeReaderThreadKeys();
         foreach (Control media in new Control[] { ArchiveMediaTiles, ArchiveMediaGrid })
         {
-            CommandBindings.BindExisting(media, "media.open");
+            CommandBindings.BindExisting(media, "gallery.open");
             media.AddHandler(KeyDownEvent, OnMediaKeyDown, RoutingStrategies.Tunnel);
         }
         bool subscribed = false;

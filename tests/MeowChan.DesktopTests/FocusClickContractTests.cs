@@ -91,7 +91,7 @@ public sealed class FocusClickContractTests
         Before(body, "TargetForMenu(RowAt(e.Source))", "OpenSharedMediaMenu(row, origin)");
         string target = Method("Desktop/Views/Media/MediaPage.cs", "TargetForMenu");
         Before(target, "_grid.Selection.IsSelected(row.Index)) return row;", "_grid.SelectedItem = row");
-        Assert.DoesNotContain("_grid.Selection.Clear()", target);
+        Assert.DoesNotContain("_grid.Selection.Clear()", target); // no transient empty selection/recycled menu origin
         string menu = Method("Desktop/Views/Media/MediaPage.cs", "OpenSharedMediaMenu");
         Assert.Contains("HashSet<int> selection = _grid.Selection.SelectedIndexes.ToHashSet();", menu);
         Assert.Contains("selection.SetEquals(_grid.Selection.SelectedIndexes)", menu);

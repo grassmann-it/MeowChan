@@ -163,7 +163,9 @@ public sealed class CountAndSizeTextTests : IDisposable
     [InlineData("es", 1, "one")] [InlineData("es", 0, "other")]
     [InlineData("fr", 0, "one")] [InlineData("fr", 1, "one")] [InlineData("fr", 2, "other")]
     [InlineData("ru", 1, "one")] [InlineData("ru", 3, "few")] [InlineData("ru", 0, "many")] [InlineData("ru", 12, "many")] [InlineData("ru", 22, "few")]
-    [InlineData("ru", -1, "one")] [InlineData("pl", 5, "many")] [InlineData("cs", 3, "few")] [InlineData("ja", 1, "other")]
+    [InlineData("ru", -1, "one")] [InlineData("ru", long.MinValue, "many")]
+    [InlineData("pl", 5, "many")] [InlineData("pl", long.MinValue, "many")]
+    [InlineData("cs", 3, "few")] [InlineData("cs", long.MinValue, "other")] [InlineData("ja", 1, "other")]
     // CLDR cardinal examples (integers). zh-Hans/ja: no plural forms, every count is "other".
     [InlineData("zh-Hans", 0, "other")] [InlineData("zh-Hans", 1, "other")] [InlineData("zh-Hans", 2, "other")] [InlineData("zh-Hans", 100, "other")]
     [InlineData("zh", 1, "other")] [InlineData("ja", 0, "other")] [InlineData("ja", 2, "other")] [InlineData("ja", 1000, "other")]

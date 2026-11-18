@@ -88,6 +88,17 @@ public sealed class ReaderGalleryShortcutParityTests
         Assert.Contains("!previewGalleryKey && !CommandBindings.Matches(e, \"gallery.open\")", source);
     }
 
+    [Fact]
+    public void ReaderMediaListsUseTheReaderGalleryCommandForBothPresentationAndRouting()
+    {
+        string reader = Source("ArchivePage.Reader.cs");
+        string gallery = Source("ArchivePage.Gallery.cs");
+        Assert.Contains("CommandBindings.BindExisting(media, \"gallery.open\")", reader);
+        Assert.DoesNotContain("CommandBindings.BindExisting(media, \"media.open\")", reader);
+        Assert.Contains("CommandBindings.Matches(e, \"gallery.open\")", gallery);
+        Assert.DoesNotContain("CommandBindings.Matches(e, \"media.open\")", gallery);
+    }
+
     [Theory, MemberData(nameof(Platforms))]
     public void GalleryFocus_QueueAndVideoBindingsStayAvailable(ShortcutPlatform platform)
     {
