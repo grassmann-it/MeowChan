@@ -244,7 +244,7 @@ internal sealed partial class GalleryViewer
     // away; otherwise it is one of the menu rows.
     private void PlaceSlideshowToggle()
     {
-        if (_slideshowToggle == null || _focusTools == null || _slideshowHome == null || _slideshow == null) return;
+        if (_slideshowToggle == null || _viewTools == null || _slideshowHome == null || _slideshow == null) return;
         // Chosen or running (R6) or put on the bar by the work view (Simple, Advanced); Barebones keeps it under More until then.
         bool inline = SlideshowOnBarByView;
         bool inMenu = _slideshowToggle.Tag is OverflowItem;
@@ -261,10 +261,9 @@ internal sealed partial class GalleryViewer
             StyleAsOverflowRow(_slideshowToggle, false);
             _slideshowToggle.Classes.Set("split-main", true); // the main half of the split button: same height and joined edge as the menu button
             _slideshowToggle.Content = name;
-            // G2: one split control (the toggle and its menu button) in the group that survives collapsed tools (GL5d: the tools toggle
-            // moved to the right side of the bar, so the split control heads its group).
+            // G2: one split control (the toggle and its menu button), immediately before More on the right side of the bar.
             _slideshowSplit.Children.Insert(0, _slideshowToggle);
-            _focusTools.Children.Insert(0, _slideshowSplit);
+            _viewTools.Children.Insert(_viewTools.Children.IndexOf(_overflowButton), _slideshowSplit);
         }
         else
         {

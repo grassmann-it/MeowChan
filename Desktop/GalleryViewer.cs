@@ -339,10 +339,10 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         Grid root = _visualRoot;
-        // GL5d (UX spec S1): one row that never wraps, as a grid "left · middle · right": the mode switch and the arrows with the position on
-        // the left, the zoom, the media tools, the view's tools and the slideshow in the middle, "More", the tools toggle and the layout
-        // button on the right. What does not fit leaves in the plan's overflow order (GalleryChromePlan, S2), never by wrapping.
-        Grid toolbar = new() { Name = "GalleryToolbar", ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12, VerticalAlignment = VerticalAlignment.Center };
+        // GL5d (UX spec S1): one row that never wraps, as a grid "left · navigation · right": the equal outside columns keep the arrows
+        // and position exactly centred; mode and media tools stay left, slideshow, More, layout and the tools toggle stay right.
+        // What does not fit leaves in the plan's overflow order (GalleryChromePlan, S2), never by wrapping.
+        Grid toolbar = new() { Name = "GalleryToolbar", ColumnDefinitions = new ColumnDefinitions("*,Auto,*"), ColumnSpacing = 12, VerticalAlignment = VerticalAlignment.Center };
         StackPanel Side(string name, int column, HorizontalAlignment align)
         {
             StackPanel side = new() { Name = name, Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = align, VerticalAlignment = VerticalAlignment.Center };
@@ -352,6 +352,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
         StackPanel leftSide = Side("GalleryToolbarLeft", 0, HorizontalAlignment.Left), middleSide = Side("GalleryToolbarMiddle", 1, HorizontalAlignment.Center),
             rightSide = Side("GalleryToolbarRight", 2, HorizontalAlignment.Right);
+        Grid.SetColumn(middleSide, 0);
+        Grid.SetColumnSpan(middleSide, 3);
         StackPanel ToolGroup(string name, StackPanel side)
         {
             StackPanel group = new() { Name = name, Classes = { "workspace-tool-group" } };
@@ -360,12 +362,12 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
         // G1: the mode switch "View | Tag" comes first; the rest of the bar follows the mode (GalleryViewer.Chrome.cs).
         InitializeModeSwitch(ToolGroup("GalleryModeTools", leftSide));
-        StackPanel navigation = _navigationTools = ToolGroup("GalleryNavigationTools", leftSide);
-        StackPanel zoom = _zoomTools = ToolGroup("GalleryZoomTools", middleSide);
-        StackPanel media = _mediaTools = ToolGroup("GalleryMediaTools", middleSide);
+        StackPanel navigation = _navigationTools = ToolGroup("GalleryNavigationTools", middleSide);
+        StackPanel zoom = _zoomTools = ToolGroup("GalleryZoomTools", leftSide);
+        StackPanel media = _mediaTools = ToolGroup("GalleryMediaTools", leftSide);
         // The tools a work view brings onto the bar (rating, tags, slideshow numbers, mode, help): a group of its own, away from
         // the favourite and the way back; empty (hidden) in Barebones.
-        _workViewTools = ToolGroup("GalleryWorkViewTools", middleSide);
+        _workViewTools = ToolGroup("GalleryWorkViewTools", leftSide);
         StackPanel view = _viewTools = ToolGroup("GalleryViewTools", rightSide);
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
         // The way back is not a toolbar button: it floats at the top LEFT edge of the picture, before everything else (Tom's rule of
@@ -411,7 +413,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _saveFrame = Command(_overflowPanel, "GallerySaveFrame", CommandCatalog.Label("video.snapshot"), RequestSaveFrame, overflow: true);
         _saveFrame.IsEnabled = false; // Only a shown video has a frame to save.
         _secondaryTools.AddRange(new Control[] { zoom, media, view });
-        _focusTools = ToolGroup("GalleryFocusTools", middleSide);
+        _focusTools = ToolGroup("GalleryFocusTools", leftSide);
         // The tools toggle is the far right of the bar in a group of its own: the secondary groups (with "More" and the layout button)
         // go away in focus mode, the toggle must stay.
         StackPanel toggleGroup = ToolGroup("GalleryToolsToggleGroup", rightSide);
