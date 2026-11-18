@@ -4816,7 +4816,6 @@
     "media.layout.size.large": "큰 타일",
     "media.layout.preset.standard": "표준",
     "media.layout.preset.booru": "Booru 보기",
-    "media.layout.preset.grid": "그리드만",
     "media.layout.preset.gridSidebar": "그리드 + 미디어 사이드바",
     "media.layout.reset": "레이아웃 초기화",
     "media.layout.resize": "끌어서 태그 목록의 너비를 바꿉니다. 이 가장자리에 포커스가 있으면 화살표 키도 사용할 수 있습니다",

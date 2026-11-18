@@ -4806,7 +4806,6 @@
     "media.layout.size.large": "Крупные плитки",
     "media.layout.preset.standard": "Стандартный",
     "media.layout.preset.booru": "Вид Booru",
-    "media.layout.preset.grid": "Только сетка",
     "media.layout.preset.gridSidebar": "Сетка + боковая панель медиа",
     "media.layout.reset": "Сбросить раскладку",
     "media.layout.resize": "Перетащите, чтобы изменить ширину списка тегов, или используйте клавиши со стрелками, когда фокус на этом краю",

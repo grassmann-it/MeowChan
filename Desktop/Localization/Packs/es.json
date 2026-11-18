@@ -4786,7 +4786,6 @@
     "media.layout.size.large": "Miniaturas grandes",
     "media.layout.preset.standard": "Estándar",
     "media.layout.preset.booru": "Vista Booru",
-    "media.layout.preset.grid": "Solo cuadrícula",
     "media.layout.preset.gridSidebar": "Cuadrícula + barra lateral de medios",
     "media.layout.reset": "Restablecer el diseño",
     "media.layout.resize": "Arrastre para cambiar el ancho de la lista de etiquetas, o use las teclas de flecha cuando este borde tenga el foco",

@@ -4816,7 +4816,6 @@
     "media.layout.size.large": "大图块",
     "media.layout.preset.standard": "标准",
     "media.layout.preset.booru": "Booru 视图",
-    "media.layout.preset.grid": "仅网格",
     "media.layout.preset.gridSidebar": "网格 + 媒体侧栏",
     "media.layout.reset": "重置布局",
     "media.layout.resize": "拖动可调整标签列表的宽度；焦点在此边缘时也可使用方向键",

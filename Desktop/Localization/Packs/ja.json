@@ -4816,7 +4816,6 @@
     "media.layout.size.large": "大きいタイル",
     "media.layout.preset.standard": "標準",
     "media.layout.preset.booru": "Booru ビュー",
-    "media.layout.preset.grid": "グリッドのみ",
     "media.layout.preset.gridSidebar": "グリッド＋メディアサイドバー",
     "media.layout.reset": "レイアウトをリセット",
     "media.layout.resize": "ドラッグしてタグ一覧の幅を変更します。この端にフォーカスがあるときは矢印キーでも変更できます",

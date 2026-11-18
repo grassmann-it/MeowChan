@@ -4786,7 +4786,6 @@
     "media.layout.size.large": "Grandes vignettes",
     "media.layout.preset.standard": "Standard",
     "media.layout.preset.booru": "Vue Booru",
-    "media.layout.preset.grid": "Grille seule",
     "media.layout.preset.gridSidebar": "Grille + volet média",
     "media.layout.reset": "Réinitialiser la disposition",
     "media.layout.resize": "Faites glisser pour modifier la largeur de la liste d’étiquettes, ou utilisez les flèches quand ce bord a le focus",
