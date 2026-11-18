@@ -31,7 +31,7 @@ internal enum MediaTileCaption
 }
 
 /// <summary>The ready-made layouts of the media page's "Layout" menu.</summary>
-internal enum MediaLayoutPreset { Standard, BooruView, GridOnly }
+internal enum MediaLayoutPreset { Standard, BooruView, GridWithSidebar }
 
 /// <summary>
 /// MP5: how the user composed the media page, as plain data (no control): the tag list (on or off, side, width), the rows above the grid
@@ -83,7 +83,8 @@ internal sealed record MediaPageLayout
     /// <summary>
     /// The layout a preset makes. The width of the tag list and the media panel (shown or not, its side and width) are the user's measures and stay (only "Reset" takes the defaults back).
     /// Standard is today's page; the Booru view puts the tag list on the left with compact tiles that show the tag count (and the queue
-    /// mark), the chips and the status line on and the subtitle off; the grid only keeps nothing but the toolbar and the tiles.
+    /// mark), the chips and the status line on and the subtitle off; the grid-with-sidebar view keeps the toolbar and tiles while showing
+    /// the selected medium in the existing media sidebar.
     /// </summary>
     internal static MediaPageLayout For(MediaLayoutPreset preset, MediaPageLayout current)
     {
@@ -96,11 +97,11 @@ internal sealed record MediaPageLayout
                 Subtitle = false, Caption = MediaTileCaption.TagCount | MediaTileCaption.QueueMark, TileSize = MediaTileSize.Small,
                 Panel = own.Panel, PanelSide = own.PanelSide, PanelWidth = own.PanelWidth
             },
-            MediaLayoutPreset.GridOnly => new MediaPageLayout
+            MediaLayoutPreset.GridWithSidebar => new MediaPageLayout
             {
                 TagList = false, TagListSide = own.TagListSide, TagListWidth = own.TagListWidth, FilterChips = false,
                 StatusLine = false, Subtitle = false, Caption = MediaTileCaption.None, TileSize = MediaTileSize.Medium,
-                Panel = own.Panel, PanelSide = own.PanelSide, PanelWidth = own.PanelWidth
+                Panel = true, PanelSide = own.PanelSide, PanelWidth = own.PanelWidth
             },
             _ => Standard with
             {
@@ -126,6 +127,7 @@ internal sealed record MediaPageLayout
 
     private static bool SameBlocks(MediaPageLayout a, MediaPageLayout b) =>
         a.TagList == b.TagList && a.FilterChips == b.FilterChips && a.StatusLine == b.StatusLine && a.Subtitle == b.Subtitle
+        && a.Panel == b.Panel
         && a.Caption == b.Caption && a.TileSize == b.TileSize && (!a.TagList || a.TagListSide == b.TagListSide);
 
     // ---- The saved text ----

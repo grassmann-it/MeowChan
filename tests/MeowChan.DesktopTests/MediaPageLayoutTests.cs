@@ -52,10 +52,12 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Equal(MediaTileSize.Small, booru.TileSize);
         Assert.True(booru.Caption.HasFlag(MediaTileCaption.TagCount));
         Assert.False(booru.Caption.HasFlag(MediaTileCaption.Name));
-        // Grid only: everything off but the toolbar (which is no block) and the tiles.
-        MediaPageLayout grid = MediaPageLayout.For(MediaLayoutPreset.GridOnly, own);
+        // Grid + media sidebar: everything above the tiles off, with the selected medium kept visible beside the grid.
+        MediaPageLayout grid = MediaPageLayout.For(MediaLayoutPreset.GridWithSidebar, own with { Panel = false });
         Assert.False(grid.TagList || grid.FilterChips || grid.StatusLine || grid.Subtitle);
         Assert.Equal(MediaTileCaption.None, grid.Caption);
+        Assert.True(grid.Panel);
+        Assert.Equal((MediaPanelSide.Right, 420), (grid.PanelSide, grid.PanelWidth));
         // Reset takes the default width back too.
         Assert.Equal(256, MediaPageLayout.Reset.TagListWidth);
         Assert.NotEqual(own, MediaPageLayout.Reset);
@@ -71,6 +73,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         }
         Assert.Equal(MediaLayoutPreset.Standard, MediaPageLayout.Standard.MatchingPreset);
         Assert.Null((MediaPageLayout.Standard with { Subtitle = false }).MatchingPreset);
+        Assert.Null((MediaPageLayout.Standard with { Panel = false }).MatchingPreset);
         Assert.Null((MediaPageLayout.For(MediaLayoutPreset.BooruView, MediaPageLayout.Standard) with { TileSize = MediaTileSize.Large }).MatchingPreset);
     }
 
@@ -92,7 +95,7 @@ public sealed class MediaPageLayoutTests : IDisposable
     {
         yield return MediaPageLayout.Standard;
         yield return MediaPageLayout.For(MediaLayoutPreset.BooruView, MediaPageLayout.Standard);
-        yield return MediaPageLayout.For(MediaLayoutPreset.GridOnly, MediaPageLayout.Standard);
+        yield return MediaPageLayout.For(MediaLayoutPreset.GridWithSidebar, MediaPageLayout.Standard);
         yield return new MediaPageLayout { TagList = true, TagListSide = MediaTagListSide.Right, TagListWidth = 480, FilterChips = false, StatusLine = true,
             Subtitle = false, Caption = MediaTileCaption.Name | MediaTileCaption.Source, TileSize = MediaTileSize.Large };
         yield return new MediaPageLayout { TagListWidth = 180, Caption = MediaTileCaption.QueueMark };
@@ -183,7 +186,7 @@ public sealed class MediaPageLayoutTests : IDisposable
     [Fact]
     public void AStatusLineTheUserLeftOutStillShowsWhatIsNotACount()
     {
-        MediaPageLayout quiet = MediaPageLayout.For(MediaLayoutPreset.GridOnly, MediaPageLayout.Standard);
+        MediaPageLayout quiet = MediaPageLayout.For(MediaLayoutPreset.GridWithSidebar, MediaPageLayout.Standard);
         Assert.False(MediaPageLayoutPlan.Of(quiet, new MediaPageLayoutState(false, false)).StatusLine);
         Assert.True(MediaPageLayoutPlan.Of(quiet, new MediaPageLayoutState(false, true)).StatusLine);
         Assert.False(MediaPageLayoutPlan.Of(quiet, new MediaPageLayoutState(true, true)).StatusLine); // the focus row carries the counter
@@ -198,7 +201,7 @@ public sealed class MediaPageLayoutTests : IDisposable
             MediaPageLayoutPlan plan = MediaPageLayoutPlan.Of(MediaPageLayout.For(preset, MediaPageLayout.Standard), new MediaPageLayoutState(false, false));
             Assert.True(plan.Title && plan.Toolbar, preset.ToString());
         }
-        MediaPageLayoutPlan grid = MediaPageLayoutPlan.Of(MediaPageLayout.For(MediaLayoutPreset.GridOnly, MediaPageLayout.Standard), new MediaPageLayoutState(false, false));
+        MediaPageLayoutPlan grid = MediaPageLayoutPlan.Of(MediaPageLayout.For(MediaLayoutPreset.GridWithSidebar, MediaPageLayout.Standard), new MediaPageLayoutState(false, false));
         Assert.False(grid.TagList || grid.Subtitle || grid.FilterChips || grid.StatusLine);
         Assert.True(grid.Toolbar);
     }
@@ -300,7 +303,7 @@ public sealed class MediaPageLayoutTests : IDisposable
     public void ADamagedLayoutEntryNeverMakesTheSettingsInvalid(string damaged)
     {
         using TempDirectory directory = new();
-        new Config { BooruCatalogLimitMiB = 17, MediaBooruMode = true, MediaLayout = MediaPageLayout.For(MediaLayoutPreset.GridOnly, MediaPageLayout.Standard).Format() }
+        new Config { BooruCatalogLimitMiB = 17, MediaBooruMode = true, MediaLayout = MediaPageLayout.For(MediaLayoutPreset.GridWithSidebar, MediaPageLayout.Standard).Format() }
             .SaveConfig(directory.Path);
         string path = Path.Combine(directory.Path, "settings.json");
         JsonObject document = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
@@ -344,7 +347,7 @@ public sealed class MediaPageLayoutTests : IDisposable
             MediaLayoutMenu.ChipsId, MediaLayoutMenu.StatusId, MediaLayoutMenu.SubtitleId,
             MediaLayoutMenu.CaptionNameId, MediaLayoutMenu.CaptionTagsId, MediaLayoutMenu.CaptionQueueId, MediaLayoutMenu.CaptionSourceId,
             MediaLayoutMenu.SizeSmallId, MediaLayoutMenu.SizeMediumId, MediaLayoutMenu.SizeLargeId,
-            MediaLayoutMenu.PresetStandardId, MediaLayoutMenu.PresetBooruId, MediaLayoutMenu.PresetGridId, MediaLayoutMenu.ResetId
+            MediaLayoutMenu.PresetStandardId, MediaLayoutMenu.PresetBooruId, MediaLayoutMenu.PresetGridSidebarId, MediaLayoutMenu.ResetId
         ], ids);
         // The flyout reads the same rows: the interactive ones are the context menu's entries, in order, without a title line.
         Assert.Equal(ids, rows.Interactive.Select(row => row.Id).ToArray());
@@ -358,7 +361,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.True(checkedState[MediaLayoutMenu.ChipsId] && checkedState[MediaLayoutMenu.StatusId] && checkedState[MediaLayoutMenu.SubtitleId]);
         Assert.True(checkedState[MediaLayoutMenu.CaptionNameId] && checkedState[MediaLayoutMenu.CaptionTagsId] && checkedState[MediaLayoutMenu.CaptionQueueId] && checkedState[MediaLayoutMenu.CaptionSourceId]);
         Assert.True(checkedState[MediaLayoutMenu.SizeMediumId] && !checkedState[MediaLayoutMenu.SizeSmallId] && !checkedState[MediaLayoutMenu.SizeLargeId]);
-        Assert.True(checkedState[MediaLayoutMenu.PresetStandardId] && !checkedState[MediaLayoutMenu.PresetBooruId] && !checkedState[MediaLayoutMenu.PresetGridId]);
+        Assert.True(checkedState[MediaLayoutMenu.PresetStandardId] && !checkedState[MediaLayoutMenu.PresetBooruId] && !checkedState[MediaLayoutMenu.PresetGridSidebarId]);
         Assert.All(model.Entries, entry => Assert.True(entry.Available && entry.Label.Length > 0 && entry.Label != entry.Id, entry.Id));
         Assert.All(rows.Interactive, row => Assert.True(row.Enabled && row.DisabledReason == null, row.Id));
     }
@@ -383,7 +386,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Equal(MediaTileSize.Small, next[MediaLayoutMenu.SizeSmallId].TileSize);
         Assert.Equal(MediaTileSize.Large, next[MediaLayoutMenu.SizeLargeId].TileSize);
         Assert.Equal(MediaPageLayout.For(MediaLayoutPreset.BooruView, current), next[MediaLayoutMenu.PresetBooruId]);
-        Assert.Equal(MediaPageLayout.For(MediaLayoutPreset.GridOnly, current), next[MediaLayoutMenu.PresetGridId]);
+        Assert.Equal(MediaPageLayout.For(MediaLayoutPreset.GridWithSidebar, current), next[MediaLayoutMenu.PresetGridSidebarId]);
         Assert.Equal(current, next[MediaLayoutMenu.PresetStandardId]);
         Assert.Equal(MediaPageLayout.Standard, next[MediaLayoutMenu.ResetId]); // the default width too
         // Nothing but the asked part differs: a switch flips one block and leaves every other as it was.
@@ -612,7 +615,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         "media.layout.side.left", "media.layout.side.right", "media.layout.chips", "media.layout.status", "media.layout.subtitle",
         "media.layout.caption.name", "media.layout.caption.tags", "media.layout.caption.queue", "media.layout.caption.source",
         "media.layout.size.small", "media.layout.size.medium", "media.layout.size.large",
-        "media.layout.preset.standard", "media.layout.preset.booru", "media.layout.preset.grid", "media.layout.reset", "media.layout.resize"
+        "media.layout.preset.standard", "media.layout.preset.booru", "media.layout.preset.gridSidebar", "media.layout.reset", "media.layout.resize"
     ];
 
     [Fact]
@@ -639,7 +642,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.Equal("Layout", Texts.T("media.layout.name"));
         Texts.SetLanguage("de");
         Assert.Equal("Tag-Liste", Texts.T("media.tagList"));
-        Assert.Equal("Nur Raster", Texts.T("media.layout.preset.grid"));
+        Assert.Equal("Raster + Medienleiste", Texts.T("media.layout.preset.gridSidebar"));
         // The old keys are gone from every pack and the catalog.
         Assert.Equal("media.booruMode", Texts.T("media.booruMode"));
     }
