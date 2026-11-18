@@ -565,7 +565,8 @@ public sealed class HelpDocumentationTests
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
         // The left-hand Post | Tags segment is not the gallery's Back action.
         Assert.Contains("Back to {target}", text);
-        Assert.Contains("The side panel has Post | Tags at the top left and × alone at the right", text);
+        Assert.Contains("The side panel has Post | Tags at the top left, the live medium counter immediately beside it, and × alone at the right", text);
+        Assert.Contains("The counter updates as you navigate, with localized position text and polite accessibility announcements", text);
         string sidePanel = Read("Desktop/Controls/GallerySidePanel.cs");
         Assert.Contains("Children.Add(_segment);", sidePanel);
         Assert.Contains("Children.Add(close); SetColumn(close, 2);", sidePanel);

@@ -4,6 +4,7 @@ using MeowChan.Desktop;
 namespace MeowChan.DesktopTests;
 
 // Reader ideas I1, I3, I6 and I2: the pure rules (preview text, motion policy, unread line, fold, inline replies).
+[Collection("Localization")]
 public sealed class ReaderIdeasTests
 {
     [Fact]
@@ -41,18 +42,23 @@ public sealed class ReaderIdeasTests
     [Fact]
     public void HighlightLastsFourHundredMilliseconds() => Assert.Equal(400, ReaderMotion.Highlight.TotalMilliseconds);
 
-    [Fact]
-    public void UnreadLineShowsOnlyOnTheRowThatCarriesACount()
+    [Theory]
+    [InlineData("en", "1 new post since your last visit", "6 new posts since your last visit")]
+    [InlineData("de", "1 neuer Post seit deinem letzten Besuch", "6 neue Posts seit deinem letzten Besuch")]
+    [InlineData("ru", "Новых постов с прошлого раза: 1", "Новых постов с прошлого раза: 6")]
+    public void UnreadLineShowsOnlyOnTheRowThatCarriesACount(string language, string singular, string plural) => BooruComponentDispatcher.Run(() =>
     {
+        MeowChan.Desktop.Localization.Texts.SetLanguage(language);
+        Assert.Equal(language, MeowChan.Desktop.Localization.Texts.Language);
         ArchivePostRow plain = new("1", "", "text", Array.Empty<ArchiveAttachmentRow>());
         ArchivePostRow one = plain with { UnreadCount = 1 }, many = plain with { UnreadCount = 6 };
         Assert.False(plain.HasUnreadLine);
         Assert.True(one.HasUnreadLine && many.HasUnreadLine);
         Assert.Equal(MeowChan.Desktop.Localization.Texts.Count("reader.unreadLine", 1), one.UnreadLabel);
         Assert.Equal(MeowChan.Desktop.Localization.Texts.Count("reader.unreadLine", 6), many.UnreadLabel);
-        Assert.Contains("6", many.UnreadLabel);
-        Assert.NotEqual(one.UnreadLabel.Replace("1", "{0}"), many.UnreadLabel.Replace("6", "{0}")); // Singular and plural differ.
-    }
+        Assert.Equal(singular, one.UnreadLabel);
+        Assert.Equal(plural, many.UnreadLabel);
+    });
     [Fact]
     public void FoldShowsEighteenOfMoreThanTwentyFourLinesAndReportsExpansion()
     {

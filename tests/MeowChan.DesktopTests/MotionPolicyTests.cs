@@ -8,6 +8,7 @@ namespace MeowChan.DesktopTests;
 
 // D1: one motion policy. Environment > setting > operating system; the reader's two environment names keep working; the setting
 // persists like the other interface settings; the transition styles only exist below a TopLevel without motion-off.
+[Collection("Localization")]
 public sealed class MotionPolicyTests
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
@@ -194,7 +195,25 @@ public sealed class MotionPolicyTests
         Assert.Contains("MotionPolicy.Install()", File.ReadAllText(Root("App.axaml.cs")));
         string main = File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml.cs"));
         Assert.Contains("MotionPolicy.SetSetting(_config.Animations)", main);
-        Assert.Contains("ImageFade.Show(ArchivePreviewImage, bitmap, arrivedAsync: true)", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml.cs")));
+        Assert.Contains("await OpenAssetGalleryAsync(row, sender as Control)", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml.cs")));
+        OwnedUiDispatcher.Run(() =>
+        {
+            Image image = new() { Opacity = 0.25 };
+            Avalonia.Media.DrawingImage source = new();
+            ImageFade.Show(image, source, arrivedAsync: false);
+            Assert.Same(source, image.Source);
+            Assert.Equal(1, image.Opacity);
+            Assert.DoesNotContain(ImageFade.FadeClass, image.Classes);
+            image.IsVisible = false;
+            image.Opacity = 0.25;
+            ImageFade.Show(image, source, arrivedAsync: true);
+            Assert.Same(source, image.Source);
+            Assert.Equal(1, image.Opacity);
+            Assert.DoesNotContain(ImageFade.FadeClass, image.Classes);
+            ImageFade.Show(image, null, arrivedAsync: true);
+            Assert.Null(image.Source);
+            Assert.Equal(1, image.Opacity);
+        });
     }
 
     [Fact]
