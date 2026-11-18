@@ -197,6 +197,16 @@ public sealed class TaggingPageMenuTests : IDisposable
     }
 
     [Fact]
+    public void AGroupedQueueIsEmptyWhenTheUngroupedScopeHasNoItems()
+    {
+        TagQueueSnapshot grouped = Queue(Item(1) with { GroupId = "review" }, Item(2) with { GroupId = "review" });
+
+        Assert.Equal(0, grouped.CountFor(null));
+        Assert.Equal(0, grouped.OpenFor(null));
+        Assert.Equal(TaggingEmptyKind.GroupEmpty, TaggingEmptyStates.Of(grouped, TaggingQueueFilter.All, 0, null, ungrouped: true));
+    }
+
+    [Fact]
     public void TheSavedViewAndTheStampBlockChoiceFallBackToTheDefaultsAndSurviveACopy()
     {
         Assert.Equal(TaggingViewMode.List, TaggingViewModes.Parse(null));
