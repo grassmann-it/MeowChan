@@ -304,7 +304,7 @@ public sealed class QuotePreviewMediaTests : IDisposable
         Task<bool> playing = media.PlayVideoAsync((options, muted) => { made = options; mutedAtStart = muted; return player; },
             ReaderInlineVideoOptions.Default with { Volume = 50 });
         Dispatcher.UIThread.RunJobs();
-        Assert.True(playing.IsCompletedSuccessfully && playing.Result);
+        Assert.True(BooruComponentDispatcher.Wait(playing));
         Assert.True(mutedAtStart);
         Assert.True(made.Repeat);
         Assert.True(made.StartMuted);
@@ -323,10 +323,10 @@ public sealed class QuotePreviewMediaTests : IDisposable
         Assert.True(media.Videos.WhenReleasedAsync().IsCompleted);
         // A second preview makes a new player and the bound of one holds.
         FakePlayer second = new();
-        Assert.True(media.PlayVideoAsync((_, _) => second, ReaderInlineVideoOptions.Default).Result);
+        Assert.True(BooruComponentDispatcher.Wait(media.PlayVideoAsync((_, _) => second, ReaderInlineVideoOptions.Default)));
         FakePlayer third = new();
         media.Clear();
-        Assert.True(media.PlayVideoAsync((_, _) => third, ReaderInlineVideoOptions.Default).Result);
+        Assert.True(BooruComponentDispatcher.Wait(media.PlayVideoAsync((_, _) => third, ReaderInlineVideoOptions.Default)));
         Assert.True(second.Disposed);
         Assert.Equal(1, media.Videos.LiveCount);
         media.Clear();
@@ -338,7 +338,7 @@ public sealed class QuotePreviewMediaTests : IDisposable
     {
         QuotePreviewMedia media = new() { Muted = false };
         bool? mutedAtStart = null;
-        Assert.True(media.PlayVideoAsync((_, muted) => { mutedAtStart = muted; return new FakePlayer(); }, ReaderInlineVideoOptions.Default).Result);
+        Assert.True(BooruComponentDispatcher.Wait(media.PlayVideoAsync((_, muted) => { mutedAtStart = muted; return new FakePlayer(); }, ReaderInlineVideoOptions.Default)));
         Assert.False(mutedAtStart);
         media.Clear();
     });
