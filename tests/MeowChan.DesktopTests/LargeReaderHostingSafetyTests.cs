@@ -46,7 +46,7 @@ public sealed class LargeReaderHostingSafetyTests
         pane.SetValue(KeyboardNavigation.TabNavigationProperty, KeyboardNavigationMode.Local);
         var injected = new InvalidOperationException("injected: " + failingStep);
         bool reached = false;
-        page.ReaderHostingStepCompleted = step =>
+        page.ReaderHostingStepCompletedForTests = step =>
         {
             if (step != failingStep) return;
             reached = true;
@@ -77,7 +77,7 @@ public sealed class LargeReaderHostingSafetyTests
         workspaceAction.Click += (_, _) => actions++;
         workspaceAction.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal(1, actions);
-        page.ReaderHostingStepCompleted = null;
+        page.ReaderHostingStepCompletedForTests = null;
         page.HostLargeReader(host, () => { }, () => page.SetReaderScope([]));
         Assert.True(host.IsVisible);
         Assert.True(page.IsLargeReader);
@@ -257,7 +257,7 @@ public sealed class LargeReaderHostingSafetyTests
         root.Children.Add(page);
         root.Children.Add(host);
         try { test(page, root, host); }
-        finally { page.ReaderHostingStepCompleted = null; (page as IDisposable)?.Dispose(); }
+        finally { page.ReaderHostingStepCompletedForTests = null; (page as IDisposable)?.Dispose(); }
     });
 
     private static string Source(string relative, [CallerFilePath] string file = "") =>
