@@ -989,7 +989,7 @@ public sealed partial class MediaPage : UserControl
     internal async Task RunMediaCommandByShortcutAsync(string id)
     {
         if (id == "media.rating.edit") { await RateAndTagByKeyAsync(null); return; }
-        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return;
+        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) { ExplainSelectionUnavailable(); return; }
         if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }
         if (_grid.Selection.Count > 1)
         {
@@ -997,25 +997,39 @@ public sealed partial class MediaPage : UserControl
             await RateSelectionByShortcutAsync(id);
             return;
         }
-        if (_grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
+        if (ExecuteMediaMenuActionAsync == null || _grid.Selection.Count != 1 || SelectedRow is not { } row || row.Entry.Presence != MediaLibraryPresence.Present) return;
         if (id.StartsWith("media.rating.", StringComparison.Ordinal) && row.State?.RatingKnown != true) return;
         bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         await ExecuteMediaActionAsync(id, row.Entry, Current);
     }
 
-    // A rating key with several selected tiles: the same rating action for each selected saved tile whose rating is known, one after the other,
-    // against the rows of the moment (a re-present ends the run). Tiles that cannot be rated are left alone.
+    // Freeze the selected row identities before writing. A rating can passively replace the grid rows; that refresh must not cancel the remaining
+    // selected targets or retarget the shortcut to replacement rows. Tiles that cannot be rated are left alone.
     private async Task RateSelectionByShortcutAsync(string id)
     {
-        object? rows = _grid.ItemsSource;
-        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible && ReferenceEquals(rows, _grid.ItemsSource);
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible;
         MediaLibraryTileRow[] targets = _grid.Selection.SelectedItems.OfType<MediaLibraryTileRow>()
-            .Where(row => row.Entry.Presence == MediaLibraryPresence.Present && row.State?.RatingKnown == true).ToArray();
-        if (targets.Length == 0) { ShowSelectionNote(MediaMenuReasons.Unavailable); return; } // nothing to rate: say so, never silent
-        foreach (MediaLibraryTileRow row in targets)
+            .Where(row => row.Entry.Presence == MediaLibraryPresence.Present && row.State?.RatingKnown == true)
+            .OrderBy(row => row.Index).ToArray();
+        if (ExecuteMediaMenuActionAsync == null || targets.Length == 0)
         {
-            if (!Current()) return;
-            await ExecuteMediaActionAsync(id, row.Entry, Current);
+            ShowSelectionNote(MediaMenuReasons.Unavailable);
+            return;
+        }
+        _selectionBusy = true;
+        UpdateSelectionBar();
+        try
+        {
+            foreach (MediaLibraryTileRow row in targets)
+            {
+                if (!Current()) { ExplainSelectionUnavailable(); return; }
+                await ExecuteMediaActionAsync(id, row.Entry, Current);
+            }
+        }
+        finally
+        {
+            _selectionBusy = false;
+            if (!_lifetime.IsCancellationRequested) UpdateSelectionBar();
         }
     }
 
