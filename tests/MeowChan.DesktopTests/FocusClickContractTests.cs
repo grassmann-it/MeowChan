@@ -156,7 +156,7 @@ public sealed class FocusClickContractTests
         Assert.Contains("sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();", Read("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs"));
     }
 
-    [Theory(Skip = "FC-02 / TaggingPage-Selection: at 740d0d565 both TaggingPage.Commands.InitializeCommands and TaggingPage.Grid wire ContextMenuHost directly to ComposeRowMenu (Lead/Selected), with no OnContextPointerPressed target/focus handler. Both InlineData cases fail Assert.Contains. Blocked on the concurrent UX-LEDGER-08 tagging-selection PR; see docs/development/ux-ui-release-followups-20261117.md#focus-click-contract-skip-closeout.")]
+    [Theory]
     [InlineData("Commands", "_list")]
     [InlineData("Grid", "_grid")]
     public void TaggingRightClickMustSelectAndFocusTargetBeforeComposingMenu(string file, string list)
@@ -172,11 +172,19 @@ public sealed class FocusClickContractTests
         Before(body, "FocusGallerySurface()", "ShowMediaMenu()");
     }
 
-    [Fact(Skip = "FC-04 / Gallery-Context-Core: at 740d0d565 GalleryViewer.Filmstrip.OnFilmstripTileContextRequested calls ShowMediaMenu(entry) for an unselected tile and never OnFilmstripTileActivated(index), so Assert.Contains fails. Activation dispatches asynchronous shell MoveGalleryAsync; navigation invalidates the menu in GalleryViewer.ShowMediaAsync. Needs navigation-completion/cancellation ownership before opening the selected target's menu; see docs/development/ux-ui-release-followups-20261117.md#focus-click-contract-skip-closeout.")]
+    [Fact]
     public void GalleryFilmstripRightClickMustSelectTargetNotOnlyRetargetTheMenu()
     {
         string body = Method("Desktop/GalleryViewer.Filmstrip.cs", "OnFilmstripTileContextRequested");
         Assert.Contains("OnFilmstripTileActivated(index)", body);
+        Assert.Contains("_filmstripContextTarget = entry", body);
+        Assert.DoesNotContain("ShowMediaMenu(entry)", body);
+        Before(body, "_filmstripContextTarget = entry", "OnFilmstripTileActivated(index)");
+        string show = Method("Desktop/GalleryViewer.cs", "ShowMediaAsync");
+        Assert.Contains("CompleteFilmstripContextRequest(entry, filmstripContextRequest)", show);
+        Assert.Contains("CancelFilmstripContextRequest()", Method("Desktop/GalleryViewer.cs", "SetMediaUnavailable"));
+        Assert.Contains("CancelFilmstripContextRequest()", Method("Desktop/GalleryViewer.cs", "Move"));
+        Assert.Contains("CancelFilmstripContextRequest()", Method("Desktop/GalleryViewer.Filmstrip.cs", "RetireFilmstrip"));
     }
 
     private static void Before(string body, string first, string second)

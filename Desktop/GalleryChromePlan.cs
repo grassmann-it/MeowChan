@@ -253,7 +253,8 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
             // In the tagging mode it is the way out and stays even with hidden tools.
             ModeSwitch = bar && ViewOffers("gallery.mode", tag || input.TagAvailable) && (tag || !input.MediaFocus),
             InfoQuality = info,
-            StripTwoRows = tag && input.Walk && input.Width > 0 && input.Width < WideWidth
+            // The queue decisions/status keep their own row so the gallery toolbar retains the same full-width geometry in both modes.
+            StripTwoRows = tag && input.Walk
         };
     }
 

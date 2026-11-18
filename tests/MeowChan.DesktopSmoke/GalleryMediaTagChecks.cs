@@ -94,10 +94,16 @@ internal static class GalleryMediaTagChecks
                     var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
                     var segment = (Control)viewer.SidePanel.PostButton.Parent!;
                     var closeOrigin = viewer.SidePanel.CloseButton.TranslatePoint(default, viewer.SidePanel)!.Value;
-                    Require(origin.X >= segment.Bounds.Right && origin.X - segment.Bounds.Right <= 9
-                        && Math.Abs(origin.Y + counter.Bounds.Height / 2 - (segment.Bounds.Y + segment.Bounds.Height / 2)) <= 1
-                        && origin.X + counter.Bounds.Width <= closeOrigin.X - 23,
-                        "The counter is not adjacent to Post/Tags in the same row, or crowds close.");
+                    double centerDelta = origin.X + counter.Bounds.Width / 2 - viewer.SidePanel.Bounds.Width / 2;
+                    Control counterSlot = (Control)counter.Parent!;
+                    bool ownRow = Grid.GetRow(counterSlot) > Grid.GetRow(segment);
+                    bool verticalPlacement = ownRow
+                        ? origin.Y >= segment.Bounds.Bottom - 1
+                        : Math.Abs(origin.Y + counter.Bounds.Height / 2 - (segment.Bounds.Y + segment.Bounds.Height / 2)) <= 1;
+                    bool horizontalClearance = ownRow || origin.X >= segment.Bounds.Right - 1 && origin.X + counter.Bounds.Width <= closeOrigin.X + 1;
+                    Require(Math.Abs(centerDelta) <= 1 && verticalPlacement && horizontalClearance,
+                        $"The counter is not geometrically centred or overlaps header actions (delta {centerDelta}, ownRow {ownRow}, counter {origin}/{counter.Bounds.Size}).");
+                    Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, centerDelta={centerDelta:F3}, counter={origin}/{counter.Bounds.Size}");
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }
             }
@@ -145,6 +151,15 @@ internal static class GalleryMediaTagChecks
             MeowChan.Desktop.Controls.GalleryDecisionRow decisions = viewer.DecisionRow ?? throw new InvalidOperationException("The tag panel has no favorite and rating row.");
             Require(decisions.StarButtons.Count == 5 && decisions.FavoriteButton.IsEffectivelyVisible && decisions.View is { Available: true, Rating: null },
                 "The row does not show an unrated medium: " + decisions.Summary.Text);
+            Grid decisionLine = (Grid)decisions.Children[1];
+            Point favoriteOrigin = decisions.FavoriteButton.TranslatePoint(default, decisionLine)!.Value;
+            Point summaryOrigin = decisions.Summary.TranslatePoint(default, decisionLine)!.Value;
+            Require(Math.Abs(favoriteOrigin.Y + decisions.FavoriteButton.Bounds.Height / 2 - summaryOrigin.Y - decisions.Summary.Bounds.Height / 2) <= 0.5,
+                "Favorite and the rating caption do not share one aligned row.");
+            Require(Math.Abs(summaryOrigin.X - favoriteOrigin.X - decisions.FavoriteButton.Bounds.Width - 8) <= 0.5,
+                "Favorite and the rating caption do not keep the row gap.");
+            Require(favoriteOrigin.X <= 0.5 && summaryOrigin.X + decisions.Summary.Bounds.Width >= decisionLine.Bounds.Width - 0.5,
+                "Favorite does not stretch or the rating caption is not right aligned.");
             marking.FocusField();
             // Focusing the field offers the saved tags in a list for a moment, and an open list keeps the digit keys for itself (typing or
             // choosing); the smoke closes it first, like a user who dismisses the list before rating.
@@ -403,9 +418,7 @@ internal static class GalleryMediaTagChecks
             await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
             {
                 foreach (Window child in shell.OwnedWindows.Where(child => child.IsVisible).ToArray()) child.Close();
-                shell.Close();
-                await UntilAsync(() => !shell.IsVisible);
-                await shell.GalleryCleanupTask.WaitAsync(Deadline);
+                await shell.DisposeAsync();
                 owner.Activate();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in GalleryMediaTagChecks: " + exception));
         }

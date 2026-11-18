@@ -266,6 +266,26 @@ internal sealed partial class GalleryViewer
     private bool CanPeekFilmstrip => IsGalleryWindowActive && _interactionAvailable && !HasGalleryDialog && !HasGalleryPopup
         && !_dragging && _pressedPointers.Count == 0 && _lastPointer?.Captured == null && !_helpOpen && FilmstripPeeksAtTop;
 
+    private GalleryEntry? _filmstripContextTarget;
+    private int _filmstripContextRequest;
+    private bool _preserveFilmstripContextRequest;
+
+    private void CancelFilmstripContextRequest()
+    {
+        _filmstripContextTarget = null;
+        ++_filmstripContextRequest;
+    }
+
+    private void CompleteFilmstripContextRequest(GalleryEntry entry, int request)
+    {
+        if (request != _filmstripContextRequest || _filmstripContextTarget is not { } target
+            || target.Key != entry.Key || _entry?.Key != entry.Key || _mediaFailed
+            || _terminalRetirement || _viewerInteractionStopped || !_interactionAvailable
+            || _sessionCancellation.IsCancellationRequested) return;
+        _filmstripContextTarget = null;
+        ShowMediaMenu();
+    }
+
     // ---- keyboard and commands ----
 
     // Called from the gallery's key routing after the check that the key is not typed into a text field.
@@ -295,6 +315,7 @@ internal sealed partial class GalleryViewer
     // favourite state keep one owner. The "more" tile (one past the last entry) loads the next thread.
     private void OnFilmstripTileActivated(int index)
     {
+        if (!_preserveFilmstripContextRequest) CancelFilmstripContextRequest();
         if (_terminalRetirement || _viewerInteractionStopped || !_interactionAvailable || _filmstrip.CurrentIndex < 0) return;
         int delta = index - _filmstrip.CurrentIndex;
         if (delta == 0) { FocusGallerySurface(); return; }
@@ -308,12 +329,17 @@ internal sealed partial class GalleryViewer
     private void OnFilmstripTileContextRequested(int index)
     {
         if (_terminalRetirement || _viewerInteractionStopped || !_interactionAvailable || _filmstrip.EntryAt(index) is not { } entry) return;
-        if (index == _filmstrip.CurrentIndex) ShowMediaMenu();
-        else ShowMediaMenu(entry);
+        CancelFilmstripContextRequest();
+        if (index == _filmstrip.CurrentIndex) { ShowMediaMenu(); return; }
+        _filmstripContextTarget = entry;
+        _preserveFilmstripContextRequest = true;
+        try { OnFilmstripTileActivated(index); }
+        finally { _preserveFilmstripContextRequest = false; }
     }
 
     private void RetireFilmstrip()
     {
+        CancelFilmstripContextRequest();
         GalleryControlTransfer.Cancel(_filmstrip);
         _filmstripPeek = false;
         _filmstrip.IsVisible = false;

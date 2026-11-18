@@ -34,7 +34,7 @@ public static partial class WorkViewPolicy
         Same("tagging.selection.tag", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         Same("tagging.selection.done", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         Same("tagging.selection.skipped", WorkViewPage.Tagging, WorkViewKind.Action, Required),
-        Same("tagging.selection.continue", WorkViewPage.Tagging, WorkViewKind.Action, Required),
+        new("tagging.selection.continue", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, OverflowOrder: 30),
         Same("tagging.selection.clear", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         new("tagging.selection.stamp", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tags.quick.stamp-apply", OverflowOrder: 10),
         new("tagging.selection.state", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 20),

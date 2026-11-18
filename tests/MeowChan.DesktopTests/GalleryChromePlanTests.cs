@@ -165,7 +165,7 @@ public sealed class GalleryChromePlanTests
         Assert.True(plan.InfoQuality);
         Assert.Equal(!tag && view != WorkView.Barebones && width >= GalleryChromePlan.NarrowWidth, plan.InfoScope); // S2: the scope leaves below 900
         Assert.Equal(!panel, plan.InfoRating); // there is no rating button on the bar any more (review 15.11.): only an open panel shows the rating instead
-        Assert.Equal(walk && width < 1280, plan.StripTwoRows);
+        Assert.Equal(walk, plan.StripTwoRows); // queue decisions keep their own row so toolbar geometry is mode-independent
     }
 
     // ---- GL5d: the overflow table of UX spec S2, one row per stage x view ----------------------------------------------------
@@ -289,7 +289,7 @@ public sealed class GalleryChromePlanTests
         Assert.Equal(GalleryFavoriteSurface.Bar, closed.FavoriteSurface);
         Assert.True(closed.Favorite && closed.InfoRating);
         // The same with a walk adds the decision strip and nothing else of the layout changes.
-        Assert.Equal(plan with { DecisionRow = true }, Plan(free with { Walk = true }));
+        Assert.Equal(plan with { DecisionRow = true, StripTwoRows = true }, Plan(free with { Walk = true }));
     }
 
     [Fact]

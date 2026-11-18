@@ -308,8 +308,25 @@ internal static class StatisticsChecks
             return new Rect(origin, control.Bounds.Size);
         }
         bool Near(double actual, double expected) => Math.Abs(actual - expected) < 0.6;
-        Require(window.FindControl<Control>("TransferSpeedTitle") is null && window.FindControl<Control>("TransferDiskTitle") is null,
-            scenario + ": a removed Network/Disk heading remains in the header.");
+        foreach ((bool shown, string titleName, string valueName) in new[]
+        {
+            (layout.NetValue, "TransferNetworkTitle", "TransferSpeedLabel"),
+            (layout.DiskValue, "TransferDiskTitle", "TransferDiskReadLabel")
+        })
+        {
+            if (!shown) continue;
+            TextBlock title = window.FindControl<TextBlock>(titleName) ?? throw new InvalidOperationException(scenario + ": " + titleName + " is missing.");
+            TextBlock value = window.FindControl<TextBlock>(valueName) ?? throw new InvalidOperationException(scenario + ": " + valueName + " is missing.");
+            Require(title.IsEffectivelyVisible == layout.TwoLineLabels,
+                scenario + ": " + titleName + " visibility does not match the one-/two-line layout.");
+            if (!title.IsEffectivelyVisible) continue;
+            Require(title.FontSize < value.FontSize,
+                scenario + ": " + titleName + " is not smaller than its data row.");
+            Require(title.LineHeight >= title.FontSize && title.Bounds.Height + 0.5 >= title.LineHeight,
+                scenario + ": " + titleName + " clips its own line box.");
+        }
+        double metaSize = window.TryFindResource("Workspace.Text.Meta", window.ActualThemeVariant, out object? metaResource) && metaResource is double size
+            ? size : throw new InvalidOperationException(scenario + ": Workspace.Text.Meta is unavailable.");
         foreach ((bool shown, bool graph, string graphName, string first, string second, string firstWord, string secondWord,
             string firstKey, string secondKey) in new[]
         {
@@ -326,13 +343,13 @@ internal static class StatisticsChecks
             foreach (string rate in new[] { first, second })
             {
                 TextBlock value = window.FindControl<TextBlock>(rate)!;
-                Require(value.FontSize == 11 && value.FontWeight == FontWeight.Normal
+                Require(Near(value.FontSize, metaSize) && value.FontWeight == FontWeight.Normal
                     && value.TextAlignment == TextAlignment.Right && value.Bounds.Width >= 56,
-                    scenario + ": the rate lost its caption size, regular weight or minimum shared width: " + rate);
+                    scenario + ": the rate lost its meta size, regular weight or minimum shared width: " + rate);
             }
             if (layout.TwoLineLabels)
-                Require(Near(b.Top - a.Bottom, 2) && Near(a.Right, b.Right) && Near(wordA.Left, wordB.Left),
-                    $"{scenario}: stacked rates are not a two-line aligned matrix with 2 DIP spacing ({a}, {b}).");
+                Require(Near(b.Top - a.Bottom, 0) && Near(a.Right, b.Right) && Near(wordA.Left, wordB.Left),
+                    $"{scenario}: stacked rates are not a compact aligned two-line matrix ({a}, {b}).");
             else
                 Require(Near(a.Top, b.Top) && Near(wordB.Left - a.Right, 12),
                     scenario + ": the row matrix has no common baseline or its pair gap is not 12 DIP.");

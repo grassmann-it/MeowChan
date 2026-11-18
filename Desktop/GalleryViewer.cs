@@ -102,7 +102,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private readonly TextBlock _helpTitle = new();
     private readonly Button _helpClose;
     private readonly Border _chrome = new() { Name = "GalleryOverlayControls", Classes = { "workspace-media-tools" },
-        Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 4), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2: no gap above the dock (ApplyChrome); GL5b: 8/4 inside, so the two rows are 40 dip each
+        Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 6), HorizontalAlignment = HorizontalAlignment.Stretch };
     // GL1+GL2: the docked dock below the picture, without a gap to it: [filmstrip (when at the bottom)] [_chrome: video bar row
     // (GalleryDockTransportHost, GL2), tools] [info line]. The floating footer (_overlayFooter) has the same order: [filmstrip]
     // [GalleryOverlayTransportHost] [_chrome] [info]. The Windows transparency fallback keeps the video bar under the picture.
@@ -339,21 +339,17 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Cycle);
         this[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         Grid root = _visualRoot;
-        // GL5d (UX spec S1): one row that never wraps, as a grid "left · navigation · right": the equal outside columns keep the arrows
-        // and position exactly centred; mode and media tools stay left, slideshow, More, layout and the tools toggle stay right.
-        // What does not fit leaves in the plan's overflow order (GalleryChromePlan, S2), never by wrapping.
-        Grid toolbar = new() { Name = "GalleryToolbar", ColumnDefinitions = new ColumnDefinitions("*,Auto,*"), ColumnSpacing = 12, VerticalAlignment = VerticalAlignment.Center };
-        StackPanel Side(string name, int column, HorizontalAlignment align)
+        // One non-wrapping line with a true window-centred navigation group. Unequal action groups at the edges must not move the
+        // previous/position/next group away from the picture's centre; at constrained widths the centre yields to the real edge gap.
+        GeometricCenterPanel toolbar = new() { Name = "GalleryToolbar", VerticalAlignment = VerticalAlignment.Center };
+        StackPanel Side(string name, HorizontalAlignment align)
         {
             StackPanel side = new() { Name = name, Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = align, VerticalAlignment = VerticalAlignment.Center };
             toolbar.Children.Add(side);
-            Grid.SetColumn(side, column);
             return side;
         }
-        StackPanel leftSide = Side("GalleryToolbarLeft", 0, HorizontalAlignment.Left), middleSide = Side("GalleryToolbarMiddle", 1, HorizontalAlignment.Center),
-            rightSide = Side("GalleryToolbarRight", 2, HorizontalAlignment.Right);
-        Grid.SetColumn(middleSide, 0);
-        Grid.SetColumnSpan(middleSide, 3);
+        StackPanel leftSide = Side("GalleryToolbarLeft", HorizontalAlignment.Left), middleSide = Side("GalleryToolbarMiddle", HorizontalAlignment.Center),
+            rightSide = Side("GalleryToolbarRight", HorizontalAlignment.Right);
         StackPanel ToolGroup(string name, StackPanel side)
         {
             StackPanel group = new() { Name = name, Classes = { "workspace-tool-group" } };
@@ -363,11 +359,12 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         // G1: the mode switch "View | Tag" comes first; the rest of the bar follows the mode (GalleryViewer.Chrome.cs).
         InitializeModeSwitch(ToolGroup("GalleryModeTools", leftSide));
         StackPanel navigation = _navigationTools = ToolGroup("GalleryNavigationTools", middleSide);
-        StackPanel zoom = _zoomTools = ToolGroup("GalleryZoomTools", leftSide);
-        StackPanel media = _mediaTools = ToolGroup("GalleryMediaTools", leftSide);
+        // Layout, media and view actions form the trailing task region. Navigation remains the sole centre owner.
+        StackPanel zoom = _zoomTools = ToolGroup("GalleryZoomTools", rightSide);
+        StackPanel media = _mediaTools = ToolGroup("GalleryMediaTools", rightSide);
         // The tools a work view brings onto the bar (rating, tags, slideshow numbers, mode, help): a group of its own, away from
         // the favourite and the way back; empty (hidden) in Barebones.
-        _workViewTools = ToolGroup("GalleryWorkViewTools", leftSide);
+        _workViewTools = ToolGroup("GalleryWorkViewTools", rightSide);
         StackPanel view = _viewTools = ToolGroup("GalleryViewTools", rightSide);
         // Frequent controls stay on the toolbar; the rare ones are rows of the "⋯" menu (GalleryViewer.Overflow.cs).
         // The way back is not a toolbar button: it floats at the top LEFT edge of the picture, before everything else (Tom's rule of
@@ -413,7 +410,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _saveFrame = Command(_overflowPanel, "GallerySaveFrame", CommandCatalog.Label("video.snapshot"), RequestSaveFrame, overflow: true);
         _saveFrame.IsEnabled = false; // Only a shown video has a frame to save.
         _secondaryTools.AddRange(new Control[] { zoom, media, view });
-        _focusTools = ToolGroup("GalleryFocusTools", leftSide);
+        _focusTools = ToolGroup("GalleryFocusTools", middleSide);
         // The tools toggle is the far right of the bar in a group of its own: the secondary groups (with "More" and the layout button)
         // go away in focus mode, the toggle must stay.
         StackPanel toggleGroup = ToolGroup("GalleryToolsToggleGroup", rightSide);
@@ -470,11 +467,15 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         };
         _body.Children.Add(_viewport);
         // Inherit native control states from the host, including popups and focus.
-        CreateSidePanel(new ScrollViewer
+        ScrollViewer postScroll = new()
         {
+            Name = "GalleryPanelPostScroll",
             Content = _context,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        });
+        };
+        // The content keeps the section inset on both sides; the vertical scrollbar owns the outer gutter and is not mistaken for right padding.
+        postScroll[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
+        CreateSidePanel(postScroll);
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
         root.Children.Add(_close); // First child: first in the tab order, as the toolbar button was.
         GalleryControlTransfer.Track(_close, () => !_terminalRetirement);
@@ -920,6 +921,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         if (_viewerInteractionStopped || _sessionCancellation.IsCancellationRequested
             || expectedRequestGeneration is int expected && expected != _request) return Task.CompletedTask;
+        CancelFilmstripContextRequest();
         int failureRequest = ++_request;
         CancelLoads(); UnbindVideoPlaybackSignals();
         _mediaFailed = true; _navigationPending = false; _browseQueue.Clear();
@@ -1210,6 +1212,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private async Task ShowMediaAsync(GalleryEntry entry, CancellationToken cancellationToken, bool? resumeAutoplay = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        if (_filmstripContextTarget is { } contextTarget && contextTarget.Key != entry.Key) CancelFilmstripContextRequest();
+        int filmstripContextRequest = _filmstripContextRequest;
         _favoriteGestureKey = null; // a new medium starts with no held favourite key
         // A retiring/disabled transport otherwise leaves FocusManager with no target;
         // subsequent keys then originate on Window and never tunnel through the viewer.
@@ -1304,11 +1308,19 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             // during loading may still need Play; never Pause because progression is stopped.
             if (_slideshow.IsRunning) await _video.PlayForSlideshowAsync();
             RefreshPlaybackControls();
+            CompleteFilmstripContextRequest(entry, filmstripContextRequest);
             return;
         }
         ApplyOverlayPlacement();
-        if (entry.Kind == SavedMediaKind.Other) { StopSlideshow(); ShowFileOnlyPlate(entry); return; }
+        if (entry.Kind == SavedMediaKind.Other)
+        {
+            StopSlideshow();
+            ShowFileOnlyPlate(entry);
+            CompleteFilmstripContextRequest(entry, filmstripContextRequest);
+            return;
+        }
         await RequestDecodeAsync(CurrentFitRequest(), debounce: false);
+        CompleteFilmstripContextRequest(entry, filmstripContextRequest);
     }
 
     /// <summary>The display-size target the viewer decodes for now; the preloader decodes the neighbors at the same size.</summary>
@@ -1591,6 +1603,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     }
     private void Move(int delta)
     {
+        CancelFilmstripContextRequest();
         if (!(delta < 0 ? _previous.IsEnabled : _next.IsEnabled)) return;
         _browseQueue.Clear(); // an explicit move supersedes wheel turns still waiting
         _navigationPending = true; // No old-media timer while the shell resolves the next entry.

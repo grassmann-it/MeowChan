@@ -102,7 +102,7 @@ public sealed class GalleryDockTransportTests
         Assert.True(host > 0 && tools > host);
         Assert.Contains("Spacing = 4", chrome[(chrome.IndexOf("private Control WithDockTransport", StringComparison.Ordinal))..]);
         Assert.Contains("_chrome.Child = WithDockTransport(WithTaggingStrip(toolbar));", viewer);
-        Assert.Contains("Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 4), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2", viewer);
+        Assert.Contains("Margin = new Thickness(8, 0, 8, 0), Padding = new Thickness(8, 6), HorizontalAlignment = HorizontalAlignment.Stretch };", viewer);
         // The overlay footer keeps its host; the docked placement moves the bar into the dock; the fallback sends it back under the picture.
         Assert.Contains("_video?.SetExternalTransportHost(_overlayTransportHost);", overlay);
         Assert.Contains("if (DockHostsTransport) _video?.SetExternalTransportHost(_dockTransportHost);", overlay);
@@ -134,13 +134,13 @@ public sealed class GalleryDockTransportTests
         Assert.DoesNotContain("_warnings.IsVisible", chrome);
     }
 
-    // GL5b (UX spec S1/S3): the dock's rows are 40 / 40 / 20 dip: the video bar 32 + 4 + 4, the tools 32 with the dock's 8/4 inside, the
+    // GL5b (UX spec S1/S3): the dock's rows are 40 / 44 / 20 dip: the video bar 32 + 4 + 4, the tools 32 with the dock's 8/6 inside, the
     // info one line with 8/2; the play button is 32 like every control of the bar.
     [Fact]
-    public void TheDockRowsAreFortyFortyAndTwentyDipWithAThirtyTwoPlayButton()
+    public void TheDockRowsAreFortyFortyFourAndTwentyDipWithAThirtyTwoPlayButton()
     {
         string viewer = Source("Desktop/GalleryViewer.cs"), player = Source("Desktop/GalleryVideoPlayer.cs");
-        Assert.Contains("Padding = new Thickness(8, 4), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL2", viewer);
+        Assert.Contains("Padding = new Thickness(8, 6), HorizontalAlignment = HorizontalAlignment.Stretch };", viewer);
         Assert.Contains("Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL5b", viewer);
         Assert.Contains("Name = \"GalleryVideoPlayPause\", Classes = { \"media-control\", \"media-play\" }, Width = 32, Height = 32, CornerRadius = new CornerRadius(16)", player);
         Assert.Contains("StackPanel dock = new() { Spacing = 4 };", Source("Desktop/GalleryViewer.Chrome.cs")); // the 4 dip between the rows

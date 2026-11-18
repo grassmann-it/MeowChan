@@ -60,7 +60,6 @@ internal sealed partial class GalleryViewer
         _taggingStrip[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
         _taggingStatus[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
         foreach (Button button in new[] { _taggingBack, _taggingSkip, _taggingDone, _taggingStamp }) _taggingActions.Children.Add(button);
-        _taggingActions.Children.Add(_taggingProgress);
         _taggingBack.Click += (_, _) => _ = TaggingBackAsync();
         _taggingSkip.Click += (_, _) => TaggingDecide(TagQueueState.Skipped);
         _taggingDone.Click += (_, _) => TaggingDecide(TagQueueState.Done);
@@ -68,7 +67,11 @@ internal sealed partial class GalleryViewer
         // The status line speaks (politely, once); the progress is read on demand, it would repeat every decision.
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite);
         StackPanel content = new() { Spacing = 4 };
-        content.Children.Add(_taggingActions);
+        Grid actionRow = new() { Name = "GalleryTaggingActionRow", ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        actionRow.Children.Add(_taggingActions);
+        Grid.SetColumn(_taggingProgress, 2);
+        actionRow.Children.Add(_taggingProgress);
+        content.Children.Add(actionRow);
         AddCardsRow(content); // the card mode's cards (PT4)
         content.Children.Add(_taggingStatus);
         _taggingStrip.Child = content;

@@ -37,8 +37,8 @@ internal sealed class GallerySidePanel : Grid
     private readonly StackPanel _segment = new() { Name = "GalleryPanelSegment", Orientation = Orientation.Horizontal, Spacing = 4,
         VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
-        Margin = new Thickness(8, 0, 24, 0), VerticalAlignment = VerticalAlignment.Center,
-        HorizontalContentAlignment = HorizontalAlignment.Left };
+        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
+        HorizontalContentAlignment = HorizontalAlignment.Center };
     private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false };
     private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,
@@ -55,9 +55,16 @@ internal sealed class GallerySidePanel : Grid
         Name = "GallerySidePanel";
         RowDefinitions = new RowDefinitions("Auto,*");
         RowSpacing = 12;
-        ColumnDefinitions = new ColumnDefinitions { new(GridLength.Auto), new(1, GridUnitType.Star) { MinWidth = 24 }, new(GridLength.Auto) };
+        ColumnDefinitions = new ColumnDefinitions
+        {
+            new(new GridLength(1, GridUnitType.Star)),
+            new(GridLength.Auto) { MinWidth = 24 },
+            new(new GridLength(1, GridUnitType.Star))
+        };
         _segment.Children.Add(_post);
         _segment.Children.Add(_tags);
+        _segment.HorizontalAlignment = HorizontalAlignment.Left;
+        close.HorizontalAlignment = HorizontalAlignment.Right;
         close.VerticalAlignment = VerticalAlignment.Center;
         // Child order is the focus order: segment, the shown content, then the close button.
         Children.Add(_segment);
@@ -73,6 +80,7 @@ internal sealed class GallerySidePanel : Grid
         _grip.PointerMoved += OnGripMoved;
         _grip.PointerReleased += OnGripReleased;
         _grip.PointerCaptureLost += (_, _) => EndDrag(commit: true);
+        SizeChanged += (_, e) => ApplyHeaderLayout(e.NewSize.Width);
         // The resize cursor needs the platform's cursor factory, so it is set once the grip is shown in a window.
         _grip.AttachedToVisualTree += (_, _) => _grip.Cursor ??= new Cursor(StandardCursorType.SizeWestEast);
         Localize();
@@ -86,8 +94,28 @@ internal sealed class GallerySidePanel : Grid
     internal ContentControl PostSlot => _postSlot;
     internal ContentControl TagSlot => _tagSlot;
 
-    /// <summary>The tag surface's live medium counter, immediately after Post/Tags; null after that surface is released.</summary>
-    internal Control? HeaderCounter { get => _headerCounter.Content as Control; set => _headerCounter.Content = value; }
+    /// <summary>The tag surface's live medium counter, geometrically centred in the header; null after that surface is released.</summary>
+    internal Control? HeaderCounter
+    {
+        get => _headerCounter.Content as Control;
+        set { _headerCounter.Content = value; ApplyHeaderLayout(Bounds.Width); }
+    }
+
+    private void ApplyHeaderLayout(double width)
+    {
+        bool counter = HeaderCounter != null;
+        double counterWidth = _headerCounter.DesiredSize.Width;
+        double segmentWidth = _post.DesiredSize.Width + _tags.DesiredSize.Width + _segment.Spacing;
+        bool ownRow = counter && width > 0 && (width - counterWidth) / 2 < Math.Max(segmentWidth, CloseButton.DesiredSize.Width);
+        RowDefinitions = new RowDefinitions(ownRow ? "Auto,Auto,*" : "Auto,*");
+        SetRow(_headerCounter, ownRow ? 1 : 0);
+        SetColumn(_headerCounter, ownRow ? 0 : 1);
+        SetColumnSpan(_headerCounter, ownRow ? 3 : 1);
+        int contentRow = ownRow ? 2 : 1;
+        SetRow(_postSlot, contentRow);
+        SetRow(_tagSlot, contentRow);
+        SetRowSpan(_grip, contentRow + 1);
+    }
 
     /// <summary>The post card (built and kept by the viewer).</summary>
     internal Control? PostContent { get => _postSlot.Content as Control; set => _postSlot.Content = value; }

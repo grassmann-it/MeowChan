@@ -26,6 +26,14 @@ class ReviewContracts(unittest.TestCase):
             self.assertEqual(260, len({c['id'] for c in cells}))
             self.assertEqual({760, 900, 1099, 1100, 1440}, {c['geometry']['width'] for c in cells})
 
+    def test_single_debug_scene_accepts_non_matrix_width(self):
+        with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
+            self.assertEqual(('tagging-stamp', 1920, 'Light', 'en'), runner.parse_scene('tagging-stamp-1920-light-en'))
+            cells = runner.inventory(Path(path), 'tagging-870-dark-de')
+            self.assertEqual(1, len(cells))
+            self.assertEqual('tagging-870-dark-de', cells[0]['id'])
+            self.assertEqual(870, cells[0]['geometry']['width'])
+
     def test_screenshot_without_dump_rejected(self):
         with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
             root = Path(path)

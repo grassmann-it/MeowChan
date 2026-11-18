@@ -78,13 +78,16 @@ internal static class ReviewFixtureScenes
             await booru.InitializeAsync();
             await using SyntheticShellRows rows = await SyntheticShellRows.CreateAsync(w, Enumerable.Range(0, _media == 0 ? 0 : 6).Select(i =>
                 SnapshotFixtures.Thread(990000000 + i, (800000000 + i).ToString(), $"Synthetic download {i} 合成試験 Arbeitsplatzdarstellungsgrößenüberprüfung", i, i + 2, 0, 0, "synthetic")).ToArray());
+            string? only = Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_SCENE");
+            int[] widths = Widths;
+            if (only?.Split('-') is { Length: >= 4 } parts && int.TryParse(parts[^3], out int requestedWidth) && !Widths.Contains(requestedWidth))
+                widths = [requestedWidth];
             foreach (string language in new[] { "de", "en" })
             foreach (string theme in new[] { "Light", "Dark" })
-            foreach (int width in Widths)
+            foreach (int width in widths)
             foreach (string surface in Surfaces)
             {
                 string id = $"{surface}-{width}-{theme.ToLowerInvariant()}-{language}";
-                string? only = Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_SCENE");
                 if (only != null && only != id) continue;
                 Stopwatch watch = Stopwatch.StartNew();
                 try
@@ -97,6 +100,8 @@ internal static class ReviewFixtureScenes
                     await Program.WaitUntilAsync(() => Math.Abs(w.ClientSize.Width - width) <= 1);
                     double prepared = watch.Elapsed.TotalMilliseconds;
                     await EnterAsync(w, surface, booru);
+                    string? requestedView = Environment.GetEnvironmentVariable("MEOWCHAN_REVIEW_VIEW");
+                    if (requestedView != null) await PresentationChecks.SwitchModeAsync(w, requestedView);
                     double entered = watch.Elapsed.TotalMilliseconds;
                     for (int i = 0; i < 2; i++) await Dispatcher.UIThread.InvokeAsync(w.UpdateLayout, DispatcherPriority.Background);
                     await Task.Delay(120);
@@ -105,7 +110,8 @@ internal static class ReviewFixtureScenes
                     Environment.SetEnvironmentVariable("MEOWCHAN_REVIEW_ARTIFACTS", pending);
                     double captureStarted = watch.Elapsed.TotalMilliseconds;
                     ReviewArtifacts.Capture(w, id, new { schema_version = 1, kind = "scene-setup", clock = "Stopwatch elapsed milliseconds", prepare_ms = prepared,
-                        navigate_ms = entered - prepared, settle_ms = watch.Elapsed.TotalMilliseconds - entered, t_final = watch.Elapsed.TotalMilliseconds,
+                        navigate_ms = entered - prepared, settle_ms = watch.Elapsed.TotalMilliseconds - entered, work_view = requestedView,
+                        t_final = watch.Elapsed.TotalMilliseconds,
                         t_input = (double?)null, t_first_visual_ack = (double?)null, unverified = "Scene setup timing, not physical-input-to-photon latency" });
                     string bundle = Directory.GetDirectories(pending).Single();
                     var timing = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(Path.Combine(bundle, "timing.json")))!;
@@ -116,7 +122,7 @@ internal static class ReviewFixtureScenes
                     string final = Path.Combine(_root, id);
                     Directory.Move(bundle, final); Directory.Delete(pending);
                     var files = Directory.GetFiles(final).Order().ToDictionary(p => Path.GetFileName(p), p => new { path = id + "/" + Path.GetFileName(p), sha256 = ReviewFixtureData.Hex(File.ReadAllBytes(p)) });
-                    Cells.Add(new { id, surface, status = "captured", seed = _seed, media = _media, theme, language,
+                    Cells.Add(new { id, surface, status = "captured", seed = _seed, media = _media, theme, language, work_view = requestedView,
                         geometry = new { width = w.ClientSize.Width, height = w.ClientSize.Height, scale = w.RenderScaling, x = w.Position.X, y = w.Position.Y }, files });
                 }
                 catch (Exception e)

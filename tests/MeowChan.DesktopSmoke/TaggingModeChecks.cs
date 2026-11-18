@@ -49,8 +49,10 @@ internal static class TaggingModeChecks
             await UntilAsync(() => viewer.IsTaggingMode && viewer.IsTagPanelOpen && viewer.TaggingStrip.IsEffectivelyVisible, "The strip or the tag panel is missing.");
             Require(viewer.PositionText == "Queue 1 of 3", "The header does not name the queue position: " + viewer.PositionText);
             Require(viewer.TaggingProgressText.Text == "Open: 3 · Done: 0 · Skipped: 0", "Wrong progress: " + viewer.TaggingProgressText.Text);
+            string doneShortcut = MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay("tags.queue.done-next") ?? string.Empty;
             Require(AutomationProperties.GetName(viewer.TaggingDoneButton) == Texts.T("tagging.done")
-                && AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton) == "Enter", "The Done button has no name or key.");
+                && AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton) == doneShortcut,
+                $"The Done button has no name or current key (expected '{doneShortcut}', got '{AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton)}').");
             Require(viewer.TagSurface!.Session.Stamp.Count == 1, "The panel does not share the window's stamp.");
             // QW1/QW2: the position and the status stand once (the arrows count, the panel's status line speaks; the strip's line and
             // the filmstrip's and panel's counters stay away while the arrows and the panel are on the screen).
@@ -67,17 +69,17 @@ internal static class TaggingModeChecks
                 "The stamp was not given to the bound medium.");
             Require(viewer.PositionText == "Queue 2 of 3", "The header did not follow: " + viewer.PositionText);
 
-            // Enter on the picture finishes; Shift+Space plays or pauses and never decides; Space skips the last open medium and the walk is through.
+            // Primary+Enter on the picture finishes; Shift+Space plays or pauses and never decides; S skips the last open medium and the walk is through.
             viewer.Focus();
-            Raise(viewer, Key.Enter, KeyModifiers.None);
-            await UntilAsync(() => State(host, 1) == TagQueueState.Done && Shown(viewer) == looseB.EntryKey, "Enter did not finish the medium.");
+            Raise(viewer, Key.Enter, primary);
+            await UntilAsync(() => State(host, 1) == TagQueueState.Done && Shown(viewer) == looseB.EntryKey, "Primary+Enter did not finish the medium.");
             viewer.Focus();
             Raise(viewer, Key.Space, KeyModifiers.Shift);
             await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
             Require(State(host, 2) == TagQueueState.Open, "Shift+Space decided the medium.");
             viewer.Focus();
-            Raise(viewer, Key.Space, KeyModifiers.None);
-            await UntilAsync(() => State(host, 2) == TagQueueState.Skipped, "Space did not skip.");
+            Raise(viewer, Key.S, KeyModifiers.None);
+            await UntilAsync(() => State(host, 2) == TagQueueState.Skipped, "S did not skip.");
             Require(Shown(viewer) == looseB.EntryKey && viewer.TaggingStatusText.Text!.EndsWith("Every medium of this walk is decided.", StringComparison.Ordinal),
                 "The end of the walk was not said: " + viewer.TaggingStatusText.Text);
 

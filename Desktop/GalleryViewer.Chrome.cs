@@ -357,20 +357,18 @@ internal sealed partial class GalleryViewer
         RefreshOverflowItems();
     }
 
-    // Tag mode from the wide width on: one row (the toolbar, then the decisions and the progress); below it two rows (plan §3.1).
     private void LayOutControls(GalleryChromePlan plan)
     {
         if (_controlsGrid == null) return;
-        bool oneRow = plan.DecisionRow && !plan.StripTwoRows;
         Control toolbar = _controlsGrid.Children[0];
-        Grid.SetColumnSpan(toolbar, oneRow ? 1 : 2);
-        Grid.SetRow(_taggingStrip, oneRow ? 0 : 1);
-        Grid.SetColumn(_taggingStrip, oneRow ? 1 : 0);
-        Grid.SetColumnSpan(_taggingStrip, oneRow ? 1 : 2);
-        _taggingStrip.BorderThickness = new Thickness(oneRow ? 1 : 0, oneRow ? 0 : 1, 0, 0); // a hairline left of or above the strip
-        _taggingStrip.Padding = oneRow ? new Thickness(8, 0, 0, 0) : new Thickness(0, 8, 0, 0);
-        _taggingStrip.Margin = oneRow ? new Thickness(8, 0, 0, 0) : new Thickness(0, 8, 0, 0);
-        _taggingStrip.VerticalAlignment = oneRow ? VerticalAlignment.Center : VerticalAlignment.Stretch;
+        Grid.SetColumnSpan(toolbar, 2);
+        Grid.SetRow(_taggingStrip, 1);
+        Grid.SetColumn(_taggingStrip, 0);
+        Grid.SetColumnSpan(_taggingStrip, 2);
+        _taggingStrip.BorderThickness = new Thickness(0, 1, 0, 0);
+        _taggingStrip.Padding = new Thickness(0, 8, 0, 0);
+        _taggingStrip.Margin = new Thickness(0, 8, 0, 0);
+        _taggingStrip.VerticalAlignment = VerticalAlignment.Stretch;
     }
 
     // A block that held the keyboard focus left the screen with a mode change: the focus goes to the switch (the mode's half), else to

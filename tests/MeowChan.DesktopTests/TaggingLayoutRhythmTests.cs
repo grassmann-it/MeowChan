@@ -63,9 +63,9 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(new[] { "TaggingTitle", "TaggingSubtitle" }, heading.Children.Select(c => c.Name));
         StackPanel error = Assert.IsType<StackPanel>(page.ErrorPanel.Child);
         Assert.Equal(Token(error, "Workspace.Space.8"), error.Spacing);
-        WrapPanel stamp = Find<WrapPanel>(page, "TaggingStamp");
-        Assert.Equal(Token(stamp, "Workspace.Space.12"), stamp.ItemSpacing);
-        Assert.Equal(Token(stamp, "Workspace.Space.12"), stamp.LineSpacing);
+        Grid stamp = Find<Grid>(page, "TaggingStamp");
+        Assert.Equal(Token(stamp, "Workspace.Space.12"), stamp.ColumnSpacing);
+        Assert.Equal(GridUnitType.Star, stamp.ColumnDefinitions[1].Width.GridUnitType);
         // Hidden feedback/secondary rows must not add phantom spacing.
         Assert.False(page.ErrorPanel.IsVisible);
         Assert.Equal(new[] { "TaggingGroupPanel", "TaggingFilterPanel", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
@@ -205,24 +205,30 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(Avalonia.Media.FontWeight.SemiBold, heading.FontWeight);
         Assert.DoesNotContain("section-title", heading.Classes);
     });
-    [Fact]
-    public void StampBodySeparatesCurrentTagsFromAddingAndAlignsTheHintUnderItsInput() => WithPage(page =>
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    public void StampBodyKeepsTheEmptyHintBesideTheInputAndAddButton(string language) => WithPage(page =>
     {
+        Texts.SetLanguage(language);
+        typeof(TaggingPage).GetMethod("Localize", Private)!.Invoke(page, null);
         RenderSnapshot(page, TagQueueSnapshot.Empty);
-        WrapPanel body = Find<WrapPanel>(page, "TaggingStampBody");
+        Grid body = Find<Grid>(page, "TaggingStampBody");
         Grid add = Find<Grid>(page, "TaggingStampAddTags");
-        Assert.Equal(Token(body, "Workspace.Space.16"), body.ItemSpacing);
-        Assert.Equal(Token(body, "Workspace.Space.16"), body.LineSpacing);
+        Assert.Equal(Token(body, "Workspace.Space.16"), body.ColumnSpacing);
+        Assert.Equal(GridUnitType.Star, body.ColumnDefinitions[1].Width.GridUnitType);
         Assert.Equal(new[] { "TaggingStampChips", "TaggingStampAddTags" }, body.Children.Select(c => c.Name));
         Assert.Equal(Token(add, "Workspace.Space.8"), add.ColumnSpacing);
-        Assert.Equal(Token(add, "Workspace.Space.8"), add.RowSpacing);
         Assert.Equal(Token(page.StampChips, "Workspace.Space.8"), page.StampChips.ItemSpacing);
         Assert.Equal(Token(page.StampChips, "Workspace.Space.8"), page.StampChips.LineSpacing);
         Assert.Same(add, page.StampInput.Parent);
         Assert.Same(add, page.StampEmptyText.Parent);
-        Assert.Equal(Grid.GetColumn(page.StampInput), Grid.GetColumn(page.StampEmptyText));
-        Assert.Equal(Grid.GetRow(page.StampInput) + 1, Grid.GetRow(page.StampEmptyText));
+        Assert.Equal(Grid.GetRow(page.StampInput), Grid.GetRow(page.StampEmptyText));
+        Assert.Equal(Grid.GetColumn(page.StampInput) + 2, Grid.GetColumn(page.StampEmptyText));
         Assert.Equal(page.StampInput.Width, add.ColumnDefinitions[0].Width.Value);
+        Assert.Equal(GridUnitType.Star, add.ColumnDefinitions[2].Width.GridUnitType);
+        Assert.Equal(1, Grid.GetColumn(body));
+        Assert.Equal(1, Grid.GetColumn(add));
         Assert.True(page.StampEmptyText.IsVisible);
         Assert.False(page.StampChips.IsVisible);
         RenderSnapshot(page, new TagQueueSnapshot(1, 0, new[] { "review", "later" }, Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready));

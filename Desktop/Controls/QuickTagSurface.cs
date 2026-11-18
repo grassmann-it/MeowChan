@@ -10,6 +10,7 @@ using Avalonia.Controls.Shapes;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -465,12 +466,20 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal TextBlock Title => _title;
     internal Grid Header { get; }
 
+    /// <summary>
+    /// Gives a flush side-panel host the shared section inset inside this surface's own scroll viewport.
+    /// The scrollbar remains in the outer gutter, so it neither covers nor substitutes for the right content inset.
+    /// </summary>
+    internal void UseSectionInset() =>
+        _flow[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
+
     /// <summary>Moves the live counter to a containing header; this surface still owns its text, visibility and updates.</summary>
     internal Border DetachCounter()
     {
         Header.Children.Remove(_counter);
         _counter.Margin = default;
         _counterLabel.TextWrapping = TextWrapping.Wrap;
+        _counterLabel.TextAlignment = TextAlignment.Center;
         _counterLabel.TextTrimming = TextTrimming.CharacterEllipsis;
         _counterLabel.MaxLines = 2;
         return _counter;

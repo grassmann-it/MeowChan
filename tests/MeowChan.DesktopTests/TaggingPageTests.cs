@@ -79,11 +79,11 @@ public sealed class TaggingPageTests : IDisposable
         TagQueueSnapshot queue = Queue(0, Enumerable.Range(1, 200).Select(n => Item(n, n <= 199 ? TagQueueState.Done : TagQueueState.Open)).ToArray());
         Assert.Equal("Open: 1 · Finished: 199 · Skipped: 0", TaggingQueueView.ProgressText(queue));
         Assert.Equal(0.995, TaggingQueueView.Share(queue), 3);
-        Assert.Equal("99% worked through", TaggingQueueView.PercentText(queue));
+        Assert.Equal("99%", TaggingQueueView.PercentText(queue));
         Assert.Equal(0, TaggingQueueView.Share(TagQueueSnapshot.Empty));
         Texts.SetLanguage("de");
         Assert.Equal("Offen: 1 · Erledigt: 199 · Übersprungen: 0", TaggingQueueView.ProgressText(queue));
-        Assert.Equal("99 % abgearbeitet", TaggingQueueView.PercentText(queue));
+        Assert.Equal("99 %", TaggingQueueView.PercentText(queue));
     }
 
     [Fact]
