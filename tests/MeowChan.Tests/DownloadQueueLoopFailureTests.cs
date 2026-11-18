@@ -48,6 +48,41 @@ public sealed class DownloadQueueLoopFailureTests
     }
 
     [Fact]
+    public async Task ScheduleScanClockFailureReleasesTransitionAndProducerUse()
+    {
+        using TempDirectory directory = new();
+        using ProfileLease lease = ProfileLease.Acquire(directory.Path);
+        MemoryWorkStateStore store = new();
+        WorkResource owner = ExpiredOwner(store, directory.Path);
+        using StubImageBoard board = new();
+        ProbeThread thread = new(board.Board, new Uri(Url));
+        ThrowingTimeProvider clock = new();
+        DownloadQueue queue = new(1, 1L << 30, timeProvider: clock);
+        queue.BindProfileLease(lease);
+        lease.Admission.CompleteStartup();
+        using ProfileProducerEpoch epoch = new(lease.Admission.EnterOrdinaryWriter());
+        queue.InstallProfileEpoch(epoch);
+        ConcurrentQueue<string> warnings = new();
+        queue.PersistenceFailed += warnings.Enqueue;
+        queue.BeforeSchedulePass = clock.Arm;
+        queue.ConfigureWorkState(store);
+        try
+        {
+            queue.BindWork(thread, owner);
+            await TestWait.UntilAsync(() => !warnings.IsEmpty, "The scan clock failure was not surfaced.");
+            Assert.Contains("Synthetic scan clock failure", Assert.Single(warnings));
+            Assert.Equal(MediaWorkStatus.Waiting, Assert.Single(store.LoadMedia(Url, 1)).Status);
+            await epoch.Close().WaitAsync(TestWait.Timeout);
+        }
+        finally
+        {
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+            await epoch.Close().WaitAsync(TestWait.Timeout);
+            queue.DetachProfileEpoch(epoch);
+        }
+    }
+
+    [Fact]
     public async Task RepeatedScheduleLoopFailuresStopVisiblyInsteadOfRestartingInACircle()
     {
         using TempDirectory directory = new();
@@ -159,6 +194,14 @@ public sealed class DownloadQueueLoopFailureTests
         public WorkResource? CommitState(WorkResource resource) => inner.CommitState(resource);
         public bool CommitMedia(MediaWork media) => media.Status == MediaWorkStatus.Succeeded
             ? throw new IOException("Simulated success commit failure") : inner.CommitMedia(media);
+    }
+
+    private sealed class ThrowingTimeProvider : TimeProvider
+    {
+        private int _armed;
+        internal void Arm() => Volatile.Write(ref _armed, 1);
+        public override DateTimeOffset GetUtcNow() => Interlocked.Exchange(ref _armed, 0) == 1
+            ? throw new InvalidOperationException("Synthetic scan clock failure") : base.GetUtcNow();
     }
 
     private sealed class RecordingSink : ILogEventSink
