@@ -57,7 +57,6 @@ internal static class GalleryTransitionReviewChecks
                     // Model a real previously used video host retained across image navigation.
                     // Holding its existing operation lock makes StopAsync await a finite explicit barrier.
                     typeof(GalleryViewer).GetField("_video", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, activeVideo);
-                    video = null;
                     await operations!.WaitAsync(); held = true;
                     int before = calls.Count;
                     showing = viewer.ShowAsync(nextEntry, CancellationToken.None);
@@ -102,7 +101,15 @@ internal static class GalleryTransitionReviewChecks
                     }
                     finally
                     {
-                        if (video != null) await video.DisposeAsync();
+                        if (video != null)
+                        {
+                            try { await video.DisposeAsync(); }
+                            finally
+                            {
+                                typeof(GalleryViewer).GetField("_video", BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, null);
+                                video = null;
+                            }
+                        }
                     }
                 }
             }

@@ -38,8 +38,10 @@ internal static class PostBookmarkGalleryReturnChecks
             await SeedAsync(profile, thread);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_POST_BOOKMARK_COMPARISON_ONLY") == "1")
                 captureFixture = Convert.ToHexString(SHA256.HashData(await File.ReadAllBytesAsync(Path.Combine(profile, "media", ".meowchan-manifest.json"))));
-            session = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
-            shell = new MainWindow(session);
+            await using DesktopSessionHost ownedSession = new(profile, Array.Empty<IImageBoard>());
+            session = ownedSession;
+            await using MainWindow ownedShell = new(session);
+            shell = ownedShell;
             shell.Show(owner);
             await Program.WaitUntilAsync(() => session.State == DesktopSessionState.Ready
                 && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);

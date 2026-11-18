@@ -47,9 +47,11 @@ internal static class ManualImportChecks
 
     private static async Task RunShellAsync(MainWindow owner, string profile, string source)
     {
-        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+        DesktopSessionHost? host = null;
         try
         {
+            await using DesktopSessionHost ownedHost = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHost;
             await using (MainWindow shell = new(host) { Width = 1300, Height = 900 })
             {
                 shell.Show(owner);

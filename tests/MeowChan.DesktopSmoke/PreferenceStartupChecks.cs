@@ -73,7 +73,8 @@ internal static class PreferenceStartupChecks
             string settings = Path.Combine(directory, "settings.json");
             byte[] before = await File.ReadAllBytesAsync(settings, token);
             Config initial = Config.LoadConfig(directory);
-            host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+            await using DesktopSessionHost ownedHost = new(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+            host = ownedHost;
             Require(host.Config.Origin == ProfileOrigin.ExistingValid, "Fixture did not bind a valid existing origin.");
             shell = new MainWindow(host); // Real shell owns StartAsync, event wiring and debounced saves.
             shell.Show(owner);
@@ -148,8 +149,10 @@ internal static class PreferenceStartupChecks
             shell = null;
             host = null;
             using (ProfileLease released = ProfileLease.Acquire(directory)) { }
-            host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using DesktopSessionHost ownedHostSecond = new(directory, Array.Empty<IImageBoard>());
+            host = ownedHostSecond;
+            await using MainWindow ownedShellSecond = new(host);
+            shell = ownedShellSecond;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Deadline, token);
             await UntilAsync(() => shell.IsVisible && Get<bool>(shell, "_windowPreferencesReady")
