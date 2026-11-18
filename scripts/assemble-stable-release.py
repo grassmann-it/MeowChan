@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Verify one final package-media candidate set and stage v0.9.0 release assets.
+"""Verify one final package-media candidate set and stage release assets.
+
+The release version defaults to 0.9.0 (the original contract) and is selected
+with --version. The immutable corresponding-source base stays the pinned 0.9.0
+archive regardless of the release version.
 
 Download the four named candidate artifacts into --artifacts-root first. This
 offline command does not create a tag or release. Platform source overrides
@@ -20,10 +24,11 @@ import tarfile
 import tempfile
 
 
-VERSION = '0.9.0'
+VERSION = '0.9.0'  # default release version; override with --version
 BASE_NAME = f'MeowChan-{VERSION}-video-sources.tar.gz'
 BASE_BYTES = 725131331
 BASE_SHA = 'bf556da3dd1fb511dafb81f684a0bb6fc38e7cb7b91081e9ac0c307bd0771bfa'
+RELEASE_VERSION = re.compile(r'[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.]+)?\Z')
 SHA = re.compile(r'[0-9a-f]{64}\Z')
 COMMIT = re.compile(r'[0-9a-f]{40}\Z')
 
@@ -70,7 +75,7 @@ def check_source(path: Path, source: str) -> None:
             f'Source commit mismatch: {path}')
 
 
-def windows(root: Path, source: str) -> dict[str, Path]:
+def windows(root: Path, source: str, version: str = VERSION) -> dict[str, Path]:
     candidate = root / 'native-media-candidate-win-x64'
     evidence = candidate / 'media-evidence'
     archive = file(candidate / 'media-packages/MeowChan-win-x64.zip')
@@ -96,10 +101,10 @@ def windows(root: Path, source: str) -> dict[str, Path]:
     if split:
         require(all(report.get('acceptanceConfiguration') == 'Debug' and report.get('shippingArtifactExecuted') is False
                     for report in (playback, workflow)), 'Windows Debug acceptance boundary mismatch')
-    return {f'MeowChan-{VERSION}-win-x64.zip': archive}
+    return {f'MeowChan-{version}-win-x64.zip': archive}
 
 
-def linux(root: Path, source: str, rid: str) -> dict[str, Path]:
+def linux(root: Path, source: str, rid: str, version: str = VERSION) -> dict[str, Path]:
     candidate = root / f'linux-distribution-candidate-{rid}'
     packages = candidate / 'linux-packages'
     evidence = candidate / 'linux-evidence'
@@ -108,7 +113,7 @@ def linux(root: Path, source: str, rid: str) -> dict[str, Path]:
     manifest = read_json(manifest_path)
     require(manifest.get('schema') == 'meowchan.linux-packages.v1'
             and manifest.get('source_commit') == source and manifest.get('runtime') == rid
-            and manifest.get('version') == VERSION, f'Linux package manifest mismatch: {rid}')
+            and manifest.get('version') == version, f'Linux package manifest mismatch: {rid}')
     acceptance_manifest = candidate / 'acceptance-linux-packages' / manifest_path.name
     split = acceptance_manifest.is_file()
     if split:
@@ -140,14 +145,14 @@ def linux(root: Path, source: str, rid: str) -> dict[str, Path]:
     for flavor, suffix in [('system-vlc', '-system-vlc.tar.gz'),
                            ('bundled-vlc', '-bundled-vlc.tar.gz'), ('appimage', '.AppImage')]:
         rows = [row for row in artifacts if isinstance(row, dict) and row.get('flavor') == flavor]
-        name = f'MeowChan-{VERSION}-{rid}{suffix}'
+        name = f'MeowChan-{version}-{rid}{suffix}'
         require(len(rows) == 1 and rows[0].get('file') == name, f'Linux asset name mismatch: {name}')
         path = file(packages / name)
         require(type(rows[0].get('bytes')) is int and path.stat().st_size == rows[0]['bytes'],
                 f'Linux asset length mismatch: {name}')
         check_hash(path, rows[0].get('sha256'), name)
         outputs[name] = path
-    source_name = f'MeowChan-{VERSION}-{rid}-video-sources.tar.gz'
+    source_name = f'MeowChan-{version}-{rid}-video-sources.tar.gz'
     source_path = file(packages / source_name)
     sidecar = read_json(packages / (source_name + '.json'))
     require(sidecar.get('schema') == 'meowchan.linux-source-artifact.v1'
@@ -159,10 +164,10 @@ def linux(root: Path, source: str, rid: str) -> dict[str, Path]:
     return outputs
 
 
-def mac(root: Path, source: str) -> dict[str, Path]:
+def mac(root: Path, source: str, version: str = VERSION) -> dict[str, Path]:
     candidate = root / f'macos-paired-candidate-{source}'
     check_source(candidate / 'source.txt', source)
-    require(file(candidate / 'version.txt').read_text(encoding='utf-8').strip() == VERSION,
+    require(file(candidate / 'version.txt').read_text(encoding='utf-8').strip() == version,
             'Mac paired candidate version mismatch')
     checksums = {}
     for line in file(candidate / 'SHA256SUMS').read_text(encoding='utf-8').splitlines():
@@ -178,7 +183,7 @@ def mac(root: Path, source: str) -> dict[str, Path]:
     outputs = {}
     dmgs = {}
     for rid in ('osx-arm64', 'osx-x64'):
-        name = f'MeowChan-{VERSION}-{rid}.dmg'
+        name = f'MeowChan-{version}-{rid}.dmg'
         path = file(candidate / name)
         check_hash(path, checksums.get(name), name)
         report = read_json(candidate / f'{rid}-native-validation.json')
@@ -201,7 +206,7 @@ def mac(root: Path, source: str) -> dict[str, Path]:
                 f'Mac native validation mismatch: {rid}')
         outputs[name] = path
         dmgs[rid] = digest(path)
-    overlay_name = f'MeowChan-{VERSION}-macos-video-source-overlay.tar.gz'
+    overlay_name = f'MeowChan-{version}-macos-video-source-overlay.tar.gz'
     overlay = file(candidate / overlay_name)
     check_hash(overlay, checksums.get(overlay_name), overlay_name)
     with tarfile.open(overlay, 'r:gz') as archive:
@@ -209,14 +214,14 @@ def mac(root: Path, source: str) -> dict[str, Path]:
         require(member.isfile() and member.size <= 16 * 1024 * 1024, 'Invalid Mac overlay manifest')
         manifest = json.load(archive.extractfile(member), object_pairs_hook=unique_object)
     require(manifest.get('schema') == 'meowchan.macos-source-overlay.v1'
-            and manifest.get('version') == VERSION and manifest.get('application_source_commit') == source,
+            and manifest.get('version') == version and manifest.get('application_source_commit') == source,
             'Mac source overlay does not match final source')
     architectures = manifest.get('architectures')
     require(isinstance(architectures, dict) and set(architectures) == set(dmgs),
             'Mac source overlay architecture set mismatch')
     for rid, sha in dmgs.items():
         record = architectures[rid].get('signed_dmg')
-        require(isinstance(record, dict) and record.get('file') == f'MeowChan-{VERSION}-{rid}.dmg'
+        require(isinstance(record, dict) and record.get('file') == f'MeowChan-{version}-{rid}.dmg'
                 and record.get('sha256') == sha, f'Mac source overlay DMG binding mismatch: {rid}')
     base = read_json(candidate / 'source-base.json')
     source_base = manifest.get('source_base')
@@ -229,7 +234,9 @@ def mac(root: Path, source: str) -> dict[str, Path]:
 
 
 def assemble(root: Path, source: str, source_base: Path, output: Path, *,
-             windows_source: str | None = None, macos_source: str | None = None) -> None:
+             windows_source: str | None = None, macos_source: str | None = None,
+             version: str = VERSION) -> None:
+    require(RELEASE_VERSION.fullmatch(version) is not None, f'Invalid release version: {version}')
     require(COMMIT.fullmatch(source) is not None, 'Expected full lowercase source commit SHA')
     windows_source = source if windows_source is None else windows_source
     macos_source = source if macos_source is None else macos_source
@@ -242,8 +249,8 @@ def assemble(root: Path, source: str, source_base: Path, output: Path, *,
     require(source_base.stat().st_size == BASE_BYTES, 'Immutable source base length mismatch')
     check_hash(source_base, BASE_SHA, BASE_NAME)
     assets = {}
-    for group in (windows(root, windows_source), linux(root, source, 'linux-x64'),
-                  linux(root, source, 'linux-arm64'), mac(root, macos_source)):
+    for group in (windows(root, windows_source, version), linux(root, source, 'linux-x64', version),
+                  linux(root, source, 'linux-arm64', version), mac(root, macos_source, version)):
         require(not (assets.keys() & group.keys()), 'Duplicate public release asset')
         assets.update(group)
     assets[BASE_NAME] = source_base
@@ -268,12 +275,14 @@ def main() -> None:
     parser.add_argument('--source-commit', required=True)
     parser.add_argument('--windows-source-commit', help='Explicit accepted Windows source; defaults to --source-commit')
     parser.add_argument('--macos-source-commit', help='Explicit accepted macOS source; defaults to --source-commit')
+    parser.add_argument('--version', default=VERSION, help='Release version used in asset names and manifests (default 0.9.0)')
     parser.add_argument('--source-base', required=True, type=Path)
     parser.add_argument('--output', required=True, type=Path)
     args = parser.parse_args()
     try:
         assemble(args.artifacts_root, args.source_commit, args.source_base, args.output,
-                 windows_source=args.windows_source_commit, macos_source=args.macos_source_commit)
+                 windows_source=args.windows_source_commit, macos_source=args.macos_source_commit,
+                 version=args.version)
     except (OSError, ValueError, KeyError, TypeError, tarfile.TarError, json.JSONDecodeError) as error:
         parser.exit(1, f'Release assembly rejected: {error}\n')
     print(f'Staged 13 release assets and SHA256SUMS in {args.output}')

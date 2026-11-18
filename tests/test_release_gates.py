@@ -79,6 +79,13 @@ class WorkflowContractTests(unittest.TestCase):
     workflow = (ROOT / ".github/workflows/dotnet-desktop.yml").read_text(encoding="utf-8")
     upload = (ROOT / ".github/workflows/upload-verified-release.yml").read_text(encoding="utf-8")
 
+    def test_release_upload_takes_version_from_input_or_product(self):
+        self.assertIn("RELEASE_VERSION", self.upload)
+        self.assertIn("Directory.Build.props", self.upload)
+        self.assertIn("--version \"$RELEASE_VERSION\"", self.upload)
+        self.assertNotIn("'v0.9.0'", self.upload)
+        self.assertNotIn("upload-verified-v0.9.0", self.upload)
+
     def test_validation_keeps_parallel_diagnostics_and_uses_aggregator(self):
         self.assertIn("continue-on-error: true", self.workflow)
         self.assertIn("python3 scripts/aggregate-release-gates.py steps", self.workflow)
