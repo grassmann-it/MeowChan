@@ -26,7 +26,7 @@ public sealed class TextInputPredicateTests
     {
         "text" => new TextBox(), "readonly" => new TextBox { IsReadOnly = true },
         "search" => new SearchBox(), "number" => new NumericUpDown(), "combo" => new ComboBox(),
-        "autocomplete" => new Ursa.Controls.AutoCompleteBox(), "identity" => new IdentitySuggestionBox(),
+        "autocomplete" => new Ursa.Controls.AutoCompleteBox(),
         "slider" => new Slider(), "scrollbar" => new ScrollBar(), "menu" => new MenuItem(),
         "button" => new Button(), "toggle" => new ToggleButton(), "selectable" => new SelectableTextBlock(),
         "tab" => new TabItem(), "list" => new ListBox(), "grid" => new DataGrid(),
@@ -37,7 +37,10 @@ public sealed class TextInputPredicateTests
     [Theory, MemberData(nameof(Controls))]
     public void EveryConsumerUsesTheSameTextCoreWithOnlyItsDocumentedExtras(string name, bool text)
     {
-        Control control = Create(name);
+        IdentitySuggestionBox? identity = name == "identity" ? new IdentitySuggestionBox() : null;
+        Control control = identity ?? Create(name);
+        try
+        {
         Assert.Equal(text, PointerFocusReclaim.IsTextInput(control));
         ListHost posts = new();
         posts.Mount(control);
@@ -80,6 +83,11 @@ public sealed class TextInputPredicateTests
         {
             PointerFocusReclaim.SetReclaims(control, true);
             Assert.Null(PointerFocusReclaim.Resolve(seek, control));
+        }
+        }
+        finally
+        {
+            identity?.Dispose();
         }
     }
 
