@@ -85,6 +85,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly bool _ownsModel;
     private readonly Dictionary<string, CachedBitmap> _bitmaps = new(StringComparer.Ordinal);
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
+    private readonly List<ContextMenuHost> _resultTagMenus = new();
+    private readonly IDisposable _keyContextHost;
 
     private readonly TextBlock _title = new() { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _intro = new() { Classes = { "workspace-help" } };
@@ -163,7 +165,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Name = "BooruWorkbenchView";
         // Every key of the workbench, on the Danbooru page and in its window, runs in the "booru" context (S3 P2-4): a default that a saved binding took
         // away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
-        MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "booru");
+        _keyContextHost = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "booru");
         Header = BuildHeader();
         Body = BuildBody();
         Footer = BuildFooter();
@@ -603,6 +605,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             _resultsKey = key;
             _selectedResults.IntersectWith(view.Rows.Select(row => row.Post.PostId));
             _resultWorkViewActions.Clear();
+            DisposeResultTagMenus();
             RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null);
             PruneBitmaps(view.Rows);
         }
@@ -1118,7 +1121,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
                 ToolTip.SetTip(chip, accessible);
                 chip.Click += (_, _) => AddTagToSearch(name);
                 // A right click, the Menu key and Shift+F10 on the chip: add, exclude, copy the name (the chip's own menu, not the card's).
-                _ = new ContextMenuHost(chip, () => ComposeTagMenu(name), () => chip.Focus(NavigationMethod.Tab));
+                _resultTagMenus.Add(new ContextMenuHost(chip, () => ComposeTagMenu(name), () => chip.Focus(NavigationMethod.Tab)));
                 line.Children.Add(chip);
             }
             AutomationProperties.SetName(line, label + ": " + string.Join(", ", take));
@@ -1196,6 +1199,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Render(force: true);
     }
 
+    private void DisposeResultTagMenus()
+    {
+        foreach (ContextMenuHost menu in _resultTagMenus) menu.Dispose();
+        _resultTagMenus.Clear();
+    }
+
     private Bitmap? PreviewBitmap(BooruResultRowView row)
     {
         if (row.PreviewBytes is not { Length: > 0 } bytes || bytes.Length > MaximumPreviewBytes) return null;
@@ -1204,7 +1213,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         try
         {
             using MemoryStream stream = new(bytes, writable: false);
-            using SKCodec? codec = SKCodec.Create(new SKManagedStream(stream, disposeManagedStream: false));
+            using SKManagedStream managedStream = new(stream, disposeManagedStream: false);
+            using SKCodec? codec = SKCodec.Create(managedStream);
             if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0
                 || (long)codec.Info.Width * codec.Info.Height > 40_000_000) return null;
             stream.Position = 0;
@@ -1392,6 +1402,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;
+        _keyContextHost.Dispose();
+        DisposeResultTagMenus();
         ChromeChanged = null;
         ReviewCurrentBuild = null;
         ReviewUnavailableReason = null;
