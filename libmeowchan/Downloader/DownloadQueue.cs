@@ -16,6 +16,7 @@ using MeowChan.Diagnostics;
 using System.Net;
 using System.Net.Http;
 using Serilog;
+using Microsoft.Data.Sqlite;
 
 public enum DownloadPriority { Manual, BoardDiscovery }
 
@@ -1583,10 +1584,17 @@ public partial class DownloadQueue
             if (_jobs.TryGetValue(Prepare(item).Job, out QueuedDownload? job) && job.Replacement != null && !SameRetrieval(job.Replacement, item)) return;
             _quarantined.Add(Prepare(item).Job); _scheduled.Remove(Prepare(item).Job);
         }
-        string warning = $"Media work for {item.MediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
+        string warning = PersistenceWarning(item.MediaIdentifier, failure);
         _logger.Error(failure, "{Warning}", warning);
         RaisePersistenceFailed(warning);
         _changes.Signal();
+    }
+
+    internal static string PersistenceWarning(string mediaIdentifier, Exception failure)
+    {
+        if (failure is SqliteException { SqliteErrorCode: 10 } sqlite)
+            return $"Media work for {mediaIdentifier} could not be committed because the work journal reported SQLite I/O error 10/{sqlite.SqliteExtendedErrorCode}. Automatic retries are suspended to protect retry state. Check free space, profile folder write access, and whether its filesystem is available and writable.";
+        return $"Media work for {mediaIdentifier} could not be committed: {failure.Message}. Automatic retries are suspended.";
     }
 
     // A throwing subscriber must not abort the worker, schedule or quarantine path that reports the failure.

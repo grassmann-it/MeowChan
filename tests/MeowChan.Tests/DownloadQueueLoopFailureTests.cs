@@ -5,6 +5,7 @@ using MeowChan.Storage;
 using Serilog;
 using Serilog.Core;
 using Serilog.Events;
+using Microsoft.Data.Sqlite;
 
 namespace MeowChan.Tests;
 
@@ -106,6 +107,19 @@ public sealed class DownloadQueueLoopFailureTests
             Assert.Equal(1, Volatile.Read(ref quarantines));
         }
         finally { await queue.StopAllAsync().WaitAsync(TestWait.Timeout); }
+    }
+
+    [Fact]
+    public void SqliteIoFailureIsActionableWithoutExposingItsRawPath()
+    {
+        string warning = DownloadQueue.PersistenceWarning("media-1", new SqliteException("disk I/O error at /home/private/profile/work-state.sqlite", 10, 266));
+
+        Assert.Contains("SQLite I/O error 10/266", warning);
+        Assert.Contains("free space", warning);
+        Assert.Contains("write access", warning);
+        Assert.Contains("filesystem", warning);
+        Assert.Contains("Automatic retries are suspended", warning);
+        Assert.DoesNotContain("/home/private", warning);
     }
 
     /// <summary>A source end 13 hours ago makes the 404 wait expire on the first schedule pass without HTTP.</summary>
