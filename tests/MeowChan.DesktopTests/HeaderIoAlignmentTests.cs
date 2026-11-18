@@ -67,10 +67,21 @@ public sealed class HeaderIoAlignmentTests
             Assert.Equal("tnum", (string?)value.Attribute("FontFeatures"));
             Assert.Equal("0 B/s", (string?)value.Attribute("Text"));
             Assert.Equal("Normal", (string?)value.Attribute("FontWeight"));
-            Assert.Equal("{StaticResource Workspace.Text.Caption}", (string?)value.Attribute("FontSize"));
+            Assert.Equal("{StaticResource Workspace.Text.Meta}", (string?)value.Attribute("FontSize"));
             Assert.Equal("{DynamicResource Workspace.Text}", (string?)value.Attribute("Foreground"));
             Assert.Equal("14", (string?)value.Attribute("LineHeight"));
             Assert.Equal("Raw", (string?)value.Attribute("AutomationProperties.AccessibilityView"));
+        }
+        foreach (string name in new[] { "TransferNetworkTitle", "TransferDiskTitle" })
+        {
+            XElement title = Named(name);
+            Assert.Equal("TextBlock", title.Name.LocalName);
+            Assert.Equal("muted", (string?)title.Attribute("Classes"));
+            Assert.Equal("Center", (string?)title.Attribute("HorizontalAlignment"));
+            Assert.Equal("Center", (string?)title.Attribute("TextAlignment"));
+            Assert.Equal("SemiBold", (string?)title.Attribute("FontWeight"));
+            Assert.Equal("10", (string?)title.Attribute("LineHeight"));
+            Assert.Equal("Raw", (string?)title.Attribute("AutomationProperties.AccessibilityView"));
         }
         foreach (string name in new[] { "TransferSpeedText", "TransferDiskText" })
         {
@@ -83,10 +94,30 @@ public sealed class HeaderIoAlignmentTests
             Assert.Contains(block.Descendants(), node => (string?)node.Attribute("SharedSizeGroup") == "HeaderIoRate"
                 && (string?)node.Attribute("MinWidth") == "56");
         }
-        Assert.DoesNotContain(document.Descendants(), node => (string?)node.Attribute(x + "Name") is "TransferSpeedTitle" or "TransferDiskTitle");
         Assert.DoesNotContain(document.Descendants(), node => (string?)node.Attribute(x + "Name") is "TransferDownIcon" or "TransferUpIcon");
         Assert.DoesNotContain(DesignLintScanner.ScanFile("Desktop/Shell/MainWindow.axaml", File.ReadAllText(Root("Desktop/Shell/MainWindow.axaml")),
             new double[] { 11, 12, 13, 14, 16, 20 }), violation => violation.Rule == DesignRules.GlyphIcon);
+    }
+
+    [Fact]
+    public void WideMetricBlocksKeepTheTitleAboveTheTwoRates()
+    {
+        Grid grid = new() { ColumnDefinitions = new("Auto,Auto"), RowDefinitions = new("Auto,Auto,Auto") };
+        TextBlock title = new(), firstValue = new(), secondValue = new();
+        Control firstWord = new(), secondWord = new();
+
+        MainWindow.ArrangeHeaderRates(grid, title, firstWord, firstValue, secondWord, secondValue, stacked: true);
+
+        Assert.Equal(3, grid.RowDefinitions.Count);
+        Assert.Equal(0, Grid.GetRow(title));
+        Assert.Equal(0, Grid.GetColumn(title));
+        Assert.Equal(2, Grid.GetColumnSpan(title));
+        Assert.Equal(1, Grid.GetRow(firstWord));
+        Assert.Equal(1, Grid.GetRow(firstValue));
+        Assert.Equal(2, Grid.GetRow(secondWord));
+        Assert.Equal(2, Grid.GetRow(secondValue));
+        Assert.Equal(0, Grid.GetColumn(firstWord));
+        Assert.Equal(1, Grid.GetColumn(firstValue));
     }
 
     [Fact]
@@ -113,10 +144,10 @@ public sealed class HeaderIoAlignmentTests
         XDocument document = XDocument.Load(Root("Desktop/Shell/MainWindow.axaml"));
         XNamespace x = "http://schemas.microsoft.com/winfx/2006/xaml";
         XElement grid = document.Descendants().Single(node => (string?)node.Attribute(x + "Name") == gridName);
-        XElement[] cells = grid.Elements().Where(node => node.Attribute(x + "Name") != null).ToArray();
+        XElement[] cells = grid.Elements().Where(node => node.Attribute(x + "Name") != null && (string?)node.Attribute(x + "Name") != (gridName == "TransferSpeedText" ? "TransferNetworkTitle" : "TransferDiskTitle")).ToArray();
         Assert.Equal(new[] { firstWord, firstRate, secondWord, secondRate }, cells.Select(node => (string?)node.Attribute(x + "Name")));
-        for (int i = 0; i < cells.Length; i++)
-            Assert.Equal(i, (int?)cells[i].Attribute("Grid.Column") ?? 0);
+        Assert.Equal(new[] { 0, 1, 0, 1 }, cells.Select(node => (int?)node.Attribute("Grid.Column") ?? 0));
+        Assert.Equal(new[] { 1, 1, 2, 2 }, cells.Select(node => (int?)node.Attribute("Grid.Row") ?? 0));
     }
 
     [Theory]
