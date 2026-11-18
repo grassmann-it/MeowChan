@@ -34,8 +34,11 @@ internal static class ShellPreferenceCoalescingChecks
             new Config { DownloadPath = Path.Combine(directory, "media"), SaveUrlsOnExit = false,
                 AutomaticUpdateChecks = false, RememberReadingPosition = true, WorkspaceMode = "Advanced",
                 CloseToTray = false, MinimizeToTray = false, ShowErrorNotifications = false }.SaveConfig(directory);
-            host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using (host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>()))
+            await using (shell = new MainWindow(host))
+            {
+                try
+                {
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Deadline);
             await Program.WaitUntilAsync(() => shell.FindControl<Button>("AddUrlButton")!.IsEnabled
@@ -179,9 +182,9 @@ internal static class ShellPreferenceCoalescingChecks
                 + SavedValues(saved) + $"; visible={shell.IsVisible}, state={host.State}, reading payload={File.ReadAllText(readingPath)}.");
             using (ProfileLease released = ProfileLease.Acquire(directory)) { }
             Console.WriteLine($"SMOKE shell preference coalescing: PASS; 128 mixed flushes, distinct held shell tasks window/gallery/reading={windowTasks.Count}/{galleryTasks.Count}/{readingTasks.Count}; all profile-column/geometry/context/volume/reading deltas survive; failures visible and retained/retryable; actual shutdown drains final values. Offline fixture, no native input claim.");
-        }
-        finally
-        {
+                }
+                finally
+                {
             if (gateHeld) gate!.Release();
             // Remove fixture-owned IO failure directories even if an assertion failed before retry.
             foreach (string name in new[] { "settings.json", "reading-position.json" })
@@ -190,10 +193,14 @@ internal static class ShellPreferenceCoalescingChecks
             {
                 StopTimers(shell);
                 close ??= (Task)Call(shell, "CloseApplicationAsync")!;
-                await close.WaitAsync(Deadline); await shell.DisposeAsync();
+                await close.WaitAsync(Deadline);
             }
-            if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
             diagnostics?.Dispose();
+                }
+            }
+        }
+        finally
+        {
             Texts.SetLanguage(language);
             Directory.Delete(directory, recursive: true);
         }

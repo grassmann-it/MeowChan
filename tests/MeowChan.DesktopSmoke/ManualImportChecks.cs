@@ -47,60 +47,70 @@ internal static class ManualImportChecks
 
     private static async Task RunShellAsync(MainWindow owner, string profile, string source)
     {
-        await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
-        await using MainWindow shell = new(host) { Width = 1300, Height = 900 };
-        shell.Show(owner);
-        Exception? failure = null;
+        DesktopSessionHost? host = null;
         try
         {
-            await UntilAsync(() => host.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
-            shell.OpenManualImportDialog(new[] { source });
-            await UntilAsync(() => shell.ManualImportWindow is { IsVisible: true } dialog && dialog.Session.Stage == ManualImportStage.Ready);
-            ManualImportDialog import = shell.ManualImportWindow!;
-            Require((import.Session.NewCount, import.Session.LinkedCount, import.Session.UnsupportedCount) == (2, 1, 1),
-                "The check did not find 2 new, 1 linked and 1 unsupported file: " + import.Counts.Text);
-            Require(import.ImportButton.IsEnabled && Equals(import.ImportButton.Content, Texts.Count("import.start", 2)), "The import button does not name 2 files.");
-            import.TagInput.Text = "imported_fixture";
-            import.TagAddButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Require(import.Session.Tags.SequenceEqual(new[] { "imported_fixture" }), "The batch tag was not taken.");
-            import.BatchNameBox.Text = "Fixture batch";
-            Program.CaptureWindow(import, "smoke-manual-import-preview.png");
-            import.ImportButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await UntilAsync(() => import.Session.Stage == ManualImportStage.Done);
-            ManualImportOutcome outcome = import.Session.Outcome!;
-            Require(outcome.TagsApplied && outcome.Batch.Count(ManualImportItemState.Committed) == 2 && outcome.Batch.Count(ManualImportItemState.Duplicate) == 1,
-                "The import did not copy 2, link 1 and apply the tag: " + import.Status.Text);
-            Require(import.ShowBatchButton.IsVisible, "The summary does not offer Show batch.");
-            Program.CaptureWindow(import, "smoke-manual-import-done.png");
-            import.ShowBatchButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            await UntilAsync(() => shell.ManualImportWindow == null && shell.SelectedPage == MainWindow.WorkspacePage.Media && shell.MediaPageForTests != null);
-            MediaPage page = shell.MediaPageForTests!;
-            await UntilAsync(() => page.BuildTask.IsCompleted && page.ShownEntries.Count == 2);
-            Require(page.ShownEntries.All(entry => entry.ImportItemId != null && entry.Thread == outcome.Batch.Thread && entry.LocalSlot != null),
-                "The Media page does not show exactly the batch's imported files.");
-            PrivateTagStoreSnapshot tags = host.GetPrivateTagSnapshot().Snapshot!;
-            Require(page.ShownEntries.All(entry => MediaTagSubjects.Of(entry) is MediaTagSubject.Local local && tags.ResolveLocal(local.Observation).IsRegistered),
-                "The imported tiles are not tagged loose files.");
-            Require(File.ReadAllBytes(Path.Combine(source, "first.png")).SequenceEqual(Png) && File.Exists(Path.Combine(source, "twin.png")),
-                "A source file changed.");
-            Program.CaptureWindow(shell, "smoke-manual-import-media.png");
+            await using DesktopSessionHost ownedHost = new(profile, Array.Empty<IImageBoard>());
+            host = ownedHost;
+            await using (MainWindow shell = new(host) { Width = 1300, Height = 900 })
+            {
+                shell.Show(owner);
+                Exception? failure = null;
+                try
+                {
+                    await UntilAsync(() => host.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
+                    shell.OpenManualImportDialog(new[] { source });
+                    await UntilAsync(() => shell.ManualImportWindow is { IsVisible: true } dialog && dialog.Session.Stage == ManualImportStage.Ready);
+                    ManualImportDialog import = shell.ManualImportWindow!;
+                    Require((import.Session.NewCount, import.Session.LinkedCount, import.Session.UnsupportedCount) == (2, 1, 1),
+                        "The check did not find 2 new, 1 linked and 1 unsupported file: " + import.Counts.Text);
+                    Require(import.ImportButton.IsEnabled && Equals(import.ImportButton.Content, Texts.Count("import.start", 2)), "The import button does not name 2 files.");
+                    import.TagInput.Text = "imported_fixture";
+                    import.TagAddButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(import.Session.Tags.SequenceEqual(new[] { "imported_fixture" }), "The batch tag was not taken.");
+                    import.BatchNameBox.Text = "Fixture batch";
+                    Program.CaptureWindow(import, "smoke-manual-import-preview.png");
+                    import.ImportButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await UntilAsync(() => import.Session.Stage == ManualImportStage.Done);
+                    ManualImportOutcome outcome = import.Session.Outcome!;
+                    Require(outcome.TagsApplied && outcome.Batch.Count(ManualImportItemState.Committed) == 2 && outcome.Batch.Count(ManualImportItemState.Duplicate) == 1,
+                        "The import did not copy 2, link 1 and apply the tag: " + import.Status.Text);
+                    Require(import.ShowBatchButton.IsVisible, "The summary does not offer Show batch.");
+                    Program.CaptureWindow(import, "smoke-manual-import-done.png");
+                    import.ShowBatchButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    await UntilAsync(() => shell.ManualImportWindow == null && shell.SelectedPage == MainWindow.WorkspacePage.Media && shell.MediaPageForTests != null);
+                    MediaPage page = shell.MediaPageForTests!;
+                    await UntilAsync(() => page.BuildTask.IsCompleted && page.ShownEntries.Count == 2);
+                    Require(page.ShownEntries.All(entry => entry.ImportItemId != null && entry.Thread == outcome.Batch.Thread && entry.LocalSlot != null),
+                        "The Media page does not show exactly the batch's imported files.");
+                    PrivateTagStoreSnapshot tags = host.GetPrivateTagSnapshot().Snapshot!;
+                    Require(page.ShownEntries.All(entry => MediaTagSubjects.Of(entry) is MediaTagSubject.Local local && tags.ResolveLocal(local.Observation).IsRegistered),
+                        "The imported tiles are not tagged loose files.");
+                    Require(File.ReadAllBytes(Path.Combine(source, "first.png")).SequenceEqual(Png) && File.Exists(Path.Combine(source, "twin.png")),
+                        "A source file changed.");
+                    Program.CaptureWindow(shell, "smoke-manual-import-media.png");
+                }
+                catch (Exception thrown) { failure = thrown; throw; }
+                finally
+                {
+                    await SmokeCleanup.RunAsync(failure, () => CloseAsync(shell),
+                        exception => Console.Error.WriteLine("SMOKE cleanup failed in ManualImportChecks: " + exception));
+                }
+            }
+            Require(host.IsProfileReleased, "The fixture host did not release its private profile.");
         }
-        catch (Exception thrown) { failure = thrown; throw; }
         finally
         {
-            await SmokeCleanup.RunAsync(failure, () => CloseAsync(host, shell),
-                exception => Console.Error.WriteLine("SMOKE cleanup failed in ManualImportChecks: " + exception));
+            if (!host.IsProfileReleased) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
         }
     }
 
-    private static async Task CloseAsync(DesktopSessionHost host, MainWindow shell)
+    private static async Task CloseAsync(MainWindow shell)
     {
         foreach (Window child in shell.OwnedWindows.Where(child => child.IsVisible).ToArray()) child.Close();
         var close = typeof(MainWindow).GetMethod("CloseApplicationAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         await ((Task)close.Invoke(shell, null)!).WaitAsync(Deadline);
         await UntilAsync(() => !shell.IsVisible);
-        await host.DisposeAsync().AsTask().WaitAsync(Deadline);
-        Require(host.IsProfileReleased, "The fixture host did not release its private profile.");
     }
 
     private static async Task UntilAsync(Func<bool> condition)

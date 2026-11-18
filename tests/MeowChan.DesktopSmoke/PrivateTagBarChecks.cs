@@ -71,9 +71,9 @@ internal static partial class PrivateTagBarChecks
         private readonly Window _window;
         private readonly ArchivePage _page;
         private readonly DesktopSessionHost _host;
-        internal Fixture(string profile)
+        internal Fixture(DesktopSessionHost host)
         {
-            _host = new DesktopSessionHost(profile, Array.Empty<IImageBoard>());
+            _host = host;
             _page = new ArchivePage(_host.OpenArchiveReaderAsync,
                 (_, _) => throw new InvalidOperationException("No capture mutation permitted."),
                 _ => throw new InvalidOperationException("No external launch permitted."));
@@ -149,15 +149,28 @@ internal static partial class PrivateTagBarChecks
 
     private static async Task<Fixture> OpenAsync(MainWindow owner, string profile, ResourceId thread)
     {
-        Fixture fixture = new(profile);
-        await fixture.Host.StartAsync().WaitAsync(Deadline);
-        fixture.Window.Show(owner);
-        Require(fixture.Window.TryGetPlatformHandle()?.Handle is nint h && h != 0, "Missing native fixture owner.");
-        fixture.Page.IsAvailable = true;
-        await fixture.Page.LoadThreadAsync(thread).WaitAsync(Deadline);
-        await fixture.Page.MediaLoadTask.WaitAsync(Deadline);
-        Require(fixture.Page.CurrentThread?.Summary.Id == thread, "Offline snapshot was not loaded through the catalog.");
-        return fixture;
+        DesktopSessionHost? ownedHost = new(profile, Array.Empty<IImageBoard>());
+        Fixture? ownedFixture = null;
+        try
+        {
+            ownedFixture = new Fixture(ownedHost);
+            ownedHost = null;
+            await ownedFixture.Host.StartAsync().WaitAsync(Deadline);
+            ownedFixture.Window.Show(owner);
+            Require(ownedFixture.Window.TryGetPlatformHandle()?.Handle is nint h && h != 0, "Missing native fixture owner.");
+            ownedFixture.Page.IsAvailable = true;
+            await ownedFixture.Page.LoadThreadAsync(thread).WaitAsync(Deadline);
+            await ownedFixture.Page.MediaLoadTask.WaitAsync(Deadline);
+            Require(ownedFixture.Page.CurrentThread?.Summary.Id == thread, "Offline snapshot was not loaded through the catalog.");
+            Fixture result = ownedFixture;
+            ownedFixture = null;
+            return result;
+        }
+        finally
+        {
+            if (ownedFixture != null) await ownedFixture.DisposeAsync();
+            if (ownedHost != null) await ownedHost.DisposeAsync();
+        }
     }
 
     private static async Task JourneyAsync(MainWindow owner, string profile)

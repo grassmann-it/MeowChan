@@ -226,50 +226,69 @@ internal sealed class QuickTagPopover
     // ---- creation -----------------------------------------------------------------------------------------------------
 
     /// <summary>Builds the popover around <paramref name="session"/> without showing it. <paramref name="label"/> is the file name or selection.</summary>
-    internal static QuickTagPopover Create(Control anchor, QuickTagSession session, string label, QuickTagPopoverOptions? options = null)
+    internal static QuickTagPopover Create(Control anchor, QuickTagSession session, string label, QuickTagPopoverOptions? options = null,
+        Action? creationProbe = null)
     {
         ArgumentNullException.ThrowIfNull(anchor);
         ArgumentNullException.ThrowIfNull(session);
         options ??= new QuickTagPopoverOptions();
-        QuickTagSurface surface = new(session, options.Quick, options.Name)
-        {
-            ShortcutContext = options.TooltipKeyContext ?? "gallery",
-            TargetLabel = label ?? string.Empty,
-            ReadSourceTags = options.ReadSourceTags,
-            NavigationEnabled = false
-        };
+        QuickTagSurface? surface = null;
         Action? unsubscribe = null;
-        if (options.Suggestions is { } source)
+        QuickTagPopover? popover = null;
+        try
         {
-            surface.Suggestions = source;
-            if (source is GalleryTagPanelSuggestions ranking)
+            QuickTagSurface createdSurface = new(session, options.Quick, options.Name)
             {
-                // Ready comes from a worker: the strip is asked again on the UI thread, never after the popover closed.
-                bool closed = false;
-                Action ready = () => Dispatcher.UIThread.Post(() => { if (!closed) surface.Refresh(); }, DispatcherPriority.Background);
-                ranking.Ready += ready;
-                unsubscribe = () => { closed = true; ranking.Ready -= ready; ranking.Dispose(); };
-                if (session.Snapshot is { } snapshot) ranking.Warm(snapshot);
+                ShortcutContext = options.TooltipKeyContext ?? "gallery",
+                TargetLabel = label ?? string.Empty,
+                ReadSourceTags = options.ReadSourceTags,
+                NavigationEnabled = false
+            };
+            surface = createdSurface;
+            creationProbe?.Invoke();
+            if (options.Suggestions is { } source)
+            {
+                createdSurface.Suggestions = source;
+                if (source is GalleryTagPanelSuggestions ranking)
+                {
+                    // Ready comes from a worker: the strip is asked again on the UI thread, never after the popover closed.
+                    bool closed = false;
+                    Action ready = () => Dispatcher.UIThread.Post(() => { if (!closed) createdSurface.Refresh(); }, DispatcherPriority.Background);
+                    ranking.Ready += ready;
+                    unsubscribe = () => { closed = true; ranking.Ready -= ready; ranking.Dispose(); };
+                    if (session.Snapshot is { } snapshot) ranking.Warm(snapshot);
+                }
             }
+            if (options.Recent is { } recent)
+                session.Applied += change => { if (change.Assigned) recent.Touch(change.Tag); };
+            createdSurface.AdvancedButton.IsVisible = options.AdvancedAvailable;
+            GalleryDecisionRow? decisionRow = null;
+            if (options.Decision is { } decision)
+            {
+                decisionRow = NewDecisionRow(options, decision);
+                decisionRow.FieldFocused = () => createdSurface.Input.IsKeyboardFocusWithin;
+                decisionRow.ReturnFocus = () => createdSurface.FocusField();
+                createdSurface.DecisionContent = decisionRow;
+                // An explicit star-focus request suppresses the surface's automatic field focus; general rate-and-tag entry keeps it.
+                if (decision.InitialFocus == QuickTagInitialFocus.Rating) createdSurface.FocusOnAttach = false;
+            }
+            popover = new(anchor, options, createdSurface, session, createdSurface, unsubscribe, decisionRow);
+            popover.WireDecision(decisionRow);
+            createdSurface.CloseRequested += () => popover.Close(QuickTagPopoverCloseReason.Closed);
+            createdSurface.AdvancedRequested += () => popover.Close(QuickTagPopoverCloseReason.Advanced);
+            return popover;
         }
-        if (options.Recent is { } recent)
-            session.Applied += change => { if (change.Assigned) recent.Touch(change.Tag); };
-        surface.AdvancedButton.IsVisible = options.AdvancedAvailable;
-        GalleryDecisionRow? decisionRow = null;
-        if (options.Decision is { } decision)
+        catch
         {
-            decisionRow = NewDecisionRow(options, decision);
-            decisionRow.FieldFocused = () => surface.Input.IsKeyboardFocusWithin;
-            decisionRow.ReturnFocus = () => surface.FocusField();
-            surface.DecisionContent = decisionRow;
-            // An explicit star-focus request suppresses the surface's automatic field focus; general rate-and-tag entry keeps it.
-            if (decision.InitialFocus == QuickTagInitialFocus.Rating) surface.FocusOnAttach = false;
+            if (popover != null) popover.Close();
+            else
+            {
+                unsubscribe?.Invoke();
+                surface?.Dispose();
+                session.Dispose();
+            }
+            throw;
         }
-        QuickTagPopover popover = new(anchor, options, surface, session, surface, unsubscribe, decisionRow);
-        popover.WireDecision(decisionRow);
-        surface.CloseRequested += () => popover.Close(QuickTagPopoverCloseReason.Closed);
-        surface.AdvancedRequested += () => popover.Close(QuickTagPopoverCloseReason.Advanced);
-        return popover;
     }
 
     /// <summary>
@@ -353,8 +372,11 @@ internal sealed class QuickTagPopover
     internal string? BlockedReason { get; private set; }
 
     /// <summary>Opens the popover on its anchor, replacing any other one, and returns it.</summary>
-    internal QuickTagPopover Show()
+    internal QuickTagPopover Show() => ShowAt((flyout, anchor) => flyout.ShowAt(anchor));
+
+    internal QuickTagPopover ShowAt(Action<Flyout, Control> showAt)
     {
+        ArgumentNullException.ThrowIfNull(showAt);
         if (_closed || _shown) return this;
         Current?.Close(QuickTagPopoverCloseReason.Replaced);
         _shown = true;
@@ -362,7 +384,18 @@ internal sealed class QuickTagPopover
         LatchOpeningKeys();
         _origin = OriginOf(TopLevel.GetTopLevel(_anchor), TopLevel.GetTopLevel(_anchor)?.FocusManager?.GetFocusedElement() as Control);
         _flyout.Opened += OnOpened;
-        _flyout.ShowAt(_anchor);
+        try { showAt(_flyout, _anchor); }
+        catch
+        {
+            try { _flyout.Hide(); } catch { }
+            if (!_closed)
+            {
+                _shown = false;
+                _closed = true;
+                Finish(QuickTagPopoverCloseReason.Dismissed);
+            }
+            throw;
+        }
         return this;
     }
 

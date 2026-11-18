@@ -24,13 +24,18 @@ internal static partial class MediaPageChecks
     {
         new Config { DownloadsPaused = true, SaveUrlsOnExit = false, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Simple" }.SaveConfig(profile);
         await SeedReturnAsync(profile);
-        await using DesktopSessionHost session = new(profile, Array.Empty<IImageBoard>());
-        await using MainWindow shell = new(session) { Width = 1400, Height = 900 };
-        Exception? failureBeforeCleanup = null;
+        DesktopSessionHost? session = null;
         try
         {
-            shell.Show(owner);
-            await UntilAsync(() => session.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
+            await using DesktopSessionHost ownedSession = new(profile, Array.Empty<IImageBoard>());
+            session = ownedSession;
+            await using (MainWindow shell = new(session) { Width = 1400, Height = 900 })
+            {
+                Exception? failureBeforeCleanup = null;
+                try
+                {
+                    shell.Show(owner);
+                    await UntilAsync(() => session.State == DesktopSessionState.Ready && shell.FindControl<Button>("AddUrlButton")!.IsEnabled);
             Button mediaNavigation = shell.FindControl<Button>("MediaNavigationButton")!;
             await UntilAsync(() => mediaNavigation.IsVisible && mediaNavigation.IsEffectivelyEnabled);
             mediaNavigation.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -187,18 +192,25 @@ internal static partial class MediaPageChecks
             Require(Selected() == "r-618.png" && page.SelectedTiles.Count == 1 && !note.IsVisible, "(b) 'Back to media' must lead to the same Medien tile: " + Selected());
             await DirectGalleryOpenGuardAsync(shell, page);
             Console.WriteLine("SMOKE media gallery return [en]: real main window -> (a) Medien tile -> gallery whose close action is 'To media' (name, tooltip with Esc, visible label, help entry and Escape line; 'Zu Medien' after a switch to German) -> T -> thread with only 'Back to gallery', Alt+Left kept in the archive -> back to the same gallery -> Escape -> the same Medien tile focused and selected, no return state left, focus stable; (b) Medien tile -> T -> 'Back to media' -> gallery from the reader ('Close gallery') hides it -> T -> only 'Back to gallery' -> back -> close -> archive reader with 'Back to media' again -> the same Medien tile.");
+                }
+                catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
+                finally
+                {
+                    await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+                    {
+                        foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
+                        shell.Close();
+                        await UntilAsync(() => !shell.IsVisible);
+                        await shell.GalleryCleanupTask;
+                        owner.Activate();
+                    }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaGalleryReturnChecks: " + exception));
+                }
+            }
+            Require(session.IsProfileReleased, "The gallery return host did not release its private profile.");
         }
-        catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
         finally
         {
-            await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
-            {
-                foreach (Window child in shell.OwnedWindows.Where(window => window.IsVisible).ToArray()) child.Close();
-                shell.Close();
-                await UntilAsync(() => !shell.IsVisible);
-                await shell.GalleryCleanupTask;
-                owner.Activate();
-            }, exception => Console.Error.WriteLine("SMOKE cleanup failed in MediaGalleryReturnChecks: " + exception));
+            if (session != null && !session.IsProfileReleased) await session.DisposeAsync().AsTask().WaitAsync(Deadline);
         }
     }
 }
