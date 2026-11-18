@@ -283,11 +283,10 @@ public sealed class ThreadFavoriteHydrationTests
                 Assert.Null(page.FindControl<DataGrid>("ArchiveThreadTable")!.ItemsSource);
                 Assert.Equal(0, readerOpens);
 
-                // OpenFrozenReaderAsync -> OpenLargeReader(origin, frozen.Scope) uses exactly this
-                // detach/scope/load chain; the source contract below guards that shell wiring.
+                // OpenFrozenReaderAsync -> OpenLargeReader(origin, frozen.Scope) uses the shared
+                // HostLargeReader boundary; the source contract below guards that shell wiring.
                 page.SetReaderCloseTarget("command.reader.close.toDownloads");
-                readerHost.Content = page.DetachReader();
-                page.SetReaderScope(new[] { ThreadId });
+                page.HostLargeReader(readerHost, present: () => { }, scope: () => page.SetReaderScope(new[] { ThreadId }));
                 Pump(page.LoadThreadAsync(ThreadId));
                 Pump(page.MediaLoadTask);
                 Assert.NotNull(readerHost.Content);
@@ -333,8 +332,9 @@ public sealed class ThreadFavoriteHydrationTests
         Assert.Contains("_archivePage = new ArchivePage(_session.OpenArchiveReaderAsync", navigation);
         Assert.Contains("_archivePage.AttachThreadFavorites(_session)", navigation);
         string reader = Source("Desktop/Shell/MainWindow.Reader.cs");
-        Assert.Contains("host.Content = ArchivePage.DetachReader()", reader);
+        Assert.Contains("ArchivePage.HostLargeReader(ReaderHost,", reader);
         Assert.Contains("if (frozenThreads != null) ArchivePage.SetReaderScope(frozenThreads)", reader);
+        Assert.DoesNotContain("DetachReader()", reader);
         Assert.DoesNotContain("new ArchivePage", reader);
         Assert.DoesNotContain("AttachThreadFavorites", reader); // no second/rebound reader host
     }
