@@ -147,16 +147,21 @@ internal static class ReaderGalleryShortcutParityChecks
                     Require(key.Handled && galleryHost.IsEffectivelyVisible && galleryHost.Content is GalleryViewer,
                         "medium key did not present the production gallery");
                     GalleryViewer viewer = (GalleryViewer)galleryHost.Content!;
+                    Exception? failureBeforeCleanup = null;
                     try
                     {
                         await Program.WaitUntilAsync(() => viewer.CurrentEntry != null);
                         Require(viewer.CurrentEntry!.EntryKey.PostId == "7000" && viewer.CurrentEntry.EntryKey.AttachmentPosition == 2,
                             "production medium activation lost the chosen association");
                     }
+                    catch (Exception thrown) { failureBeforeCleanup = thrown; throw; }
                     finally
                     {
-                        Focus(window, viewer); Press(viewer, Key.Escape);
-                        await Program.WaitUntilAsync(() => !galleryHost.IsVisible);
+                        await SmokeCleanup.RunAsync(failureBeforeCleanup, async () =>
+                        {
+                            Focus(window, viewer); Press(viewer, Key.Escape);
+                            await Program.WaitUntilAsync(() => !galleryHost.IsVisible);
+                        }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderGalleryShortcutParityChecks: " + exception));
                     }
                 });
                 await Scene(mode + "-reader-post-focus-Q", async () =>
