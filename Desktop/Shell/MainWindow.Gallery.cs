@@ -22,6 +22,7 @@ namespace MeowChan;
 
 public partial class MainWindow
 {
+    private readonly PlaybackArbitrationGate _playbackGate = new();
     private GalleryViewer? _gallery;
     private Task _galleryCleanupTask = Task.CompletedTask;
     // Only actual stop/detach drains own native input/drawable lifetime; preference failures do not.
@@ -151,6 +152,10 @@ public partial class MainWindow
         IReadOnlyList<GalleryEntry>? frozenEntries = null, GalleryEntryKey? entryStart = null,
         Func<CancellationToken, Task<IReadOnlyList<ResourceId>>>? selectThreads = null, Func<bool>? stillRequested = null)
     {
+        if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
+        await _playbackGate.EnterGalleryAsync(() => Task.WhenAll(
+            _archivePage?.ReleaseInlineVideos() ?? Task.CompletedTask,
+            _mediaPage?.ReleasePanelVideos() ?? Task.CompletedTask));
         if (stillRequested?.Invoke() == false || _archivePage?.IsArchiveCleanupOpen == true) return;
         bool largeReaderOrigin = _largeReaderOpen;
         bool readerOrigin = largeReaderOrigin && ArchivePage.ReaderShowsPosts;
@@ -553,6 +558,7 @@ public partial class MainWindow
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
         if (host != null) host.IsVisible = false;
         UpdateGalleryFullscreenPresentation();
+        if (cancelPendingOpen) _playbackGate.ExitGallery();
         if (retiring != null) TrackNativeGalleryCleanup(StopAndDetachGalleryAsync(retiring, host));
         if (_isClosing) TrackGalleryCleanup(DisposeGalleryScrubPreviewAsync());
         _galleryRestoreOrigin = null;

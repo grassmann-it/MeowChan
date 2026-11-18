@@ -108,6 +108,7 @@ public partial class MainWindow
             ManageMediaRatingsAsync = ManageMediaRatingsAsync,
             PanelMinimumPageWidthSource = () => _session.Config.MediaPanelMinimumPageWidth
         };
+        _mediaPage.PlaybackGate = _playbackGate;
         // The order the user chose last visit; the random order is not kept, the last other choice stays (MediaSortPreference.Remember).
         // Every later choice is saved as a direct preference.
         (MediaLibrarySort savedSort, MediaLibrarySortDirection savedDirection) = MediaSortPreference.Restore(_session.Config.MediaSort, _session.Config.MediaSortDirection);

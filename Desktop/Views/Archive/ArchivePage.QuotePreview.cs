@@ -162,6 +162,7 @@ public partial class ArchivePage
         // The preview is as wide as its medium (a portrait picture does not spread the text over the whole box), at least as wide as without one.
         _quotePreviewMedia = new QuotePreviewMedia
         {
+            PlaybackGate = PlaybackGate,
             FrameSized = size =>
             {
                 if (!QuotePreviewMediaHost.IsVisible) return;

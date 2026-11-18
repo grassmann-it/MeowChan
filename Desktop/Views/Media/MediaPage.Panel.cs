@@ -61,6 +61,7 @@ public sealed partial class MediaPage
     internal ReaderInlineVideoSlot? PanelVideo => _panelVideo;
     /// <summary>The panel's inline players (smoke and test seam).</summary>
     internal ReaderInlineVideoController PanelVideoController => _panelVideoController;
+    internal PlaybackArbitrationGate? PlaybackGate { get => _panelVideoController.PlaybackGate; set => _panelVideoController.PlaybackGate = value; }
     /// <summary>The drag handle on the panel's edge (smokes).</summary>
     internal GridSplitter PanelHandle => _panelHandle;
     /// <summary>The page width below which the panel hides (the setting); the shell binds it. Null: the default.</summary>

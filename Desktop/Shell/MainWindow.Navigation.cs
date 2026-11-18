@@ -80,6 +80,7 @@ public partial class MainWindow
         InitializeUpdates();
         InitializeMediaFocusChrome();
         _archivePage = new ArchivePage(_session.OpenArchiveReaderAsync, _session.SetCaptureEnabledAsync, directory => OpenDirectory(directory, _archivePage?.CaptureActionErrorReporter()));
+        _archivePage.PlaybackGate = _playbackGate;
         _archivePage.AttachTransferImport(_session);
         _archivePage.AttachTransferExport(_session);
         _archivePage.AttachSavedSearches(_session);
