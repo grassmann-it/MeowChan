@@ -243,7 +243,7 @@ public partial class ArchivePage
         TagContext selectionContext = QuickTagPopoverContext.ContextOf(lead, entries, thread.Summary.Title) with { Sha256 = null };
         // The shell's saved limits, ranking and shared stamp (unbound: the defaults); the session takes the undo depth and the stamp.
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(selectionContext) ?? QuickTagPopoverOptions.Defaults(selectionContext);
-        QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
+        using QuickTagSession quick = options.NewSession(QuickTagTarget.For(session));
         _mediaSelectionBusy = true;
         UpdateActions();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;
