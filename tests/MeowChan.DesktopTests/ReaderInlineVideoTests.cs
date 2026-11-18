@@ -85,16 +85,18 @@ public sealed class ReaderInlineVideoTests : IDisposable
     }
 
     [Fact]
-    public async Task GalleryGatePreventsAQueuedDoubleClickPlaybackFromStartingAgain()
+    public async Task GalleryGateRejectsPlaybackQueuedAfterTheGalleryClaimsOwnership()
     {
         PlaybackArbitrationGate gate = new();
         ReaderInlineVideoController controller = await Controller(On());
         controller.PlaybackGate = gate;
         var video = Video();
 
-        Task firstPlay = controller.PlayAsync(video.Owner, video.Create);
-        await gate.EnterGalleryAsync(controller.ReleaseAllAsync);
-        await firstPlay;
+        // The gallery claims the gate before its release handoff; a click queued after that point must not create a new player.
+        Task galleryRelease = gate.EnterGalleryAsync(controller.ReleaseAllAsync);
+        Task<bool> queuedPlay = controller.PlayAsync(video.Owner, video.Create);
+        Assert.False(await queuedPlay);
+        await galleryRelease;
 
         Assert.Equal(0, controller.LiveCount);
         Assert.Empty(video.Players);
