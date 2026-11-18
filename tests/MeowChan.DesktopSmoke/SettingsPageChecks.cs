@@ -528,7 +528,7 @@ internal static class SettingsPageChecks
             await Program.WaitUntilAsync(() => closed);
             bool lateUpdate = false;
             editor.PropertyChanged += (_, _) => lateUpdate = true;
-            SettingsChecks.FixtureStorageFolder selected = new SettingsChecks.FixtureStorageFolder(new Uri(Path.Combine(profile, "late-picker")));
+            using SettingsChecks.FixtureStorageFolder selected = new SettingsChecks.FixtureStorageFolder(new Uri(Path.Combine(profile, "late-picker")));
             pending.SetResult(new Avalonia.Platform.Storage.IStorageFolder[] { selected });
             await Program.WaitUntilAsync(() => !editor.IsBusy && selected.Disposed);
             Require(!lateUpdate && editor.DownloadPath == path, "A late picker result modified the ended editor.");

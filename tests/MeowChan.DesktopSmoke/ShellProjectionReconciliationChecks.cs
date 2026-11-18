@@ -42,8 +42,11 @@ internal static class ShellProjectionReconciliationChecks
             new Config { DownloadPath = Path.Combine(directory, "media"), SaveUrlsOnExit = false,
                 AutomaticUpdateChecks = false, CloseToTray = false, MinimizeToTray = false,
                 WorkspaceMode = "Advanced", ShowWarningNotifications = false }.SaveConfig(directory);
-            host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>());
-            shell = new MainWindow(host);
+            await using (host = new DesktopSessionHost(directory, Array.Empty<IImageBoard>()))
+            await using (shell = new MainWindow(host))
+            {
+                try
+                {
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Deadline);
             await Program.WaitUntilAsync(() => shell.FindControl<Button>("AddUrlButton")!.IsEnabled
@@ -246,17 +249,21 @@ internal static class ShellProjectionReconciliationChecks
                 "The real shell did not finish close after its actual drain was released.");
             using (ProfileLease released = ProfileLease.Acquire(directory)) { }
             Console.WriteLine($"SMOKE shell projection reconciliation: PASS; real source/search slices={seedCounts.Calls}/{activeCounts.Calls}/{latestCounts.Calls}; >64 rows, latest pending, fixed-frame query, retained references/selection/lead/focus, no Reset, row-command fence, prompt Pause/warning/status and partial-frame close. Offline private-boundary fixture; no native-player ownership claim.");
-        }
-        finally
-        {
+                }
+                finally
+                {
             releaseCleanup.TrySetResult();
             if (host != null && original != null && !restored) RestoreHost(host, original, captureWasClosed);
             if (shell != null)
             {
                 close ??= (Task)Call(shell, "CloseApplicationAsync")!;
-                await close.WaitAsync(Deadline); await shell.DisposeAsync();
+                await close.WaitAsync(Deadline);
             }
-            if (host != null) await host.DisposeAsync().AsTask().WaitAsync(Deadline);
+                }
+            }
+        }
+        finally
+        {
             Texts.SetLanguage(language);
             Directory.Delete(directory, recursive: true);
         }
