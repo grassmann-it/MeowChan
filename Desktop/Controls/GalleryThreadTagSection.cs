@@ -160,7 +160,7 @@ internal sealed class GalleryThreadTagSection : StackPanel, IDisposable
         Texts.Changed -= OnLanguageChanged;
         if (_model != null) _model.Updated -= OnModelUpdated;
         _model = null;
-        _input.EndSuggestions();
+        _input.Dispose();
         foreach ((Button chip, _) in _built) chip.Click -= OnChipClick;
         _input.RemoveHandler(InputElement.KeyDownEvent, OnInputKey);
     }
