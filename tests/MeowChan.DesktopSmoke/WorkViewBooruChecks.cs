@@ -36,7 +36,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
     private BooruPage? _page;
     private bool _installed, _searched;
 
-    internal WorkViewBooruChecks(MainWindow window)
+    internal WorkViewBooruChecks(MainWindow window, bool empty = false)
     {
         Dispatcher.UIThread.VerifyAccess();
         _window = window;
@@ -45,6 +45,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         _showBefore = window.SessionHost.Config.ShowBooruTools;
         _pageBefore = window.SelectedPage;
         _segmentBefore = window.StatusSegmentSelected;
+        if (empty) return; // Review fixture zero-state: retain the same offline ports, with no rows/watchers.
         _h.Serve(pages: 1, perPage: PostIds.Length);
         _h.Watchers.Seed(
             BooruUiFixtures.Watcher(WatcherIds[0], Query, clock: _h.Clock, hits: 6, queued: 5),
@@ -248,7 +249,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         await RestoreAsync(() => _window.SessionHost.SaveViewPreferencesAsync(config => config.ShowBooruTools = _showBefore));
         await RestoreAsync(async () =>
         {
-            _window.FindControl<MenuItem>(_pageBefore + "MenuItem")!.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+            await SmokeNavigation.GoToAsync(_window, _pageBefore);
             await Program.WaitUntilAsync(() => _window.SelectedPage == _pageBefore);
             if (_pageBefore == MainWindow.WorkspacePage.Status)
                 Require(_window.ShowStatus(_segmentBefore), "The original Status segment could not be restored.");

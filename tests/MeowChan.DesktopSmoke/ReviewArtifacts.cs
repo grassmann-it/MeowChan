@@ -77,16 +77,19 @@ internal static partial class ReviewArtifacts
                         if (ancestor.TranslatePoint(default, root) is { } a)
                             clipped |= !new Rect(a, ancestor.Bounds.Size).Contains(rect);
                 }
+                string? accessibleName = AutomationProperties.GetName(c);
+                string reviewName = !string.IsNullOrWhiteSpace(c.Name) ? c.Name
+                    : !string.IsNullOrWhiteSpace(accessibleName) ? accessibleName : c.GetType().Name + "@" + path;
                 yield return new
                 {
-                    id = path, parent_id = parent, name = c.Name, type = c.GetType().FullName,
+                    id = path, parent_id = parent, name = reviewName, declared_name = c.Name, type = c.GetType().FullName,
                     bounds = bounds is { } b ? new { x = b.X, y = b.Y, width = b.Width, height = b.Height } : null,
                     visible = c.IsVisible, effectively_visible = c.IsEffectivelyVisible, opacity = c.Opacity,
                     is_enabled = c.IsEnabled, effectively_enabled = c.IsEffectivelyEnabled,
                     is_pointer_over = c.IsPointerOver, is_focused = c.IsFocused, is_keyboard_focus_within = c.IsKeyboardFocusWithin,
                     focusable = c.Focusable, is_hit_test_visible = c.IsHitTestVisible,
                     visual_state_classes = c.Classes.Order(StringComparer.Ordinal).ToArray(),
-                    accessible_name = AutomationProperties.GetName(c), accessible_help_text = AutomationProperties.GetHelpText(c),
+                    accessible_name = accessibleName, accessible_help_text = AutomationProperties.GetHelpText(c),
                     tooltip = ToolTip.GetTip(c) as string,
                     text = c switch { TextBlock t => t.Text, TextBox t => t.Text, ContentControl { Content: string s } => s, _ => null },
                     desired_size = new { width = c.DesiredSize.Width, height = c.DesiredSize.Height },

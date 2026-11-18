@@ -54,6 +54,8 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+        if (args is ["--review-fixtures"] or ["--review-fixture-generate"])
+            return ReviewFixtureScenes.Run(args[0] == "--review-fixture-generate");
         long entryTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         DateTimeOffset entryUtc = DateTimeOffset.UtcNow;
         if (args.Length == 1 && args[0] == "--startup-timing-contract")
