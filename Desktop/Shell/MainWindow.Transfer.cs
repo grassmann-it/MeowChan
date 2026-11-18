@@ -73,9 +73,11 @@ public partial class MainWindow
         double graphHeight = blocks ? BlockGraphHeight : RowGraphHeight;
         TransferSpeedGraph.Width = TransferDiskGraph.Width = blocks ? BlockGraphWidth : RowGraphWidth;
         TransferSpeedGraph.Height = TransferDiskGraph.Height = graphHeight;
-        ArrangeHeaderRates(TransferSpeedText, TransferDownCell, TransferSpeedLabel,
+        TransferNetworkTitle.IsVisible = twoLine && layout.NetValue;
+        TransferDiskTitle.IsVisible = twoLine && layout.DiskValue;
+        ArrangeHeaderRates(TransferSpeedText, TransferNetworkTitle, TransferDownCell, TransferSpeedLabel,
             TransferUpCell, TransferUploadLabel, twoLine);
-        ArrangeHeaderRates(TransferDiskText, TransferReadCell, TransferDiskReadLabel,
+        ArrangeHeaderRates(TransferDiskText, TransferDiskTitle, TransferReadCell, TransferDiskReadLabel,
             TransferWriteCell, TransferDiskLabel, twoLine);
         // Solid series first, dashed second: Down over Up / Read over Write in blocks,
         // Down above Read / Up above Write in compact rows. Remove unused tracks so
@@ -115,6 +117,32 @@ public partial class MainWindow
         // Four from ColumnSpacing + eight from this margin = twelve between pairs;
         // the direction-to-value gap stays compact in both arrangements.
         secondWord.Margin = new Thickness(stacked ? 0 : 8, 0, 0, 0);
+    }
+
+    /// <summary>
+    /// Arranges a metric block's optional title above its two directional rates. The title is part of the block only in the
+    /// stacked/wide form; in compact rows it is hidden and the legacy one-line matrix remains unchanged.
+    /// </summary>
+    internal static void ArrangeHeaderRates(Grid grid, TextBlock title, Control firstWord, TextBlock firstValue,
+        Control secondWord, TextBlock secondValue, bool stacked)
+    {
+        ArrangeHeaderRates(grid, firstWord, firstValue, secondWord, secondValue, stacked);
+        if (!stacked)
+        {
+            Grid.SetRow(title, 0);
+            Grid.SetColumn(title, 0);
+            Grid.SetColumnSpan(title, 2);
+            return;
+        }
+
+        grid.RowDefinitions = new RowDefinitions("Auto,Auto,Auto");
+        Grid.SetRow(title, 0);
+        Grid.SetColumn(title, 0);
+        Grid.SetColumnSpan(title, 2);
+        Grid.SetRow(firstWord, 1);
+        Grid.SetRow(firstValue, 1);
+        Grid.SetRow(secondWord, 2);
+        Grid.SetRow(secondValue, 2);
     }
 
     /// <summary>Only presentation changes: the button retains its name, action and keyboard target.</summary>
@@ -188,7 +216,9 @@ public partial class MainWindow
         double monitor = HeaderMonitorFit.Width(_headerLayout,
             HeaderWordWidth(TransferDownMark, TransferDownMarker), HeaderWordWidth(TransferUpMark, TransferUpMarker),
             HeaderWordWidth(TransferReadMark, TransferReadMarker), HeaderWordWidth(TransferWriteMark, TransferWriteMarker),
-            HeaderTextWidth(HeaderMonitorFit.WidestRateText(), TransferSpeedLabel));
+            HeaderTextWidth(HeaderMonitorFit.WidestRateText(), TransferSpeedLabel),
+            HeaderTextWidth(TransferNetworkTitle.Text ?? string.Empty, TransferNetworkTitle),
+            HeaderTextWidth(TransferDiskTitle.Text ?? string.Empty, TransferDiskTitle));
         return HeaderMonitorFit.Fits(room, fixedParts, monitor, toolCount > 0 ? WorkspaceHeaderTools.Spacing : 0);
     }
 
@@ -295,6 +325,8 @@ public partial class MainWindow
         TransferUpMark.Text = Texts.T("stats.header.up");
         TransferWriteMark.Text = Texts.T("stats.header.write");
         TransferReadMark.Text = Texts.T("stats.header.read");
+        TransferNetworkTitle.Text = IoStatsDisplay.NetworkTitle();
+        TransferDiskTitle.Text = IoStatsDisplay.DiskTitle();
         ApplyIoSnapshot(force: true);
         ApplyHeaderMonitorVisibility(); // the words of another language may no longer fit beside the header icons
     }

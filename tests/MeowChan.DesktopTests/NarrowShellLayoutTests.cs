@@ -228,6 +228,18 @@ public sealed class NarrowShellLayoutTests : IDisposable
     }
 
     [Fact]
+    public void WideMetricTitlesCanWidenOnlyTheirOwnBlock()
+    {
+        IoStatsDisplay.HeaderLayout blocks = IoStatsDisplay.ResolveHeaderLayout(null, 1400);
+        double baseline = HeaderMonitorFit.Width(blocks, 30, 14, 28, 32, 50);
+        double titled = HeaderMonitorFit.Width(blocks, 30, 14, 28, 32, 50, networkTitle: 180, diskTitle: 0);
+
+        Assert.Equal(180, titled - (12 + HeaderMonitorFit.BlockGap + HeaderMonitorFit.BlockGraphWidth + HeaderMonitorFit.TextGap
+            + HeaderMonitorFit.BlockGraphWidth + HeaderMonitorFit.TextGap + 32 + 4 + 56), 6);
+        Assert.True(titled > baseline);
+    }
+
+    [Fact]
     public void UnmeasuredPartsNeverHideTheDisplay()
     {
         Assert.True(HeaderMonitorFit.Fits(0, 300, 200, 8));
