@@ -10,7 +10,7 @@ public sealed class RebindingHonestyTests
     [InlineData("plugins.refresh", "gallery.rotate", "Shift+R")]
     public void ShadowingAndDisjointUnrelatedMeaningsBlockSaveAndAppearOnBothRows(string target, string other, string key)
     {
-        ShortcutDraftSession draft = new(new ShortcutBindingsSection());
+        ShortcutDraftSession draft = new(new ShortcutBindingsSection().Set(other, [ShortcutGesture.Parse(key)]));
         Assert.Equal(ShortcutAddResult.Applied, draft.TryAdd(target, ShortcutGesture.Parse(key), false, replace: true));
         Assert.True(draft.HasBlockingIssues);
         ShortcutTableModel table = ShortcutTableModel.Build(draft.Draft, draft.Snapshot());
