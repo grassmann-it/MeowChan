@@ -38,8 +38,8 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     {
         XElement[] items = ToolbarItems();
         string[] visible = items.Select(Name).Where(name => name is not ("ReaderUnreadReturn" or "ReaderSkipUnavailableGroupMember" or "ArchiveHistoryBack" or "ArchiveReaderFullscreen")).ToArray();
-        // Thread mark | Read, Gallery, Find | Tags, Export, Thread | Settings (the states and the way back sit behind the star, and last).
-        Assert.Equal(["ArchiveCurrentThreadFavorite", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderFindOpen", "ReaderTagsOpen", "ExportArchiveButton",
+        // Thread mark | Read, Gallery, Media sidebar, Find | Tags, Export, Thread | Settings (the states and the way back sit behind the star, and last).
+        Assert.Equal(["ArchiveCurrentThreadFavorite", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderMediaSidebarToggle", "ReaderFindOpen", "ReaderTagsOpen", "ExportArchiveButton",
             "ReaderThreadOpen", "ReaderSettingsOpen"], visible);
         string[] all = items.Select(Name).ToArray();
         // The returns of a state stay right behind the star, in its group, so a state never sits between two tools.
@@ -85,7 +85,7 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
         Assert.Equal("settings", CommandCatalog.Get("reader.quick-settings").Icon);
         string source = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml.cs"));
         Assert.Contains("CommandBindings.ShowIconBeforeText(ReaderThreadOpen, \"file-text\");", source);
-        Assert.Contains("CommandBindings.Apply(ArchiveReadPosts, \"reader.expand\", iconWithLabel: true);", source);
+        Assert.Contains("CommandBindings.Apply(ArchiveReadPosts, \"reader.expand\", NoThreadSelectedReason, iconWithLabel: true);", source);
         Assert.Contains("const string icon = \"settings\";", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.QuickSettings.cs")));
         // "file-text" means Thread everywhere; the eye stays the list's "Read posts".
         string[] eye = CommandCatalog.All.Where(entry => entry.Icon == "eye").Select(entry => entry.Id).ToArray();
@@ -168,7 +168,7 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
             Assert.Equal(view == WorkView.Barebones ? OverflowMode.Always : OverflowMode.AsNeeded,
                 WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("reader.toolbar.fullscreen", view)));
         // The order a narrow window moves things under More, from the end (owner 14.11., the gear in View's place).
-        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
+        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
             "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
         // Every bar item of the XAML has its row (the id registry is checked against the page by the work-view tests).
         string[] ids = ToolbarItems().Select(item => item.Attributes().Single(attribute => attribute.Name.LocalName == "WorkViewElement.Id").Value).ToArray();
