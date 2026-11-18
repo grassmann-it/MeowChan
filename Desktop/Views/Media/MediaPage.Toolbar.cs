@@ -18,7 +18,8 @@ namespace MeowChan;
 // at least the group gap (24 dip). UX review 17.11.2026: nothing of the row depends on the selection line under it. M1: the shuffle and
 // the refresh are drawn icons in square buttons (name as tooltip and accessible name), so the only text in the query group is the criterion;
 // the focus mode (M4, MediaPage.Focus.cs) is one more square between "Layout" and "More". Export all and the
-// saved-ratings manager always sit under More; "show missing files" is a filter (a field of the filter section and a chip of the active
+// saved-ratings manager always sit under More; the media-sidebar switch stays beside Layout in the right-hand cluster so the control is visually
+// close to the panel it owns; "show missing files" is a filter (a field of the filter section and a chip of the active
 // filters). When the row runs short the less important tools move under More first and the order stays visible (MediaToolbarLayout).
 public sealed partial class MediaPage
 {
@@ -85,7 +86,7 @@ public sealed partial class MediaPage
         // Right-aligned in its column: the column can be wider than the tools (it keeps the room of the media panel below, MediaPage.ToolbarAlignment.cs).
         StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = ToolbarGap, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(ToolbarGap, 0, 0, 0) };
         // MP4: the Booru mode switch (MP5: "Tag list") sits before the focus mode, MP5's "Layout" button after the switch; MP3: the queue walk and the Tagging page are entries under More only.
-        foreach (Control control in new Control[] { _filters, _shuffle, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _focus, _exportAll, _manageRatings, _booruOpen,
+        foreach (Control control in new Control[] { _filters, _shuffle, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _panelToggle, _focus, _exportAll, _manageRatings, _booruOpen,
             _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
@@ -138,7 +139,7 @@ public sealed partial class MediaPage
     // HeaderOverflow lists it and its shortcut keeps working).
     private void ApplyToolbarLevel()
     {
-        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _booruMode, _layoutButton })
+        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _booruMode, _layoutButton, _panelToggle })
             if (MediaToolbarLayout.IsMovedUnderMore(_toolbarLevel, Desktop.WorkViews.WorkViewElement.GetId(tool))) tool.IsVisible = false;
     }
 }

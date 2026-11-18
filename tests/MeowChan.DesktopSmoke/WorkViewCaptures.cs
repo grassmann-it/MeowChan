@@ -583,7 +583,7 @@ internal static class WorkViewCaptures
         // Since S3 the header holds export all and the ratings manager under More in every view; "show missing files" is a filter field.
         // MP3/MP4: the way into the tag queue walk, the way to the tagging page and the Booru launcher are under More in every view, but only
         // while the page's own state wants them (a shell that wires the walk and the page, a Booru workbench that can open): their state flag says so.
-        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle",
+        string[] header = ["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle",
             "media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.queue-all", "media.toolbar.folders", "media.toolbar.export-all", "media.toolbar.manage-ratings"];
         string[] stateGated = ["media.toolbar.booru", "media.toolbar.queue-walk", "media.toolbar.tagging-page", "media.toolbar.queue-all", "media.toolbar.folders"];
         bool StateWants(string id) => !stateGated.Contains(id)
