@@ -57,7 +57,7 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.False(grid.TagList || grid.FilterChips || grid.StatusLine || grid.Subtitle);
         Assert.Equal(MediaTileCaption.None, grid.Caption);
         Assert.True(grid.Panel);
-        Assert.Equal((MediaPanelSide.Right, 420), (grid.PanelSide, grid.PanelWidth));
+        Assert.Equal((MediaPanelSide.Right, MeowChan.Config.MediaPanelWidthDefault), (grid.PanelSide, grid.PanelWidth));
         // Reset takes the default width back too.
         Assert.Equal(256, MediaPageLayout.Reset.TagListWidth);
         Assert.NotEqual(own, MediaPageLayout.Reset);
@@ -73,7 +73,8 @@ public sealed class MediaPageLayoutTests : IDisposable
         }
         Assert.Equal(MediaLayoutPreset.Standard, MediaPageLayout.Standard.MatchingPreset);
         Assert.Null((MediaPageLayout.Standard with { Subtitle = false }).MatchingPreset);
-        Assert.Null((MediaPageLayout.Standard with { Panel = false }).MatchingPreset);
+        // The Standard preset preserves the user's panel preference; only the blocks that the preset owns are compared.
+        Assert.Equal(MediaLayoutPreset.Standard, (MediaPageLayout.Standard with { Panel = false }).MatchingPreset);
         Assert.Null((MediaPageLayout.For(MediaLayoutPreset.BooruView, MediaPageLayout.Standard) with { TileSize = MediaTileSize.Large }).MatchingPreset);
     }
 
@@ -503,6 +504,10 @@ public sealed class MediaPageLayoutTests : IDisposable
         Assert.True(WorkViewPolicy.Get("media.toolbar.tag-list").OverflowOrder < WorkViewPolicy.Get("media.toolbar.layout").OverflowOrder);
         Assert.True(WorkViewPolicy.Get("media.toolbar.layout").OverflowOrder < WorkViewPolicy.Get("media.toolbar.focus").OverflowOrder);
         Assert.Equal(WorkViewPage.Media, WorkViewPolicy.Get("media.toolbar.layout").Page);
+        Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct],
+            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.panel", view)));
+        Assert.True(WorkViewPolicy.Get("media.toolbar.layout").OverflowOrder < WorkViewPolicy.Get("media.toolbar.panel").OverflowOrder);
+        Assert.Equal("media.panel.toggle", WorkViewPolicy.Get("media.toolbar.panel").CommandId);
     }
 
     [Fact]
