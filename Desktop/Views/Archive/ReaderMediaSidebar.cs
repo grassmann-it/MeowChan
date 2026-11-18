@@ -492,9 +492,8 @@ internal sealed class ReaderMediaSidebar : Border
         Close.IsHitTestVisible = shown;
     }
 
-    // The hand shows only where a single click does something (MD-03): the host says a click acts (an explicit "open the gallery on click" setting,
-    // or a video it plays here) and there is a medium (a picture, or its loading / error text), not the empty or text-only state. A double click
-    // opens the gallery whatever the cursor says.
+    // Reader hosts retain their single-click/video affordance. The Media preview may opt into a hand for its double-click gallery
+    // target; neither cursor option changes activation, and empty/text-only states never get a hand.
     private void UpdateFrameCursor() => _frame.Cursor = FrameClickable ? PointerCursors.Hand : null;
 
     private bool _singleClickActs;
@@ -509,8 +508,20 @@ internal sealed class ReaderMediaSidebar : Border
         set { if (_singleClickActs == value) return; _singleClickActs = value; UpdateFrameCursor(); }
     }
 
-    /// <summary>Whether a single click on the picture frame does something now (what the hand cursor says; tests read it).</summary>
-    internal bool FrameClickable => SingleClickActs && Open.IsEnabled && (_bitmap != null || _status.IsVisible);
+    private bool _useGalleryCursor;
+
+    /// <summary>
+    /// The Media page opts into a hand for its double-click gallery target, without changing single-click activation.
+    /// Reader hosts leave this off and keep their existing single-click/video cursor behavior.
+    /// </summary>
+    internal bool UseGalleryCursor
+    {
+        get => _useGalleryCursor;
+        set { if (_useGalleryCursor == value) return; _useGalleryCursor = value; UpdateFrameCursor(); }
+    }
+
+    /// <summary>Whether the frame advertises an available activation (tests read it); only Media opts into the double-click affordance.</summary>
+    internal bool FrameClickable => (SingleClickActs || UseGalleryCursor) && Open.IsEnabled && (_bitmap != null || _status.IsVisible);
 
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.

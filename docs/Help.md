@@ -106,9 +106,11 @@ In German the destination order is
 
 **Continue reading** (German: **Weiterlesen**) is a book icon immediately left
 of Pause in the header, with a labelled entry in the app menu. The icon appears
-when the feature is enabled and a saved reading position is known; it is hidden
-while the reader or gallery is visible. When no icon is shown on Downloads or
-the archive list, use the app-menu entry to check the reading-position state.
+when the feature is enabled and a saved reading position or history entry is known;
+it remains visible while the reader or gallery is open. Outside an open thread,
+left-click jumps to the newest saved place. Inside the reader or gallery, left-click
+opens the history list so choosing another place does not replace the current view
+accidentally; the arrow, right-click and Menu key always open that list.
 
 ### Toolbar layout
 
@@ -1615,18 +1617,21 @@ gallery uses the saved **Start videos muted** preference, not the last manual mu
 enable **Remember the last reading position locally** and Save. MeowChan then
 keeps the last deliberately opened reader position and a local history with one
 place per thread for this profile. Right-click **Continue reading** to choose a
-recent thread; **Reading history entries** sets the history size (default 10,
-5–25) under Reading & media. After
-restarting, choose the **Continue reading** book icon left of Pause in the header,
-or the labelled **Continue reading** entry in the app menu. The app keeps its
-normal start page until you choose that action. Only
-locally captured posts are read; no source request or download is started.
+recent thread. **Reading history entries** sets how many thread places the history
+keeps (default 50, 10–500); **Threads in the Continue reading menu** separately
+sets how many recent places the menu lists (default 10, 3–25). After restarting,
+choose the **Continue reading** book icon left of Pause in the header, or the
+labelled **Continue reading** entry in the app menu. The app keeps its normal
+start page until you choose that action. Only locally captured posts are read; no
+source request or download is started.
 
 **Forget reading position** removes the position and history immediately and keeps
 the setting on. It starts remembering again only with your next deliberate reader
 action. Saving the setting as off also deletes the position and history. Missing local content is
 explained without silently choosing another thread; if a saved post disappeared,
-the first captured post is explicitly identified as a replacement position.
+the next captured post is used when one exists, otherwise the last captured post,
+and the replacement is explicitly identified. A missing saved post does not create
+a new unread boundary.
 Settings uses **Discard draft** to revert unapplied edits; forgetting is a separate,
 immediate action.
 
@@ -1810,12 +1815,14 @@ These filters never delete posts, and HTML export always includes every saved po
 Post-filter profile transfer and backup are host APIs only. They are not wired to a
 product-facing command or the transfer-package workflow yet.
 
-When you return to a thread through **Continue reading** or load new posts with
-**Show new posts**, a thin line with **… new posts since last time** marks the
-first new post. Once you have scrolled past the line, **Back to last read** in the
-reader toolbar takes you back to it. A thread you open from the list and a refresh
-through **Show new posts automatically** start without a line. The reading line
-sits between the last-read and first new card, across the full list width.
+When you return to a thread through **Continue reading** and the saved post is
+still captured, or load new posts with **Show new posts**, a thin line with
+**… new posts since last time** marks the first new post. Once you have scrolled
+past the line, **Back to last read** in the reader toolbar takes you back to it.
+A missing saved post uses the explained replacement without inferring an unread
+boundary. A thread you open from the list and a refresh through **Show new posts
+automatically** start without a line. The reading line sits between the last-read
+and first new card, across the full list width.
 
 ### Reader display settings
 

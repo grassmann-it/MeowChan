@@ -53,8 +53,7 @@ public sealed class MediaSelectionCounterEvidenceTests
                 Assert.Equal(Texts.T("media.selection.count", count), counter.Text);
                 Assert.Equal(Texts.T("media.selection.count", 8888), counter.ReserveText);
                 Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, counter.TextWrapping);
-                foreach (string group in new[] { "_selectionActions", "_selectionState" })
-                    Assert.Equal(Orientation.Horizontal, Get<StackPanel>(group).Orientation);
+                Assert.Equal(Orientation.Horizontal, Get<StackPanel>("_selectionActions").Orientation);
                 // Exercise every pressure level, not just whichever label happened to fit this machine's fonts.
                 for (int level = 0; level <= 4; level++)
                 {

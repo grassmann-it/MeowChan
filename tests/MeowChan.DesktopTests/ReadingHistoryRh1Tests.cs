@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.RegularExpressions;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -223,6 +224,23 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
         Assert.Contains("ReadingJump.Resolve(", reader);
         Assert.Contains("FlashPostAsync(postId)", reader);                // the landing post is marked briefly, as after a quote jump
         Assert.Contains("fallback ? Texts.T(\"resume.fallback\")", reader); // and the hint says so
+    }
+
+    [Fact]
+    public void AReplacementLandingPostDoesNotReuseAnOldUnreadBoundary()
+    {
+        ResourceId id = new("4chan", "g", "42");
+        ArchivedThreadView view = new(new ArchiveThreadSummary(id, "https://example.invalid/42", "fixture", "",
+            ThreadSourceState.Archived, true, T0, T0, 2, 1),
+            new[]
+            {
+                new CapturedPost("100", 0, PostFieldPresence.All),
+                new CapturedPost("110", 1, PostFieldPresence.All)
+            });
+        LocalReadingPosition exact = Place(42, "100", "fixture");
+
+        Assert.Null(ArchivePage.ResumeUnreadMark(view, exact, fallback: true));
+        Assert.Equal((id, "100"), ArchivePage.ResumeUnreadMark(view, exact, fallback: false));
     }
 
     // ---- the menu of "Continue reading" ----
