@@ -137,8 +137,8 @@ internal static class BooruUiCatalog
         ("booru.ui.add.ignoredRow", "Not used: an input opens only one search, the last one.", "Nicht verwendet: Eine Eingabe öffnet nur eine Suche, die letzte."),
         ("booru.ui.add.post", "Danbooru post #{0}: {1}", "Danbooru-Post #{0}: {1}"),
 
-        ("booru.ui.load", "Load original", "Original laden"),
-        ("booru.ui.loadFor", "Load original of post {0}", "Original von Post {0} laden"),
+        ("booru.ui.load", "Download original", "Original herunterladen"),
+        ("booru.ui.loadFor", "Download original of post {0}", "Original von Post {0} herunterladen"),
         ("booru.ui.result.hitName", "Post #{0}, rating {1}, local copy: {2}", "Post #{0}, Einstufung {1}, lokale Kopie: {2}"),
         ("booru.ui.result.localYes", "yes", "ja"),
         ("booru.ui.result.localNo", "no", "nein"),
