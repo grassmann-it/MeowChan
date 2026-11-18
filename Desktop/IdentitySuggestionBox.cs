@@ -116,7 +116,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             {
                 if (_ended || revision != _revision || !IsKeyboardFocusWithin) return;
                 _suppressed = false;
-                _ = PopulateAsync();
+                StartPopulate();
             }, Avalonia.Threading.DispatcherPriority.Input);
         }, RoutingStrategies.Tunnel);
         // Focus entering a suggestion (the popup is a logical child) is not the editor gaining focus:
@@ -132,7 +132,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             Avalonia.Threading.Dispatcher.UIThread.Post(() =>
             {
                 if (!_ended && !_suppressed && revision == _revision && IsKeyboardFocusWithin)
-                    _ = PopulateAsync();
+                    StartPopulate();
             }, Avalonia.Threading.DispatcherPriority.Input);
         };
         LostFocus += (_, e) =>
@@ -154,7 +154,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             int revision = ++_revision;
             _request?.Cancel();
             IsDropDownOpen = false;
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (revision == _revision) _ = PopulateAsync(); },
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (revision == _revision) StartPopulate(); },
                 Avalonia.Threading.DispatcherPriority.Send);
         };
         AddHandler(KeyDownEvent, OnInputKey, RoutingStrategies.Tunnel);
@@ -202,7 +202,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         {
             if (CaretToken is not { } token || _ended || _suppressed || revision != _revision || !IsKeyboardFocusWithin) return;
             (int start, int end) = EditorSelection;
-            if (!Equals(token(Text ?? "", start, end), _populatedToken)) _ = PopulateAsync();
+            if (!Equals(token(Text ?? "", start, end), _populatedToken)) StartPopulate();
         }, Avalonia.Threading.DispatcherPriority.Input);
     }
     private void OnCommit(object? sender, RoutedEventArgs e)
@@ -337,7 +337,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             // without changing the draft, applying a search or accepting anything.
             _suppressed = false; e.Handled = true;
             IsExplicitRequest = true;
-            try { _ = PopulateAsync(); } finally { IsExplicitRequest = false; }
+            try { StartPopulate(); } finally { IsExplicitRequest = false; }
             return;
         }
         if ((e.Key == Key.Down || e.Key == Key.Up) && IsDropDownOpen)
@@ -375,8 +375,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     // Scope changes invalidate the accepted pair without rewriting free/editor text.
     internal void InvalidateIdentityContext() { AcceptedCandidate = null; Dismiss(); }
     internal void EndSuggestions() { _ended = true; Dismiss(); AcceptedCandidate = null; Candidates = null; }
-    internal void RestartSuggestions() { _suppressed = false; _ = PopulateAsync(); }
-    internal void RefreshSuggestions() { if (!_suppressed && IsKeyboardFocusWithin) _ = PopulateAsync(); }
+    internal void RestartSuggestions() { _suppressed = false; StartPopulate(); }
+    internal void RefreshSuggestions() { if (!_suppressed && IsKeyboardFocusWithin) StartPopulate(); }
     /// <summary>
     /// Focuses the editor and opens the list as Up/Down would: an explicit request, so an empty field lists what the provider
     /// offers for browsing (the tag fields: the most used names). Used by "More…" of the quick tag surface.
@@ -390,7 +390,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
             if (_ended || Candidates == null || !IsKeyboardFocusWithin) return;
             _suppressed = false;
             IsExplicitRequest = true;
-            try { _ = PopulateAsync(); } finally { IsExplicitRequest = false; }
+            try { StartPopulate(); } finally { IsExplicitRequest = false; }
         }, Avalonia.Threading.DispatcherPriority.Input);
     }
     private bool ClearItems()
@@ -398,6 +398,9 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         try { ItemsSource = Array.Empty<IdentitySuggestion>(); return true; }
         catch (InvalidOperationException) { return false; }
     }
+
+    private void StartPopulate() => OpenActions.Start(PopulateAsync, "identity.suggestions.populate");
+
     private bool Publish(IdentitySuggestion[] items)
     {
         _publishing = true;
@@ -433,7 +436,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
         if (!ClearItems())
         {
             // The selection model is mid-update (a click or Enter is still being processed): retry after it.
-            Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (revision == _revision) _ = PopulateAsync(); },
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => { if (revision == _revision) StartPopulate(); },
                 Avalonia.Threading.DispatcherPriority.Input);
             return;
         }

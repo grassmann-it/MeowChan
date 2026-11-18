@@ -97,7 +97,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         Opened += (_, _) => { _viewer.ApplyTemplate(); SuppressGalleryChrome(); Refresh(); _viewer.Focus(); };
         _search.Changed += OnChanged;
         Texts.Changed += OnLanguageChanged;
-        Closed += (_, _) => { _ = DisposeAsync(); };
+        Closed += (_, _) => OpenActions.Start(() => DisposeAsync().AsTask(), "booru.viewer.dispose");
     }
 
     public ValueTask DisposeAsync()
@@ -162,7 +162,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter) return;
         using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
         if (CommandBindings.Matches(e, "media.export-original"))
-        { e.Handled = true; _ = DownloadAsync(); return; }
+        { e.Handled = true; OpenActions.Start(DownloadAsync, "booru.viewer.download"); return; }
         // Permit only image-view commands through to the composed viewer; local-media commands,
         // slideshow, rating and tagging do not apply to a result that has not been downloaded.
         if (e.Key == Key.Tab || new[] { "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.rotate" }
@@ -202,12 +202,13 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         _shownBytes = row.PreviewBytes;
         if (row.Preview != BooruPreviewState.Ready || row.PreviewBytes is not { Length: > 0 and <= 8388608 })
         {
-            _ = _viewer.SetEmpty(Texts.T(row.Preview == BooruPreviewState.Loading ? "booru.ui.post.previewLoading"
-                : row.Preview == BooruPreviewState.None ? "booru.ui.post.noPreview" : "booru.ui.post.previewUnavailable"), false);
+            OpenActions.Start(() => _viewer.SetEmpty(Texts.T(row.Preview == BooruPreviewState.Loading ? "booru.ui.post.previewLoading"
+                : row.Preview == BooruPreviewState.None ? "booru.ui.post.noPreview" : "booru.ui.post.previewUnavailable"), false),
+                "booru.viewer.empty");
             return;
         }
         GalleryEntry entry = CreatePreviewEntry(row);
-        _ = _viewer.ShowAsync(entry, CancellationToken.None);
+        OpenActions.Start(() => _viewer.ShowAsync(entry, CancellationToken.None), "booru.viewer.show");
     }
 
     /// <summary>Builds the synthetic display identity without losing the provider that owns the post.</summary>

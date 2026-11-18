@@ -174,7 +174,8 @@ public partial class ArchivePage : UserControl
             UpdateExportActions();
             // A list read before the runtime existed shows unknown work status; refresh the same applied
             // request once, without touching the draft. A busy page picks it up with its next load.
-            if (becameAvailable && _listReadWithoutRuntime && !_busy && !_ended) _ = LoadListAsync();
+            if (becameAvailable && _listReadWithoutRuntime && !_busy && !_ended)
+                OpenActions.Start(() => LoadListAsync(), "archive.list.refresh");
         }
     }
     // Catalog reads may begin before the session is ready (startup). This is never a mutation gate:
