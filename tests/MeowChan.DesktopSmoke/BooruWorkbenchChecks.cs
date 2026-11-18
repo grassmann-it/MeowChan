@@ -95,6 +95,7 @@ internal static partial class BooruWorkbenchChecks
 
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
             TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            await CheckSearchRowResizeAsync(owner, page, input, h, shots);
             await CheckInvalidInputAsync(page, input);
             input.Text = "cat blue_eyes";
             await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text == "Query sent to Danbooru: cat blue_eyes",
@@ -519,6 +520,107 @@ internal static partial class BooruWorkbenchChecks
     }
 
     // ---- accessibility (1.1.0 audit H1-H3, M2, M3) ---------------------------------------------------------------------------
+
+    private static async Task CheckSearchRowResizeAsync(MainWindow owner, BooruPage page, TextBox input,
+        BooruUiHarness h, string shots)
+    {
+        double width = owner.Width, height = owner.Height;
+        WindowState state = owner.WindowState;
+        string language = Texts.Language;
+        string? text = input.Text;
+        int requests = h.ProviderRequests, loads = h.Queue.Loads.Count, watcherCalls = h.Watchers.Calls.Count;
+        ComboBox mode = Find<ComboBox>(page, BooruWorkbenchView.ModeName);
+        StackPanel actions = Find<StackPanel>(page, "BooruSearchActions");
+        Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
+        Button create = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
+        Grid row = input.Parent as Grid ?? throw new InvalidOperationException("Search field has no realized input row.");
+        try
+        {
+            owner.WindowState = WindowState.Normal;
+            input.Text = "cat blue_eyes";
+            foreach (string nextLanguage in new[] { "en", "de" })
+            {
+                Texts.SetLanguage(nextLanguage);
+                await Program.WaitUntilAsync(() => create.Content as string == Texts.T("booru.ui.watcher.create")
+                    && submit.IsEffectivelyEnabled && create.IsEffectivelyEnabled,
+                    () => "Search resize fixture did not apply language/query: " + nextLanguage);
+                double firstWide = 0, widest = 0, minimum = 0;
+                foreach (int requestedWidth in new[] { 1800, 1920, 760, 1920 })
+                {
+                    owner.Width = requestedWidth;
+                    await SettleAsync(owner);
+                    await Program.WaitUntilAsync(() => owner.WindowState == WindowState.Normal
+                        && Math.Abs(owner.ClientSize.Width - requestedWidth) <= 1
+                        && Math.Abs(owner.Bounds.Width - owner.ClientSize.Width) <= 1,
+                        () => $"Search resize {nextLanguage}/{requestedWidth}: native client={owner.ClientSize}, bounds={owner.Bounds}");
+                    await SettleAsync(owner);
+                    Rect modeBounds = SearchLayoutBounds(mode, owner);
+                    Rect inputBounds = SearchLayoutBounds(input, owner);
+                    Rect actionBounds = SearchLayoutBounds(actions, owner);
+                    Rect rowBounds = SearchLayoutBounds(row, owner);
+                    string measured = $"{nextLanguage}/{requestedWidth}: client={owner.ClientSize}, row={rowBounds}, mode={modeBounds}, input={inputBounds}, actions={actionBounds}";
+                    Require(ReferenceEquals(TopLevel.GetTopLevel(input), owner) && input.IsEffectivelyVisible
+                        && mode.IsEffectivelyVisible && actions.IsEffectivelyVisible && inputBounds.Width > 0,
+                        "Search controls are not realized in the native shell: " + measured);
+                    Require(Math.Abs(inputBounds.Left - modeBounds.Right - 8) <= 1
+                        && Math.Abs(actionBounds.Left - inputBounds.Right - 8) <= 1
+                        && Math.Abs(inputBounds.Width - (actionBounds.Left - modeBounds.Right - 16)) <= 1
+                        && Math.Abs(modeBounds.Left - rowBounds.Left) <= 1
+                        && Math.Abs(actionBounds.Right - rowBounds.Right) <= 1,
+                        "Search field does not fill the space between mode and actions with two 8-DIP gaps: " + measured);
+                    Require(rowBounds.Left >= -1 && rowBounds.Right <= owner.ClientSize.Width + 1,
+                        "Search row overflows the native viewport: " + measured);
+                    foreach (Button action in new[] { submit, create })
+                    {
+                        Rect bounds = SearchLayoutBounds(action, owner);
+                        Require(action.IsEffectivelyVisible && action.IsEffectivelyEnabled && action.Focusable && action.IsTabStop
+                            && bounds.Width > 0 && bounds.Height > 0 && bounds.Left >= actionBounds.Left - 1
+                            && bounds.Right <= actionBounds.Right + 1 && bounds.Left >= 0
+                            && bounds.Right <= owner.ClientSize.Width + 1 && bounds.Top >= 0
+                            && bounds.Bottom <= owner.ClientSize.Height + 1,
+                            "Search action is clipped or unreachable: " + action.Name + " " + bounds + "; " + measured);
+                        action.Focus(NavigationMethod.Tab);
+                        await Program.WaitUntilAsync(() => ReferenceEquals(Focused(page), action),
+                            () => "Search action cannot receive keyboard focus: " + action.Name);
+                    }
+                    if (requestedWidth > 900)
+                        Require(inputBounds.Width > 900, "Wide search field is still capped at 900 DIP: " + measured);
+                    if (requestedWidth == 1800) firstWide = inputBounds.Width;
+                    else if (requestedWidth == 760) minimum = inputBounds.Width;
+                    else if (widest == 0)
+                    {
+                        widest = inputBounds.Width;
+                        Require(Math.Abs(widest - firstWide - 120) <= 2,
+                            "Search field did not absorb the 1800-to-1920 resize: " + measured);
+                    }
+                    else
+                        Require(minimum < firstWide && Math.Abs(inputBounds.Width - widest) <= 1,
+                            "Search field did not shrink then recover its wide layout: " + measured);
+                    Require(h.ProviderRequests == requests && h.Queue.Loads.Count == loads && h.Watchers.Calls.Count == watcherCalls,
+                        "Search resize/language/focus caused a provider, queue or watcher call: " + measured);
+                    Capture(owner, shots, $"search-layout-{nextLanguage}-{requestedWidth}" + (minimum > 0 && requestedWidth == 1920 ? "-restored" : ""));
+                }
+            }
+            Console.WriteLine("SMOKE booru search layout: realized native EN/DE row at 1800/1920/760/1920 DIP; field exceeds 900 DIP, fills remaining space with 8-DIP gaps, grows/shrinks/recovers; Search and Create watcher visible and keyboard reachable; no port calls.");
+        }
+        finally
+        {
+            input.Text = text;
+            Texts.SetLanguage(language);
+            owner.Width = width;
+            owner.Height = height;
+            owner.WindowState = state;
+            await SettleAsync(owner);
+            input.Focus(NavigationMethod.Tab);
+        }
+    }
+
+    private static Rect SearchLayoutBounds(Control control, MainWindow owner)
+    {
+        Point origin = control.TranslatePoint(default, owner)
+            ?? throw new InvalidOperationException("Search control is not attached to the native shell: " + control.Name);
+        return new Rect(origin, control.Bounds.Size);
+    }
 
     private static async Task CheckInvalidInputAsync(BooruPage page, TextBox input)
     {
