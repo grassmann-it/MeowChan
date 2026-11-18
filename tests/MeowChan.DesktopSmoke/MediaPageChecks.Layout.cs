@@ -100,14 +100,13 @@ internal static partial class MediaPageChecks
         await UntilAsync(() => !page.IsFocusMode && subtitle.IsVisible);
         Require(!statusRow.IsVisible && chipRow.IsVisible, state + ": the rows must come back as the layout chose.");
 
-        // Grid only: nothing but the toolbar and the tiles; a status line that carries a problem would still show (plan contract, tested as a unit).
-        // The media panel is the user's own measure like the list's width: a preset keeps it as chosen (MediaPageLayout.For), here on.
-        page.ApplyLayout(MediaPageLayout.For(MediaLayoutPreset.GridOnly, page.PageLayout));
+        // Grid + media sidebar: nothing but the toolbar and the tiles in the main column; the selected medium stays in the sidebar.
+        page.ApplyLayout(MediaPageLayout.For(MediaLayoutPreset.GridWithSidebar, page.PageLayout with { Panel = false }));
         await UntilAsync(() => !sidebar.IsVisible);
         int stopped = page.TagCountRuns;
         Require(!page.IsBooruMode && !chipRow.IsVisible && !statusRow.IsVisible && !subtitle.IsVisible && !page.TagListHandle.IsVisible && page.TileAppearance.Caption == MediaTileCaption.None
-            && Realized().All(tile => tile.Badges.State.TagCount is null or 0 && !tile.Badges.State.Queued), state + ": grid only must show the toolbar and the tiles.");
-        Require(page.PageLayout.Panel && page.IsPanelShown, state + ": the Grid only preset must keep the media panel as chosen.");
+            && Realized().All(tile => tile.Badges.State.TagCount is null or 0 && !tile.Badges.State.Queued), state + ": grid + sidebar must show the toolbar and the tiles.");
+        Require(page.PageLayout.Panel && page.IsPanelShown, state + ": the Grid + media sidebar preset must enable the media panel.");
         Require(page.Grid.Bounds.Height > 100 && page.PresentCount == presents, state + ": the grid keeps its room and is not presented again.");
         page.ApplyLayout(page.PageLayout with { TileSize = MediaTileSize.Large });
         await UntilAsync(() => page.TileAppearance.CellWidth == MediaTileMetrics.LargeCellWidth);
