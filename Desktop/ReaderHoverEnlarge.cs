@@ -29,6 +29,7 @@ internal sealed class ReaderHoverEnlarge
     private CancellationTokenSource? _loading;
     private Bitmap? _bitmap;
     private int _request;
+    private TransientHover? _hoverLease;
     private int _size = ReaderDisplayPreferences.HoverEnlargeSizeDefault;
 
     internal bool Enabled { get; private set; }
@@ -66,6 +67,8 @@ internal sealed class ReaderHoverEnlarge
         if (!Enabled || row.LoadSized == null) return;
         Close();
         _target = view; _row = row; _anchor = anchor;
+        _hoverLease = new TransientHover(anchor, hovered => { if (!hovered) Close(); });
+        _hoverLease.Reconcile(moved: true);
         _timer.Start();
     }
 
@@ -77,6 +80,7 @@ internal sealed class ReaderHoverEnlarge
     internal void Close()
     {
         _timer.Stop();
+        TransientHover? lease = _hoverLease; _hoverLease = null; lease?.Dispose();
         ++_request;
         CancellationTokenSource? loading = _loading;
         _loading = null;
@@ -91,6 +95,7 @@ internal sealed class ReaderHoverEnlarge
     private async Task ShowAsync()
     {
         if (!Enabled || _row is not { LoadSized: { } load } || _anchor == null) return;
+        if (_hoverLease?.IsCurrent != true) { Close(); return; }
         int request = ++_request;
         ArchiveAttachmentView? target = _target;
         Control anchor = _anchor;
@@ -104,7 +109,7 @@ internal sealed class ReaderHoverEnlarge
         {
             pending = load(side, side, loading.Token);
             Bitmap? bitmap = await pending.WaitAsync(TimeSpan.FromSeconds(15), loading.Token);
-            if (request != _request || loading.IsCancellationRequested || !ReferenceEquals(_target, target))
+            if (request != _request || loading.IsCancellationRequested || !ReferenceEquals(_target, target) || _hoverLease?.IsCurrent != true)
             { if (bitmap != null) MediaTileThumbnails.Release(bitmap); return; }
             if (bitmap == null) return;
             _bitmap = bitmap;

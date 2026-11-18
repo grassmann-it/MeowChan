@@ -383,7 +383,7 @@ public sealed class GalleryFilmstripTests : IDisposable
         Assert.Contains("button.Width = 32; button.Height = 32;", strip);
         Assert.Contains("_backShown = active && _back.IsEnabled;", strip);
         Assert.Contains("_forwardShown = active && _forward.IsEnabled;", strip);
-        Assert.Contains("bool active = _pointerOver || _keyboardFocus;", strip);
+        Assert.Contains("bool active = TransientHover.WindowUsable(this) && (_pointerOver || _keyboardFocus);", strip);
         Assert.Equal(24, GalleryFilmstrip.EdgeFadeWidth);
         Assert.Contains("_strip.OpacityMask = mask;", strip);
     }

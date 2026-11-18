@@ -189,7 +189,9 @@ public sealed class MediaFocusFullscreenTests : IDisposable
         Assert.Contains("frame.VerticalAlignment = floating ? VerticalAlignment.Top : VerticalAlignment.Stretch;", chrome);
         Assert.Contains("frame.Height = floating ? WorkspaceMetrics.TitleBarHeight : double.NaN;", chrome);
         Assert.Contains("frame.IsVisible = !_galleryImmersive && (!floating || _mediaFocusHeaderRevealed);", chrome);
-        Assert.Contains("strip.PointerEntered += (_, _) => RevealMediaFocusHeader(true);", chrome);
+        Assert.Contains("strip.PointerEntered += (_, _) => { if (TransientHover.WindowUsable(strip)) RevealMediaFocusHeader(true); };", chrome);
+        Assert.Contains("new TransientHover(this, over =>", chrome);
+        Assert.Contains("if (!IsActive || !IsVisible || WindowState == WindowState.Minimized) RevealMediaFocusHeader(false);", chrome);
         // The strip is a thin hit target at the top edge, over the page, below the modal overlays, and hidden until it is needed.
         Assert.Contains("x:Name=\"MediaFocusHeaderStrip\" Grid.RowSpan=\"2\" Height=\"6\" VerticalAlignment=\"Top\" IsVisible=\"False\" ZIndex=\"119\"", markup);
         Assert.Contains("Background=\"Transparent\"", markup[markup.IndexOf("MediaFocusHeaderStrip", StringComparison.Ordinal)..]);
