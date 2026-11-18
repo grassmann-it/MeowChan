@@ -28,7 +28,11 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_selectionText, "tagging.selection.status");
         WorkViewElement.SetId(_selTag, "tagging.selection.tag");
         WorkViewElement.SetId(_selStamp, "tagging.selection.stamp");
+        WorkViewElement.SetId(_selDone, "tagging.selection.done");
+        WorkViewElement.SetId(_selSkipped, "tagging.selection.skipped");
         WorkViewElement.SetId(_selState, "tagging.selection.state");
+        WorkViewElement.SetId(_selContinue, "tagging.selection.continue");
+        WorkViewElement.SetId(_selGroup, "tagging.selection.group");
         WorkViewElement.SetId(_selRemove, "tagging.selection.remove");
         WorkViewElement.SetId(_selClear, "tagging.selection.clear");
         WorkViewElement.SetId(_add, "tagging.toolbar.add");

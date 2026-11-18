@@ -120,6 +120,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.view.grid.hint", "Show the queue as thumbnails", "Warteschlange als Vorschaubilder zeigen"),
         ("tagging.page.selection.name", "Actions for the selection", "Aktionen für die Auswahl"),
         ("tagging.page.selection.state", "State", "Zustand"),
+        ("tagging.page.selection.moreState", "More status", "Mehr Status"),
         ("tagging.page.selection.state.hint", "Mark the selected entries as finished, open or skipped", "Die ausgewählten Einträge als erledigt, offen oder übersprungen markieren"),
         ("tagging.page.selection.remove", "Remove", "Entfernen")
     };
