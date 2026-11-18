@@ -55,6 +55,51 @@ public sealed class ReaderInlineVideoTests : IDisposable
         return (new FakeOwner(), players, () => { FakePlayer player = new(); players.Add(player); return player; });
     }
 
+    [Fact]
+    public async Task GalleryGateIsIdempotentAndReleasesInlinePlaybackBeforeItOwnsTheSurface()
+    {
+        PlaybackArbitrationGate gate = new();
+        ReaderInlineVideoController controller = await Controller(On());
+        controller.PlaybackGate = gate;
+        var video = Video();
+        Assert.True(await controller.PlayAsync(video.Owner, video.Create));
+
+        int releases = 0;
+        Task first = gate.EnterGalleryAsync(async () =>
+        {
+            releases++;
+            await controller.ReleaseAllAsync();
+        });
+        Task second = gate.EnterGalleryAsync(() => throw new InvalidOperationException("duplicate gallery handoff"));
+
+        Assert.Same(first, second);
+        await first;
+        Assert.True(gate.GalleryOwnsPlayback);
+        Assert.Equal(1, releases);
+        Assert.Equal(0, controller.LiveCount);
+        Assert.False(await controller.PlayAsync(video.Owner, video.Create));
+
+        gate.ExitGallery();
+        Assert.False(gate.GalleryOwnsPlayback);
+        Assert.True(await controller.PlayAsync(video.Owner, video.Create));
+    }
+
+    [Fact]
+    public async Task GalleryGatePreventsAQueuedDoubleClickPlaybackFromStartingAgain()
+    {
+        PlaybackArbitrationGate gate = new();
+        ReaderInlineVideoController controller = await Controller(On());
+        controller.PlaybackGate = gate;
+        var video = Video();
+
+        Task firstPlay = controller.PlayAsync(video.Owner, video.Create);
+        await gate.EnterGalleryAsync(controller.ReleaseAllAsync);
+        await firstPlay;
+
+        Assert.Equal(0, controller.LiveCount);
+        Assert.Empty(video.Players);
+    }
+
     // ---- settings ----------------------------------------------------------------------------------------------------------
 
     [Fact]

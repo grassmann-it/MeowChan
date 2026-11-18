@@ -33,6 +33,16 @@ public partial class ArchivePage
     /// <summary>The media sidebar's inline video (smoke seam); null until the large reader was opened once.</summary>
     internal ReaderInlineVideoSlot? SidebarInlineVideo => _sidebarVideo;
 
+    internal PlaybackArbitrationGate? PlaybackGate
+    {
+        get => _inlineVideo.PlaybackGate;
+        set
+        {
+            _inlineVideo.PlaybackGate = value;
+            if (_quotePreviewMedia != null) _quotePreviewMedia.PlaybackGate = value;
+        }
+    }
+
     private void InitializeInlineVideo()
     {
         ArchivePosts.SetValue(ArchiveAttachmentView.InlineVideoProperty, _inlineVideo);

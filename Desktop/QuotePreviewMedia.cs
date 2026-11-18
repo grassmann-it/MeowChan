@@ -282,6 +282,7 @@ internal sealed class QuotePreviewMedia : IReaderInlineVideoOwner
     internal QuotePreviewMediaKind Kind { get; private set; }
     /// <summary>The preview's own player (test and smoke evidence of its bound and its release).</summary>
     internal ReaderInlineVideoController Videos => _videos;
+    internal PlaybackArbitrationGate? PlaybackGate { get => _videos.PlaybackGate; set => _videos.PlaybackGate = value; }
     internal bool HasGif => _gif != null;
     /// <summary>The running load (smoke seam).</summary>
     internal Task LoadTask { get; private set; } = Task.CompletedTask;

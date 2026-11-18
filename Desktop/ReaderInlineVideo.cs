@@ -269,6 +269,8 @@ internal sealed class ReaderInlineVideoController
     private long _clock;
 
     internal ReaderInlineVideoOptions Options { get; private set; } = ReaderInlineVideoOptions.Default;
+    /// <summary>The shell's gallery gate; while it owns playback this controller cannot create or resume an inline player.</summary>
+    internal PlaybackArbitrationGate? PlaybackGate { get; set; }
     /// <summary>The focused card's video may autoplay (autoplay chosen and the media sidebar is not presenting the focused media).</summary>
     internal bool AutoplayInPosts { get; set; }
     /// <summary>Mute or unmute as the person chose it with a speaker in this reader session (null: not chosen, the gallery's setting decides).</summary>
@@ -346,6 +348,7 @@ internal sealed class ReaderInlineVideoController
     /// </summary>
     internal async Task<bool> PlayAsync(IReaderInlineVideoOwner owner, Func<IReaderInlineVideoPlayer>? create = null)
     {
+        if (PlaybackGate?.GalleryOwnsPlayback == true) return false;
         Live? live = Find(owner);
         if (live == null)
         {
@@ -358,14 +361,22 @@ internal sealed class ReaderInlineVideoController
             Created++;
             SetCurrent(owner);
             await others;
-            if (Find(owner) != live) return false;
+            if (Find(owner) != live || PlaybackGate?.GalleryOwnsPlayback == true)
+            {
+                if (Find(owner) == live) await Release(live);
+                return false;
+            }
             await live.Player.StartAsync();
-            if (Find(owner) != live) return false;
+            if (Find(owner) != live || PlaybackGate?.GalleryOwnsPlayback == true)
+            {
+                if (Find(owner) == live) await Release(live);
+                return false;
+            }
             owner.PlaybackChanged(true);
             return true;
         }
         await PauseOthersAsync(owner);
-        if (Find(owner) != live) return false;
+        if (Find(owner) != live || PlaybackGate?.GalleryOwnsPlayback == true) return false;
         live.Used = ++_clock;
         SetCurrent(owner);
         await live.Player.PlayAsync();
@@ -381,6 +392,11 @@ internal sealed class ReaderInlineVideoController
     internal void OnUserPlayback(IReaderInlineVideoOwner owner, bool playing)
     {
         if (Find(owner) is not { } live) return;
+        if (PlaybackGate?.GalleryOwnsPlayback == true)
+        {
+            if (playing) _ = PauseAsync(owner);
+            return;
+        }
         if (playing)
         {
             live.Used = ++_clock;
