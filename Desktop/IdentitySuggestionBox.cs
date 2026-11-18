@@ -18,7 +18,7 @@ namespace MeowChan.Desktop;
 
 /// <summary>Free text remains authoritative. Selection writes a canonical value only;
 /// this control never applies a search, opens a rule scope or writes a profile.</summary>
-public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
+public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisposable
 {
     internal Func<string, CancellationToken, Task<IdentitySuggestion[]>>? Candidates { get; set; }
     internal event Action<IdentitySuggestion>? CandidateAccepted;
@@ -375,6 +375,7 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox
     // Scope changes invalidate the accepted pair without rewriting free/editor text.
     internal void InvalidateIdentityContext() { AcceptedCandidate = null; Dismiss(); }
     internal void EndSuggestions() { _ended = true; Dismiss(); AcceptedCandidate = null; Candidates = null; }
+    public void Dispose() => EndSuggestions();
     internal void RestartSuggestions() { _suppressed = false; StartPopulate(); }
     internal void RefreshSuggestions() { if (!_suppressed && IsKeyboardFocusWithin) StartPopulate(); }
     /// <summary>

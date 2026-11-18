@@ -1437,7 +1437,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         OnDetached(this, null!);
         _disposed = true;
         if (_extraUndo != null) { _extraUndo.Changed -= OnSessionUpdated; _extraUndo = null; }
-        _input.EndSuggestions();
+        _input.Dispose();
         _sourceTags.End();
         _close.Click -= OnClose; _markedClear.Click -= OnMarkedClear; _undo.Click -= OnUndo; _stamp.Click -= OnStamp; _advanced.Click -= OnAdvanced; _more.Click -= OnMore;
         foreach (SuggestionChip chip in _suggestionChips) chip.Button.Click -= OnSuggestionClick;

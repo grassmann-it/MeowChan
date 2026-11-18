@@ -24,7 +24,7 @@ namespace MeowChan.Desktop;
 /// listed below the tags (collapsed) and ticked by default; an unticked one is left alone. Tags stay with each
 /// occurrence, threads are not tagged. The last change can be undone once.
 /// </summary>
-internal sealed class MediaSelectionTagDialog : Window
+internal sealed class MediaSelectionTagDialog : Window, IDisposable
 {
     private readonly MediaSelectionTagSession _session;
     private readonly int _tiles;
@@ -263,10 +263,12 @@ internal sealed class MediaSelectionTagDialog : Window
         if (_closed) return;
         _closed = true;
         _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
-        _input.EndSuggestions(); _sources.End(); _surface.Dispose();
+        _input.Dispose(); _sources.End(); _surface.Dispose();
         _add.Click -= OnAdd; _close.Click -= OnClose; _surface.Undo.Click -= OnUndo;
         _surface.List.Toggled -= OnToggled;
         _input.RemoveHandler(KeyDownEvent, OnInputKey); RemoveHandler(KeyDownEvent, OnKey);
         Opened -= OnOpened; Closed -= OnClosed;
     }
+
+    public void Dispose() => OnClosed(this, EventArgs.Empty);
 }

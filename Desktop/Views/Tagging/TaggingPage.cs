@@ -510,6 +510,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         EndTagging();
         _menuHost?.Dispose();
         _gridMenuHost?.Dispose();
+        _tagDialog?.Dispose();
+        _tagDialog = null;
         EndColumns();
         _stateMenuHost?.Dispose();
         _groupMenuHost?.Dispose();
