@@ -79,16 +79,6 @@ public sealed class ReaderGalleryShortcutParityTests
     }
 
     [Fact]
-    public void ExplicitGalleryActivationOptsInOnlyTheFocusedPreviewButton()
-    {
-        string source = Source("ArchivePage.MediaActivation.cs");
-        Assert.Contains("e.Key == Key.Enter && e.KeyModifiers == KeyModifiers.Shift", source);
-        Assert.Contains("source.GetSelfAndVisualAncestors().Contains(view.PreviewButton)", source);
-        Assert.Contains("ShortcutService.Current.Matches(e, \"gallery.open\")", source);
-        Assert.Contains("!previewGalleryKey && !CommandBindings.Matches(e, \"gallery.open\")", source);
-    }
-
-    [Fact]
     public void ReaderMediaListsUseTheReaderGalleryCommandForBothPresentationAndRouting()
     {
         string reader = Source("ArchivePage.Reader.cs");
@@ -123,7 +113,8 @@ public sealed class ReaderGalleryShortcutParityTests
             using (EffectiveShortcutBindings.EnterKeyContext("reader"))
                 foreach (var (key, mods, id) in new[] { (Key.Q, KeyModifiers.None, "media.queue.add"),
                     (Key.H, KeyModifiers.None, "post.hide"), (Key.L, KeyModifiers.None, "video.loop"),
-                    (Key.M, KeyModifiers.Shift, "video.mute"), (Key.Enter, KeyModifiers.Shift, "gallery.open") })
+                    (Key.M, KeyModifiers.Shift, "video.mute"), (Key.Enter, KeyModifiers.Shift, "gallery.open"),
+                    (Key.Enter, KeyModifiers.None, "gallery.open") })
                     Assert.False(CommandBindings.Matches(new() { Key = key, KeyModifiers = mods, Source = new TextBox() }, id));
             Assert.True(CommandRouter.IsNativeInput(new Button(), Key.Enter));
         }
@@ -142,6 +133,55 @@ public sealed class ReaderGalleryShortcutParityTests
             Assert.True(bindings.Matches(new() { Key = Key.T, KeyModifiers = primary | KeyModifiers.Shift }, "media.tags.edit"));
             Assert.False(bindings.Matches(new() { Key = Key.T, KeyModifiers = (platform == ShortcutPlatform.MacOS ? KeyModifiers.Control : KeyModifiers.Meta) | KeyModifiers.Shift }, "media.tags.edit"));
         }
+    }
+
+    [Theory, MemberData(nameof(Platforms))]
+    public void OneGalleryCommandHasEnterAndLegacyAliasOnEveryPlatform(ShortcutPlatform platform)
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: platform);
+        Assert.Empty(bindings.Issues);
+        Assert.Equal("gallery.open", CommandCatalog.Get("media.open").Id);
+        Assert.DoesNotContain(CommandCatalog.All, command => command.Id == "media.open");
+        Assert.Equal("Enter", CommandCatalog.Get("gallery.open").Shortcut);
+        foreach (KeyModifiers modifiers in new[] { KeyModifiers.None, KeyModifiers.Shift })
+            Assert.True(bindings.Matches(new() { Key = Key.Enter, KeyModifiers = modifiers }, "gallery.open"));
+    }
+
+    [Theory]
+    [InlineData("media.open")]
+    [InlineData("gallery.open")]
+    public void RebindingEitherNameRemovesBothOldKeys(string id)
+    {
+        var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection().Set(id, [ShortcutGesture.Parse("Alt+O")]));
+        Assert.True(bindings.Matches(new() { Key = Key.O, KeyModifiers = KeyModifiers.Alt }, "gallery.open"));
+        Assert.False(bindings.Matches(new() { Key = Key.Enter }, "gallery.open"));
+        Assert.False(bindings.Matches(new() { Key = Key.Enter, KeyModifiers = KeyModifiers.Shift }, "gallery.open"));
+        Assert.Equal(bindings.For("gallery.open"), bindings.For("media.open"));
+    }
+
+    [Fact]
+    public void ExplicitGalleryOverrideWinsOverLegacyMediaOverrideIncludingUnbound()
+    {
+        var bindings = EffectiveShortcutBindings.Build(new ShortcutBindingsSection()
+            .Set("media.open", [ShortcutGesture.Parse("Alt+O")]).Set("gallery.open", []));
+        Assert.Empty(bindings.For("gallery.open"));
+        Assert.Empty(bindings.For("media.open"));
+        Assert.DoesNotContain(bindings.Issues, issue => issue.CommandId == "media.open");
+    }
+
+    [Fact]
+    public void LegacySavedBindingMigratesIntoTheSingleEditableRowAndResetClearsIt()
+    {
+        using var json = System.Text.Json.JsonDocument.Parse(
+            """{"SchemaVersion":1,"Overrides":{"media.open":{"Mode":"Replace","Gestures":[{"Key":"O","Modifiers":["Alt"]}]}},"FutureData":"retained"}""");
+        var old = new ShortcutBindingsSection(json.RootElement);
+        var draft = new ShortcutDraftSession(old);
+        Assert.True(draft.Draft.HasOverride("gallery.open"));
+        Assert.False(draft.Draft.HasOverride("media.open"));
+        Assert.Equal("retained", draft.Draft.Raw.GetProperty("FutureData").GetString());
+        Assert.Equal("Alt+O", draft.Snapshot(ShortcutPlatform.Linux).Display("gallery.open"));
+        Assert.False(draft.Draft.ResetKnown().HasOverride("gallery.open"));
+        Assert.True(old.HasOverride("media.open")); // Input object was not mutated.
     }
 
     private static string Source(string name, [CallerFilePath] string file = "") =>

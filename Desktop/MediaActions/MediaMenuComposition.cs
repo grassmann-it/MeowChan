@@ -183,7 +183,7 @@ internal static class MediaMenuComposition
 {
     internal static IReadOnlyList<MediaMenuAction> Order { get; } = Enum.GetValues<MediaMenuAction>();
 
-    internal static string OpenCommand(MediaMenuSurface surface) => surface == MediaMenuSurface.MediaPage ? "media.open" : "gallery.open";
+    internal static string OpenCommand(MediaMenuSurface surface) => "gallery.open";
 
     internal static MediaMenuModel Compose(MediaMenuFacts facts)
     {

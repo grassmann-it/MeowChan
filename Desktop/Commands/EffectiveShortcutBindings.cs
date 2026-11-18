@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 22;
+    public const int DefaultsRevision = 23;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -129,6 +129,7 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
+        ["gallery.open"] = 23,
         ["video.volume-up"] = 22, ["video.volume-down"] = 22,
         // (favorites.add and favorites.remove: revision 1, now listed with revision 20 below.)
         // (navigation.media, rules and sources: revision 2, now listed with revision 15 below.)
@@ -308,7 +309,7 @@ public sealed class EffectiveShortcutBindings
         Dictionary<string, List<ContextYield>>? contextYields = null)
     { Platform = platform; SingleKeyShortcuts = singleKeys; _contextYields = contextYields ?? new(StringComparer.Ordinal); Gestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(gestures); Issues = issues.AsReadOnly(); RequestedGestures = new ReadOnlyDictionary<string, IReadOnlyList<ShortcutGesture>>(requested); }
     public static ShortcutPlatform CurrentPlatform => OperatingSystem.IsMacOS() ? ShortcutPlatform.MacOS : OperatingSystem.IsWindows() ? ShortcutPlatform.Windows : ShortcutPlatform.Linux;
-    public IReadOnlyList<ShortcutGesture> For(string id) => Gestures.TryGetValue(id, out var value) ? value : Array.Empty<ShortcutGesture>();
+    public IReadOnlyList<ShortcutGesture> For(string id) => Gestures.TryGetValue(CommandCatalog.CanonicalId(id), out var value) ? value : Array.Empty<ShortcutGesture>();
     public string? Display(string id) => For(id).Count == 0 ? null : string.Join(" / ", For(id).Select(g => g.Display(Platform)));
     [ThreadStatic] private static string? _keyContext;
     /// <summary>Tells every <see cref="Matches(KeyEventArgs, string)"/> on this thread, until the scope is disposed, which execution context (see
@@ -333,14 +334,14 @@ public sealed class EffectiveShortcutBindings
     {
         var resolved = g.Resolve(Platform);
         return resolved.KeyModifiers == e.KeyModifiers && (resolved.Key == e.Key || g.Symbol != null && g.Symbol == e.KeySymbol)
-            && !IsYielded(id, g, context);
+            && !IsYielded(CommandCatalog.CanonicalId(id), g, context);
     });
     /// <summary>The contexts in which the gesture of <paramref name="id"/> gives way to a saved binding of another command (empty when it does not;
     /// a gesture that gives way everywhere is not in <see cref="Gestures"/> at all). The default is per command, not per context, so it stays active
     /// in every other context of the command.</summary>
     public IReadOnlyList<string> YieldedContexts(string id, ShortcutGesture gesture)
     {
-        if (!_contextYields.TryGetValue(id, out var yields)) return Array.Empty<string>();
+        if (!_contextYields.TryGetValue(CommandCatalog.CanonicalId(id), out var yields)) return Array.Empty<string>();
         return yields.Where(y => Equivalent(y.Gesture, gesture, Platform)).SelectMany(y => y.Contexts).Distinct(StringComparer.Ordinal).ToArray();
     }
     private bool IsYielded(string id, ShortcutGesture gesture, string? context)
@@ -364,6 +365,7 @@ public sealed class EffectiveShortcutBindings
         else if (command.Shortcut is not null && command.Shortcut != "Escape") list.Add(ShortcutGesture.Parse(command.Shortcut));
         switch (command.Id)
         {
+            case "gallery.open": list.Add(ShortcutGesture.Parse("Shift+Enter")); break;
             case "gallery.fit": list.Add(ShortcutGesture.Parse("NumPad0")); break;
             case "gallery.actual-size": list.Add(ShortcutGesture.Parse("NumPad1")); break;
             case "gallery.zoom-in": list.Add(ShortcutGesture.Parse("Add")); list.Add(ShortcutGesture.Parse("Shift+OemPlus")); break;
@@ -509,7 +511,7 @@ public sealed class EffectiveShortcutBindings
             foreach (string id in values.Keys.ToArray())
                 values[id] = values[id].Where(g => !IsSingleCharacterKey(g)).ToList().AsReadOnly();
         var issues = new List<ShortcutIssue>();
-        section ??= new();
+        section = (section ?? new()).UnifyMediaOpen();
         if (!section.IsEditable) issues.Add(ShortcutIssue.FromReason("", new("unsupportedSchema", "Unsupported shortcut schema; defaults active / Unbekanntes Kürzelschema; Standards aktiv"), blocksSave: false));
         else
         {
@@ -599,7 +601,7 @@ public sealed class EffectiveShortcutBindings
             bool editorConflict = bothExplicit && ShortcutMeaning.Compete(ids[a], ids[b]);
             if (!ContextsOverlap(ids[a], ids[b]) && !editorConflict) continue;
             foreach (var first in values[ids[a]]) foreach (var second in values[ids[b]])
-                if (Equivalent(first, second, os))
+                if (Equivalent(first, second, os) && !SharesFocusedOpen(ids[a], ids[b], first, os))
                 {
                     bool runtimeConflict = ContextsOverlap(ContextsOf(ids[a], first), ContextsOf(ids[b], second));
                     if (!runtimeConflict && !editorConflict) continue;
@@ -624,6 +626,14 @@ public sealed class EffectiveShortcutBindings
             return gone.Count == 0 ? contexts : contexts.Where(context => !gone.Contains(context)).ToArray();
         }
     }
+    // Enter means open/activate the focused object in all three cases. These are not
+    // unrelated meanings excused by scopes: the focused medium routes before the
+    // containing post/thread. Other gestures still undergo ordinary conflict checking.
+    private static bool SharesFocusedOpen(string first, string second, ShortcutGesture gesture, ShortcutPlatform platform)
+        => gesture.Resolve(platform) is { Key: Key.Enter, KeyModifiers: KeyModifiers.None }
+            && (first == "gallery.open" && second is "thread.read" or "reader.media.activate"
+                || second == "gallery.open" && first is "thread.read" or "reader.media.activate");
+
     public static bool Equivalent(ShortcutGesture a, ShortcutGesture b, ShortcutPlatform platform)
     { var x = a.Resolve(platform); var y = b.Resolve(platform); return x.KeyModifiers == y.KeyModifiers && (x.Key == y.Key || a.Symbol != null && a.Symbol == b.Symbol); }
     public static bool ContextsOverlap(string first, string second) => ContextsOverlap(ConflictContexts(first), ConflictContexts(second));

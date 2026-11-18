@@ -360,7 +360,7 @@ public partial class ArchivePage
             e.Handled = true;
             if (ArchiveLead is not ArchiveThreadRow row) return;
             ResourceId id = row.Summary.Id;
-            if (MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery is { } open) await OpenActions.RunAsync(() => open(id, null, list), "archive.list.gallery"); }
+            if (!MatchesArchiveCommand(e, "thread.read") && MatchesArchiveCommand(e, "gallery.open")) { if (OpenGallery is { } open) await OpenActions.RunAsync(() => open(id, null, list), "archive.list.gallery"); }
             else if (FrozenArchiveSelection().Length != 1) Message(Texts.T("archive.command.singleRead"));
             else await OpenActions.RunAsync(() => OpenReaderOnThreadAsync(id, () => OpenReaderRequested?.Invoke(list)), "archive.list.read");
             return;

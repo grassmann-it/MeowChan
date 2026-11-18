@@ -312,19 +312,35 @@ internal sealed class GalleryFilmstrip : Border
 
     /// <summary>
     /// The keys of a focused strip that the viewer's own routing does not give it: Home/End show the first/last medium, Page Up/Down
-    /// scroll by a page, Enter and Escape hand the keyboard back to the picture. Left/Right stay with the viewer (they step the shown medium,
+    /// scroll by a page, the gallery-open binding activates the focused tile, and Escape returns to the picture. Left/Right stay with the viewer (they step the shown medium,
     /// which the strip follows). Returns whether the key was used.
     /// </summary>
     internal bool HandleKey(KeyEventArgs e)
     {
-        if (!IsKeyboardFocusWithin || e.KeyModifiers != KeyModifiers.None) return false;
+        if (e.Handled || !IsKeyboardFocusWithin) return false;
+        // A focused tile denotes its own medium, even when the viewer is showing another.
+        // Enter on the band itself still returns to the current picture; real buttons stay native.
+        if (!MeowChan.Desktop.Commands.ShortcutService.IsCapturing
+            && MeowChan.Desktop.Commands.ShortcutService.Current.Matches(e, "gallery.open"))
+        {
+            if (e.Source is FilmstripTile tile)
+            {
+                _fromStrip = true;
+                TileActivated?.Invoke(tile.Index);
+                ExitRequested?.Invoke();
+                return true;
+            }
+            if (ReferenceEquals(e.Source, this)) { ExitRequested?.Invoke(); return true; }
+            return false;
+        }
+        if (e.KeyModifiers != KeyModifiers.None) return false;
         switch (e.Key)
         {
             case Key.Home when _count > 0: _fromStrip = true; TileActivated?.Invoke(0); return true;
             case Key.End when _count > 0: _fromStrip = true; TileActivated?.Invoke(_count - 1); return true;
             case Key.PageUp: ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, -1, Slots, _tile, _viewport, _gap)); return true;
             case Key.PageDown: ScrollByUser(GalleryFilmstripPlan.PageOffset(_offset, 1, Slots, _tile, _viewport, _gap)); return true;
-            case Key.Enter or Key.Escape: ExitRequested?.Invoke(); return true;
+            case Key.Escape: ExitRequested?.Invoke(); return true;
             default: return false;
         }
     }
@@ -658,6 +674,7 @@ internal sealed class GalleryFilmstrip : Border
 
         internal FilmstripTile()
         {
+            Focusable = true;
             CornerRadius = new CornerRadius(4);
             _frame.Child = _frameInner;
             _inner[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Raised");
