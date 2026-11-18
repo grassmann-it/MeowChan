@@ -354,6 +354,11 @@ internal sealed class ReaderInlineVideoController
         {
             if (!Options.Enabled || create == null) return false;
             Task others = PauseOthersAsync(owner);
+            // Let a competing gallery handoff win before allocating a native player. A double-click can queue a second
+            // activation while the first one is still yielding; creating here synchronously would leave a player behind
+            // for the gallery to release even though playback never started.
+            await Task.Yield();
+            if (PlaybackGate?.GalleryOwnsPlayback == true) return false;
             // Room first: the bound holds at every moment, also while the new player starts.
             Trim(Options.MaxPlayers - 1, keep: owner);
             live = new Live(owner, create()) { Used = ++_clock };
