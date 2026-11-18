@@ -72,7 +72,7 @@ internal static class ReaderThreadFindChecks
         ArchivePage page = new(token => ArchiveReader.OpenAsync(profile, token),
             (_, _) => throw new InvalidOperationException("No capture mutation permitted."),
             _ => throw new InvalidOperationException("No external launch permitted."));
-        using Window window = new() { Width = 1120, Height = 820, Content = page,
+        Window window = new() { Width = 1120, Height = 820, Content = page,
             Title = "Synthetic offline reader find", ShowInTaskbar = false };
         try
         {
