@@ -75,7 +75,14 @@ public sealed class ContextYieldTests
         Assert.True(bindings.Matches(Press(Key.F), "favorites.toggle", "media"));
         Assert.False(bindings.Matches(Press(Key.F), "favorites.toggle", "gallery"));
         Assert.False(bindings.Matches(Press(Key.F), "favorites.toggle", "archive"));
-        Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
+        Assert.True(bindings.Matches(Press(Key.F), "archive.refresh", "archive"));
+        Assert.True(bindings.Matches(Press(Key.F), "gallery.close", "gallery"));
+        // The explicit bindings remain usable on their disjoint runtime surfaces, but the editor still blocks saving
+        // unrelated meanings on the same key (ShortcutMeaning / ShortcutDraftSession's semantic conflict contract).
+        ShortcutIssue conflict = Assert.Single(bindings.Issues.Where(issue => issue.BlocksSave));
+        Assert.Equal("archive.refresh", conflict.CommandId);
+        Assert.Equal("gallery.close", conflict.OtherCommandId);
+        Assert.Equal("conflictingActions", conflict.Reason?.Code);
     }
 
     [Fact]
