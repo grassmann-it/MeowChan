@@ -80,7 +80,7 @@ public sealed partial class TaggingPage
         _selContinue.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.ContinueHere, explain: true), "tagging.selection.continue");
         _selGroup.Click += (_, _) => _groupMenuHost?.Show(atPointer: false);
         _stateMenuHost = new ContextMenuHost(_selState, ComposeStateMenu, fallbackFocus: () => FocusContent(), resolveOrigin: StateMenuOrigin);
-        _groupMenuHost = new ContextMenuHost(_selGroup, ComposeGroupMenu, fallbackFocus: () => FocusContent());
+        _groupMenuHost = new ContextMenuHost(_selGroup, ComposeGroupMenu, fallbackFocus: () => FocusContent(), resolveOrigin: GroupMenuOrigin);
         _selGroupText.Text = Texts.T("tagging.page.group.assign");
         _selGroup.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selGroupText, CommandBindings.NamedIcon("chevron-down", 12) } };
         _selState.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _selStateText, CommandBindings.NamedIcon("chevron-down", 12) } };
@@ -154,6 +154,11 @@ public sealed partial class TaggingPage
 
     internal Control StateMenuOrigin() =>
         OnScreen(_selState) ? _selState
+        : _selectionActions.More is { } more && OnScreen(more) ? more
+        : _selectionBar;
+
+    internal Control GroupMenuOrigin() =>
+        OnScreen(_selGroup) ? _selGroup
         : _selectionActions.More is { } more && OnScreen(more) ? more
         : _selectionBar;
 
