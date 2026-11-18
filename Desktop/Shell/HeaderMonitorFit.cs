@@ -32,16 +32,19 @@ internal static class HeaderMonitorFit
     /// The width in dip of the display for <paramref name="layout"/>: the words (or icons) of each direction and the reserved rate column.
     /// Zero when the display shows nothing.
     /// </summary>
-    internal static double Width(IoStatsDisplay.HeaderLayout layout, double down, double up, double read, double write, double rate)
+    internal static double Width(IoStatsDisplay.HeaderLayout layout, double down, double up, double read, double write, double rate,
+        double networkTitle = 0, double diskTitle = 0)
     {
         if (layout.Hidden || !(layout.NetValue || layout.DiskValue)) return 0;
         double column = Math.Max(RateMinimum, Finite(rate));
         if (layout.TwoLineLabels)
         {
             // Blocks side by side: each a graph (optional) and a two-line matrix of word and rate; 24 dip between two blocks.
-            double Block(bool shown, bool graph, double first, double second) =>
-                !shown ? 0 : (graph ? BlockGraphWidth + TextGap : 0) + Math.Max(Finite(first), Finite(second)) + ColumnSpacing + column;
-            double net = Block(layout.NetValue, layout.NetGraph, down, up), disk = Block(layout.DiskValue, layout.DiskGraph, read, write);
+            double Block(bool shown, bool graph, double first, double second, double title) =>
+                !shown ? 0 : (graph ? BlockGraphWidth + TextGap : 0)
+                    + Math.Max(Math.Max(Finite(first), Finite(second)) + ColumnSpacing + column, Finite(title));
+            double net = Block(layout.NetValue, layout.NetGraph, down, up, networkTitle);
+            double disk = Block(layout.DiskValue, layout.DiskGraph, read, write, diskTitle);
             return ButtonPadding + net + disk + (net > 0 && disk > 0 ? BlockGap : 0);
         }
         // One-line rows: the words and rates of both rows share their columns (SharedSizeGroup), the graphs share the first column.
