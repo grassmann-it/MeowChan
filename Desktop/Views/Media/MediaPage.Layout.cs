@@ -46,7 +46,7 @@ public sealed partial class MediaPage
     private MediaTileAppearance _tileAppearance = MediaTileMetrics.Standard;
     private Grid? _bodyRow, _contentGrid;
     private Border? _bodySurface;
-    private Control? _chipRow, _statusRow, _contentHeader;
+    private Control? _chipRow, _statusRow;
     private bool _layoutInstalled, _statusAttention;
     private double _appliedTagListWidth, _appliedPanelWidth, _panelEdge = SidebarMargin;
     private bool _panelHasItems = true;
@@ -290,7 +290,6 @@ public sealed partial class MediaPage
         _appliedPanelWidth = panelShown ? panelColumns.PanelWidth : plan.PanelWidth;
         ColumnDefinitions inner = content.ColumnDefinitions;
         Avalonia.Controls.Grid.SetColumn(surface, surfaceColumn);
-        if (_contentHeader is { } header) Avalonia.Controls.Grid.SetColumn(header, surfaceColumn);
         Avalonia.Controls.Grid.SetColumn(_panelHandle, 1);
         inner[panelColumn].MinWidth = panelShown ? Math.Min(MeowChan.Config.MediaPanelWidthMinimum, panelColumns.PanelWidth) + edge : 0;
         inner[panelColumn].MaxWidth = panelShown ? MediaPanelColumns.MaximumPanelWidth(_layout, bodyWidth) + edge : double.PositiveInfinity;
@@ -308,9 +307,7 @@ public sealed partial class MediaPage
         bool leftBlock = shown && !right || panelShown && !panelRight, rightBlock = shown && right || panelShown && panelRight;
         surface.Margin = new Thickness(leftBlock ? 8 : 12, 0, rightBlock ? 8 : 12, 8);
         _panelCollapsed = panelColumns.CollapsedByWidth;
-        // Header and grid now occupy the same real column; do not reserve the sidebar twice.
-        if (_contentHeader is { } alignedHeader)
-            alignedHeader.Margin = new Thickness(surface.Margin.Left, alignedHeader.Margin.Top, surface.Margin.Right, alignedHeader.Margin.Bottom);
+        // The page title is now a sibling row above the body; the body keeps only the grid/sidebar columns.
         _gridRightReserve = MediaToolbarLayout.GridRightReserve(0, SidebarMargin, SidebarMargin);
         bool focusLost = !panelShown && _panelShown && _panel?.IsKeyboardFocusWithin == true;
         if (panelShown) { ReaderMediaSidebar created = EnsurePanel(); if (!content.Children.Contains(created)) content.Children.Add(created); }

@@ -25,7 +25,8 @@ public sealed class TaggingPageSelectionTests : IDisposable
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.view-toggle", WorkView.Simple));
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.view-toggle", WorkView.Advanced));
         foreach (WorkView view in Enum.GetValues<WorkView>())
-            foreach (string id in new[] { "tagging.selection-bar", "tagging.selection.status", "tagging.selection.tag", "tagging.selection.remove", "tagging.selection.clear" })
+            foreach (string id in new[] { "tagging.selection-bar", "tagging.selection.status", "tagging.selection.tag", "tagging.selection.done",
+                "tagging.selection.skipped", "tagging.selection.continue", "tagging.selection.remove", "tagging.selection.clear" })
                 Assert.True(WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, view)), id + " in " + view);
         // Stamping and the state menu thin out like the toolbar: stamp under More in Barebones, state also in Simple.
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.selection.stamp", WorkView.Barebones));
@@ -33,6 +34,39 @@ public sealed class TaggingPageSelectionTests : IDisposable
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.selection.state", WorkView.Barebones));
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.selection.state", WorkView.Simple));
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.state", WorkView.Advanced));
+        foreach (WorkView view in Enum.GetValues<WorkView>())
+            Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.group", view));
+        foreach (WorkView view in Enum.GetValues<WorkView>())
+            Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.selection.remove", view));
+    }
+
+    [Fact]
+    public void TheSelectionActionLedgerKeepsDecisionsAndContinuationVisibleAndMovesSecondaryActionsFirst()
+    {
+        string policy = Read("Desktop/WorkViews/WorkViewPolicy.Tagging.cs");
+        string selection = Read("Desktop/Views/Tagging/TaggingPage.Selection.cs");
+        string workView = Read("Desktop/Views/Tagging/TaggingPage.WorkView.cs");
+
+        foreach (string id in new[] { "tagging.selection.done", "tagging.selection.skipped", "tagging.selection.continue",
+            "tagging.selection.group" })
+        {
+            Assert.Contains("\"" + id + "\"", policy);
+            Assert.Contains("\"" + id + "\"", workView);
+        }
+
+        Assert.Contains("PrioritizedOverflow = true", selection);
+        Assert.Contains("_selDone", selection);
+        Assert.Contains("_selSkipped", selection);
+        Assert.Contains("_selContinue", selection);
+        Assert.Contains("TaggingCommands.MarkDone", selection);
+        Assert.Contains("TaggingCommands.MarkSkipped", selection);
+        Assert.Contains("TaggingCommands.ContinueHere", selection);
+        Assert.Contains("_selRemove.Classes.Add(\"danger\")", selection);
+
+        int actions = selection.IndexOf("Grid bar", StringComparison.Ordinal);
+        int status = selection.IndexOf("_selectionText", actions, StringComparison.Ordinal);
+        int clear = selection.IndexOf("_selClear", status, StringComparison.Ordinal);
+        Assert.True(actions >= 0 && status > actions && clear > status, "Selection actions must precede the trailing count and clear group.");
     }
 
     [Fact]
@@ -40,7 +74,8 @@ public sealed class TaggingPageSelectionTests : IDisposable
     {
         string workView = Read("Desktop/Views/Tagging/TaggingPage.WorkView.cs");
         foreach (string id in new[] { "tagging.view-toggle", "tagging.selection-bar", "tagging.selection.status", "tagging.selection.tag", "tagging.selection.stamp",
-            "tagging.selection.state", "tagging.selection.remove", "tagging.selection.clear" })
+            "tagging.selection.done", "tagging.selection.skipped", "tagging.selection.state", "tagging.selection.continue", "tagging.selection.group",
+            "tagging.selection.remove", "tagging.selection.clear" })
             Assert.Contains("\"" + id + "\"", workView);
     }
 

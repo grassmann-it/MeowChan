@@ -32,7 +32,11 @@ public partial class MediaPage
         if (action == FavoriteKeyAction.None) return false;
         e.Handled = true;
         if (FavoriteKeyIsRepeat(e)) return true;
-        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null) return true;
+        if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null)
+        {
+            ExplainSelectionUnavailable();
+            return true;
+        }
         FavoriteKeyTask = WriteFavoriteKeyAsync(action, _grid.Selection.SelectedItems.OfType<MediaLibraryTileRow>().ToArray());
         return true;
     }
