@@ -382,8 +382,10 @@ public sealed class QuickTagSurfaceTests : IDisposable
 
     // ---- key routing --------------------------------------------------------------------------------------------
 
+    // ShortcutService.Publish applies at once only for the owner of the primary dispatcher and posts otherwise, so a worker that
+    // inherited the slot from an earlier class would read the old snapshot back. The body owns the slot for its run (OwnedUiDispatcher).
     [Fact]
-    public void RebindingRoundTripRoutesOnlyTheNewKeyThroughTheActualSurface()
+    public void RebindingRoundTripRoutesOnlyTheNewKeyThroughTheActualSurface() => OwnedUiDispatcher.Run(() =>
     {
         ShortcutBindingsSection original = ShortcutService.CurrentSection;
         using TempDirectory temp = new();
@@ -429,7 +431,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Empty(moved);
         }
         finally { ShortcutService.Publish(original); }
-    }
+    });
 
     [Theory]
     [InlineData(ShortcutPlatform.Windows)]

@@ -20,7 +20,7 @@ public static partial class WorkViewPolicy
         Same("media.toolbar.more", WorkViewPage.Media, WorkViewKind.Element, Required),
         // M4: the focus mode (⤢) hides the header rows above the grid; Barebones keeps it under More, from Simple it is a button of the
         // header. The shortcut (Shift+F) is the catalog's in every view, so the entry under More forwards to the same command.
-        new("media.toolbar.focus", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, "media.focus-mode", OverflowOrder: 5),
+        new("media.toolbar.focus", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, "media.focus-mode", OverflowOrder: 6),
         new("media.toolbar.refresh", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 10),
         new("media.toolbar.shuffle", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
         // MP4: the tag list (the "Booru mode", beside the grid) is a switch of the header from Simple on; Barebones keeps it under More as a checked entry.
