@@ -399,14 +399,14 @@ internal sealed class ReaderInlineVideoController
         if (Find(owner) is not { } live) return;
         if (PlaybackGate?.GalleryOwnsPlayback == true)
         {
-            if (playing) _ = PauseAsync(owner);
+            if (playing) OpenActions.Start(() => PauseAsync(owner), "reader.video.pause");
             return;
         }
         if (playing)
         {
             live.Used = ++_clock;
             SetCurrent(owner);
-            _ = PauseOthersAsync(owner);
+            OpenActions.Start(() => PauseOthersAsync(owner), "reader.video.pause-others");
         }
         owner.PlaybackChanged(playing);
     }

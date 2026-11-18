@@ -35,15 +35,25 @@ internal sealed class VideoOperationGate
         {
             // Cancellation cannot release the current native operation. Return this waiter's
             // baton only when its predecessor really exits, without retaining a token registration.
-            _ = ReleaseCancelledAsync(admitted);
+            ReleaseWhenAdmitted(admitted);
             throw;
         }
     }
 
-    private async Task ReleaseCancelledAsync(Task admitted)
+    private void ReleaseWhenAdmitted(Task admitted)
     {
-        await admitted.ConfigureAwait(false);
-        Release();
+        admitted.ConfigureAwait(false).GetAwaiter().OnCompleted(() =>
+        {
+            try
+            {
+                admitted.GetAwaiter().GetResult();
+                Release();
+            }
+            catch (Exception error)
+            {
+                Serilog.Log.Error(error, "Releasing a cancelled video operation gate waiter failed.");
+            }
+        });
     }
 
     internal void Release()

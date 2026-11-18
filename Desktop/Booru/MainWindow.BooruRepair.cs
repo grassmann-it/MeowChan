@@ -94,7 +94,7 @@ public partial class MainWindow
     {
         if (_isClosing || _booruPage is not { } page) return;
         ObservePluginsBusyForBooruRepair();
-        _ = RefreshBooruRepairAsync(page);
+        OpenActions.Start(() => RefreshBooruRepairAsync(page), "booru.repair.refresh");
     }
 
     private async Task RefreshBooruRepairAsync(BooruPage page)

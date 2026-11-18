@@ -41,7 +41,6 @@ async-void-unguarded	Desktop/Views/Archive/ArchivePage.Export.cs::OnExportBrowse
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.Export.cs::OnExportClick	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.Export.cs::OnExportOpen	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.FilterSurface.cs::OnFilterApplyClick	1
-async-void-unguarded	Desktop/Views/Archive/ArchivePage.Gallery.cs::OnThreadExportMenu	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.Live.cs::OnShowReaderUpdates	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.MediaSelection.cs::OnMediaSelectionExportClick	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.MediaSelection.cs::OnMediaSelectionGalleryClick	1
@@ -65,11 +64,6 @@ async-void-unguarded	Desktop/Views/Archive/ArchivePage.Replies.cs::OnReplyToggle
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.SearchEditors.cs::OnAddBoard	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.SearchEditors.cs::OnAddSource	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.Selection.cs::ArchiveSelectionChanged	1
-async-void-unguarded	Desktop/Views/Archive/ArchivePage.Selection.cs::OnArchiveCheckSelection	1
-async-void-unguarded	Desktop/Views/Archive/ArchivePage.Selection.cs::OnArchiveCopySelection	1
-async-void-unguarded	Desktop/Views/Archive/ArchivePage.Selection.cs::OnArchiveRemoveSelection	1
-async-void-unguarded	Desktop/Views/Archive/ArchivePage.Selection.cs::OnArchiveRetrySelection	1
-async-void-unguarded	Desktop/Views/Archive/ArchivePage.Selection.cs::OnArchiveSelectionDetails	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.ThreadFavorites.cs::OnThreadFavoriteKeyDown	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.TransferExport.cs::OnTransferExportClick	1
 async-void-unguarded	Desktop/Views/Archive/ArchivePage.TransferPreview.cs::OnTransferPreviewClick	1
@@ -133,7 +127,6 @@ discarded-task	Desktop/DesktopSessionHost.FolderSources.cs	3
 discarded-task	Desktop/DesktopSessionHost.PrivateTags.cs	1
 discarded-task	Desktop/DesktopSessionHost.Projection.cs	1
 discarded-task	Desktop/DesktopSessionHost.ViewPreferences.cs	1
-discarded-task	Desktop/GalleryDecodeQueue.cs	1
 discarded-task	Desktop/GalleryFavoriteCommandQueue.cs	1
 discarded-task	Desktop/GalleryVideoPlayer.Scrub.cs	1
 discarded-task	Desktop/GalleryVideoPlayer.Transport.cs	2
@@ -146,14 +139,12 @@ discarded-task	Desktop/GalleryViewer.TagPanel.cs	1
 discarded-task	Desktop/GalleryViewer.TaggingMode.cs	8
 discarded-task	Desktop/GalleryViewer.ViewTransform.cs	4
 discarded-task	Desktop/GalleryViewer.cs	10
-discarded-task	Desktop/IdentitySuggestionBox.cs	8
 discarded-task	Desktop/LatestUiWork.cs	1
 discarded-task	Desktop/MediaLibraryTileView.Affordances.cs	1
 discarded-task	Desktop/MediaLibraryTileView.cs	2
 discarded-task	Desktop/Motion/OsMotionSignal.cs	1
 discarded-task	Desktop/NativeTransferPreviewSession.cs	1
 discarded-task	Desktop/ReaderHoverEnlarge.cs	1
-discarded-task	Desktop/ReaderInlineVideo.cs	1
 discarded-task	Desktop/ReaderInlineVideoSlot.cs	4
 discarded-task	Desktop/Shell/MainWindow.ArchiveDeletion.cs	1
 discarded-task	Desktop/Shell/MainWindow.ArchiveHint.cs	1
@@ -170,11 +161,9 @@ discarded-task	Desktop/Shell/MainWindow.ManualImport.cs	2
 discarded-task	Desktop/Shell/MainWindow.Navigation.cs	5
 discarded-task	Desktop/Shell/MainWindow.NotificationMenu.cs	1
 discarded-task	Desktop/Shell/MainWindow.Notifications.cs	1
-discarded-task	Desktop/Shell/MainWindow.Plugins.cs	1
 discarded-task	Desktop/Shell/MainWindow.PostFilters.cs	1
 discarded-task	Desktop/Shell/MainWindow.Priority.cs	1
 discarded-task	Desktop/Shell/MainWindow.Profiles.cs	3
-discarded-task	Desktop/Shell/MainWindow.Reader.cs	1
 discarded-task	Desktop/Shell/MainWindow.ReaderGroups.cs	1
 discarded-task	Desktop/Shell/MainWindow.Resume.cs	8
 discarded-task	Desktop/Shell/MainWindow.Shortcuts.cs	5
@@ -235,7 +224,7 @@ discarded-task	Desktop/Views/Media/MediaPage.Panel.cs	4
 discarded-task	Desktop/Views/Media/MediaPage.Queue.cs	1
 discarded-task	Desktop/Views/Media/MediaPage.TileAffordances.cs	1
 discarded-task	Desktop/Views/Plugins/PluginMultiApproval.cs	1
-discarded-task	Desktop/Views/Plugins/PluginsPage.Actions.cs	4
+discarded-task	Desktop/Views/Plugins/PluginsPage.Actions.cs	3
 discarded-task	Desktop/Views/Plugins/PluginsPage.Discard.cs	1
 discarded-task	Desktop/Views/Plugins/PluginsPage.Sources.cs	1
 discarded-task	Desktop/Views/Plugins/PluginsPage.axaml.cs	1
@@ -253,7 +242,7 @@ discarded-task	Desktop/Views/Sources/FolderSourceDialog.cs	1
 discarded-task	Desktop/Views/Sources/SourcesPage.ContextMenus.cs	1
 discarded-task	Desktop/Views/Statistics/StatisticsPage.RowMenu.cs	3
 discarded-task	Desktop/Views/Tagging/TaggingPage.Commands.cs	1
-discarded-task	Desktop/Views/Tagging/TaggingPage.EmptyStates.cs	3
+discarded-task	Desktop/Views/Tagging/TaggingPage.EmptyStates.cs	2
 discarded-task	Desktop/Views/Tagging/TaggingPage.Groups.cs	2
 discarded-task	Desktop/Views/Tagging/TaggingPage.Selection.cs	1
 discarded-task	Desktop/Views/Tagging/TaggingQueueController.cs	1

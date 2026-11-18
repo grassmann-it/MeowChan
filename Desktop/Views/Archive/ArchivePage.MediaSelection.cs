@@ -307,7 +307,7 @@ public partial class ArchivePage
         if (AddToTagQueue == null) { Message(MediaMenuReasons.Unavailable); return; }
         if (_mediaSelectionBusy || FreezeMediaSelection() is not { } frozen) return;
         Action<string> reportError = CaptureActionErrorReporter();
-        _ = QueueAsync();
+        OpenActions.Start(QueueAsync, "archive.media-selection.queue");
         async Task QueueAsync()
         {
             try { await AddMediaSelectionToQueueAsync(frozen.Thread, frozen.Rows, frozen.Entries); }
