@@ -25,9 +25,10 @@ public sealed class ReaderWorkViewTests
 
     private static XElement[] Items(XElement bar) => bar.Elements().Where(element => !element.Name.LocalName.EndsWith(".Styles", StringComparison.Ordinal)).ToArray();
 
-    // Every item of the three reader bars has a reader row and no XAML overflow mode of its own: the policy is the only source.
+    // Every item of the three reader bars has a reader row. The media sidebar keeps its bootstrap Never mode until the work-view policy is applied;
+    // all other items leave the XAML overflow mode unset so the policy is their only source.
     [Fact]
-    public void EveryReaderBarItemIsRegisteredAndCarriesNoOverflowModeOfItsOwn()
+    public void EveryReaderBarItemIsRegisteredAndOnlyTheMediaSidebarHasAnInitialOverflowMode()
     {
         foreach (string name in ReaderBars)
         {
@@ -40,7 +41,11 @@ public sealed class ReaderWorkViewTests
                 string label = name + "/" + (string?)item.Attribute(X + "Name");
                 string id = Id(item) ?? throw new Xunit.Sdk.XunitException(label + " has no wv:WorkViewElement.Id.");
                 Assert.Equal(WorkViewPage.Reader, WorkViewPolicy.Get(id).Page);
-                Assert.Null(item.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode"));
+                XAttribute? overflowMode = item.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode");
+                if (id == "reader.toolbar.media-sidebar")
+                    Assert.Equal("Never", overflowMode?.Value);
+                else
+                    Assert.Null(overflowMode);
             }
         }
         // The toolbar carries the reader's eleven-plus labelled actions (P6: each with its icon).
@@ -84,6 +89,7 @@ public sealed class ReaderWorkViewTests
         [
             ("reader.toolbar.gallery", Presence.Direct, Presence.Direct, Presence.Direct),
             ("reader.toolbar.read", Presence.Direct, Presence.Direct, Presence.Direct),
+            ("reader.toolbar.media-sidebar", Presence.Direct, Presence.Direct, Presence.Direct),
             ("reader.toolbar.find", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.tags", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.settings", Presence.Overflow, Presence.Direct, Presence.Direct),
@@ -121,7 +127,7 @@ public sealed class ReaderWorkViewTests
     }
 
     // The single declarative keep-visible order (owner 14.11., RL1 15.11.): OverflowOrder follows it; a narrow window moves the tail first:
-    // full screen (the first to move when the room ends), the rarely used history return, Thread, the settings gear, export, tags, find, read, gallery.
+    // full screen (the first to move when the room ends), the rarely used history return, Thread, the settings gear, export, tags, find, media sidebar, read, gallery.
     // Required items are not in it (never move). The post-capture switch left the bar for the Thread menu (R2), so no "capture" tool exists.
     [Fact]
     public void ToolbarKeepVisibleOrderIsTheOverflowOrderAndEndsWithTheRarelyUsedActions()
@@ -134,8 +140,8 @@ public sealed class ReaderWorkViewTests
         Assert.Equal(order, tools.OrderBy(entry => entry.OverflowOrder).Select(entry => entry.Id));
         Assert.All(tools, entry => Assert.True(entry.OverflowOrder > 0, entry.Id));
         int Rank(string id) => order.ToList().IndexOf(id);
-        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export"], order.Take(5));
-        Assert.Equal(["reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], order.Skip(5));
+        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.find", "reader.toolbar.tags"], order.Take(5));
+        Assert.Equal(["reader.toolbar.export", "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], order.Skip(5));
         foreach (string later in new[] { "reader.toolbar.fullscreen", "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back" })
             Assert.True(Rank("reader.toolbar.export") < Rank(later), later);
         Assert.True(Rank("reader.toolbar.settings") < Rank("reader.toolbar.thread"));
