@@ -4,6 +4,59 @@ This is the short backlog for issues found while dogfooding the release candidat
 kept here even when a focused fix lands, so the next visual review can check the whole class
 rather than only one screen.
 
+## Package 7A evidence ledger audit — 18 November 2026
+
+**Scope:** documentation-only audit on `origin/goal/gesamtprogramm-profile-a` at
+`866ad8ea24a09d57e9e8e5e3452d4de6beaa100a` in the dedicated Package 7A worktree.
+No product code, CI configuration, or DesktopSmoke source was changed.
+
+**Evidence rule:** a status below is based only on repository files, committed
+history/ancestry, and the referenced PR/commit. Historical test counts are not a
+fresh current-head verdict. “Implementation evidence” is deliberately separate
+from native-platform or release acceptance.
+
+### Verified implementation records
+
+| Ledger item | Evidence present in this checkout | Status / remaining gate |
+| --- | --- | --- |
+| UX-LEDGER-08 — tagging selection revisit | `docs/development/ux-ledger-08-tagging-selection-revisit-20261117.md`; inherited fix `548b25ae3`; PR #23 commits `7a313b2e0`, `9a80fc07f`; all are ancestors of the audited base. | Implementation and targeted lifecycle evidence are recorded. This is not a repository-wide, Windows, or macOS release verdict. |
+| UX-LEDGER-09 — Settings content-column header | Central ledger row for PR #24 / `8187f6a16`; commit is an ancestor of the audited base. | Merged implementation is evidenced. Native width/language acceptance remains a GUI-sweep gate. |
+| UX-LEDGER-10 — Rate-and-tag initial focus | `docs/development/ux-ledger-10-r-focus-input-20261117.md`; PR #33 merge `0e208fe98`; the document records the scoped DesktopTests and Linux Xvfb/XTest evidence. | Targeted implementation evidence is recorded. Windows/macOS, real IME, and full-suite acceptance remain open. |
+| UX-LEDGER-11 — clicked autocomplete acceptance | Central ledger rows for PRs #28/#30 (`bb4c131ca`, `b849f94fd`); both commits are ancestors of the audited base. | Managed and Linux-input evidence is recorded. Native Windows/macOS and real-IME acceptance is explicitly still open. |
+| UX-LEDGER-12 — favorite/rating row layout | Central ledger row for PR #22 / `603125d76`; commit is an ancestor of the audited base. | Implementation is evidenced; a visual/native acceptance pass is not inferred from ancestry alone. |
+| UX-LEDGER-13 — one-flow quick-tag scrolling | `docs/development/ux-ledger-13-quicktag-scroll-flow-20261117.md`; PR #42 / `da6970275`; targeted DesktopTests are recorded there. | Deterministic layout evidence is recorded. Native wheel/touch, screen-reader, theme/contrast, and full-window review remain unverified. |
+| UX-LEDGER-14 — medium counter beside Post/Tags | `docs/development/ux-ledger-14-medium-counter-header-20261117.md`; PR #25 / `21c0d5cb7` and PR #27 / `7ffeab1ce`; commits are ancestors of the audited base. | Placement and focused contract evidence are recorded; the broader native matrix remains a release-sweep gate. |
+| UX-LEDGER-19 — point-of-use shortcut discovery | `docs/development/ux-ledger-19-discovery-20261117.md` and `docs/development/evidence/ux-ledger-19-validation-20261117.txt`; PR #65 / `1c28b8054`; normal-analyzer targeted validation is recorded. | Targeted validation is evidenced. The document explicitly leaves UX-LEDGER-18 routing debt and native macOS/Windows, screen-reader, and visual tooltip sizing open. |
+
+### Package 7A capture that is **not** promoted to verified status
+
+The earlier worker capture commit `5d806ba93` (branch
+`codex/ux-ui-ledger-7a-20261117`) is not an ancestor of the audited base. Its
+UX-LEDGER-30…37 rows cite coordination files that are not present in this
+checkout. Therefore this audit does **not** convert those reports into verified
+findings and does **not** mark any of them fixed or finished. If they remain in
+the handover, they are open review candidates only until the referenced artifact,
+a reproducible observation, and a current status/PR/commit are attached.
+
+| Candidate IDs | Honest status | Required evidence before closure |
+| --- | --- | --- |
+| UX-LEDGER-30…37 | **Open / unverified in this checkout; no implementation claim.** | Preserve the source screenshot/report or reproduce on the current base; attach the affected surface, expected behavior, and a current PR/commit or an explicit rejected/deferred decision. |
+
+### Open gate items carried forward
+
+| Gate item | Repository evidence | Status |
+| --- | --- | --- |
+| FC-02 — Tagging right-click target/focus | `docs/development/ux-ui-release-followups-20261117.md` focus-click closeout; `docs/development/ux-ledger-06-click-contracts.md` records the explicit skip and its two-case theory. | **Open / skipped.** Selection-revisit coverage does not prove page-local right-click target resolution. |
+| FC-04 — Gallery filmstrip right-click navigation/menu lifetime | Same focus-click closeout and `ux-ledger-06-click-contracts.md`; asynchronous `MoveGalleryAsync`/navigation completion is the documented blocker. | **Blocked / skipped.** No closure claim. |
+| UX-LEDGER-11 native acceptance | Current central ledger says the implementation is present but native 1099/1100 and Ubuntu GUI evidence remain required. | **Open.** |
+| O2-04 large-reader detach safety | Current central ledger records `OpenLargeReader` can leave the page half-detached when wrapping throws. | **Open.** |
+| Release gate | Current central ledger explicitly says no complete all-platform CI result was verified in the audit. | **Open; no release PASS.** |
+| UX-LEDGER-18 shortcut rebinding routing | `docs/development/ux-ledger-19-discovery-20261117.md` explicitly retains old quick-tag paths after rebinding as an adjacent defect. | **Open; not closed by UX-LEDGER-19.** |
+
+This addendum is a ledger audit, not a product or CI change. It intentionally
+records unresolved gates and evidence gaps instead of inferring “done” from a
+branch name, a worker report, or an inherited test count.
+
 ## Merged implementation status — 17 November 2026
 
 Truth-sync base: `f48ccf8b1` on `origin/goal/gesamtprogramm-profile-a`. The merged
