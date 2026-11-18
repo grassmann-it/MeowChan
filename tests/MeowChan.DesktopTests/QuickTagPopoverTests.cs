@@ -63,7 +63,7 @@ public sealed class QuickTagPopoverTests : IDisposable
     public async Task ACreateFailureDisposesItsSessionAndLeavesTheNextPopoverUsable()
     {
         using Fixture fixture = new();
-        QuickTagSession session = fixture.Session();
+        using QuickTagSession session = fixture.Session();
         bool applied = false;
         session.Applied += _ => applied = true;
 
@@ -73,7 +73,8 @@ public sealed class QuickTagPopoverTests : IDisposable
         await session.AddAsync("late");
         Assert.False(applied, "a failed create must dispose the transferred session");
 
-        QuickTagPopover next = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        using QuickTagSession ownedSession1 = fixture.Session();
+        QuickTagPopover next = QuickTagPopover.Create(new Border(), ownedSession1, "x", new QuickTagPopoverOptions { RestoreFocus = false });
         next.Close();
         Assert.Null(QuickTagPopover.Current);
     }
@@ -82,7 +83,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     public void AShowAtFailureClosesOnceAndAllowsAReplacement()
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        using QuickTagSession ownedSession2 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession2, "x", new QuickTagPopoverOptions { RestoreFocus = false });
         int closed = 0;
         popover.Closed += _ => closed++;
 
@@ -93,7 +95,8 @@ public sealed class QuickTagPopoverTests : IDisposable
         Assert.Equal(1, closed);
         Assert.Null(QuickTagPopover.Current);
 
-        QuickTagPopover next = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        using QuickTagSession ownedSession3 = fixture.Session();
+        QuickTagPopover next = QuickTagPopover.Create(new Border(), ownedSession3, "x", new QuickTagPopoverOptions { RestoreFocus = false });
         next.ShowAt((_, _) => { });
         Assert.Same(next, QuickTagPopover.Current);
         next.Close();
@@ -105,7 +108,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     {
         using Fixture fixture = new();
         Border anchor = new();
-        QuickTagPopover popover = QuickTagPopover.Create(anchor, fixture.Session(), "fa.png", new QuickTagPopoverOptions { Name = "T3Popover" });
+        using QuickTagSession ownedSession4 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(anchor, ownedSession4, "fa.png", new QuickTagPopoverOptions { Name = "T3Popover" });
 
         Assert.False(popover.IsOpen);
         Assert.False(popover.IsClosed);
@@ -167,7 +171,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     {
         using Fixture fixture = new();
         DecisionHost host = new() { Rating = 3 };
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession ownedSession5 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession5, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
         Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(popover.DecisionRow!.Summary));
         popover.Close();
@@ -182,7 +187,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     public void AdvancedCanBeHiddenForAHostWithoutAFullDialog()
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { AdvancedAvailable = false });
+        using QuickTagSession ownedSession6 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession6, "x", new QuickTagPopoverOptions { AdvancedAvailable = false });
         Assert.False(popover.Surface!.AdvancedButton.IsVisible);
         popover.Close();
     }
@@ -193,7 +199,7 @@ public sealed class QuickTagPopoverTests : IDisposable
     public async Task TheCloseButtonClosesWithClosedAndReleasesSessionAndSurfaceOnce()
     {
         using Fixture fixture = new();
-        QuickTagSession session = fixture.Session();
+        using QuickTagSession session = fixture.Session();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x", new QuickTagPopoverOptions { RestoreFocus = false });
         List<QuickTagPopoverCloseReason> raised = new();
         popover.Closed += raised.Add;
@@ -219,7 +225,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     public async Task AdvancedClosesWithAdvancedSoTheHostCanOpenTheFullDialog()
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        using QuickTagSession ownedSession7 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession7, "x", new QuickTagPopoverOptions { RestoreFocus = false });
         popover.Surface!.AdvancedButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal(QuickTagPopoverCloseReason.Advanced, await popover.Result);
         Assert.True(popover.IsClosed);
@@ -230,7 +237,7 @@ public sealed class QuickTagPopoverTests : IDisposable
     {
         using Fixture fixture = new();
         bool current = true;
-        QuickTagSession session = fixture.Session();
+        using QuickTagSession session = fixture.Session();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x",
             new QuickTagPopoverOptions { IsCurrent = () => current, RestoreFocus = false });
 
@@ -247,7 +254,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     public async Task ADetachedAnchorEndsThePopoverBeforeItWasShownWithoutLeavingItAsTheCurrentOne()
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x", new QuickTagPopoverOptions { RestoreFocus = false });
+        using QuickTagSession ownedSession8 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession8, "x", new QuickTagPopoverOptions { RestoreFocus = false });
         popover.Close(QuickTagPopoverCloseReason.Detached);
         Assert.Equal(QuickTagPopoverCloseReason.Detached, await popover.Result);
         Assert.NotSame(popover, QuickTagPopover.Current);
@@ -302,7 +310,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     {
         using Fixture fixture = new();
         DecisionHost host = new() { Rating = 2 };
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession ownedSession9 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession9, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
         GalleryDecisionRow row = popover.DecisionRow!;
         Assert.NotNull(row);
@@ -332,12 +341,14 @@ public sealed class QuickTagPopoverTests : IDisposable
         Assert.Equal(QuickTagInitialFocus.TagInput, new RateAndTagRequest().InitialFocus);
         using Fixture fixture = new();
         DecisionHost host = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession ownedSession10 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession10, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make(initialFocus: QuickTagInitialFocus.Rating, withFavorite: false) });
         Assert.False(popover.DecisionRow!.FavoriteVisible);
         Assert.False(popover.Surface!.FocusOnAttach);
         popover.Close();
-        QuickTagPopover field = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession ownedSession11 = fixture.Session();
+        QuickTagPopover field = QuickTagPopover.Create(new Border(), ownedSession11, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = new DecisionHost().Make(initialFocus: QuickTagInitialFocus.TagInput) });
         Assert.True(field.Surface!.FocusOnAttach);
         field.Close();
@@ -362,7 +373,8 @@ public sealed class QuickTagPopoverTests : IDisposable
     public void AFocusedStarRovesWithTheArrowKeysInsideThePopover()
     {
         using Fixture fixture = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession ownedSession12 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession12, "x",
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = new DecisionHost().Make() });
         // Without a focused star the frame's tunnel leaves Left and Right alone (the field's caret keeps them; the star route is gated on a focused star).
         // What nothing inside took then stops at the frame and never moves anything behind the popover (audit 16.11.2026).
@@ -388,7 +400,7 @@ public sealed class QuickTagPopoverTests : IDisposable
     {
         using Fixture fixture = new();
         QuickTagSuggestion first = Suggestion(fixture.Store, "alpha");
-        QuickTagSession session = fixture.Session();
+        using QuickTagSession session = fixture.Session();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x", new QuickTagPopoverOptions
         {
             Suggestions = new DelegateQuickTagSuggestions(_ => new[] { first }),
@@ -413,7 +425,7 @@ public sealed class QuickTagPopoverTests : IDisposable
     {
         using Fixture fixture = new();
         QuickTagSuggestion first = Suggestion(fixture.Store, "alpha");
-        QuickTagSession session = fixture.Session();
+        using QuickTagSession session = fixture.Session();
         QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x", new QuickTagPopoverOptions
         {
             Suggestions = new DelegateQuickTagSuggestions(_ => new[] { first }),
@@ -435,7 +447,8 @@ public sealed class QuickTagPopoverTests : IDisposable
         // The popover uses the gallery panel's adapter (TP2); it is warmed with the popover and disposed with it.
         TagRecentList recent = new();
         GalleryTagPanelSuggestions source = new();
-        QuickTagPopover popover = QuickTagPopover.Create(new Border(), fixture.Session(), "x",
+        using QuickTagSession ownedSession13 = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), ownedSession13, "x",
             new QuickTagPopoverOptions { Suggestions = source, Recent = recent, RestoreFocus = false });
         Assert.Same(source, popover.Surface!.Suggestions);
         popover.Close();

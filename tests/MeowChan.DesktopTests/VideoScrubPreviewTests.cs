@@ -213,7 +213,7 @@ public sealed class VideoScrubPreviewTests
             storeStarted.TrySetResult();
             // This is the one deliberately bounded timeout fixture. The store crosses the native deadline,
             // but receives the unbounded work token and therefore remains optional.
-            await Task.Delay(options.DecodeTimeout + options.DecodeTimeout);
+            await Task.Delay(options.DecodeTimeout + options.DecodeTimeout, CancellationToken.None);
         };
         await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, options: options, storeOverride: store)
             .OpenSession(manifest, asset)!;
@@ -368,7 +368,7 @@ public sealed class VideoScrubPreviewTests
         using TempDirectory temp = new();
         var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
         FakeDecoder decoder = new();
-        SemaphoreSlim gate = new(1, 1);
+        using SemaphoreSlim gate = new(1, 1);
         await gate.WaitAsync(); // another native decode (a poster, another video) holds the gate
         await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, gate).OpenSession(manifest, asset)!;
         using CancellationTokenSource hover = new();
@@ -437,7 +437,7 @@ public sealed class VideoScrubPreviewTests
         using TempDirectory temp = new();
         var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
         FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously), IgnoreCancellation = true };
-        SemaphoreSlim gate = new(1, 1);
+        using SemaphoreSlim gate = new(1, 1);
         VideoScrubPreviewCache cache = Cache(temp.Path, decoder, gate, new VideoScrubPreviewOptions(16, TimeSpan.FromMilliseconds(100)));
         await using VideoScrubPreviewSession session = cache.OpenSession(manifest, asset)!;
         Assert.Null(await session.GetSlotAsync(1, Duration, CancellationToken.None).WaitAsync(Patience));
@@ -455,7 +455,7 @@ public sealed class VideoScrubPreviewTests
         using TempDirectory temp = new();
         var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
         FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously) };
-        SemaphoreSlim gate = new(1, 1);
+        using SemaphoreSlim gate = new(1, 1);
         VideoScrubPreviewSession session = Cache(temp.Path, decoder, gate).OpenSession(manifest, asset)!;
         Task<VideoScrubFrame?> running = session.GetSlotAsync(2, Duration, CancellationToken.None);
         await decoder.Started.Task.WaitAsync(Patience);
@@ -616,15 +616,15 @@ public sealed class VideoScrubPreviewTests
     [Fact]
     public async Task ThePositionedDecoderEntryRejectsBadArgumentsBeforeAnyNativeWorkAndReleasesTheStream()
     {
-        TrackingStream negative = new();
+        using TrackingStream negative = new();
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             VideoPosterDecoder.DecodeAtAsync(negative, TimeSpan.FromSeconds(-1), 320, 180, CancellationToken.None));
         Assert.True(negative.Disposed);
-        TrackingStream tooLarge = new();
+        using TrackingStream tooLarge = new();
         await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             VideoPosterDecoder.DecodeAtAsync(tooLarge, TimeSpan.FromSeconds(1), VideoPosterDecoder.PosterMaximumWidth + 1, 180, CancellationToken.None));
         Assert.True(tooLarge.Disposed);
-        TrackingStream tooTall = new();
+        using TrackingStream tooTall = new();
         ArgumentOutOfRangeException height = await Assert.ThrowsAsync<ArgumentOutOfRangeException>(() =>
             VideoPosterDecoder.DecodeAtAsync(tooTall, TimeSpan.FromSeconds(1), 320, VideoPosterDecoder.PosterMaximumHeight + 1, CancellationToken.None));
         Assert.Equal("maximumHeight", height.ParamName);
@@ -707,7 +707,7 @@ public sealed class VideoScrubPreviewTests
         using TempDirectory temp = new();
         var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
         SynchronouslyThrowingDecoder decoder = new();
-        SemaphoreSlim gate = new(1, 1);
+        using SemaphoreSlim gate = new(1, 1);
         await using VideoScrubPreviewSession session = new VideoScrubPreviewCache(Path.Combine(temp.Path, "scrub"),
             VideoScrubPreviewOptions.Default, decoder, gate).OpenSession(manifest, asset)!;
         Assert.Null(await session.GetSlotAsync(3, Duration, CancellationToken.None).WaitAsync(Patience));
@@ -727,7 +727,7 @@ public sealed class VideoScrubPreviewTests
         for (int round = 0; round < 40; round++)
         {
             FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously) };
-            SemaphoreSlim gate = new(1, 1);
+            using SemaphoreSlim gate = new(1, 1);
             VideoScrubPreviewSession session = Cache(Path.Combine(temp.Path, "round-" + round), decoder, gate).OpenSession(manifest, asset)!;
             CancellationTokenSource[] hovers = Enumerable.Range(0, 8).Select(_ => new CancellationTokenSource()).ToArray();
             Task<VideoScrubFrame?>[] requests = Enumerable.Range(0, 8)
@@ -753,7 +753,7 @@ public sealed class VideoScrubPreviewTests
     private static VideoScrubPreviewCache Cache(string root, FakeDecoder decoder, SemaphoreSlim? gate = null, VideoScrubPreviewOptions? options = null,
         Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>>? readOverride = null,
         Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? storeOverride = null) =>
-        new(Path.Combine(root, "scrub"), options ?? VideoScrubPreviewOptions.Default, decoder, gate ?? new SemaphoreSlim(1, 1),
+        new(Path.Combine(root, "scrub"), options ?? VideoScrubPreviewOptions.Default, decoder, gate ?? VideoPosterCache.NativeDecodeGate,
             readOverride, storeOverride);
 
     private static int WidthOf(int slot) => 100 + slot;
