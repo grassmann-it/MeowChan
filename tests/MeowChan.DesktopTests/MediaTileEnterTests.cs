@@ -49,7 +49,8 @@ public sealed class MediaTileEnterTests
         fixture.Press(fixture.Container(1), Key.Enter);
 
         (IReadOnlyList<MediaLibraryEntry> window, int start) = Assert.Single(fixture.Opened);
-        Assert.Equal(0, start);
+        Assert.Equal(1, start);
+        Assert.Same(fixture.Entries[1], window[start]);
         Assert.Equal(new[] { fixture.Entries[0], fixture.Entries[1] }, window);
         Assert.Equal(2, fixture.Grid.Selection.Count);
     });
@@ -197,6 +198,7 @@ public sealed class MediaTileEnterTests
         internal bool LastHandled { get; private set; }
         internal MediaLibraryEntry[] Entries { get; }
         internal MediaPage Page => _page;
+        internal Control RootControl => _root;
         internal MediaLibraryTileRow[] Rows { get; }
         internal ReaderMediaSidebar? PanelView { get; private set; }
         internal string? SelectionNote => ((TextBlock)typeof(MediaPage).GetField("_selectionNote", InstanceNonPublic)!.GetValue(_page)!) is { IsVisible: true } note ? note.Text : null;

@@ -37,6 +37,4 @@ public sealed partial class MediaPage
     private static bool IsOpenKey(KeyEventArgs e) => !e.Handled && CommandBindings.Matches(e, GalleryOpenCommandId);
 
     internal const string MediaOpenCommandId = "gallery.open", GalleryOpenCommandId = "gallery.open";
-
-    private Task OpenTileEnterAsync() => _grid.Selection.Count > 1 ? OpenSelectionGalleryAsync() : OpenSelectedAsync();
 }
