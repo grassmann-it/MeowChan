@@ -52,9 +52,9 @@ public sealed class CatalogShortcutGapTests
     public void TagsKeepThreadsAndMediaApartAndTheMenuKeyIsAGestureNextToShiftF10()
     {
         // Two gestures, two targets: Ctrl+T tags the thread in Archive and the large reader; Ctrl+Shift+T tags the tile or selection in
-        // Media and the shown medium in the gallery (the reader never reads Ctrl+T as a media shortcut).
+        // Media, the shown medium in the reader and gallery (the reader never reads Ctrl+T as a media shortcut).
         Assert.Equal(new[] { "archive", "reader" }, CommandCatalog.Get("thread.tags").ExecutionContexts);
-        Assert.Equal(new[] { "media", "gallery" }, CommandCatalog.Get("media.tags.edit").ExecutionContexts);
+        Assert.Equal(new[] { "media", "reader", "gallery" }, CommandCatalog.Get("media.tags.edit").ExecutionContexts);
         // The catalog scope now says what the contexts and the help already claimed: the gallery tags the shown medium with it.
         Assert.Equal(CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, CommandCatalog.Get("media.tags.edit").Scope);
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
