@@ -209,7 +209,7 @@ internal static class MediaLibraryCatalog
         ("media.layout.size.large", "Large tiles", "Große Kacheln"),
         ("media.layout.preset.standard", "Standard", "Standard"),
         ("media.layout.preset.booru", "Booru view", "Booru-Ansicht"),
-        ("media.layout.preset.grid", "Grid only", "Nur Raster"),
+        ("media.layout.preset.gridSidebar", "Grid + media sidebar", "Raster + Medienleiste"),
         ("media.layout.reset", "Reset layout", "Layout zurücksetzen"),
         ("media.layout.resetHelp", "Back to the default layout.", "Zurück zum Standardlayout."),
         ("media.layout.resize", "Drag to change the width of the tag list, or use the arrow keys while this edge has the focus", "Ziehen, um die Breite der Tag-Liste zu ändern, oder bei Fokus auf dieser Kante die Pfeiltasten benutzen"),
