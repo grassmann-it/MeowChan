@@ -120,6 +120,30 @@ public sealed class HeaderIoAlignmentTests
         Assert.Equal(1, Grid.GetColumn(firstValue));
     }
 
+    // Screenshot 18.11.2026: the stacked Network/Disk titles were clipped at the top of the title bar. Title, gaps and two rate lines
+    // must leave room inside the 48 dip title bar; returning to one line restores the regular rate line height.
+    [Fact]
+    public void StackedMetricBlocksSetTheirRateLinesTightSoTheTitleFitsTheTitleBar()
+    {
+        Grid grid = new();
+        TextBlock title = new() { LineHeight = 10 }, firstValue = new() { LineHeight = 14 }, secondValue = new() { LineHeight = 14 };
+        TextBlock firstText = new() { LineHeight = 14 }, secondText = new() { LineHeight = 14 };
+        Grid firstWord = new() { Children = { firstText } }, secondWord = new() { Children = { secondText } };
+
+        MainWindow.ArrangeHeaderRates(grid, title, firstWord, firstValue, secondWord, secondValue, stacked: true);
+
+        foreach (TextBlock line in new[] { firstValue, secondValue, firstText, secondText })
+            Assert.Equal(MainWindow.StackedRateLineHeight, line.LineHeight);
+        double block = title.LineHeight + 2 * grid.RowSpacing + 2 * MainWindow.StackedRateLineHeight;
+        // Button padding (2 + 2) plus 3 dip on each side for the 11 dip title glyphs drawn above their 10 dip line.
+        Assert.True(block + 2 * 2 + 2 * 3 <= MeowChan.Desktop.WorkspaceMetrics.TitleBarHeight,
+            $"A {block} dip block with button padding and glyph room must fit the title bar.");
+
+        MainWindow.ArrangeHeaderRates(grid, title, firstWord, firstValue, secondWord, secondValue, stacked: false);
+        foreach (TextBlock line in new[] { firstValue, secondValue, firstText, secondText })
+            Assert.Equal(MainWindow.RateLineHeight, line.LineHeight);
+    }
+
     [Fact]
     public void FirstLayoutUsesTheRowGraphSizeAndNoIconAttachmentRemains()
     {

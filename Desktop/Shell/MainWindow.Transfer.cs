@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Threading;
 using Avalonia;
 using Avalonia.Automation;
@@ -129,13 +130,16 @@ public partial class MainWindow
         ArrangeHeaderRates(grid, firstWord, firstValue, secondWord, secondValue, stacked);
         if (!stacked)
         {
+            SetRateLineHeight(RateLineHeight, firstWord, firstValue, secondWord, secondValue);
             Grid.SetRow(title, 0);
             Grid.SetColumn(title, 0);
             Grid.SetColumnSpan(title, 2);
             return;
         }
 
+        // Title plus two rates must fit the title bar: the stacked block sets its rate lines tighter so the title is not clipped.
         grid.RowDefinitions = new RowDefinitions("Auto,Auto,Auto");
+        SetRateLineHeight(StackedRateLineHeight, firstWord, firstValue, secondWord, secondValue);
         Grid.SetRow(title, 0);
         Grid.SetColumn(title, 0);
         Grid.SetColumnSpan(title, 2);
@@ -143,6 +147,19 @@ public partial class MainWindow
         Grid.SetRow(firstValue, 1);
         Grid.SetRow(secondWord, 2);
         Grid.SetRow(secondValue, 2);
+    }
+
+    internal const double RateLineHeight = 14, StackedRateLineHeight = 12;
+
+    private static void SetRateLineHeight(double height, Control firstWord, TextBlock firstValue, Control secondWord, TextBlock secondValue)
+    {
+        firstValue.LineHeight = secondValue.LineHeight = height;
+        foreach (Control word in new[] { firstWord, secondWord })
+        {
+            if (word is TextBlock text) text.LineHeight = height;
+            else if (word is Panel panel)
+                foreach (TextBlock child in panel.Children.OfType<TextBlock>()) child.LineHeight = height;
+        }
     }
 
     /// <summary>Only presentation changes: the button retains its name, action and keyboard target.</summary>
