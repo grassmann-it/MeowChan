@@ -13,6 +13,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 
 
 def sibling_module(name: str):
@@ -20,6 +21,26 @@ def sibling_module(name: str):
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
+
+
+CREATE_ATTEMPTS = 4
+
+
+def create_image(volume: Path, staged: Path, sleep=time.sleep) -> None:
+    """hdiutil create fails transiently on hosted runners (busy disk arbitration); retry from a clean target."""
+    command = ['/usr/bin/hdiutil', 'create', '-format', 'UDZO', '-fs', 'HFS+',
+               '-volname', 'MeowChan', '-srcfolder', str(volume), str(staged)]
+    for attempt in range(1, CREATE_ATTEMPTS + 1):
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        if result.returncode == 0:
+            return
+        print(f'hdiutil create attempt {attempt}/{CREATE_ATTEMPTS} failed ({result.returncode}): '
+              f'{(result.stderr or result.stdout).strip()[-2000:]}', file=sys.stderr, flush=True)
+        if staged.exists():
+            staged.unlink()
+        if attempt == CREATE_ATTEMPTS:
+            raise subprocess.CalledProcessError(result.returncode, command, result.stdout, result.stderr)
+        sleep(15 * attempt)
 
 
 def create_and_verify(bundle: Path, dmg: Path, copied_root: Path, runtime: str) -> dict:
@@ -48,8 +69,7 @@ def create_and_verify(bundle: Path, dmg: Path, copied_root: Path, runtime: str) 
             subprocess.run(['/usr/bin/ditto', str(bundle), str(volume / bundle.name)], check=True)
             (volume / 'Applications').symlink_to('/Applications')
             staged = scratch / 'candidate.dmg'
-            subprocess.run(['/usr/bin/hdiutil', 'create', '-quiet', '-format', 'UDZO', '-fs', 'HFS+',
-                            '-volname', 'MeowChan', '-srcfolder', str(volume), str(staged)], check=True)
+            create_image(volume, staged)
             mount = scratch / 'mounted'
             mount.mkdir()
             attached = False
