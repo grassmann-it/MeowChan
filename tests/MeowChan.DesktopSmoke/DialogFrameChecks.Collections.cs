@@ -248,7 +248,7 @@ internal static partial class DialogFrameChecks
             Require(escape.Handled, "media tags: Escape was not handled.");
             media = null;
         }
-        finally { media?.CloseForLifetime(); }
+        finally { media?.Dispose(); }
     }
 
     /// <summary>Runs <paramref name="check"/> with the dialog at its minimum size, then restores the size.</summary>

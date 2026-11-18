@@ -441,7 +441,7 @@ internal static class GalleryMediaTagChecks
             (_, _, _) => throw new InvalidOperationException("The synthetic vocabulary takes no new names."), Set);
 
         System.Diagnostics.Stopwatch open = System.Diagnostics.Stopwatch.StartNew();
-        MediaTagDialog dialog = new(session, "synthetic-" + count + ".png");
+        using MediaTagDialog dialog = new(session, "synthetic-" + count + ".png");
         try
         {
             dialog.Show(owner);
