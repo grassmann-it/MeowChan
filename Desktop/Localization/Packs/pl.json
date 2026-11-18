@@ -2059,7 +2059,6 @@
     "command.selection.select-all": "Zaznacz wszystko",
     "command.thread.read": "Czytaj posty",
     "command.gallery.open": "Otwórz w galerii",
-    "command.media.open": "Otwórz wybrane media",
     "command.media.select-all": "Zaznacz wszystkie media",
     "command.media.tile-size.larger": "Większe kafelki",
     "command.media.tile-size.smaller": "Mniejsze kafelki",

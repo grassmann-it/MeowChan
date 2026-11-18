@@ -60,7 +60,6 @@ internal static class CommandLabelCatalog
         ("command.selection.select-all", "Select all", "Alle auswählen"),
         ("command.thread.read", "Read posts", "Posts lesen"),
         ("command.gallery.open", "Open in gallery", "In der Galerie öffnen"),
-        ("command.media.open", "Open selected media", "Ausgewähltes Medium öffnen"),
         ("command.media.select-all", "Select all media", "Alle Medien auswählen"),
         ("command.gallery.open-results", "Media from matching threads", "Medien der Treffer"),
         ("command.archive.open-results-in-media", "Open in Media", "In Medien öffnen"),

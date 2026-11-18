@@ -2049,7 +2049,6 @@
     "command.selection.select-all": "Seleziona tutto",
     "command.thread.read": "Leggi post",
     "command.gallery.open": "Apri nella galleria",
-    "command.media.open": "Apri media selezionato",
     "command.media.select-all": "Seleziona tutti i media",
     "command.media.tile-size.larger": "Riquadri più grandi",
     "command.media.tile-size.smaller": "Riquadri più piccoli",

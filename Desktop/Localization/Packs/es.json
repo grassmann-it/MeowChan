@@ -2420,7 +2420,6 @@
     "command.selection.select-all": "Seleccionar todo",
     "command.thread.read": "Leer publicaciones",
     "command.gallery.open": "Abrir en la galería",
-    "command.media.open": "Abrir el medio seleccionado",
     "command.media.select-all": "Seleccionar todos los medios",
     "command.media.tile-size.larger": "Miniaturas más grandes",
     "command.media.tile-size.smaller": "Miniaturas más pequeñas",

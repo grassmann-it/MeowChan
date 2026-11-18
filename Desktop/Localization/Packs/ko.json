@@ -2274,7 +2274,6 @@
     "command.selection.select-all": "모두 선택",
     "command.thread.read": "게시물 읽기",
     "command.gallery.open": "갤러리에서 열기",
-    "command.media.open": "선택한 미디어 열기",
     "command.media.select-all": "모든 미디어 선택",
     "command.media.tile-size.larger": "타일 크게",
     "command.media.tile-size.smaller": "타일 작게",

@@ -2424,7 +2424,6 @@
     "command.selection.select-all": "Выбрать всё",
     "command.thread.read": "Читать посты",
     "command.gallery.open": "Открыть в галерее",
-    "command.media.open": "Открыть выбранный медиафайл",
     "command.media.select-all": "Выбрать все медиафайлы",
     "command.media.tile-size.larger": "Более крупные плитки",
     "command.media.tile-size.smaller": "Более мелкие плитки",

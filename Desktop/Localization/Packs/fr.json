@@ -2420,7 +2420,6 @@
     "command.selection.select-all": "Tout sélectionner",
     "command.thread.read": "Lire les messages",
     "command.gallery.open": "Ouvrir dans la galerie",
-    "command.media.open": "Ouvrir le média sélectionné",
     "command.media.select-all": "Sélectionner tous les médias",
     "command.media.tile-size.larger": "Vignettes plus grandes",
     "command.media.tile-size.smaller": "Vignettes plus petites",

@@ -2274,7 +2274,6 @@
     "command.selection.select-all": "全选",
     "command.thread.read": "阅读帖子",
     "command.gallery.open": "在图库中打开",
-    "command.media.open": "打开所选媒体",
     "command.media.select-all": "选择所有媒体",
     "command.media.tile-size.larger": "更大的磁贴",
     "command.media.tile-size.smaller": "更小的磁贴",

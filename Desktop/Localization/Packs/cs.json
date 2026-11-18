@@ -2059,7 +2059,6 @@
     "command.selection.select-all": "Vybrat vše",
     "command.thread.read": "Číst příspěvky",
     "command.gallery.open": "Otevřít v galerii",
-    "command.media.open": "Otevřít vybraná média",
     "command.media.select-all": "Vybrat všechna média",
     "command.media.tile-size.larger": "Větší dlaždice",
     "command.media.tile-size.smaller": "Menší dlaždice",

@@ -2274,7 +2274,6 @@
     "command.selection.select-all": "すべて選択",
     "command.thread.read": "投稿を読む",
     "command.gallery.open": "ギャラリーで開く",
-    "command.media.open": "選択したメディアを開く",
     "command.media.select-all": "すべてのメディアを選択",
     "command.media.tile-size.larger": "タイルを大きく",
     "command.media.tile-size.smaller": "タイルを小さく",
