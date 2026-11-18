@@ -1026,6 +1026,11 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <Style Selector="ToggleButton.accent-preset"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
+    <Style Selector="ToggleButton.accent-preset TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
+    <Style Selector="ToggleButton.accent-preset:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.accent-preset:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
     <!-- Typography pass: a hint under a label (several lines in Settings) reads with 2 dip between its lines; see workspace-empty-text. -->
     <Style Selector="TextBlock.workspace-help, SelectableTextBlock.workspace-help"><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
     <Style Selector="TextBlock.workspace-error, SelectableTextBlock.workspace-error">

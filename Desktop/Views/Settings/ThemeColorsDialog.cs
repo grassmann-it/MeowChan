@@ -171,7 +171,7 @@ internal sealed class ThemeColorsDialog : Window
         ToggleButton button = new()
         {
             Name = "ThemeAccentPreset_" + preset.Id, Padding = new Thickness(8, 4), HorizontalContentAlignment = HorizontalAlignment.Center,
-            Content = new StackPanel { Spacing = 4, Children = { swatch, caption } }
+            Content = new StackPanel { Spacing = 4, Children = { swatch, caption } }, Classes = { "accent-preset" }
         };
         button.Click += (_, _) =>
         {
