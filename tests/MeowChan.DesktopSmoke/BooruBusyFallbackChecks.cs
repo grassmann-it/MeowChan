@@ -70,7 +70,9 @@ internal static class BooruBusyFallbackChecks
             {
                 BooruBindingForTests = () => binding!.Binding
             };
-            shell = new MainWindow(host);
+            host = ownedHost;
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Wait);
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready
@@ -177,7 +179,9 @@ internal static class BooruBusyFallbackChecks
             {
                 BooruBindingForTests = () => binding!.Binding
             };
-            shell = new MainWindow(host);
+            host = ownedHost;
+            await using MainWindow ownedShell = new(host);
+            shell = ownedShell;
             shell.Show(owner);
             await host.StartAsync().WaitAsync(Wait);
             await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready
@@ -304,7 +308,7 @@ internal static class BooruBusyFallbackChecks
 
     private sealed class PauseFixtureSource : IImageBoard, IDisposable
     {
-        private readonly HttpClient _client = new(new RejectNetworkHandler());
+        private readonly HttpClient _client;
         private readonly PauseFixtureBoard _board;
         internal PauseFixtureThread Thread { get; }
         private IThread HostedThread { get; }
@@ -313,6 +317,13 @@ internal static class BooruBusyFallbackChecks
 
         internal PauseFixtureSource(bool failStopOnce)
         {
+            HttpMessageHandler? handler = new RejectNetworkHandler();
+            try
+            {
+                _client = new HttpClient(handler, disposeHandler: true);
+                handler = null;
+            }
+            finally { handler?.Dispose(); }
             _board = new PauseFixtureBoard(this);
             Thread = new PauseFixtureThread(_board);
             HostedThread = failStopOnce ? new FailingStopThread(Thread) : Thread;

@@ -89,7 +89,8 @@ internal static class BooruPreviewDecodeChecks
             completed.TrySetResult();
             return stale;
         });
-        BooruResultViewerWindow viewer = new(model.Search, "801", new(), () => { }, decoder);
+        await using BooruResultViewerWindow ownedViewer = new(model.Search, "801", new(), () => { }, decoder);
+        BooruResultViewerWindow viewer = ownedViewer;
         try
         {
             viewer.Show(owner);
