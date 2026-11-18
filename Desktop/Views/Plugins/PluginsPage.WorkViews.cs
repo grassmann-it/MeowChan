@@ -7,8 +7,8 @@ using MeowChan.Desktop.WorkViews;
 namespace MeowChan;
 
 // Work views (plan AP5, WV6, §1.10). Approval and activation flows (enable, candidate choice, SDK transition, the draft
-// footer with its reasons, recovery) and every problem or error stay in all views. Adding a file and the plugin folder move
-// under More; the developer area is reached through "Show developer details" of the plugin's More actions in Barebones.
+// footer with its reasons, recovery) and every problem or error stay in all views. Refresh and the plugin folder stay
+// under More; adding a plugin stays direct. Developer details remain reachable through the plugin's More actions.
 public partial class PluginsPage
 {
     // A page without a main window (fixtures, tests) shows everything, as before work views; the window sets its own view.
@@ -33,7 +33,7 @@ public partial class PluginsPage
         RefreshPluginActions();
     }
 
-    private Button[] HeaderMovableActions() => [C<Button>("PluginsAdd"), C<Button>("PluginsFolder")];
+    private Button[] HeaderMovableActions() => [C<Button>("PluginsRefresh"), C<Button>("PluginsFolder")];
 
     private void RefreshWorkViewPresentation(bool viewChanged = false)
     {
