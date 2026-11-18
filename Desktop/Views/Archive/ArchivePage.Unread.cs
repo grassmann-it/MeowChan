@@ -54,6 +54,11 @@ public partial class ArchivePage
         return selected > anchor ? position.SelectedPostId! : position.PostId;
     }
 
+    // Continue reading only creates an unread boundary when the saved post is still present.
+    // A fallback is a replacement landing point, not evidence of a new read boundary.
+    internal static (ResourceId Thread, string LastReadPostId)? ResumeUnreadMark(ArchivedThreadView view,
+        LocalReadingPosition position, bool fallback) => fallback ? null : (position.ThreadId, LastReadOf(view, position));
+
     private bool IsPastUnreadLine()
     {
         if (_thread == null || _unreadFirstNewId == null || ArchivePosts.ItemsSource is not ArchivePostRow[] rows

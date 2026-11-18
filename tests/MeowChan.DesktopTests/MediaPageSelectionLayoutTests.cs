@@ -34,13 +34,11 @@ public sealed class MediaPageSelectionLayoutTests
             typeof(MediaPage).GetField("_statusAttention", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.SetValue(page, false);
             DockPanel row = page.GetLogicalDescendants().OfType<DockPanel>().Single(control => control.Name == "MediaSelectionRow");
             StackPanel actions = page.GetLogicalDescendants().OfType<StackPanel>().Single(control => control.Name == "MediaSelectionActions");
-            StackPanel state = page.GetLogicalDescendants().OfType<StackPanel>().Single(control => control.Name == "MediaSelectionState");
+            TextBlock reason = page.GetLogicalDescendants().OfType<TextBlock>().Single(control => control.Name == "MediaSelectionReason");
             ReservedTextBlock count = page.GetLogicalDescendants().OfType<ReservedTextBlock>().Single(control => control.Name == "MediaSelectionStatus");
-            Assert.Equal(new[] { "MediaSelectionQueue", "MediaSelectionTag", "MediaSelectionGallery", "MediaSelectionExport", "MediaSelectionMore" },
+            Assert.Equal(new[] { "MediaSelectionStatus", "MediaSelectionQueue", "MediaSelectionTag", "MediaSelectionGallery", "MediaSelectionExport", "MediaSelectionMore", "MediaSelectionClear" },
                 actions.Children.Select(child => child.Name));
-            Assert.Equal(new[] { "MediaSelectionClear", "MediaSelectionStatus" }, state.Children.Select(child => child.Name));
             Assert.Equal(Dock.Left, DockPanel.GetDock(actions));
-            Assert.Equal(Dock.Right, DockPanel.GetDock(state));
             Assert.Equal("MediaSelectionReason", row.Children.Last().Name);
             Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(count));
 
@@ -59,8 +57,7 @@ public sealed class MediaPageSelectionLayoutTests
             Assert.Equal(32, row.Bounds.Height);
             Assert.Equal(before, fixture.Grid.TranslatePoint(default, page)!.Value.Y);
             Assert.Equal(0, actions.Bounds.X);
-            Assert.Equal(row.Bounds.Width, state.Bounds.Right);
-            Assert.True(actions.Bounds.Right <= state.Bounds.X);
+            Assert.True(actions.Bounds.Right <= row.Bounds.Right);
             Assert.Equal(Texts.T("media.selection.count", MediaPage.CounterReserveSample(fixture.Rows.Length)), count.ReserveText);
             double reserved = count.DesiredSize.Width;
             fixture.Grid.Selection.SelectRange(0, 2);

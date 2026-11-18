@@ -176,6 +176,19 @@ public sealed class MediaPanelPageKeysTests
     });
 
     [Fact]
+    public void ShiftEnterOnThePanelPictureUsesTheGalleryOpenShortcut() => WithPanel((fixture, recorder, _) =>
+    {
+        fixture.Press(fixture.PanelView!.Frame, Key.Enter, KeyModifiers.Shift);
+
+        Assert.True(fixture.LastHandled);
+        Assert.Single(fixture.Opened);
+        Assert.Same(fixture.Entries[1], fixture.Opened[0].Window[fixture.Opened[0].Start]);
+        Assert.Empty(recorder.Actions);
+        Assert.Empty(recorder.Threads);
+        Assert.Empty(recorder.Queued);
+    });
+
+    [Fact]
     public void ATextFieldInThePanelKeepsItsLetters() => WithPanel((fixture, recorder, _) =>
     {
         TextBox field = new();
