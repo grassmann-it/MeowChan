@@ -142,6 +142,21 @@ public sealed class MediaMultiSelectionCommandTests
     });
 
     [Fact]
+    public void RightClickTargetReplacementDoesNotPublishAnEmptySelection() => MediaTileEnterTests.Run(fixture =>
+    {
+        System.Reflection.MethodInfo target = typeof(MediaPage).GetMethod("TargetForMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        fixture.Grid.Selection.Select(0);
+        fixture.Grid.Selection.Select(2);
+        List<int> observedCounts = new();
+        fixture.Grid.SelectionChanged += (_, _) => observedCounts.Add(fixture.Grid.Selection.Count);
+
+        target.Invoke(fixture.Page, [fixture.Rows[1]]);
+
+        Assert.DoesNotContain(0, observedCounts);
+        Assert.Equal(new[] { 1 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
+    });
+
+    [Fact]
     public void TheMenuOfASeveralSelectionTalksAboutTheSelection()
     {
         Texts.Initialize();

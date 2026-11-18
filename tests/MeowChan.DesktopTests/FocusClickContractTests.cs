@@ -92,6 +92,9 @@ public sealed class FocusClickContractTests
         string target = Method("Desktop/Views/Media/MediaPage.cs", "TargetForMenu");
         Before(target, "_grid.Selection.IsSelected(row.Index)) return row;", "_grid.SelectedItem = row");
         Assert.DoesNotContain("_grid.Selection.Clear()", target); // no transient empty selection/recycled menu origin
+        string menu = Method("Desktop/Views/Media/MediaPage.cs", "OpenSharedMediaMenu");
+        Assert.Contains("HashSet<int> selection = _grid.Selection.SelectedIndexes.ToHashSet();", menu);
+        Assert.Contains("selection.SetEquals(_grid.Selection.SelectedIndexes)", menu);
         Before(body, "(_grid.ContainerFromItem(row) as Control ?? origin).Focus()", "OpenSharedMediaMenu(row, origin)");
         Assert.Contains("e.Handled = true;", body);
         // A paired release must not reopen a menu against a new selection.
