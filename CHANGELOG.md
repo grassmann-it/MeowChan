@@ -1,9 +1,9 @@
 # Changelog
 
-## 1.1.0 — unreleased — Media page, own tags, Danbooru and plugin SDK 1.1.0
+## 1.1.0 — 2026-11-19 — Media page, own tags, Danbooru and plugin SDK 1.1.0
 
-- Draft, not published: no release date, package or verification. See the
-  [draft release notes](docs/releases/v1.1.0.md), which mark what is still pending.
+- See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and known
+  limitations. The packages were built without the full validation sweep being green.
 - Keep primary toolbar actions left and presentation controls right in Archive, Downloads
   and Tagging, with consistent spacing, a compact Archive List/Table pair and no empty
   overflow button.
