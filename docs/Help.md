@@ -2,10 +2,12 @@
 
 MeowChan watches imageboard boards or threads, saves selected original media,
 and optionally captures posts for local reading and search. This guide follows the
-**unreleased MeowChan 1.1.0 development line**. For the published 1.0.2 behavior,
+**MeowChan 1.1.0**, published on 2026-11-19. For the previous 1.0.2 behavior,
 use the [1.0.2 guide](https://github.com/grassmann-it/MeowChan/blob/v1.0.2/docs/Help.md)
-and [release notes](releases/v1.0.2.md). Features below describe the integrated
-development checkout, not a claim that 1.1.0 packages have passed release acceptance.
+and [release notes](releases/v1.0.2.md). The 1.1.0 packages were built without the
+full validation sweep being green, so features below are described from the released
+source and are not a claim of release acceptance; see the
+[1.1.0 release notes](releases/v1.1.0.md) for the known limitations.
 
 For the separate collection-workflow and transfer preview, see
 [English](user-guide/collection-workflow-preview.en.md) /
@@ -57,7 +59,7 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 
 ## From a package to an offline picture
 
-1. For the published 1.0.2 build, choose the package for your OS and CPU on the [1.0.2 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md). The 1.1.0 development line has no published package yet.
+1. For the published 1.1.0 build, choose the package for your OS and CPU on the [1.1.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md). The 1.1.0 development line has no published package yet.
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Plugins lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
@@ -1125,7 +1127,7 @@ or copy its details. **Clear session messages** clears that list; it does not fi
 the underlying problem. The list ends with the app session. Field validation and
 confirmation dialogs still apply when popups are disabled.
 
-**Unreleased source-build behavior:** the central banner and each popup have an
+**New in 1.1.0:** the central banner and each popup have an
 explicit **×**. Closing one acknowledges that occurrence for the current app
 session, suppresses matching queued/repeated displays and leaves its diagnostic
 entry/count intact. Another source or failure still has its own message. Clearing
@@ -1428,13 +1430,13 @@ Windows, macOS and Linux accessibility acceptance remain separate checks.
 
 ## Linux packages and startup
 
-For either `linux-x64` or `linux-arm64`, choose a package from the [1.0.2 release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2):
+For either `linux-x64` or `linux-arm64`, choose a package from the [1.1.0 release](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0):
 
 Release download names carry numeric prefixes. The archive suffixes below apply to either CPU; AppImage commands use the actual public x64 filename.
 
-- `MeowChan-1.0.2-<RID>-bundled-vlc.tar.gz` suffix: VLC and .NET included; extract everything and run `./MeowChan`.
-- `MeowChan-1.0.2-<RID>-system-vlc.tar.gz` suffix: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
-- `.AppImage`: VLC and .NET included. On x64, run `chmod +x 04-MeowChan-1.0.2-linux-x64.AppImage`, then `./04-MeowChan-1.0.2-linux-x64.AppImage`. If FUSE is unavailable, use `./04-MeowChan-1.0.2-linux-x64.AppImage --appimage-extract-and-run`. On ARM64, use `05-MeowChan-1.0.2-linux-arm64.AppImage` instead.
+- `MeowChan-1.1.0-<RID>-bundled-vlc.tar.gz` suffix: VLC and .NET included; extract everything and run `./MeowChan`.
+- `MeowChan-1.1.0-<RID>-system-vlc.tar.gz` suffix: .NET included; install **LibVLC 3, at least 3.0.20**, with Matroska/WebM, VP8/VP9, Vorbis/Opus and audio/video output plugins through your distribution first.
+- `.AppImage`: VLC and .NET included. On x64, run `chmod +x 04-MeowChan-1.1.0-linux-x64.AppImage`, then `./04-MeowChan-1.1.0-linux-x64.AppImage`. If FUSE is unavailable, use `./04-MeowChan-1.1.0-linux-x64.AppImage --appimage-extract-and-run`. On ARM64, use `05-MeowChan-1.1.0-linux-arm64.AppImage` instead.
 
 Bundled archives and AppImages avoid a separate VLC installation. Linux still needs a compatible glibc desktop with X11/XWayland and native graphics/font dependencies. Before any session starts, the application checks the selected VLC backend. Missing, unsupported or unusable system VLC opens a dismissible installation hint; closing it exits with code **2**. Install a supported VLC 3 runtime and plugins, then start again. On Debian-derived distributions, relevant package families include `libvlc5`, `libvlccore9`, `vlc-plugin-base` and `vlc-plugin-video-output`; distribution versions must meet the minimum. Development-package symlinks are not required.
 
@@ -1550,7 +1552,7 @@ steps, original export, saved ratings, frame saving, video rules, overlays and
 fullscreen stay under More in every view. Their shortcuts still work directly. In a narrow window the
 toolbar uses icons and the post panel floats over the image.
 
-**Unreleased source-build controls:** Settings → Reading & media → **Gallery &
+**New in 1.1.0:** Settings → Reading & media → **Gallery &
 playback** offers **Manual**, **Repeat current video**, and **Slideshow**. The same
 mode is available in the gallery. Repeat applies to each video you select until
 changed; its choice and media focus are remembered for the profile. Slideshow
@@ -2476,7 +2478,7 @@ nur ein bestätigter nutzbarer Ordner.
 
 ## Missing media and finished threads
 
-**Unreleased source builds:** Download rows reuse known locally saved thread
+**New in 1.1.0:** Download rows reuse known locally saved thread
 titles on restart without waiting for the source website. When a thread truly
 has no title, a short cleaned opening-post excerpt is shown; without available
 content, its source/board/thread identity is used. Capture-off watches retain
@@ -2684,13 +2686,13 @@ downgrade of data changed by 1.0. If you need the
 an untouched profile or restore a pre-upgrade backup to a separate location;
 keep the 1.0 data for investigating the problem.
 
-The unreleased 1.1.0 development line migrates `archive.db` to schema 13 on first open.
+MeowChan 1.1.0 migrates `archive.db` to schema 13 on first open.
 Schema 13 adds nullable provider-reported `width` and `height` columns to captured
 attachments; old captures and non-image media retain null values. A 1.0.2 build refuses the
 upgraded archive, so keep a complete pre-upgrade backup and do not use an upgraded profile
 for a downgrade.
 
-**Plugin-state transition introduced in 1.0.2:** the current source can write a v2
+**Plugin-state transition introduced in 1.0.2:** 1.0.2 and later can write a v2
 plugin-state envelope that 1.0.0/1.0.1 do not read. Before replacing an existing
 validated v1 state—even during startup observation—it retains the original bytes
 as `plugin-state/state.pre-v2.json` plus a `.sha256` digest. This is an immutable
