@@ -7,29 +7,28 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>1.0.2 · Stable release</strong></p>
+<p align="center"><strong>1.1.0 · Latest release</strong></p>
 
 <p align="center">Original media. Better viewing. Your archive, offline.</p>
 
 Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
 
-[**Get MeowChan 1.0.2 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.0.2.md) · [Platform requirements](docs/platform-support.md)
+[**Get MeowChan 1.1.0 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.0.md) · [Platform requirements](docs/platform-support.md)
 
-**1.0.2 is a stability release for startup, downloads and media viewing**, with remembered
-loop/media-focus choices, explicit mixed slideshows and safer native gallery interaction.
-Original-media verification remains enforced.
+**1.1.0 is the biggest MeowChan release so far**: a Media page over everything you saved, private tags with a fast tagging workflow, your own file imports, a first Danbooru source and a new look for every window.
 
-## What's improved in 1.0.2 🐾
+## What's new in 1.1.0 🐾
 
-- **Dependable startup and upgrades.** Compatible, verified bundled-plugin rebuilds retain your settings and enabled choices without another confirmation/restart loop. Preference saves wait for readiness; missing unproven legacy selections retain their explicit review-and-backup path, not silent remapping.
-- **Improved media features.** Usually open your downloads in VLC or a separate image viewer? Try the gallery for images, GIFs, WebM and MP4, with remembered looping, media focus and mixed slideshows. Feedback from gooners and /gif/ power users is especially welcome.
-- **Safer viewing transitions.** Bottom/right edge controls, a full-height Reader and reliable Reader return keep media in focus. Windows overlay transfers no longer trip the LayoutManager crash; the first navigation arrow works even when video-to-image transitions briefly clear native focus. macOS rapid-fullscreen restoration respects the latest window choice.
-- **Bounded downloads.** Fair next-file slots for multiple High watches and a default 32-transfer safety cap; defaults remain 1 MiB/s and 5 transfers, with a 256-item pending queue.
+- **12 interface languages.** English, Deutsch, Español, Français, Русский, 简体中文, 日本語, 한국어, Português (Brasil), Čeština, Italiano and Polski. The ten new packs are AI-authored previews with language and plural reviews but no native-speaker acceptance yet; corrections are welcome. Chinese, Japanese and Korean need Noto Sans CJK on Linux.
+- **A Media page for everything you saved.** All saved files in one tile grid with nine sort orders, removable filter chips, SHA-256 duplicate grouping, a Media sidebar and multi-select actions including **Export all matches…**.
+- **Private tags and fast tagging.** Tag threads and the exact media version you see, manage tags, and use the quick tagging panel in the gallery, the tagging queue and walks. Tagged items are protected from archive cleanup.
+- **Bring your own files.** Import files or drag and drop them with a SHA-256 duplicate check, add read-only media folders, run several profiles in separate windows and import transfer packages.
+- **Danbooru and more sources.** A read-only, anonymous Danbooru source with search, watchers and a Booru workbench, five more experimental chan sources that start disabled, one redesigned **Plugins** page and plugin SDK 1.1.0 (1.0.0 plugins keep working).
+- **A new look and feel.** MeowChan's own title bar on every window, reworked keyboard shortcuts, one search field with a scope, one shared export dialog, a Reader with cards, a settings page and a conversation view, a header graph for transfers and disk activity, a new **Animations** setting and most size and count limits as settings.
 
-See the [1.0.2 release notes](docs/releases/v1.0.2.md) for upgrade warnings,
-release evidence and limits. No new sources or unselected CSV extras are included.
+See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and known limitations. **Upgrading from 1.0.2:** several profile files are migrated on first start and 1.0.2 cannot open the migrated archive, so make a full backup of your profile first.
 
-The released packages come from the [successful 13-job native/package candidate](https://github.com/grassmann-it/MeowChan/actions/runs/41215622532). [Download checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.2/SHA256SUMS) cover the published filenames; automated checks do not establish physical audio/GPU or everyday-use acceptance.
+**Validation status, stated plainly:** the packages were built by [workflow run 44412533700](https://github.com/grassmann-it/MeowChan/actions/runs/44412533700) in package-media mode and the full cross-platform validation sweep was **not green** (validation was intentionally skipped). Several features are freshly built and not yet tested in depth, in particular quick tagging, Danbooru (tested against a local fake, not the live site), the experimental sources, the ten new languages and native Windows and macOS behaviour. [Download checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/SHA256SUMS) cover the published filenames.
 
 ### Features introduced in 1.0.0
 
@@ -45,7 +44,7 @@ The [1.0.0 release notes](docs/releases/v1.0.0.md) cover the original feature re
 
 ## Take a look around · 1.0.1
 
-These retained 1.0.1 screenshots are source-built UI captures from the 1.0.1 release source using offline demonstration data. The [1.0.1 capture notes](docs/screenshots/v1.0.1/README.md) record the source checkpoint and capture conditions; the images are not 1.0.2 captures and do not establish native package acceptance or live source availability.
+These retained 1.0.1 screenshots are source-built UI captures from the 1.0.1 release source using offline demonstration data. The [1.0.1 capture notes](docs/screenshots/v1.0.1/README.md) record the source checkpoint and capture conditions; the images are not 1.1.0 captures and do not show the 1.1.0 interface and do not establish native package acceptance or live source availability.
 
 ### Watch threads without losing the overview
 
@@ -77,28 +76,28 @@ Explore the eight-page [Settings workspace](docs/screenshots/v1.0.1/settings.png
 
 Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs; it requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. See [platform requirements](docs/platform-support.md) for dependencies and package details.
 
-| Platform | Download 1.0.2 |
+| Platform | Download 1.1.0 |
 | --- | --- |
-| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.2/01-MeowChan-1.0.2-win-x64.zip) |
-| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.2/02-MeowChan-1.0.2-osx-arm64.dmg) |
-| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.2/03-MeowChan-1.0.2-osx-x64.dmg) |
-| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.2/04-MeowChan-1.0.2-linux-x64.AppImage) |
-| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.0.2/05-MeowChan-1.0.2-linux-arm64.AppImage) |
+| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/01-MeowChan-1.1.0-win-x64.zip) |
+| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/02-MeowChan-1.1.0-osx-arm64.dmg) |
+| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/03-MeowChan-1.1.0-osx-x64.dmg) |
+| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/04-MeowChan-1.1.0-linux-x64.AppImage) |
+| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/05-MeowChan-1.1.0-linux-arm64.AppImage) |
 
-1. [Download MeowChan 1.0.2](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
+1. [Download MeowChan 1.1.0](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
 4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
 
 ### Choosing a Linux package
 
-For each of `linux-x64` and `linux-arm64`, choose a package on the [1.0.2 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.0.2):
+For each of `linux-x64` and `linux-arm64`, choose a package on the [1.1.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0):
 
 | Filename suffix | VLC requirement |
 | --- | --- |
-| `MeowChan-1.0.2-<RID>.AppImage` | Includes VLC; make executable and run. |
-| `MeowChan-1.0.2-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
-| `MeowChan-1.0.2-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
+| `MeowChan-1.1.0-<RID>.AppImage` | Includes VLC; make executable and run. |
+| `MeowChan-1.1.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
+| `MeowChan-1.1.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
 
 Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
 
