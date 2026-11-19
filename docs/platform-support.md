@@ -2,18 +2,28 @@
 
 This record separates upstream platform support, candidate MeowChan packages, and checks actually performed. A successful cross-publish does not establish that an application starts on the target operating system or CPU.
 
-## 1.0.2 release evidence contract
+## 1.1.0 release record and 1.0.2 evidence contract
 
-The current release target is **1.0.2**; the 0.9.0 records below are historical,
-not acceptance of current packages. See [1.0.2 release notes](releases/v1.0.2.md)
+The current release is **1.1.0**, published 2026-11-19 (tag `v1.1.0`, commit
+`8806763ef`); the 0.9.0 records below are historical, not acceptance of current
+packages. See [1.1.0 release notes](releases/v1.1.0.md). The packages were built by
+[workflow run 44412533700](https://github.com/grassmann-it/MeowChan/actions/runs/44412533700)
+in package-media mode. **The full validation sweep was not green; validation was
+intentionally skipped**, so no exact-source candidate pass, upgrade run or native
+platform acceptance is asserted for 1.1.0. The release carries Windows x64, macOS
+Apple Silicon/Intel and Linux x64/arm64 packages (no NuGet packages and no macOS
+video-source overlay).
+
+The previous release, **1.0.2**, was published under this contract, which remains the
+standard for a fully validated release: see [1.0.2 release notes](releases/v1.0.2.md)
 and the [closure checklist](releases/v1.0.2-preparation.md).
 
-Publication requires one exact-source `stable-candidate` run with `all/all`, all
+A fully validated release requires one exact-source `stable-candidate` run with `all/all`, all
 **13 required jobs successful and 18 original assets**, plus root source,
 upgrade/package, inventory and checksum verification. Changes to release
-documentation require a new full candidate on the integrated source. The published release
-will identify the accepted run/source/checksums; no current candidate pass or
-publication is asserted by this platform record.
+documentation require a new full candidate on the integrated source. A fully validated
+release identifies the accepted run/source/checksums; this platform record asserts
+no such pass for 1.1.0.
 
 Focused Windows overlay clip/lifecycle and macOS fullscreen checks cover their
 recorded scenarios only. Decoded audio without output and functional native output
