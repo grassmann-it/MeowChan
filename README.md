@@ -42,35 +42,43 @@ See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and 
 
 The [1.0.0 release notes](docs/releases/v1.0.0.md) cover the original feature release and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
 
-## Take a look around · 1.0.1
+## Take a look around · 1.1.0
 
-These retained 1.0.1 screenshots are source-built UI captures from the 1.0.1 release source using offline demonstration data. The [1.0.1 capture notes](docs/screenshots/v1.0.1/README.md) record the source checkpoint and capture conditions; the images are not 1.1.0 captures and do not show the 1.1.0 interface and do not establish native package acceptance or live source availability.
+Source-built captures of the 1.1.0 interface with offline demonstration data; see the [1.1.0 capture notes](docs/screenshots/v1.1.0/README.md) for conditions and the full set of 22 images.
 
-### Watch threads without losing the overview
+### Your whole media collection in one grid
 
-Paste thread or board URLs, track saved media and inspect watch details. Choose Barebones, Simple or Advanced to suit your workspace.
+The new **Media page** shows every saved file across all archived threads, with filters, sort orders, multi-select and a big preview sidebar.
 
-[![MeowChan 1.0.1 Downloads with offline demonstration watches](docs/screenshots/v1.0.1/downloads.png)](docs/screenshots/v1.0.1/downloads.png)
+[![MeowChan 1.1.0 Media page](docs/screenshots/v1.1.0/media-library-dark.png)](docs/screenshots/v1.1.0/media-library-dark.png)
 
-### Make your archive easy to come back to
+### Tag as fast as you can browse
 
-Find captured threads and local media, save useful searches, and keep favorites and ratings close at hand. Prefer rows? There is also an [Archive table view](docs/screenshots/v1.0.1/archive-table.png).
+The **quick tagging panel** in the gallery rates, favorites and tags while you browse; the [Tagging page](docs/screenshots/v1.1.0/tagging-queue-dark.png) works through a queue with stamp tags.
 
-[![MeowChan 1.0.1 Archive with saved offline demonstration content](docs/screenshots/v1.0.1/archive.png)](docs/screenshots/v1.0.1/archive.png)
+[![MeowChan 1.1.0 gallery with quick tagging panel](docs/screenshots/v1.1.0/gallery-quick-tagging-dark.png)](docs/screenshots/v1.1.0/gallery-quick-tagging-dark.png)
 
-### Give the media some room
+### Twelve languages
 
-**Media focus** folds away gallery tools and details. Return to the [regular gallery](docs/screenshots/v1.0.1/gallery.png) when you want more controls and captured post context; video keeps its compact playback strip.
+Switch the interface language any time in Settings — here in German, one of 12 languages.
 
-[![MeowChan 1.0.1 gallery in media focus view](docs/screenshots/v1.0.1/gallery-focus.png)](docs/screenshots/v1.0.1/gallery-focus.png)
+[![MeowChan 1.1.0 settings in German](docs/screenshots/v1.1.0/settings-german-dark.png)](docs/screenshots/v1.1.0/settings-german-dark.png)
 
-### Settle in and read offline
+### Before and after · 1.0.1 vs 1.1.0
 
-Read captured posts with local media, follow replies, and return to saved reading positions. Reader groups, post bookmarks and notes help you keep your place.
+Same offline demonstration data, old interface left, new interface right.
 
-[![MeowChan 1.0.1 offline reader with captured demonstration posts](docs/screenshots/v1.0.1/reader.png)](docs/screenshots/v1.0.1/reader.png)
+| View | 1.0.1 | 1.1.0 |
+| --- | --- | --- |
+| Downloads | [![1.0.1 Downloads](docs/screenshots/v1.0.1/downloads.png)](docs/screenshots/v1.0.1/downloads.png) | [![1.1.0 Downloads](docs/screenshots/v1.1.0/downloads.png)](docs/screenshots/v1.1.0/downloads.png) |
+| Archive | [![1.0.1 Archive](docs/screenshots/v1.0.1/archive.png)](docs/screenshots/v1.0.1/archive.png) | [![1.1.0 Archive](docs/screenshots/v1.1.0/archive.png)](docs/screenshots/v1.1.0/archive.png) |
+| Archive table | [![1.0.1 Archive table](docs/screenshots/v1.0.1/archive-table.png)](docs/screenshots/v1.0.1/archive-table.png) | [![1.1.0 Archive table](docs/screenshots/v1.1.0/archive-table.png)](docs/screenshots/v1.1.0/archive-table.png) |
+| Reader | [![1.0.1 Reader](docs/screenshots/v1.0.1/reader.png)](docs/screenshots/v1.0.1/reader.png) | [![1.1.0 Reader](docs/screenshots/v1.1.0/reader.png)](docs/screenshots/v1.1.0/reader.png) |
+| Gallery | [![1.0.1 Gallery](docs/screenshots/v1.0.1/gallery.png)](docs/screenshots/v1.0.1/gallery.png) | [![1.1.0 Gallery](docs/screenshots/v1.1.0/gallery.png)](docs/screenshots/v1.1.0/gallery.png) |
+| Media focus | [![1.0.1 Media focus](docs/screenshots/v1.0.1/gallery-focus.png)](docs/screenshots/v1.0.1/gallery-focus.png) | [![1.1.0 Media focus](docs/screenshots/v1.1.0/gallery-focus.png)](docs/screenshots/v1.1.0/gallery-focus.png) |
+| Settings | [![1.0.1 Settings](docs/screenshots/v1.0.1/settings.png)](docs/screenshots/v1.0.1/settings.png) | [![1.1.0 Settings](docs/screenshots/v1.1.0/settings.png)](docs/screenshots/v1.1.0/settings.png) |
 
-Explore the eight-page [Settings workspace](docs/screenshots/v1.0.1/settings.png) and [media rules](docs/screenshots/v1.0.1/rules.png). Earlier captures remain available with their original source checkpoints: [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
+Earlier captures remain available with their original source checkpoints: [1.0.1](docs/screenshots/v1.0.1/README.md), [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
 
 ## Quick start
 
