@@ -608,9 +608,20 @@ internal static class MediaInteractionChecks
         async Task SeekClickAsync(double fraction)
         {
             Record("inject", new { action = "native-track-click", fraction });
-            await native!.ClickAsync(
-                () => NativeTargetAsync<Slider>("GalleryVideoSeek"),
-                current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.ReadyTrackPoint(current, fraction)));
+            await native!.ClickAsync(async () =>
+            {
+                Slider seek = await NativeTargetAsync<Slider>("GalleryVideoSeek");
+                // The preceding gallery transition can leave a different owned Windows root active.
+                // Establish the timeline window as the input recipient before proving click focus.
+                if (OperatingSystem.IsWindows() && TopLevel.GetTopLevel(seek) is Window { IsActive: false } targetWindow)
+                {
+                    targetWindow.Activate();
+                    await Program.WaitUntilAsync(() => targetWindow.IsActive,
+                        () => "The native timeline window did not become active before the click.");
+                    seek = await NativeTargetAsync<Slider>("GalleryVideoSeek");
+                }
+                return seek;
+            }, current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.ReadyTrackPoint(current, fraction)));
             Require(Seek().IsKeyboardFocusWithin, "Native timeline click did not acquire focus.");
             await WaitPlaybackAsync(p => Math.Abs(p.Time - fraction * p.Length) < 1000);
         }
