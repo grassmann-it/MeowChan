@@ -79,14 +79,22 @@ public sealed class MediaTileTagChipTests : IDisposable
     }
 
     [Fact]
-    public void AGroupedTileSharesTheRowWithItsFavoriteAndAnUntaggedTileShowsNoChips()
+    public void AGroupedTileSharesTheRowWithItsFavoriteStateAndAnUntaggedTileShowsNoChips()
     {
         MediaLibraryEntry first = Entry("1", 'a'), second = Entry("2", 'a');
         PrivateTagDefinition cat = Tag(1, "cat"), dog = Tag(2, "dog");
         MediaLibraryTileView view = new() { DataContext = Row(new MediaLibraryTile(first, [first, second], MediaLibraryFavoriteState.None), cat, dog) };
         Assert.Equal(new[] { "cat" }, Chips(view).Where(chip => chip.IsVisible).Select(Label));
         Assert.Equal("+1", More(view).Text);
-        Assert.True(view.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTileFavorite").IsVisible);
+        TextBlock favorite = view.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTileFavorite");
+        Assert.False(favorite.IsVisible); // "Favorite: none" stays out of the quiet short form ...
+        Assert.Contains(Texts.T("media.group.favorite.none"), AutomationProperties.GetName(view)); // ... but not out of the spoken name
+        foreach (MediaLibraryFavoriteState state in new[] { MediaLibraryFavoriteState.Some, MediaLibraryFavoriteState.All, MediaLibraryFavoriteState.Unknown })
+        {
+            view.DataContext = Row(new MediaLibraryTile(first, [first, second], state), cat, dog);
+            Assert.True(favorite.IsVisible);
+            Assert.Equal(MediaLibraryStateText.Favorite(state), favorite.Text);
+        }
 
         view.DataContext = Row(new MediaLibraryTile(first, [first]));
         Assert.All(Chips(view), chip => Assert.False(chip.IsVisible));
