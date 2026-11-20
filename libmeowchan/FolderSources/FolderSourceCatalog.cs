@@ -521,7 +521,7 @@ internal sealed class FolderSourceCatalog
         if (scan.Complete)
             foreach (FolderSourceItem item in active.Values)
             {
-                if (seen.Contains(item.RelativePath) || scan.IsBelowUnreadable(item.RelativePath)) continue;
+                if (seen.Contains(item.RelativePath) || scan.IsBelowUnreadable(item.RelativePath) || scan.UnlistedPaths.Contains(item.RelativePath)) continue;
                 gone++;
                 Guid id = item.Id;
                 operations.Add((c, t) => SetState(c, t, id, FolderSourceItemState.Missing));
