@@ -253,6 +253,43 @@ public sealed class ManualImportDesktopTests : IDisposable
         Assert.Equal(0, (await host.InspectLocalMediaTagOrphansAsync())!.OrphanedFiles);
     }
 
+    private static ManualImportBatch SummaryBatch(bool cancelled, params ManualImportItem[] items) =>
+        new(Guid.NewGuid(), "Trip", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ManualImportBatchState.Completed,
+            Path.Combine(Path.GetTempPath(), "meowchan-import", "x"), null, false, cancelled, new[] { "a", "b", "c" }, false, items);
+
+    private static ManualImportItem SummaryItem(ManualImportItemState state, string? failure = null) =>
+        new(Guid.NewGuid(), state, new string('a', 64), 1, "x.png", SavedMediaKind.Image, ".png",
+            state == ManualImportItemState.Committed ? new string('b', 64) : null, failure);
+
+    [Fact]
+    public void TheSummaryNamesAddedAndMissingTagsWhenOnlyTheFirstTagWasStored()
+    {
+        ManualImportBatch batch = SummaryBatch(false, SummaryItem(ManualImportItemState.Committed));
+        string partial = ManualImportDialog.Summary(new(batch, true, false, null, new[] { "a" }, new[] { "b", "c" }));
+        Assert.Contains("Tags added: a.", partial);
+        Assert.Contains("Not added: b, c.", partial);
+        Assert.DoesNotContain("without them", partial);
+        // Nothing stored: the old whole-batch wording stays true.
+        string none = ManualImportDialog.Summary(new(batch, true, false, null, Array.Empty<string>(), new[] { "a", "b", "c" }));
+        Assert.Contains("without them", none);
+        Assert.Contains("Imported 1 file", none);
+    }
+
+    [Fact]
+    public void TheSummaryNamesTheInterruptedPhaseAndASeparateTargetFailureWithARetryHint()
+    {
+        ManualImportBatch batch = SummaryBatch(true, SummaryItem(ManualImportItemState.Committed), SummaryItem(ManualImportItemState.Committed),
+            SummaryItem(ManualImportItemState.Failed, ManualImportFailure.Store), SummaryItem(ManualImportItemState.Failed, ManualImportFailure.Changed));
+        string text = ManualImportDialog.Summary(new(batch, false, false, null));
+        Assert.Contains("Stopped while copying", text);
+        Assert.Contains("imported (2)", text);
+        Assert.Contains("the file in progress and the rest were not copied", text);
+        Assert.Contains("1 could not be copied (changed or unreadable)", text);
+        Assert.Contains("1 could not be saved because the batch folder or its manifest", text);
+        Assert.Contains("Try the import again", text);
+        Assert.DoesNotContain("after current file", Texts.T("import.cancel.run"));
+    }
+
     private sealed class FixtureFolder(Uri path) : IStorageFolder
     {
         public string Name => System.IO.Path.GetFileName(path.LocalPath);

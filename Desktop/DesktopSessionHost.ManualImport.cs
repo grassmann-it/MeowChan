@@ -11,7 +11,8 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>What one finished import did, for the dialog's summary. Tag failures never undo the copied files.</summary>
-internal sealed record ManualImportOutcome(ManualImportBatch Batch, bool TagsRequested, bool TagsApplied, PrivateTagStoreError? TagError);
+internal sealed record ManualImportOutcome(ManualImportBatch Batch, bool TagsRequested, bool TagsApplied, PrivateTagStoreError? TagError,
+    IReadOnlyList<string>? TagsAdded = null, IReadOnlyList<string>? TagsNotAdded = null);
 
 /// <summary>
 /// Host commands of the manual import (contract manual-import-v1). The check is read-only and needs no admission. The copy
@@ -86,7 +87,7 @@ internal sealed partial class DesktopSessionHost
 
     /// <summary>
     /// Copies the new files of a checked plan into a fresh batch and then gives the batch tags to the copied files.
-    /// Cancellation stops after the current file. Tags are one atomic write after the copy (all tags or none): a refused tag write leaves the
+    /// Cancellation interrupts the copy phase: finished files stay, the file in progress and the rest are not copied. Tags are one atomic write after the copy (all tags or none): a refused tag write leaves the
     /// files imported and the batch marked as "tags not applied".
     /// </summary>
     internal async Task<ManualImportOutcome> RunManualImportAsync(ManualImportPlan plan, ManualImportOptions options,
@@ -105,21 +106,25 @@ internal sealed partial class DesktopSessionHost
         ManualImportBatch batch = result.Batch;
         if (batch.TagsApplied || batch.Tags.Count == 0) return new(batch, batch.Tags.Count > 0, batch.TagsApplied, null);
         IReadOnlyList<MediaTagSubject> subjects = ManualImportExecutor.TagSubjects(batch);
+        // Tags are written as one atomic batch, so "added" is all of them or none; the outcome still names both groups.
+        List<string> added = new();
+        List<string> NotAdded() => batch.Tags.Where(tag => !added.Contains(tag)).ToList();
         try
         {
             // One verification pass and one atomic tag-store write for all tags: all of them or none (tag limit reached
             // => no tag defined, files stay imported, batch marked "tags not applied", a later retry is idempotent).
             await DefineAndSetMediaSubjectTagBatchAsync(batch.Tags, subjects, null, CancellationToken.None).ConfigureAwait(false);
+            added.AddRange(batch.Tags);
             batch = await RunInteractiveWithAdmissionAsync("manual-import-tags", ManualImportIdentity.Format(batch.Id),
                 admission => Task.Run(() => executor.MarkTagsApplied(batch.Id, admission, CancellationToken.None))).ConfigureAwait(false);
-            return new(batch, true, true, null);
+            return new(batch, true, true, null, added, Array.Empty<string>());
         }
-        catch (PrivateTagStoreException error) { return new(batch, true, false, error.Error); }
+        catch (PrivateTagStoreException error) { return new(batch, true, false, error.Error, added, NotAdded()); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
             or ManualImportException or DesktopSessionBusyException or InvalidOperationException)
         {
             _logger.Warning("Manual import tags were not applied: {Error}", error.GetType().Name);
-            return new(batch, true, false, null);
+            return new(batch, true, false, null, added, NotAdded());
         }
     }
 }
