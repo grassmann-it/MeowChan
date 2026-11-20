@@ -27,3 +27,8 @@ Der Harness baut lokal mit dem gepinnten SDK und aktiven Analyzern. Reader-Navig
 - [macOS ARM GIF auf 704fbb2a2](https://github.com/grassmann-it/MeowChan/actions/runs/44811314946) ist grün.
 - [Windows Media Input auf 704fbb2a2](https://github.com/grassmann-it/MeowChan/actions/runs/44811327388) bestätigt den nativen Timeline-Fokus. Der separat fehlgeschlagene Paketprüfschritt meldet sieben AP04-Syntaxfehler bei der Suche nach Git Bash. AP04 verwendet ab d021a258e denselben Resolver wie die 57 im selben Windows-Job erfolgreichen Prerelease-Tests. Beide Suiten laufen lokal durch.
 - [Windows Offline lane-d auf 704fbb2a2](https://github.com/grassmann-it/MeowChan/actions/runs/44811420412) bündelt die Korrekturen der Compilerdiagnosen aus dem ersten Wiederholungslauf.
+
+## Erste Vollmatrix auf ac6eb8c5a
+
+- [macOS ARM native-03](https://github.com/grassmann-it/MeowChan/actions/runs/44814988327/job/136560881989) meldet in `normal-settings-page` eine geänderte Einstellungsdatei bei erhaltenem ungültigem Text und null Settings-Save-Ereignissen. Der Smoke wartet ab 8badc64ad vor dem Bytevergleich auf ausstehende Shell- und Host-Präferenzschreibvorgänge. Der lokale Registry-Smoke ist grün.
+- [Linux ARM lane-b](https://github.com/grassmann-it/MeowChan/actions/runs/44814988327/job/136560882158) meldet in `shard-01` null Suchaufrufe in `HostStartRecoversWatchersAndPendingOriginalsBeforeTheLoopAndStopIsIdempotent`. Recovery kann Active vor dem ersten Check publizieren. Der Test wartet auf die Check-Zusammenfassung und prüft dauerhaften Zustand und exakte Aufrufzahl weiter. Beim Ändern der Testdatei wurden die davor baselinierten Besitzer mit using/await using explizit bereinigt. Die lokale Watcher-Klasse läuft mit aktiven Analyzern durch.
