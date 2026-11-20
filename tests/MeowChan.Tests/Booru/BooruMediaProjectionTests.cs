@@ -85,12 +85,12 @@ public sealed class BooruMediaProjectionTests
         Assert.Equal(Png.Length, entry.Length);
         Assert.Equal(SavedMediaKind.Image, entry.Kind);
         Assert.Equal("original", entry.Variant);
-        Assert.Null(entry.LocalSlot);
+        Assert.Equal("123.png", entry.LocalSlot); // the loose slot of its post: the locator of its private tags
         Assert.Null(entry.AttachmentRevisionKey);
     }
 
     [Fact]
-    public async Task ABookuMediumIsNeverTaggableAsAPrivateTagSubject()
+    public async Task ADownloadedBooruMediumIsATaggableLocalSubjectOfItsOwnPostAndNeverOfAnother()
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
@@ -100,10 +100,14 @@ public sealed class BooruMediaProjectionTests
 
         MediaLibraryEntry entry = Assert.Single((await BuildAsync(temp.Path, store)).Entries);
 
-        // Provider tags are claims in the catalog. The provider medium has no private tag target, and the dialog says why.
-        Assert.Null(MediaTagSubjects.Of(entry));
-        Assert.Equal(MediaTagBlock.ProviderMedium, new MediaTagCandidate(entry, null).Block);
-        Assert.Equal(MediaTagBlock.NoPostVersion, new MediaTagCandidate(entry with { BooruPostId = null }, null).Block);
+        // Provider tags are claims in the catalog; the private tag subject is the loose local file of exactly this post.
+        MediaTagSubject.Local subject = Assert.IsType<MediaTagSubject.Local>(MediaTagSubjects.Of(entry));
+        Assert.Equal(BooruMediaIdentity.Thread("123"), subject.Observation.Locator.Thread);
+        Assert.Equal(MediaTagBlock.None, new MediaTagCandidate(entry, subject).Block);
+        // Without the slot (an index of an older version) or with a post binding there is no guessed subject.
+        Assert.Null(MediaTagSubjects.Of(entry with { LocalSlot = null }));
+        Assert.Null(MediaTagSubjects.Of(entry with { AttachmentRevisionKey = "att-v2:" + new string('a', 64) }));
+        Assert.Equal(MediaTagBlock.ProviderMedium, new MediaTagCandidate(entry with { LocalSlot = null }, null).Block);
     }
 
     [Fact]
@@ -373,7 +377,10 @@ public sealed class BooruMediaProjectionTests
         Assert.Null(gallery.Post);
         Assert.Equal(BooruMediaIdentity.Thread("123"), gallery.Key.Thread);
         Assert.Equal("https://danbooru.donmai.us/posts/123", gallery.ThreadUrl);
-        Assert.False(gallery.LocalTagEligible);
+        // The saved original is a loose file of its post: it may carry private tags under its own occurrence.
+        Assert.True(gallery.LocalTagEligible);
+        Assert.Equal(entry.LocalSlot, gallery.Asset.RequestedFileName);
+        Assert.NotNull(entry.LocalSlot);
 
         // No catalog, a catalog that no longer links the asset, or changed bytes: nothing is guessed.
         Assert.Empty(await MediaLibraryGallery.ResolveAsync(new[] { entry }, token => ArchiveReader.OpenAsync(temp.Path, token),

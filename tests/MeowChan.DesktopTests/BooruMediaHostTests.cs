@@ -109,7 +109,8 @@ public sealed class BooruMediaHostTests : IDisposable
             Assert.Equal(PrivateTagLoadState.Ready, tags.State);
             Assert.Empty(tags.Snapshot!.Tags);
             Assert.Null(host.GetMediaRating(favorite));
-            Assert.Null(MeowChan.Tags.MediaTagSubjects.Of(entry));
+            // The medium itself can carry own tags (loose local subject); none exist yet.
+            Assert.IsType<MeowChan.Tags.MediaTagSubject.Local>(MeowChan.Tags.MediaTagSubjects.Of(entry));
         }
 
         // The user removes the watcher; later the app starts again with no provider, no network and no plugin.

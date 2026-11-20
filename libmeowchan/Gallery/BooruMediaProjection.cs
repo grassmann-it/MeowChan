@@ -205,7 +205,7 @@ internal static class BooruMediaProjection
             {
                 if (priorManifests.TryGetValue(directory, out MediaLibraryManifestState? prior) && prior is { Generation: not null, Identity: { } identity }
                     && priorEntries.TryGetValue(record.PostId, out MediaLibraryEntry? kept)
-                    && kept is { Presence: MediaLibraryPresence.Present } && kept.Directory == directory && kept.AssetId == record.LocalAssetId
+                    && kept is { Presence: MediaLibraryPresence.Present, LocalSlot: not null } && kept.Directory == directory && kept.AssetId == record.LocalAssetId
                     && manifests.Probe(directory) == identity)
                 {
                     entries.Add(kept.FirstSeenAt == record.FirstSeenAtUtc && kept.LastCapturedAt == record.LastSeenAtUtc ? kept
@@ -246,7 +246,8 @@ internal static class BooruMediaProjection
         string name = asset.OriginalFileName ?? Path.GetFileName(asset.Path);
         return new MediaLibraryEntry(thread, title, 0, record.FirstSeenAtUtc, record.LastSeenAtUtc, null, null, null, null, null,
             directory, asset.AssetId, asset.Sha256.ToLowerInvariant(), asset.Length, asset.MediaIdentifier, asset.Variant, name,
-            SavedMediaTypes.Classify(name), MediaLibraryPresence.Present, Unassigned: true, Historical: !asset.IsCurrent) { BooruPostId = postId };
+            SavedMediaTypes.Classify(name), MediaLibraryPresence.Present, Unassigned: true, Historical: !asset.IsCurrent,
+            LocalSlot: asset.RequestedFileName) { BooruPostId = postId };
     }
 }
 
@@ -275,6 +276,12 @@ internal static class BooruMediaGallery
             || !string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase) || asset.Length != entry.Length
             || asset.IsCurrent == entry.Historical) return null;
         return new GalleryEntry(new GalleryAssetKey(entry.Thread, manifest.Directory, asset.AssetId), manifest, asset, null, null,
-            !asset.IsCurrent, true) { ThreadUrl = BooruMediaIdentity.PostUrl(postId, record.Post.PostUrl).AbsoluteUri };
+            !asset.IsCurrent, true)
+        {
+            ThreadUrl = BooruMediaIdentity.PostUrl(postId, record.Post.PostUrl).AbsoluteUri,
+            // The saved original is a loose file of this post: its exact manifest slot is its private tag locator. The provider's
+            // own tags stay in the Booru catalog; equal bytes saved for another post are another occurrence.
+            LocalTagEligible = true
+        };
     }
 }
