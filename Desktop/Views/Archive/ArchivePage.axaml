@@ -161,9 +161,11 @@
                                 </Expander>
                             </StackPanel>
                         </ScrollViewer>
-                        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
-                            <Button x:Name="ArchiveFilterApply" Tag="archive.search" Classes="localized" Click="OnFilterApplyClick" />
-                            <Button x:Name="ArchiveFilterClose" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
+                        <!-- U09: the unapplied draft stands visibly above the buttons (like the toggle's marker); Apply filters runs the Search path. -->
+                        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="{StaticResource Workspace.Space.8}" RowSpacing="{StaticResource Workspace.Space.8}">
+                            <TextBlock x:Name="ArchiveFilterDraftNote" Grid.ColumnSpan="2" Classes="workspace-meta" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
+                            <Button x:Name="ArchiveFilterApply" Grid.Row="1" Tag="archive.applyFilters" Classes="localized" Click="OnFilterApplyClick" />
+                            <Button x:Name="ArchiveFilterClose" Grid.Row="1" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
                         </Grid>
                     </Grid>
                 </Border>

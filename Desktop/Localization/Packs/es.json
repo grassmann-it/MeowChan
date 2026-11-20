@@ -2368,6 +2368,8 @@
     "macmenu.pageNext": "Página siguiente",
     "archive.appliedFilters": "Aplicados:",
     "archive.unappliedShort": "Borrador sin aplicar",
+    "archive.filterDraftNote": "Borrador sin aplicar: los resultados siguen usando la búsqueda aplicada.",
+    "archive.applyFilters": "Aplicar filtros",
     "archive.unappliedHint": "Los campos de búsqueda cambiaron. Busque para aplicarlos; los resultados actuales siguen usando la búsqueda aplicada.",
     "archive.selectionPage": "{0} marcados en esta página · ancla: #{1}",
     "ud.rules.grantImmediate": "Conceder o revocar acceso tiene efecto inmediato para este ámbito en este perfil. Guardar la regla es una acción separada.",

@@ -2008,6 +2008,8 @@
     "macmenu.pageNext": "Další stránka",
     "archive.appliedFilters": "Použito:",
     "archive.unappliedShort": "Nepoužitý koncept",
+    "archive.filterDraftNote": "Neuplatněný návrh: výsledky stále používají uplatněné hledání.",
+    "archive.applyFilters": "Použít filtry",
     "archive.unappliedHint": "Pole hledání se změnila. Spusťte hledání, aby se použila; aktuální výsledky stále vycházejí z použitého hledání.",
     "archive.selectionPage": "Označeno na této stránce: {0} · kotva: #{1}",
     "ud.rules.grantImmediate": "Udělení nebo odebrání přístupu se v tomto profilu pro tento rozsah projeví okamžitě. Uložení pravidla je samostatná akce.",

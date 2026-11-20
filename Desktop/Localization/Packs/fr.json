@@ -2368,6 +2368,8 @@
     "macmenu.pageNext": "Page suivante",
     "archive.appliedFilters": "Appliqués :",
     "archive.unappliedShort": "Brouillon non appliqué",
+    "archive.filterDraftNote": "Brouillon non appliqué : les résultats utilisent toujours la recherche appliquée.",
+    "archive.applyFilters": "Appliquer les filtres",
     "archive.unappliedHint": "Les champs de recherche ont changé. Lancez la recherche pour les appliquer ; les résultats actuels utilisent toujours la recherche appliquée.",
     "archive.selectionPage": "{0} marqués sur cette page · ancre : #{1}",
     "ud.rules.grantImmediate": "Accorder ou révoquer un accès prend effet immédiatement pour ce périmètre dans ce profil. L’enregistrement de la règle est une action distincte.",

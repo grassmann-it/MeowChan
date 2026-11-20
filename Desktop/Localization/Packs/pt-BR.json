@@ -1998,6 +1998,8 @@
     "macmenu.pageNext": "Próxima página",
     "archive.appliedFilters": "Aplicados:",
     "archive.unappliedShort": "Rascunho não aplicado",
+    "archive.filterDraftNote": "Rascunho não aplicado: os resultados ainda usam a busca aplicada.",
+    "archive.applyFilters": "Aplicar filtros",
     "archive.unappliedHint": "Os campos de pesquisa mudaram. Pesquise para aplicá-los; os resultados atuais ainda usam a pesquisa aplicada.",
     "archive.selectionPage": "{0} marcados nesta página · âncora: #{1}",
     "ud.rules.grantImmediate": "Conceder ou revogar o acesso tem efeito imediato para este escopo neste perfil. Salvar a regra é uma ação separada.",

@@ -2008,6 +2008,8 @@
     "macmenu.pageNext": "Następna strona",
     "archive.appliedFilters": "Zastosowane:",
     "archive.unappliedShort": "Niezastosowana wersja robocza",
+    "archive.filterDraftNote": "Niezastosowany szkic: wyniki nadal używają zastosowanego wyszukiwania.",
+    "archive.applyFilters": "Zastosuj filtry",
     "archive.unappliedHint": "Pola wyszukiwania się zmieniły. Wyszukaj, aby je zastosować; bieżące wyniki nadal korzystają z zastosowanego wyszukiwania.",
     "archive.selectionPage": "Zaznaczone na tej stronie: {0} · kotwica: #{1}",
     "ud.rules.grantImmediate": "Nadanie lub cofnięcie dostępu działa natychmiast dla tego zakresu w tym profilu. Zapisanie reguły to osobna akcja.",

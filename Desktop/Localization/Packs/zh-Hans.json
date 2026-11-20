@@ -2222,6 +2222,8 @@
     "macmenu.pageNext": "下一页",
     "archive.appliedFilters": "已应用：",
     "archive.unappliedShort": "未应用的草稿",
+    "archive.filterDraftNote": "草稿尚未应用：结果仍使用已应用的搜索。",
+    "archive.applyFilters": "应用筛选",
     "archive.unappliedHint": "搜索字段已更改。请执行搜索以应用它们；当前结果仍使用已应用的搜索。",
     "archive.selectionPage": "本页已标记 {0} 个 · 锚点：#{1}",
     "ud.rules.grantImmediate": "授予或撤销访问权限会立即对此配置文件中的此范围生效。保存规则是另一项单独的操作。",

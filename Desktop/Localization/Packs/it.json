@@ -1998,6 +1998,8 @@
     "macmenu.pageNext": "Pagina successiva",
     "archive.appliedFilters": "Applicati:",
     "archive.unappliedShort": "Bozza non applicata",
+    "archive.filterDraftNote": "Bozza non applicata: i risultati usano ancora la ricerca applicata.",
+    "archive.applyFilters": "Applica filtri",
     "archive.unappliedHint": "I campi di ricerca sono cambiati. Cerca per applicarli; i risultati attuali usano ancora la ricerca applicata.",
     "archive.selectionPage": "{0} contrassegnati in questa pagina · ancora: #{1}",
     "ud.rules.grantImmediate": "Concedere o revocare l’accesso ha effetto immediato per questo ambito in questo profilo. Salvare la regola è un’azione separata.",

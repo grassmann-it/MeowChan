@@ -2222,6 +2222,8 @@
     "macmenu.pageNext": "다음 페이지",
     "archive.appliedFilters": "적용됨:",
     "archive.unappliedShort": "적용되지 않은 초안",
+    "archive.filterDraftNote": "적용되지 않은 초안: 결과는 계속 적용된 검색을 사용합니다.",
+    "archive.applyFilters": "필터 적용",
     "archive.unappliedHint": "검색 필드가 변경되었습니다. 적용하려면 검색하세요. 현재 결과는 여전히 적용된 검색을 사용합니다.",
     "archive.selectionPage": "이 페이지에서 {0}개 표시됨 · 기준점: #{1}",
     "ud.rules.grantImmediate": "접근 권한 부여 또는 철회는 이 프로필의 이 범위에 즉시 적용됩니다. 규칙 저장은 별개의 작업입니다.",
