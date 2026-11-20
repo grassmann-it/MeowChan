@@ -63,8 +63,8 @@
                         </SplitButton>
                         <Button x:Name="ArchiveReaderGroups" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.reader-groups" Content="Reader groups" Click="OnReaderGroupsClick" />
                         <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
-                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and
