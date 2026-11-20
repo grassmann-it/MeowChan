@@ -13,3 +13,11 @@ Grundlage sind die Doku-PR-Läufe [#163](https://github.com/grassmann-it/MeowCha
 | Windows lane-c meldet nach Timeline-Klicks fehlenden Fokus in focused-pointer-away und custom-routing-loop. Der separate Offline-TRX zeigt einen CRLF-abhängigen Quelltextvergleich in FocusClickContractTests. [Job](https://github.com/grassmann-it/MeowChan/actions/runs/44436732593/job/135267348417) | FocusClickContractTests mit normalisierten Zeilenenden sowie isolierter Media-Input-Smoke auf Windows. |
 
 Der Vorschlag zur PR-Matrix steht auf 1.2.0 in docs/development/release-planning.md.
+
+## Gezielte Wiederholungsläufe
+
+- [Windows Offline lane-d](https://github.com/grassmann-it/MeowChan/actions/runs/44809099203) prüft die korrigierte Hilfe-Assertion im ursprünglichen Test-Shard. Dispatch mit genau einem Windows-Runner auf 52fee4ab6.
+- [Windows Media Input](https://github.com/grassmann-it/MeowChan/actions/runs/44809099152) prüft native Timeline-Klicks, nachdem das tatsächliche Timeline-Fenster als aktives Eingabeziel bestätigt wurde. Dispatch auf 52fee4ab6 mit einem ausführenden Windows-Szenario und drei Matrixzellen für den Quellstand.
+- [macOS ARM GIF](https://github.com/grassmann-it/MeowChan/actions/runs/44809216079) prüft, ob zwei verschiedene Positionen beim nativen Mauswechsel die Transportleiste zuverlässig sichtbar machen. Der vorherige Smoke bewegte den Cursor bei weiteren Versuchen an dieselbe Position. Dispatch mit einem macOS-Runner auf cf96689de.
+
+Lokal lief eine Auswahl von 236 Desktop-Tests unter SDK 10.0.112 mit deaktivierten Analyzern durch. Die Wiederholung mit dem gepinnten SDK 10.0.111 und aktiven Analyzern läuft separat.
