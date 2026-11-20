@@ -427,6 +427,8 @@ public sealed class NativePrivateMetadataSpecialFileTests(NativePrivateMetadataS
         private async Task StartAsync(CancellationToken cancellation)
         {
             string pipeName = "meowchan-fifo-" + Guid.NewGuid().ToString("N");
+            // macOS runner TMPDIR can make the Unix-domain socket path exceed sockaddr_un.
+            if (OperatingSystem.IsMacOS()) pipeName = Path.Combine("/tmp", pipeName);
             pipe = new(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             ProcessStartInfo start = new(Environment.GetEnvironmentVariable("DOTNET_HOST_PATH") ?? "dotnet")
             {
