@@ -23,3 +23,17 @@ Der Workflow startet automatisch bei Pushes auf main, bei PRs gegen main und bei
 ## Eingang aus dem Recherche-Thread
 
 Hier können auch unsortierte Ausschnitte mit Quellen und offenen Fragen gesammelt werden. Beim Sichten pro Vorschlag Nutzen, betroffene Komponente, Kompatibilität und vorläufige Zielversion ergänzen. Noch offene Ideen dürfen ohne Zielversion stehen bleiben.
+
+### Validate-Befund vom 20. November
+
+Die reinen Doku-PRs #162 und #163 erzeugten je 44 Jobs. Beim Screenshot-PR #163 waren 25 rot, zehn grün und neun übersprungen. Die ausgeführten Jobs summieren sich laut Start- und Endzeiten auf rund 17,5 Jobstunden. Das schließt parallel laufende Jobs ein.
+
+- [Linux lane-a](https://github.com/grassmann-it/MeowChan/actions/runs/44436732593/job/135267348168) meldete sechs Release-Fixture-Fehler mit identischem Manifest-Mismatch. Auf 1.2.0 lokal reproduziert und durch explizite Versionsübergabe behoben. Im selben Job scheitert der separate Preference-Startup-Smoke beim finalen Speichern.
+- [Linux lane-b](https://github.com/grassmann-it/MeowChan/actions/runs/44436732593/job/135267348155) meldete denselben Reader-Toolbar-Fehler bei 760 Pixeln wie [PR #162](https://github.com/grassmann-it/MeowChan/actions/runs/44432779726/job/135254044377). Als Nächstes die sichtbaren Aktionen und ihre Priorität gegen das beabsichtigte Overflow-Verhalten prüfen.
+- Windows lane-d meldete einen Fehler in core_tests, macOS ARM native-05 in mac_tests. Einzelursachen sind noch offen. Abgebrochene Läufe separat zählen.
+
+Vorschlag für PRs gegen die drei Entwicklungslinien
+1. Einen kleinen Pflichtjob immer starten. Bei ausschließlich bekannten Doku-/Screenshot-Pfaden lokale Links und Bildreferenzen prüfen. Legal-, Packaging- und eingebettete Ressourcen gesondert behandeln.
+2. Bei Produktänderungen Release-Build und betroffene Offline-Suites auf Linux x64 ausführen. Für Reader/Galerie den passenden GUI-Smoke, für plattformspezifische Eingaben oder Wiedergabe auch den betroffenen nativen Runner wählen. Gemeinsame oder unbekannte Pfade breit prüfen.
+3. Bei Packaging-/CI-Änderungen Fixtures und Workflow-Verträge sowie die betroffene Paketplattform prüfen. Vollmatrix regelmäßig auf dem Integrationsstand und als stable-candidate vor Veröffentlichung laufen lassen.
+4. Auswahlregeln mit repräsentativen Diffs testen. Der PR-Pflichtjob muss fehlende oder fehlgeschlagene ausgewählte Prüfungen melden. Die vollständige Matrix bleibt separat sichtbar, bis die offenen Ursachen geklärt sind.
