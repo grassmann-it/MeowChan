@@ -3,7 +3,6 @@ import hashlib
 import importlib.util
 import io
 import json
-import os
 from pathlib import Path
 import plistlib
 import re
@@ -16,35 +15,14 @@ from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
 
+import workflow_shell
+from workflow_shell import workflow_bash
+
 ROOT = Path(__file__).resolve().parents[1]
 SPEC = importlib.util.spec_from_file_location('alpha_assembly', ROOT / 'scripts/assemble-prerelease.py')
 A = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(A)
 VERSION = '1.0.0-alpha.2'
-
-
-def workflow_bash():
-    """Use native Bash on POSIX and Git for Windows Bash, never the WSL shim."""
-    if os.name != 'nt':
-        bash = shutil.which('bash')
-        if bash:
-            return bash
-    else:
-        candidates = []
-        git = shutil.which('git')
-        if git:
-            # git.exe is normally in Git/cmd or Git/bin (also Git/mingw64/bin).
-            for parent in Path(git).resolve().parents:
-                candidates.extend((parent / 'bin/bash.exe', parent / 'usr/bin/bash.exe'))
-        for variable in ('ProgramW6432', 'ProgramFiles', 'ProgramFiles(x86)', 'LOCALAPPDATA'):
-            base = os.environ.get(variable)
-            if base:
-                root = Path(base) / ('Programs/Git' if variable == 'LOCALAPPDATA' else 'Git')
-                candidates.extend((root / 'bin/bash.exe', root / 'usr/bin/bash.exe'))
-        for candidate in candidates:
-            if candidate.is_file():
-                return str(candidate)
-    raise RuntimeError('Workflow guard tests require Bash (Git for Windows Bash on Windows)')
 
 
 def write(path, data):
@@ -71,22 +49,22 @@ class WorkflowBashResolutionTests(unittest.TestCase):
     def test_windows_uses_git_installation_not_path_wsl_bash(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / 'Git with spaces'
-            git = write(root / 'cmd/git.exe', b'')
+            git = write(root / 'mingw64/bin/git.exe', b'')
             bash = write(root / 'bin/bash.exe', b'')
-            with patch.dict(globals(), os=SimpleNamespace(name='nt', environ={})), \
+            with patch.object(workflow_shell, 'os', SimpleNamespace(name='nt', environ={})), \
                     patch.object(shutil, 'which', side_effect=lambda name: str(git) if name == 'git' else 'WSL/bash.exe'):
                 # macOS /var aliases and Windows 8.3 temp paths canonicalize
                 # while resolving git.exe. Compare the same canonical file path.
                 self.assertEqual(str(bash.resolve()), workflow_bash())
 
     def test_windows_missing_git_bash_fails_instead_of_using_wsl(self):
-        with patch.dict(globals(), os=SimpleNamespace(name='nt', environ={})), \
+        with patch.object(workflow_shell, 'os', SimpleNamespace(name='nt', environ={})), \
                 patch.object(shutil, 'which', side_effect=lambda name: None if name == 'git' else 'WSL/bash.exe'):
             with self.assertRaisesRegex(RuntimeError, 'Git for Windows Bash'):
                 workflow_bash()
 
     def test_posix_uses_path_bash(self):
-        with patch.dict(globals(), os=SimpleNamespace(name='posix')), \
+        with patch.object(workflow_shell, 'os', SimpleNamespace(name='posix')), \
                 patch.object(shutil, 'which', return_value='/bin/bash'):
             self.assertEqual('/bin/bash', workflow_bash())
 

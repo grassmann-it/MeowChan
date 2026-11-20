@@ -2,10 +2,10 @@
 import importlib.util
 from pathlib import Path
 import re
-import shutil
-import sys
 import subprocess
 import unittest
+
+from workflow_shell import workflow_bash
 
 ROOT = Path(__file__).resolve().parents[1]
 WORKFLOW = (ROOT/'.github/workflows/dotnet-desktop.yml').read_text()
@@ -24,26 +24,8 @@ def blocks(job):
     return dict(re.findall(r'^      - name: ([^\n]+)\n(.*?)(?=^      - |\Z)', JOBS[job], re.M | re.S))
 
 
-def syntax_bash():
-    if sys.platform == "win32":
-        # PATH's bash.exe may be the System32 WSL launcher, not a working shell.
-        # Git for Windows ships the same Bash used by Actions' shell: bash.
-        git = shutil.which("git")
-        if git:
-            root = Path(git).resolve().parent
-            for candidate in (root.parent / "bin/bash.exe", root.parent / "usr/bin/bash.exe",
-                              root / "bash.exe"):
-                if candidate.is_file():
-                    return str(candidate)
-        raise RuntimeError("Git for Windows Bash not found next to git.exe; cannot check AP04 syntax")
-    bash = shutil.which("bash")
-    if not bash:
-        raise RuntimeError("Bash not found on PATH; cannot check AP04 syntax")
-    return bash
-
-
 def check_shell_syntax(script):
-    shell = syntax_bash()
+    shell = workflow_bash()
     # subprocess text-mode stdin becomes CRLF on Windows. Bash must parse the
     # actual LF workflow script, not a host-newline-translated variant.
     result = subprocess.run([shell, "--noprofile", "--norc", "-n"],
