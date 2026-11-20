@@ -1739,10 +1739,11 @@ public sealed class DanbooruWatcherSchedulerTests
         await TestWait.UntilAsync(() => profile.Catalog.Read().Posts.Single().LocalAssetId != null);
         Assert.Equal([SchedulerCdn.OriginalUrl("7")], cdn.Requests.ToArray());
         Assert.True(host.Scheduler.GetSnapshot().Running);
-        // Wait for the check to finish, not merely to start: CallCount == 1 only proves the first
-        // search was issued, and under parallel load the completion (and its persisted state) can
-        // land later. Waiting on the durable state keeps this deterministic.
-        await TestWait.UntilAsync(() => profile.Catalog.Read().Watchers.Single().State == "Active");
+        // Restart recovery restores Active before the loop issues a search.
+        // Wait for the completed check and then verify its durable state.
+        await TestWait.UntilAsync(() => host.Scheduler.GetSnapshot().Watchers.Single().LastCheck != null);
+        Assert.Equal(DanbooruWatcherCheckKind.Completed, host.Scheduler.GetSnapshot().Watchers.Single().LastCheck!.Kind);
+        Assert.Equal("Active", profile.Catalog.Read().Watchers.Single().State);
         Assert.Equal(1, search.CallCount);
 
         await host.StopAsync();
