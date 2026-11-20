@@ -93,8 +93,15 @@ internal static class MediaInteractionChecks
                     source = Target(e.Source), focus = Target(window.FocusManager?.GetFocusedElement()), post = viewer?.CaptureState().PostId,
                     routing = RoutingState(e.Source, e) });
         }
-        void Pointer(object? _, PointerEventArgs e) => Record("pointer-" + e.RoutedEvent?.Name,
-            new { source = Target(e.Source), focus = Target(window.FocusManager?.GetFocusedElement()), post = viewer?.CaptureState().PostId });
+        int timelinePointerPresses = 0;
+        void Pointer(object? _, PointerEventArgs e)
+        {
+            if (e.RoutedEvent == InputElement.PointerPressedEvent && e.Source is Visual source
+                && source.GetSelfAndVisualAncestors().OfType<GalleryTransportSlider>().Any())
+                timelinePointerPresses++;
+            Record("pointer-" + e.RoutedEvent?.Name,
+                new { source = Target(e.Source), focus = Target(window.FocusManager?.GetFocusedElement()), post = viewer?.CaptureState().PostId });
+        }
         HashSet<Window> observedRoots = new();
         void ObserveRoot(Window inputRoot)
         {
@@ -608,7 +615,7 @@ internal static class MediaInteractionChecks
         async Task SeekClickAsync(double fraction)
         {
             Record("inject", new { action = "native-track-click", fraction });
-            await native!.ClickAsync(async () =>
+            Task ClickTimelineAsync() => native!.ClickAsync(async () =>
             {
                 Slider seek = await NativeTargetAsync<Slider>("GalleryVideoSeek");
                 // The preceding gallery transition can leave a different owned Windows root active.
@@ -622,6 +629,16 @@ internal static class MediaInteractionChecks
                 }
                 return seek;
             }, current => Task.FromResult((Point?)MediaInteractionSmokeHelpers.ReadyTrackPoint(current, fraction)));
+            int pressesBefore = timelinePointerPresses;
+            await ClickTimelineAsync();
+            // On Windows a fresh gallery root can get the release without routing the activating press.
+            // Retry only missing input delivery. A press seen by Avalonia must acquire focus on its own.
+            if (OperatingSystem.IsWindows() && timelinePointerPresses == pressesBefore)
+            {
+                Record("inject", new { action = "retry-native-track-click-after-missing-press", fraction });
+                await ClickTimelineAsync();
+            }
+            Require(timelinePointerPresses > pressesBefore, "No native timeline press reached the current slider.");
             Require(Seek().IsKeyboardFocusWithin, "Native timeline click did not acquire focus.");
             await WaitPlaybackAsync(p => Math.Abs(p.Time - fraction * p.Length) < 1000);
         }
