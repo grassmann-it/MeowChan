@@ -33,12 +33,12 @@ public sealed class DanbooruWatcherSchedulerTests
     public async Task NewPostIsAdmittedExactlyOnceThroughTheSharedQueueAndBaselineDownloadsNothing()
     {
         using TempDirectory directory = new();
-        SchedulerCdn cdn = new();
+        using SchedulerCdn cdn = new();
         await using SchedulerProfile profile = new(directory.Path, withQueue: true, cdn);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock) { ClaimFactory = cdn.Claim };
         search.Publish("cat", 100, 99, 98);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search,
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search,
             new DanbooruWatcherQueueAdmission(profile.Originals!, profile.Catalog, clock), clock, Options());
         scheduler.Load();
 
@@ -89,7 +89,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -119,7 +119,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal("250", stored.HighWaterMark);
 
         // The stored progress survives a restart and the next check continues below the cursor.
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         DanbooruWatcherCheckSummary rest = (await restarted.RunNextAsync())!;
         Assert.Equal(DanbooruWatcherCheckKind.Completed, rest.Kind);
@@ -141,7 +141,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 1000);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
@@ -199,7 +199,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -241,7 +241,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -295,7 +295,7 @@ public sealed class DanbooruWatcherSchedulerTests
         search.Publish("cat", Range(250, 151));
         search.Publish("dog", Range(500, 101));
         CountingAdmission admission = new();
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         Assert.Null(scheduler.GetSnapshot().FaultCode);
         Assert.True(scheduler.GetStatus("w-cat")!.HasPartialProgress);
@@ -327,7 +327,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -361,7 +361,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -392,7 +392,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await scheduler.DisposeAsync();
         await profile.DisposeAsync();
         await using SchedulerProfile reopened = new(directory.Path);
-        DanbooruWatcherScheduler restarted = new(reopened.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(reopened.Catalog, search, admission, clock, Options());
         restarted.Load();
         clock.Advance(Interval);
         Assert.Null(await restarted.RunNextAsync());
@@ -417,7 +417,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -443,7 +443,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler crashed = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler crashed = new(profile.Catalog, search, admission, clock, Options());
         crashed.Load();
         string id = crashed.AddWatcher("cat").Watcher!.WatcherId;
         await crashed.RunNextAsync();
@@ -465,7 +465,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal(3, persisted.NextPage);
 
         search.Hold = null;
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         DanbooruWatcherStatus recovered = restarted.GetStatus(id)!;
         Assert.Equal(DanbooruWatcherState.Active, recovered.State);
@@ -486,7 +486,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler crashed = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler crashed = new(profile.Catalog, search, admission, clock, Options());
         crashed.Load();
         crashed.AddWatcher("cat");
         await crashed.RunNextAsync();
@@ -503,7 +503,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await handedOff.Task.WaitAsync(TestWait.Timeout);
         admission.Hold = null;
 
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         DanbooruWatcherCheckSummary replay = (await restarted.RunNextAsync())!;
         Assert.Equal(2, replay.NewPosts);
@@ -522,7 +522,7 @@ public sealed class DanbooruWatcherSchedulerTests
         CountingAdmission admission = new();
         search.Publish("cat", 100);
         search.Publish("dog", 200);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string cat = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         string dog = scheduler.AddWatcher("dog").Watcher!.WatcherId;
@@ -545,7 +545,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal(1, search.CallCount);
 
         // A restart in the cooldown keeps every watcher quiet (the transport cooldown is in memory only).
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         Assert.Null(await restarted.RunNextAsync());
         Assert.Equal(1, search.CallCount);
@@ -567,7 +567,7 @@ public sealed class DanbooruWatcherSchedulerTests
         {
             ProviderCooldownMaximum = TimeSpan.FromHours(168)
         };
-        DanbooruWatcherScheduler first = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler first = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         first.Load();
         string id = first.AddWatcher("cat").Watcher!.WatcherId;
         BooruWatcherRecord stored = Assert.Single(profile.Catalog.Read().Watchers);
@@ -579,13 +579,13 @@ public sealed class DanbooruWatcherSchedulerTests
         });
 
         search.ProviderCooldownMaximum = TimeSpan.FromHours(1);
-        DanbooruWatcherScheduler bounded = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler bounded = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         bounded.Load();
         DateTimeOffset expected = clock.GetUtcNow() + TimeSpan.FromHours(1);
         Assert.Equal(expected, bounded.GetStatus(id)!.CooldownUntilUtc);
         Assert.Equal(expected, Assert.Single(profile.Catalog.Read().Watchers).CooldownUntilUtc);
 
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         restarted.Load();
         Assert.Equal(expected, restarted.GetStatus(id)!.CooldownUntilUtc);
     }
@@ -599,7 +599,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
@@ -624,7 +624,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal(before.HighWaterMark, after.HighWaterMark);
         Assert.Equal(before.CursorBeforePostId, after.CursorBeforePostId);
 
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         Assert.Equal(DanbooruWatcherState.Paused, restarted.GetStatus(id)!.State);
         Assert.Null(restarted.GetStatus(id)!.CooldownUntilUtc);
@@ -642,7 +642,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         DateTimeOffset retryAt = T0 + TimeSpan.FromMinutes(30);
@@ -661,7 +661,7 @@ public sealed class DanbooruWatcherSchedulerTests
 
         // Five minutes later the app restarts; the transport cooldown is gone with the process.
         clock.Advance(TimeSpan.FromMinutes(5));
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         Assert.Equal(retryAt, restarted.GetSnapshot().ProviderCooldownUntilUtc);
         Assert.Equal(DanbooruWatcherActivity.Paused, restarted.GetStatus(id)!.Activity);
@@ -691,7 +691,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         scheduler.AddWatcher("cat");
         search.Next((_, _) => new DanbooruWatcherSearchDeferred(T0 + TimeSpan.FromSeconds(5), "provider-unavailable", 503));
@@ -708,7 +708,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock) { TransportCooldown = T0 + TimeSpan.FromMinutes(2) };
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         Assert.Null(await scheduler.RunNextAsync());
@@ -728,7 +728,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string paused = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         string removed = scheduler.AddWatcher("dog").Watcher!.WatcherId;
@@ -748,7 +748,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Null(scheduler.GetStatus(removed));
 
         // A restart keeps both quiet: the pause and the tombstone are durable.
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         restarted.Load();
         clock.Advance(TimeSpan.FromDays(1));
         Assert.Null(await restarted.RunNextAsync());
@@ -763,7 +763,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         profile.Catalog.UpsertPost(FakeDanbooruSearch.MinimalClaim(42), T0);
@@ -792,7 +792,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -839,7 +839,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -928,7 +928,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal(calls, search.CallCount);
         await scheduler.StopAsync();
 
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         Assert.Equal("watcher_removed", (await restarted.CheckNowAsync(removed)).Code);
         Assert.Equal(DanbooruWatcherState.Paused, restarted.GetStatus(paused)!.State);
@@ -944,7 +944,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         search.Next((_, _) => new DanbooruWatcherSearchFailed("access-denied", 403));
@@ -970,7 +970,7 @@ public sealed class DanbooruWatcherSchedulerTests
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
         DanbooruWatcherSchedulerOptions options = Options();
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, options);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, options);
         scheduler.Load();
         scheduler.AddWatcher("cat");
 
@@ -1070,7 +1070,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         search.Next((_, _) => new DanbooruWatcherSearchFailed("access-denied", 403));
@@ -1097,7 +1097,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new() { Fail = postId => postId == "102" ? new IOException("disk") : null };
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         await scheduler.RunNextAsync();
@@ -1125,7 +1125,7 @@ public sealed class DanbooruWatcherSchedulerTests
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
         search.Publish(query, 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         scheduler.AddWatcher(query);
 
@@ -1147,7 +1147,7 @@ public sealed class DanbooruWatcherSchedulerTests
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         scheduler.AddWatcher("cat");
 
@@ -1178,7 +1178,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
 
@@ -1204,7 +1204,7 @@ public sealed class DanbooruWatcherSchedulerTests
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         search.Next((_, _) => new DanbooruWatcherSearchUnavailable("worker_unavailable"));
@@ -1233,7 +1233,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         DanbooruWatcherSchedulerOptions options = Options();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, options);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, options);
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         search.Hold = (_, _, _) => throw new OperationCanceledException("worker lifetime ended");
@@ -1305,7 +1305,7 @@ public sealed class DanbooruWatcherSchedulerTests
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, new CountingAdmission(), clock, Options());
         scheduler.Load();
         string id = scheduler.AddWatcher("cat").Watcher!.WatcherId;
         int armed = 0;
@@ -1338,7 +1338,7 @@ public sealed class DanbooruWatcherSchedulerTests
     public async Task UserCancelledOriginalIsNotRequeuedByAWatcherButItsFindingIsKept()
     {
         using TempDirectory directory = new();
-        SchedulerCdn cdn = new();
+        using SchedulerCdn cdn = new();
         await using SchedulerProfile profile = new(directory.Path, withQueue: true, cdn);
         SchedulerClock clock = new(T0);
         BooruPostClaim claim = cdn.Claim(101);
@@ -1412,8 +1412,8 @@ public sealed class DanbooruWatcherSchedulerTests
         SchedulerClock clock = new(T0);
         FakeDanbooruSearch search = new(clock);
         foreach (string query in new[] { "a", "b", "c" }) search.Publish(query, 10);
-        SemaphoreSlim release = new(0);
-        SemaphoreSlim started = new(0);
+        using SemaphoreSlim release = new(0);
+        using SemaphoreSlim started = new(0);
         List<int> releasesBeforeStart = new();
         int releases = 0;
         search.Hold = async (_, _, token) =>
@@ -1604,7 +1604,7 @@ public sealed class DanbooruWatcherSchedulerTests
         FakeDanbooruSearch search = new(clock);
         CountingAdmission admission = new();
         search.Publish("cat", 100);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search, admission, clock, Options());
         scheduler.Load();
         scheduler.AddWatcher("cat");
         await scheduler.RunNextAsync();
@@ -1630,7 +1630,7 @@ public sealed class DanbooruWatcherSchedulerTests
         Assert.Equal("scheduler_stopped", scheduler.AddWatcher("dog").Code);
 
         search.Hold = null;
-        DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
+        await using DanbooruWatcherScheduler restarted = new(profile.Catalog, search, admission, clock, Options());
         restarted.Load();
         Assert.Equal(DanbooruWatcherCheckKind.Completed, (await restarted.RunNextAsync())!.Kind);
         Assert.Equal(40, admission.QueuedCount);
@@ -1718,7 +1718,7 @@ public sealed class DanbooruWatcherSchedulerTests
     public async Task HostStartRecoversWatchersAndPendingOriginalsBeforeTheLoopAndStopIsIdempotent()
     {
         using TempDirectory directory = new();
-        SchedulerCdn cdn = new();
+        using SchedulerCdn cdn = new();
         await using SchedulerProfile profile = new(directory.Path, withQueue: true, cdn);
         SchedulerClock clock = new(T0);
         // A pending original from the previous session and a watcher left in Checking by a crash.
@@ -1734,7 +1734,7 @@ public sealed class DanbooruWatcherSchedulerTests
 
         FakeDanbooruSearch search = new(clock) { ClaimFactory = cdn.Claim };
         search.Publish("cat", 5);
-        DanbooruWatcherHost host = new(profile.Catalog, profile.Originals!, search, clock, Options());
+        await using DanbooruWatcherHost host = new(profile.Catalog, profile.Originals!, search, clock, Options());
         await host.StartAsync();
         await TestWait.UntilAsync(() => profile.Catalog.Read().Posts.Single().LocalAssetId != null);
         Assert.Equal([SchedulerCdn.OriginalUrl("7")], cdn.Requests.ToArray());
@@ -1774,7 +1774,7 @@ public sealed class DanbooruWatcherSchedulerTests
         using TempDirectory directory = new();
         await using SchedulerProfile profile = new(directory.Path);
         SchedulerClock clock = new(T0);
-        DanbooruWatcherScheduler scheduler = new(profile.Catalog, new FakeDanbooruSearch(clock), new CountingAdmission(), clock, Options());
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, new FakeDanbooruSearch(clock), new CountingAdmission(), clock, Options());
         Assert.Equal("scheduler_not_started", scheduler.AddWatcher("cat").Code);
         scheduler.Load();
         Assert.True(scheduler.AddWatcher("cat").Accepted);
