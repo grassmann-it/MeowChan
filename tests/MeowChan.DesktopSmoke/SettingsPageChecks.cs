@@ -43,6 +43,7 @@ internal static class SettingsPageChecks
             // Always cover the wrapped->flat Downloads transition, even if another scene
             // left the shell in Advanced (where the old regression never reparented it).
             await PresentationChecks.SwitchModeAsync(window, "Barebones");
+            await FlushShellPreferencesAsync(window);
             original = File.ReadAllText(file);
             urls.Text = "https://unsupported.invalid/retained-page-input";
             Navigate(window, true);
@@ -190,6 +191,9 @@ internal static class SettingsPageChecks
                 Require(editor.FindControl<Button>("SaveSettingsButton")!.Focus(), "Could not blur the numeric editor.");
                 Require(native.Text == raw && timer.Text == raw, "Native blur replaced rejected numeric text.");
                 string file = Path.Combine(Config.GetConfigDirectory(), "settings.json");
+                // A work-view change can fit the window and arm a separate geometry save.
+                // Capture the baseline after that independent write has finished.
+                await FlushShellPreferencesAsync(window);
                 string before = File.ReadAllText(file);
                 Click(editor.FindControl<Button>("SaveSettingsButton")!);
                 await Program.WaitUntilAsync(() => !editor.IsBusy && editor.HasError);
@@ -204,6 +208,14 @@ internal static class SettingsPageChecks
             }
         }
         finally { editor.Saved -= OnSaved; }
+    }
+
+    private static async Task FlushShellPreferencesAsync(MainWindow window)
+    {
+        Task shellWrite = (Task)typeof(MainWindow).GetMethod("FlushWindowPreferencesAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.Invoke(window, null)!;
+        await shellWrite.WaitAsync(TimeSpan.FromSeconds(15));
+        await window.SessionHost.FlushPreferencesAsync().WaitAsync(TimeSpan.FromSeconds(15));
     }
 
     internal static Task RunFooterOverlapDiagnosticAsync(MainWindow window) => CheckSmallLayoutAsync(window, footerOnly: true);
