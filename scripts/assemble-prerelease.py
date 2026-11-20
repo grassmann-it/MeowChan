@@ -228,7 +228,6 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
     api_review = public_api.audit(repository, source)
     public_api.require_release(api_review)
     legal = committed_legal(repository, source, version)
-    retained.VERSION = version
     # All five platforms must bind to the same exact source; there are no overrides.
     check_windows(root, source, version, legal)
     for rid in ('linux-x64', 'linux-arm64'):
@@ -238,7 +237,7 @@ def assemble(root: Path, source: str, version: str, source_base: Path, output: P
     output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.meowchan-current-source-', dir=output.parent) as temporary:
         staged = Path(temporary) / 'candidate'
-        retained.assemble(root, source, source_base, staged)
+        retained.assemble(root, source, source_base, staged, version=version)
         for name, origin in nuget.items():
             shutil.copyfile(origin, staged / name)
             require(digest(staged / name) == digest(origin), 'NuGet changed while staging')
