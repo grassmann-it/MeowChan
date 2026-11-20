@@ -3794,6 +3794,7 @@
     "import.done.cancelled": "Arrêté avant la fin ; le reste n’a pas été copié.",
     "import.done.tags": "Étiquettes ajoutées : {0}.",
     "import.done.tagsFailed": "Les étiquettes n’ont pas pu être ajoutées ; les fichiers sont importés sans elles.",
+    "import.done.tagsPartial": "Étiquettes ajoutées : {0}. Non ajoutées : {1}. Les fichiers sont importés dans tous les cas ; vous pourrez ajouter les étiquettes manquantes plus tard.",
     "import.media.source": "Imports personnels",
     "import.media.tile": "Import · {0}",
     "drop.files.title.one": "Déposez pour importer {0} fichier ou dossier",

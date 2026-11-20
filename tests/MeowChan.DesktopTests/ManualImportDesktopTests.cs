@@ -253,6 +253,28 @@ public sealed class ManualImportDesktopTests : IDisposable
         Assert.Equal(0, (await host.InspectLocalMediaTagOrphansAsync())!.OrphanedFiles);
     }
 
+    private static ManualImportBatch SummaryBatch(bool cancelled, params ManualImportItem[] items) =>
+        new(Guid.NewGuid(), "Trip", DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, ManualImportBatchState.Completed,
+            Path.Combine(Path.GetTempPath(), "meowchan-import", "x"), null, false, cancelled, new[] { "a", "b", "c" }, false, items);
+
+    private static ManualImportItem SummaryItem(ManualImportItemState state, string? failure = null) =>
+        new(Guid.NewGuid(), state, new string('a', 64), 1, "x.png", SavedMediaKind.Image, ".png",
+            state == ManualImportItemState.Committed ? new string('b', 64) : null, failure);
+
+    [Fact]
+    public void TheSummaryNamesAddedAndMissingTagsWhenOnlyTheFirstTagWasStored()
+    {
+        ManualImportBatch batch = SummaryBatch(false, SummaryItem(ManualImportItemState.Committed));
+        string partial = ManualImportDialog.Summary(new(batch, true, false, null, new[] { "a" }, new[] { "b", "c" }));
+        Assert.Contains("Tags added: a.", partial);
+        Assert.Contains("Not added: b, c.", partial);
+        Assert.DoesNotContain("without them", partial);
+        // Nothing stored: the old whole-batch wording stays true.
+        string none = ManualImportDialog.Summary(new(batch, true, false, null, Array.Empty<string>(), new[] { "a", "b", "c" }));
+        Assert.Contains("without them", none);
+        Assert.Contains("Imported 1 file", none);
+    }
+
     private sealed class FixtureFolder(Uri path) : IStorageFolder
     {
         public string Name => System.IO.Path.GetFileName(path.LocalPath);

@@ -3590,6 +3590,7 @@
     "import.done.cancelled": "已提前停止；其余部分未复制。",
     "import.done.tags": "已添加标签：{0}。",
     "import.done.tagsFailed": "无法添加标签；文件已在不带标签的情况下导入。",
+    "import.done.tagsPartial": "已添加的标签：{0}。未添加的标签：{1}。文件无论如何都已导入；缺少的标签可以稍后补上。",
     "import.media.source": "我的导入",
     "import.media.tile": "导入 · {0}",
     "budgets.group.quickTag": "快速打标签",

@@ -11,7 +11,8 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>What one finished import did, for the dialog's summary. Tag failures never undo the copied files.</summary>
-internal sealed record ManualImportOutcome(ManualImportBatch Batch, bool TagsRequested, bool TagsApplied, PrivateTagStoreError? TagError);
+internal sealed record ManualImportOutcome(ManualImportBatch Batch, bool TagsRequested, bool TagsApplied, PrivateTagStoreError? TagError,
+    IReadOnlyList<string>? TagsAdded = null, IReadOnlyList<string>? TagsNotAdded = null);
 
 /// <summary>
 /// Host commands of the manual import (contract manual-import-v1). The check is read-only and needs no admission. The copy
@@ -105,20 +106,26 @@ internal sealed partial class DesktopSessionHost
         ManualImportBatch batch = result.Batch;
         if (batch.TagsApplied || batch.Tags.Count == 0) return new(batch, batch.Tags.Count > 0, batch.TagsApplied, null);
         IReadOnlyList<MediaTagSubject> subjects = ManualImportExecutor.TagSubjects(batch);
+        // Tags are written one by one: when one fails, the earlier ones are already stored. The outcome names both groups.
+        List<string> added = new();
+        List<string> NotAdded() => batch.Tags.Where(tag => !added.Contains(tag)).ToList();
         try
         {
             foreach (string tag in batch.Tags)
+            {
                 await DefineAndSetMediaSubjectTagsAsync(tag, subjects, null, CancellationToken.None).ConfigureAwait(false);
+                added.Add(tag);
+            }
             batch = await RunInteractiveWithAdmissionAsync("manual-import-tags", ManualImportIdentity.Format(batch.Id),
                 admission => Task.Run(() => executor.MarkTagsApplied(batch.Id, admission, CancellationToken.None))).ConfigureAwait(false);
-            return new(batch, true, true, null);
+            return new(batch, true, true, null, added, Array.Empty<string>());
         }
-        catch (PrivateTagStoreException error) { return new(batch, true, false, error.Error); }
+        catch (PrivateTagStoreException error) { return new(batch, true, false, error.Error, added, NotAdded()); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException
             or ManualImportException or DesktopSessionBusyException or InvalidOperationException)
         {
             _logger.Warning("Manual import tags were not applied: {Error}", error.GetType().Name);
-            return new(batch, true, false, null);
+            return new(batch, true, false, null, added, NotAdded());
         }
     }
 }

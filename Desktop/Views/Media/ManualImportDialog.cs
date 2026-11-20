@@ -395,8 +395,22 @@ internal sealed class ManualImportDialog : Window, IDisposable
         if (batch.Count(ManualImportItemState.Failed) is > 0 and int failed) parts.Add(Texts.Count("import.done.failed", failed));
         if (batch.Cancelled) parts.Add(Texts.T("import.done.cancelled"));
         if (outcome.TagsRequested && batch.Count(ManualImportItemState.Committed) > 0)
-            parts.Add(outcome.TagsApplied ? Texts.Count("import.done.tags", batch.Tags.Count) : Texts.T("import.done.tagsFailed"));
+            parts.Add(TagsSummary(outcome));
         return string.Join(" ", parts);
+    }
+
+    /// <summary>
+    /// The tag sentence. Tags are written one at a time, so a failure can leave the first tags stored: the sentence then names
+    /// the added and the missing tags instead of calling the whole batch untagged. The copied files are never affected.
+    /// </summary>
+    private static string TagsSummary(ManualImportOutcome outcome)
+    {
+        if (outcome.TagsApplied) return Texts.Count("import.done.tags", outcome.Batch.Tags.Count);
+        IReadOnlyList<string> added = outcome.TagsAdded ?? Array.Empty<string>();
+        IReadOnlyList<string> missing = outcome.TagsNotAdded ?? Array.Empty<string>();
+        if (added.Count == 0) return Texts.T("import.done.tagsFailed");
+        if (missing.Count == 0) return Texts.Count("import.done.tags", added.Count);
+        return Texts.T("import.done.tagsPartial", string.Join(", ", added), string.Join(", ", missing));
     }
 
     internal void CloseForLifetime() { if (!_closed) Close(); }

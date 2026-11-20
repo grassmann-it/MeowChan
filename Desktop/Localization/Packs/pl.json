@@ -3624,6 +3624,7 @@
     "import.done.cancelled": "Zatrzymano wcześniej; reszta nie została skopiowana.",
     "import.done.tags": "Dodane tagi: {0}.",
     "import.done.tagsFailed": "Nie udało się dodać tagów; pliki zostały zaimportowane bez nich.",
+    "import.done.tagsPartial": "Dodane tagi: {0}. Niedodane: {1}. Pliki i tak zostały zaimportowane; brakujące tagi możesz dodać później.",
     "import.media.source": "Własne importy",
     "import.media.tile": "Import · {0}",
     "gallery.fileOnly.body": "Ten plik ({0}, {1}) nie ma wbudowanej przeglądarki.",

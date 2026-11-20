@@ -74,6 +74,7 @@ internal static class ManualImportCatalog
         ("import.done.cancelled", "Stopped early; the rest was not copied.", "Vorzeitig angehalten; der Rest wurde nicht kopiert."),
         ("import.done.tags", "Tags added: {0}.", "Tags vergeben: {0}."),
         ("import.done.tagsFailed", "The tags could not be added; the files are imported without them.", "Die Tags konnten nicht vergeben werden; die Dateien sind ohne sie importiert."),
+        ("import.done.tagsPartial", "Tags added: {0}. Not added: {1}. The files are imported either way; add the missing tags to them later.", "Tags vergeben: {0}. Nicht vergeben: {1}. Die Dateien sind in jedem Fall importiert; die fehlenden Tags kannst du später nachtragen."),
         ("import.media.source", "Own imports", "Eigene Importe"),
         ("import.media.tile", "Import · {0}", "Import · {0}")
     };

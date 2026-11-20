@@ -3587,6 +3587,7 @@
     "import.done.cancelled": "途中で中止しました。残りはコピーされていません。",
     "import.done.tags": "追加したタグ: {0}。",
     "import.done.tagsFailed": "タグを追加できませんでした。ファイルはタグなしでインポートされています。",
+    "import.done.tagsPartial": "追加したタグ: {0}。追加できなかったタグ: {1}。ファイルはどちらの場合もインポート済みです。足りないタグは後から追加できます。",
     "import.media.source": "独自インポート",
     "import.media.tile": "インポート · {0}",
     "budgets.group.lists": "お気に入り、評価、ブックマーク、グループ、ソースの監視",

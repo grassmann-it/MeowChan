@@ -3597,6 +3597,7 @@
     "import.done.cancelled": "Interrompido antes do fim; o restante não foi copiado.",
     "import.done.tags": "Tags adicionadas: {0}.",
     "import.done.tagsFailed": "Não foi possível adicionar as tags; os arquivos foram importados sem elas.",
+    "import.done.tagsPartial": "Tags adicionadas: {0}. Não adicionadas: {1}. Os arquivos foram importados de qualquer forma; você pode adicionar as tags que faltam depois.",
     "import.media.source": "Importações próprias",
     "import.media.tile": "Importação · {0}",
     "gallery.fileOnly.body": "Este arquivo ({0}, {1}) não tem visualizador integrado.",
