@@ -486,6 +486,68 @@ public sealed class ManualImportTests
         Assert.Equal(ManualImportItemState.Duplicate, batch.Items.Single(item => item.Name == "twin.png").State);
     }
 
+    private static async Task<ManualImportKnownMedia> KnownFromImportsAsync(Fixture fixture)
+    {
+        (IReadOnlyList<MediaLibraryEntry> entries, _) = await ManualImportMediaProjection.EntriesAsync(fixture.Store.Read(),
+            (directory, token) => MediaAssetReader.OpenAsync(directory, token));
+        return ManualImportKnownMedia.From(new MediaLibrarySnapshot(entries, Array.Empty<MediaLibraryThreadState>(), Array.Empty<string>(), true));
+    }
+
+    private static async Task<ManualImportBatch> ImportAsync(Fixture fixture, ManualImportPlan plan, string name)
+    {
+        using ProfileAdmissionToken admission = fixture.Lease.Admission.EnterStoreWriter();
+        return (await fixture.Executor().ExecuteAsync(plan, new ManualImportOptions(name, Array.Empty<string>()), fixture.Downloads, admission, null, default)).Batch;
+    }
+
+    [Fact]
+    public async Task ADeletedManagedCopyIsCopiedAgainEvenWithMatchingManifestMetadata()
+    {
+        using Fixture fixture = new();
+        string original = fixture.Write("a.png", Png);
+        ManualImportBatch first = await ImportAsync(fixture, await fixture.PlanAsync(), "First");
+        MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(first.Directory);
+        File.Delete(manifest.GetPage().Single().Path); // Manifest record and catalog stay, the bytes are gone.
+        Assert.True(File.Exists(original));
+
+        ManualImportPlan plan = await fixture.PlanAsync(known: await KnownFromImportsAsync(fixture));
+        ManualImportCandidate candidate = Assert.Single(plan.Items);
+        Assert.Equal(ManualImportDisposition.New, candidate.Disposition);
+        ManualImportBatch second = await ImportAsync(fixture, plan, "Second");
+        Assert.Equal(ManualImportItemState.Committed, Assert.Single(second.Items).State);
+        Assert.Equal(Png, File.ReadAllBytes((await MediaAssetReader.OpenAsync(second.Directory)).GetPage().Single().Path));
+    }
+
+    [Fact]
+    public async Task AVerifiedExistingCopyStillLinksTheDuplicateWithoutCopying()
+    {
+        using Fixture fixture = new();
+        fixture.Write("a.png", Png);
+        await ImportAsync(fixture, await fixture.PlanAsync(), "First");
+        ManualImportPlan plan = await fixture.PlanAsync(known: await KnownFromImportsAsync(fixture));
+        ManualImportCandidate candidate = Assert.Single(plan.Items);
+        Assert.Equal(ManualImportDisposition.AlreadyInLibrary, candidate.Disposition);
+        Assert.False(candidate.ExistingUnverified);
+        ManualImportBatch second = await ImportAsync(fixture, plan, "Second");
+        Assert.Equal(ManualImportItemState.Duplicate, Assert.Single(second.Items).State);
+        Assert.False(Directory.Exists(second.Directory) && Directory.GetFiles(second.Directory).Any(path => !Path.GetFileName(path).StartsWith('.')));
+    }
+
+    [Fact]
+    public async Task ASameSelectionTwinIsCopiedWhenTheFirstCopyFails()
+    {
+        using Fixture fixture = new();
+        string a = fixture.Write("a.png", Png), b = fixture.Write("b.png", Png);
+        ManualImportPlan plan = await fixture.PlanAsync();
+        ManualImportCandidate firstSource = plan.New.Single();
+        File.WriteAllBytes(firstSource.SourcePath, Png.Concat(new byte[] { 42 }).ToArray()); // The first source changed after the check.
+        ManualImportBatch batch = await ImportAsync(fixture, plan, "Twins");
+        Assert.Equal(2, batch.Items.Count);
+        Assert.Equal(ManualImportFailure.Changed, batch.Items.Single(item => item.Failure != null).Failure);
+        ManualImportItem copied = batch.Items.Single(item => item.State == ManualImportItemState.Committed);
+        Assert.Equal(Sha(Png), copied.Sha256);
+        Assert.Equal(Png, File.ReadAllBytes((await MediaAssetReader.OpenAsync(batch.Directory)).FindById(copied.AssetId!)!.Path));
+    }
+
     [Fact]
     public async Task AChangedSourceFailsAloneAndAForeignFileAtTheDestinationIsNeverOverwritten()
     {
