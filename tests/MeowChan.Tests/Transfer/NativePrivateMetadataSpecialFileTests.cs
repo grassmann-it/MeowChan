@@ -373,6 +373,8 @@ public sealed class NativePrivateMetadataSpecialFileTests(NativePrivateMetadataS
 
     // Only the test-platform process is shared. Every request has a fresh workspace,
     // profile lease, FIFO and completion receipt; no snapshot or product state is reused.
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001",
+        Justification = "xUnit invokes IAsyncLifetime.DisposeAsync, which reaps the child and disposes the pipe, streams and gate.")]
     public sealed class FifoProcessFixture : IAsyncLifetime
     {
         private Process? child;
@@ -441,8 +443,9 @@ public sealed class NativePrivateMetadataSpecialFileTests(NativePrivateMetadataS
             start.ArgumentList.Add("--TestCaseFilter:FullyQualifiedName=MeowChan.Tests.Transfer.NativePrivateMetadataSpecialFileTests.FifoChildProbe");
             start.Environment[ProbeVariable] = pipeName;
             child = Process.Start(start) ?? throw new InvalidOperationException("Could not start the private metadata FIFO probe.");
-            output = child.StandardOutput.ReadToEndAsync();
-            errors = child.StandardError.ReadToEndAsync();
+            // Collect diagnostics until the watchdog has stopped and reaped the child.
+            output = child.StandardOutput.ReadToEndAsync(CancellationToken.None);
+            errors = child.StandardError.ReadToEndAsync(CancellationToken.None);
             await pipe.WaitForConnectionAsync(cancellation);
             reader = new(pipe, leaveOpen: true);
             writer = new(pipe, leaveOpen: true) { AutoFlush = true };
