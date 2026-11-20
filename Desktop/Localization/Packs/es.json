@@ -4580,6 +4580,7 @@
     "command.tagging.remove": "Quitar de la cola",
     "command.tagging.add": "Añadir…",
     "command.tagging.clear-done": "Quitar las terminadas",
+    "command.tagging.preview-column": "Miniaturas",
     "command.tagging.clear": "Vaciar la cola…",
     "tagging.page.title": "Etiquetado",
     "tagging.page.subtitle": "Recorra la cola de etiquetado: la galería le muestra las entradas pendientes una tras otra.",

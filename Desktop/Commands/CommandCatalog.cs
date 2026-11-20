@@ -48,6 +48,7 @@ public static class CommandCatalog
         new("tagging.move-first", "command.tagging.move-first", "Move to the start", "An den Anfang", "chevrons-up", "Alt+Home", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-last", "command.tagging.move-last", "Move to the end", "Ans Ende", "chevrons-down", "Alt+End", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.add", "command.tagging.add", "Add…", "Hinzufügen…", "plus", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
+        new("tagging.preview-column", "command.tagging.preview-column", "Thumbnails", "Vorschaubilder", "image", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear-done", "command.tagging.clear-done", "Remove finished", "Erledigte entfernen", "check-square", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear", "command.tagging.clear", "Clear queue…", "Warteschlange leeren…", "x-circle", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         // The rating family has its own mask (star-half, decision #126 of 15.11.2026): the plain star stays the favourite's, so the two neighbouring menu

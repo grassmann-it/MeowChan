@@ -193,18 +193,19 @@ public sealed partial class TaggingPage
         _listPresentation.RefreshOverflowLabel();
     }
 
-    // "Add…" always shows its icon with its word (it stands beside the primary button and is the one way to fill the queue). The two
-    // cleanup buttons are rare and destructive: icon-only at the end of the bar (label and key in tooltip and accessible name); a work
-    // view that moves one under "More" gives it its icon with the label, so the popup still reads as words.
+    // "Add…" and "Remove finished" always show their icon with their word (U06: removing the finished entries is a named action, not a
+    // bare icon; the bar already moves it under "More" when room runs out). "Clear queue…" is rare and destructive: icon-only at the end
+    // of the bar (label and key in tooltip and accessible name); a work view that moves it under "More" gives it its icon with the label.
     private void ApplyToolbarIcons()
     {
         CommandBindings.Apply(_add, "tagging.add", iconWithLabel: true);
-        foreach ((Button button, string id) in new[] { (_clearDone, "tagging.clear-done"), (_clear, "tagging.clear") })
+        CommandBindings.Apply(_clearDone, "tagging.clear-done", iconWithLabel: true);
+        _clearDone.Classes.Set(WorkspaceIcons.SquareClass, false);
         {
-            bool reduced = ToolBar.GetOverflowMode(button) == OverflowMode.Always;
-            CommandBindings.Apply(button, id, iconOnly: !reduced, iconWithLabel: reduced);
+            bool reduced = ToolBar.GetOverflowMode(_clear) == OverflowMode.Always;
+            CommandBindings.Apply(_clear, "tagging.clear", iconOnly: !reduced, iconWithLabel: reduced);
             // Geometry is local to this page; labelled overflow presentations must not retain an icon-only width.
-            button.Classes.Set(WorkspaceIcons.SquareClass, !reduced);
+            _clear.Classes.Set(WorkspaceIcons.SquareClass, !reduced);
         }
     }
 

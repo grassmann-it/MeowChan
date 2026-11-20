@@ -4622,6 +4622,7 @@
     "command.tagging.remove": "Odebrat z fronty",
     "command.tagging.add": "Přidat…",
     "command.tagging.clear-done": "Odebrat hotové",
+    "command.tagging.preview-column": "Náhledy",
     "command.tagging.clear": "Vyprázdnit frontu…",
     "tagging.page.title": "Štítkování",
     "tagging.page.subtitle": "Projděte frontu štítkování: galerie vám ukáže otevřené položky jednu po druhé.",

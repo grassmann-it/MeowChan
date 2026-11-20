@@ -4586,6 +4586,7 @@
     "command.tagging.remove": "Rimuovi dalla coda",
     "command.tagging.add": "Aggiungi…",
     "command.tagging.clear-done": "Rimuovi le completate",
+    "command.tagging.preview-column": "Miniature",
     "command.tagging.clear": "Svuota la coda…",
     "tagging.page.title": "Tagging",
     "tagging.page.subtitle": "Smaltisci la coda di tagging: la galleria ti mostra le voci da fare una dopo l’altra.",

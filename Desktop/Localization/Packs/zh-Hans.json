@@ -4497,6 +4497,7 @@
     "command.tagging.remove": "从队列中移除",
     "command.tagging.add": "添加…",
     "command.tagging.clear-done": "移除已完成",
+    "command.tagging.preview-column": "缩略图",
     "command.tagging.clear": "清空队列…",
     "tagging.page.title": "打标签",
     "tagging.page.subtitle": "逐个处理标签队列：图库会依次显示待处理的条目。",

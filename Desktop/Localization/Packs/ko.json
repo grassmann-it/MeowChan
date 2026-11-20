@@ -4497,6 +4497,7 @@
     "command.tagging.remove": "대기열에서 제거",
     "command.tagging.add": "추가…",
     "command.tagging.clear-done": "완료된 항목 제거",
+    "command.tagging.preview-column": "미리보기 이미지",
     "command.tagging.clear": "대기열 비우기…",
     "tagging.page.title": "태그 지정",
     "tagging.page.subtitle": "태그 지정 대기열을 처리하세요. 갤러리가 미처리 항목을 하나씩 차례로 보여 줍니다.",

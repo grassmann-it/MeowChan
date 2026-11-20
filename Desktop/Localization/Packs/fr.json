@@ -4580,6 +4580,7 @@
     "command.tagging.remove": "Retirer de la file",
     "command.tagging.add": "Ajouter…",
     "command.tagging.clear-done": "Retirer les terminées",
+    "command.tagging.preview-column": "Miniatures",
     "command.tagging.clear": "Vider la file…",
     "tagging.page.title": "Étiquetage",
     "tagging.page.subtitle": "Traitez la file d’étiquetage : la galerie vous montre les entrées à faire l’une après l’autre.",

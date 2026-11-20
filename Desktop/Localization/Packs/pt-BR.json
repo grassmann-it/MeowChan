@@ -4586,6 +4586,7 @@
     "command.tagging.remove": "Remover da fila",
     "command.tagging.add": "Adicionar…",
     "command.tagging.clear-done": "Remover concluídas",
+    "command.tagging.preview-column": "Miniaturas",
     "command.tagging.clear": "Esvaziar fila…",
     "tagging.page.title": "Marcação com tags",
     "tagging.page.subtitle": "Trabalhe a fila de tags: a galeria mostra as entradas pendentes uma após a outra.",

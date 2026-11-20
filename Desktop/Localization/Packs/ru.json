@@ -4600,6 +4600,7 @@
     "command.tagging.remove": "Убрать из очереди",
     "command.tagging.add": "Добавить…",
     "command.tagging.clear-done": "Убрать выполненные",
+    "command.tagging.preview-column": "Миниатюры",
     "command.tagging.clear": "Очистить очередь…",
     "tagging.page.title": "Разметка тегами",
     "tagging.page.subtitle": "Пройдите очередь тегов: галерея показывает вам открытые записи одну за другой.",

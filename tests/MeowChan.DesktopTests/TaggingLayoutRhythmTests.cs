@@ -173,9 +173,11 @@ public sealed class TaggingLayoutRhythmTests
         foreach (WorkView view in WorkViewSetting.All.Concat(WorkViewSetting.All.Reverse()))
         {
             page.ApplyWorkView(view);
+            // U06: "Remove finished" is always a labelled action (never the square icon-only geometry).
+            Assert.DoesNotContain(WorkspaceIcons.SquareClass, page.ClearDoneButton.Classes);
             foreach (Button button in new[] { page.ClearButton, page.ClearDoneButton })
             {
-                bool iconOnly = ToolBar.GetOverflowMode(button) != OverflowMode.Always;
+                bool iconOnly = button == page.ClearButton && ToolBar.GetOverflowMode(button) != OverflowMode.Always;
                 Assert.Equal(iconOnly, button.Classes.Contains(WorkspaceIcons.SquareClass));
                 Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(button)));
                 Assert.NotNull(ToolTip.GetTip(button));
@@ -194,6 +196,26 @@ public sealed class TaggingLayoutRhythmTests
         var setters = square.Elements(x + "Setter").ToDictionary(e => (string)e.Attribute("Property")!, e => (string)e.Attribute("Value")!);
         Assert.Equal("{StaticResource Workspace.Size.Input}", setters["Width"]);
         Assert.Equal(setters["Width"], setters["Height"]);
+    });
+
+    [Fact]
+    public void ThePreviewColumnIsADirectToggleThatFollowsTheColumnStateAndRemoveFinishedIsLabelled() => WithPage(page =>
+    {
+        // U05: "Thumbnails" is a toggle in the list controls, named by its catalog command; U06: "Remove finished" shows its words.
+        Assert.Equal("Thumbnails", Avalonia.Automation.AutomationProperties.GetName(page.ColumnsButton));
+        Assert.NotNull(ToolTip.GetTip(page.ColumnsButton));
+        Assert.True(page.ColumnsButton.IsChecked);
+        page.RestorePreviewColumn(false);
+        Assert.False(page.ShowPreviewColumn);
+        Assert.False(page.ColumnsButton.IsChecked);
+        page.ColumnsButton.IsChecked = true;
+        page.ColumnsButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        Assert.True(page.ShowPreviewColumn);
+        Assert.Equal("Remove finished", Avalonia.Automation.AutomationProperties.GetName(page.ClearDoneButton));
+        Assert.IsNotType<string>(page.ClearDoneButton.Content); // icon with its label, not a bare icon
+        Texts.SetLanguage("de");
+        Assert.Equal("Vorschaubilder", Avalonia.Automation.AutomationProperties.GetName(page.ColumnsButton));
+        Assert.Equal("Erledigte entfernen", Avalonia.Automation.AutomationProperties.GetName(page.ClearDoneButton));
     });
 
     private static string Source([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;

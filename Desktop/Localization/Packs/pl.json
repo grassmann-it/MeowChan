@@ -4623,6 +4623,7 @@
     "command.tagging.remove": "Usuń z kolejki",
     "command.tagging.add": "Dodaj…",
     "command.tagging.clear-done": "Usuń zakończone",
+    "command.tagging.preview-column": "Miniatury",
     "command.tagging.clear": "Wyczyść kolejkę…",
     "tagging.page.title": "Tagowanie",
     "tagging.page.subtitle": "Przejdź przez kolejkę tagowania: galeria pokazuje otwarte wpisy jeden po drugim.",

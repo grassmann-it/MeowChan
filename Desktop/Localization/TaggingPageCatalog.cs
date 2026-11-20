@@ -20,6 +20,7 @@ internal static class TaggingPageCatalog
         ("command.tagging.remove", "Remove from queue", "Aus der Warteschlange entfernen"),
         ("command.tagging.add", "Add…", "Hinzufügen…"),
         ("command.tagging.clear-done", "Remove finished", "Erledigte entfernen"),
+        ("command.tagging.preview-column", "Thumbnails", "Vorschaubilder"),
         ("command.tagging.clear", "Clear queue…", "Warteschlange leeren…"),
         ("tagging.page.title", "Tagging", "Taggen"),
         ("tagging.page.subtitle", "Work through the tagging queue: the gallery shows the open entries one after the other.", "Arbeite die Tagging-Warteschlange ab: Die Galerie zeigt dir die offenen Einträge nacheinander."),

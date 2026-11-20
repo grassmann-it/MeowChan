@@ -4497,6 +4497,7 @@
     "command.tagging.remove": "キューから削除",
     "command.tagging.add": "追加…",
     "command.tagging.clear-done": "完了した項目を削除",
+    "command.tagging.preview-column": "サムネイル",
     "command.tagging.clear": "キューを空にする…",
     "tagging.page.title": "タグ付け",
     "tagging.page.subtitle": "タグ付けキューを順に処理します。ギャラリーが未処理の項目を1つずつ表示します。",
