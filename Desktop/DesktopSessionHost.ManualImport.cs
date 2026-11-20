@@ -86,7 +86,7 @@ internal sealed partial class DesktopSessionHost
 
     /// <summary>
     /// Copies the new files of a checked plan into a fresh batch and then gives the batch tags to the copied files.
-    /// Cancellation stops after the current file. Tags are best effort after the copy: a refused tag write leaves the
+    /// Cancellation stops after the current file. Tags are one atomic write after the copy (all tags or none): a refused tag write leaves the
     /// files imported and the batch marked as "tags not applied".
     /// </summary>
     internal async Task<ManualImportOutcome> RunManualImportAsync(ManualImportPlan plan, ManualImportOptions options,
@@ -107,8 +107,9 @@ internal sealed partial class DesktopSessionHost
         IReadOnlyList<MediaTagSubject> subjects = ManualImportExecutor.TagSubjects(batch);
         try
         {
-            foreach (string tag in batch.Tags)
-                await DefineAndSetMediaSubjectTagsAsync(tag, subjects, null, CancellationToken.None).ConfigureAwait(false);
+            // One verification pass and one atomic tag-store write for all tags: all of them or none (tag limit reached
+            // => no tag defined, files stay imported, batch marked "tags not applied", a later retry is idempotent).
+            await DefineAndSetMediaSubjectTagBatchAsync(batch.Tags, subjects, null, CancellationToken.None).ConfigureAwait(false);
             batch = await RunInteractiveWithAdmissionAsync("manual-import-tags", ManualImportIdentity.Format(batch.Id),
                 admission => Task.Run(() => executor.MarkTagsApplied(batch.Id, admission, CancellationToken.None))).ConfigureAwait(false);
             return new(batch, true, true, null);

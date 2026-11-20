@@ -687,6 +687,44 @@ internal sealed class PrivateTagStore
     }
 
     /// <summary>
+    /// Create-or-get several tags by name and give ALL of them to the same media subjects in ONE write. Atomic: when the
+    /// configured tag limit (or any subject rule) rejects the batch, nothing is defined and nothing is assigned. The
+    /// subjects are registered once, whatever the number of tags. Empty name lists are invalid.
+    /// </summary>
+    internal PrivateTagCommit DefineAndSetMediaSubjectsBatchAdmitted(IReadOnlyCollection<string?> names,
+        IReadOnlyCollection<MediaTagSubject> subjects, ProfileAdmissionToken admission, long? expectedRevision = null,
+        CancellationToken token = default)
+    {
+        ArgumentNullException.ThrowIfNull(names);
+        PrivateTagName[] parsed = names.Select(RequireName).ToArray();
+        if (parsed.Length == 0) throw new PrivateTagStoreException(PrivateTagStoreError.InvalidName);
+        MediaTagSubject[] frozen = RequireSubjects(subjects);
+        return Mutate(admission, expectedRevision, token, model =>
+        {
+            bool changed = false;
+            TagId first = default;
+            for (int index = 0; index < parsed.Length; index++)
+            {
+                TagId id;
+                if (model.Resolve(parsed[index]) is { } existing) id = existing.Id;
+                else
+                {
+                    RequireTagRoom(model);
+                    id = new(Guid.NewGuid());
+                    if (!model.Catalog.TryDefine(id, parsed[index], model.Catalog.Revision, out PrivateTagCatalog next,
+                        out PrivateTagCatalogError error))
+                        throw new PrivateTagStoreException(Map(error));
+                    model.Catalog = next;
+                    changed = true;
+                }
+                if (index == 0) first = id;
+                changed |= ApplySubjects(model, id, frozen, assigned: true);
+            }
+            return (changed, first);
+        });
+    }
+
+    /// <summary>
     /// Removes exactly these local assignments (for example orphans whose file can no longer be found), in one write
     /// bound to the revision the caller looked at. Registrations and tag definitions stay. Absent ones change nothing.
     /// </summary>
