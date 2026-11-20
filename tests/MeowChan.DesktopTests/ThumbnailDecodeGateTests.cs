@@ -271,45 +271,61 @@ public sealed class ThumbnailDecodeGateTests
         List<string> startOrder = new();
         List<Task> jobs = new();
         object sync = new();
-        int startedWhenPosterWaited;
+        TaskCompletionSource releaseFirst = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseRemaining = new(TaskCreationOptions.RunContinuationsAsynchronously);
         void Feed()
         {
             while (true)
             {
                 int next;
-                lock (sync) { if (!queue.TryTake(inFlight, out next)) return; inFlight++; maxInFlight = Math.Max(maxInFlight, inFlight); }
-                Task job = Task.Run(async () =>
+                lock (sync)
                 {
-                    await gate.RunAsync(ThumbnailDecodePriority.Prefetch, async () =>
-                    {
-                        lock (sync) startOrder.Add("p" + next);
-                        await Task.Delay(5);
-                        return 0;
-                    }, CancellationToken.None);
-                    lock (sync) { inFlight--; finished++; }
-                    Feed();
-                });
+                    if (!queue.TryTake(inFlight, out next)) return;
+                    inFlight++;
+                    maxInFlight = Math.Max(maxInFlight, inFlight);
+                }
+                Task job = DecodeAsync(next);
                 lock (sync) jobs.Add(job);
             }
         }
-        Feed();
-        // A visible poster arrives while the window is being preloaded.
-        await Task.Delay(20);
-        lock (sync) startedWhenPosterWaited = startOrder.Count;
-        Task poster = gate.RunAsync(ThumbnailDecodePriority.Poster, () =>
+
+        async Task DecodeAsync(int next)
         {
-            lock (sync) startOrder.Add("poster");
-            return Task.FromResult(0);
-        }, CancellationToken.None);
-        await poster.WaitAsync(TimeSpan.FromSeconds(10));
-        SpinWait.SpinUntil(() => { lock (sync) return finished == 60; }, TimeSpan.FromSeconds(20));
+            await gate.RunAsync(ThumbnailDecodePriority.Prefetch, async () =>
+            {
+                lock (sync) startOrder.Add("p" + next);
+                await (next == 0 ? releaseFirst.Task : releaseRemaining.Task);
+                return 0;
+            }, CancellationToken.None);
+            await Task.Yield();
+            lock (sync) { inFlight--; finished++; }
+            Feed();
+        }
+
+        Feed();
+        try
+        {
+            Assert.Equal(0, gate.Free);
+            Task poster = gate.RunAsync(ThumbnailDecodePriority.Poster, () =>
+            {
+                lock (sync) startOrder.Add("poster");
+                return Task.FromResult(0);
+            }, CancellationToken.None);
+            Assert.False(poster.IsCompleted);
+            // Keep the other slot occupied until the poster takes the first released slot.
+            releaseFirst.SetResult();
+            await poster.WaitAsync(TimeSpan.FromSeconds(10));
+            lock (sync) Assert.Equal(ThumbnailDecodeGate.ArchiveSlots, startOrder.IndexOf("poster"));
+        }
+        finally
+        {
+            releaseFirst.TrySetResult();
+            releaseRemaining.TrySetResult();
+        }
+        Assert.True(SpinWait.SpinUntil(() => { lock (sync) return finished == 60; }, TimeSpan.FromSeconds(20)));
         Task[] snapshot; lock (sync) snapshot = jobs.ToArray();
         await Task.WhenAll(snapshot).WaitAsync(TimeSpan.FromSeconds(10));
-        Assert.Equal(60, finished);
         Assert.True(maxInFlight <= ReaderPreviewReservation.PrefetchInFlight, $"max in flight {maxInFlight}");
-        // The poster passes the preload waiting in the gate and the whole waiting list: at most the slots' worth of preloads started in
-        // the moment between taking the count and queueing (a running one finishing) before it.
-        Assert.InRange(startOrder.IndexOf("poster"), startedWhenPosterWaited, startedWhenPosterWaited + ThumbnailDecodeGate.ArchiveSlots);
         Assert.Equal(ThumbnailDecodeGate.ArchiveSlots, gate.Free);
     }
 
