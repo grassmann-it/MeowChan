@@ -30,6 +30,11 @@ internal sealed class GallerySidePanel : Grid
     /// <summary>The key of the preferred width in the layout profile's view preferences.</summary>
     internal const string WidthPreferenceKey = "gallery.panelWidth";
     internal const double GripWidth = 6;
+    // Gap between the Post / Tags segment and the counter, and the least clearance between the counter and the close button.
+    private const double CounterGap = 8;
+    private const double CounterClearance = 24;
+    // A counter squeezed beside the tabs may wrap to two lines down to this width; below that it takes its own row.
+    private const double CounterMinWrapWidth = 72;
     // The grip lies on the outer edge of the bordered slot (workspace-section, inset 16), not on the content.
     private const double SlotInset = 16;
     private readonly ToggleButton _post = new() { Name = "GalleryPanelPost", Classes = { "media-control" } };
@@ -37,8 +42,8 @@ internal sealed class GallerySidePanel : Grid
     private readonly StackPanel _segment = new() { Name = "GalleryPanelSegment", Orientation = Orientation.Horizontal, Spacing = 4,
         VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
-        HorizontalContentAlignment = HorizontalAlignment.Center };
+        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left,
+        HorizontalContentAlignment = HorizontalAlignment.Left, Margin = new Thickness(CounterGap, 0, 0, 0) };
     private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false };
     private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,
@@ -57,7 +62,7 @@ internal sealed class GallerySidePanel : Grid
         RowSpacing = 12;
         ColumnDefinitions = new ColumnDefinitions
         {
-            new(new GridLength(1, GridUnitType.Star)),
+            new(GridLength.Auto),
             new(GridLength.Auto) { MinWidth = 24 },
             new(new GridLength(1, GridUnitType.Star))
         };
@@ -94,7 +99,7 @@ internal sealed class GallerySidePanel : Grid
     internal ContentControl PostSlot => _postSlot;
     internal ContentControl TagSlot => _tagSlot;
 
-    /// <summary>The tag surface's live medium counter, geometrically centred in the header; null after that surface is released.</summary>
+    /// <summary>The tag surface's live medium counter, shown right beside the Post / Tags segment; null after that surface is released.</summary>
     internal Control? HeaderCounter
     {
         get => _headerCounter.Content as Control;
@@ -104,9 +109,15 @@ internal sealed class GallerySidePanel : Grid
     private void ApplyHeaderLayout(double width)
     {
         bool counter = HeaderCounter != null;
+        _headerCounter.MaxWidth = double.PositiveInfinity;
+        _headerCounter.Measure(Size.Infinity);
         double counterWidth = _headerCounter.DesiredSize.Width;
         double segmentWidth = _post.DesiredSize.Width + _tags.DesiredSize.Width + _segment.Spacing;
-        bool ownRow = counter && width > 0 && (width - counterWidth) / 2 < Math.Max(segmentWidth, CloseButton.DesiredSize.Width);
+        // The counter sits beside the tabs when one line fits; otherwise it may wrap to two lines there; only a real shortage uses its own row.
+        double room = width - segmentWidth - CounterGap - CounterClearance - CloseButton.DesiredSize.Width;
+        bool ownRow = counter && width > 0 && room < Math.Min(counterWidth, CounterMinWrapWidth);
+        if (counter && !ownRow && room > 0 && room < counterWidth) _headerCounter.MaxWidth = room;
+        _headerCounter.Margin = ownRow ? default : new Thickness(CounterGap, 0, 0, 0);
         RowDefinitions = new RowDefinitions(ownRow ? "Auto,Auto,*" : "Auto,*");
         SetRow(_headerCounter, ownRow ? 1 : 0);
         SetColumn(_headerCounter, ownRow ? 0 : 1);

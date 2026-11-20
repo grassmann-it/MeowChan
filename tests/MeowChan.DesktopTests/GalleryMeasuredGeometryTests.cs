@@ -69,7 +69,7 @@ public sealed class GalleryMeasuredGeometryTests
     [InlineData(280)]
     [InlineData(320)]
     [InlineData(480)]
-    public void MediumCounterIsGeometricallyCentredInThePanelHeader(double width) => OnDispatcher(() =>
+    public void MediumCounterSitsBesideTheTabsInTheSamePanelHeaderRow(double width) => OnDispatcher(() =>
     {
         GallerySidePanel panel = new(new Button());
         Border counter = new() { Width = 92, Height = 18, Child = new TextBlock { Text = "Medium 1 of 4", TextAlignment = Avalonia.Media.TextAlignment.Center } };
@@ -79,8 +79,10 @@ public sealed class GalleryMeasuredGeometryTests
         panel.UpdateLayout();
         ContentControl slot = Assert.IsType<ContentControl>(counter.Parent);
         Point origin = OriginIn(slot, panel);
-        Assert.InRange(Math.Abs(origin.X + slot.Bounds.Width / 2 - panel.Bounds.Width / 2), 0, 0.5);
-        Assert.True(origin.X >= 0 && origin.X + slot.Bounds.Width <= panel.Bounds.Width + 0.5);
+        Control segment = (Control)panel.PostButton.Parent!;
+        Assert.Equal(Grid.GetRow(segment), Grid.GetRow(slot)); // no extra line
+        Assert.True(origin.X >= OriginIn(segment, panel).X + segment.Bounds.Width - 0.5);
+        Assert.True(origin.X + slot.Bounds.Width <= OriginIn(panel.CloseButton, panel).X + 0.5);
     });
 
     [Fact]

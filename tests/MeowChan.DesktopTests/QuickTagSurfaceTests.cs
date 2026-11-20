@@ -74,8 +74,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Equal(1, Grid.GetColumn(slot));
         Assert.Equal(2, Grid.GetColumn(panel.CloseButton));
         Assert.False(slot.Focusable);
-        Assert.Equal(default, slot.Margin);
-        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, slot.HorizontalAlignment);
+        Assert.Equal(new Avalonia.Thickness(8, 0, 0, 0), slot.Margin); // right beside the tabs
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Left, slot.HorizontalAlignment);
         TextBlock label = Assert.IsType<TextBlock>(counter.Child);
         Assert.Equal("Medium 4 of 27", label.Text);
         Assert.Equal(Avalonia.Media.TextWrapping.Wrap, label.TextWrapping);

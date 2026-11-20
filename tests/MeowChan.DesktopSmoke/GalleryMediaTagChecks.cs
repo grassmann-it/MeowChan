@@ -94,15 +94,15 @@ internal static class GalleryMediaTagChecks
                     var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
                     var segment = (Control)viewer.SidePanel.PostButton.Parent!;
                     var closeOrigin = viewer.SidePanel.CloseButton.TranslatePoint(default, viewer.SidePanel)!.Value;
-                    double centerDelta = origin.X + counter.Bounds.Width / 2 - viewer.SidePanel.Bounds.Width / 2;
+                    double centerDelta = 0; // kept in the metrics line; the counter now sits beside the tabs, not centred
                     Control counterSlot = (Control)counter.Parent!;
                     bool ownRow = Grid.GetRow(counterSlot) > Grid.GetRow(segment);
                     bool verticalPlacement = ownRow
                         ? origin.Y >= segment.Bounds.Bottom - 1
                         : Math.Abs(origin.Y + counter.Bounds.Height / 2 - (segment.Bounds.Y + segment.Bounds.Height / 2)) <= 1;
                     bool horizontalClearance = ownRow || origin.X >= segment.Bounds.Right - 1 && origin.X + counter.Bounds.Width <= closeOrigin.X + 1;
-                    Require(Math.Abs(centerDelta) <= 1 && verticalPlacement && horizontalClearance,
-                        $"The counter is not geometrically centred or overlaps header actions (delta {centerDelta}, ownRow {ownRow}, counter {origin}/{counter.Bounds.Size}).");
+                    Require(!ownRow && verticalPlacement && horizontalClearance,
+                        $"The counter is not beside the tabs or overlaps header actions (delta {centerDelta}, ownRow {ownRow}, counter {origin}/{counter.Bounds.Size}).");
                     Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, centerDelta={centerDelta:F3}, counter={origin}/{counter.Bounds.Size}");
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }
