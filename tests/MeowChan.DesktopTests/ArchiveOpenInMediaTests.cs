@@ -129,9 +129,9 @@ public sealed class ArchiveOpenInMediaTests : IDisposable
             Assert.Contains("5", Texts.T("media.filter.threadsMore", 5));
         }
         Texts.SetLanguage("en");
-        Assert.Equal("Open in Media", CommandCatalog.Label("archive.open-results-in-media"));
+        Assert.Equal("All matches in Media", CommandCatalog.Label("archive.open-results-in-media"));
         Texts.SetLanguage("de");
-        Assert.Equal("In Medien öffnen", CommandCatalog.Label("archive.open-results-in-media"));
+        Assert.Equal("Alle Treffer in Medien", CommandCatalog.Label("archive.open-results-in-media"));
     }
 
     // ---- every thread of the search, over all pages -----------------------------------------------------------------------------
@@ -233,7 +233,7 @@ public sealed class ArchiveOpenInMediaTests : IDisposable
         Assert.True(gallery > 0 && open > gallery);
         Assert.Contains("\"gallery.open-results\"", toolbar); // the gallery of the results stays
         Assert.Contains("\"archive.open-results-in-media\"", toolbar);
-        Assert.Equal("Media from matching threads", CommandCatalog.Label("gallery.open-results"));
+        Assert.Equal("All matches in gallery", CommandCatalog.Label("gallery.open-results"));
         Assert.Equal(CommandScope.Archive, CommandCatalog.Get("archive.open-results-in-media").Scope);
     }
 }

@@ -48,6 +48,7 @@ public static class CommandCatalog
         new("tagging.move-first", "command.tagging.move-first", "Move to the start", "An den Anfang", "chevrons-up", "Alt+Home", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.move-last", "command.tagging.move-last", "Move to the end", "Ans Ende", "chevrons-down", "Alt+End", CommandScope.Media, new[] { "tagging-list-menu" }, new[] { "tagging" }),
         new("tagging.add", "command.tagging.add", "Add…", "Hinzufügen…", "plus", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
+        new("tagging.preview-column", "command.tagging.preview-column", "Thumbnails", "Vorschaubilder", "image", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear-done", "command.tagging.clear-done", "Remove finished", "Erledigte entfernen", "check-square", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         new("tagging.clear", "command.tagging.clear", "Clear queue…", "Warteschlange leeren…", "x-circle", null, CommandScope.Media, new[] { "tagging-page" }, new[] { "tagging" }),
         // The rating family has its own mask (star-half, decision #126 of 15.11.2026): the plain star stays the favourite's, so the two neighbouring menu
@@ -150,8 +151,8 @@ public static class CommandCatalog
         new("archive.media-tile-size.larger", "command.archive.media-tile-size.larger", "Larger tiles", "Größere Kacheln", "zoom-in", "Primary+Plus", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
         new("archive.media-tile-size.smaller", "command.archive.media-tile-size.smaller", "Smaller tiles", "Kleinere Kacheln", "zoom-out", "Primary+Minus", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
         new("archive.media-tile-size.reset", "command.archive.media-tile-size.reset", "Medium tiles", "Mittlere Kacheln", "grid", "Primary+0", CommandScope.Archive, new[] { "archive-media-tiles" }, new[] { "archive" }),
-        new("gallery.open-results", "command.gallery.open-results", "Media from matching threads", "Medien der Treffer", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
-        new("archive.open-results-in-media", "command.archive.open-results-in-media", "Open in Media", "In Medien öffnen", "grid", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
+        new("gallery.open-results", "command.gallery.open-results", "All matches in gallery", "Alle Treffer in der Galerie", "image", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
+        new("archive.open-results-in-media", "command.archive.open-results-in-media", "All matches in Media", "Alle Treffer in Medien", "grid", null, CommandScope.Archive, new[] { "archive-results-toolbar" }),
         new("thread.show-in-media", "command.thread.show-in-media", "Show in Media", "In Medien zeigen", "grid", "Alt+M", CommandScope.Archive | CommandScope.Reader | CommandScope.Downloads, new[] { "downloads-thread-menu", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("thread.details", "command.thread.details", "Show details", "Details anzeigen", "info", "Alt+Enter", CommandScope.Archive | CommandScope.Downloads, new[] { "downloads-thread-menu", "downloads-board-menu", "downloads-toolbar", "archive-card-menu", "archive-table-menu", "reader-thread-menu" }),
         new("inspector.close", "command.inspector.close", "Close details", "Details schließen", "x", null, CommandScope.Downloads, new[] { "downloads-inspector" }),

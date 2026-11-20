@@ -205,7 +205,7 @@ public sealed class ActionToolBarRenderedStretchTests
     [InlineData(330, true)]
     [InlineData(600, true)]
     [InlineData(1000, true)]
-    public void ArchiveResultRowsFillTheSameContentEdgeAndNeverOverflowTheLayoutPair(double width, bool initiallyTable)
+    public void ArchiveResultRowsDockACompactLayoutPairAtTheContentEdgeAndNeverOverflowIt(double width, bool initiallyTable)
     {
         BooruComponentDispatcher.Run(() =>
         {
@@ -226,7 +226,7 @@ public sealed class ActionToolBarRenderedStretchTests
             {
                 string? Attribute(string name) => element.Attributes().SingleOrDefault(a => a.Name.LocalName == name)?.Value;
                 Control item = element.Name.LocalName == "ToggleButton"
-                    ? new ToggleButton { MinWidth = 64, HorizontalAlignment = Enum.Parse<HorizontalAlignment>(Attribute("HorizontalAlignment")!) }
+                    ? new ToggleButton { MinWidth = 64, HorizontalAlignment = Enum.Parse<HorizontalAlignment>(Attribute("HorizontalAlignment") ?? "Stretch") }
                     : new Button { Width = 70 };
                 item.Name = (string?)element.Attribute(x + "Name");
                 item.Height = 32;
@@ -287,9 +287,9 @@ public sealed class ActionToolBarRenderedStretchTests
                     double trailing = bar.DirectHost.Bounds.Width - last.Bounds.Right;
                     Console.WriteLine($"UX-LEDGER-25 width={width} columns={table} occupied={width - unused - trailing:F2} unused={unused:F2} trailing={trailing:F2} pair={first.Bounds.Width:F2}/{last.Bounds.Width:F2} overflow={bar.OverflowHost.Children.Count} panel={bar.DirectHost.Bounds} more={bar.More!.Bounds} margin={bar.More.Margin}");
                     Assert.InRange(Math.Abs(trailing), 0, 1);
-                    Assert.InRange(unused, 0, 1);
-                    Assert.True(first.Bounds.Width >= first.DesiredSize.Width);
-                    Assert.True(last.Bounds.Width >= last.DesiredSize.Width);
+                    // U04 (1.1.1): the pair is compact (its natural width), docked right; the spare room stays between the actions and it.
+                    Assert.InRange(first.Bounds.Width, first.DesiredSize.Width, first.DesiredSize.Width + 1);
+                    Assert.InRange(last.Bounds.Width, last.DesiredSize.Width, last.DesiredSize.Width + 1);
                     Assert.Equal(first.Bounds.Right, last.Bounds.X, 6);
                     if (shown.Contains(columns))
                     {
