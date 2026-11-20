@@ -392,8 +392,12 @@ internal sealed class ManualImportDialog : Window, IDisposable
             Texts.Count("import.done", batch.Count(ManualImportItemState.Committed), batch.Count(ManualImportItemState.Committed), batch.Name)
         };
         if (batch.Count(ManualImportItemState.Duplicate) is > 0 and int linked) parts.Add(Texts.Count("import.done.linked", linked));
-        if (batch.Count(ManualImportItemState.Failed) is > 0 and int failed) parts.Add(Texts.Count("import.done.failed", failed));
-        if (batch.Cancelled) parts.Add(Texts.T("import.done.cancelled"));
+        // A refused target (manifest) is not "changed or unreadable": it has its own sentence with the way to retry or repair.
+        int notSaved = batch.Items.Count(item => item.State == ManualImportItemState.Failed && item.Failure == ManualImportFailure.Store);
+        if (batch.Count(ManualImportItemState.Failed) - notSaved is > 0 and int failed) parts.Add(Texts.Count("import.done.failed", failed));
+        if (notSaved > 0) parts.Add(Texts.T("import.done.failedStore", notSaved));
+        // Stop interrupts the copy phase only: finished files stay, the file in progress and the rest are not copied.
+        if (batch.Cancelled) parts.Add(Texts.T("import.done.cancelled", batch.Count(ManualImportItemState.Committed)));
         if (outcome.TagsRequested && batch.Count(ManualImportItemState.Committed) > 0)
             parts.Add(TagsSummary(outcome));
         return string.Join(" ", parts);
@@ -419,7 +423,7 @@ internal sealed class ManualImportDialog : Window, IDisposable
     {
         if (_closed) return;
         _closed = true;
-        // A running check stops; a running copy stops after the current file (finished files stay).
+        // A running check stops; a running copy stops at once (finished files stay, the file in progress is not kept).
         _session.Cancel();
         _session.Updated -= OnSessionUpdated; Texts.Changed -= OnLanguageChanged;
         _tagInput.Dispose(); _sources.End();

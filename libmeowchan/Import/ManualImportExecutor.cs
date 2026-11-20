@@ -176,6 +176,7 @@ internal sealed class ManualImportExecutor
                 return item with { State = ManualImportItemState.Committed, AssetId = committed.AssetId };
             }
             catch (InvalidDataException) { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Changed }; }
+            catch (ManagedImportFolderException) { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Store }; }
             catch (IOException error) when (IsDiskFull(error))
             { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.NoSpace }; }
             catch (Exception error) when (error is IOException or UnauthorizedAccessException)

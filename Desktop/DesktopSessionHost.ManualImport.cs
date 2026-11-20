@@ -87,7 +87,7 @@ internal sealed partial class DesktopSessionHost
 
     /// <summary>
     /// Copies the new files of a checked plan into a fresh batch and then gives the batch tags to the copied files.
-    /// Cancellation stops after the current file. Tags are best effort after the copy: a refused tag write leaves the
+    /// Cancellation interrupts the copy phase: finished files stay, the file in progress and the rest are not copied. Tags are best effort after the copy: a refused tag write leaves the
     /// files imported and the batch marked as "tags not applied".
     /// </summary>
     internal async Task<ManualImportOutcome> RunManualImportAsync(ManualImportPlan plan, ManualImportOptions options,

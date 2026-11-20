@@ -275,6 +275,21 @@ public sealed class ManualImportDesktopTests : IDisposable
         Assert.Contains("Imported 1 file", none);
     }
 
+    [Fact]
+    public void TheSummaryNamesTheInterruptedPhaseAndASeparateTargetFailureWithARetryHint()
+    {
+        ManualImportBatch batch = SummaryBatch(true, SummaryItem(ManualImportItemState.Committed), SummaryItem(ManualImportItemState.Committed),
+            SummaryItem(ManualImportItemState.Failed, ManualImportFailure.Store), SummaryItem(ManualImportItemState.Failed, ManualImportFailure.Changed));
+        string text = ManualImportDialog.Summary(new(batch, false, false, null));
+        Assert.Contains("Stopped while copying", text);
+        Assert.Contains("imported (2)", text);
+        Assert.Contains("the file in progress and the rest were not copied", text);
+        Assert.Contains("1 could not be copied (changed or unreadable)", text);
+        Assert.Contains("1 could not be saved because the batch folder or its manifest", text);
+        Assert.Contains("Try the import again", text);
+        Assert.DoesNotContain("after current file", Texts.T("import.cancel.run"));
+    }
+
     private sealed class FixtureFolder(Uri path) : IStorageFolder
     {
         public string Name => System.IO.Path.GetFileName(path.LocalPath);
