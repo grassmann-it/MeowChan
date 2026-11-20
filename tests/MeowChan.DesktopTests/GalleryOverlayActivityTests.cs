@@ -355,6 +355,60 @@ public sealed class GalleryOverlayActivityTests
         }
     }
 
+    [Theory]
+    [InlineData(-1, 300)] // left
+    [InlineData(801, 300)] // right
+    [InlineData(400, -1)] // top
+    [InlineData(400, 601)] // bottom
+    [InlineData(801, -1)] // diagonal
+    public void NativeLeaveCannotKeepHoverFromTheLastScreenSample(int x, int y)
+    {
+        // No live window/pointer: even a sample still INSIDE the right strip is stale.
+        // Exercise the actual reconciliation, not just GalleryEdgeHit.At(outside).
+        var viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
+        SetField(viewer, "_lastPointerScreen", new PixelPoint(799, 300));
+        foreach (string field in new[] { "_controlsHot", "_postHot", "_pointerInControls", "_pointerInPost",
+            "_pointerOnControlsIndicator", "_pointerOnPostIndicator", "_filmstripTopHot", "_pointerInFilmstrip" })
+            SetField(viewer, field, true);
+        Assert.Equal(default, GalleryEdgeHit.At(new Point(x, y), new Size(800, 600)));
+        Invoke(viewer, "RefreshHoverGeometry");
+        foreach (string field in new[] { "_controlsHot", "_postHot", "_pointerInControls", "_pointerInPost",
+            "_pointerOnControlsIndicator", "_pointerOnPostIndicator", "_filmstripTopHot", "_pointerInFilmstrip" })
+            Assert.False((bool)GetField(viewer, field)!);
+    }
+
+    [Fact]
+    public void ReleaseHidesTheRealOverlayAndRemovesHitOwnershipWithoutForgettingKeyboardModality()
+    {
+        var viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
+        var footer = new StackPanel { IsVisible = true, IsHitTestVisible = true };
+        var controls = GalleryViewer.CreateEdgeIndicator(false);
+        var post = GalleryViewer.CreateEdgeIndicator(true);
+        controls.IsVisible = post.IsVisible = true;
+        SetField(viewer, "_overlayFooter", footer);
+        SetField(viewer, "_controlsEdgeIndicator", controls);
+        SetField(viewer, "_postEdgeIndicator", post);
+        SetField(viewer, "_playbackPreferences", new GalleryPlaybackPreferences(OverlayControls: true, AutoHideControls: true));
+        SetField(viewer, "_lastPointerScreen", new PixelPoint(799, 300));
+        SetField(viewer, "_lastIndicatorMotion", System.Diagnostics.Stopwatch.GetTimestamp());
+        SetField(viewer, "_pointerInPost", true);
+        SetField(viewer, "_keyboardInteraction", true);
+        Invoke(viewer, "ReleaseTransientOverlays", false);
+        Assert.True((bool)GetField(viewer, "_overlayHidden")!);
+        Assert.False(footer.IsVisible);
+        Assert.False(footer.IsHitTestVisible);
+        Assert.False((bool)GetField(viewer, "_pointerInPost")!);
+        Assert.Null(GetField(viewer, "_lastPointerScreen"));
+        Assert.Null(GetField(viewer, "_lastIndicatorMotion"));
+        Assert.True((bool)GetField(viewer, "_keyboardInteraction")!);
+        foreach (var indicator in new[] { controls, post })
+        {
+            Assert.False(indicator.IsHitTestVisible);
+            Assert.False(ToolTip.GetIsOpen(indicator));
+            Assert.Equal(0, Assert.Single(indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>()).Opacity);
+        }
+    }
+
     private static object? Invoke(GalleryViewer viewer, string name, params object[] args) =>
         typeof(GalleryViewer).GetMethod(name, BindingFlags.NonPublic | BindingFlags.Instance)!.Invoke(viewer, args);
     private static object? GetField(GalleryViewer viewer, string name) =>

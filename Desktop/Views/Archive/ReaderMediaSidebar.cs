@@ -460,8 +460,7 @@ internal sealed class ReaderMediaSidebar : Border
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
-        PointerEntered += (_, _) => { _hover = true; UpdateClose(); };
-        PointerExited += (_, _) => { _hover = false; UpdateClose(); };
+        _ = new TransientHover(this, hovered => { _hover = hovered; UpdateClose(); });
         GotFocus += (_, _) => UpdateClose();
         LostFocus += (_, _) => UpdateClose();
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
@@ -492,7 +491,7 @@ internal sealed class ReaderMediaSidebar : Border
     // Hidden at rest and then no click target either: an invisible cross must not close the sidebar under a click that meant the picture's corner.
     private void UpdateClose()
     {
-        bool shown = _hover || IsKeyboardFocusWithin;
+        bool shown = TransientHover.WindowUsable(this) && (_hover || IsKeyboardFocusWithin);
         Close.Opacity = shown ? 1 : 0;
         Close.IsHitTestVisible = shown;
     }

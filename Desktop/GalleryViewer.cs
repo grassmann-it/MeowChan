@@ -780,10 +780,10 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         if (_close == null) return;
         bool autoHidden = OverlayControlsEffective && _overlayHidden;
-        bool pointer = _close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver;
+        bool pointer = HasCurrentGalleryPointer && (_close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver);
         bool focus = _close.IsKeyboardFocusWithin || _favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin;
         // A pointer click that left the focus on a control does not pin the pair (as for the footer); only keyboard focus holds it.
-        bool held = pointer || _keyboardInteraction && focus;
+        bool held = IsGalleryWindowActive && (pointer || _keyboardInteraction && focus);
         bool motion = CornerWindowLive(_lastCornerMotion);
         GalleryCornerChrome back = GalleryCornerChrome.Resolve(autoHidden, held, motion);
         // A change of the favourite shows the badge alone with its new state, without the way back.
@@ -1233,6 +1233,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         InvalidateMediaMenu(); // The menu belongs to the medium it was opened on.
         HideFileOnlyPlate();
         ResetViewForMedium(entry);
+        ReleaseTransientOverlays();
         _entry = entry; _manualZoom = _actualZoom = false; _panX = _panY = 0;
         _exportOriginal.IsEnabled = true;
         _saveFrame.IsEnabled = false; // a frame can be saved once the video is ready (RefreshFrameCommands)

@@ -269,7 +269,7 @@ internal sealed partial class GalleryViewer
     private bool EdgeIndicatorArtworkVisible(Button indicator)
     {
         TimeSpan? age = _lastIndicatorMotion is long motion ? Stopwatch.GetElapsedTime(motion) : null;
-        return GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin);
+        return IsGalleryWindowActive && GalleryEdgeMotion.IsVisible(age, indicator.IsKeyboardFocusWithin);
     }
 
     private void UpdateEdgeIndicatorArtwork()
@@ -283,18 +283,11 @@ internal sealed partial class GalleryViewer
             // rather than only the direct child, so motion still reveals the artwork.
             if (indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
                 chevron.Opacity = shown ? 1 : 0;
-            // Keep the transparent 44-DIP handle hit-testable for touch and native
-            // pointer entry even after its transient chevron has faded. Otherwise an
-            // idle edge has no way to renew the hint or activate it without first
-            // finding a pixel that happens to be drawn.
-            // A transient bottom glyph may sit over the now-visible footer after
-            // centre motion. Keep it painted, but let the real transport receive
-            // native pointer motion until the footer is hidden again; otherwise a
-            // later move to the transport is rejected as a changed hit target.
+            // No invisible target after release/expiry. Motion over the root's edge
+            // band and keyboard traversal can reveal the handle again without a click.
             bool controlsHandleOwnsInput = !ReferenceEquals(indicator, _controlsEdgeIndicator)
                 || _overlayHidden || _pointerOnControlsIndicator;
-            indicator.IsHitTestVisible = controlsHandleOwnsInput && (indicator.IsVisible || shown
-                || (ReferenceEquals(indicator, _postEdgeIndicator) ? _pointerOnPostIndicator : _pointerOnControlsIndicator));
+            indicator.IsHitTestVisible = controlsHandleOwnsInput && indicator.IsVisible && shown;
         }
     }
 
@@ -554,6 +547,7 @@ internal sealed partial class GalleryViewer
     private bool RevealForKeyboard(KeyEventArgs e)
     {
         _keyboardInteraction = true;
+        if (_lastPointerScreen != null || _hoverContextOpen) ReleaseTransientOverlays(keepKeyboard: true);
         // This is an observation, never an input gate. The first command and every
         // repeat must reach the existing gallery/native-control routing immediately.
         // Escape likewise stays entirely with the shell/help/context hierarchy.
@@ -580,7 +574,7 @@ internal sealed partial class GalleryViewer
         bool wasPost = _postHot || _pointerInPost || _pointerOnPostIndicator;
         _controlsHot = _postHot = _pointerInControls = _pointerInPost = false;
         _pointerOnControlsIndicator = _pointerOnPostIndicator = false;
-        if (_lastPointerScreen is PixelPoint pixel)
+        if (HasCurrentGalleryPointer && _lastPointerScreen is PixelPoint pixel)
         {
             Control surface = _nativeOverlayActive ? _nativeVideoOverlay : _body;
             // A closed TopLevel may remain in the parent chain after its
@@ -608,6 +602,39 @@ internal sealed partial class GalleryViewer
         if (_postHot || _pointerInPost || _pointerOnPostIndicator || wasPost) _lastPostActivity = now;
         if (!_postHot && !_pointerInPost && !_pointerOnPostIndicator) _suppressPostHoverUntilExit = false;
         RefreshFilmstripHover();
+    }
+
+    // A screen coordinate is only a sample, never proof that the pointer is still here.
+    // Avalonia clears IsPointerOver on a native window leave even when no final move arrives.
+    private bool HasCurrentGalleryPointer => IsGalleryWindowActive && _interactionAvailable
+        && (IsPointerOver || _nativeOverlayActive && _nativeVideoOverlay.IsPointerOver);
+
+    private void ReleaseTransientOverlays(bool keepKeyboard = false)
+    {
+        _lastPointerScreen = null;
+        _decisionRow?.Preview(null);
+        _postDecision?.Preview(null);
+        _lastCornerMotion = _lastFavoriteFlash = null;
+        _controlsHot = _postHot = _pointerInControls = _pointerInPost = false;
+        _pointerOnControlsIndicator = _pointerOnPostIndicator = false;
+        _pointerInFilmstrip = _filmstripTopHot = false;
+        _lastIndicatorMotion = null;
+        _indicatorExpiryTimer?.Stop();
+        if (_hoverContextOpen && !(keepKeyboard && _contextPanel.IsKeyboardFocusWithin)) SetContextOpen(false, notify: false, hover: true);
+        if (_filmstripPeek) { _filmstripPeek = false; UpdateFilmstripPlacement(); }
+        if (OverlayControlsEffective && _playbackPreferences.AutoHideControls && _tagging == null && !(keepKeyboard && KeyboardPanelFocus))
+        {
+            _overlayHidden = true;
+            _overlayFooter.IsVisible = false;
+            _overlayFooter.IsHitTestVisible = false;
+        }
+        foreach (Button indicator in new[] { _controlsEdgeIndicator, _postEdgeIndicator })
+        {
+            ToolTip.SetIsOpen(indicator, false);
+            indicator.IsHitTestVisible = false;
+        }
+        UpdateEdgeIndicatorArtwork();
+        UpdateCornerChrome();
     }
 
     private bool KeyboardPanelFocus => _keyboardInteraction && (_overlayFooter.IsKeyboardFocusWithin
@@ -691,6 +718,12 @@ internal sealed partial class GalleryViewer
         // Exit can also mean that a newly shown child replaced the hit-test target.
         // Keep actual screen geometry instead of treating every routed exit as leaving
         // the gallery (which made a bottom-edge reveal immediately disappear again).
+        if (!HasCurrentGalleryPointer)
+        {
+            ReleaseTransientOverlays(keepKeyboard: IsGalleryWindowActive && _keyboardInteraction);
+            UpdateViewerInteractionTimer();
+            return;
+        }
         RememberPointer(sender, e);
         RevealHoveredPanels();
         UpdateEdgeIndicators();
@@ -746,7 +779,8 @@ internal sealed partial class GalleryViewer
         MarkVisibleImageReady();
         bool active = IsGalleryWindowActive;
         if (!active) _pressedPointers.Clear();
-        bool popup = HasGalleryPopup || HasGalleryDialog;
+        bool popup = HasGalleryPopup || HasGalleryDialog || _helpOpen;
+        if (!active || popup || !HasCurrentGalleryPointer && !_keyboardInteraction) ReleaseTransientOverlays();
         bool captured = _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null;
         // In the tagging mode the tag panel does not stop the slideshow; it holds it while it is worked in (UpdateTaggingHold renews the
         // shown medium's period when that ends, so the medium just tagged is never skipped).

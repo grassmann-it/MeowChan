@@ -116,7 +116,7 @@ public sealed class MediaLibraryBadgeTests : IDisposable
         Assert.True(star.IsChecked == true && view.Badges.State.Favorite);
         string styles = File.ReadAllText(Path.Combine(Root(), "Desktop/WorkspaceStyles.axaml"));
         Assert.Contains("ToggleButton.tile-favorite.tile-favorite-quiet:checked", styles);
-        Assert.Contains("ListBoxItem:pointerover ToggleButton.tile-favorite.tile-favorite-quiet", styles);
+        Assert.Contains("ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet", styles);
     }
 
     [Fact]
