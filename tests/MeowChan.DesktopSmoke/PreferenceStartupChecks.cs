@@ -288,8 +288,11 @@ internal static class PreferenceStartupChecks
                 ShowErrorNotifications = true
             };
             if (readyIo) FixtureConfig().SaveConfig(directory);
-            // The fixture observes the deliberately faulted disposal task and handles ownership in finally.
+            // The finally block disposes the host unless the shell has already disposed it and released its lease.
+            // An await using would rethrow the deliberately faulted, cached DisposeAsync task after the assertions.
+#pragma warning disable CA2000
             host = new(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+#pragma warning restore CA2000
             if (!readyIo)
             {
                 Require(host.Config.Origin == ProfileOrigin.ConfirmedNew, "Failed-start fixture was not genuinely empty at acquisition.");
