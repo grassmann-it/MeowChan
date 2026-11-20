@@ -21,3 +21,9 @@ Der Vorschlag zur PR-Matrix steht auf 1.2.0 in docs/development/release-planning
 - [macOS ARM GIF](https://github.com/grassmann-it/MeowChan/actions/runs/44809216079) prüft, ob zwei verschiedene Positionen beim nativen Mauswechsel die Transportleiste zuverlässig sichtbar machen. Der vorherige Smoke bewegte den Cursor bei weiteren Versuchen an dieselbe Position. Dispatch mit einem macOS-Runner auf cf96689de.
 
 Die 17 Python-Suiten aus dem Workflow-Schritt package_fixtures waren lokal erfolgreich. Der gepinnte SDK-Build meldete zunächst drei fehlende Dispose-Aufrufe für Vorschaudaten in Tests. Seit 956f4835c sind auch die 256 gezielten Desktop-Tests mit SDK 10.0.111 und aktiven Analyzern grün.
+
+Der Harness baut lokal mit dem gepinnten SDK und aktiven Analyzern. Reader-Navigation, Preference-Startup mit zwölf Shutdown-Fehlerfällen und GIF-Wiedergabe sind im isolierten Linux-Desktop grün. Die gezielte FIFO-Suite meldete 22 bestandene Tests und den beim direkten Aufruf erwartungsgemäß übersprungenen Unterprozess-Test.
+
+- [macOS ARM GIF auf 704fbb2a2](https://github.com/grassmann-it/MeowChan/actions/runs/44811314946) ist grün.
+- [Windows Media Input auf 704fbb2a2](https://github.com/grassmann-it/MeowChan/actions/runs/44811327388) bestätigt den nativen Timeline-Fokus. Der separat fehlgeschlagene Paketprüfschritt meldet sieben AP04-Syntaxfehler bei der Suche nach Git Bash. AP04 verwendet ab d021a258e denselben Resolver wie die 57 im selben Windows-Job erfolgreichen Prerelease-Tests. Beide Suiten laufen lokal durch.
+- [Windows Offline lane-d auf 704fbb2a2](https://github.com/grassmann-it/MeowChan/actions/runs/44811420412) bündelt die Korrekturen der Compilerdiagnosen aus dem ersten Wiederholungslauf.
