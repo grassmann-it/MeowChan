@@ -152,7 +152,7 @@ internal sealed partial class DesktopSessionHost
         if (local.Length == 0) return;
         IReadOnlyList<LocalMediaCheck> checks = LocalMediaChecksForTests is { } seam ? await seam(local, token).ConfigureAwait(false)
             : await LocalMediaTagRevalidation.CheckAsync(local, OpenArchiveReaderAsync, MediaAssetReader.OpenAsync,
-                verifyBytes: true, token, ReadManualImportCatalog).ConfigureAwait(false);
+                verifyBytes: true, token, ReadManualImportCatalog, ReadBooruCatalog).ConfigureAwait(false);
         if (checks.Count != local.Length || checks.Any(check => check != LocalMediaCheck.Verified))
             throw new PrivateTagStoreException(PrivateTagStoreError.TargetUnavailable);
     }
@@ -178,7 +178,7 @@ internal sealed partial class DesktopSessionHost
         PrivateTagStoreSnapshot? snapshot = await Task.Run(() => GetPrivateTagSnapshot().Snapshot, token).ConfigureAwait(false);
         if (snapshot == null) return null;
         return await LocalMediaTagRevalidation.InspectAsync(snapshot, OpenArchiveReaderAsync, MediaAssetReader.OpenAsync, token,
-                ReadManualImportCatalog)
+                ReadManualImportCatalog, ReadBooruCatalog)
             .ConfigureAwait(false);
     }
 
