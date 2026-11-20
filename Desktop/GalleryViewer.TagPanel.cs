@@ -338,6 +338,8 @@ internal sealed partial class GalleryViewer
     {
         if (_tagController?.Decisions == null || !surface.Input.IsKeyboardFocusWithin
             || !string.IsNullOrEmpty(surface.Input.Text) || surface.Input.IsDropDownOpen) return false;
+        // The bare digits 1 to 5 and 0 (Lightroom keys) never rate from the field: a digit there starts a tag name.
+        if (MeowChan.Desktop.Controls.TextEntryKeys.IsBareDigit(e)) return false;
         for (int value = 1; value <= 5; value++)
             if (ShortcutService.Current.Matches(e, "media.rating.set-" + value)) { RequestRating(value); e.Handled = true; return true; }
         if (!ShortcutService.Current.Matches(e, "media.rating.clear")) return false;

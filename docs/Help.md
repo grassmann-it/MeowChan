@@ -1941,7 +1941,7 @@ thumbnail, a picture or video inside a post) gets the medium's commands, a focus
 the post's commands. There is no extra modifier key for this.
 
 - **Media actions work from both.** Favorite (**F**, **M**, **U**), rating and tags
-  (**R**, **Shift+1** to **Shift+5**, **Shift+0**, **Ctrl+Shift+T**) act on the focused
+  (**R**, **1** to **5**, **0**, **Ctrl+Shift+T**) act on the focused
   medium or, from a post, on the post's medium. In the large reader the video keys do the
   same: **Space**, **Shift+M** (mute), **L** (repeat), **,** and **.** (seek step),
   **X** and **C** (speed), **Shift+Backspace** (normal speed) and **Shift+.** (next frame).
@@ -2192,10 +2192,13 @@ and the status line names it. A tag created by a step stays in your own tag list
 undo. Closing the panel ends the stack. The favorite/rating row above the field
 acts on the shown medium or all marked media. In both this panel and **Rate and tag**,
 the larger **Favorite** control spans the width of the five rating stars (not the
-remove-rating gutter), with the rating caption on its own line below. **Shift+1** through **Shift+5** set
-a rating, **Shift+0** removes it; **R** still opens the rating dialog. The shifted
-digits also work in an empty tag field with its suggestion list closed; with text
-present they type normally.
+remove-rating gutter), with the rating caption on its own line below. **1** through **5** set
+a rating and **0** removes it, as in Lightroom (**Shift+1** to **Shift+5** and **Shift+0** work too);
+**R** still opens the rating dialog. The bare digits never act while a text field or list has the focus
+(in the tag field they start a tag name), and while the tagging cards are shown **1** to **5** choose a card.
+The shifted digits also work in an empty tag field with its suggestion list closed; with text
+present they type normally. In the gallery **Fit** now uses **Ctrl+0** (or the number pad's 0) and **1:1** the
+number pad's 1, because the bare 0 and 1 belong to the rating.
 Ctrl+Z undoes the newest tag, favorite or rating change made through the panel.
 Tags, favorites and ratings remain distinct: adding a tag never changes a rating
 or favorite by itself, and a favorite is not a tag.

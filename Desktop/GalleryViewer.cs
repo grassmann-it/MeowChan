@@ -1654,6 +1654,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         { ConsumeContextKey(e); return; }
         if (_entry != null && MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)) { ShowMediaMenu(); ConsumeContextKey(e); return; }
         if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture
+        // The tagging mode's card keys are the bare digits 1 to 5 while the cards are shown: they come before the rating's 1 to 5 (Lightroom keys).
+        if (_tagging != null && _cardsOn && _tagSurface?.IsKeyboardFocusWithin != true && RouteCardKey(e)) return;
         if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         if (_contextOpen && _sidePanel.RouteSegmentKey(e)) return;
         if (_tagging != null && RouteTaggingKey(e)) return; // the tagging mode's keys come first (PT3)
