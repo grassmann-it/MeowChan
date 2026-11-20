@@ -28,7 +28,8 @@ public sealed class ThumbnailDecodeGateTests
         List<TaskCompletionSource> releases = new(); List<Task> running = new();
         await Occupy(gate, 2, releases, running);
         MediaThumbnailCache<Preview> cache = new(4);
-        Preview kept = cache.Add("bytes", new Preview());
+        using Preview input = new();
+        Preview kept = cache.Add("bytes", input);
         cache.Release(kept);
         int decodes = 0;
         Task<Preview?> hit = MediaTileThumbnails.KeepGatedAsync(cache, gate, ThumbnailDecodePriority.Image, "bytes",
@@ -73,7 +74,8 @@ public sealed class ThumbnailDecodeGateTests
         int decodes = 0;
         Task<Preview?> queued = MediaTileThumbnails.KeepGatedAsync(cache, gate, ThumbnailDecodePriority.Image, "bytes",
             () => { decodes++; return Task.FromResult<Preview?>(new()); }, CancellationToken.None);
-        Preview other = cache.Add("bytes", new Preview()); // another view finished the same bytes meanwhile
+        using Preview input = new();
+        Preview other = cache.Add("bytes", input); // another view finished the same bytes meanwhile
         releases[0].SetResult();
         Preview shown = (await queued.WaitAsync(TimeSpan.FromSeconds(10)))!;
         Assert.Same(other, shown);
@@ -137,7 +139,8 @@ public sealed class ThumbnailDecodeGateTests
         List<TaskCompletionSource> releases = new(); List<Task> running = new();
         await Occupy(gate, 1, releases, running);
         MediaThumbnailCache<Preview> cache = new(4);
-        Preview kept = cache.Add("poster", new Preview());
+        using Preview input = new();
+        Preview kept = cache.Add("poster", input);
         cache.Release(kept);
         int verifications = 0, decodes = 0;
         Task<Preview?> Load() => MediaTileThumbnails.KeepVerifiedPosterAsync(cache, "poster",
