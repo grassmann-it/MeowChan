@@ -140,6 +140,21 @@ internal sealed partial class DesktopSessionHost
                 token, ct => RevalidateLocalSubjectsAsync(frozen, ct)));
     }
 
+    /// <summary>
+    /// "Apply tags to a media set": create-or-get every named tag and assign all of them to the subjects in ONE admitted,
+    /// atomic tag-store write after ONE verification pass over the subjects (each local file is checked and hashed once,
+    /// independent of the number of tags). A rejection (tag limit, failed verification, stale registration) writes nothing.
+    /// </summary>
+    internal Task<PrivateTagCommit> DefineAndSetMediaSubjectTagBatchAsync(IReadOnlyList<string> names,
+        IReadOnlyList<MediaTagSubject> subjects, long? expectedRevision = null, CancellationToken token = default)
+    {
+        string[] tags = (names ?? throw new ArgumentNullException(nameof(names))).ToArray();
+        MediaTagSubject[] frozen = (subjects ?? throw new ArgumentNullException(nameof(subjects))).ToArray();
+        return RunInteractiveWithAdmissionAsync(nameof(DefineAndSetMediaSubjectTagBatchAsync), tags.Length + " tags " + SubjectKey(frozen),
+            admission => MutatePrivateTagsAsync(store => store.DefineAndSetMediaSubjectsBatchAdmitted(tags, frozen, admission, expectedRevision, token),
+                token, ct => RevalidateLocalSubjectsAsync(frozen, ct)));
+    }
+
     internal Task<PrivateTagCommit> DefineAndSetMediaSubjectTagAsync(string name, MediaTagSubject subject,
         CancellationToken token = default) => DefineAndSetMediaSubjectTagsAsync(name, new[] { subject }, null, token);
 
