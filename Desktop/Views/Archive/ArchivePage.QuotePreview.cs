@@ -29,6 +29,9 @@ public partial class ArchivePage
     // QuotePreviewMaxLines, QuotePreviewMaxCharacters and QuotePreviewDelay are clamped instance properties (ArchivePage.ReaderLimits.cs).
 
     private DispatcherTimer? _quotePreviewTimer;
+    // Held in TransientHover's owner slot (not a field) so ArchivePage's baselined CA1001 set does not grow.
+    private TransientHover? _quotePointerLease => TransientHover.Current(this);
+    private Window? _quoteHostWindow;
     private ArchiveQuoteRow? _quotePreviewRow;
     private Control? _quotePreviewTarget;
     private Rect _quotePreviewArea;
@@ -126,8 +129,29 @@ public partial class ArchivePage
         return timer;
     }
 
+    private void OnQuoteHostDeactivated(object? sender, EventArgs e) => CloseQuotePreview();
+    private void OnQuoteHostChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == Window.WindowStateProperty || e.Property == IsVisibleProperty || e.Property == IsEnabledProperty) CloseQuotePreview();
+    }
+
     private void InitializeQuotePreview()
     {
+        AttachedToVisualTree += (_, _) =>
+        {
+            _quoteHostWindow = TopLevel.GetTopLevel(this) as Window;
+            if (_quoteHostWindow == null) return;
+            _quoteHostWindow.Deactivated += OnQuoteHostDeactivated;
+            _quoteHostWindow.PropertyChanged += OnQuoteHostChanged;
+        };
+        DetachedFromVisualTree += (_, _) =>
+        {
+            CloseQuotePreview();
+            if (_quoteHostWindow == null) return;
+            _quoteHostWindow.Deactivated -= OnQuoteHostDeactivated;
+            _quoteHostWindow.PropertyChanged -= OnQuoteHostChanged;
+            _quoteHostWindow = null;
+        };
         // The posts and the References tab preview alike: the quote buttons, the reply cards and the reference rows by focus, the pointer on any of them.
         foreach (ListBox list in new[] { ArchivePosts, ArchiveReferences })
         {
@@ -188,18 +212,13 @@ public partial class ArchivePage
             e.Handled = true;
             OpenActions.Start(() => NavigateQuoteAsync(row), "reader.quotePreview.open");
         }, RoutingStrategies.Bubble);
-        QuotePreviewPopup.Closed += (_, _) =>
-        {
-            _quotePreviewRow = null;
-            _quotePreviewHover.Reset();
-            _quotePreviewCloseTimer?.Stop();
-            _quotePreviewMedia?.Clear();
-        };
+        QuotePreviewPopup.Closed += (_, _) => CloseQuotePreview();
         // The outline is placed in list coordinates: scrolling removes it; a change of extent or size (images, text layout)
         // only moves the target, so it is placed again for the reference that is still hovered.
         ListBox posts = ArchivePosts;
         posts.AddHandler(ScrollViewer.ScrollChangedEvent, (_, e) =>
         {
+            if (e is ScrollChangedEventArgs scroll && scroll.OffsetDelta != default) { CloseQuotePreview(); return; }
             if (!ReaderQuoteHighlight.IsVisible) return;
             if (e is ScrollChangedEventArgs { OffsetDelta: { X: 0, Y: 0 } } && _quotePreviewRow is { } row) ShowQuoteHighlight(row);
             else HideQuoteHighlight();
@@ -268,6 +287,12 @@ public partial class ArchivePage
         _quotePreviewTarget = target;
         _quotePreviewArea = area;
         _quotePreviewHover.Request(pointer, immediate);
+        if (pointer)
+        {
+            TransientHover.Replace(this, target, hovered => { if (!hovered) CloseQuotePreview(); },
+                () => QuotePreviewPopup.IsOpen && (QuotePreviewCard.IsPointerOver
+                    || _quotePreviewCloseTimer?.IsEnabled == true && TopLevel.GetTopLevel(target)?.IsPointerOver == true));
+        }
         ShowQuoteHighlight(row);
         if (immediate) { ShowQuotePreview(); return; }
         _quotePreviewTimer ??= new DispatcherTimer { Interval = QuotePreviewDelay };
@@ -279,6 +304,7 @@ public partial class ArchivePage
     private void OnQuotePreviewTimer(object? sender, EventArgs e)
     {
         _quotePreviewTimer?.Stop();
+        if (_quotePointerLease != null && !_quotePointerLease.IsCurrent) { CloseQuotePreview(); return; }
         if (_quotePreviewHover.DelayElapsed()) ShowQuotePreview();
     }
 
@@ -286,6 +312,7 @@ public partial class ArchivePage
     internal void CloseQuotePreview()
     {
         _quotePreviewTimer?.Stop();
+        TransientHover.Release(this);
         _quotePreviewCloseTimer?.Stop();
         _quotePreviewHover.Reset();
         HideQuoteHighlight();
@@ -346,7 +373,8 @@ public partial class ArchivePage
 
     private void ShowQuotePreview()
     {
-        if (_ended || _quotePreviewRow is not { } row || _quotePreviewTarget is not { } target || !target.IsEffectivelyVisible
+        if (_quotePointerLease != null && !_quotePointerLease.IsCurrent) { CloseQuotePreview(); return; }
+        if (_ended || _quotePreviewRow is not { } row || _quotePreviewTarget is not { } target || !TransientHover.WindowUsable(target)
             || PreviewPost(row) is not { } post) { CloseQuotePreview(); return; }
         (string header, string body) = ArchivePresentation.PostExcerpt(post, QuotePreviewMaxLines, QuotePreviewMaxCharacters,
             ReaderDateStyle, ExcerptOpeningPostAt(row), DateTimeOffset.Now);

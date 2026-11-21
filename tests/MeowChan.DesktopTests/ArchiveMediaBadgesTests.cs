@@ -335,7 +335,7 @@ public sealed class ArchiveMediaBadgesTests : IDisposable
             .Elements(a + "Setter").Single(setter => (string?)setter.Attribute("Property") == "Opacity").Attribute("Value")!.Value;
         // Set (":checked") hides it at rest; hover, keyboard focus and a focused tile show it. The shared rules stay as they are.
         Assert.Equal("0", Setting("ToggleButton.tile-favorite.tile-favorite-quiet:checked"));
-        foreach (string shown in new[] { "ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible", "ListBoxItem:pointerover ToggleButton.tile-favorite.tile-favorite-quiet",
+        foreach (string shown in new[] { "ToggleButton.tile-favorite.tile-favorite-quiet:focus-visible", "ListBoxItem.transient-pointer-over ToggleButton.tile-favorite.tile-favorite-quiet",
             "ListBoxItem:focus-within ToggleButton.tile-favorite.tile-favorite-quiet" })
             Assert.Equal("1", Setting(shown));
         Assert.Equal("1", Setting("ToggleButton.tile-favorite:checked"));

@@ -24,6 +24,8 @@ public partial class ArchivePage
         int count = _appliedFilterCount;
         string label = Texts.T("archive.filters") + (draft ? " · " + Texts.T("archive.unappliedShort") : string.Empty);
         string name = count > 0 ? Texts.Count("archive.filters.countName", count) : Texts.T("archive.filters");
+        ArchiveFilterDraftNote.IsVisible = draft;
+        ArchiveFilterDraftNote.Text = draft ? Texts.T("archive.filterDraftNote") : string.Empty;
         ArchiveFilters.Show(label, count, draft ? name + ", " + Texts.T("archive.unappliedShort") : name, draft ? Texts.T("archive.unappliedHint") : null);
     }
 

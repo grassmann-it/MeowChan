@@ -109,6 +109,9 @@ internal static class MediaInteractionSmokeHelpers
             // First cross the reveal edge with real OS input. On macOS the
             // transport can be a separate native presentation and its hit-test
             // cache is not updated merely because Avalonia laid out the button.
+            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .5, viewer.Bounds.Height * .5),
+                requireEnabled: false, requireHitTest: false);
+            if (Ready()) return;
             await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height - 2),
                 requireEnabled: false, requireHitTest: false);
             await Task.Delay(100);
@@ -122,7 +125,9 @@ internal static class MediaInteractionSmokeHelpers
                 await Task.Delay(100);
             }
         }
-        await Program.WaitUntilAsync(Ready, () => message);
+        await Program.WaitUntilAsync(Ready, () => $"{message} " +
+            $"Target visible={target.IsEffectivelyVisible}, enabled={target.IsEffectivelyEnabled}, " +
+            $"bounds={target.Bounds}, root={TopLevel.GetTopLevel(target)?.GetType().Name ?? "none"}.");
     }
 
     internal static Point TrackPoint(Slider slider, double fraction)

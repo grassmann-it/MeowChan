@@ -30,8 +30,9 @@ internal sealed record FolderSourceScannedFile(string RelativePath, long Length,
 internal sealed class FolderSourceScan
 {
     internal FolderSourceScan(IReadOnlyList<FolderSourceScannedFile> files, bool rootAvailable, bool complete, bool limitReached,
-        IReadOnlyList<string> unreadablePrefixes, int skippedLinks)
+        IReadOnlyList<string> unreadablePrefixes, int skippedLinks, IReadOnlyCollection<string>? unlistedPaths = null)
     {
+        UnlistedPaths = unlistedPaths ?? Array.Empty<string>();
         Files = files;
         RootAvailable = rootAvailable;
         Complete = complete && rootAvailable;
@@ -45,6 +46,8 @@ internal sealed class FolderSourceScan
     internal bool Complete { get; }
     internal bool LimitReached { get; }
     internal IReadOnlyList<string> UnreadablePrefixes { get; }
+    /// <summary>Paths seen on disk but not listed in <see cref="Files"/> (past the file limit, or attributes unreadable): present or unverified, never missing.</summary>
+    internal IReadOnlyCollection<string> UnlistedPaths { get; }
     internal int UnreadableFolders => UnreadablePrefixes.Count;
     internal int SkippedLinks { get; }
 
@@ -93,6 +96,7 @@ internal static class FolderSourceScanner
             .Select(path => Path.TrimEndingDirectorySeparator(Path.GetFullPath(path))).ToArray();
         List<FolderSourceScannedFile> files = new();
         List<string> unreadable = new();
+        HashSet<string> unlisted = new(StringComparer.Ordinal);
         int links = 0, folders = 0;
         bool limitReached = false, complete = true;
         Queue<(string Absolute, string Relative)> pending = new();
@@ -118,7 +122,12 @@ internal static class FolderSourceScanner
                 if (token.IsCancellationRequested) { complete = false; break; }
                 FileAttributes attributes;
                 try { attributes = child.Attributes; }
-                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { continue; }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+                {
+                    // Unverified, not gone: the entry exists, only its attributes could not be read.
+                    if (FolderSourceIdentity.TryNormalizeRelative(relative.Length == 0 ? child.Name : relative + "/" + child.Name, out string unverified)) unlisted.Add(unverified);
+                    continue;
+                }
                 // A link is never followed; a cloud placeholder (OneDrive) is listed like any file or folder (W3-08).
                 if (FolderSourceEntries.IsLink(child, attributes)) { links++; continue; }
                 string childRelative = relative.Length == 0 ? child.Name : relative + "/" + child.Name;
@@ -135,8 +144,8 @@ internal static class FolderSourceScanner
                 if (!FolderSourceIdentity.TryNormalizeRelative(childRelative, out string normalized)) continue;
                 long length, modified;
                 try { length = file.Length; modified = file.LastWriteTimeUtc.Ticks; }
-                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { continue; }
-                if (files.Count >= maximumFiles) { limitReached = true; continue; }
+                catch (Exception error) when (error is IOException or UnauthorizedAccessException) { unlisted.Add(normalized); continue; }
+                if (files.Count >= maximumFiles) { limitReached = true; unlisted.Add(normalized); continue; }
                 files.Add(new(normalized, length, modified, kind));
             }
             if (progress != null && DateTime.UtcNow - lastReport > TimeSpan.FromMilliseconds(250))
@@ -146,7 +155,7 @@ internal static class FolderSourceScanner
             }
         }
         progress?.Report(new(folders, files.Count));
-        return new(files.AsReadOnly(), true, complete, limitReached, unreadable.AsReadOnly(), links);
+        return new(files.AsReadOnly(), true, complete, limitReached, unreadable.AsReadOnly(), links, unlisted);
     }
 
     private static bool IsExcluded(string directory, string[] excluded)

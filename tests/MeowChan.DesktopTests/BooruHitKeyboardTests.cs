@@ -361,6 +361,7 @@ public sealed class BooruHitKeyboardTests
         using (model) using (view)
         {
             await SearchAsync(harness, model, view);
+            view.ResultTagsShown = () => 24; // the limit is a setting now (default 12); this test folds at 24
             string[] names = Enumerable.Range(1, 30).Select(number => "tag_" + number).ToArray();
             var post = BooruUiFixtures.Post("901", tags: names);
             MethodInfo createTags = typeof(BooruWorkbenchView).GetMethod("CreateTags", Private)!;

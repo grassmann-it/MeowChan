@@ -7,8 +7,8 @@ using Ursa.Controls;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// Tom 16.11.2026: on the Archive results bar the List|Table pair stretches over the empty room up to "More" (the two halves share the
-/// width equally), with the bar's item gap kept in front of "More", which keeps its size. The panel needs an Avalonia application to
+/// The ActionToolBar stretch option (opt-in; the Archive List|Table pair used it until 1.1.1 U04 made it a compact end segment): the two halves share the
+/// width equally, with the bar's item gap kept in front of "More", which keeps its size. The panel needs an Avalonia application to
 /// measure and arrange, so the contract is checked on the pure slot rule, the shared constants and the XAML; the real look at the default
 /// list width, light/dark and the narrow widths are the toolbar smokes.
 /// </summary>
@@ -101,12 +101,11 @@ public sealed class ArchiveSegmentStretchTests
     }
 
     [Fact]
-    public void TheArchiveListAndTablePairFillsTheEndSlotAndStaysJoinedAndNeverOverflows()
+    public void TheArchiveListAndTablePairIsACompactEndSegmentThatNeverOverflows()
     {
         XElement[] items = Toolbar("ArchiveResultActions").Elements().Where(element => !element.Name.LocalName.Contains('.')).ToArray();
-        string[] stretching = items.Where(Stretches).Select(item => (string)item.Attribute(X + "Name")!).ToArray();
-        Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable"], stretching);
-        // UX-LEDGER-25: fill the free room, retaining UX-LEDGER-01's end order and b7549cefb's Never policy.
+        // U04 (1.1.1): the toggle is a compact segment docked at the right edge (End), not a stretched half of the bar.
+        Assert.Empty(items.Where(Stretches));
         XElement[] pair = items.TakeLast(2).ToArray();
         Assert.Equal(["ArchiveLayoutList", "ArchiveLayoutTable"], pair.Select(item => (string)item.Attribute(X + "Name")!));
         Assert.All(pair, item =>
@@ -114,18 +113,8 @@ public sealed class ArchiveSegmentStretchTests
             Assert.Contains("segment", (string)item.Attribute("Classes")!);
             Assert.Equal("True", item.Attributes().Single(attribute => attribute.Name.LocalName == "ActionToolBar.End").Value);
             Assert.Equal("Never", item.Attributes().Single(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode").Value);
+            Assert.Null(item.Attribute("HorizontalAlignment"));
         });
-    }
-
-    [Fact]
-    public void ArchiveSegmentsKeepTheirJoinedAlignmentWithinTheNaturalToolbarSlot()
-    {
-        XElement[] items = Toolbar("ArchiveResultActions").Elements()
-            .Where(element => !element.Name.LocalName.Contains('.')).TakeLast(2).ToArray();
-
-        // ActionToolBar allocates the spare row width in the control slots. Avalonia otherwise keeps a ToggleButton
-        // at its natural width inside that slot, recreating the large empty gap even though the panel is stretched.
-        Assert.All(items, item => Assert.Equal("Stretch", (string?)item.Attribute("HorizontalAlignment")));
     }
 
     [Fact]

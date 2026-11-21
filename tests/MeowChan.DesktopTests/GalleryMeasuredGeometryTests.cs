@@ -8,6 +8,11 @@ using Avalonia.Styling;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
+using MeowChan.Persistence;
+using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
 
@@ -69,7 +74,7 @@ public sealed class GalleryMeasuredGeometryTests
     [InlineData(280)]
     [InlineData(320)]
     [InlineData(480)]
-    public void MediumCounterIsGeometricallyCentredInThePanelHeader(double width) => OnDispatcher(() =>
+    public void MediumCounterSitsBesideTheTabsInTheSamePanelHeaderRow(double width) => OnDispatcher(() =>
     {
         GallerySidePanel panel = new(new Button());
         Border counter = new() { Width = 92, Height = 18, Child = new TextBlock { Text = "Medium 1 of 4", TextAlignment = Avalonia.Media.TextAlignment.Center } };
@@ -79,8 +84,55 @@ public sealed class GalleryMeasuredGeometryTests
         panel.UpdateLayout();
         ContentControl slot = Assert.IsType<ContentControl>(counter.Parent);
         Point origin = OriginIn(slot, panel);
-        Assert.InRange(Math.Abs(origin.X + slot.Bounds.Width / 2 - panel.Bounds.Width / 2), 0, 0.5);
-        Assert.True(origin.X >= 0 && origin.X + slot.Bounds.Width <= panel.Bounds.Width + 0.5);
+        Control segment = (Control)panel.PostButton.Parent!;
+        Assert.Equal(Grid.GetRow(segment), Grid.GetRow(slot)); // no extra line
+        Assert.True(origin.X >= OriginIn(segment, panel).X + segment.Bounds.Width - 0.5);
+        Assert.True(origin.X + slot.Bounds.Width <= OriginIn(panel.CloseButton, panel).X + 0.5);
+    });
+
+    [Theory]
+    [InlineData("en", 280)]
+    [InlineData("en", 480)]
+    [InlineData("de", 280)]
+    [InlineData("ru", 280)]
+    [InlineData("pl", 280)]
+    [InlineData("fr", 320)]
+    [InlineData("en", 140)] // far too narrow for a chip: hidden, never an overlay
+    public void ShortCounterStaysInItsOwnColumnAndNeverOverlapsTabsOrAddsHeight(string language, double width) => OnDispatcher(() =>
+    {
+        Texts.Initialize();
+        Texts.SetLanguage(language);
+        try
+        {
+            using TempDirectory temp = new();
+            using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+            PrivateTagStore store = new(temp.Path, lease);
+            using QuickTagSession session = new(QuickTagTarget.For(QuickTagSurfaceTests.Single(store, QuickTagSurfaceTests.Entry("a", 'a'))));
+            using QuickTagSurface surface = new(session);
+            surface.CounterShortText = GalleryTagPanelCommands.ShortCounterText(new GalleryTagPanelPosition(183, 197, false), marked: true);
+            surface.CounterText = GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(183, 197, false), marked: true);
+            GallerySidePanel plain = new(new Button());
+            plain.Measure(new Size(width, 500));
+            plain.Arrange(new Rect(0, 0, width, 500));
+            plain.UpdateLayout();
+            double rowHeight = ((Control)plain.PostButton.Parent!).Bounds.Height;
+            GallerySidePanel panel = new(new Button());
+            panel.HeaderCounter = surface.DetachCounter();
+            panel.Measure(new Size(width, 500));
+            panel.Arrange(new Rect(0, 0, width, 500));
+            panel.UpdateLayout();
+            ContentControl slot = Assert.IsType<ContentControl>(panel.HeaderCounter!.Parent);
+            Control segment = (Control)panel.PostButton.Parent!;
+            Assert.Equal(1, Grid.GetColumn(slot));
+            Assert.Equal(Grid.GetRow(segment), Grid.GetRow(slot));
+            Assert.Equal(rowHeight, segment.Bounds.Height, 0.5); // the counter never makes the tab row taller
+            Assert.Equal(1, ((TextBlock)((Border)panel.HeaderCounter).Child!).MaxLines);
+            if (!slot.IsVisible) return; // hidden instead of overlapping
+            Assert.True(slot.Bounds.Height <= segment.Bounds.Height + 0.5);
+            Assert.True(OriginIn(slot, panel).X >= OriginIn(segment, panel).X + segment.Bounds.Width - 0.5, "counter overlaps the tabs");
+            Assert.True(OriginIn(slot, panel).X + slot.Bounds.Width <= OriginIn(panel.CloseButton, panel).X + 0.5, "counter overlaps the close button");
+        }
+        finally { Texts.SetLanguage("en"); }
     });
 
     [Fact]

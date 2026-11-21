@@ -236,6 +236,8 @@ internal static class MediaLibraryCatalog
         ("media.tags.hint", "Enter or click: only media with the tag · Shift+Enter or {0}+click: hide them · Delete: take the tag out of the filter · Menu key: more", "Enter oder Klick: nur Medien mit dem Tag · Umschalt+Enter oder {0}+Klick: ausblenden · Entf: Tag aus dem Filter nehmen · Menütaste: mehr"),
         ("settings.limits.mediaTagListTop", "Tag list: tags shown per group", "Tag-Liste: angezeigte Tags je Gruppe"),
         ("settings.limits.mediaTagListTop.hint", "The tag list beside the media shows this many tags per group, the most frequent first; “Show all” lists the rest.", "Die Tag-Liste neben den Medien zeigt so viele Tags je Gruppe, die häufigsten zuerst; „Alle anzeigen“ listet den Rest."),
+        ("settings.limits.booruResultTagsShown", "Danbooru results: tags shown per result", "Danbooru-Treffer: angezeigte Tags je Treffer"),
+        ("settings.limits.booruResultTagsShown.hint", "Each Danbooru result in the list shows this many source tags; “+N more” shows the rest. With 0, all tags stay behind “+N more”.", "Jeder Danbooru-Treffer in der Liste zeigt so viele Quelltags; „+N weitere“ zeigt den Rest. Bei 0 bleiben alle Tags hinter „+N weitere“."),
         ("settings.limits.mediaTagListWidth", "Tag list: width (dip)", "Tag-Liste: Breite (dip)"),
         ("settings.limits.mediaTagListWidth.hint", "Width of the tag list beside the media. You can also change it by dragging the list's edge.", "Breite der Tag-Liste neben den Medien. Du kannst sie auch ändern, indem du den Rand der Liste ziehst.")
     };

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
+using MeowChan.Storage;
 
 namespace MeowChan.Import;
 
@@ -58,6 +59,12 @@ internal enum ManualImportDisposition
 internal sealed record ManualImportCandidate(string SourcePath, string Name, long Length, SavedMediaKind Kind, string Extension,
     ManualImportDisposition Disposition, string? Sha256 = null, int ExistingOccurrences = 0)
 {
+    /// <summary>
+    /// True when <see cref="ManualImportDisposition.AlreadyInLibrary"/> rests on the index alone: it listed the digest but named no
+    /// file that could be opened and verified, so the existence of the bytes is not proven.
+    /// </summary>
+    internal bool ExistingUnverified { get; init; }
+
     internal bool Importable => Disposition is ManualImportDisposition.New or ManualImportDisposition.AlreadyInLibrary
         or ManualImportDisposition.DuplicateInSelection;
 }
@@ -87,12 +94,17 @@ internal sealed record ManualImportCheckProgress(int FilesDone, int FilesTotal, 
 internal sealed class ManualImportKnownMedia
 {
     private readonly Dictionary<string, int> _counts;
+    private readonly Dictionary<string, List<(string Directory, string AssetId)>> _files = new(StringComparer.Ordinal);
 
     internal ManualImportKnownMedia(IReadOnlyDictionary<string, int> counts, bool complete)
     {
         _counts = new Dictionary<string, int>(counts ?? throw new ArgumentNullException(nameof(counts)), StringComparer.Ordinal);
         Complete = complete;
     }
+
+    /// <summary>The manifest records (folder and asset id) the index lists for a digest: where a copy can be verified.</summary>
+    internal IReadOnlyList<(string Directory, string AssetId)> Files(string sha256) =>
+        _files.TryGetValue(sha256, out List<(string, string)>? files) ? files : Array.Empty<(string, string)>();
 
     internal static ManualImportKnownMedia Empty { get; } = new(new Dictionary<string, int>(), true);
 
@@ -103,10 +115,20 @@ internal sealed class ManualImportKnownMedia
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         Dictionary<string, int> counts = new(StringComparer.Ordinal);
+        Dictionary<string, List<(string, string)>> files = new(StringComparer.Ordinal);
         foreach (MediaLibraryEntry entry in snapshot.Entries)
             if (entry.Presence == MediaLibraryPresence.Present && entry.Sha256 is { Length: 64 } sha)
+            {
                 counts[sha] = counts.GetValueOrDefault(sha) + 1;
-        return new(counts, snapshot.Complete);
+                if (entry.Directory != null && entry.AssetId != null)
+                {
+                    if (!files.TryGetValue(sha, out List<(string, string)>? list)) files[sha] = list = new();
+                    if (!list.Contains((entry.Directory, entry.AssetId))) list.Add((entry.Directory, entry.AssetId));
+                }
+            }
+        ManualImportKnownMedia known = new(counts, snapshot.Complete);
+        foreach (KeyValuePair<string, List<(string, string)>> pair in files) known._files[pair.Key] = pair.Value;
+        return known;
     }
 }
 
@@ -264,6 +286,7 @@ internal static class ManualImportPlanner
         ManualImportKnownMedia known = await knownMedia(token).ConfigureAwait(false);
         token.ThrowIfCancellationRequested();
         HashSet<string> selected = new(StringComparer.Ordinal);
+        Dictionary<string, bool> verified = new(StringComparer.Ordinal);
         int finalImportable = 0;
         long finalBytes = 0;
         for (int index = 0; index < result.Length; index++)
@@ -273,11 +296,44 @@ internal static class ManualImportPlanner
             finalImportable++;
             finalBytes += item.Length;
             int existing = known.Occurrences(item.Sha256);
-            if (existing > 0) result[index] = item with { Disposition = ManualImportDisposition.AlreadyInLibrary, ExistingOccurrences = existing };
+            // The index only says a manifest record matched. Bytes count as present once a listed copy opens with its recorded
+            // length and SHA-256; when every listed copy fails, the file is copied again. An index without file names stays unproven.
+            bool unproven = false;
+            if (existing > 0 && known.Files(item.Sha256) is { Count: > 0 } files)
+            {
+                if (!verified.TryGetValue(item.Sha256, out bool proven))
+                    verified[item.Sha256] = proven = await VerifyAnyAsync(files, item.Sha256, item.Length, token).ConfigureAwait(false);
+                if (!proven) existing = 0;
+            }
+            else unproven = existing > 0;
+            if (existing > 0)
+                result[index] = item with { Disposition = ManualImportDisposition.AlreadyInLibrary, ExistingOccurrences = existing, ExistingUnverified = unproven };
             else if (!selected.Add(item.Sha256)) result[index] = item with { Disposition = ManualImportDisposition.DuplicateInSelection };
         }
         ManualImportPlanStatus status = finalBytes > limits.MaximumBatchBytes ? ManualImportPlanStatus.BatchTooLarge : ManualImportPlanStatus.Ready;
         return new(Array.AsReadOnly(result), status, known.Complete, finalImportable, finalBytes, request.IncludeOtherFiles, sourceLabel);
+    }
+
+    private const int MaximumVerifiedCandidates = 16;
+
+    private static async Task<bool> VerifyAnyAsync(IReadOnlyList<(string Directory, string AssetId)> files, string sha256, long length,
+        CancellationToken token)
+    {
+        foreach ((string directory, string assetId) in files.Take(MaximumVerifiedCandidates))
+        {
+            token.ThrowIfCancellationRequested();
+            try
+            {
+                MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(directory, token).ConfigureAwait(false);
+                if (manifest.Status != MediaManifestStatus.Available || manifest.FindById(assetId) is not { } asset
+                    || asset.Length != length || !string.Equals(asset.Sha256, sha256, StringComparison.OrdinalIgnoreCase)) continue;
+                await using Stream stream = await manifest.OpenVerifiedReadAsync(assetId, token).ConfigureAwait(false);
+                return true;
+            }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException) { }
+        }
+        return false;
     }
 
     private static async Task<(string Sha256, long Length)> HashAsync(string path, byte[] buffer, long maximum, Action<long> report,

@@ -39,7 +39,14 @@ public partial class MainWindow
         Border strip = MediaFocusHeaderStrip;
         _mediaFocusChromeTexts?.Dispose();
         _mediaFocusChromeTexts = new MediaFocusChromeTextBinding(strip);
-        strip.PointerEntered += (_, _) => RevealMediaFocusHeader(true);
+        strip.PointerEntered += (_, _) => { if (TransientHover.WindowUsable(strip)) RevealMediaFocusHeader(true); };
+        // Observe the stable window, not the reveal strip which hides during reveal.
+        TransientHover.Attach(this, over =>
+        {
+            if (over) return;
+            if (!IsActive || !IsVisible || WindowState == WindowState.Minimized) RevealMediaFocusHeader(false);
+            else HideRevealedMediaFocusHeader();
+        });
         // The floating title bar goes away when the pointer leaves it, the keyboard focus has left it and no menu of it is open.
         WorkspaceTitleBarFrame.PointerExited += (_, _) => HideRevealedMediaFocusHeader();
         WorkspaceTitleBarFrame.LostFocus += (_, _) => HideRevealedMediaFocusHeader();

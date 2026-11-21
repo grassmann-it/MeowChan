@@ -64,6 +64,8 @@ internal sealed record MediaLibraryTileRow(MediaLibraryTile Tile, int Index, Fun
     public bool IsUntagged => State is { CanEditMediaTags: true, MediaTags.Count: 0 };
     /// <summary>Favorite state over every saved occurrence of the bytes; only a grouped tile has one to report.</summary>
     public string FavoriteLabel => Tile.IsGroup ? MediaLibraryStateText.Favorite(Tile.Favorite) : string.Empty;
+    /// <summary>The visible short form: a group with no favorite stays quiet; set, mixed and unknown still show. Names and tooltips keep <see cref="FavoriteLabel"/>.</summary>
+    public string FavoriteLabelShown => Tile.IsGroup && Tile.Favorite != MediaLibraryFavoriteState.None ? FavoriteLabel : string.Empty;
     /// <summary>"in N threads" for equal bytes found elsewhere; empty for a single occurrence.</summary>
     public string Duplicates => !Tile.IsGroup ? string.Empty
         : Tile.ProviderPostCount > 0 && Tile.ArchivedThreadCount == 0 && Tile.ProviderPostCount > 1 ? Texts.T("booru.media.tile.inPosts", Tile.ProviderPostCount)
@@ -311,7 +313,7 @@ internal sealed partial class MediaLibraryTileView : UserControl
         string duplicates = row?.Duplicates ?? string.Empty;
         _duplicates.Text = duplicates;
         _duplicatesLink.IsVisible = duplicates.Length > 0;
-        _favorite.Text = row?.FavoriteLabel;
+        _favorite.Text = row?.FavoriteLabelShown;
         _favorite.IsVisible = !string.IsNullOrEmpty(_favorite.Text);
         PresentTags(row);
         string duplicatesHint = row == null || duplicates.Length == 0 ? string.Empty : Texts.T("media.tile.duplicatesHint", row.Tile.Occurrences.Count);

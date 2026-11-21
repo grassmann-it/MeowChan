@@ -194,7 +194,8 @@ public sealed class FocusClickContractTests
     }
 
     private static string Read(string relative, [CallerFilePath] string source = "") =>
-        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", relative)));
+        File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", relative)))
+            .ReplaceLineEndings("\n");
 
     // Resolve the declaration, not an earlier subscription/call. These handlers all
     // use block bodies; balancing keeps assertions scoped to the actual handler.

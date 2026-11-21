@@ -156,7 +156,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("Simplified Chinese", text);
         Assert.Contains("**Plugins → Review bundled repairs**", text);
         Assert.DoesNotContain("Review bundled updates", text);
-        Assert.Contains("not a claim that 1.1.0 packages have passed release acceptance", text);
+        Assert.Contains("not a claim of release acceptance", text);
     }
 
     [Fact]

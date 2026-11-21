@@ -985,6 +985,7 @@ public sealed partial class MediaPage : UserControl
     private static readonly string[] MediaShortcutCommands =
     {
         "media.rating.edit", "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
+        "media.label.red", "media.label.yellow", "media.label.green", "media.label.blue", "media.label.clear",
         "media.details", "media.export-original", "media.show-in-folder", "media.copy-path"
     };
 

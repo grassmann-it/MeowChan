@@ -38,7 +38,8 @@ public sealed partial class TaggingPage
     private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips",
         [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
         [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap,
+    // U06: an empty stamp stands as one quiet line beside the add field (trimmed, the full sentence as its tooltip), not as a wrapped block.
+    private readonly TrimTipTextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, AlwaysTip = true,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", Width = 240, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _stampAdd = new() { Name = "TaggingStampAdd", VerticalAlignment = VerticalAlignment.Center };

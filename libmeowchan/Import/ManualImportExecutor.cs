@@ -93,6 +93,8 @@ internal sealed class ManualImportExecutor
         string directory = ManualImportIdentity.BatchDirectory(downloadRoot, batchId);
         List<ManualImportItem> items = new();
         Dictionary<Guid, ManualImportCandidate> sources = new();
+        // Same-selection twins are linked only once their first file is published; if it fails, the twin's own source is copied instead.
+        Dictionary<Guid, ManualImportCandidate> twins = new();
         foreach (ManualImportCandidate candidate in plan.Items.Where(item => item.Sha256 != null && item.Importable))
         {
             Guid id = Guid.NewGuid();
@@ -100,6 +102,7 @@ internal sealed class ManualImportExecutor
             items.Add(new ManualImportItem(id, copy ? ManualImportItemState.Planned : ManualImportItemState.Duplicate,
                 candidate.Sha256!, candidate.Length, candidate.Name, candidate.Kind, candidate.Extension));
             if (copy) sources[id] = candidate;
+            else if (candidate.Disposition == ManualImportDisposition.DuplicateInSelection) twins[id] = candidate;
         }
         ManualImportBatch batch = new(batchId, name, Now(), null, ManualImportBatchState.Copying, directory, plan.SourceLabel,
             plan.IncludeOtherFiles, false, tags, tags.Length == 0, items.ToArray());
@@ -113,9 +116,11 @@ internal sealed class ManualImportExecutor
         for (int index = 0; index < items.Count; index++)
         {
             ManualImportItem item = items[index];
-            if (item.State != ManualImportItemState.Planned) continue;
+            bool twin = item.State == ManualImportItemState.Duplicate && twins.ContainsKey(item.Id)
+                && !items.Any(other => other.State == ManualImportItemState.Committed && other.Sha256 == item.Sha256);
+            if (item.State != ManualImportItemState.Planned && !twin) continue;
             if (stopped || token.IsCancellationRequested) { cancelled |= token.IsCancellationRequested; break; }
-            ManualImportCandidate source = sources[item.Id];
+            ManualImportCandidate source = twin ? twins[item.Id] : sources[item.Id];
             ManualImportItem outcome;
             try
             {
@@ -129,6 +134,7 @@ internal sealed class ManualImportExecutor
             }
             if (outcome.Failure == ManualImportFailure.NoSpace) stopped = true; // Every later copy would fail the same way.
             items[index] = outcome;
+            if (twin) { unflushed++; continue; }
             done++;
             unflushed++;
             bytesDone += item.Length;
@@ -143,7 +149,10 @@ internal sealed class ManualImportExecutor
             }
         }
         // Files never started (cancelled or stopped) are no part of the batch; they were never copied.
-        ManualImportItem[] final = items.Where(item => item.State != ManualImportItemState.Planned).ToArray();
+        // A twin whose first file was never published (cancelled or stopped before its turn) is not linked to anything: left out too.
+        ManualImportItem[] final = items.Where(item => item.State != ManualImportItemState.Planned
+            && !(twins.ContainsKey(item.Id) && item.State == ManualImportItemState.Duplicate
+                && !items.Any(other => other.State == ManualImportItemState.Committed && other.Sha256 == item.Sha256))).ToArray();
         batch = batch with
         {
             Items = final, State = ManualImportBatchState.Completed, CompletedAtUtc = Max(Now(), batch.CreatedAtUtc), Cancelled = cancelled,
@@ -157,33 +166,32 @@ internal sealed class ManualImportExecutor
 
     private async Task<ManualImportItem> CopyAsync(ManualImportItem item, ManualImportCandidate source, string directory, CancellationToken token)
     {
-        FileStream stream;
+        FileStream? stream = null;
         try
         {
-            stream = ManualImportPlanner.OpenSource(source.SourcePath);
+            try { stream = ManualImportPlanner.OpenSource(source.SourcePath); }
+            // Replaced by a link, folder, pipe or device since the check: changed, and nothing was opened blocking.
+            catch (InvalidDataException)
+            { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Changed }; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
+            { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Unreadable }; }
+            MediaCommitResult committed = await _media.CommitLocalFileAsync(directory, item.RequestedFileName, item.MediaIdentifier,
+                item.Name, stream, item.Sha256, item.Length, token).ConfigureAwait(false);
+            return item with { State = ManualImportItemState.Committed, AssetId = committed.AssetId };
         }
-        // Replaced by a link, folder, pipe or device since the check: changed, and nothing was opened blocking.
-        catch (InvalidDataException)
-        { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Changed }; }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or PlatformNotSupportedException)
-        { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Unreadable }; }
-        await using (stream)
+        catch (InvalidDataException) { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Changed }; }
+        catch (ManagedImportFolderException) { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Store }; }
+        catch (IOException error) when (IsDiskFull(error))
+        { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.NoSpace }; }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
         {
-            try
-            {
-                MediaCommitResult committed = await _media.CommitLocalFileAsync(directory, item.RequestedFileName, item.MediaIdentifier,
-                    item.Name, stream, item.Sha256, item.Length, token).ConfigureAwait(false);
-                return item with { State = ManualImportItemState.Committed, AssetId = committed.AssetId };
-            }
-            catch (InvalidDataException) { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Changed }; }
-            catch (IOException error) when (IsDiskFull(error))
-            { return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.NoSpace }; }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-            {
-                // A read failure of the source and a write failure of the folder look alike; the source is the likelier one
-                // only when the folder is still writable, which a later file shows. Keep the honest generic code.
-                return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Store };
-            }
+            // A read failure of the source and a write failure of the folder look alike; the source is the likelier one
+            // only when the folder is still writable, which a later file shows. Keep the honest generic code.
+            return item with { State = ManualImportItemState.Failed, Failure = ManualImportFailure.Store };
+        }
+        finally
+        {
+            if (stream != null) await stream.DisposeAsync().ConfigureAwait(false);
         }
     }
 

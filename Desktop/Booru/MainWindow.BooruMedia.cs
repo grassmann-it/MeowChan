@@ -26,6 +26,7 @@ public partial class MainWindow
     {
         view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);
         view.IsPostSavedInMedia = IsSavedBooruPost;
+        view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
     }
 
     /// <summary>Exact local catalog admission for a saved Danbooru original; pending/other-source records do not qualify.</summary>

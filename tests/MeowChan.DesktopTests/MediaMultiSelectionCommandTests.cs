@@ -18,6 +18,11 @@ public sealed class MediaMultiSelectionCommandTests
         return calls;
     }
 
+    private static KeyModifiers WithPlatformPrimary(KeyModifiers modifiers) =>
+        OperatingSystem.IsMacOS() && (modifiers & KeyModifiers.Control) != 0
+            ? (modifiers & ~KeyModifiers.Control) | KeyModifiers.Meta
+            : modifiers;
+
     [Theory]
     [InlineData("media.details")]
     [InlineData("media.show-in-folder")]
@@ -106,7 +111,7 @@ public sealed class MediaMultiSelectionCommandTests
         var calls = RecordActions(fixture);
         fixture.Grid.Selection.Select(0);
         fixture.Grid.Selection.Select(2);
-        fixture.Press(fixture.Container(0), key, modifiers);
+        fixture.Press(fixture.Container(0), key, WithPlatformPrimary(modifiers));
         Assert.True(fixture.LastHandled);
         Assert.Empty(calls);
         Assert.Equal(MediaMenuReasons.SeveralSelected, fixture.SelectionNote);
@@ -123,7 +128,7 @@ public sealed class MediaMultiSelectionCommandTests
     {
         fixture.Grid.Selection.Select(0);
         fixture.Grid.Selection.Select(2);
-        fixture.Press(fixture.Container(0), key, modifiers);
+        fixture.Press(fixture.Container(0), key, WithPlatformPrimary(modifiers));
         Assert.True(fixture.LastHandled);
         Assert.Equal(MediaMenuReasons.Unavailable, fixture.SelectionNote);
         Assert.Equal(2, fixture.Grid.Selection.Count);

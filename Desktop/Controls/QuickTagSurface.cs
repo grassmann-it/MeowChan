@@ -332,6 +332,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private IReadOnlyList<QuickTagSuggestion> _shown = Array.Empty<QuickTagSuggestion>();
     private string _targetLabel = string.Empty;
     private string? _counterText;
+    private string? _counterShortText;
     private int _markedCount;
     // A short host notice (a mark was set or refused) in the polite status line; it gives way to the next step's status.
     private string? _notice;
@@ -478,10 +479,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         Header.Children.Remove(_counter);
         _counter.Margin = default;
-        _counterLabel.TextWrapping = TextWrapping.Wrap;
+        // One line, trimmed with an ellipsis: the host's tab row never grows and the chip never needs more than the room it is given.
+        _counterLabel.TextWrapping = TextWrapping.NoWrap;
         _counterLabel.TextAlignment = TextAlignment.Center;
         _counterLabel.TextTrimming = TextTrimming.CharacterEllipsis;
-        _counterLabel.MaxLines = 2;
+        _counterLabel.MaxLines = 1;
         return _counter;
     }
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
@@ -514,6 +516,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         get => _counterText;
         set { _counterText = value; RefreshTexts(); }
+    }
+
+    /// <summary>The short form shown on the chip ("No. 4 / 27") while <see cref="CounterText"/> stays its tooltip and accessible name; null shows the full text.</summary>
+    internal string? CounterShortText
+    {
+        get => _counterShortText;
+        set { _counterShortText = value; RefreshTexts(); }
     }
 
     /// <summary>How many media the host has marked ("3 marked" with a clear button under the field); 0 hides the bar.</summary>
@@ -913,7 +922,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         TagCoverage coverage = _session.Coverage();
         string? counter = _counterText ?? (_session.IsSelection && coverage.Total > 1 ? Texts.Count("tags.quick.files", coverage.Total) : null);
         _counter.IsVisible = !string.IsNullOrEmpty(counter);
-        _counterLabel.Text = counter ?? string.Empty;
+        _counterLabel.Text = (_counterText != null ? _counterShortText : null) ?? counter ?? string.Empty;
         AutomationProperties.SetName(_counter, counter ?? string.Empty);
         ToolTip.SetTip(_counter, counter);
 

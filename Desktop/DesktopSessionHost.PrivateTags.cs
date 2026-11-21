@@ -140,6 +140,21 @@ internal sealed partial class DesktopSessionHost
                 token, ct => RevalidateLocalSubjectsAsync(frozen, ct)));
     }
 
+    /// <summary>
+    /// "Apply tags to a media set": create-or-get every named tag and assign all of them to the subjects in ONE admitted,
+    /// atomic tag-store write after ONE verification pass over the subjects (each local file is checked and hashed once,
+    /// independent of the number of tags). A rejection (tag limit, failed verification, stale registration) writes nothing.
+    /// </summary>
+    internal Task<PrivateTagCommit> DefineAndSetMediaSubjectTagBatchAsync(IReadOnlyList<string> names,
+        IReadOnlyList<MediaTagSubject> subjects, long? expectedRevision = null, CancellationToken token = default)
+    {
+        string[] tags = (names ?? throw new ArgumentNullException(nameof(names))).ToArray();
+        MediaTagSubject[] frozen = (subjects ?? throw new ArgumentNullException(nameof(subjects))).ToArray();
+        return RunInteractiveWithAdmissionAsync(nameof(DefineAndSetMediaSubjectTagBatchAsync), tags.Length + " tags " + SubjectKey(frozen),
+            admission => MutatePrivateTagsAsync(store => store.DefineAndSetMediaSubjectsBatchAdmitted(tags, frozen, admission, expectedRevision, token),
+                token, ct => RevalidateLocalSubjectsAsync(frozen, ct)));
+    }
+
     internal Task<PrivateTagCommit> DefineAndSetMediaSubjectTagAsync(string name, MediaTagSubject subject,
         CancellationToken token = default) => DefineAndSetMediaSubjectTagsAsync(name, new[] { subject }, null, token);
 
@@ -152,7 +167,7 @@ internal sealed partial class DesktopSessionHost
         if (local.Length == 0) return;
         IReadOnlyList<LocalMediaCheck> checks = LocalMediaChecksForTests is { } seam ? await seam(local, token).ConfigureAwait(false)
             : await LocalMediaTagRevalidation.CheckAsync(local, OpenArchiveReaderAsync, MediaAssetReader.OpenAsync,
-                verifyBytes: true, token, ReadManualImportCatalog).ConfigureAwait(false);
+                verifyBytes: true, token, ReadManualImportCatalog, ReadBooruCatalog).ConfigureAwait(false);
         if (checks.Count != local.Length || checks.Any(check => check != LocalMediaCheck.Verified))
             throw new PrivateTagStoreException(PrivateTagStoreError.TargetUnavailable);
     }
@@ -178,7 +193,7 @@ internal sealed partial class DesktopSessionHost
         PrivateTagStoreSnapshot? snapshot = await Task.Run(() => GetPrivateTagSnapshot().Snapshot, token).ConfigureAwait(false);
         if (snapshot == null) return null;
         return await LocalMediaTagRevalidation.InspectAsync(snapshot, OpenArchiveReaderAsync, MediaAssetReader.OpenAsync, token,
-                ReadManualImportCatalog)
+                ReadManualImportCatalog, ReadBooruCatalog)
             .ConfigureAwait(false);
     }
 

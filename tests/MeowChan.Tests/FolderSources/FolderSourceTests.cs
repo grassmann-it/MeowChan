@@ -217,6 +217,29 @@ public sealed class FolderSourceTests
     }
 
     [Fact]
+    public void TruncatedScanDoesNotMarkExistingKnownFilesMissingButFullScanStillDoes()
+    {
+        using Fixture fixture = new();
+        fixture.Write("a.png", Png);
+        fixture.Write("b.png", Jpg);
+        fixture.Write("c.png", Png);
+        FolderSourceRoot root = fixture.AddRoot();
+        Assert.Equal(3, fixture.Scan(root).Added);
+        // The limit drops b and c from the listing, but both still exist: nothing is missing.
+        FolderSourceScanResult limited = fixture.Scan(root, 1);
+        Assert.Equal(FolderSourceScanStatus.LimitReached, limited.Status);
+        Assert.Equal(0, limited.Missing);
+        Assert.All(fixture.Catalog.Read().Items, item => Assert.NotEqual(FolderSourceItemState.Missing, item.State));
+        // A file really deleted is still not missing when the scan is cut short before it, but is detected by a full scan.
+        File.Delete(Path.Combine(fixture.Media, "c.png"));
+        fixture.Scan(root, 1);
+        FolderSourceScanResult full = fixture.Scan(root);
+        Assert.Equal(FolderSourceScanStatus.Complete, full.Status);
+        Assert.Equal(FolderSourceItemState.Missing, fixture.Catalog.Read().Items.Single(item => item.RelativePath == "c.png").State);
+        Assert.Equal(2, fixture.Catalog.Read().Items.Count(item => item.State != FolderSourceItemState.Missing));
+    }
+
+    [Fact]
     public void RescanMarksMissingKeepsUnreadableSubfoldersAndRevivesReturningFiles()
     {
         if (OperatingSystem.IsWindows()) return; // Unreadable folders are made with POSIX permissions.

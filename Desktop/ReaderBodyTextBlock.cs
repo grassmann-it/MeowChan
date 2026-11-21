@@ -262,6 +262,11 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public ReaderBodyTextBlock()
     {
         UpdateReadingMetrics();
+        TransientHover.Attach(this, over =>
+        {
+            SetSpoilerHover(over);
+            if (!over) { SetLinkCursor(false); SetHoverQuote(null); }
+        });
         // The theme gives a selectable text its own "Copy" flyout, which answers a context request before the post card sees it: a right click
         // (or the Menu key) on the text would never reach the post menu. The page's post menu takes its place and offers Copy with a selection.
         ContextFlyout = null;
@@ -439,10 +444,31 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     internal ReaderBodySegment? SegmentAt(Point point)
     {
         if (Document is not { IsFormatted: true } document) return null;
-        TextHitTestResult hit = TextLayout.HitTestPoint(new Point(point.X - Padding.Left, point.Y - Padding.Top));
-        if (!hit.IsInside) return null;
-        int index = hit.CharacterHit.FirstCharacterIndex;
+        if (CharacterIndexAt(new Point(point.X - Padding.Left, point.Y - Padding.Top)) is not { } index) return null;
         return document.Segments.FirstOrDefault(segment => index >= segment.Start && index < segment.End);
+    }
+
+    // The character under a point of the text layout, or null beside the text. TextLayout.HitTestPoint is not used for the "inside" answer:
+    // it reported IsInside = false for every point over a line after the first one in many layouts (a body of several lines, a link after a
+    // line break, a wrapped address), although the character index it returned was right. The smoke check ReaderIdeaChecks.TextLinks pins this
+    // (F07, F08), so the lines are walked here: the line by its height, then the glyph hit of that line within its drawn width.
+    private int? CharacterIndexAt(Point point)
+    {
+        double top = 0;
+        foreach (TextLine line in TextLayout.TextLines)
+        {
+            double bottom = top + line.Height;
+            if (point.Y >= top && point.Y < bottom)
+            {
+                double x = point.X - line.Start;
+                if (x < 0 || x >= line.Width) return null;
+                int length = Document?.Text.Length ?? 0;
+                int index = line.GetCharacterHitFromDistance(x).FirstCharacterIndex;
+                return index >= 0 && index < length ? index : null;
+            }
+            top = bottom;
+        }
+        return null;
     }
 
     // A reference (also a dead one: its click reports that the post was not captured).

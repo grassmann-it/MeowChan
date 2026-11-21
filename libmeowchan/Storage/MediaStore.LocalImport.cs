@@ -20,7 +20,8 @@ public sealed partial class MediaStore
     /// <paramref name="expectedSha256"/> (measured when the import was checked); a source that changed since fails with
     /// <see cref="InvalidDataException"/> and leaves nothing behind. A foreign file at the destination is never
     /// overwritten (a conflict name is used); a retry of the same item with the same bytes reuses the published file.
-    /// A damaged manifest is never replaced. After publication starts, cancellation no longer splits the commit.
+    /// A damaged manifest is never replaced and, like a manifest that records other bytes for the item, fails with
+    /// <see cref="ManagedImportFolderException"/> (a problem of the target, not of the source). After publication starts, cancellation no longer splits the commit.
     /// The source stream stays owned by the caller.
     /// </summary>
     internal async Task<MediaCommitResult> CommitLocalFileAsync(string directory, string requestedFileName, string mediaIdentifier,
@@ -57,7 +58,7 @@ public sealed partial class MediaStore
                 using FileStream directoryLease = await AcquireDirectoryLeaseAsync(directory, cancellationToken).ConfigureAwait(false);
                 ForgetVerifiedFile(destination);
                 ManifestRead manifestRead = await ReadWriterManifestAsync(directory, cancellationToken).ConfigureAwait(false);
-                if (manifestRead.Corrupt) throw new InvalidDataException("The managed import folder has a damaged manifest.");
+                if (manifestRead.Corrupt) throw new ManagedImportFolderException("The managed import folder has a damaged manifest.");
                 string publishedPath = destination;
                 bool reused = false;
                 if (manifestRead.Manifest.Entries.TryGetValue(requestedFileName, out MediaManifestEntry? existing))
@@ -66,7 +67,7 @@ public sealed partial class MediaStore
                     if (existing.MediaIdentifier != mediaIdentifier || existing.Sha256 != digest.Sha256 || existing.Length != digest.Length
                         || !TryGetEntryPath(directory, existing.FileName, out string? recorded)
                         || !await HasSameContentAsync(recorded!, digest, cancellationToken).ConfigureAwait(false))
-                        throw new InvalidDataException("The managed import folder already records other bytes for this item.");
+                        throw new ManagedImportFolderException("The managed import folder already records other bytes for this item.");
                     return new MediaCommitResult(recorded!, digest.Length, digest.Sha256, true)
                     { AssetId = GetAssetId(requestedFileName, existing) };
                 }
@@ -118,3 +119,9 @@ public sealed partial class MediaStore
         }
     }
 }
+
+/// <summary>
+/// The managed import folder (not the source file) cannot take the copy: its manifest is damaged or records other bytes for
+/// this item. Kept apart from <see cref="InvalidDataException"/>, which means "the source changed".
+/// </summary>
+internal sealed class ManagedImportFolderException(string message) : IOException(message);

@@ -27,6 +27,7 @@ public partial class ArchivePage
     private int _exportRequest;
     private string _exportNewDestination = string.Empty;
     internal Func<string, Task>? OpenExportFolder { get; set; }
+    internal Func<string, ResourceId, CancellationToken, Task<IReadOnlyList<ArchiveLegacyExportCandidate>>>? FindLegacyExportCandidatesAsync { get; set; }
     internal ExportHistoryStore? ExportHistory { get; set; }
     internal ArchiveHtmlExportResult? LastExport { get; private set; }
     internal bool IsExportRunning => _exportRunning;
@@ -362,7 +363,9 @@ public partial class ArchivePage
         {
             string parent = Path.GetDirectoryName(Path.GetFullPath(target))!;
             CancellationToken lookup = _exportLookupCancellation?.Token ?? _lifetime.Token;
-            var candidates = await Task.Run(() => ArchiveExportLegacy.FindCandidates(parent, id, lookup));
+            var candidates = FindLegacyExportCandidatesAsync is { } find
+                ? await find(parent, id, lookup)
+                : await Task.Run(() => ArchiveExportLegacy.FindCandidates(parent, id, lookup));
             if (!ExportRequestIsCurrent(request)) return;
             Control<ComboBox>("ArchiveExportLegacy").ItemsSource = candidates.Select(candidate => candidate.Directory).ToArray();
             Control<ComboBox>("ArchiveExportLegacy").SelectedIndex = candidates.Count > 0 ? 0 : -1;

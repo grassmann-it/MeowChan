@@ -192,10 +192,32 @@ internal static class ArchiveExportChecks
                     fixture.FindControl<TextBox>("ArchiveExportDestination")!.Text == output,
                     "Failed update retained a stale available export or silently selected another target.");
                 fixture.FindControl<RadioButton>("ArchiveExportNew")!.IsChecked = true;
-                fixture.FindControl<Button>("ArchiveExportLegacyFind")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                fixture.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-                await Program.WaitUntilAsync(() => fixture.FindControl<Button>("ArchiveExportLegacyFind")!.IsEnabled);
-                Require(fixture.FindControl<Border>("ArchiveExportDialog")!.IsVisible, "Cancelling lookup closed the dialog before its work ended.");
+                Button legacyFind = fixture.FindControl<Button>("ArchiveExportLegacyFind")!;
+                Border exportDialog = fixture.FindControl<Border>("ArchiveExportDialog")!;
+                TaskCompletionSource releaseLookup = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                CancellationToken lookupToken = default;
+                fixture.FindLegacyExportCandidatesAsync = async (_, _, token) =>
+                {
+                    lookupToken = token;
+                    await releaseLookup.Task;
+                    token.ThrowIfCancellationRequested();
+                    return [];
+                };
+                try
+                {
+                    legacyFind.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(lookupToken.CanBeCanceled && !legacyFind.IsEnabled, "The cancellable legacy lookup did not start.");
+                    fixture.FindControl<Button>("ArchiveExportClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                    Require(lookupToken.IsCancellationRequested && exportDialog.IsVisible && !legacyFind.IsEnabled,
+                        "Cancelling lookup closed the dialog or released the busy state before its work ended.");
+                }
+                finally
+                {
+                    fixture.FindLegacyExportCandidatesAsync = null;
+                    releaseLookup.TrySetResult();
+                }
+                await Program.WaitUntilAsync(() => legacyFind.IsEnabled);
+                Require(exportDialog.IsVisible, "The cancelled lookup closed the export dialog.");
                 fixture.FindControl<Button>("ArchiveExportLegacyFind")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 await Program.WaitUntilAsync(() => fixture.FindControl<Button>("ArchiveExportLegacyFind")!.IsEnabled);
                 // The fixture folder holds no legacy candidate, so a live retry ends with the explained

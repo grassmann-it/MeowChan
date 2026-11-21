@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Gallery;
 using MeowChan.Import;
 using MeowChan.Storage;
@@ -38,7 +39,8 @@ internal static class LocalMediaTagRevalidation
     /// </summary>
     internal static async Task<IReadOnlyList<LocalMediaCheck>> CheckAsync(IReadOnlyList<LocalMediaObservation> observations,
         Func<CancellationToken, Task<ArchiveReader>> openReader, Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
-        bool verifyBytes, CancellationToken token, Func<ManualImportCatalogSnapshot?>? readImports = null)
+        bool verifyBytes, CancellationToken token, Func<ManualImportCatalogSnapshot?>? readImports = null,
+        Func<BooruCatalogSnapshot?>? readBooru = null)
     {
         ArgumentNullException.ThrowIfNull(observations);
         ArgumentNullException.ThrowIfNull(openReader);
@@ -58,8 +60,14 @@ internal static class LocalMediaTagRevalidation
             .Where(index => FolderSources.FolderSourceIdentity.IsFolderThread(observations[index].Locator.Thread)).ToArray();
         if (folders.Length > 0)
             await CheckFoldersAsync(observations, folders, openManifest, verifyBytes, results, token).ConfigureAwait(false);
-        if (imported.Length + folders.Length == observations.Count) return results;
-        HashSet<int> handled = imported.Concat(folders).ToHashSet();
+        // Downloaded Danbooru originals are loose files of a provider post, not of an archived thread: the Booru catalog's own
+        // link of the post to its saved asset says whether the occurrence still exists. Without a reader they stay Unreadable.
+        int[] booru = Enumerable.Range(0, observations.Count)
+            .Where(index => BooruMediaIdentity.IsBooruThread(observations[index].Locator.Thread)).ToArray();
+        if (booru.Length > 0 && readBooru != null)
+            await CheckBooruAsync(observations, booru, readBooru, openManifest, verifyBytes, results, token).ConfigureAwait(false);
+        if (imported.Length + folders.Length + booru.Length == observations.Count) return results;
+        HashSet<int> handled = imported.Concat(folders).Concat(booru).ToHashSet();
         try
         {
             await using ArchiveReader reader = await openReader(token).ConfigureAwait(false);
@@ -111,6 +119,37 @@ internal static class LocalMediaTagRevalidation
             { results[index] = LocalMediaCheck.NotLoose; continue; }
             if (asset.Length != observation.Length || !string.Equals(asset.Sha256, observation.Sha256, StringComparison.OrdinalIgnoreCase)
                 || asset.Length != item.Length || !string.Equals(asset.Sha256, item.Sha256, StringComparison.OrdinalIgnoreCase))
+            { results[index] = LocalMediaCheck.Changed; continue; }
+            results[index] = await VerifyFileAsync(manifest, asset, verifyBytes, token).ConfigureAwait(false);
+        }
+    }
+
+    private static async Task CheckBooruAsync(IReadOnlyList<LocalMediaObservation> observations, IReadOnlyList<int> indexes,
+        Func<BooruCatalogSnapshot?> readBooru, Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
+        bool verifyBytes, LocalMediaCheck[] results, CancellationToken token)
+    {
+        BooruCatalogSnapshot? catalog;
+        try { catalog = readBooru(); }
+        catch (Exception error) when (Evidence(error) || error is ObjectDisposedException) { return; }
+        if (catalog == null) return;
+        foreach (int index in indexes)
+        {
+            token.ThrowIfCancellationRequested();
+            LocalMediaObservation observation = observations[index];
+            BooruMediaIdentity.TryGetPostId(observation.Locator.Thread, out string postId);
+            BooruPostRecord? record = catalog.TryGetPost(BooruMediaIdentity.Source, postId);
+            if (record == null || record.LocalAssetId != observation.AssetId
+                || !string.Equals(BooruMediaProjection.DirectoryOf(record), observation.Locator.Directory, StringComparison.Ordinal))
+            { results[index] = LocalMediaCheck.Missing; continue; }
+            MediaAssetSnapshot manifest;
+            try { manifest = await openManifest(observation.Locator.Directory, token).ConfigureAwait(false); }
+            catch (Exception error) when (Evidence(error)) { continue; } // Unreadable: nothing is concluded.
+            if (manifest.Status == MediaManifestStatus.Corrupt) continue;
+            if (manifest.Status != MediaManifestStatus.Available || manifest.FindById(observation.AssetId) is not { } asset)
+            { results[index] = LocalMediaCheck.Missing; continue; }
+            if (asset.RequestedFileName != observation.Locator.RequestedFileName || !BooruMediaProjection.IsTheOriginalOf(asset, postId))
+            { results[index] = LocalMediaCheck.NotLoose; continue; }
+            if (asset.Length != observation.Length || !string.Equals(asset.Sha256, observation.Sha256, StringComparison.OrdinalIgnoreCase))
             { results[index] = LocalMediaCheck.Changed; continue; }
             results[index] = await VerifyFileAsync(manifest, asset, verifyBytes, token).ConfigureAwait(false);
         }
@@ -203,7 +242,7 @@ internal static class LocalMediaTagRevalidation
     /// </summary>
     internal static async Task<LocalMediaTagInspection> InspectAsync(PrivateTagStoreSnapshot snapshot,
         Func<CancellationToken, Task<ArchiveReader>> openReader, Func<string, CancellationToken, Task<MediaAssetSnapshot>> openManifest,
-        CancellationToken token, Func<ManualImportCatalogSnapshot?>? readImports = null)
+        CancellationToken token, Func<ManualImportCatalogSnapshot?>? readImports = null, Func<BooruCatalogSnapshot?>? readBooru = null)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
         LocalMediaTagTarget[] targets = snapshot.LocalAssignments.Select(item => item.Target).Distinct().ToArray();
@@ -221,7 +260,7 @@ internal static class LocalMediaTagRevalidation
             observations.Add(observation!);
             observed.Add(target);
         }
-        IReadOnlyList<LocalMediaCheck> checks = await CheckAsync(observations, openReader, openManifest, verifyBytes: false, token, readImports)
+        IReadOnlyList<LocalMediaCheck> checks = await CheckAsync(observations, openReader, openManifest, verifyBytes: false, token, readImports, readBooru)
             .ConfigureAwait(false);
         int notChecked = 0;
         for (int index = 0; index < checks.Count; index++)

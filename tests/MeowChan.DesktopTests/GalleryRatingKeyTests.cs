@@ -39,8 +39,8 @@ public sealed class GalleryRatingKeyTests : IDisposable
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         bool mac = platform == ShortcutPlatform.MacOS;
         for (int number = 1; number <= 5; number++)
-            Assert.Equal(mac ? "⇧" + number : "Shift+" + number, bindings.Display("media.rating.set-" + number));
-        Assert.Equal(mac ? "⇧0" : "Shift+0", bindings.Display("media.rating.clear"));
+            Assert.Equal(mac ? number + " / ⇧" + number : number + " / Shift+" + number, bindings.Display("media.rating.set-" + number));
+        Assert.Equal(mac ? "0 / ⇧0" : "0 / Shift+0", bindings.Display("media.rating.clear"));
         // R stays the dialog, with no second gesture.
         Assert.Equal("R", bindings.Display("media.rating.edit"));
         Assert.Empty(bindings.Issues);
@@ -55,10 +55,10 @@ public sealed class GalleryRatingKeyTests : IDisposable
         Assert.True(bindings.Matches(Key(Avalonia.Input.Key.D4, KeyModifiers.Shift), "media.rating.set-4"));
         Assert.True(bindings.Matches(Key(Avalonia.Input.Key.D0, KeyModifiers.Shift), "media.rating.clear"));
         // The plain digits keep their old readings (tag names such as 2girls, the zoom keys) and no other chord rates.
-        Assert.False(bindings.Matches(Key(Avalonia.Input.Key.D4, KeyModifiers.None), "media.rating.set-4"));
+        Assert.True(bindings.Matches(Key(Avalonia.Input.Key.D4, KeyModifiers.None), "media.rating.set-4")); // revision 24: the bare digit rates
         Assert.False(bindings.Matches(Key(Avalonia.Input.Key.D4, KeyModifiers.Control | KeyModifiers.Shift), "media.rating.set-4"));
         Assert.False(bindings.Matches(Key(Avalonia.Input.Key.D4, KeyModifiers.Alt), "media.rating.set-4"));
-        Assert.False(bindings.Matches(Key(Avalonia.Input.Key.D0, KeyModifiers.None), "media.rating.clear"));
+        Assert.True(bindings.Matches(Key(Avalonia.Input.Key.D0, KeyModifiers.None), "media.rating.clear"));
         // Shift+5 never reads as set-4 and the two commands never share a gesture.
         Assert.False(bindings.Matches(Key(Avalonia.Input.Key.D5, KeyModifiers.Shift), "media.rating.set-4"));
     }
@@ -121,12 +121,12 @@ public sealed class GalleryRatingKeyTests : IDisposable
         Assert.NotEmpty(bindings.For("media.rating.clear"));
         Assert.Equal(new[] { "gallery" }, bindings.YieldedContexts("media.rating.set-3", ShortcutGesture.Parse("Shift+3")));
         Assert.Equal(new[] { "gallery" }, bindings.YieldedContexts("media.rating.clear", ShortcutGesture.Parse("Shift+0")));
-        Assert.Equal("Shift+1", bindings.Display("media.rating.set-1"));
-        Assert.Equal("Shift+5", bindings.Display("media.rating.set-5"));
+        Assert.Equal("1 / Shift+1", bindings.Display("media.rating.set-1"));
+        Assert.Equal("5 / Shift+5", bindings.Display("media.rating.set-5"));
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Contains(bindings.Issues, issue => issue.CommandId == "media.rating.set-3" && issue.Reason?.Code == "defaultYields");
         // A profile that never used those keys gets all six.
-        Assert.Equal("Shift+3", EffectiveShortcutBindings.Build(new ShortcutBindingsSection(), ShortcutPlatform.Linux).Display("media.rating.set-3"));
+        Assert.Equal("3 / Shift+3", EffectiveShortcutBindings.Build(new ShortcutBindingsSection(), ShortcutPlatform.Linux).Display("media.rating.set-3"));
     }
 
     [Fact]

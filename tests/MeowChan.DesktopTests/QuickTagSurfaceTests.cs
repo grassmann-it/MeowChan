@@ -25,14 +25,14 @@ public sealed class QuickTagSurfaceTests : IDisposable
     public QuickTagSurfaceTests() { Texts.Initialize(); Texts.SetLanguage("en"); }
     public void Dispose() { Texts.Initialize(); Texts.SetLanguage("en"); }
 
-    private static MediaLibraryEntry Entry(string thread, char hash) =>
+    internal static MediaLibraryEntry Entry(string thread, char hash) =>
         new(new ResourceId("s", "b", thread), "T" + thread, 1, Day, Day, "1", 1, null, 0,
             "att-v1:" + new string(hash, 64), "/dir/" + thread, "asset-" + thread, new string(hash, 64), 1, "m1", "original",
             "f" + thread + ".png", SavedMediaKind.Image, MediaLibraryPresence.Present, false, false);
 
     private static PrivateTagLoadSnapshot Load(PrivateTagStore store) => new(PrivateTagLoadState.Ready, store.ReadSnapshot(), null);
 
-    private static MediaTagSession Single(PrivateTagStore store, MediaLibraryEntry entry) =>
+    internal static MediaTagSession Single(PrivateTagStore store, MediaLibraryEntry entry) =>
         new(new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(entry)!), () => Load(store),
             (name, subject, token) => Task.FromResult(store.DefineAndSetMediaSubjects(name, [subject], null, token)),
             (id, subject, assigned, token) => Task.FromResult(store.SetMediaSubjects(id, [subject], assigned, null, token)));
@@ -74,13 +74,18 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Equal(1, Grid.GetColumn(slot));
         Assert.Equal(2, Grid.GetColumn(panel.CloseButton));
         Assert.False(slot.Focusable);
-        Assert.Equal(default, slot.Margin);
-        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, slot.HorizontalAlignment);
+        Assert.Equal(new Avalonia.Thickness(8, 0, 8, 0), slot.Margin); // its own column right of the tabs
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Right, slot.HorizontalAlignment);
         TextBlock label = Assert.IsType<TextBlock>(counter.Child);
         Assert.Equal("Medium 4 of 27", label.Text);
-        Assert.Equal(Avalonia.Media.TextWrapping.Wrap, label.TextWrapping);
-        Assert.Equal(2, label.MaxLines);
+        Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping); // one line: the tab row never grows
+        Assert.Equal(1, label.MaxLines);
         Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
+        surface.CounterShortText = "No. 4 / 27";
+        Assert.Equal("No. 4 / 27", label.Text); // the chip shows the short text, the long one stays name and tooltip
+        Assert.Equal("Medium 4 of 27", AutomationProperties.GetName(counter));
+        Assert.Equal("Medium 4 of 27", ToolTip.GetTip(counter));
+        surface.CounterShortText = null;
         surface.CounterText = "Medium 5 von mindestens 12345 · markiert";
         Assert.Equal(surface.CounterText, label.Text);
         Assert.Equal(surface.CounterText, AutomationProperties.GetName(counter));

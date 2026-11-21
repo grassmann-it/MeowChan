@@ -26,6 +26,9 @@ public sealed class DefaultShortcutInvariantTests
         // Revision 18: the same video keys also act on the Media page's panel video (scope Media added, no new gesture, so no new entry here).
         // PT6: Shift+1 to Shift+5 rate, Shift+0 removes the rating (switched off with the other single keys).
         "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
+        // Revision 24: the colour labels on the bare digits 6 to 9.
+        "media.label.red", "media.label.yellow", "media.label.green", "media.label.blue",
+        // Revision 24: Fit's Primary+0 is no single character, the bare digits of the rating are listed above.
         // PT4: K switches the card mode of the tagging mode, 1 to 5 choose its cards (only inside the mode; the cards stay clickable).
         "tags.queue.cards", "tags.queue.card-1", "tags.queue.card-2", "tags.queue.card-3", "tags.queue.card-4", "tags.queue.card-5",
         // Gallery picture and video: Shift+R turns the shown medium by 90°.

@@ -51,6 +51,25 @@ internal static class WorkspaceChips
     internal const string Label = "chip-label";
     internal const string ThreadMark = "chip-thread-mark";
     /// <summary>
+    /// F05: the one height of every item in a filter chip row (chips, "+ Filter", "Reset filters"), in dip. A layout measure like the other
+    /// sizes of this class, no setting. Wide enough for the 13 dip label with the 2 dip exclusion edge, so no item grows beyond its neighbours.
+    /// </summary>
+    internal const double RowHeight = 28;
+
+    /// <summary>
+    /// F05: gives an item of a filter chip row the common height, the common vertical inset (none: the height centres the content) and a
+    /// vertically centred label, so chips, the "+ Filter" pill and the "Reset filters" link stand level whatever their own style says.
+    /// </summary>
+    internal static T MarkRowItem<T>(T control) where T : Control
+    {
+        control.Height = RowHeight;
+        control.MinHeight = 0;
+        control.VerticalAlignment = VerticalAlignment.Center;
+        if (control is TemplatedControl templated) templated.Padding = new Thickness(8, 0); // Workspace.Inset.Chip's 8 dip sides
+        if (control is ContentControl content) content.VerticalContentAlignment = VerticalAlignment.Center;
+        return control;
+    }
+    /// <summary>
     /// The tag pill (UX review 15.11.): the 28 dip full pill of the tag panel, the reader tag bar and the tiles (the compact tile form keeps its size),
     /// added to a chip button or a source-tag outline. Rest is a quiet filled pill, hover and pressed follow the toolbar buttons.
     /// </summary>
@@ -271,13 +290,14 @@ internal static class WorkspaceChips
         if (negatable) ArgumentNullException.ThrowIfNull(toggle);
         // A plain chip's tooltip names its label ("Remove filter: …"); a negatable chip's tooltip is its help, so its label carries the full text itself
         // while the 320 dip cap trims it (narrow-window sweep, 16.11.2026: a long tag name used to end in "…" with no way to read the rest).
-        TextBlock text = negatable ? new TrimTipTextBlock { Text = label, MaxWidth = 320 }
-            : new TextBlock { Text = label, MaxWidth = 320, TextTrimming = TextTrimming.CharacterEllipsis };
+        TextBlock text = negatable ? new TrimTipTextBlock { Text = label, MaxWidth = 320, VerticalAlignment = VerticalAlignment.Center }
+            : new TextBlock { Text = label, MaxWidth = 320, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         // Give the label only its final owner. Setting Content=text before inserting the
         // same label into the toggle panel makes the later Content replacement clear
         // its parent while it is still in the panel's LogicalChildren.
         ClosableTag tag = new() { Command = new ChipCommand(remove), Focusable = true };
         MarkFilter(tag, exclude);
+        MarkRowItem(tag);
         MeowChan.Desktop.Commands.CommandPresentation.SetId(tag, "archive.clear-filter");
         if (menu != null)
             AttachMenu(tag, () => menu.IsSuppressed?.Invoke() == true ? null
@@ -308,7 +328,7 @@ internal static class WorkspaceChips
         glyph.Bind(Avalonia.Controls.Shapes.Shape.StrokeProperty, button.GetObservable(TemplatedControl.ForegroundProperty));
         button.Click += (_, e) => { e.Handled = true; toggle!(); };
         ToolTip.SetTip(button, name); AutomationProperties.SetName(button, name);
-        tag.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, Children = { button, text } };
+        tag.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center, Children = { button, text } };
         // The chip names its value and state (the label says "Without …"); what a click and the keys do is its help and tooltip.
         string help = Texts.T("media.filter.chip.help");
         ToolTip.SetTip(tag, help);

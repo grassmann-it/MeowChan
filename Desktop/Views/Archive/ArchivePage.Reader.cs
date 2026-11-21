@@ -245,8 +245,15 @@ public partial class ArchivePage
         ReaderContentSurface.DetachedFromVisualTree += UnsubscribeLayout;
         // The navigation bar floats over the content and (mode "Auto") hides while the pointer is idle (see ReaderNavigationLayout).
         ReaderContentSurface.AddHandler(PointerMovedEvent, OnReaderSurfacePointerMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-        ReaderNavigation.PointerEntered += (_, _) => { _readerNavigationPointerOver = true; UpdateReaderNavigationShown(); };
-        ReaderNavigation.PointerExited += (_, _) => { _readerNavigationPointerOver = false; UpdateReaderNavigationShown(); };
+        TransientHover.Attach(ReaderNavigation, over => { _readerNavigationPointerOver = over; UpdateReaderNavigationShown(); });
+        TransientHover.Attach(ReaderContentSurface, over =>
+        {
+            if (over) return;
+            _readerSurfacePointer = null;
+            _readerNavigationPointerOver = _readerNavigationActive = false;
+            _readerNavigationIdleTimer?.Stop();
+            UpdateReaderNavigationShown();
+        });
         ReaderNavigation.GotFocus += (_, _) => UpdateReaderNavigationShown();
         // Leaving the bar counts as activity: it stays for one more idle delay and then hides (the focus flag is still set inside this event).
         ReaderNavigation.LostFocus += (_, _) => ShowReaderNavigation();
@@ -824,7 +831,8 @@ public partial class ArchivePage
 
     internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff
         && (_readerNavigationMode == Config.ReaderNavigationModeAlways || _readerNavigationActive || _readerNavigationPointerOver
-        || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation());
+        || ReaderNavigation.IsKeyboardFocusWithin || PointerNearReaderNavigation())
+        && (_readerNavigationMode == Config.ReaderNavigationModeAlways || TransientHover.WindowUsable(ReaderContentSurface));
 
     private bool PointerNearReaderNavigation()
     {

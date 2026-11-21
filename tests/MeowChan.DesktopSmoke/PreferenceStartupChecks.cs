@@ -288,8 +288,11 @@ internal static class PreferenceStartupChecks
                 ShowErrorNotifications = true
             };
             if (readyIo) FixtureConfig().SaveConfig(directory);
-            await using DesktopSessionHost ownedHost = new(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
-            host = ownedHost;
+            // The finally block disposes the host unless the shell has already disposed it and released its lease.
+            // An await using would rethrow the deliberately faulted, cached DisposeAsync task after the assertions.
+#pragma warning disable CA2000
+            host = new(directory, Array.Empty<IImageBoard>(), sessionStoreFactory: (_, _) => restore);
+#pragma warning restore CA2000
             if (!readyIo)
             {
                 Require(host.Config.Origin == ProfileOrigin.ConfirmedNew, "Failed-start fixture was not genuinely empty at acquisition.");
@@ -436,7 +439,11 @@ internal static class PreferenceStartupChecks
                 }
                 catch (Exception error) { cleanupFailures.Add(error); }
             }
-            if (shell != null) await shell.DisposeAsync();
+            if (shell != null)
+            {
+                try { await shell.DisposeAsync().AsTask().WaitAsync(Deadline, CancellationToken.None); }
+                catch (Exception error) { cleanupFailures.Add(error); }
+            }
             if (host != null && !host.IsProfileReleased)
             {
                 try { await host.DisposeAsync().AsTask().WaitAsync(Deadline, CancellationToken.None); }

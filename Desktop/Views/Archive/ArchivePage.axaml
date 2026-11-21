@@ -63,8 +63,8 @@
                         </SplitButton>
                         <Button x:Name="ArchiveReaderGroups" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.reader-groups" Content="Reader groups" Click="OnReaderGroupsClick" />
                         <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
-                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and
@@ -161,9 +161,11 @@
                                 </Expander>
                             </StackPanel>
                         </ScrollViewer>
-                        <Grid Grid.Row="2" ColumnDefinitions="*,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
-                            <Button x:Name="ArchiveFilterApply" Tag="archive.search" Classes="localized" Click="OnFilterApplyClick" />
-                            <Button x:Name="ArchiveFilterClose" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
+                        <!-- U09: the unapplied draft stands visibly above the buttons (like the toggle's marker); Apply filters runs the Search path. -->
+                        <Grid Grid.Row="2" RowDefinitions="Auto,Auto" ColumnDefinitions="*,*" ColumnSpacing="{StaticResource Workspace.Space.8}" RowSpacing="{StaticResource Workspace.Space.8}">
+                            <TextBlock x:Name="ArchiveFilterDraftNote" Grid.ColumnSpan="2" Classes="workspace-meta" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Polite" />
+                            <Button x:Name="ArchiveFilterApply" Grid.Row="1" Tag="archive.applyFilters" Classes="localized" Click="OnFilterApplyClick" />
+                            <Button x:Name="ArchiveFilterClose" Grid.Row="1" Grid.Column="1" Tag="action.close" Classes="localized" Click="OnFilterCloseClick" />
                         </Grid>
                     </Grid>
                 </Border>

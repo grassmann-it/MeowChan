@@ -105,6 +105,15 @@ internal static class GalleryTagPanelCommands
         return marked ? Texts.T("tags.quick.marked.counter", text) : text;
     }
 
+    /// <summary>The short form of <see cref="CounterText"/> for the narrow tab row: "No. 4 / 27", "No. 4 / 27+" while threads resolve (the long text is its tooltip).</summary>
+    internal static string? ShortCounterText(GalleryTagPanelPosition? position, bool marked = false)
+    {
+        if (position is not { } value) return null;
+        string text = Texts.T(value.More ? "tags.quick.gallery.positionMoreShort" : "tags.quick.gallery.positionShort",
+            value.Number.ToString(Texts.Culture), value.Count.ToString(Texts.Culture));
+        return marked ? Texts.T("tags.quick.marked.counter", text) : text;
+    }
+
     /// <summary>What the polite status line says after a mark request; null when nothing changed and nothing needs saying.</summary>
     internal static string? MarkAnnouncement(GalleryMarkResult result)
     {
@@ -293,6 +302,7 @@ internal sealed class GalleryTagPanelController : IDisposable
     internal int ClearMarks() => Marks.Clear();
 
     /// <summary>The counter chip's text for <paramref name="entry"/>: position, with "marked" when this medium is.</summary>
+    internal string? ShortCounterFor(GalleryEntry entry) => GalleryTagPanelCommands.ShortCounterText(_owner.Position, IsMarked(entry));
     internal string? CounterFor(GalleryEntry entry) => GalleryTagPanelCommands.CounterText(_owner.Position, IsMarked(entry));
 
     /// <summary>
