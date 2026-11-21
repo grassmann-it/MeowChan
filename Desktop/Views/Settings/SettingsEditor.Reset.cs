@@ -246,6 +246,7 @@ public partial class SettingsEditor
     {
         Config defaults = ResetDefaults.Values;
         DownloadPath = defaults.DownloadPath;
+        ExportFilenameTemplate = defaults.ExportFilenameTemplate;
         RecheckTimer = defaults.RecheckTimer;
         MaxParallelDownloads = defaults.MaxParallelDownloads;
         ParallelDownloadsSafetyLimit = defaults.ParallelDownloadsSafetyLimit;

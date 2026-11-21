@@ -96,6 +96,7 @@ public partial class MainWindow
         _archivePage.CanFollowLive = id => !_sessionRowsApplying && _threadRows.Values.Any(row => row.Snapshot.Id == id);
         _archivePage.ReaderRefreshAllowed = () => !_isClosing && _gallery == null && !_archiveDeletionOpen;
         _archivePage.LastExportDirectoryPreference = _config.LastExportDirectory;
+        _archivePage.ExportFilenameTemplate = () => _config.ExportFilenameTemplate;
         _archivePage.ReaderNavigationIdleDelayMs = _config.ControlsIdleHideMs;
         _archivePage.ReaderNavigationMode = _config.ReaderNavigationMode;
         _archivePage.ReaderNavigationShowPosition = _config.ReaderNavigationShowPosition;

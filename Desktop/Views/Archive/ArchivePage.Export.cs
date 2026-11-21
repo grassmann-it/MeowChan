@@ -45,6 +45,8 @@ public partial class ArchivePage
     }
     internal string LastExportDirectoryPreference { get; set; } = string.Empty;
     internal Func<string, Task>? SaveExportDirectory { get; set; }
+    /// <summary>The filename template setting, read when an original export starts (empty or absent: the current naming).</summary>
+    internal Func<string>? ExportFilenameTemplate { get; set; }
     private async Task RememberExportDirectoryAsync(string directory)
     {
         if (SaveExportDirectory != null) await SaveExportDirectory(directory);

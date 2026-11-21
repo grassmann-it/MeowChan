@@ -105,6 +105,12 @@ namespace MeowChan
         public int FirstRunSetupVersion { get; set; }
         public Dictionary<string, SourceMediaIntegrityPermission> SourceMediaIntegrityPermissions { get; set; } = new(StringComparer.Ordinal);
         public string DownloadPath { get; set; } = GetDefaultDownloadPath();
+        /// <summary>
+        /// The filename template of exported originals (tokens {source} {post} {role} {hash} {ext}, ending with ".{ext}"); empty (the default) keeps the
+        /// current naming. A damaged or unusable value in the file reads as empty. The length is a fixed ceiling, see <see cref="MeowChan.Interop.ExportFilenameTemplate.MaxTemplateLength"/>.
+        /// </summary>
+        [JsonConverter(typeof(DesktopPreferenceExportFilenameTemplateConverter))]
+        public string ExportFilenameTemplate { get; set; } = string.Empty;
         public int RecheckTimer { get; set; } = 60;
         public bool SaveUrlsOnExit { get; set; } = true;
         public bool ShowBoardAdmissionWizard { get; set; } = true;
@@ -1843,6 +1849,8 @@ namespace MeowChan
             try { _ = Path.GetFullPath(DownloadPath, _relativePathBaseDirectory); }
             catch (Exception error) when (error is ArgumentException or NotSupportedException or PathTooLongException)
             { throw new ArgumentException("The download directory path is invalid.", nameof(DownloadPath), error); }
+            if (!MeowChan.Interop.ExportFilenameTemplate.Check(ExportFilenameTemplate).Ok)
+                throw new ArgumentException("The export filename template is invalid.", nameof(ExportFilenameTemplate));
             if (LastExportDirectory.Length > 4096 || LastExportDirectory.Any(char.IsControl))
                 throw new ArgumentException("The last export directory is invalid.", nameof(LastExportDirectory));
             if (GalleryFrameDirectory.Length > 4096 || GalleryFrameDirectory.Any(char.IsControl))
@@ -1872,6 +1880,7 @@ namespace MeowChan
                 FirstRunSetupPending = FirstRunSetupPending, FirstRunSetupVersion = FirstRunSetupVersion,
                 SourceMediaIntegrityPermissions = SourceMediaIntegrityPermissions.ToDictionary(pair => pair.Key, pair => pair.Value with { }, StringComparer.Ordinal),
                 DownloadPath = DownloadPath,
+                ExportFilenameTemplate = ExportFilenameTemplate,
                 RecheckTimer = RecheckTimer,
                 SaveUrlsOnExit = SaveUrlsOnExit,
                 ShowBoardAdmissionWizard = ShowBoardAdmissionWizard,
@@ -2145,6 +2154,7 @@ namespace MeowChan
                 OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
                 SourceMediaIntegrityPermissions = source.SourceMediaIntegrityPermissions.ToDictionary(pair => pair.Key, pair => pair.Value with { }, StringComparer.Ordinal);
             DownloadPath = absoluteDownloadPath;
+            ExportFilenameTemplate = source.ExportFilenameTemplate;
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;
@@ -2374,6 +2384,7 @@ namespace MeowChan
             ArgumentNullException.ThrowIfNull(source);
             source.Validate();
             DownloadPath = Path.GetFullPath(source.DownloadPath, source._relativePathBaseDirectory);
+            ExportFilenameTemplate = source.ExportFilenameTemplate;
             RecheckTimer = source.RecheckTimer;
             SaveUrlsOnExit = source.SaveUrlsOnExit;
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard;

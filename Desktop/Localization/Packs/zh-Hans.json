@@ -5119,6 +5119,18 @@
     "media.count.threads": "串: {0}",
     "archive.delete.threads": "串: {0}",
     "archive.delete.files": "本地文件: {0}",
-    "archive.delete.bytes": "{0:N0} B"
+    "archive.delete.bytes": "{0:N0} B",
+    "settings.exportFilenameTemplate": "导出媒体的文件名模板",
+    "settings.exportFilenameTemplateHint": "决定“导出原件”所复制文件的名称。留空则保留当前名称。占位符：{0}。扩展名前会加入一个简短标识符，因此两个文件永远不会重名。最多 {1} 个字符。",
+    "settings.exportFilenameTemplatePlaceholder": "留空：保留当前名称",
+    "settings.exportFilenameTemplateOff": "预览：导出的文件保留其当前名称。",
+    "settings.exportFilenameTemplatePreview": "用三个示例文件预览：",
+    "settings.exportFilenameTemplate.tooLong": "模板超过 {0} 个字符。",
+    "settings.exportFilenameTemplate.invalid": "只能使用占位符 {0}，且每个都要放在花括号内。不允许单独的花括号。",
+    "settings.exportFilenameTemplate.extension": "模板必须以“{0}”结尾，这样导出的文件才能保留其文件类型。",
+    "settings.exportFilenameTemplate.unsafe": "结果不是安全的文件名：不能含有 / \\ : * ? \" < > | 或“..”，结尾不能是点或空格，也不能使用 CON 等保留名称。",
+    "settings.exportFilenameTemplate.nameTooLong": "生成的文件名将超过 {0} 字节。请缩短模板。",
+    "settings.exportFilenameTemplate.unusable": "此模板无法用于文件名。",
+    "export.filenameTemplateNote": "文件将按您的文件名模板“{0}”命名。模板无法安全命名的文件会保留其当前名称。可在“设置”的“下载”中更改。"
   }
 }
