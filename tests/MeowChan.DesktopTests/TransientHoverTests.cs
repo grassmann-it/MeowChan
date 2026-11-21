@@ -8,6 +8,7 @@ using MeowChan.Desktop;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class TransientHoverTests
 {
     [Theory]
