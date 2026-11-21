@@ -41,9 +41,13 @@ public static class FavoriteOriginalExporter
         internal Action<FavoriteExportItem>? AfterItem { get; init; }
     }
 
+    public static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
+        string destinationDirectory, CancellationToken cancellationToken = default)
+        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken, null);
+
     /// <param name="filenameTemplate">The filename template setting (<see cref="ExportFilenameTemplate"/>); null or empty keeps the current naming, and so does any file the template cannot name safely.</param>
     public static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
-        string destinationDirectory, CancellationToken cancellationToken = default, string? filenameTemplate = null)
+        string destinationDirectory, string? filenameTemplate, CancellationToken cancellationToken = default)
         => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken, filenameTemplate);
 
     internal static Task<FavoriteExportResult> ExportWithHooksAsync(IReadOnlyList<FavoriteExportAsset> assets,

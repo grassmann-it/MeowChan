@@ -36,20 +36,20 @@ public sealed class ExportFilenameTemplateTests
     }
 
     [Theory]
-    [InlineData("{bogus}.{ext}", ExportFilenameTemplateProblem.InvalidTemplate)]
-    [InlineData("{source.{ext}", ExportFilenameTemplateProblem.InvalidTemplate)]
-    [InlineData("}{ext}", ExportFilenameTemplateProblem.InvalidTemplate)]
-    [InlineData("{source}", ExportFilenameTemplateProblem.MustEndWithExtension)]
-    [InlineData("{source}.jpg", ExportFilenameTemplateProblem.MustEndWithExtension)]
-    [InlineData("../{source}.{ext}", ExportFilenameTemplateProblem.UnsafeName)]
-    [InlineData("a/b.{ext}", ExportFilenameTemplateProblem.UnsafeName)]
-    [InlineData("a:b.{ext}", ExportFilenameTemplateProblem.UnsafeName)]
-    [InlineData("CON.{ext}", ExportFilenameTemplateProblem.UnsafeName)]
-    [InlineData("{hash}_{hash}.{ext}", ExportFilenameTemplateProblem.NameTooLong)]
-    public void ProblemsAreNamedForTheInlineMessage(string template, ExportFilenameTemplateProblem expected)
+    [InlineData("{bogus}.{ext}", "InvalidTemplate")]
+    [InlineData("{source.{ext}", "InvalidTemplate")]
+    [InlineData("}{ext}", "InvalidTemplate")]
+    [InlineData("{source}", "MustEndWithExtension")]
+    [InlineData("{source}.jpg", "MustEndWithExtension")]
+    [InlineData("../{source}.{ext}", "UnsafeName")]
+    [InlineData("a/b.{ext}", "UnsafeName")]
+    [InlineData("a:b.{ext}", "UnsafeName")]
+    [InlineData("CON.{ext}", "UnsafeName")]
+    [InlineData("{hash}_{hash}.{ext}", "NameTooLong")]
+    public void ProblemsAreNamedForTheInlineMessage(string template, string expected)
     {
         ExportFilenameTemplateCheck check = ExportFilenameTemplate.Check(template);
-        Assert.Equal(expected, check.Problem);
+        Assert.Equal(expected, check.Problem.ToString());
         Assert.False(check.Ok);
         Assert.Null(ExportFilenameTemplate.TryRender(template, "id", "src", "1", "original", Hash, "jpg"));
     }

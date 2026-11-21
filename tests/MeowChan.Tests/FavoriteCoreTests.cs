@@ -443,17 +443,17 @@ public sealed class FavoriteCoreTests
         Assert.Equal("same-name-" + sha + ".bin", currentName);
 
         string templated = Path.Combine(directory.Path, "templated");
-        FavoriteExportResult named = await FavoriteOriginalExporter.ExportAsync([original], templated, default, "{source}_{post}.{ext}");
+        FavoriteExportResult named = await FavoriteOriginalExporter.ExportAsync([original], templated, "{source}_{post}.{ext}");
         string path = Assert.Single(named.Items).Path!;
         string name = Path.GetFileName(path);
         Assert.StartsWith("stub_123~", name);
         Assert.EndsWith("-" + sha + ".bin", name);
         Assert.Equal(new byte[] { 9, 8, 7 }, await File.ReadAllBytesAsync(path));
         // Repeating the export recognises the finished copy under the templated name.
-        Assert.Equal(1, (await FavoriteOriginalExporter.ExportAsync([original], templated, default, "{source}_{post}.{ext}")).AlreadyExists);
+        Assert.Equal(1, (await FavoriteOriginalExporter.ExportAsync([original], templated, "{source}_{post}.{ext}")).AlreadyExists);
 
         string fallback = Path.Combine(directory.Path, "fallback");
-        FavoriteExportResult kept = await FavoriteOriginalExporter.ExportAsync([original], fallback, default, "{bogus}.{ext}");
+        FavoriteExportResult kept = await FavoriteOriginalExporter.ExportAsync([original], fallback, "{bogus}.{ext}");
         Assert.Equal(currentName, Path.GetFileName(Assert.Single(kept.Items).Path!));
     }
 

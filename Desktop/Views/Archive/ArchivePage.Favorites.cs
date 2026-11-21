@@ -431,7 +431,7 @@ public partial class ArchivePage
             Notice(Texts.T("viewer.export.running"));
             try
             {
-                FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, run.Token, ExportFilenameTemplate?.Invoke());
+                FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, ExportFilenameTemplate?.Invoke(), run.Token);
                 Notice(Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
                     result.Missing + missingCount, result.Failed, result.Cancelled));
                 // As in the thread dialog: after the copy Close is the primary action (Start stays spent).
