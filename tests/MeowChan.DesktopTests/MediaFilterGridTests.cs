@@ -385,6 +385,24 @@ public sealed class MediaFilterGridTests : IDisposable
         Assert.True(grid.IndexOf("_minRating);", StringComparison.Ordinal) < grid.IndexOf("AddFlagCell(flag)", StringComparison.Ordinal));
     }
 
+    // F05: the layout contract (chips of one height on one centre line, check boxes level with the dropdowns) is measured in the media-page smoke
+    // (RequireChipRowAlignment / RequireFlagAlignment); here the source rules that produce it.
+    [Fact]
+    public void ChipRowItemsShareOneHeightAndTheFlagsAreCentredOnTheDropdowns()
+    {
+        string chips = Source("Desktop/Controls/WorkspaceChips.cs"), row = Source("Desktop/Views/Media/MediaPage.FilterChips.cs"), grid = Source(Grid_);
+        Assert.Contains("internal const double RowHeight = 28;", chips);
+        Assert.Contains("control.Height = RowHeight;", chips);
+        Assert.Contains("content.VerticalContentAlignment = VerticalAlignment.Center;", chips);
+        Assert.Contains("MarkRowItem(tag);", chips); // every filter chip, both pages
+        Assert.Contains("WorkspaceChips.MarkRowItem(_filterResetAll)", row);
+        Assert.Contains("WorkspaceChips.MarkRowItem(_filterAdd)", row);
+        Assert.DoesNotContain("MinHeight = 32", row);
+        Assert.Contains("flag.VerticalAlignment = VerticalAlignment.Center;", grid);
+        Assert.Contains("Height = FilterFieldHeight", grid);
+        Assert.DoesNotContain("flag.VerticalAlignment = VerticalAlignment.Bottom;", grid);
+    }
+
     [Fact]
     public void TheSectionHasNoResetButtonAndTheChipRowKeepsResetAll()
     {
@@ -397,7 +415,7 @@ public sealed class MediaFilterGridTests : IDisposable
         }
         string chips = Source("Desktop/Views/Media/MediaPage.FilterChips.cs");
         Assert.Contains("Name = \"MediaFilterResetAll\"", chips);
-        Assert.Contains("MinHeight = 32", chips);
+        Assert.Contains("WorkspaceChips.MarkRowItem(_filterResetAll)", chips); // F05: the chips' height (was MinHeight = 32)
         Assert.Contains("_filterResetAll.Content = Texts.T(\"media.filter.resetAll\");", chips);
         // The grid's empty state keeps its own reset (a filter that matches nothing).
         Assert.Contains("_emptyReset.Content = Texts.T(\"media.filter.reset\");", chips);
