@@ -5237,6 +5237,26 @@
     "media.nextUntagged.none": "Aucun autre média affiché n’est sans étiquettes de média.",
     "media.nextUntagged.unknown": "Les étiquettes ne sont pas encore disponibles ; les médias sans étiquettes ne peuvent pas encore être distingués.",
     "work.scopeSummary": "Portée de la nouvelle tentative : {0} fichiers médias dans {1} fils. Non touchés : {2} sur {3} déjà enregistrés, {4} déjà en file d’attente.",
-    "work.scopeSummary.one": "Portée de la nouvelle tentative : {0} fichier média dans {1} fils. Non touchés : {2} sur {3} déjà enregistrés, {4} déjà en file d’attente."
+    "work.scopeSummary.one": "Portée de la nouvelle tentative : {0} fichier média dans {1} fils. Non touchés : {2} sur {3} déjà enregistrés, {4} déjà en file d’attente.",
+    "booru.tabs.new": "Nouvel onglet de recherche",
+    "booru.tabs.openCurrent": "Ouvrir dans un nouvel onglet",
+    "booru.tabs.openCurrentHint": "Copie la recherche affichée et ses résultats dans un nouvel onglet. Rien n’est envoyé.",
+    "booru.tabs.close": "Fermer l’onglet",
+    "booru.tabs.closeFor": "Fermer l’onglet de recherche « {0} »",
+    "booru.tabs.blank": "Nouvelle recherche",
+    "booru.tabs.post": "Publication #{0}",
+    "booru.tabs.limit": "La limite d’onglets de recherche ({0}) est atteinte. Fermez d’abord un onglet ou augmentez la limite dans les paramètres.",
+    "settings.limits.booruSearchTabs": "Danbooru : nombre maximal d’onglets de recherche",
+    "settings.limits.booruSearchTabs.hint": "Nombre maximal d’onglets de recherche que la page Danbooru peut contenir à côté de Recherche et Veilles. Les onglets ne durent que pour cette session ; ils ne sont pas enregistrés à la fermeture.",
+    "booru.bulk.button": "Tout télécharger de cette recherche",
+    "booru.bulk.stop": "Arrêter la collecte",
+    "booru.bulk.hint": "Récupère les résultats existants de la recherche affichée et met chaque original en file d’attente, jusqu’à la limite de pages de la source (pages {0}, publications par page {1}). La veille ne prend que les nouvelles publications.",
+    "booru.bulk.needsSearch": "Lancez d’abord une recherche par étiquettes ; ce sont les résultats de la recherche affichée qui sont récupérés.",
+    "booru.bulk.running": "Collecte des résultats de « {0} » : pages lues {1} sur {2} au plus, publications trouvées {3}, en file {4}.",
+    "booru.bulk.result": "Tout de « {0} » : publications trouvées {1}, pages lues {2} sur {3} au plus. En file {4}, déjà en file {5}, déjà enregistrées {6}, sans original proposé {7}, échecs {8}.",
+    "booru.bulk.endLimit": "La limite de pages de la source a été atteinte ; la recherche peut avoir d’autres résultats impossibles à lister.",
+    "booru.bulk.endEnd": "La source n’a signalé aucun autre résultat après ceux-ci.",
+    "booru.bulk.endBlocked": "La source a cessé de répondre (pause, limite de débit, hors ligne ou erreur) ; le reste n’a pas été listé. Réessayez plus tard.",
+    "booru.bulk.endCanceled": "Arrêté par vous ; le reste n’a pas été listé. Ce qui a été mis en file y reste."
   }
 }

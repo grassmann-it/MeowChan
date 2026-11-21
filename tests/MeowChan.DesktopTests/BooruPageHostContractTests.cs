@@ -57,7 +57,7 @@ public sealed class BooruPageHostContractTests
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
         Assert.Equal(BooruWorkbenchView.TabsName, tabs.Name);
         TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        Assert.Equal(2, segments.Length);
+        Assert.Equal(3, segments.Length); // Search, Watchers and the "+" button that opens a search tab; the search tabs follow Watchers
         Control search = Assert.IsAssignableFrom<Control>(segments[0].Content);
         Control watchers = Assert.IsAssignableFrom<Control>(segments[1].Content);
         string?[] names = search.GetVisualDescendants().Concat(watchers.GetVisualDescendants())

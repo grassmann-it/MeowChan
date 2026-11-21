@@ -5243,6 +5243,26 @@
     "media.nextUntagged.none": "Nenhuma outra mídia exibida está sem tags de mídia.",
     "media.nextUntagged.unknown": "As tags ainda não estão disponíveis, então as mídias sem tags ainda não podem ser identificadas.",
     "work.scopeSummary": "Escopo da nova tentativa: {0} arquivos de mídia em {1} threads. Intocados: {2} de {3} já salvos, {4} já na fila.",
-    "work.scopeSummary.one": "Escopo da nova tentativa: {0} arquivo de mídia em {1} threads. Intocados: {2} de {3} já salvos, {4} já na fila."
+    "work.scopeSummary.one": "Escopo da nova tentativa: {0} arquivo de mídia em {1} threads. Intocados: {2} de {3} já salvos, {4} já na fila.",
+    "booru.tabs.new": "Nova aba de pesquisa",
+    "booru.tabs.openCurrent": "Abrir em nova aba",
+    "booru.tabs.openCurrentHint": "Copia a pesquisa mostrada e seus resultados para uma nova aba. Nada é enviado.",
+    "booru.tabs.close": "Fechar aba",
+    "booru.tabs.closeFor": "Fechar a aba de pesquisa “{0}”",
+    "booru.tabs.blank": "Nova pesquisa",
+    "booru.tabs.post": "Post #{0}",
+    "booru.tabs.limit": "O limite de abas de pesquisa ({0}) foi atingido. Feche uma aba primeiro ou aumente o limite nas configurações.",
+    "settings.limits.booruSearchTabs": "Danbooru: máximo de abas de pesquisa",
+    "settings.limits.booruSearchTabs.hint": "Máximo de abas de pesquisa que a página do Danbooru pode ter ao lado de Pesquisa e Monitores. As abas valem só para esta sessão; não são salvas ao fechar.",
+    "booru.bulk.button": "Baixar tudo desta pesquisa",
+    "booru.bulk.stop": "Parar a coleta",
+    "booru.bulk.hint": "Busca os resultados existentes da pesquisa mostrada e enfileira cada original, até o limite de páginas da fonte (páginas {0}, posts por página {1}). O monitor só pega posts novos.",
+    "booru.bulk.needsSearch": "Faça primeiro uma pesquisa por tags; são buscados os resultados da pesquisa mostrada.",
+    "booru.bulk.running": "Coletando resultados de “{0}”: páginas lidas {1} de no máximo {2}, posts encontrados {3}, na fila {4}.",
+    "booru.bulk.result": "Tudo de “{0}”: posts encontrados {1}, páginas lidas {2} de no máximo {3}. Na fila {4}, já na fila {5}, já salvos {6}, sem original oferecido {7}, com falha {8}.",
+    "booru.bulk.endLimit": "O limite de páginas da fonte foi atingido; a pesquisa pode ter mais resultados que não podem ser listados.",
+    "booru.bulk.endEnd": "A fonte não informou mais resultados depois destes.",
+    "booru.bulk.endBlocked": "A fonte parou de responder (pausa, limite de taxa, offline ou erro); o resto não foi listado. Tente novamente mais tarde.",
+    "booru.bulk.endCanceled": "Interrompido por você; o resto não foi listado. O que foi enfileirado continua na fila."
   }
 }
