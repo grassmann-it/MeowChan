@@ -4721,6 +4721,8 @@
     "media.tags.hint": "Enter 或单击：只显示带此标签的媒体 · Shift+Enter 或 {0}+单击：隐藏它们 · Delete：从筛选中移除标签 · 菜单键：更多",
     "settings.limits.mediaTagListTop": "标签列表：每组显示的标签数",
     "settings.limits.mediaTagListTop.hint": "媒体旁的标签列表每组显示这么多标签，最常见的在前；“全部显示”会列出其余标签。",
+    "settings.limits.booruResultTagsShown": "Danbooru 结果：每个结果显示的标签数",
+    "settings.limits.booruResultTagsShown.hint": "列表中每个 Danbooru 结果显示这么多来源标签；其余通过“还有 N 个”查看。设为 0 时，所有标签都收在“还有 N 个”之后。",
     "viewer.playback.menu": "幻灯片放映设置",
     "viewer.playback.menuHelp": "播放模式、每张图片的秒数以及视频的处理方式",
     "gallery.layout.button": "布局",

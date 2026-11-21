@@ -4826,6 +4826,8 @@
     "media.tags.hint": "Entrée ou clic : seulement les médias avec l’étiquette · Maj+Entrée ou {0}+clic : les masquer · Suppr : retirer l’étiquette du filtre · touche Menu : plus",
     "settings.limits.mediaTagListTop": "Liste d’étiquettes : étiquettes affichées par groupe",
     "settings.limits.mediaTagListTop.hint": "La liste d’étiquettes à côté des médias affiche ce nombre d’étiquettes par groupe, les plus fréquentes d’abord ; « Tout afficher » liste le reste.",
+    "settings.limits.booruResultTagsShown": "Résultats Danbooru : étiquettes affichées par résultat",
+    "settings.limits.booruResultTagsShown.hint": "Chaque résultat Danbooru de la liste affiche autant d’étiquettes sources ; « +N de plus » affiche le reste. Avec 0, toutes les étiquettes restent derrière « +N de plus ».",
     "settings.limits.mediaTagListWidth": "Liste d’étiquettes : largeur (dip)",
     "settings.limits.mediaTagListWidth.hint": "Largeur de la liste d’étiquettes à côté des médias. Elle se règle aussi en faisant glisser son bord.",
     "media.tile.ownTags.one": "{0} étiquette personnelle",

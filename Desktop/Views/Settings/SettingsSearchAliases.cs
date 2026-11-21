@@ -103,6 +103,7 @@ internal static class SettingsSearchAliases
         ["TagQueueWalkWindow"] = "walk window batch round queue durchgang runde fenster warteschlange tagging-warteschlange",
         ["TagQueueUndoDepth"] = "undo back history steps queue rückgängig zurücknehmen schritte verlauf warteschlange tagging-warteschlange",
         ["MediaTagListTop"] = "booru mode tag list sidebar tag counts top show all booru-modus tag-liste seitenleiste anzahl alle anzeigen",
+        ["BooruResultTagsShown"] = "booru danbooru result list tag chips shown more limit compact tags per result booru-ergebnis liste tag-chips angezeigt mehr begrenzung kompakt",
         ["MediaTagListWidth"] = "tag list width sidebar handle resize wide narrow booru layout breite tag-liste seitenleiste layout schmal breit",
         ["MediaPanelWidth"] = "media panel width sidebar preview large medium split view handle resize wide narrow medienleiste breite vorschau groß seitenleiste schmal breit",
         ["MediaPanelMinimumPageWidth"] = "media panel hide narrow page width threshold auto split view medienleiste ausblenden schmal seitenbreite schwelle automatisch",

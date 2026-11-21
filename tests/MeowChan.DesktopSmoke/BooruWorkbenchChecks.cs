@@ -107,14 +107,14 @@ internal static partial class BooruWorkbenchChecks
             Require(h.Search.Searches.Single() == ("cat blue_eyes", 1), "The search did not send the exact query.");
             Require(!h.Search.Searches[0].Query.Contains("rating"), "A rating term was added to the query.");
             string text = Text(page);
-            foreach (string expected in new[] { "Post #101", "Danbooru rating", "Danbooru score", "Original available",
+            foreach (string expected in new[] { "Post #101", "Danbooru rating", "Danbooru score",
                 "Source tags (from Danbooru, not your own tags)", "Page 1 of at most 5" })
                 Require(text.Contains(expected), "Result card lacks '" + expected + "'.");
             // I8: facts as a definition list (values named "term: value"), no address text line, tags as chips in Danbooru order.
             Grid details = Find<Grid>(page, BooruWorkbenchView.DetailsPrefix + "101");
             string[] detailNames = details.Children.OfType<TextBlock>().Select(block => AutomationProperties.GetName(block) ?? string.Empty).ToArray();
             Require(detailNames.Any(name => name.StartsWith("Danbooru rating: General", StringComparison.Ordinal)) && detailNames.Contains("Danbooru score: 12")
-                && details.ColumnDefinitions.Count == 2,
+                && details.ColumnDefinitions.Count == 4,
                 "The post facts are not a definition list: " + string.Join(" | ", detailNames));
             Require(!text.Contains("https://danbooru.donmai.us/posts/101"), "The post address is still shown as a text line.");
             Button[] chips101 = page.View.GetVisualDescendants().OfType<Button>().Where(button => button.Name?.StartsWith(BooruWorkbenchView.ResultTagPrefix + "101:", StringComparison.Ordinal) == true).ToArray();
@@ -141,7 +141,10 @@ internal static partial class BooruWorkbenchChecks
             Require(openPost.Focusable && openPost.IsTabStop && copyPost.Focusable && copyPost.IsTabStop, "The link buttons are not keyboard reachable.");
             Require(AutomationProperties.GetName(openPost) == "Open post 101 in the browser"
                 && AutomationProperties.GetName(copyPost) == "Copy link of post 101", "The link buttons lack their automation names.");
-            Require(openPost.Content as string == "Open post in browser" && copyPost.Content as string == "Copy link", "The link buttons lack their labels.");
+            Require(openPost.Classes.Contains("icon-only") && copyPost.Classes.Contains("icon-only")
+                && (ToolTip.GetTip(openPost) as string)?.Contains("https://danbooru.donmai.us/posts/101", StringComparison.Ordinal) == true
+                && (ToolTip.GetTip(copyPost) as string)?.StartsWith("Copy link", StringComparison.Ordinal) == true, "The link buttons are not icon buttons with tooltips.");
+            Require(!Text(page).Contains("Original available"), "The original status line is shown although the original is available.");
             Click(openPost);
             await Program.WaitUntilAsync(() => h.Links.Opened.Count == 1, () => "open not requested");
             Require(h.Links.Opened[0] == "https://danbooru.donmai.us/posts/101", "The browser got another URL: " + h.Links.Opened[0]);
@@ -656,7 +659,7 @@ internal static partial class BooruWorkbenchChecks
         Require(!card.GetVisualDescendants().OfType<SelectableTextBlock>().Any(text => text.Text == "https://danbooru.donmai.us/posts/101"),
             "The post address is still a text line in its card.");
         Button copy = card.GetVisualDescendants().OfType<Button>().Single(button => button.Name == BooruWorkbenchView.CopyLinkPrefix + "101");
-        Require(ToolTip.GetTip(copy) as string == "https://danbooru.donmai.us/posts/101" && !string.IsNullOrEmpty(AutomationProperties.GetName(copy)),
+        Require((ToolTip.GetTip(copy) as string)?.EndsWith("https://danbooru.donmai.us/posts/101", StringComparison.Ordinal) == true && !string.IsNullOrEmpty(AutomationProperties.GetName(copy)),
             "The copy button lacks the address as its tooltip or a name.");
     }
 

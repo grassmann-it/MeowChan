@@ -4826,6 +4826,8 @@
     "media.tags.hint": "Intro o clic: solo medios con la etiqueta · Mayús+Intro o {0}+clic: ocultarlos · Supr: quitar la etiqueta del filtro · tecla Menú: más",
     "settings.limits.mediaTagListTop": "Lista de etiquetas: etiquetas mostradas por grupo",
     "settings.limits.mediaTagListTop.hint": "La lista de etiquetas junto a los medios muestra esta cantidad de etiquetas por grupo, las más frecuentes primero; «Mostrar todas» lista el resto.",
+    "settings.limits.booruResultTagsShown": "Resultados de Danbooru: etiquetas mostradas por resultado",
+    "settings.limits.booruResultTagsShown.hint": "Cada resultado de Danbooru en la lista muestra tantas etiquetas de origen; «+N más» muestra el resto. Con 0, todas las etiquetas quedan tras «+N más».",
     "settings.limits.mediaTagListWidth": "Lista de etiquetas: ancho (dip)",
     "settings.limits.mediaTagListWidth.hint": "Ancho de la lista de etiquetas junto a los medios. También se cambia arrastrando su borde.",
     "media.tile.ownTags.one": "{0} etiqueta propia",

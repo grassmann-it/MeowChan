@@ -75,7 +75,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal const string WatcherShowInMediaPrefix = "BooruWatcherShowInMedia:";
 
     private const int PreviewSize = 112;
-    private const int MaximumTagsShown = 24;
     private readonly HashSet<string> _expandedTagPosts = new(StringComparer.Ordinal);
     private const int MaximumHiddenTagsNamed = 60;
     private const int MaximumPreviewBytes = 8 * 1024 * 1024;
@@ -253,6 +252,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             Render(force: true);
         }
     }
+
+    /// <summary>E2: how many source tag chips a result shows before "+N more" (the setting, read at each render); the default without a host.</summary>
+    internal Func<int>? ResultTagsShown { get; set; }
+
+    private int TagsShown() => Math.Clamp(ResultTagsShown?.Invoke() ?? MeowChan.Config.BooruResultTagsShownDefault,
+        MeowChan.Config.BooruResultTagsShownMinimum, MeowChan.Config.BooruResultTagsShownMaximum);
 
     /// <summary>Passive local predicate used for watcher cards; it must require the exact Danbooru post identity.</summary>
     internal Func<string, bool>? IsPostSavedInMedia
@@ -597,7 +602,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _pageLimit.Text = Texts.T("booru.ui.page.limit", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
 
         string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, string.Join('|',
-            view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}:{_expandedTagPosts.Contains(row.Post.PostId)}")));
+            view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}:{_expandedTagPosts.Contains(row.Post.PostId)}:{TagsShown()}")));
         if (force || key != _resultsKey)
         {
             _resultsKey = key;
@@ -784,7 +789,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             FontWeight = FontWeight.Medium
         };
         original.Classes.Add(post.OriginalAccess == BooruOriginalAccess.Available ? "workspace-status-success" : "workspace-warning");
-        info.Children.Add(original);
+        // E2: "Original available" is the normal case and no line of its own (it is the tooltip of the load button); only a problem is shown.
+        if (withdrawn || post.OriginalAccess != BooruOriginalAccess.Available) info.Children.Add(original);
         info.Children.Add(CreateTags(post));
         if (row.Load == BooruRowLoad.AlreadyLoaded && _showInMedia != null
             && (_isPostSavedInMedia == null || _isPostSavedInMedia(post.PostId)))
@@ -809,7 +815,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         AutomationProperties.SetName(load, actionName);
         string? why = post.OriginalAccess != BooruOriginalAccess.Available ? BooruText.Original(post.OriginalAccess, withdrawn)
             : BooruText.Load(row);
-        ToolTip.SetTip(load, why ?? actionName);
+        ToolTip.SetTip(load, why ?? (post.OriginalAccess == BooruOriginalAccess.Available && !withdrawn
+            ? actionName + Environment.NewLine + BooruText.Original(post.OriginalAccess, withdrawn) : actionName));
         ToolTip.SetShowOnDisabled(load, true);
         if (why is not null) AutomationProperties.SetHelpText(load, why);
         if (cancel) load.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
@@ -820,7 +827,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         actions.Children.Add(load);
         if (BooruPostLinks.TryCanonical(post, out string canonical))
             foreach (Button link in CreateLinkButtons(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
-                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions))
+                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions, iconOnly: true))
                 actions.Children.Add(link);
         info.Children.Add(actions);
 
@@ -888,21 +895,26 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     // The buttons without a panel of their own: a card that already has a toolbar adds them to it. Handing out the panel's children instead
     // would reparent controls that still belong to it, which Avalonia refuses ("already has a visual parent").
     private IReadOnlyList<Button> CreateLinkButtons(string openName, string copyName, string url, string openAccessibleName, string copyAccessibleName,
-        ICollection<Button> workViewActions)
+        ICollection<Button> workViewActions, bool iconOnly = false)
     {
-        Button open = new() { Name = openName, Content = Texts.T("booru.ui.post.open") };
+        // iconOnly (E2, the result list): an icon button; the tooltip says what it does, the automation name names the post.
+        Button open = new() { Name = openName };
+        if (!iconOnly) open.Content = Texts.T("booru.ui.post.open");
         open.Classes.Add("ghost");
-        CommandBindings.ShowIconBeforeText(open, "external-link");
+        if (iconOnly) IconButtons.Apply(open, "external-link", openAccessibleName);
+        else CommandBindings.ShowIconBeforeText(open, "external-link");
         RegisterWorkViewAction(open, "booru.result.open", workViewActions);
         AutomationProperties.SetName(open, openAccessibleName);
         ToolTip.SetTip(open, Texts.T("booru.ui.post.openTip", url));
         open.Click += async (_, _) => await OpenLinkAsync(url);
-        Button copy = new() { Name = copyName, Content = Texts.T("booru.ui.post.copy") };
+        Button copy = new() { Name = copyName };
+        if (!iconOnly) copy.Content = Texts.T("booru.ui.post.copy");
         copy.Classes.Add("ghost");
-        CommandBindings.ShowIconBeforeText(copy, "copy");
+        if (iconOnly) IconButtons.Apply(copy, "copy", copyAccessibleName);
+        else CommandBindings.ShowIconBeforeText(copy, "copy");
         RegisterWorkViewAction(copy, "booru.result.copy-link", workViewActions);
         AutomationProperties.SetName(copy, copyAccessibleName);
-        ToolTip.SetTip(copy, url);
+        ToolTip.SetTip(copy, iconOnly ? Texts.T("booru.ui.post.copy") + Environment.NewLine + url : url);
         copy.Click += async (_, _) => await CopyLinkAsync(url);
         return new[] { open, copy };
     }
@@ -1020,19 +1032,25 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     /// </summary>
     private static Control CreateDetails(BooruPostView post)
     {
-        Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, RowSpacing = 2 };
+        // E2: two pairs (term | value, term | value) per row, so the list stays within the height of the preview; the original file
+        // (the longest value) takes a row of its own across the value columns.
+        Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*"), ColumnSpacing = 8, RowSpacing = 2 };
         WorkViewElement.SetId(list, "booru.result.details");
-        void Add(string termKey, string value)
+        int slot = 0;
+        void Add(string termKey, string value, bool wide = false)
         {
-            int row = list.RowDefinitions.Count;
-            list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            if (wide && slot % 2 == 1) slot++;
+            int row = slot / 2, column = slot % 2 * 2;
+            while (list.RowDefinitions.Count <= row) list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+            slot += wide ? 2 : 1;
             string termText = Texts.T(termKey);
             TextBlock term = new() { Text = termText, Classes = { "workspace-meta" }, VerticalAlignment = VerticalAlignment.Top };
             AutomationProperties.SetAccessibilityView(term, AccessibilityView.Raw);
             TextBlock detail = new() { Text = value, TextWrapping = TextWrapping.Wrap };
             detail[!TextBlock.FontSizeProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Text.Meta"); // D0 token, value in the text colour
             AutomationProperties.SetName(detail, termText + ": " + value);
-            Grid.SetRow(term, row); Grid.SetRow(detail, row); Grid.SetColumn(detail, 1);
+            Grid.SetRow(term, row); Grid.SetRow(detail, row); Grid.SetColumn(term, column); Grid.SetColumn(detail, column + 1);
+            if (wide) Grid.SetColumnSpan(detail, 3);
             list.Children.Add(term); list.Children.Add(detail);
         }
         string rating = BooruText.Rating(post.Rating);
@@ -1052,7 +1070,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
                 media.Append(media.Length > 0 ? " " : string.Empty).Append(original.Extension.TrimStart('.'));
             if (original.ExpectedSize is { } size)
                 media.Append(media.Length > 0 ? " " : string.Empty).Append(Size(size));
-            if (media.Length > 0) Add("booru.ui.post.field.file", media.ToString());
+            if (media.Length > 0) Add("booru.ui.post.field.file", media.ToString(), wide: true);
         }
         return list;
     }
@@ -1097,7 +1115,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         }
         int shown = 0;
         // "+N more" lifts the limit for this card only (a click on it; the cards are rebuilt with the flag in the results key).
-        int limit = _expandedTagPosts.Contains(post.PostId) ? int.MaxValue : MaximumTagsShown;
+        int limit = _expandedTagPosts.Contains(post.PostId) ? int.MaxValue : TagsShown();
         HashSet<string> shownNames = new(StringComparer.Ordinal);
         foreach (BooruTagCategory category in new[] { BooruTagCategory.Artist, BooruTagCategory.Copyright, BooruTagCategory.Character,
             BooruTagCategory.General, BooruTagCategory.Meta, BooruTagCategory.Unknown })

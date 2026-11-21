@@ -49,6 +49,7 @@ public sealed class ConfigCorruptionTests
         (nameof(Config.TagQueueHistory), Config.TagQueueHistoryMinimum, Config.TagQueueHistoryMaximum),
         (nameof(Config.TagQueueConfirmAbove), Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum),
         (nameof(Config.MediaTagListTop), Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum),
+        (nameof(Config.BooruResultTagsShown), Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum),
         (nameof(Config.MediaPanelMinimumPageWidth), Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum),
         (nameof(Config.FolderSourceMaxFiles), Config.FolderSourceMaxFilesMinimum, Config.FolderSourceMaxFilesMaximum),
         (nameof(Config.FolderSourceMaxRoots), Config.FolderSourceMaxRootsMinimum, Config.FolderSourceMaxRootsMaximum),
@@ -112,6 +113,15 @@ public sealed class ConfigCorruptionTests
         Assert.True(names.SequenceEqual(profile.Names()), context + ": the directory changed.");
         Assert.True(primary == null ? !File.Exists(profile.Primary) : primary.AsSpan().SequenceEqual(File.ReadAllBytes(profile.Primary)), context + ": settings.json changed.");
         Assert.True(backup == null ? !File.Exists(profile.Backup) : backup.AsSpan().SequenceEqual(File.ReadAllBytes(profile.Backup)), context + ": settings.json.bak changed.");
+    }
+
+    [Fact]
+    public void BooruResultTagsShownDefaultsToTwelveAndIsCopied()
+    {
+        Assert.Equal((12, 0, 200), (new Config().BooruResultTagsShown, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum));
+        Config live = new();
+        live.CopySettingsFieldsFrom(new Config { BooruResultTagsShown = 0 });
+        Assert.Equal(0, live.BooruResultTagsShown);
     }
 
     [Fact]
