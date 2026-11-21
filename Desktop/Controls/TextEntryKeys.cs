@@ -38,6 +38,10 @@ internal static class TextEntryKeys
         // Do not invent a layout-dependent character for redirection; just leave native text generation alone in an editor.
         || (e.Key is >= Key.D0 and <= Key.D9 && e.KeyModifiers is KeyModifiers.None or KeyModifiers.Shift);
 
+    /// <summary>A digit of the main row or the number pad with no modifier: in a tag field that is the start of a tag name ("1girl"), never a rating key.</summary>
+    internal static bool IsBareDigit(KeyEventArgs e) =>
+        e.KeyModifiers == KeyModifiers.None && (e.Key is >= Key.D0 and <= Key.D9 || e.Key is >= Key.NumPad0 and <= Key.NumPad9);
+
     /// <summary>True when <paramref name="source"/> is an editable, enabled text box or inside one (the box of an autocomplete field).</summary>
     internal static bool IsTextEditor(object? source) => source is Visual visual
         && visual.GetSelfAndVisualAncestors().OfType<TextBox>().FirstOrDefault() is { IsReadOnly: false, IsEffectivelyEnabled: true };

@@ -768,6 +768,8 @@ internal sealed class QuickTagPopover
     {
         if (_decisionRow is not { } row || _options.Decision == null) return false;
         if (Surface is { } surface && surface.Input.IsKeyboardFocusWithin && (!string.IsNullOrEmpty(surface.Input.Text) || surface.Input.IsDropDownOpen)) return false;
+        // A bare digit (the Lightroom rating keys) in the tag field starts a tag name; it rates only from the row itself.
+        if (TextEntryKeys.IsBareDigit(e) && (Surface?.Input.IsKeyboardFocusWithin == true || TextEntryKeys.IsTextEditor(e.Source))) return false;
         for (int value = 1; value <= 5; value++)
             if (bindings.Matches(e, "media.rating.set-" + value)) return row.RequestRating(value);
         if (bindings.Matches(e, "media.rating.clear")) return row.RequestRating(null);

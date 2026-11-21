@@ -33,7 +33,7 @@ internal enum MediaBadgeKind { Image, Video, Gif }
 internal enum MediaTaggingState { None, Done, Skipped }
 
 /// <summary>The badges, in the order that breaks a tie of priority.</summary>
-internal enum MediaBadgeId { Missing, Favorite, PlayMark, Video, Gif, Queued, Tagging, TagCount, Untagged, Rating, Booru }
+internal enum MediaBadgeId { Missing, Favorite, PlayMark, Video, Gif, Queued, Tagging, TagCount, Untagged, Rating, Booru, Label }
 
 internal enum MediaBadgeCorner { TopLeft, TopRight, BottomLeft, BottomRight, Center }
 
@@ -67,9 +67,10 @@ internal enum MediaBadgeMode { Hidden, Dots, Full }
 /// <param name="Tagging">Done or skipped on the tagging page.</param>
 /// <param name="Missing">The file is not (or no longer) there.</param>
 /// <param name="Booru">The medium comes from a booru.</param>
+/// <param name="Label">The colour label (red, yellow, green, blue) or null; drawn as a coloured mark and always named in the sentence.</param>
 internal readonly record struct MediaBadgeState(
     bool Favorite = false, int? Rating = null, MediaBadgeKind Kind = MediaBadgeKind.Image, TimeSpan? Duration = null,
-    int? TagCount = null, bool Queued = false, MediaTaggingState Tagging = MediaTaggingState.None, bool Missing = false, bool Booru = false);
+    int? TagCount = null, bool Queued = false, MediaTaggingState Tagging = MediaTaggingState.None, bool Missing = false, bool Booru = false, string? Label = null);
 
 /// <summary>What a surface shows of the badge set: two badges are opt-in per surface, the play mark and the density depend on the surface's picture.</summary>
 /// <param name="ShowUntagged">The "no tags yet" mark (media page and tagging grid only, F7).</param>
@@ -116,6 +117,8 @@ internal static class MediaBadgeIcons
         Skipped = "skip-forward", Tag = "tag", Rating = "star-half", Booru = "globe";
     /// <summary>Not a mask: the existing drawn mark of the untagged state (<see cref="WorkspaceChips.MarkUntagged"/>).</summary>
     internal const string Untagged = "untagged";
+    /// <summary>Not a mask: the colour label's mark, "label:" and the colour; drawn as a filled dot in the label's colour.</summary>
+    internal const string LabelPrefix = "label:";
     /// <summary>The masks the badges can use (the lint of the assets in the tests).</summary>
     internal static readonly string[] Masks = [Missing, Favorite, Play, Queued, Done, Skipped, Tag, Rating, Booru];
 }
@@ -210,6 +213,7 @@ internal static class MediaBadgeModel
         if (state.Rating is >= 1 and var rating)
             Add(new(MediaBadgeId.Rating, MediaBadgeCorner.TopLeft, 7, MediaBadgeIcons.Rating, Math.Min(rating, MaximumRating).ToString(CultureInfo.InvariantCulture)));
         if (state.Booru && options.ShowBooru) Add(new(MediaBadgeId.Booru, MediaBadgeCorner.TopRight, 8, MediaBadgeIcons.Booru, null));
+        if (state.Label is { } label && MeowChan.Ratings.MediaLabelColors.IsValid(label)) Add(new(MediaBadgeId.Label, MediaBadgeCorner.TopLeft, 7, MediaBadgeIcons.LabelPrefix + label, null));
 
         if (list == null) return None;
         MediaBadge[] result = list.ToArray();
@@ -464,6 +468,7 @@ internal static class MediaBadgeText
         if (state.TagCount is > 0 and var tags) Add(Texts.Count("media.badge.tags", tags));
         else if (state.TagCount == 0 && options.ShowUntagged) Add(Texts.T("media.badge.untagged"));
         if (state.Rating is >= 1 and var rating) Add(Texts.T("media.badge.rating", Math.Min(rating, MediaBadgeModel.MaximumRating)));
+        if (state.Label is { } label && MeowChan.Ratings.MediaLabelColors.IsValid(label)) Add(MeowChan.Desktop.MediaLabelText.Name(label));
         if (state.Booru && options.ShowBooru) Add(Texts.T("media.badge.booru"));
         return parts == null ? string.Empty : string.Join(Separator, parts);
     }
@@ -687,6 +692,8 @@ internal sealed partial class MediaBadgeView : Control
         {
             Rect target = new(x, bounds.Y + (bounds.Height - icon) / 2, icon, icon);
             if (badge.Icon == MediaBadgeIcons.Untagged) DrawUntagged(context, target);
+            else if (badge.Icon.StartsWith(MediaBadgeIcons.LabelPrefix, StringComparison.Ordinal))
+                context.DrawEllipse(new SolidColorBrush(MeowChan.Desktop.MediaLabelText.Of(badge.Icon[MediaBadgeIcons.LabelPrefix.Length..])), null, target.Center, target.Width / 2, target.Height / 2);
             else
             {
                 Bitmap mask = MediaBadgeIconBitmaps.Get(badge.Icon);

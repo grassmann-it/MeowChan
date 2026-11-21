@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 23;
+    public const int DefaultsRevision = 24;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -129,6 +129,12 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
+        // Revision 24 (Lightroom rating keys): 1 to 5 rate and 0 removes the rating (Shift+1 to Shift+5 and Shift+0 stay as the second key); Fit gains Primary+0
+        // while the bare 0 and 1 of Fit and 1:1 are given up (NumPad0 and NumPad1 stay). The rating ids are listed below since revision 9: a saved binding of another
+        // command on a digit wins over the new default.
+        ["gallery.fit"] = 24,
+        // Revision 24: the colour labels on the bare digits 6 to 9 (Lightroom); like every new default they yield to a saved binding of another command.
+        ["media.label.red"] = 24, ["media.label.yellow"] = 24, ["media.label.green"] = 24, ["media.label.blue"] = 24,
         ["gallery.open"] = 23,
         ["video.volume-up"] = 22, ["video.volume-down"] = 22,
         // (favorites.add and favorites.remove: revision 1, now listed with revision 20 below.)
@@ -367,7 +373,10 @@ public sealed class EffectiveShortcutBindings
         {
             case "gallery.open": list.Add(ShortcutGesture.Parse("Shift+Enter")); break;
             case "gallery.fit": list.Add(ShortcutGesture.Parse("NumPad0")); break;
-            case "gallery.actual-size": list.Add(ShortcutGesture.Parse("NumPad1")); break;
+            // Revision 24: the bare digits 0 and 1 belong to the rating (Lightroom scheme), so Fit keeps NumPad0 and gains Primary+0, and 1:1 keeps NumPad1.
+            case "media.rating.clear": list.Add(ShortcutGesture.Parse("Shift+0")); break;
+            case "media.rating.set-1": case "media.rating.set-2": case "media.rating.set-3": case "media.rating.set-4": case "media.rating.set-5":
+                list.Add(ShortcutGesture.Parse("Shift+" + command.Id[^1])); break;
             case "gallery.zoom-in": list.Add(ShortcutGesture.Parse("Add")); list.Add(ShortcutGesture.Parse("Shift+OemPlus")); break;
             case "gallery.zoom-out": list.Add(ShortcutGesture.Parse("Subtract")); break;
             case "media.tile-size.larger": list.Add(ShortcutGesture.Parse("Primary+Add")); break;
@@ -682,6 +691,8 @@ public sealed class EffectiveShortcutBindings
         // Ctrl+O is one gesture with two readings: the folder of the selected thread (archive, downloads) and, in the media
         // page and the gallery, the folder of the shown medium (media.show-in-folder). Neither claims the other's page.
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
+        // The colour labels (keys 6 to 9) run where the rating digits run, except in the reader (not wired there yet).
+        if (id.StartsWith("media.label.", StringComparison.Ordinal)) return new[] { "media", "gallery" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
             return new[] { "media", "reader", "gallery" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };

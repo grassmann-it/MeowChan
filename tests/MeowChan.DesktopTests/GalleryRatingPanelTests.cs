@@ -104,8 +104,8 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Assert.Equal("Bewerten und taggen…", CommandCatalog.Label("media.rating.edit"));
         Assert.Equal("R", CommandCatalog.Get("media.rating.edit").Shortcut);
         // The direct-rating keys stay commands (Shift+1 to 5, Shift+0), they are only no menu entries.
-        Assert.Equal("Shift+3", CommandCatalog.Get("media.rating.set-3").Shortcut);
-        Assert.Equal("Shift+0", CommandCatalog.Get("media.rating.clear").Shortcut);
+        Assert.Equal("3", CommandCatalog.Get("media.rating.set-3").Shortcut);
+        Assert.Equal("0", CommandCatalog.Get("media.rating.clear").Shortcut);
     }
 
     [Fact]
