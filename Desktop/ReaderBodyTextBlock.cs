@@ -262,7 +262,7 @@ internal sealed class ReaderBodyTextBlock : SelectableTextBlock
     public ReaderBodyTextBlock()
     {
         UpdateReadingMetrics();
-        _ = new TransientHover(this, over =>
+        TransientHover.Attach(this, over =>
         {
             SetSpoilerHover(over);
             if (!over) { SetLinkCursor(false); SetHoverQuote(null); }

@@ -29,7 +29,8 @@ public partial class ArchivePage
     // QuotePreviewMaxLines, QuotePreviewMaxCharacters and QuotePreviewDelay are clamped instance properties (ArchivePage.ReaderLimits.cs).
 
     private DispatcherTimer? _quotePreviewTimer;
-    private TransientHover? _quotePointerLease;
+    // Held in TransientHover's owner slot (not a field) so ArchivePage's baselined CA1001 set does not grow.
+    private TransientHover? _quotePointerLease => TransientHover.Current(this);
     private Window? _quoteHostWindow;
     private ArchiveQuoteRow? _quotePreviewRow;
     private Control? _quotePreviewTarget;
@@ -288,10 +289,9 @@ public partial class ArchivePage
         _quotePreviewHover.Request(pointer, immediate);
         if (pointer)
         {
-            _quotePointerLease = new TransientHover(target, hovered => { if (!hovered) CloseQuotePreview(); },
+            TransientHover.Replace(this, target, hovered => { if (!hovered) CloseQuotePreview(); },
                 () => QuotePreviewPopup.IsOpen && (QuotePreviewCard.IsPointerOver
                     || _quotePreviewCloseTimer?.IsEnabled == true && TopLevel.GetTopLevel(target)?.IsPointerOver == true));
-            _quotePointerLease.Reconcile(moved: true);
         }
         ShowQuoteHighlight(row);
         if (immediate) { ShowQuotePreview(); return; }
@@ -312,7 +312,7 @@ public partial class ArchivePage
     internal void CloseQuotePreview()
     {
         _quotePreviewTimer?.Stop();
-        TransientHover? lease = _quotePointerLease; _quotePointerLease = null; lease?.Dispose();
+        TransientHover.Release(this);
         _quotePreviewCloseTimer?.Stop();
         _quotePreviewHover.Reset();
         HideQuoteHighlight();

@@ -122,7 +122,7 @@ internal sealed class GalleryFilmstrip : Border
         PointerWheelChanged += OnWheel;
         // A right-click on a tile asks for that tile's menu (Menu key and Shift+F10 carry no position and stay with the viewer: the shown medium's).
         AddHandler(ContextRequestedEvent, OnContextRequested, Avalonia.Interactivity.RoutingStrategies.Bubble);
-        _ = new TransientHover(this, hovered =>
+        TransientHover.Attach(this, hovered =>
         {
             _pointerOver = hovered;
             if (!hovered) SetHovered(-1);

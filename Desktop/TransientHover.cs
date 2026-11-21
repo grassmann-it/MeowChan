@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -49,6 +51,37 @@ internal sealed class TransientHover : IDisposable
         _timer.Tick += Tick;
         AttachWindow();
     }
+
+    // Lifetime owners without their own Dispose: the lease lives exactly as long as its owner (the
+    // anchor for Attach), so nothing is leaked and no owner has to become IDisposable.
+    private static readonly ConditionalWeakTable<object, List<TransientHover>> Attached_ = new();
+    private static readonly ConditionalWeakTable<object, List<TransientHover>> Slots = new();
+
+    /// <summary>Creates a lease that lives as long as <paramref name="anchor"/> itself.</summary>
+    internal static void Attach(Control anchor, Action<bool> changed, Func<bool>? extraPointer = null)
+    {
+        TransientHover lease = new(anchor, changed, extraPointer);
+        Attached_.GetOrCreateValue(anchor).Add(lease);
+    }
+
+    /// <summary>Starts the single replaceable lease of <paramref name="owner"/>; the previous one is disposed.</summary>
+    internal static void Replace(object owner, Control anchor, Action<bool> changed, Func<bool>? extraPointer = null)
+    {
+        Release(owner);
+        TransientHover lease = new(anchor, changed, extraPointer);
+        Slots.GetOrCreateValue(owner).Add(lease);
+        lease.Reconcile(moved: true);
+    }
+
+    internal static void Release(object owner)
+    {
+        if (!Slots.TryGetValue(owner, out List<TransientHover>? held)) return;
+        TransientHover[] previous = held.ToArray();
+        held.Clear();
+        foreach (TransientHover lease in previous) lease.Dispose();
+    }
+
+    internal static TransientHover? Current(object owner) => Slots.TryGetValue(owner, out List<TransientHover>? held) && held.Count > 0 ? held[0] : null;
 
     internal static bool WindowUsable(Control anchor) => anchor.IsAttachedToVisualTree()
         && anchor.IsEffectivelyVisible && anchor.IsEffectivelyEnabled

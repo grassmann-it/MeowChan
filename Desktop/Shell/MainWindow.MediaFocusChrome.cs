@@ -41,7 +41,7 @@ public partial class MainWindow
         _mediaFocusChromeTexts = new MediaFocusChromeTextBinding(strip);
         strip.PointerEntered += (_, _) => { if (TransientHover.WindowUsable(strip)) RevealMediaFocusHeader(true); };
         // Observe the stable window, not the reveal strip which hides during reveal.
-        _ = new TransientHover(this, over =>
+        TransientHover.Attach(this, over =>
         {
             if (over) return;
             if (!IsActive || !IsVisible || WindowState == WindowState.Minimized) RevealMediaFocusHeader(false);

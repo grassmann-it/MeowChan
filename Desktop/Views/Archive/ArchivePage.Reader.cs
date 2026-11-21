@@ -245,8 +245,8 @@ public partial class ArchivePage
         ReaderContentSurface.DetachedFromVisualTree += UnsubscribeLayout;
         // The navigation bar floats over the content and (mode "Auto") hides while the pointer is idle (see ReaderNavigationLayout).
         ReaderContentSurface.AddHandler(PointerMovedEvent, OnReaderSurfacePointerMoved, RoutingStrategies.Tunnel | RoutingStrategies.Bubble, handledEventsToo: true);
-        _ = new TransientHover(ReaderNavigation, over => { _readerNavigationPointerOver = over; UpdateReaderNavigationShown(); });
-        _ = new TransientHover(ReaderContentSurface, over =>
+        TransientHover.Attach(ReaderNavigation, over => { _readerNavigationPointerOver = over; UpdateReaderNavigationShown(); });
+        TransientHover.Attach(ReaderContentSurface, over =>
         {
             if (over) return;
             _readerSurfacePointer = null;

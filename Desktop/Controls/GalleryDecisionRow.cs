@@ -53,7 +53,7 @@ internal sealed class GalleryDecisionRow : StackPanel
             int number = index + 1;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
             star.Click += (_, _) => OnStar(number);
-            _ = new TransientHover(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
+            TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
             Grid.SetColumn(star, index);
             _group.Children.Add(star);
         }
