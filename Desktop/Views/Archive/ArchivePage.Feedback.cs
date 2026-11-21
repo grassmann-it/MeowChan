@@ -28,7 +28,7 @@ public partial class ArchivePage
         _statusMessageTimer.Tick += (_, _) => ExpireStatusMessage();
         Border overlay = ArchiveStatusOverlay;
         // Hovering keeps the message (and its tooltip) readable; leaving restarts its time.
-        _ = new MeowChan.Desktop.TransientHover(overlay, over =>
+        MeowChan.Desktop.TransientHover.Attach(overlay, over =>
         {
             _statusOverlayHovered = over;
             if (over) _statusMessageTimer.Stop();

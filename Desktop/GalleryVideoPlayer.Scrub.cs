@@ -124,7 +124,7 @@ internal sealed partial class GalleryVideoPlayer
         };
         // The popup must not keep a reference to, or stay open for, a timeline that left the tree.
         _seek.DetachedFromVisualTree += (_, _) => OnScrubTimelineDetached();
-        _ = new TransientHover(_seek, over =>
+        TransientHover.Attach(_seek, over =>
         {
             if (over) return;
             _scrubGate.OnPointerExited();
@@ -319,27 +319,8 @@ internal sealed partial class GalleryVideoPlayer
         // A frame that finishes loading after the window was minimised/deactivated/hidden must not open a popup.
         if (!ApplyScrubEnvironment() || !_scrubGate.MayShow) { CancelScrubPreviewRequest(); return; }
 
-        Bitmap bitmap;
-        try
-        {
-            using MemoryStream png = new(frame.Png, writable: false);
-            bitmap = new Bitmap(png);
-        }
-        catch (ArgumentException) when (!IsDisposed)
-        {
-            // A malformed optional PNG must not affect the seek control or native playback.
-            return;
-        }
-        catch (InvalidOperationException)
-        {
-            // Avalonia may reject a late/retired bitmap as an optional preview error.
-            return;
-        }
-        catch (NotSupportedException)
-        {
-            // A codec-independent bitmap failure is also optional; playback remains untouched.
-            return;
-        }
+        Bitmap? bitmap = DecodeScrubBitmap(frame.Png);
+        if (bitmap == null) return;
 
         Bitmap? previous = _scrubBitmap;
         _scrubBitmap = bitmap;
@@ -348,6 +329,30 @@ internal sealed partial class GalleryVideoPlayer
         previous?.Dispose();
         _scrubPopup.IsOpen = true;
         _scrubWatchdog.Start();
+    }
+
+    private Bitmap? DecodeScrubBitmap(byte[] pngBytes)
+    {
+        try
+        {
+            using MemoryStream png = new(pngBytes, writable: false);
+            return new Bitmap(png);
+        }
+        catch (ArgumentException) when (!IsDisposed)
+        {
+            // A malformed optional PNG must not affect the seek control or native playback.
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            // Avalonia may reject a late/retired bitmap as an optional preview error.
+            return null;
+        }
+        catch (NotSupportedException)
+        {
+            // A codec-independent bitmap failure is also optional; playback remains untouched.
+            return null;
+        }
     }
 
     private void CancelScrubPreviewRequest()
@@ -416,6 +421,10 @@ internal sealed partial class GalleryVideoPlayer
         }
 
         _scrubEntry = null;
+        CancellationTokenSource? hoverCancellation = _scrubHoverCancellation;
+        _scrubHoverCancellation = null;
+        try { hoverCancellation?.Cancel(); } catch (ObjectDisposedException) { }
+        hoverCancellation?.Dispose();
         _scrubGate.Retire();
         ReleaseScrubWindowWatch();
         VideoScrubPreviewSession? previous = DetachScrubSession();

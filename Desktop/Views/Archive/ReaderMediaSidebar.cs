@@ -460,7 +460,7 @@ internal sealed class ReaderMediaSidebar : Border
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
-        _ = new TransientHover(this, hovered => { _hover = hovered; UpdateClose(); });
+        TransientHover.Attach(this, hovered => { _hover = hovered; UpdateClose(); });
         GotFocus += (_, _) => UpdateClose();
         LostFocus += (_, _) => UpdateClose();
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
