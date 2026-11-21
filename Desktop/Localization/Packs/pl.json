@@ -5294,6 +5294,26 @@
     "media.nextUntagged.none": "Żadne inne wyświetlone medium nie jest bez tagów mediów.",
     "media.nextUntagged.unknown": "Tagi nie są jeszcze dostępne, więc nie da się jeszcze rozpoznać mediów bez tagów.",
     "work.scopeSummary": "Zakres ponowienia: plików multimedialnych: {0} w wątkach: {1}. Bez zmian: {2} z {3} już zapisanych, {4} już w kolejce.",
-    "work.scopeSummary.one": "Zakres ponowienia: {0} plik multimedialny w wątkach: {1}. Bez zmian: {2} z {3} już zapisanych, {4} już w kolejce."
+    "work.scopeSummary.one": "Zakres ponowienia: {0} plik multimedialny w wątkach: {1}. Bez zmian: {2} z {3} już zapisanych, {4} już w kolejce.",
+    "booru.tabs.new": "Nowa karta wyszukiwania",
+    "booru.tabs.openCurrent": "Otwórz w nowej karcie",
+    "booru.tabs.openCurrentHint": "Kopiuje wyświetlone wyszukiwanie i jego wyniki do nowej karty. Nic nie jest wysyłane.",
+    "booru.tabs.close": "Zamknij kartę",
+    "booru.tabs.closeFor": "Zamknij kartę wyszukiwania „{0}”",
+    "booru.tabs.blank": "Nowe wyszukiwanie",
+    "booru.tabs.post": "Post #{0}",
+    "booru.tabs.limit": "Osiągnięto limit kart wyszukiwania ({0}). Najpierw zamknij kartę lub zwiększ limit w ustawieniach.",
+    "settings.limits.booruSearchTabs": "Danbooru: maksymalna liczba kart wyszukiwania",
+    "settings.limits.booruSearchTabs.hint": "Największa liczba kart wyszukiwania, jaką strona Danbooru może mieć obok Wyszukiwania i Obserwatorów. Karty działają tylko w tej sesji; nie są zapisywane przy zamknięciu.",
+    "booru.bulk.button": "Pobierz wszystko z tego wyszukiwania",
+    "booru.bulk.stop": "Zatrzymaj zbieranie",
+    "booru.bulk.hint": "Pobiera istniejące wyniki wyświetlonego wyszukiwania i kolejkuje każdy oryginał, do limitu stron źródła (strony {0}, postów na stronę {1}). Obserwator bierze tylko nowe posty.",
+    "booru.bulk.needsSearch": "Najpierw uruchom wyszukiwanie po tagach; pobierane są wyniki wyświetlonego wyszukiwania.",
+    "booru.bulk.running": "Zbieranie wyników „{0}”: odczytane strony {1} z co najwyżej {2}, znalezione posty {3}, w kolejce {4}.",
+    "booru.bulk.result": "Wszystko z „{0}”: znalezione posty {1}, odczytane strony {2} z co najwyżej {3}. W kolejce {4}, już w kolejce {5}, już zapisane {6}, bez oferowanego oryginału {7}, nieudane {8}.",
+    "booru.bulk.endLimit": "Osiągnięto limit stron źródła; wyszukiwanie może mieć więcej wyników, których nie da się wylistować.",
+    "booru.bulk.endEnd": "Źródło nie zgłosiło dalszych wyników po tych.",
+    "booru.bulk.endBlocked": "Źródło przestało odpowiadać (pauza, limit zapytań, brak sieci lub błąd); reszta nie została wylistowana. Spróbuj później.",
+    "booru.bulk.endCanceled": "Zatrzymane przez Ciebie; reszta nie została wylistowana. Co trafiło do kolejki, tam zostaje."
   }
 }

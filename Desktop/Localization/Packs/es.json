@@ -5245,6 +5245,26 @@
     "media.nextUntagged.none": "Ningún otro medio mostrado está sin etiquetas de medio.",
     "media.nextUntagged.unknown": "Las etiquetas aún no están disponibles, así que todavía no se pueden distinguir los medios sin etiquetas.",
     "work.scopeSummary": "Alcance del reintento: {0} archivos multimedia en {1} hilos. Sin tocar: {2} de {3} ya guardados, {4} ya en cola.",
-    "work.scopeSummary.one": "Alcance del reintento: {0} archivo multimedia en {1} hilos. Sin tocar: {2} de {3} ya guardados, {4} ya en cola."
+    "work.scopeSummary.one": "Alcance del reintento: {0} archivo multimedia en {1} hilos. Sin tocar: {2} de {3} ya guardados, {4} ya en cola.",
+    "booru.tabs.new": "Nueva pestaña de búsqueda",
+    "booru.tabs.openCurrent": "Abrir en una pestaña nueva",
+    "booru.tabs.openCurrentHint": "Copia la búsqueda mostrada y sus resultados en una pestaña nueva. No se envía nada.",
+    "booru.tabs.close": "Cerrar pestaña",
+    "booru.tabs.closeFor": "Cerrar la pestaña de búsqueda «{0}»",
+    "booru.tabs.blank": "Búsqueda nueva",
+    "booru.tabs.post": "Publicación #{0}",
+    "booru.tabs.limit": "Se alcanzó el límite de pestañas de búsqueda ({0}). Cierra una pestaña primero o sube el límite en Ajustes.",
+    "settings.limits.booruSearchTabs": "Danbooru: máximo de pestañas de búsqueda",
+    "settings.limits.booruSearchTabs.hint": "Máximo de pestañas de búsqueda que la página de Danbooru puede tener junto a Búsqueda y Vigilancias. Las pestañas solo duran esta sesión; no se guardan al cerrar.",
+    "booru.bulk.button": "Descargar todo de esta búsqueda",
+    "booru.bulk.stop": "Detener la recopilación",
+    "booru.bulk.hint": "Obtiene los resultados existentes de la búsqueda mostrada y pone cada original en cola, hasta el límite de páginas de la fuente (páginas {0}, publicaciones por página {1}). La vigilancia solo toma publicaciones nuevas.",
+    "booru.bulk.needsSearch": "Haz primero una búsqueda por etiquetas; se obtienen los resultados de la búsqueda mostrada.",
+    "booru.bulk.running": "Recopilando resultados de «{0}»: páginas leídas {1} de {2} como máximo, publicaciones encontradas {3}, en cola {4}.",
+    "booru.bulk.result": "Todo de «{0}»: publicaciones encontradas {1}, páginas leídas {2} de {3} como máximo. En cola {4}, ya en cola {5}, ya guardadas {6}, sin original ofrecido {7}, fallidas {8}.",
+    "booru.bulk.endLimit": "Se alcanzó el límite de páginas de la fuente; la búsqueda puede tener más resultados que no se pueden listar.",
+    "booru.bulk.endEnd": "La fuente no indicó más resultados después de estos.",
+    "booru.bulk.endBlocked": "La fuente dejó de responder (pausa, límite de frecuencia, sin conexión o error); el resto no se listó. Inténtalo más tarde.",
+    "booru.bulk.endCanceled": "Detenido por ti; el resto no se listó. Lo que se puso en cola sigue en cola."
   }
 }

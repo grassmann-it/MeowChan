@@ -5143,6 +5143,26 @@
     "command.media.next-untagged": "下一个无标签媒体",
     "media.nextUntagged.none": "显示的媒体中没有其他无媒体标签的项目。",
     "media.nextUntagged.unknown": "标签尚不可用，因此还无法区分无标签的媒体。",
-    "work.scopeSummary": "重试范围：{1} 个线程中的 {0} 个媒体文件。不受影响：{3} 个中已保存 {2} 个，已排队 {4} 个。"
+    "work.scopeSummary": "重试范围：{1} 个线程中的 {0} 个媒体文件。不受影响：{3} 个中已保存 {2} 个，已排队 {4} 个。",
+    "booru.tabs.new": "新建搜索标签页",
+    "booru.tabs.openCurrent": "在新标签页中打开",
+    "booru.tabs.openCurrentHint": "将当前显示的搜索及其结果复制到新标签页。不会发送任何请求。",
+    "booru.tabs.close": "关闭标签页",
+    "booru.tabs.closeFor": "关闭搜索标签页“{0}”",
+    "booru.tabs.blank": "新搜索",
+    "booru.tabs.post": "帖子 #{0}",
+    "booru.tabs.limit": "已达到搜索标签页上限（{0}）。请先关闭一个标签页，或在设置中提高上限。",
+    "settings.limits.booruSearchTabs": "Danbooru：搜索标签页上限",
+    "settings.limits.booruSearchTabs.hint": "Danbooru 页面在“搜索”和“监视”之外最多可容纳的搜索标签页数。标签页仅在本次会话中有效，关闭应用时不会保存。",
+    "booru.bulk.button": "下载此搜索的全部结果",
+    "booru.bulk.stop": "停止收集",
+    "booru.bulk.hint": "获取当前搜索的现有结果，并把每个原图加入队列，最多到来源的页数上限（{0} 页，每页 {1} 个帖子）。监视只获取新帖子。",
+    "booru.bulk.needsSearch": "请先执行标签搜索；获取的是当前显示的搜索结果。",
+    "booru.bulk.running": "正在收集“{0}”的结果：已读页数 {1}（最多 {2}），找到帖子 {3}，已入队 {4}。",
+    "booru.bulk.result": "“{0}”的全部：找到帖子 {1}，共 {2} 页（最多 {3} 页）。已入队 {4}，已在队列 {5}，已保存 {6}，无原图 {7}，失败 {8}。",
+    "booru.bulk.endLimit": "已达到来源的页数上限；该搜索可能还有无法列出的结果。",
+    "booru.bulk.endEnd": "来源报告在这些结果之后没有更多结果。",
+    "booru.bulk.endBlocked": "来源不再响应（暂停、限速、离线或出错）；其余未列出。请稍后再试。",
+    "booru.bulk.endCanceled": "已由你停止；其余未列出。已入队的内容仍在队列中。"
   }
 }

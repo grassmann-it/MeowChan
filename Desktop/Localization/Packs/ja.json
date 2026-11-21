@@ -5143,6 +5143,26 @@
     "command.media.next-untagged": "次のタグなしメディア",
     "media.nextUntagged.none": "表示中のメディアに、メディアタグのないものはほかにありません。",
     "media.nextUntagged.unknown": "タグがまだ利用できないため、タグなしのメディアをまだ判別できません。",
-    "work.scopeSummary": "再試行の範囲：{1}件のスレッド内のメディアファイル{0}件。対象外：保存済み{2}件（全{3}件中）、キュー済み{4}件。"
+    "work.scopeSummary": "再試行の範囲：{1}件のスレッド内のメディアファイル{0}件。対象外：保存済み{2}件（全{3}件中）、キュー済み{4}件。",
+    "booru.tabs.new": "新しい検索タブ",
+    "booru.tabs.openCurrent": "新しいタブで開く",
+    "booru.tabs.openCurrentHint": "表示中の検索とその結果を新しいタブにコピーします。何も送信されません。",
+    "booru.tabs.close": "タブを閉じる",
+    "booru.tabs.closeFor": "検索タブ「{0}」を閉じる",
+    "booru.tabs.blank": "新しい検索",
+    "booru.tabs.post": "投稿 #{0}",
+    "booru.tabs.limit": "検索タブの上限（{0}）に達しました。先にタブを閉じるか、設定で上限を上げてください。",
+    "settings.limits.booruSearchTabs": "Danbooru: 検索タブの最大数",
+    "settings.limits.booruSearchTabs.hint": "Danbooru のページが「検索」「監視」のほかに持てる検索タブの最大数です。タブはこのセッションの間だけ有効で、終了時には保存されません。",
+    "booru.bulk.button": "この検索のすべてをダウンロード",
+    "booru.bulk.stop": "収集を停止",
+    "booru.bulk.hint": "表示中の検索の既存の結果を取得し、取得元のページ上限（{1}件×{0}ページ）まで、各オリジナルをキューに入れます。監視は新しい投稿だけを取得します。",
+    "booru.bulk.needsSearch": "先にタグ検索を実行してください。表示中の検索の結果が取得されます。",
+    "booru.bulk.running": "「{0}」の結果を収集中: 読み込んだページ {1}（最大 {2}）、見つかった投稿 {3}、キュー済み {4}。",
+    "booru.bulk.result": "「{0}」のすべて: 見つかった投稿 {1}（{2} ページ、最大 {3} ページ）。キュー済み {4}、すでにキュー内 {5}、保存済み {6}、オリジナルなし {7}、失敗 {8}。",
+    "booru.bulk.endLimit": "取得元のページ上限に達しました。検索にはまだ一覧にできない結果がある可能性があります。",
+    "booru.bulk.endEnd": "取得元は、これ以降の結果はないと伝えました。",
+    "booru.bulk.endBlocked": "取得元が応答しなくなりました（一時停止、レート制限、オフライン、またはエラー）。残りは一覧にしていません。後でもう一度お試しください。",
+    "booru.bulk.endCanceled": "ユーザーが停止しました。残りは一覧にしていません。キューに入れたものはそのまま残ります。"
   }
 }

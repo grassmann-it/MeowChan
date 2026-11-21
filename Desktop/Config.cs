@@ -309,6 +309,11 @@ namespace MeowChan
         internal const int BooruResultTagsShownDefault = 12;
         internal const int BooruResultTagsShownMinimum = 0;
         internal const int BooruResultTagsShownMaximum = 200;
+        /// <summary>How many extra search tabs the Danbooru page may hold next to "Search" and "Watchers" (the tabs live for the session only).</summary>
+        public int BooruSearchTabs { get; set; } = BooruSearchTabsDefault;
+        internal const int BooruSearchTabsDefault = 8;
+        internal const int BooruSearchTabsMinimum = 1;
+        internal const int BooruSearchTabsMaximum = 32;
         /// <summary>MP5: the width of the media page's tag list in dip, set by dragging its edge (kept in <see cref="MediaLayout"/>, brought into this range when read).</summary>
         internal const int MediaTagListWidthDefault = 256;
         internal const int MediaTagListWidthMinimum = 180;
@@ -1674,6 +1679,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (BooruResultTagsShown is < BooruResultTagsShownMinimum or > BooruResultTagsShownMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
+            if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
@@ -1934,6 +1941,7 @@ namespace MeowChan
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
+                BooruSearchTabs = BooruSearchTabs,
                 MediaPanelMinimumPageWidth = MediaPanelMinimumPageWidth,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
@@ -2209,6 +2217,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruSearchTabs = source.BooruSearchTabs;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
@@ -2438,6 +2447,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruSearchTabs = source.BooruSearchTabs;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;

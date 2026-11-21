@@ -26,6 +26,8 @@ public partial class SettingsEditor
     public int MediaTagListTopMaximum => Config.MediaTagListTopMaximum;
     public int BooruResultTagsShownMinimum => Config.BooruResultTagsShownMinimum;
     public int BooruResultTagsShownMaximum => Config.BooruResultTagsShownMaximum;
+    public int BooruSearchTabsMinimum => Config.BooruSearchTabsMinimum;
+    public int BooruSearchTabsMaximum => Config.BooruSearchTabsMaximum;
     public int MediaTagListWidthMinimum => Config.MediaTagListWidthMinimum;
     public int MediaTagListWidthMaximum => Config.MediaTagListWidthMaximum;
     public int MediaPanelWidthMinimum => Config.MediaPanelWidthMinimum;
@@ -83,6 +85,13 @@ public partial class SettingsEditor
     public string BooruResultTagsShownHint => Texts.T("settings.limits.booruResultTagsShown.hint") + " " + Texts.T("settings.reader.range", Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum);
     public string BooruResultTagsShownHelp => FieldHelp(nameof(BooruResultTagsShownInput), BooruResultTagsShownHint);
 
+    // Danbooru search tabs: how many extra tabs the page may hold (they live for the session only).
+    private decimal? _booruSearchTabs;
+    public decimal? BooruSearchTabs { get => _booruSearchTabs; set => SetField(ref _booruSearchTabs, value, nameof(BooruSearchTabs)); }
+    public string BooruSearchTabsLabel => Texts.T("settings.limits.booruSearchTabs");
+    public string BooruSearchTabsHint => Texts.T("settings.limits.booruSearchTabs.hint") + " " + Texts.T("settings.reader.range", Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
+    public string BooruSearchTabsHelp => FieldHelp(nameof(BooruSearchTabsInput), BooruSearchTabsHint);
+
     // MP5: the width (dip) of the tag list. It lives in the saved media layout (MediaLayout), next to the other parts of that layout; this field
     // reads and rewrites only its width, the drag handle on the list's edge sets the same value.
     private decimal? _mediaTagListWidth;
@@ -131,6 +140,8 @@ public partial class SettingsEditor
         ResetNumber(MediaTagListTopInput, MediaTagListTop.Value);
         BooruResultTagsShown = config.BooruResultTagsShown;
         ResetNumber(BooruResultTagsShownInput, BooruResultTagsShown.Value);
+        BooruSearchTabs = config.BooruSearchTabs;
+        ResetNumber(BooruSearchTabsInput, BooruSearchTabs.Value);
         MediaPageLayout layout = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode);
         MediaTagListWidth = layout.TagListWidth;
         ResetNumber(MediaTagListWidthInput, MediaTagListWidth.Value);
@@ -155,6 +166,7 @@ public partial class SettingsEditor
         candidate.TagQueueConfirmAbove = GetInteger(TagQueueConfirmAbove, TagQueueConfirmAboveLabel, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum);
         candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         candidate.BooruResultTagsShown = GetInteger(BooruResultTagsShown, BooruResultTagsShownLabel, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum);
+        candidate.BooruSearchTabs = GetInteger(BooruSearchTabs, BooruSearchTabsLabel, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
         int tagListWidth = GetInteger(MediaTagListWidth, MediaTagListWidthLabel, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
         int panelWidth = GetInteger(MediaPanelWidth, MediaPanelWidthLabel, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum);
         candidate.MediaPanelMinimumPageWidth = GetInteger(MediaPanelMinimumPageWidth, MediaPanelMinimumPageWidthLabel, Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum);
@@ -174,6 +186,7 @@ public partial class SettingsEditor
         yield return (TagQueueConfirmAboveInput, TagQueueConfirmAbove, TagQueueConfirmAboveLabel, string.Empty, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum, true);
         yield return (MediaTagListTopInput, MediaTagListTop, MediaTagListTopLabel, string.Empty, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum, true);
         yield return (BooruResultTagsShownInput, BooruResultTagsShown, BooruResultTagsShownLabel, string.Empty, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum, true);
+        yield return (BooruSearchTabsInput, BooruSearchTabs, BooruSearchTabsLabel, string.Empty, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum, true);
         yield return (MediaTagListWidthInput, MediaTagListWidth, MediaTagListWidthLabel, string.Empty, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum, true);
         yield return (MediaPanelWidthInput, MediaPanelWidth, MediaPanelWidthLabel, string.Empty, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum, true);
         yield return (MediaPanelMinimumPageWidthInput, MediaPanelMinimumPageWidth, MediaPanelMinimumPageWidthLabel, string.Empty, Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum, true);
@@ -193,6 +206,7 @@ public partial class SettingsEditor
         nameof(TagQueueConfirmAboveLabel), nameof(TagQueueConfirmAboveHint), nameof(TagQueueConfirmAboveHelp),
         nameof(MediaTagListTopLabel), nameof(MediaTagListTopHint), nameof(MediaTagListTopHelp),
         nameof(BooruResultTagsShownLabel), nameof(BooruResultTagsShownHint), nameof(BooruResultTagsShownHelp),
+        nameof(BooruSearchTabsLabel), nameof(BooruSearchTabsHint), nameof(BooruSearchTabsHelp),
         nameof(MediaTagListWidthLabel), nameof(MediaTagListWidthHint), nameof(MediaTagListWidthHelp),
         nameof(MediaPanelWidthLabel), nameof(MediaPanelWidthHint), nameof(MediaPanelWidthHelp),
         nameof(MediaPanelMinimumPageWidthLabel), nameof(MediaPanelMinimumPageWidthHint), nameof(MediaPanelMinimumPageWidthHelp),
@@ -201,6 +215,6 @@ public partial class SettingsEditor
     {
         nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp),
         nameof(TagQueueGroupLimitHelp), nameof(TagQueueGroupNameLimitHelp), nameof(TagQueueConfirmAboveHelp),
-        nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
+        nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(BooruSearchTabsHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
     };
 }

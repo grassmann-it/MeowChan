@@ -5293,6 +5293,26 @@
     "media.nextUntagged.none": "Žádné další zobrazené médium není bez štítků médií.",
     "media.nextUntagged.unknown": "Štítky zatím nejsou k dispozici, takže média bez štítků zatím nelze rozpoznat.",
     "work.scopeSummary": "Rozsah opakování: mediálních souborů: {0} ve vláknech: {1}. Beze změny: {2} z {3} už uložených, {4} už ve frontě.",
-    "work.scopeSummary.one": "Rozsah opakování: {0} mediální soubor ve vláknech: {1}. Beze změny: {2} z {3} už uložených, {4} už ve frontě."
+    "work.scopeSummary.one": "Rozsah opakování: {0} mediální soubor ve vláknech: {1}. Beze změny: {2} z {3} už uložených, {4} už ve frontě.",
+    "booru.tabs.new": "Nová karta hledání",
+    "booru.tabs.openCurrent": "Otevřít v nové kartě",
+    "booru.tabs.openCurrentHint": "Zkopíruje zobrazené hledání a jeho výsledky do nové karty. Nic se neodesílá.",
+    "booru.tabs.close": "Zavřít kartu",
+    "booru.tabs.closeFor": "Zavřít kartu hledání „{0}“",
+    "booru.tabs.blank": "Nové hledání",
+    "booru.tabs.post": "Příspěvek #{0}",
+    "booru.tabs.limit": "Limit karet hledání ({0}) je dosažen. Nejdřív zavřete některou kartu nebo zvyšte limit v nastavení.",
+    "settings.limits.booruSearchTabs": "Danbooru: nejvíce karet hledání",
+    "settings.limits.booruSearchTabs.hint": "Nejvyšší počet karet hledání, které stránka Danbooru udrží vedle Hledání a Sledování. Karty platí jen pro tuto relaci; při zavření aplikace se neukládají.",
+    "booru.bulk.button": "Stáhnout vše z tohoto hledání",
+    "booru.bulk.stop": "Zastavit shromažďování",
+    "booru.bulk.hint": "Načte existující výsledky zobrazeného hledání a zařadí každý originál do fronty, nejvýše do limitu stránek zdroje (stránky {0}, příspěvků na stránku {1}). Sledování přebírá jen nové příspěvky.",
+    "booru.bulk.needsSearch": "Nejprve spusťte hledání podle štítků; načtou se výsledky zobrazeného hledání.",
+    "booru.bulk.running": "Shromažďují se výsledky „{0}“: přečtené stránky {1} z nejvýše {2}, nalezené příspěvky {3}, ve frontě {4}.",
+    "booru.bulk.result": "Vše z „{0}“: nalezené příspěvky {1}, přečtené stránky {2} z nejvýše {3}. Ve frontě {4}, už ve frontě {5}, už uloženo {6}, bez nabízeného originálu {7}, selhalo {8}.",
+    "booru.bulk.endLimit": "Bylo dosaženo limitu stránek zdroje; hledání může mít další výsledky, které nelze vypsat.",
+    "booru.bulk.endEnd": "Zdroj po těchto nehlásil žádné další výsledky.",
+    "booru.bulk.endBlocked": "Zdroj přestal odpovídat (pauza, limit četnosti, offline nebo chyba); zbytek nebyl vypsán. Zkuste to později.",
+    "booru.bulk.endCanceled": "Zastaveno vámi; zbytek nebyl vypsán. Co už je ve frontě, ve frontě zůstává."
   }
 }
