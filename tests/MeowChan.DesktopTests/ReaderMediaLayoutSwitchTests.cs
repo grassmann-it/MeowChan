@@ -27,16 +27,23 @@ public sealed class ReaderMediaLayoutSwitchTests
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", path));
 
     [Fact]
-    public void TheMediaToolsBarStartsWithTheJoinedTilesAndTablePairLikeTheArchiveResultsBar()
+    public void TheMediaToolsBarEndsWithTheJoinedTilesAndTablePairLikeTheArchiveResultsBar()
     {
         XElement bar = XDocument.Load(Root("Desktop/Views/Archive/ArchivePage.axaml")).Descendants()
             .Single(element => element.Name.LocalName == "ActionToolBar" && (string?)element.Attribute(X + "Name") == "ReaderMediaTools");
         XElement[] items = bar.Elements().Where(element => !element.Name.LocalName.Contains('.')).ToArray();
-        Assert.Equal(["ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"], items.Take(2).Select(item => (string)item.Attribute(X + "Name")!));
-        Assert.All(items.Take(2), item => Assert.Equal("ToggleButton", item.Name.LocalName));
-        Assert.Equal("segment segment-first", (string?)items[0].Attribute("Classes"));
-        Assert.Equal("segment segment-last", (string?)items[1].Attribute("Classes"));
-        foreach (XElement toggle in items.Take(2))
+        // F01 (21.11.): filters and sorting left (three dropdowns, then Favorites only), view tools right (Columns, then the pair at the far right).
+        Assert.Equal(["ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveFavoritesFilter", "ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"],
+            items.Select(item => (string)item.Attribute(X + "Name")!));
+        string? Attached(XElement item, string name) => item.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "ActionToolBar." + name)?.Value;
+        Assert.Equal([1, 1, 1, 1, 2, 2, 2], items.Select(item => int.Parse(Attached(item, "Group") ?? "0")));
+        Assert.Equal(["ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"],
+            items.Where(item => Attached(item, "End") == "True").Select(item => (string)item.Attribute(X + "Name")!));
+        XElement[] pair = items.TakeLast(2).ToArray();
+        Assert.All(pair, item => Assert.Equal("ToggleButton", item.Name.LocalName));
+        Assert.Equal("segment segment-first", (string?)pair[0].Attribute("Classes"));
+        Assert.Equal("segment segment-last", (string?)pair[1].Attribute("Classes"));
+        foreach (XElement toggle in pair)
         {
             Assert.Null(toggle.Attribute("Padding"));
             Assert.Equal("64", (string?)toggle.Attribute("MinWidth"));
