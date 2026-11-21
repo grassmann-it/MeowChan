@@ -19,7 +19,7 @@ namespace MeowChan.DesktopSmoke;
 
 // Reader ideas I13 (imageboard formatting), I1 (quote preview, jump highlight), I3 (unread line),
 // I6 (folded long posts) and I2 (inline replies) in a private profile with a detached reader.
-internal static class ReaderIdeaChecks
+internal static partial class ReaderIdeaChecks
 {
     private sealed class Fixture : IAsyncDisposable
     {
@@ -43,6 +43,7 @@ internal static class ReaderIdeaChecks
 
     internal static async Task RunAsync(MainWindow owner)
     {
+        await CheckTextLinksAsync(owner);
         await CheckFormattingAsync(owner);
         await CheckQuotePreviewAsync(owner);
         await CheckQuoteMarksAsync(owner);
