@@ -381,6 +381,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(_noticeHost);
         tab.Children.Add(_statusHost);
         tab.Children.Add(_pager);
+        tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
         tab.Children.Add(_results);
         tab.Children.Add(_pageLimit);
         return tab;
@@ -600,6 +601,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
         _pageLimit.IsVisible = view.PageLimitReached;
         _pageLimit.Text = Texts.T("booru.ui.page.limit", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
+        RenderResultViewBar(view);
 
         string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, string.Join('|',
             view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}:{_expandedTagPosts.Contains(row.Post.PostId)}:{TagsShown()}")));
@@ -609,7 +611,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             _selectedResults.IntersectWith(view.Rows.Select(row => row.Post.PostId));
             _resultWorkViewActions.Clear();
             DisposeResultTagMenus();
-            RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null);
+            RebuildResults(view);
             PruneBitmaps(view.Rows);
         }
     }
@@ -991,18 +993,19 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         finally { _applying = false; }
     }
 
-    private Control CreatePreview(BooruResultRowView row)
+    private Control CreatePreview(BooruResultRowView row, double size = PreviewSize)
     {
         Border frame = new()
         {
-            Width = PreviewSize, Height = PreviewSize, VerticalAlignment = VerticalAlignment.Top, ClipToBounds = true,
+            Width = size, Height = size, VerticalAlignment = VerticalAlignment.Top, ClipToBounds = true,
             CornerRadius = new CornerRadius(5)
         };
         if (row.Preview == BooruPreviewState.Ready && PreviewBitmap(row) is { } bitmap)
         {
             // D3: the thumbnail is flat on the card (no box, no edge of its own); only the placeholder has a quiet slot.
             // Decorative next to the card's title line; not a second "Post #n".
-            Image image = new() { Source = bitmap, Stretch = Stretch.Uniform };
+            // Never enlarged beyond its own pixels: a small thumbnail stays small (and sharp) in a big frame.
+            Image image = new() { Source = bitmap, Stretch = Stretch.Uniform, StretchDirection = StretchDirection.DownOnly };
             AutomationProperties.SetAccessibilityView(image, AccessibilityView.Raw);
             frame.Child = image;
         }
@@ -1079,7 +1082,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     /// I7: fixed corners on the result preview, from the post data already shown (no request): the type (GIF, video) at the top
     /// right and a "deleted"/"banned" mark at the bottom left. Static borders over the preview; the card keeps its size.
     /// </summary>
-    private static Control WithPreviewCorners(Control preview, BooruPostView post)
+    private static Control WithPreviewCorners(Control preview, BooruPostView post, double size = PreviewSize)
     {
         string? kind = post.Original?.Extension?.TrimStart('.').ToLowerInvariant() switch
         {
@@ -1089,7 +1092,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         };
         string? withdrawn = post.IsDeleted ? Texts.T("booru.post.deleted") : post.IsBanned ? Texts.T("booru.post.banned") : null;
         if (kind == null && withdrawn == null) return preview;
-        Panel corners = new() { Width = PreviewSize, Height = PreviewSize, VerticalAlignment = VerticalAlignment.Top, Children = { preview } };
+        Panel corners = new() { Width = size, Height = size, VerticalAlignment = VerticalAlignment.Top, Children = { preview } };
         Border badge = WorkspaceChips.CreateCornerBadge("BooruResultKind:" + post.PostId, HorizontalAlignment.Right, VerticalAlignment.Top);
         badge.Margin = new Thickness(0, 4, 4, 0);
         badge.IsVisible = kind != null;
@@ -1240,7 +1243,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0
                 || (long)codec.Info.Width * codec.Info.Height > 40_000_000) return null;
             stream.Position = 0;
-            int width = Math.Min(ImageOrientation.DisplaySize(codec).Width, PreviewSize * 2);
+            int width = Math.Min(ImageOrientation.DisplaySize(codec).Width, PreviewDecodeWidth);
             Bitmap bitmap = ImageOrientation.DecodeToWidth(stream, width);
             if (cached is not null) cached.Bitmap.Dispose();
             _bitmaps[id] = new CachedBitmap(bytes, bitmap);

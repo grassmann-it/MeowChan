@@ -2,7 +2,9 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Controls;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -27,6 +29,16 @@ public partial class MainWindow
         view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);
         view.IsPostSavedInMedia = IsSavedBooruPost;
         view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
+    }
+
+    // E1: the result view (list or tiles) and the tile size are view preferences of the profile, restored when the page is built and saved when
+    // the person changes them (the same path as the tagging page's view).
+    private void ConfigureBooruViewPreferences(BooruPage page)
+    {
+        BooruWorkbenchView view = page.View;
+        view.SaveResultView = mode => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruPageView = mode.ToString()), "booru.saveResultView");
+        view.SaveTileSize = size => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruTileSize = size.ToString()), "booru.saveTileSize");
+        view.RestoreResultView(BooruResultViews.Parse(_session.Config.BooruPageView), MediaTileSizes.Parse(_session.Config.BooruTileSize));
     }
 
     /// <summary>Exact local catalog admission for a saved Danbooru original; pending/other-source records do not qualify.</summary>

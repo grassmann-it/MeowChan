@@ -150,9 +150,10 @@ public sealed class InteractionAuditTests
             Assert.True(EffectiveShortcutBindings.YieldsOn(id, platform), id);
         }
         // Each runs only where its list is: the media page, the Diagnostics table, the Statistics table (never next to Copy link(s)).
-        // (The tagging grid shares the media page's tile size, so the commands also run there: the "tagging" context.)
-        Assert.Equal(new[] { "media", "tagging" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.larger"));
-        Assert.Equal(new[] { "media", "tagging" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.smaller"));
+        // (The tagging grid shares the media page's tile size, so the commands also run there: the "tagging" context; the Booru page's tile view
+        // answers the same keys for a size of its own: the "booru" context.)
+        Assert.Equal(new[] { "media", "tagging", "booru" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.larger"));
+        Assert.Equal(new[] { "media", "tagging", "booru" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.smaller"));
         Assert.Equal(new[] { "diagnostics" }, EffectiveShortcutBindings.ExecutionContexts("diagnostics.copy"));
         Assert.Equal(new[] { "statistics" }, EffectiveShortcutBindings.ExecutionContexts("statistics.copy-row"));
     }
