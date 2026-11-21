@@ -93,8 +93,10 @@ internal static class WorkspaceChips
     internal static StackPanel RemovableContent(string name)
     {
         TextBlock label = new() { Text = name, VerticalAlignment = VerticalAlignment.Center };
-        return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8,
-            Children = { label, WorkspaceIcons.Create(WorkspaceIcons.CloseSmall) } };
+        Control cross = WorkspaceIcons.Create(WorkspaceIcons.CloseSmall);
+        cross.VerticalAlignment = VerticalAlignment.Center; // F05: the cross sits on the label's centre line, not at the top of the row
+        return new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center,
+            Children = { label, cross } };
     }
 
     /// <summary>The name a chip built by <see cref="RemovableContent"/> shows (without the cross), or null for other content.</summary>

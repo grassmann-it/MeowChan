@@ -45,8 +45,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.True(button.IsVisible);
             Assert.True(button.IsEnabled);
             Assert.False(button.IsChecked);
-            Assert.Equal("Media sidebar: Off", button.Content);
-            Assert.Equal(button.Content, AutomationProperties.GetName(button));
+            Assert.Equal("Media sidebar: Off", AutomationProperties.GetName(button));
             // 071e43347 deliberately registered this tool as Direct in every work
             // view. Direct tools stay discoverable but overflow when they do not fit.
             var policy = MeowChan.Desktop.WorkViews.WorkViewPolicy.Find("reader.toolbar.media-sidebar")!;
@@ -82,7 +81,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal(initial, button.IsChecked);
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Assert.Equal(!initial, button.IsChecked);
-            Assert.Equal("Media sidebar: " + (!initial ? "On" : "Off"), button.Content);
+            Assert.Equal("Media sidebar: " + (!initial ? "On" : "Off"), AutomationProperties.GetName(button));
             Assert.Equal(1, writes);
             Assert.Equal(page.ReaderMedia.Sidebar, saved.ReaderMediaSidebar);
             Assert.Equal(page.ReaderMedia.SidebarAlways, saved.ReaderMediaSidebarScope == Config.ReaderMediaSidebarScopeAlways);
