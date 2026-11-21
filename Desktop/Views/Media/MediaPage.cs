@@ -986,7 +986,7 @@ public sealed partial class MediaPage : UserControl
     {
         "media.rating.edit", "media.rating.set-1", "media.rating.set-2", "media.rating.set-3", "media.rating.set-4", "media.rating.set-5", "media.rating.clear",
         "media.label.red", "media.label.yellow", "media.label.green", "media.label.blue", "media.label.clear",
-        "media.details", "media.export-original", "media.show-in-folder", "media.copy-path"
+        "media.details", "media.export-original", "media.show-in-folder", "media.copy-path", "media.next-untagged"
     };
 
     /// <summary>The shortcut for a menu command of one medium. With several selected tiles (KB-06, never silent): export exports the selection, a
@@ -994,6 +994,7 @@ public sealed partial class MediaPage : UserControl
     /// menu's reason, in the selection note line); otherwise they need exactly one saved tile, like the menu entries they stand for.</summary>
     internal async Task RunMediaCommandByShortcutAsync(string id)
     {
+        if (id == "media.next-untagged") { SelectNextUntagged(); return; }
         if (id == "media.rating.edit") { await RateAndTagByKeyAsync(null); return; }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy) { ExplainSelectionUnavailable(); return; }
         if (id == "media.export-original" && _grid.Selection.Count > 1) { await ExportSelectionAsync(); return; }

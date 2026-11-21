@@ -230,6 +230,41 @@ public sealed class WorkStatusPresentationTests
         MeowChan.Interfaces.ThreadActivity.Finished, MeowChan.Interfaces.ThreadSourceState.Active,
         null, 2, 2, new Dictionary<string, FailureInfo>(), null, new MeowChan.Downloader.DownloadCounts(0, 0)) { Work = work };
 
+    [Fact]
+    public void ScopeSummaryCountsOnlyUnfinishedUnqueuedMediaAndNeverTouchesSavedOnes()
+    {
+        ThreadWorkSnapshot mixed = Work(WorkIntent.Watching, MediaWorkStatus.Expired) with
+        {
+            Media = new[]
+            {
+                Media("saved", MediaWorkStatus.Succeeded), Media("failed", MediaWorkStatus.Expired),
+                Media("queued", MediaWorkStatus.Waiting) with { ManualAttempt = true },
+                Media("excluded", MediaWorkStatus.Excluded)
+            }
+        };
+        ThreadWorkSnapshot stopped = Work(WorkIntent.Suppressed, MediaWorkStatus.NeedsIntervention);
+        DownloadScopeSummary summary = DownloadScopeSummary.Compute(new ThreadWorkSnapshot?[] { mixed, stopped, null });
+        Assert.Equal(new DownloadScopeSummary(2, 6, 2, 1, 1, 1), summary);
+    }
+
+    [Theory]
+    [InlineData("en")]
+    [InlineData("de")]
+    public void ScopeSummaryTextNamesRetryScopeAndUntouchedFiles(string language)
+    {
+        string previous = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language);
+            string text = new DownloadScopeSummary(3, 20, 15, 4, 1, 0).Describe();
+            Assert.Contains("4", text);
+            Assert.Contains("15", text);
+            Assert.Contains("20", text);
+            Assert.DoesNotContain("{", text);
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
     private static ThreadWorkSnapshot Work(WorkIntent intent, MediaWorkStatus missingStatus) => new(
         "https://fixture.test/b/thread/1", intent, ThreadSourceStateValue.NotFound, End, false,
         new[] { Media("saved", MediaWorkStatus.Succeeded), Media("missing", missingStatus) });

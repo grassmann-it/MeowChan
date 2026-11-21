@@ -6,6 +6,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Interop;
 using MeowChan.Storage;
 
 namespace MeowChan.Favorites;
@@ -42,14 +43,19 @@ public static class FavoriteOriginalExporter
 
     public static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
         string destinationDirectory, CancellationToken cancellationToken = default)
-        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken);
+        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken, null);
+
+    /// <param name="filenameTemplate">The filename template setting (<see cref="ExportFilenameTemplate"/>); null or empty keeps the current naming, and so does any file the template cannot name safely.</param>
+    public static Task<FavoriteExportResult> ExportAsync(IReadOnlyList<FavoriteExportAsset> assets,
+        string destinationDirectory, string? filenameTemplate, CancellationToken cancellationToken = default)
+        => ExportCoreAsync(assets, destinationDirectory, null, cancellationToken, filenameTemplate);
 
     internal static Task<FavoriteExportResult> ExportWithHooksAsync(IReadOnlyList<FavoriteExportAsset> assets,
-        string destinationDirectory, Hooks hooks, CancellationToken cancellationToken = default)
-        => ExportCoreAsync(assets, destinationDirectory, hooks, cancellationToken);
+        string destinationDirectory, Hooks hooks, CancellationToken cancellationToken = default, string? filenameTemplate = null)
+        => ExportCoreAsync(assets, destinationDirectory, hooks, cancellationToken, filenameTemplate);
 
     private static async Task<FavoriteExportResult> ExportCoreAsync(IReadOnlyList<FavoriteExportAsset> assets,
-        string destinationDirectory, Hooks? hooks, CancellationToken cancellationToken)
+        string destinationDirectory, Hooks? hooks, CancellationToken cancellationToken, string? filenameTemplate)
     {
         ArgumentNullException.ThrowIfNull(assets);
         ArgumentException.ThrowIfNullOrWhiteSpace(destinationDirectory);
@@ -67,7 +73,7 @@ public static class FavoriteOriginalExporter
             }
             try
             {
-                string? path = await CopyOneAsync(item, root, hooks, cancellationToken).ConfigureAwait(false);
+                string? path = await CopyOneAsync(item, root, hooks, filenameTemplate, cancellationToken).ConfigureAwait(false);
                 results.Add(new FavoriteExportItem(item.Key,
                     path != null && path.StartsWith("!", StringComparison.Ordinal)
                         ? FavoriteExportStatus.AlreadyExists : FavoriteExportStatus.Copied,
@@ -99,11 +105,11 @@ public static class FavoriteOriginalExporter
             throw new ArgumentException("The export identity does not match its frozen manifest.", nameof(item));
     }
 
-    private static async Task<string> CopyOneAsync(FavoriteExportAsset item, string root, Hooks? hooks, CancellationToken token)
+    private static async Task<string> CopyOneAsync(FavoriteExportAsset item, string root, Hooks? hooks, string? filenameTemplate, CancellationToken token)
     {
         string directory = EnsureSafeDirectory(root, item.Key.Thread.Source, item.Key.Thread.Board,
             item.Key.Thread.Thread!);
-        string name = SafeFileName(item.OriginalFileName);
+        string name = TemplatedFileName(item, filenameTemplate) ?? SafeFileName(item.OriginalFileName);
         string temporary = Path.Combine(directory, ".favorite-pending-" + Guid.NewGuid().ToString("N"));
         try
         {
@@ -196,6 +202,22 @@ public static class FavoriteOriginalExporter
         string clean = Clean(original, 32);
         string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(original))).ToLowerInvariant();
         return clean + "-" + digest;
+    }
+
+    /// <summary>
+    /// The name the filename template gives this file, or null to keep <see cref="SafeFileName"/>: no template, no usable extension, or a
+    /// name the template cannot produce safely. The identity is the same string that decides collisions below, so a name never depends on the batch.
+    /// </summary>
+    private static string? TemplatedFileName(FavoriteExportAsset item, string? template)
+    {
+        if (!ExportFilenameTemplate.IsActive(template)) return null;
+        string extension = Path.GetExtension((item.OriginalFileName ?? string.Empty).Replace('\\', '/').Split('/').LastOrDefault() ?? string.Empty).TrimStart('.');
+        string safeExtension = Clean(extension, 12);
+        if (extension.Length == 0 || safeExtension == "item" || safeExtension.Any(ch => !char.IsAsciiLetterOrDigit(ch))) return null;
+        string identity = item.Key.Thread.Source + "\0" + item.Key.Thread.Board + "\0" + item.Key.Thread.Thread
+            + "\0" + item.Key.MediaIdentifier + "\0" + item.Key.Variant;
+        return ExportFilenameTemplate.TryRender(template, identity, Clean(item.Key.Thread.Source, 40),
+            Clean(item.Key.Thread.Thread!, 40), "original", item.Key.Sha256, safeExtension);
     }
 
     private static string SafeFileName(string? original)

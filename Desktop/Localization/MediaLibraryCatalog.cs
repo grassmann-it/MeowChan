@@ -111,6 +111,8 @@ internal static class MediaLibraryCatalog
         ("media.filter.count", "{0} of {1} match the filter", "{0} von {1} passen zum Filter"),
         ("media.untagged.count", "{0} without media tags", "{0} ohne Medien-Tags"),
         ("media.untagged.hint", "Show only the {0} media without media tags: a place to start tagging", "Nur die {0} Medien ohne Medien-Tags zeigen: ein Startpunkt fürs Taggen"),
+        ("media.nextUntagged.none", "No other shown medium is without media tags.", "Kein weiteres angezeigtes Medium ist ohne Medien-Tags."),
+        ("media.nextUntagged.unknown", "Tags are not available yet, so untagged media cannot be told apart.", "Die Tags sind noch nicht verfügbar; Medien ohne Tags lassen sich noch nicht erkennen."),
         ("media.filter.noMatch", "No media match these filters.", "Keine Medien passen zu diesen Filtern."),
         ("media.filter.error.unknownTag", "The filter uses a tag that no longer exists. Remove it from the filter. Nothing is shown until then.", "Der Filter verwendet einen Tag, den es nicht mehr gibt. Entferne ihn aus dem Filter. Bis dahin wird nichts angezeigt."),
         ("media.filter.error.tags", "The filter uses tags, but your own tags could not be loaded. Nothing is shown.", "Der Filter verwendet Tags, aber deine eigenen Tags konnten nicht geladen werden. Es wird nichts angezeigt."),

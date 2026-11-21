@@ -359,6 +359,14 @@ public partial class ArchivePage
         TextBlock unavailable = new() { Text = Texts.Count("viewer.favorites.unavailable", missingCount), TextWrapping = TextWrapping.Wrap, IsVisible = missingCount > 0 };
         unavailable.Classes.Add("workspace-warning");
         StackPanel content = new() { Spacing = 12, Margin = new Thickness(16, 0, 16, 12) };
+        // Said before the export starts: a filename template renames the copies (a file it cannot name safely keeps its name).
+        if (ExportFilenameTemplate?.Invoke() is { Length: > 0 } activeTemplate)
+        {
+            TextBlock templateNote = new() { Name = "OriginalExportFilenameTemplateNote", Text = Texts.T("export.filenameTemplateNote", activeTemplate),
+                TextWrapping = TextWrapping.Wrap };
+            templateNote.Classes.Add("workspace-help");
+            content.Children.Add(templateNote);
+        }
         content.Children.Add(hint); content.Children.Add(privateOmitted); content.Children.Add(unavailable); content.Children.Add(targetLabel);
         content.Children.Add(destination); content.Children.Add(browse);
         AutomationProperties.SetLabeledBy(destination, targetLabel);
@@ -423,7 +431,7 @@ public partial class ArchivePage
             Notice(Texts.T("viewer.export.running"));
             try
             {
-                FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, run.Token);
+                FavoriteExportResult result = await FavoriteOriginalExporter.ExportAsync(assets, destination.Text, ExportFilenameTemplate?.Invoke(), run.Token);
                 Notice(Texts.T("viewer.export.result", result.Copied, result.AlreadyExists,
                     result.Missing + missingCount, result.Failed, result.Cancelled));
                 // As in the thread dialog: after the copy Close is the primary action (Start stays spent).

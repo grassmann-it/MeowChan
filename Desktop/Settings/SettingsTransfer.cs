@@ -81,6 +81,7 @@ public static class SettingsTransfer
             // An export carries its own defaults revision, so an import migrates the file by what it was written with.
             PreferenceDefaultsRevision = source.PreferenceDefaultsRevision,
             DownloadPath = source.DownloadPath,
+            ExportFilenameTemplate = source.ExportFilenameTemplate,
             RecheckTimer = source.RecheckTimer,
             SaveUrlsOnExit = source.SaveUrlsOnExit,
             ShowBoardAdmissionWizard = source.ShowBoardAdmissionWizard,

@@ -206,7 +206,7 @@ internal static class ReaderViewChecks
         await Program.WaitUntilAsync(() => Selected(fixture) == "537", () => "find selected " + Selected(fixture));
         ArchivePostRow revealed = fixture.Rows.Single(row => row.Id == "537");
         Require(revealed.IsRevealed && page.Projection is { Count: 61, HiddenCount: 59 }, "The find hit was not revealed.");
-        page.FindControl<Button>("ReaderFindClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        page.FindControl<Button>("ReaderToolsClose")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         ListBoxItem? Revealed() => Containers(fixture).SingleOrDefault(item => item.DataContext is ArchivePostRow { Id: "537" });
         await Program.WaitUntilAsync(() =>
         {

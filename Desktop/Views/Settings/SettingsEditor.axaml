@@ -1271,6 +1271,14 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+                    <!-- P9: the filename template of exported originals; empty keeps the current naming. -->
+                    <StackPanel Classes="workspace-field settings-wide" Margin="0,0,0,12">
+                        <TextBlock x:Name="ExportFilenameTemplateFieldLabel" Text="{Binding ExportFilenameTemplateLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                        <TextBlock Text="{Binding ExportFilenameTemplateHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                        <TextBox x:Name="ExportFilenameTemplateInput" PlaceholderText="{Binding ExportFilenameTemplatePlaceholder}" AutomationProperties.LabeledBy="{Binding ElementName=ExportFilenameTemplateFieldLabel}" AutomationProperties.Name="{Binding ExportFilenameTemplateLabel}" AutomationProperties.HelpText="{Binding ExportFilenameTemplateHelp}" Text="{Binding ExportFilenameTemplate, Mode=TwoWay}" />
+                        <TextBlock x:Name="ExportFilenameTemplatePreviewStatus" Text="{Binding ExportFilenameTemplatePreviewText}" Classes="workspace-help" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
+                        <TextBlock x:Name="ExportFilenameTemplateInputError" Text="{Binding ExportFilenameTemplateError}" IsVisible="{Binding HasExportFilenameTemplateError}" Classes="workspace-error" TextWrapping="Wrap" AutomationProperties.LiveSetting="Assertive" />
+                    </StackPanel>
                         </StackPanel>
                     </Expander>
                 </StackPanel>

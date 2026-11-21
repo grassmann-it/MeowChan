@@ -75,6 +75,7 @@ public sealed partial class MediaPage
                 () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible,
                 initialFocus: QuickTagInitialFocus.TagInput, useSelection: false);
         }
+        if (id == "media.next-untagged") { SelectNextUntagged(); return Task.CompletedTask; }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null || row.Entry.Presence != MediaLibraryPresence.Present)
             return Task.CompletedTask;
         // A rating key needs the saved ratings to be known, like the grid's.

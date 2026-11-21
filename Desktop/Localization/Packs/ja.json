@@ -5119,6 +5119,22 @@
     "media.count.threads": "スレッド: {0}",
     "archive.delete.threads": "スレッド: {0}",
     "archive.delete.files": "ローカルファイル: {0}",
-    "archive.delete.bytes": "{0:N0} B"
+    "archive.delete.bytes": "{0:N0} B",
+    "settings.exportFilenameTemplate": "書き出すメディアのファイル名テンプレート",
+    "settings.exportFilenameTemplateHint": "「オリジナルを書き出す」がコピーするファイルの名前を決めます。空にすると現在の名前のままです。トークン：{0}。拡張子の前に短い識別子が追加されるため、同じ名前の2つのファイルは生まれません。最大 {1} 文字。",
+    "settings.exportFilenameTemplatePlaceholder": "空欄：現在の名前を維持",
+    "settings.exportFilenameTemplateOff": "プレビュー：書き出されるファイルは現在の名前のままです。",
+    "settings.exportFilenameTemplatePreview": "3つのサンプルファイルでのプレビュー：",
+    "settings.exportFilenameTemplate.tooLong": "テンプレートが {0} 文字を超えています。",
+    "settings.exportFilenameTemplate.invalid": "使用できるのはトークン {0} のみで、それぞれ波括弧で囲みます。波括弧を単独で使うことはできません。",
+    "settings.exportFilenameTemplate.extension": "書き出したファイルの種類を保つため、テンプレートは「{0}」で終える必要があります。",
+    "settings.exportFilenameTemplate.unsafe": "安全なファイル名になりません：/ \\ : * ? \" < > | と「..」は使えず、末尾にドットや空白は置けず、CON などの予約名も使えません。",
+    "settings.exportFilenameTemplate.nameTooLong": "生成されるファイル名が {0} バイトを超えます。テンプレートを短くしてください。",
+    "settings.exportFilenameTemplate.unusable": "このテンプレートはファイル名に使用できません。",
+    "export.filenameTemplateNote": "ファイルはテンプレート「{0}」で命名されます。テンプレートで安全に命名できないファイルは現在の名前のままです。設定の「ダウンロード」で変更できます。",
+    "command.media.next-untagged": "次のタグなしメディア",
+    "media.nextUntagged.none": "表示中のメディアに、メディアタグのないものはほかにありません。",
+    "media.nextUntagged.unknown": "タグがまだ利用できないため、タグなしのメディアをまだ判別できません。",
+    "work.scopeSummary": "再試行の範囲：{1}件のスレッド内のメディアファイル{0}件。対象外：保存済み{2}件（全{3}件中）、キュー済み{4}件。"
   }
 }

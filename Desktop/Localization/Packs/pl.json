@@ -5269,6 +5269,23 @@
     "import.done.tags.one": "Dodane tagi: {0}.",
     "export.collectionSelection.one": "Eksportuj razem zaznaczone wątki ({0})",
     "media.filter.count.one": "Filtr: {0} / ({1})",
-    "media.untagged.hint.one": "Pokaż tylko media bez tagów mediów ({0}): dobry punkt startowy do tagowania"
+    "media.untagged.hint.one": "Pokaż tylko media bez tagów mediów ({0}): dobry punkt startowy do tagowania",
+    "settings.exportFilenameTemplate": "Szablon nazwy pliku dla eksportowanych multimediów",
+    "settings.exportFilenameTemplateHint": "Określa nazwy plików kopiowanych przez „Eksportuj oryginały”. Pusty szablon zachowuje dotychczasowe nazwy. Znaczniki: {0}. Przed rozszerzeniem dodawany jest krótki identyfikator, więc dwa pliki nigdy nie dostaną tej samej nazwy. Najwyżej {1} znaków.",
+    "settings.exportFilenameTemplatePlaceholder": "Puste: zachowaj dotychczasowe nazwy",
+    "settings.exportFilenameTemplateOff": "Podgląd: eksportowane pliki zachowują dotychczasowe nazwy.",
+    "settings.exportFilenameTemplatePreview": "Podgląd na trzech przykładowych plikach:",
+    "settings.exportFilenameTemplate.tooLong": "Szablon jest dłuższy niż {0} znaków.",
+    "settings.exportFilenameTemplate.invalid": "Używaj tylko znaczników {0}, każdego w nawiasach klamrowych. Pojedynczy nawias klamrowy jest niedozwolony.",
+    "settings.exportFilenameTemplate.extension": "Szablon musi kończyć się na „{0}”, aby eksportowane pliki zachowały swój typ.",
+    "settings.exportFilenameTemplate.unsafe": "Wynik nie byłby bezpieczną nazwą pliku: bez / \\ : * ? \" < > | i bez „..”, bez kropki lub spacji na końcu, bez zastrzeżonych nazw takich jak CON.",
+    "settings.exportFilenameTemplate.nameTooLong": "Powstała nazwa pliku miałaby ponad {0} bajtów. Skróć szablon.",
+    "settings.exportFilenameTemplate.unusable": "Tego szablonu nie można użyć do nazw plików.",
+    "export.filenameTemplateNote": "Pliki są nazywane według Twojego szablonu „{0}”. Plik, którego szablon nie potrafi bezpiecznie nazwać, zachowuje dotychczasową nazwę. Zmienisz go w Ustawieniach, w sekcji Pobieranie.",
+    "command.media.next-untagged": "Następne medium bez tagów",
+    "media.nextUntagged.none": "Żadne inne wyświetlone medium nie jest bez tagów mediów.",
+    "media.nextUntagged.unknown": "Tagi nie są jeszcze dostępne, więc nie da się jeszcze rozpoznać mediów bez tagów.",
+    "work.scopeSummary": "Zakres ponowienia: plików multimedialnych: {0} w wątkach: {1}. Bez zmian: {2} z {3} już zapisanych, {4} już w kolejce.",
+    "work.scopeSummary.one": "Zakres ponowienia: {0} plik multimedialny w wątkach: {1}. Bez zmian: {2} z {3} już zapisanych, {4} już w kolejce."
   }
 }

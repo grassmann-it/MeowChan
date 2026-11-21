@@ -263,6 +263,7 @@ namespace MeowChan
             LoadTagQueueDraft(config);
             LoadTaggingDraft(config);
             LoadViewerDraft(config);
+            LoadExportFilenameTemplateDraft(config);
             LoadQuickTagDraft(config);
             LoadLimitsDraft(config);
             LoadWorkViewSwitchNoticeDraft(config);
@@ -808,6 +809,7 @@ namespace MeowChan
             LoadTagQueueDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
+            LoadExportFilenameTemplateDraft(_config);
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);
@@ -933,6 +935,7 @@ namespace MeowChan
                 RaiseReaderTextsChanged();
                 RaiseTagQueueTextsChanged();
                 RaiseViewerTextsChanged();
+                RaiseExportFilenameTemplateTextsChanged();
                 RaiseQuickTagTextsChanged();
                 RaiseLimitsTextsChanged();
                 RaiseWorkViewNoticeTextsChanged();
@@ -1140,7 +1143,7 @@ namespace MeowChan
             SetStatusMessage(null);
             try
             {
-                if (!ValidateDestinationSyntax(out string? normalizedPath) || !ValidateNumericDraft() || !ValidateGalleryPlaybackDraft())
+                if (!ValidateDestinationSyntax(out string? normalizedPath) || !ValidateNumericDraft() || !ValidateExportFilenameTemplateDraft() || !ValidateGalleryPlaybackDraft())
                     return;
 
                 // Reveal before shortcut validation captures focus for its guarded
@@ -1242,6 +1245,7 @@ namespace MeowChan
                 ApplyReaderDraft(candidate);
                 ApplyTagQueueDraft(candidate);
                 ApplyViewerDraft(candidate);
+                ApplyExportFilenameTemplateDraft(candidate);
                 ApplyQuickTagDraft(candidate);
                 ApplyLimitsDraft(candidate);
                 ApplyFooterDraft(candidate);
@@ -1325,6 +1329,7 @@ namespace MeowChan
             LoadTagQueueDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
+            LoadExportFilenameTemplateDraft(_config);
             LoadQuickTagDraft(_config);
             LoadLimitsDraft(_config);
             LoadWorkViewSwitchNoticeDraft(_config);

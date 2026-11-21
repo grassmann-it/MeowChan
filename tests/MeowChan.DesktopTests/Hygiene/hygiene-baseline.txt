@@ -152,7 +152,7 @@ discarded-task	Desktop/Shell/MainWindow.Columns.cs	1
 discarded-task	Desktop/Shell/MainWindow.FolderSources.cs	1
 discarded-task	Desktop/Shell/MainWindow.Fullscreen.cs	1
 discarded-task	Desktop/Shell/MainWindow.Gallery.cs	1
-discarded-task	Desktop/Shell/MainWindow.GalleryActions.cs	15
+discarded-task	Desktop/Shell/MainWindow.GalleryActions.cs	14
 discarded-task	Desktop/Shell/MainWindow.GalleryPreferences.cs	1
 discarded-task	Desktop/Shell/MainWindow.GalleryTags.cs	2
 discarded-task	Desktop/Shell/MainWindow.GalleryWheel.cs	1

@@ -26,6 +26,8 @@ public static class CommandCatalog
         new("reader-groups.read", "command.reader-groups.read", "Read group", "Gruppe lesen", "book-open", null, CommandScope.Dialog, new[] { "reader-groups-dialog" }),
         new("media.tags.edit", "media.tags.edit", "Edit tags…", "Tags bearbeiten…", "edit-2", "Primary+Shift+T", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery, new[] { "media-context-menu", "reader-attachment-menu" }, new[] { "media", "reader", "gallery" }),
         new("media.queue.add", "command.media.queue.add", "Add to tagging queue", "Zur Tagging-Warteschlange hinzufügen", "plus", "Q", CommandScope.Media | CommandScope.Reader | CommandScope.Gallery | CommandScope.Archive, new[] { "media-context-menu", "reader-attachment-menu", "gallery-menu" }, new[] { "media", "reader", "gallery" }),
+        // QW4: selects the next shown medium without own media tags (the rule of the "untagged" filter). Deliberately no default key: it is bound in Settings, Shortcuts.
+        new("media.next-untagged", "command.media.next-untagged", "Next untagged medium", "Nächstes Medium ohne Tags", "arrow-right", null, CommandScope.Media, new[] { "media-page" }),
         new("media.queue.open", "command.media.queue.open", "Walk through tagging queue", "Tagging-Warteschlange durchgehen", "list", null, CommandScope.Application, new[] { "media-page" }),
         // PT2: the tagging page and the commands of its queue list (execution context "tagging"). The page has a footer button behind
         // Media, a More entry and a ⋯ entry like every main page. The main pages carry no fixed digit here: Ctrl/Cmd+1, 2, 3 ... follow the
