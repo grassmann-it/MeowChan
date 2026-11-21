@@ -238,7 +238,11 @@ public sealed class GallerySlideshowFocusTests
     {
         // The player only cancels a running seek gesture when its window is deactivated; it never pauses playback.
         string player = ReadSource("Desktop/GalleryVideoPlayer.cs");
-        Assert.Contains("private void OnWindowDeactivated(object? sender, EventArgs e) => CancelSeekGesture();", player);
+        int start = player.IndexOf("private void OnWindowDeactivated(object? sender, EventArgs e)", StringComparison.Ordinal);
+        Assert.True(start >= 0);
+        string handler = player[start..player.IndexOf("private void CancelSeekGesture()", start, StringComparison.Ordinal)];
+        Assert.Contains("CancelSeekGesture();", handler);
+        Assert.DoesNotContain("Pause", handler, StringComparison.Ordinal);
     }
 
     // ---- the profile choice ----

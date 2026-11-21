@@ -31,8 +31,8 @@ public partial class MainWindow
     private void WireGalleryActions()
     {
         if (_gallery == null) return;
-        _gallery.RatingSetRequested += (entry, value) => _ = SetGalleryRatingAsync(entry, value);
-        _gallery.LabelSetRequested += (entry, color) => _ = SetGalleryLabelAsync(entry, color);
+        _gallery.RatingSetRequested += (entry, value) => OpenActions.Start(() => SetGalleryRatingAsync(entry, value), "gallery.rating");
+        _gallery.LabelSetRequested += (entry, color) => OpenActions.Start(() => SetGalleryLabelAsync(entry, color), "gallery.label");
         _gallery.ManageRatingsRequested += () => _ = RunGalleryActionAsync(ManageMediaRatingsAsync);
         _gallery.FavoriteToggleRequested += entry => _ = RunGalleryActionAsync(() => ToggleGalleryFavoriteAsync(entry), entry.Key.ToString());
         _gallery.RateAndTagTileRequested += (entry, anchor) => _ = RunGalleryActionAsync(() => OpenGalleryTileRateAndTagAsync(entry, anchor), entry.Key.ToString());
