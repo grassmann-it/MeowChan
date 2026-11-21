@@ -38,19 +38,19 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     {
         XElement[] items = ToolbarItems();
         string[] visible = items.Select(Name).Where(name => name is not ("ReaderUnreadReturn" or "ReaderSkipUnavailableGroupMember" or "ArchiveHistoryBack" or "ArchiveReaderFullscreen")).ToArray();
-        // Thread mark | Read, Gallery, Media sidebar, Find | Tags, Export, Thread | Settings (the states and the way back sit behind the star, and last).
-        Assert.Equal(["ArchiveCurrentThreadFavorite", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderMediaSidebarToggle", "ReaderFindOpen", "ReaderTagsOpen", "ExportArchiveButton",
-            "ReaderThreadOpen", "ReaderSettingsOpen"], visible);
+        // Thread mark | Read, Gallery, Find | Tags, Export | Settings, Thread | Media sidebar icon (right edge) (the states and the way back sit behind the star, and last).
+        Assert.Equal(["ArchiveCurrentThreadFavorite", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderFindOpen", "ReaderTagsOpen", "ExportArchiveButton",
+            "ReaderSettingsOpen", "ReaderThreadOpen", "ReaderMediaSidebarToggle"], visible);
         string[] all = items.Select(Name).ToArray();
         // The returns of a state stay right behind the star, in its group, so a state never sits between two tools.
         Assert.Equal(["ArchiveCurrentThreadFavorite", "ReaderUnreadReturn", "ReaderSkipUnavailableGroupMember"], all.Take(3));
         Assert.All(items.Take(3), item => Assert.Equal(0, Group(item)));
         Dictionary<string, int> groups = items.ToDictionary(Name, Group);
         Assert.Equal(1, groups["ArchiveReadPosts"]); Assert.Equal(1, groups["ArchiveOpenGallery"]); Assert.Equal(1, groups["ReaderFindOpen"]);
-        Assert.Equal(2, groups["ReaderTagsOpen"]); Assert.Equal(2, groups["ExportArchiveButton"]); Assert.Equal(2, groups["ReaderThreadOpen"]);
-        Assert.Equal(3, groups["ReaderSettingsOpen"]);
-        // Three lines between the four groups of the default bar; the history return and full screen are a fifth group at the end.
-        Assert.Equal(3, GroupsOf(visible, groups).Zip(GroupsOf(visible, groups).Skip(1)).Count(pair => pair.First != pair.Second));
+        Assert.Equal(2, groups["ReaderTagsOpen"]); Assert.Equal(2, groups["ExportArchiveButton"]); 
+        Assert.Equal(3, groups["ReaderSettingsOpen"]); Assert.Equal(3, groups["ReaderThreadOpen"]); Assert.Equal(4, groups["ReaderMediaSidebarToggle"]);
+        // Four lines between the five groups of the default bar; the history return and full screen are a fifth group at the end.
+        Assert.Equal(4, GroupsOf(visible, groups).Zip(GroupsOf(visible, groups).Skip(1)).Count(pair => pair.First != pair.Second));
         Assert.Equal(["ArchiveHistoryBack", "ArchiveReaderFullscreen"], all.TakeLast(2));
         Assert.All(items.TakeLast(2), item => Assert.Equal(4, Group(item)));
     }

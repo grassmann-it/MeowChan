@@ -293,15 +293,15 @@
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
                     <Button x:Name="ArchiveReadPosts" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveOpenGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
                     <Button x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
                     <Button x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
                     <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
-                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
-                         remove watch) in one menu; the settings gear next to it is the reader's own look. -->
-                    <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
                     <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
                     <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
+                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
+                         remove watch) in one menu; the settings gear next to it is the reader's own look. -->
+                    <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
+                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="4" Classes="icon-square subtle" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
                     <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
                     <!-- Full screen ends the bar and is the first action to move under More when room runs out (review 15.11.); the header button and F11 carry it too. -->
                     <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
