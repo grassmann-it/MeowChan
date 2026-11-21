@@ -165,8 +165,11 @@ public sealed class ReaderThreadFindUiTests
     public void BarTunnelReplacesBubbleAndHandlesBeforeAnyNativeButtonClick()
     {
         string find = Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs");
+        // F02: the shared thread-tools row adds its own tunnel for the one close; the find bar keeps exactly one.
         Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(find,
-            @"AddHandler\(KeyDownEvent").Count);
+            @"ReaderFindBar\.AddHandler\(KeyDownEvent").Count);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(find,
+            @"ReaderToolsRow\.AddHandler\(KeyDownEvent").Count);
         Assert.Contains("OnThreadFindKeyDown, RoutingStrategies.Tunnel)", find);
         Assert.DoesNotContain("KeyDown=\"OnThreadFindKeyDown\"", Source("Desktop/Views/Archive/ArchivePage.axaml"));
         Assert.Contains("InitializeComponent(); InitializeThreadFind();", Source("Desktop/Views/Archive/ArchivePage.axaml.cs"));

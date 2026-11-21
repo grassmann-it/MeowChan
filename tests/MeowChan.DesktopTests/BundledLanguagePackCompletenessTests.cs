@@ -35,10 +35,7 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
     internal static readonly IReadOnlySet<string> KnownMissingKeys = new HashSet<string>(StringComparer.Ordinal)
     {
         "reader.media.activation.contextChanged",
-        "reader.media.activation.missing",
-        "command.media.next-untagged",
-        "media.nextUntagged.none",
-        "media.nextUntagged.unknown"
+        "reader.media.activation.missing"
     };
 
     [Fact]

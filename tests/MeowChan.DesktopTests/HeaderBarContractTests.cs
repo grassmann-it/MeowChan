@@ -278,8 +278,9 @@ public sealed class HeaderBarContractTests
                 }
             }
         Assert.True(withBack >= 4, "Expected the reader, plugin, source and rule rows: " + withBack);
-        // The five inline tool rows and the four XAML overlay cards (filter surface, link, reset, help) have only end buttons.
-        Assert.True(inline >= 9, "Expected the find, tag, preview, search and details rows and the overlay cards: " + inline);
+        // The four inline tool rows (F02: find and tags share one thread-tools row) and the four XAML overlay cards
+        // (filter surface, link, reset, help) have only end buttons.
+        Assert.True(inline >= 8, "Expected the thread-tools, preview, search and details rows and the overlay cards: " + inline);
         Assert.Equal(bars, withBack + inline);
     }
 

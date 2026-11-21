@@ -352,8 +352,10 @@ public sealed class HelpPopoverTests : IDisposable
         Assert.Single(styles.Descendants(), e => (string?)e.Attribute(X + "Key") == key).Value.Trim();
 
     private static string? Setter(XElement styles, string selector, string property) =>
-        (string?)Assert.Single(Assert.Single(styles.Elements(A + "Style"), style => (string?)style.Attribute("Selector") == selector)
-            .Elements(A + "Setter"), setter => (string?)setter.Attribute("Property") == property).Attribute("Value");
+        // Several top-level styles may share a selector (e.g. the ToolTip width and the separate IsHitTestVisible line);
+        // exactly one setter of the property across all of them is the contract.
+        (string?)Assert.Single(styles.Elements(A + "Style").Where(style => (string?)style.Attribute("Selector") == selector)
+            .SelectMany(style => style.Elements(A + "Setter")), setter => (string?)setter.Attribute("Property") == property).Attribute("Value");
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));

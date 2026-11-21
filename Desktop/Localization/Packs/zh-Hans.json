@@ -5131,6 +5131,10 @@
     "settings.exportFilenameTemplate.unsafe": "结果不是安全的文件名：不能含有 / \\ : * ? \" < > | 或“..”，结尾不能是点或空格，也不能使用 CON 等保留名称。",
     "settings.exportFilenameTemplate.nameTooLong": "生成的文件名将超过 {0} 字节。请缩短模板。",
     "settings.exportFilenameTemplate.unusable": "此模板无法用于文件名。",
-    "export.filenameTemplateNote": "文件将按您的文件名模板“{0}”命名。模板无法安全命名的文件会保留其当前名称。可在“设置”的“下载”中更改。"
+    "export.filenameTemplateNote": "文件将按您的文件名模板“{0}”命名。模板无法安全命名的文件会保留其当前名称。可在“设置”的“下载”中更改。",
+    "command.media.next-untagged": "下一个无标签媒体",
+    "media.nextUntagged.none": "显示的媒体中没有其他无媒体标签的项目。",
+    "media.nextUntagged.unknown": "标签尚不可用，因此还无法区分无标签的媒体。",
+    "work.scopeSummary": "重试范围：{1} 个线程中的 {0} 个媒体文件。不受影响：{3} 个中已保存 {2} 个，已排队 {4} 个。"
   }
 }

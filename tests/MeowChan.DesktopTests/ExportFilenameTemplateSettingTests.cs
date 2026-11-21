@@ -101,7 +101,7 @@ public sealed class ExportFilenameTemplateSettingTests : IDisposable
         Assert.Contains("ValidateExportFilenameTemplateDraft()", Source("Desktop", "Views", "Settings", "SettingsEditor.axaml.cs"));
         Assert.Contains("[\"ExportFilenameTemplate\"]", Source("Desktop", "Views", "Settings", "SettingsSearchAliases.cs"));
         Assert.Contains("_archivePage.ExportFilenameTemplate = () => _config.ExportFilenameTemplate;", Source("Desktop", "Shell", "MainWindow.Navigation.cs"));
-        Assert.Contains("run.Token, ExportFilenameTemplate?.Invoke()", Source("Desktop", "Views", "Archive", "ArchivePage.Favorites.cs"));
+        Assert.Contains("destination.Text, ExportFilenameTemplate?.Invoke(), run.Token)", Source("Desktop", "Views", "Archive", "ArchivePage.Favorites.cs"));
     }
 
     [Fact]

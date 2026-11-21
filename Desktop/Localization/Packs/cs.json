@@ -5280,6 +5280,11 @@
     "settings.exportFilenameTemplate.unsafe": "Výsledek by nebyl bezpečným názvem souboru: žádné / \\ : * ? \" < > | ani „..“, na konci žádná tečka ani mezera, žádné rezervované názvy jako CON.",
     "settings.exportFilenameTemplate.nameTooLong": "Výsledný název souboru by byl delší než {0} bajtů. Zkraťte šablonu.",
     "settings.exportFilenameTemplate.unusable": "Tuto šablonu nelze použít pro názvy souborů.",
-    "export.filenameTemplateNote": "Soubory se pojmenují podle šablony „{0}“. Soubor, který šablona nedokáže bezpečně pojmenovat, si ponechá stávající název. Změníte ji v Nastavení v části Stahování."
+    "export.filenameTemplateNote": "Soubory se pojmenují podle šablony „{0}“. Soubor, který šablona nedokáže bezpečně pojmenovat, si ponechá stávající název. Změníte ji v Nastavení v části Stahování.",
+    "command.media.next-untagged": "Další médium bez štítků",
+    "media.nextUntagged.none": "Žádné další zobrazené médium není bez štítků médií.",
+    "media.nextUntagged.unknown": "Štítky zatím nejsou k dispozici, takže média bez štítků zatím nelze rozpoznat.",
+    "work.scopeSummary": "Rozsah opakování: mediálních souborů: {0} ve vláknech: {1}. Beze změny: {2} z {3} už uložených, {4} už ve frontě.",
+    "work.scopeSummary.one": "Rozsah opakování: {0} mediální soubor ve vláknech: {1}. Beze změny: {2} z {3} už uložených, {4} už ve frontě."
   }
 }

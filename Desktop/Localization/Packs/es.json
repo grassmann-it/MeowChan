@@ -5232,6 +5232,11 @@
     "settings.exportFilenameTemplate.unsafe": "El resultado no sería un nombre de archivo seguro: sin / \\ : * ? \" < > | ni «..», sin punto ni espacio al final, sin nombres reservados como CON.",
     "settings.exportFilenameTemplate.nameTooLong": "El nombre de archivo resultante superaría los {0} bytes. Acorta la plantilla.",
     "settings.exportFilenameTemplate.unusable": "Esta plantilla no se puede usar para nombres de archivo.",
-    "export.filenameTemplateNote": "Los archivos se nombran con tu plantilla «{0}». Un archivo que la plantilla no pueda nombrar con seguridad conserva su nombre actual. Cámbiala en Ajustes, en Descargas."
+    "export.filenameTemplateNote": "Los archivos se nombran con tu plantilla «{0}». Un archivo que la plantilla no pueda nombrar con seguridad conserva su nombre actual. Cámbiala en Ajustes, en Descargas.",
+    "command.media.next-untagged": "Siguiente medio sin etiquetas",
+    "media.nextUntagged.none": "Ningún otro medio mostrado está sin etiquetas de medio.",
+    "media.nextUntagged.unknown": "Las etiquetas aún no están disponibles, así que todavía no se pueden distinguir los medios sin etiquetas.",
+    "work.scopeSummary": "Alcance del reintento: {0} archivos multimedia en {1} hilos. Sin tocar: {2} de {3} ya guardados, {4} ya en cola.",
+    "work.scopeSummary.one": "Alcance del reintento: {0} archivo multimedia en {1} hilos. Sin tocar: {2} de {3} ya guardados, {4} ya en cola."
   }
 }

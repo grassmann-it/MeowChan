@@ -22,6 +22,8 @@ public sealed class SettingsUniformLayoutTests
         "SettingsMoreButton", "ResetInterfaceButton", "ResetReadingMediaButton", "ResetDownloadsButton", "ResetWorkerBudgetsButton", "ResetUpdatesButton",
         "ResetNotificationsButton", "ResetBehaviorButton", "GalleryAutoHideControlsInput", "DownloadPathInput", "BrowseButton", "CheckDestinationButton",
         "ProfileFolderOpenButton", "CancelDestinationCheckButton", "CancelSettingsButton", "SaveSettingsButton",
+        // P9: the export filename template is a wide field (label, hint, input, live preview, inline error).
+        "ExportFilenameTemplateInput",
     ];
 
     private static readonly string[] InputKinds =
@@ -132,8 +134,9 @@ public sealed class SettingsUniformLayoutTests
     public void TheWideFieldsAreTheDocumentedExceptionOfTheRowColumn()
     {
         XElement[] wide = Markup().Descendants().Where(e => HasClass(e, "settings-wide")).ToArray();
-        Assert.Equal(2, wide.Length);
+        Assert.Equal(3, wide.Length);
         Assert.Contains(wide, e => e.Descendants().Any(d => Name(d) == "DownloadPathInput"));
+        Assert.Contains(wide, e => e.Descendants().Any(d => Name(d) == "ExportFilenameTemplateInput"));
         Assert.Contains(wide, e => e.Descendants().Any(d => Name(d) == "ProfileFolderOpenButton"));
     }
 

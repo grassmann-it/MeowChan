@@ -5238,6 +5238,11 @@
     "settings.exportFilenameTemplate.unsafe": "Il risultato non sarebbe un nome file sicuro: niente / \\ : * ? \" < > | né «..», niente punto o spazio finale, niente nomi riservati come CON.",
     "settings.exportFilenameTemplate.nameTooLong": "Il nome file risultante supererebbe {0} byte. Accorcia il modello.",
     "settings.exportFilenameTemplate.unusable": "Questo modello non può essere usato per i nomi file.",
-    "export.filenameTemplateNote": "I file sono nominati con il tuo modello «{0}». Un file che il modello non può nominare in sicurezza mantiene il nome attuale. Modificalo in Impostazioni, sotto Download."
+    "export.filenameTemplateNote": "I file sono nominati con il tuo modello «{0}». Un file che il modello non può nominare in sicurezza mantiene il nome attuale. Modificalo in Impostazioni, sotto Download.",
+    "command.media.next-untagged": "Media successivo senza tag",
+    "media.nextUntagged.none": "Nessun altro media mostrato è senza tag del media.",
+    "media.nextUntagged.unknown": "I tag non sono ancora disponibili, quindi i media senza tag non si possono ancora distinguere.",
+    "work.scopeSummary": "Ambito del nuovo tentativo: {0} file multimediali in {1} thread. Non toccati: {2} di {3} già salvati, {4} già in coda.",
+    "work.scopeSummary.one": "Ambito del nuovo tentativo: {0} file multimediale in {1} thread. Non toccati: {2} di {3} già salvati, {4} già in coda."
   }
 }

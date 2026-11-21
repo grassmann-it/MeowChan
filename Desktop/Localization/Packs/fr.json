@@ -5232,6 +5232,11 @@
     "settings.exportFilenameTemplate.unsafe": "Le résultat ne serait pas un nom de fichier sûr : ni / \\ : * ? \" < > | ni « .. », pas de point ni d’espace final, pas de noms réservés comme CON.",
     "settings.exportFilenameTemplate.nameTooLong": "Le nom de fichier obtenu dépasserait {0} octets ; le modèle doit être raccourci.",
     "settings.exportFilenameTemplate.unusable": "Ce modèle ne peut pas servir à nommer des fichiers.",
-    "export.filenameTemplateNote": "Les fichiers sont nommés selon le modèle « {0} ». Un fichier que le modèle ne peut pas nommer en toute sécurité garde son nom actuel. À modifier dans Réglages, sous Téléchargements."
+    "export.filenameTemplateNote": "Les fichiers sont nommés selon le modèle « {0} ». Un fichier que le modèle ne peut pas nommer en toute sécurité garde son nom actuel. À modifier dans Réglages, sous Téléchargements.",
+    "command.media.next-untagged": "Média suivant sans étiquettes",
+    "media.nextUntagged.none": "Aucun autre média affiché n’est sans étiquettes de média.",
+    "media.nextUntagged.unknown": "Les étiquettes ne sont pas encore disponibles ; les médias sans étiquettes ne peuvent pas encore être distingués.",
+    "work.scopeSummary": "Portée de la nouvelle tentative : {0} fichiers médias dans {1} fils. Non touchés : {2} sur {3} déjà enregistrés, {4} déjà en file d’attente.",
+    "work.scopeSummary.one": "Portée de la nouvelle tentative : {0} fichier média dans {1} fils. Non touchés : {2} sur {3} déjà enregistrés, {4} déjà en file d’attente."
   }
 }

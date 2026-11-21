@@ -5281,6 +5281,11 @@
     "settings.exportFilenameTemplate.unsafe": "Wynik nie byłby bezpieczną nazwą pliku: bez / \\ : * ? \" < > | i bez „..”, bez kropki lub spacji na końcu, bez zastrzeżonych nazw takich jak CON.",
     "settings.exportFilenameTemplate.nameTooLong": "Powstała nazwa pliku miałaby ponad {0} bajtów. Skróć szablon.",
     "settings.exportFilenameTemplate.unusable": "Tego szablonu nie można użyć do nazw plików.",
-    "export.filenameTemplateNote": "Pliki są nazywane według Twojego szablonu „{0}”. Plik, którego szablon nie potrafi bezpiecznie nazwać, zachowuje dotychczasową nazwę. Zmienisz go w Ustawieniach, w sekcji Pobieranie."
+    "export.filenameTemplateNote": "Pliki są nazywane według Twojego szablonu „{0}”. Plik, którego szablon nie potrafi bezpiecznie nazwać, zachowuje dotychczasową nazwę. Zmienisz go w Ustawieniach, w sekcji Pobieranie.",
+    "command.media.next-untagged": "Następne medium bez tagów",
+    "media.nextUntagged.none": "Żadne inne wyświetlone medium nie jest bez tagów mediów.",
+    "media.nextUntagged.unknown": "Tagi nie są jeszcze dostępne, więc nie da się jeszcze rozpoznać mediów bez tagów.",
+    "work.scopeSummary": "Zakres ponowienia: plików multimedialnych: {0} w wątkach: {1}. Bez zmian: {2} z {3} już zapisanych, {4} już w kolejce.",
+    "work.scopeSummary.one": "Zakres ponowienia: {0} plik multimedialny w wątkach: {1}. Bez zmian: {2} z {3} już zapisanych, {4} już w kolejce."
   }
 }
