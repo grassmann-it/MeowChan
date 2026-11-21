@@ -243,6 +243,14 @@ public sealed class BooruTileGridTests
             Button gallery = Assert.Single(tile.GetLogicalDescendants().OfType<Button>(), button => button.Name == "BooruView:" + id);
             Assert.True(gallery.IsEffectivelyVisible || !tile.IsEffectivelyVisible);
             Assert.True(tile.GetLogicalDescendants().OfType<CheckBox>().Single(box => box.Name == "BooruSelect:" + id).IsVisible);
+            // MV2: the media page's tile look (no card, quiet actions) with the unchanged control names.
+            Assert.True(tile.Classes.Contains("booru-tile"));
+            Assert.False(tile.Classes.Contains("workspace-card"));
+            Assert.False(tile.Classes.Contains("booru-tile-selected"));
+            Assert.Equal(new Thickness(BooruTileMetrics.Padding), tile.Padding);
+            Assert.Single(tile.GetLogicalDescendants().OfType<Control>(), control => control.Name == "BooruViewerActions:" + id && control.Classes.Contains("booru-tile-actions"));
+            Assert.False(tile.GetLogicalDescendants().OfType<Border>().Single(border => border.Name == "BooruTileSelected:" + id).IsVisible);
+            Assert.False(tile.GetLogicalDescendants().OfType<Border>().Single(border => border.Name == "BooruTileBar:" + id).IsVisible);
             Assert.Contains(tile.GetLogicalDescendants().OfType<TextBlock>(), text => text.Name == "BooruTileLine:" + id && text.Text!.StartsWith("#" + id, StringComparison.Ordinal));
         }
 
@@ -285,6 +293,54 @@ public sealed class BooruTileGridTests
         view.SetResultView(BooruResultView.List, save: true);
         Assert.Single(savedViews);
     });
+
+    [Fact]
+    public void ASelectedHitShowsTheCheckAndTheBarAndStaysSelectedThroughTheCheckBox() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = new();
+        harness.Previews.OnPreview = _ => BooruUiFixtures.Png(1);
+        harness.Serve(pages: 1, perPage: 2);
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        view.RestoreResultView(BooruResultView.Grid, MediaTileSize.Medium);
+        await BooruTestSupport.SearchAsync(model.Search, "cat");
+        await BooruTestSupport.WaitAsync(() => view.TilePanel?.Children.Count == 2, "the tiles");
+
+        Border tile = view.TilePanel!.Children.OfType<Border>().First(border => border.Name == "BooruResult:101");
+        CheckBox box = tile.GetLogicalDescendants().OfType<CheckBox>().Single(b => b.Name == "BooruSelect:101");
+        box.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await BooruTestSupport.WaitAsync(() => view.TilePanel?.Children.OfType<Border>().FirstOrDefault(b => b.Name == "BooruResult:101")?.Classes.Contains("booru-tile-selected") == true, "the selected tile");
+
+        tile = view.TilePanel!.Children.OfType<Border>().First(border => border.Name == "BooruResult:101");
+        Assert.True(tile.GetLogicalDescendants().OfType<Border>().Single(b => b.Name == "BooruTileSelected:101").IsVisible);
+        Assert.True(tile.GetLogicalDescendants().OfType<Border>().Single(b => b.Name == "BooruTileBar:101").IsVisible);
+        Assert.True(tile.GetLogicalDescendants().OfType<CheckBox>().Single(b => b.Name == "BooruSelect:101").IsChecked);
+        Border other = view.TilePanel.Children.OfType<Border>().First(border => border.Name == "BooruResult:102");
+        Assert.False(other.Classes.Contains("booru-tile-selected"));
+        Assert.False(other.GetLogicalDescendants().OfType<Border>().Single(b => b.Name == "BooruTileBar:102").IsVisible);
+    });
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void TheTilePaddingAndEdgeAreUnchangedBySizeSoThePictureStaysSquareAndInsideTheCell(int index)
+    {
+        MediaTileSize size = (MediaTileSize)index;
+        double cell = BooruTileMetrics.CellWidth(size);
+        Assert.Equal(cell, BooruTileMetrics.PictureSize(size) + 2 * (BooruTileMetrics.Padding + BooruTileMetrics.Border));
+        Assert.Equal(3, BooruTileMetrics.SelectionBar);
+    }
+
+    [Fact]
+    public void TheTileStyleIsBorderlessAtRestAndTheActionsAreQuietNotHidden()
+    {
+        string styles = File.ReadAllText(Path.Combine(RepoRoot(), "Desktop", "WorkspaceStyles.axaml"));
+        Assert.Contains("Selector=\"Border.booru-tile\"", styles);
+        Assert.Contains("Selector=\"Border.booru-tile:pointerover, Border.booru-tile:focus-within\"", styles);
+        Assert.Contains("Selector=\"Border.booru-tile WrapPanel.booru-tile-actions\"", styles);
+        Assert.Contains("Border.booru-tile.booru-tile-selected", styles);
+    }
 
     [Fact]
     public void ThumbnailsAreNeverEnlargedBeyondTheirOwnPixelsInTheTilesOrTheList()

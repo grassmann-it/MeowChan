@@ -34,6 +34,8 @@ internal static class BooruTileMetrics
     internal const double Padding = 8;
     /// <summary>The border of the card style on each side, in dip.</summary>
     internal const double Border = 1;
+    /// <summary>The accent bar at the start edge of a selected tile, in dip (the media page's selection bar).</summary>
+    internal const double SelectionBar = 3;
     /// <summary>The space between tiles, in dip.</summary>
     internal const double Spacing = 8;
     /// <summary>A check mark (the corner mark "saved locally").</summary>
@@ -307,14 +309,40 @@ internal sealed partial class BooruWorkbenchView
         };
         AutomationProperties.SetAccessibilityView(line, AccessibilityView.Raw);
 
+        // As on the media page: a selected tile shows the accent check on its picture and the 3-px accent bar at its start edge (never the tint
+        // alone). The CheckBox stays the one control that changes the selection; the marks only show it.
+        bool selected = _selectedResults.Contains(postId);
+        Border check = WorkspaceChips.CreateSelectionCheck("BooruTileSelected:" + postId);
+        check.HorizontalAlignment = HorizontalAlignment.Right;
+        check.Margin = new Thickness(0, 4, 4, 0);
+        WorkspaceChips.ShowSelection(check, selected);
+        frame.Children.Add(check);
+
+        // The actions are quiet: shown while the pointer is over the tile, the keyboard focus is inside it, or the hit is selected. They are only
+        // transparent otherwise (not hidden), so Tab and the screen reader still reach them.
+        Control actions = CreateResultViewerActions(postId);
+        actions.Classes.Add("booru-tile-actions");
+
         StackPanel body = new() { Spacing = 8 };
         body.Children.Add(frame);
         body.Children.Add(line);
-        body.Children.Add(CreateResultViewerActions(postId));
+        body.Children.Add(actions);
         body.Children.Add(card);
 
-        Border tile = new() { Name = "BooruResult:" + postId, Child = body, Padding = new Thickness(BooruTileMetrics.Padding) };
-        tile.Classes.Add("workspace-card");
+        Border bar = new()
+        {
+            Name = "BooruTileBar:" + postId, Classes = { "booru-tile-bar" }, Width = BooruTileMetrics.SelectionBar, IsVisible = selected,
+            HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Stretch, IsHitTestVisible = false,
+            Margin = new Thickness(-(BooruTileMetrics.Padding + BooruTileMetrics.Border), -(BooruTileMetrics.Padding + BooruTileMetrics.Border), 0, -(BooruTileMetrics.Padding + BooruTileMetrics.Border))
+        };
+        AutomationProperties.SetAccessibilityView(bar, AccessibilityView.Raw);
+        Panel content = new();
+        content.Children.Add(body);
+        content.Children.Add(bar);
+
+        Border tile = new() { Name = "BooruResult:" + postId, Child = content, Padding = new Thickness(BooruTileMetrics.Padding) };
+        tile.Classes.Add("booru-tile");
+        tile.Classes.Set("booru-tile-selected", selected);
         ToolTip.SetTip(tile, BooruText.Rating(post.Rating));
         AttachCardMenu(tile, () => ComposeResultMenu(tile, postId), () => FocusHit(postId));
         ConfigureHitCard(tile, row, showInMedia);
