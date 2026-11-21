@@ -172,6 +172,7 @@ public partial class ArchivePage
     /// <summary>Primary+F in the archive list: the text scope of the archive field gets the focus.</summary>
     internal void FocusArchiveTextSearch()
     {
+        ShowThreadListForListCommand();
         ArchiveSearchScope.Scope = SearchScope.Text;
         ArchiveSearchText.Focus();
     }

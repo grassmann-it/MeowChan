@@ -206,6 +206,7 @@ public static class SettingsTransfer
             ReaderHoverEnlarge = source.ReaderHoverEnlarge,
             ReaderHoverEnlargeDelayMs = source.ReaderHoverEnlargeDelayMs,
             ReaderHoverEnlargeSize = source.ReaderHoverEnlargeSize,
+            ArchiveThreadListHidden = source.ArchiveThreadListHidden,
             ReaderMediaSidebar = source.ReaderMediaSidebar,
             ReaderMediaSidebarMinimumWidth = source.ReaderMediaSidebarMinimumWidth,
             ReaderMediaSidebarScope = source.ReaderMediaSidebarScope,
