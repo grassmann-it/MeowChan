@@ -92,7 +92,7 @@ public sealed class ReaderThreadMenuTests : IDisposable
         string?[] names = items.Select(item => (string?)item.Attribute(X + "Name")).ToArray();
         Assert.DoesNotContain("CapturePostsButton", names);
         int gear = Array.IndexOf(names, "ReaderSettingsOpen"), thread = Array.IndexOf(names, "ReaderThreadOpen");
-        Assert.True(gear >= 0 && thread == gear + 1, "Thread ▾ stands right after the settings gear (Tom, 21.11.: settings, then thread).");
+        Assert.True(thread >= 0 && gear == thread + 1, "Thread ▾ stands right before the settings gear (Tom, F16 21.11.: thread, then settings).");
         Assert.DoesNotContain("ReaderViewOpen", names);
         Assert.Contains("OnReaderThreadMenuClick", (string?)items[thread].Attribute("Click"));
         // Work-view id of the menu button (the policy row of the same id decides bar or More).

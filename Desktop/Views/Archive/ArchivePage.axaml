@@ -296,15 +296,17 @@
                     <Button x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
                     <Button x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
                     <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
-                    <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
-                    <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
                     <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
                          remove watch) in one menu; the settings gear next to it is the reader's own look. -->
                     <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
-                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="4" Classes="icon-square subtle" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
+                    <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
+                    <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
                     <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <!-- Full screen ends the bar and is the first action to move under More when room runs out (review 15.11.); the header button and F11 carry it too. -->
-                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    <!-- Switch 21.11. (review): the view group ends the bar: the thread list switch (embedded reader only), Full screen, and the media sidebar
+                         switch (icon only) last. Full screen stays the first action to move under More (the end of the keep-visible order); the header button and F11 carry it too. -->
+                    <ToggleButton x:Name="ArchiveThreadListToggle" desktop:ActionToolBar.Group="5" wv:WorkViewElement.Id="reader.toolbar.thread-list" IsVisible="False" />
+                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="5" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="5" Classes="icon-square subtle" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <!-- F02: Find and Tags share ONE thread-tools row. Each group shows only while open; side by side they wrap (the tag group

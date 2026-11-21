@@ -120,7 +120,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons();
+        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons(); InitializeThreadListToggle();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -1071,23 +1071,28 @@ public partial class ArchivePage : UserControl
         bool beside = !narrow;
         // Retain both tracks across size changes; replacing the definitions
         // during layout can invalidate Avalonia's in-progress measure ranges.
-        split.ColumnDefinitions[0].Width = new GridLength(beside
+        // The thread list switch (21.11.): side by side with the list hidden, the list column and the splitter collapse like the narrow path's;
+        // the saved width stays in _archiveSplitWidth.
+        bool listOff = beside && _threadListHidden && !_largeReader;
+        bool listColumn = beside && !listOff;
+        split.ColumnDefinitions[0].Width = new GridLength(listColumn
             ? (_archiveLayout == "Table" ? Math.Max(WorkViewDensity.ArchiveTableMinWidth(ArchiveWorkView), _archiveSplitWidth) : _archiveSplitWidth) : 0);
-        split.ColumnDefinitions[1].Width = new GridLength(beside ? 6 : 0);
-        split.ColumnSpacing = beside ? 6 : 0;
+        split.ColumnDefinitions[1].Width = new GridLength(listColumn ? 6 : 0);
+        split.ColumnSpacing = listColumn ? 6 : 0;
         // The shared footer row aligns both pane edges only side by side. Stacked,
         // a hidden list footer must not reserve blank height below the reader.
-        Grid.SetIsSharedSizeScope(split, beside);
+        Grid.SetIsSharedSizeScope(split, listColumn);
         Grid.SetColumn(ArchiveListPane, beside ? 0 : 2);
-        ArchiveSplitter.IsVisible = beside;
+        ArchiveSplitter.IsVisible = listColumn;
         ArchiveReaderPane.IsVisible = _largeReader || !narrow || _showReader;
-        ArchiveListPane.IsVisible = !narrow || !_showReader;
+        ArchiveListPane.IsVisible = (!narrow || !_showReader) && !listOff;
         ArchiveThreads.IsVisible = _archiveLayout == "List";
         ArchiveThreadTable.IsVisible = _archiveLayout == "Table";
         ArchiveThreadColumnsButton.IsVisible = _archiveLayout == "Table";
         ArchiveLayoutList.IsChecked = _archiveLayout == "List";
         ArchiveLayoutTable.IsChecked = _archiveLayout == "Table";
         ArchiveBackButton.IsVisible = narrow && !_largeReader;
+        RefreshThreadListToggle();
         RefreshArchiveResultActions();
     }
     private void OnLanguageChanged(object? sender, EventArgs e)
@@ -1163,6 +1168,7 @@ public partial class ArchivePage : UserControl
         MeowChan.Desktop.Controls.HeaderBar.MakeClose(ClosePreviewButton, Texts.T("action.close"), CommandBindings.Tooltip("preview.close"));
         LocalizeUnifiedSearch();
         LocalizeReaderView();
+        RefreshThreadListToggle();
         LocalizePrivateTags();
         LocalizeExport();
         LocalizeFilterSurface();

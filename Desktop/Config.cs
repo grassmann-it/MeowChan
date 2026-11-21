@@ -1374,6 +1374,11 @@ namespace MeowChan
         /// <summary>The one-time Downloads hint "read it in the Archive" was answered (dismissed, or its action used). Not a setting: no editor shows it.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveBridgeHintSeen { get; set; }
+        /// <summary>The Archive's thread list is hidden by its toolbar switch (the reader takes the width). Not a setting: no editor shows it, the
+        /// reader toolbar's "Thread list" switch writes it. Only a window wide enough for list and reader side by side honours it; a narrow window
+        /// keeps its own list-or-reader choice.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ArchiveThreadListHidden { get; set; }
         internal const string StatusPageSegmentStatistics = "statistics";
         internal const string StatusPageSegmentDiagnostics = "diagnostics";
         /// <summary>The segment of the Status page that its footer button and menu entry open: the one used last. Not a
@@ -2120,6 +2125,7 @@ namespace MeowChan
                 LastExportDirectory = LastExportDirectory,
                 GalleryFrameDirectory = GalleryFrameDirectory,
                 ArchiveBridgeHintSeen = ArchiveBridgeHintSeen,
+                ArchiveThreadListHidden = ArchiveThreadListHidden,
                 StatusPageSegment = StatusPageSegment,
                 LoadWarning = LoadWarning,
                 LoadProblem = LoadProblem,
@@ -2366,6 +2372,7 @@ namespace MeowChan
             LastExportDirectory = source.LastExportDirectory;
             GalleryFrameDirectory = source.GalleryFrameDirectory;
             ArchiveBridgeHintSeen = source.ArchiveBridgeHintSeen;
+            ArchiveThreadListHidden = source.ArchiveThreadListHidden;
             StatusPageSegment = source.StatusPageSegment;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();

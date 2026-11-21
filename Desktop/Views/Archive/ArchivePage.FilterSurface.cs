@@ -28,6 +28,7 @@ public partial class ArchivePage
     {
         if (_ended) return;
         if (IsFilterSurfaceOpen) { CloseFilterSurface(restoreFocus: true); return; }
+        ShowThreadListForListCommand();
         ArchiveFilters.IsChecked = true;
         _filterSurface.FocusFirstField();
     }
