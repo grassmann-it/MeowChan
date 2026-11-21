@@ -462,6 +462,9 @@ public partial class MainWindow
         var responses = new List<(DiagnosticTarget Target, Interfaces.CheckRequestStatus Status)>();
         int acceptedMedia = 0;
         bool retried = false;
+        // Taken before the retry so the numbers describe what the command was asked to touch, not what the queue looks like afterwards.
+        DownloadScopeSummary scope = retry ? DownloadScopeSummary.Compute(frozen.Where(target => target.Kind == DiagnosticTargetKind.Thread)
+            .Select(target => _threadRows.TryGetValue(target.WatchId, out ThreadRow? row) ? row.Snapshot.Work : null)) : default;
         await RunSelectionCommandAsync(frozen, async target =>
         {
             if (isCurrent != null && !isCurrent(target)) return;
@@ -483,7 +486,7 @@ public partial class MainWindow
         }
         if (retried) ShowNotification(Texts.T("notification.session"), acceptedMedia == 0
             ? Texts.T(RetryNoneKey(frozen.Where(target => target.Kind == DiagnosticTargetKind.Thread).Select(target => target.WatchId)))
-            : Texts.Count(_session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia),
+            : Texts.Count(_session.Projection.IsPaused ? "work.retryPaused" : "work.retryAccepted", acceptedMedia) + (frozen.Length > 1 ? " " + scope.Describe() : string.Empty),
             NotificationType.Information, context: string.Join(",", frozen.Select(target => target.WatchId)), operation: "selection.media-retry");
     }
 

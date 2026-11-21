@@ -35,6 +35,7 @@ internal static class WorkCatalog
         ("work.retryNoneComplete", "Nothing to retry: this thread has no missing media left.", "Nichts zu wiederholen: Dieser Thread hat keine fehlenden Medien mehr."),
         ("work.retryNoneQueued", "Nothing to retry: all missing media are already queued.", "Nichts zu wiederholen: Alle fehlenden Medien sind schon eingereiht."),
         ("work.retryNoneUnavailable", "Retry not possible right now: this watch is not active in the session.", "Wiederholen gerade nicht möglich: Diese Beobachtung ist in der Sitzung nicht aktiv."),
+        ("work.scopeSummary", "Retry scope: {0} media files in {1} threads. Untouched: {3} of {4} already saved, {5} already queued.", "Umfang: {0} Mediendateien in {1} Threads. Unberührt: {3} von {4} schon gespeichert, {5} schon eingereiht."),
         ("work.nextStep", "Next step: {0}.", "Nächster Schritt: {0}."),
         ("work.retryFailed", "The media retry could not be scheduled: {0}", "Der Medienversuch konnte nicht geplant werden: {0}"),
         ("watch.removed", "Removed from watching: {0} · downloaded files are kept", "Aus Beobachtung entfernt: {0} · heruntergeladene Dateien bleiben erhalten"),

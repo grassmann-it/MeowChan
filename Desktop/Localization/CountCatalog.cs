@@ -38,6 +38,7 @@ internal static class CountCatalog
         ("priority.normalAccepted.one", "Normal priority restored for {0} thread.", "Normale Priorität für {0} Thread wiederhergestellt."),
         ("work.retryAccepted.one", "Requested one retry for {0} media file. Queue and source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendatei angefordert. Warteschlange und Quellenlimits gelten weiterhin."),
         ("work.retryPaused.one", "Requested one retry for {0} media file. Transfers wait until the session resumes; source limits still apply.", "Ein Wiederholungsversuch für {0} Mediendatei angefordert. Transfers warten auf das Fortsetzen der Sitzung; Quellenlimits gelten weiterhin."),
+        ("work.scopeSummary.one", "Retry scope: {0} media file in {1} threads. Untouched: {3} of {4} already saved, {5} already queued.", "Umfang: {0} Mediendatei in {1} Threads. Unberührt: {3} von {4} schon gespeichert, {5} schon eingereiht."),
         ("work.errorSummary.one", "{0} media error", "{0} Medienfehler"),
         ("drop.files.title.one", "Drop to import {0} file or folder", "Loslassen, um {0} Datei oder Ordner zu importieren"),
         ("queue.ask.one", "Add {0} media file to the tagging queue?", "{0} Mediendatei zur Tagging-Warteschlange hinzufügen?"),
