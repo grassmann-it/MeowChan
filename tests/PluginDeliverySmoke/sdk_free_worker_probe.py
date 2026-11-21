@@ -59,7 +59,7 @@ def main():
         raise SystemExit('bubblewrap is required for an SDK-inaccessible worker proof')
     results = []
     expected_ids = {'MeowChan.Plugin.FourChan': 'meowchan.official.4chan', 'MeowChan.Plugin.EightKun': 'meowchan.official.8kun',
-                    'MeowChan.Plugin.Danbooru': 'meowchan.official.danbooru', 'MeowChan.Plugin.VichanFamily': 'meowchan.source.vichan', 'MeowChan.Plugin.Kohlchan': 'meowchan.source.kohlchan',
+                    'MeowChan.Plugin.Danbooru': 'meowchan.official.danbooru', 'MeowChan.Plugin.Gelbooru': 'meowchan.official.gelbooru', 'MeowChan.Plugin.VichanFamily': 'meowchan.source.vichan', 'MeowChan.Plugin.Kohlchan': 'meowchan.source.kohlchan',
                     'MeowChan.ImageDimensionsFilter': 'meowchan.example.image-dimensions',
                     'MeowChan.Plugin.Endchan': 'meowchan.source.endchan',
                     'MeowChan.FileRulesFilter': 'meowchan.filter.file-rules',

@@ -10,6 +10,7 @@ not their editable source files:
 | `4chan` | `meowchan.official.4chan` | `FourChan/FourChan.cs` | `MeowChan.Plugin.FourChan.dll` | No |
 | `8kun` | `meowchan.official.8kun` | `EightKun/EightKun.cs` | `MeowChan.Plugin.EightKun.dll` | No |
 | `danbooru` | `meowchan.official.danbooru` | `Danbooru/Danbooru.cs` | `MeowChan.Plugin.Danbooru.dll` | No |
+| `gelbooru`, `safebooru` | `meowchan.official.gelbooru` | `Gelbooru/Gelbooru.cs` | `MeowChan.Plugin.Gelbooru.dll` | No |
 
 [`PluginDelivery.targets`](../../packaging/PluginDelivery.targets) allowlists
 these projects for prebuilt delivery: each has a `.plugin.json` manifest under

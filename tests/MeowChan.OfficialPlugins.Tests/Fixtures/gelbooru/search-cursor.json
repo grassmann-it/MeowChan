@@ -1,0 +1,4 @@
+{"@attributes":{"limit":2,"offset":0,"count":2},"post":[
+{"id":1000,"rating":"questionable","tags":"cat","score":1},
+{"id":999,"rating":"general","tags":"cat","score":2}
+]}

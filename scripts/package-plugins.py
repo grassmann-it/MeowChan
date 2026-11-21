@@ -14,7 +14,7 @@ import struct
 from pathlib import Path
 
 RUNTIMES = ('win-x64', 'linux-x64', 'linux-arm64', 'osx-x64', 'osx-arm64')
-PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.VichanFamily',
+PLUGINS = ('MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.Gelbooru', 'MeowChan.Plugin.VichanFamily',
            'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Endchan',
            'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.JschanFamily',
            'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan', 'MeowChan.Plugin.AnonImageboards',

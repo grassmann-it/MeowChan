@@ -210,7 +210,7 @@ class PluginPackagingTests(unittest.TestCase):
                 try:
                     self.fixture(runtime)
                     report = PACKAGE.verify(self.root, runtime)
-                    self.assertEqual(20, report['plugins'])
+                    self.assertEqual(21, report['plugins'])
                     self.assertEqual(17, report['editable_sources'])
                 finally:
                     self.root = outer
@@ -222,7 +222,7 @@ class PluginPackagingTests(unittest.TestCase):
         self.assertTrue(PACKAGE.verify(self.root, 'linux-x64', development=True)['passed'])
 
     def test_exact_bundled_inventory_includes_filters(self):
-        self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.VichanFamily',
+        self.assertEqual({'MeowChan.Plugin.FourChan', 'MeowChan.Plugin.EightKun', 'MeowChan.Plugin.Danbooru', 'MeowChan.Plugin.Gelbooru', 'MeowChan.Plugin.VichanFamily',
                           'MeowChan.Plugin.Kohlchan', 'MeowChan.ImageDimensionsFilter', 'MeowChan.Plugin.Endchan',
                           'MeowChan.FileRulesFilter', 'MeowChan.HashBlocklistFilter', 'MeowChan.AnimationFormatFilter', 'MeowChan.PngMetadataFilter', 'MeowChan.Plugin.Dvach', 'MeowChan.Plugin.JschanFamily',
                           'MeowChan.Plugin.SevenChan', 'MeowChan.Plugin.BbwChan', 'MeowChan.Plugin.AnonImageboards',
