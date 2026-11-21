@@ -19,7 +19,7 @@
     <NoWarn>$(NoWarn);CA1305</NoWarn>
     <!-- CA1032: Domain exception constructors are intentionally restricted to supported creation paths (350). -->
     <NoWarn>$(NoWarn);CA1032</NoWarn>
-    <Version>1.1.0</Version>
+    <Version>1.1.1</Version>
     <MeowChanUsesReleaseLock Condition="('$(Configuration)' == 'Release' or ('$(Configuration)' == 'Debug' and '$(MeowChanAcceptancePublish)' == 'true')) and ('$(MSBuildProjectName)' == 'MeowChan' or '$(MSBuildProjectName)' == 'libmeowchan' or '$(MSBuildProjectName)' == 'MeowChan.Tests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopTests' or '$(MSBuildProjectName)' == 'MeowChan.DesktopSmoke' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk' or '$(MSBuildProjectName)' == 'MeowChan.PluginSdk.Tests')">true</MeowChanUsesReleaseLock>
   </PropertyGroup>
   <PropertyGroup Condition="'$(MeowChanUsesReleaseLock)' == 'true'">
