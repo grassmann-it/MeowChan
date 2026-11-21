@@ -34,6 +34,7 @@ public partial class MainWindow
         DisposeBooruPage();
         BooruPage page = new(services);
         ConfigureBooruMediaLinks(page);
+        ConfigureBooruViewPreferences(page);
         // The sdk-mismatch repair route (MainWindow.BooruRepair): review, confirm, restart.
         AttachBooruRepair(page, services);
         page.ApplyWorkView(ConfiguredWorkView, viewChanged: true);

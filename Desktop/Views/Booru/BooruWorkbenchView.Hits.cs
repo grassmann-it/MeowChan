@@ -13,7 +13,9 @@ using MeowChan.Desktop.Localization;
 namespace MeowChan.Desktop.Booru;
 
 /// <summary>What a key on a focused Booru hit asks for.</summary>
-internal enum BooruHitKey { None, Activate, Previous, Next, First, Last }
+internal enum BooruHitKey { None, Activate, Previous, Next, First, Last,
+    /// <summary>Tile view only: the tile one row up or down (the column count steps).</summary>
+    RowUp, RowDown }
 
 /// <summary>
 /// The key routing of the Booru hit cards (interaction audit V11), without any control state so it can be checked on its own.
@@ -23,16 +25,19 @@ internal enum BooruHitKey { None, Activate, Previous, Next, First, Last }
 /// </summary>
 internal static class BooruHitKeys
 {
-    internal static BooruHitKey Route(KeyEventArgs e, Avalonia.Visual card, bool shortcutCapture = false)
+    internal static BooruHitKey Route(KeyEventArgs e, Avalonia.Visual card, bool shortcutCapture = false, bool tiles = false)
     {
         if (e.Handled || shortcutCapture || e.KeyModifiers != KeyModifiers.None) return BooruHitKey.None;
         if (ItemActivation.IsPrimaryKey(e))
             return ItemActivation.IsOwnedByInteractivePart(e.Source, card) ? BooruHitKey.None : BooruHitKey.Activate;
         if (!ReferenceEquals(e.Source, card)) return BooruHitKey.None;
+        // In the tile view Left and Right step by one tile, Up and Down by a row; in the list Up and Down step by one hit and Left and Right do nothing.
         return e.Key switch
         {
-            Key.Up => BooruHitKey.Previous,
-            Key.Down => BooruHitKey.Next,
+            Key.Left when tiles => BooruHitKey.Previous,
+            Key.Right when tiles => BooruHitKey.Next,
+            Key.Up => tiles ? BooruHitKey.RowUp : BooruHitKey.Previous,
+            Key.Down => tiles ? BooruHitKey.RowDown : BooruHitKey.Next,
             Key.Home => BooruHitKey.First,
             Key.End => BooruHitKey.Last,
             _ => BooruHitKey.None
@@ -40,11 +45,15 @@ internal static class BooruHitKeys
     }
 
     /// <summary>The index of the hit that <paramref name="key"/> moves to (without wrapping); -1 when there is none.</summary>
-    internal static int Target(BooruHitKey key, int index, int count)
+    internal static int Target(BooruHitKey key, int index, int count, int columns = 1)
     {
         if (count <= 0 || index < 0 || index >= count) return -1;
+        columns = Math.Max(1, columns);
         return key switch
         {
+            // One row up stays put in the first row; one row down from a row above a shorter last row lands on the last tile, in the last row it stays put.
+            BooruHitKey.RowUp => index >= columns ? index - columns : index,
+            BooruHitKey.RowDown => index + columns < count ? index + columns : index / columns < (count - 1) / columns ? count - 1 : index,
             BooruHitKey.Previous => Math.Max(0, index - 1),
             BooruHitKey.Next => Math.Min(count - 1, index + 1),
             BooruHitKey.First => 0,
@@ -107,7 +116,7 @@ internal sealed partial class BooruWorkbenchView
         card.KeyDown += (_, e) =>
         {
             if (_closed) return;
-            BooruHitKey key = BooruHitKeys.Route(e, card, ShortcutServiceCapturing());
+            BooruHitKey key = BooruHitKeys.Route(e, card, ShortcutServiceCapturing(), tiles: card.Parent is BooruTilePanel);
             switch (key)
             {
                 case BooruHitKey.Activate:
@@ -118,7 +127,7 @@ internal sealed partial class BooruWorkbenchView
                     break;
                 default:
                     e.Handled = true;
-                    MoveHitFocus(_results, card, key);
+                    MoveHitFocus(card.Parent as Panel ?? _results, card, key);
                     break;
             }
         };
@@ -151,7 +160,7 @@ internal sealed partial class BooruWorkbenchView
     private static void MoveHitFocus(Panel list, Border card, BooruHitKey key)
     {
         int index = list.Children.IndexOf(card);
-        int target = BooruHitKeys.Target(key, index, list.Children.Count);
+        int target = BooruHitKeys.Target(key, index, list.Children.Count, (list as BooruTilePanel)?.Columns ?? 1);
         if (target < 0 || target == index) return;
         Control next = list.Children[target];
         next.Focus(NavigationMethod.Directional);
@@ -161,7 +170,8 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>The card of <paramref name="postId"/>, else the first hit, else the search field (after a menu action rebuilt the cards).</summary>
     private void FocusHit(string postId)
     {
-        Control? card = _results.Children.FirstOrDefault(child => child.Name == "BooruResult:" + postId) ?? _results.Children.FirstOrDefault();
+        IReadOnlyList<Control> cards = ResultCards;
+        Control? card = cards.FirstOrDefault(child => child.Name == "BooruResult:" + postId) ?? cards.FirstOrDefault();
         if (card is { IsEffectivelyVisible: true }) card.Focus(NavigationMethod.Directional);
         else FocusSearchInput();
     }

@@ -171,6 +171,7 @@ internal static class BooruText
             "booru.ui.tags.copied", "booru.ui.tags.showAll",
             "booru.ui.load", "booru.ui.loadFor",
             "booru.ui.result.hitName", "booru.ui.result.localYes", "booru.ui.result.localNo",
+            "booru.ui.view.listHint", "booru.ui.view.gridHint", "booru.ui.tile.sizeName", "booru.ui.tile.local", "booru.ui.tile.listName",
             "booru.ui.watcher.create", "booru.ui.watcher.createHint", "booru.ui.watcher.created", "booru.ui.watcher.duplicate",
             "booru.ui.watcher.createNeedsTags", "booru.ui.watcher.createFailed",
             "booru.ui.watchers.intro", "booru.ui.watchers.removeNote", "booru.ui.watchers.empty", "booru.ui.watchers.loading",
