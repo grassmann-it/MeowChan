@@ -5226,6 +5226,18 @@
     "import.done.tags.one": "Tag adicionada: {0}.",
     "export.collectionSelection.one": "Exportar {0} tópico selecionado",
     "media.filter.count.one": "Filtro: {0} / ({1})",
-    "media.untagged.hint.one": "Mostrar só a {0} mídia sem tags de mídia: um ponto de partida para adicionar tags"
+    "media.untagged.hint.one": "Mostrar só a {0} mídia sem tags de mídia: um ponto de partida para adicionar tags",
+    "settings.exportFilenameTemplate": "Modelo de nome de arquivo para mídias exportadas",
+    "settings.exportFilenameTemplateHint": "Define o nome dos arquivos que «Exportar originais» copia. Vazio mantém os nomes atuais. Marcadores: {0}. Um identificador curto é adicionado antes da extensão, de modo que dois arquivos nunca recebem o mesmo nome. No máximo {1} caracteres.",
+    "settings.exportFilenameTemplatePlaceholder": "Vazio: manter os nomes atuais",
+    "settings.exportFilenameTemplateOff": "Prévia: os arquivos exportados mantêm seus nomes atuais.",
+    "settings.exportFilenameTemplatePreview": "Prévia com três arquivos de exemplo:",
+    "settings.exportFilenameTemplate.tooLong": "O modelo tem mais de {0} caracteres.",
+    "settings.exportFilenameTemplate.invalid": "Use apenas os marcadores {0}, cada um entre chaves. Uma chave solta não é permitida.",
+    "settings.exportFilenameTemplate.extension": "O modelo deve terminar com «{0}» para que os arquivos exportados mantenham o tipo.",
+    "settings.exportFilenameTemplate.unsafe": "O resultado não seria um nome de arquivo seguro: sem / \\ : * ? \" < > | e sem «..», sem ponto ou espaço no fim, sem nomes reservados como CON.",
+    "settings.exportFilenameTemplate.nameTooLong": "O nome de arquivo resultante teria mais de {0} bytes. Encurte o modelo.",
+    "settings.exportFilenameTemplate.unusable": "Este modelo não pode ser usado para nomes de arquivo.",
+    "export.filenameTemplateNote": "Os arquivos são nomeados com o seu modelo «{0}». Um arquivo que o modelo não consiga nomear com segurança mantém o nome atual. Altere em Configurações, em Downloads."
   }
 }

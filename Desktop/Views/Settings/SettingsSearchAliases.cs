@@ -73,6 +73,7 @@ internal static class SettingsSearchAliases
         ["ReaderMediaGrid"] = "grid tiles several images columns post layout raster kacheln mehrere bilder spalten anordnung",
         ["ReaderMediaGridTextLimit"] = "grid short text characters limit several images raster kurzer text zeichen grenze mehrere bilder",
         ["ShowShortcutHelp"] = "shortcuts keyboard hints tastenkürzel tastatur hilfe",
+        ["ExportFilenameTemplate"] = "filename file name naming template pattern rename token placeholder export originals copy save dateiname dateinamen vorlage muster umbenennen platzhalter exportieren originale kopieren speichern",
         ["DownloadPath"] = "folder directory location target ordner verzeichnis speicherort ziel pfad",
         ["RecheckTimer"] = "interval refresh poll check timer intervall prüfen aktualisieren",
         ["Bandwidth"] = "speed throttle mbit geschwindigkeit tempo drosseln",

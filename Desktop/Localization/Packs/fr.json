@@ -5220,6 +5220,18 @@
     "import.done.tags.one": "Étiquette ajoutée : {0}.",
     "export.collectionSelection.one": "Exporter {0} fil sélectionné",
     "media.filter.count.one": "Filtre: {0} / ({1})",
-    "media.untagged.hint.one": "N’afficher que le {0} média sans étiquettes de média : un point de départ pour étiqueter"
+    "media.untagged.hint.one": "N’afficher que le {0} média sans étiquettes de média : un point de départ pour étiqueter",
+    "settings.exportFilenameTemplate": "Modèle de nom de fichier pour les médias exportés",
+    "settings.exportFilenameTemplateHint": "Nomme les fichiers copiés par « Exporter les originaux ». Vide, il conserve les noms actuels. Jetons : {0}. Un court identifiant est ajouté avant l’extension, si bien que deux fichiers n’ont jamais le même nom. {1} caractères au maximum.",
+    "settings.exportFilenameTemplatePlaceholder": "Vide : conserver les noms actuels",
+    "settings.exportFilenameTemplateOff": "Aperçu : les fichiers exportés conservent leurs noms actuels.",
+    "settings.exportFilenameTemplatePreview": "Aperçu avec trois fichiers d’exemple :",
+    "settings.exportFilenameTemplate.tooLong": "Le modèle dépasse {0} caractères.",
+    "settings.exportFilenameTemplate.invalid": "Seuls les jetons {0} sont autorisés, chacun entre accolades. Une accolade isolée n’est pas permise.",
+    "settings.exportFilenameTemplate.extension": "Le modèle doit se terminer par « {0} » pour que les fichiers exportés gardent leur type.",
+    "settings.exportFilenameTemplate.unsafe": "Le résultat ne serait pas un nom de fichier sûr : ni / \\ : * ? \" < > | ni « .. », pas de point ni d’espace final, pas de noms réservés comme CON.",
+    "settings.exportFilenameTemplate.nameTooLong": "Le nom de fichier obtenu dépasserait {0} octets ; le modèle doit être raccourci.",
+    "settings.exportFilenameTemplate.unusable": "Ce modèle ne peut pas servir à nommer des fichiers.",
+    "export.filenameTemplateNote": "Les fichiers sont nommés selon le modèle « {0} ». Un fichier que le modèle ne peut pas nommer en toute sécurité garde son nom actuel. À modifier dans Réglages, sous Téléchargements."
   }
 }

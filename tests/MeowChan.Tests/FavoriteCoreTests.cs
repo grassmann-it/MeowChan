@@ -429,6 +429,34 @@ public sealed class FavoriteCoreTests
     private static FavoriteEntry Entry(string media = "media") =>
         new(new(Thread, media, "original", new string('a', 64)), 12, "image.png");
 
+    [Fact]
+    public async Task FilenameTemplateNamesTheCopyAndAnUnusableTemplateKeepsTheCurrentName()
+    {
+        using TempDirectory directory = new();
+        using StubImageBoard board = new();
+        FavoriteExportAsset original = await Commit(directory.Path, board, [9, 8, 7], "456");
+        string sha = original.Key.Sha256.ToLowerInvariant();
+
+        string plain = Path.Combine(directory.Path, "plain");
+        FavoriteExportResult unchanged = await FavoriteOriginalExporter.ExportAsync([original], plain);
+        string currentName = Path.GetFileName(Assert.Single(unchanged.Items).Path!);
+        Assert.Equal("same-name-" + sha + ".bin", currentName);
+
+        string templated = Path.Combine(directory.Path, "templated");
+        FavoriteExportResult named = await FavoriteOriginalExporter.ExportAsync([original], templated, default, "{source}_{post}.{ext}");
+        string path = Assert.Single(named.Items).Path!;
+        string name = Path.GetFileName(path);
+        Assert.StartsWith("stub_123~", name);
+        Assert.EndsWith("-" + sha + ".bin", name);
+        Assert.Equal(new byte[] { 9, 8, 7 }, await File.ReadAllBytesAsync(path));
+        // Repeating the export recognises the finished copy under the templated name.
+        Assert.Equal(1, (await FavoriteOriginalExporter.ExportAsync([original], templated, default, "{source}_{post}.{ext}")).AlreadyExists);
+
+        string fallback = Path.Combine(directory.Path, "fallback");
+        FavoriteExportResult kept = await FavoriteOriginalExporter.ExportAsync([original], fallback, default, "{bogus}.{ext}");
+        Assert.Equal(currentName, Path.GetFileName(Assert.Single(kept.Items).Path!));
+    }
+
     private static async Task<FavoriteExportAsset> Commit(string root, StubImageBoard board, byte[] bytes, string mediaId)
     {
         DownloadItem item = new(new Uri($"https://stub.test/media/{mediaId}.bin"),

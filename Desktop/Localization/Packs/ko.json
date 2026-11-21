@@ -5119,6 +5119,18 @@
     "media.count.threads": "스레드: {0}",
     "archive.delete.threads": "스레드: {0}",
     "archive.delete.files": "로컬 파일: {0}",
-    "archive.delete.bytes": "{0:N0} B"
+    "archive.delete.bytes": "{0:N0} B",
+    "settings.exportFilenameTemplate": "내보낸 미디어의 파일 이름 템플릿",
+    "settings.exportFilenameTemplateHint": "‘원본 내보내기’가 복사하는 파일의 이름을 정합니다. 비워 두면 현재 이름을 유지합니다. 토큰: {0}. 확장자 앞에 짧은 식별자가 추가되므로 두 파일이 같은 이름을 갖는 일은 없습니다. 최대 {1}자.",
+    "settings.exportFilenameTemplatePlaceholder": "비움: 현재 이름 유지",
+    "settings.exportFilenameTemplateOff": "미리보기: 내보낸 파일은 현재 이름을 유지합니다.",
+    "settings.exportFilenameTemplatePreview": "예시 파일 세 개로 미리보기:",
+    "settings.exportFilenameTemplate.tooLong": "템플릿이 {0}자를 넘습니다.",
+    "settings.exportFilenameTemplate.invalid": "토큰 {0}만 사용할 수 있으며, 각각 중괄호로 감싸야 합니다. 단독 중괄호는 허용되지 않습니다.",
+    "settings.exportFilenameTemplate.extension": "내보낸 파일이 파일 형식을 유지하도록 템플릿은 ‘{0}’로 끝나야 합니다.",
+    "settings.exportFilenameTemplate.unsafe": "안전한 파일 이름이 아닙니다: / \\ : * ? \" < > | 및 ‘..’는 쓸 수 없고, 끝에 점이나 공백이 올 수 없으며, CON 같은 예약 이름도 쓸 수 없습니다.",
+    "settings.exportFilenameTemplate.nameTooLong": "만들어지는 파일 이름이 {0}바이트를 넘습니다. 템플릿을 줄이세요.",
+    "settings.exportFilenameTemplate.unusable": "이 템플릿은 파일 이름에 사용할 수 없습니다.",
+    "export.filenameTemplateNote": "파일은 템플릿 ‘{0}’으로 이름이 지정됩니다. 템플릿이 안전하게 이름을 붙일 수 없는 파일은 현재 이름을 유지합니다. 설정의 ‘다운로드’에서 변경할 수 있습니다."
   }
 }

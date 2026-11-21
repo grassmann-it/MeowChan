@@ -5268,6 +5268,18 @@
     "import.done.tags.one": "Přidané štítky: {0}.",
     "export.collectionSelection.one": "Exportovat vybraná vlákna ({0}) společně",
     "media.filter.count.one": "Filtr: {0} / ({1})",
-    "media.untagged.hint.one": "Zobrazit jen média bez štítků médií ({0}): místo, kde začít se štítkováním"
+    "media.untagged.hint.one": "Zobrazit jen média bez štítků médií ({0}): místo, kde začít se štítkováním",
+    "settings.exportFilenameTemplate": "Šablona názvu souboru pro exportovaná média",
+    "settings.exportFilenameTemplateHint": "Určuje názvy souborů, které kopíruje „Exportovat originály“. Prázdná šablona ponechá stávající názvy. Zástupné znaky: {0}. Před příponu se přidá krátký identifikátor, takže dva soubory nikdy nedostanou stejný název. Nejvýše {1} znaků.",
+    "settings.exportFilenameTemplatePlaceholder": "Prázdné: ponechat stávající názvy",
+    "settings.exportFilenameTemplateOff": "Náhled: exportované soubory si ponechají stávající názvy.",
+    "settings.exportFilenameTemplatePreview": "Náhled na třech ukázkových souborech:",
+    "settings.exportFilenameTemplate.tooLong": "Šablona je delší než {0} znaků.",
+    "settings.exportFilenameTemplate.invalid": "Používejte jen zástupné znaky {0}, každý ve složených závorkách. Samostatná složená závorka není povolena.",
+    "settings.exportFilenameTemplate.extension": "Šablona musí končit na „{0}“, aby exportované soubory zachovaly svůj typ.",
+    "settings.exportFilenameTemplate.unsafe": "Výsledek by nebyl bezpečným názvem souboru: žádné / \\ : * ? \" < > | ani „..“, na konci žádná tečka ani mezera, žádné rezervované názvy jako CON.",
+    "settings.exportFilenameTemplate.nameTooLong": "Výsledný název souboru by byl delší než {0} bajtů. Zkraťte šablonu.",
+    "settings.exportFilenameTemplate.unusable": "Tuto šablonu nelze použít pro názvy souborů.",
+    "export.filenameTemplateNote": "Soubory se pojmenují podle šablony „{0}“. Soubor, který šablona nedokáže bezpečně pojmenovat, si ponechá stávající název. Změníte ji v Nastavení v části Stahování."
   }
 }

@@ -3,6 +3,19 @@ internal static class ExportCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        // P9: the filename template of exported originals (Settings > Downloads, and the note of the original export dialog).
+        ("settings.exportFilenameTemplate", "Filename template for exported media", "Dateinamenvorlage für exportierte Medien"),
+        ("settings.exportFilenameTemplateHint", "Names the files that “Export originals” copies. Empty keeps the current names. Tokens: {0}. A short identifier is added before the extension, so two files never get the same name. At most {1} characters.", "Benennt die Dateien, die „Originale exportieren“ kopiert. Leer lassen behält die bisherigen Namen. Platzhalter: {0}. Vor der Endung wird eine kurze Kennung ergänzt, damit nie zwei Dateien denselben Namen bekommen. Höchstens {1} Zeichen."),
+        ("settings.exportFilenameTemplatePlaceholder", "Empty: keep the current names", "Leer: bisherige Namen behalten"),
+        ("settings.exportFilenameTemplateOff", "Preview: exported files keep their current names.", "Vorschau: Exportierte Dateien behalten ihre bisherigen Namen."),
+        ("settings.exportFilenameTemplatePreview", "Preview with three sample files:", "Vorschau mit drei Beispieldateien:"),
+        ("settings.exportFilenameTemplate.tooLong", "The template is longer than {0} characters.", "Die Vorlage ist länger als {0} Zeichen."),
+        ("settings.exportFilenameTemplate.invalid", "Use only the tokens {0}, each one in curly brackets. A single curly bracket is not allowed.", "Nutze nur die Platzhalter {0}, jeweils in geschweiften Klammern. Eine einzelne geschweifte Klammer ist nicht erlaubt."),
+        ("settings.exportFilenameTemplate.extension", "The template must end with “{0}”, so exported files keep their file type.", "Die Vorlage muss auf „{0}“ enden, damit exportierte Dateien ihren Dateityp behalten."),
+        ("settings.exportFilenameTemplate.unsafe", "The result would not be a safe filename: no / \\ : * ? \" < > | and no “..”, no dot or space at the end, no reserved names such as CON.", "Das Ergebnis wäre kein sicherer Dateiname: kein / \\ : * ? \" < > | und kein „..“, kein Punkt oder Leerzeichen am Ende, keine reservierten Namen wie CON."),
+        ("settings.exportFilenameTemplate.nameTooLong", "The resulting filename would be longer than {0} bytes. Shorten the template.", "Der entstehende Dateiname wäre länger als {0} Bytes. Kürze die Vorlage."),
+        ("settings.exportFilenameTemplate.unusable", "This template cannot be used for filenames.", "Diese Vorlage lässt sich nicht für Dateinamen verwenden."),
+        ("export.filenameTemplateNote", "Files are named with your filename template “{0}”. A file the template cannot name safely keeps its current name. Change it in Settings under Downloads.", "Die Dateien werden mit deiner Dateinamenvorlage „{0}“ benannt. Eine Datei, die die Vorlage nicht sicher benennen kann, behält ihren bisherigen Namen. Ändern kannst du sie unter Einstellungen, Downloads."),
         ("export.target", "Destination", "Ziel"),
         // AP7: the one Export dialog. Format and scope are chosen in its header.
         ("export.dialog.title", "Export", "Exportieren"),
