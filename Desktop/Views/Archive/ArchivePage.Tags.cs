@@ -204,8 +204,6 @@ public partial class ArchivePage
         if (ThreadTagsShortcutTarget is ResourceId id) OpenActions.Start(() => OpenThreadTagsAsync(id), "archive.threadTags.open");
     }
 
-    private void OnCloseThreadTags(object? sender, RoutedEventArgs e) => CloseTagBar(focusOpen: true);
-
     private void CloseTagBar(bool focusOpen = false)
     {
         _tagBarWanted = false;
@@ -434,7 +432,7 @@ public partial class ArchivePage
         SetReaderActionTip(ReaderTagsOpen, ReaderTagsTip());
         TagSuggestionInput.Localize(ReaderTagInput);
         ReaderTagAdd.Content = Texts.T("tags.add");
-        MeowChan.Desktop.Controls.HeaderBar.MakeClose(ReaderTagClose, Texts.T("tags.close"));
+        UpdateThreadToolsRow();
         _tagBarRendered = null;
         UpdatePrivateTagActions();
     }

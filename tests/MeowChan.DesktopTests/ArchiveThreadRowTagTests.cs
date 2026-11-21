@@ -59,7 +59,7 @@ public sealed class ArchiveThreadRowTagTests : IDisposable
     {
         string xaml = Source("Desktop/Views/Archive/ArchivePage.axaml");
         foreach (string name in new[] { "ReaderTagsOpen", "ReaderTagBar", "ReaderTagChips", "ReaderTagSuggestions",
-                     "ReaderTagInput", "ReaderTagAdd", "ReaderTagClose", "ReaderTagStatus" })
+                     "ReaderTagInput", "ReaderTagAdd", "ReaderToolsClose", "ReaderToolsRow", "ReaderTagStatus" })
             Assert.Contains("x:Name=\"" + name + "\"", xaml);
         Assert.Contains("Text=\"{Binding TagsText}\"", xaml);
         string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");

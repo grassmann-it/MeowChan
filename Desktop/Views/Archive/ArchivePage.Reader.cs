@@ -59,6 +59,11 @@ public partial class ArchivePage
             CloseTagBar(focusOpen: true);
             return true;
         }
+        if (!_ended && ReaderToolsRow.IsVisible && IsThreadToolsCloseSource(source))
+        {
+            CloseThreadTools();
+            return true;
+        }
         return false;
     }
     private void OnReaderFullscreenClick(object? sender, RoutedEventArgs e) { if (!IsFilenameSearchOpen) FullscreenRequested?.Invoke(); }

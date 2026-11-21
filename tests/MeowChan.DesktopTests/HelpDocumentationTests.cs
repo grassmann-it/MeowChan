@@ -747,7 +747,7 @@ public sealed class HelpDocumentationTests
         (string Xaml, string Name)[] ends =
         [
             (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
-            (archive, "ReaderFindClose"), (archive, "ReaderTagClose"), (archive, "ClosePreviewButton")
+            (archive, "ReaderToolsClose"), (archive, "ClosePreviewButton")
         ];
         foreach ((string xaml, string name) in ends)
             Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsEnd=\"True\"", xaml);

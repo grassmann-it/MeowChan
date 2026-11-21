@@ -105,7 +105,7 @@ internal static class UnifiedSearchChecks
         await SettleAsync(window);
         Program.CaptureWindow(window, $"smoke-unified-search-find-{name}.png");
         C<TextBox>(page, "ReaderFindQuery").Text = "";
-        C<Button>(page, "ReaderFindClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await SettleAsync(window);
         await ScopesAsync(window, page, name);
     }
@@ -185,11 +185,11 @@ internal static class UnifiedSearchChecks
         await page.MediaHashSearchTask.WaitAsync(Deadline);
         Require(C<StackPanel>(page, "ReaderFindBar").IsVisible && hash.Text == new string('a', 64), "The scoped reader bar lost its draft after the dialog.");
         // Primary+F / Find in saved thread maps the reader bar back to Text.
-        C<Button>(page, "ReaderFindClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         C<Button>(page, "ReaderFindOpen").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await page.ThreadFindTask.WaitAsync(Deadline);
         Require(readerChip.Scope == SearchScope.Text && C<TextBox>(page, "ReaderFindQuery").IsFocused, "Reader find did not reopen in the Text scope.");
-        C<Button>(page, "ReaderFindClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         // Saved searches: one split button whose arrow holds "Save applied search…".
         SplitButton split = C<SplitButton>(page, "ArchiveSavedSearches");
@@ -247,7 +247,7 @@ internal static class UnifiedSearchChecks
             "An empty archive field did not take and apply the reader query.");
         archiveText.Text = "";
         await page.ApplySearchAsync();
-        C<Button>(page, "ReaderFindClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await SettleAsync(window);
         Console.WriteLine($"SMOKE unified search carry-over [{theme}]: archive -> thread (empty takes, different offered, Use it), reader -> archive (Keep current, empty takes and applies) checked.");
     }
