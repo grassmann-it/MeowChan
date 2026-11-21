@@ -293,15 +293,15 @@
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
                     <Button x:Name="ArchiveReadPosts" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveOpenGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
                     <Button x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
                     <Button x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
                     <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
-                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
-                         remove watch) in one menu; the settings gear next to it is the reader's own look. -->
-                    <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
                     <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
                     <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
+                    <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
+                         remove watch) in one menu; the settings gear next to it is the reader's own look. -->
+                    <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
+                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="4" Classes="icon-square subtle" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
                     <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
                     <!-- Full screen ends the bar and is the first action to move under More when room runs out (review 15.11.); the header button and F11 carry it too. -->
                     <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
@@ -648,13 +648,14 @@
                                     <desktop:ActionToolBar x:Name="ReaderMediaTools" PrioritizedOverflow="True">
                                         <!-- 16.11.: the Tiles/Table choice is the Archive results bar's joined pair (segment classes, icon before text, the one on is highlighted),
                                              not one button that names the other view. -->
-                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
-                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
-                                        <Button x:Name="ArchiveMediaColumnsButton" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
-                                        <Button x:Name="ArchiveFavoritesFilter" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
-                                        <ComboBox x:Name="ArchiveRatingFilter" wv:WorkViewElement.Id="reader.media.rating-filter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
-                                        <ComboBox x:Name="ArchiveMediaSort" wv:WorkViewElement.Id="reader.media.sort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
-                                        <ComboBox x:Name="ArchiveVersionScope" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
+                                        <ComboBox x:Name="ArchiveRatingFilter" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.rating-filter" MinWidth="140" SelectionChanged="OnMediaRatingFilterChanged" />
+                                        <ComboBox x:Name="ArchiveMediaSort" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.sort" MinWidth="160" SelectedIndex="0" SelectionChanged="OnMediaSortChanged" />
+                                        <ComboBox x:Name="ArchiveVersionScope" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.version-scope" SelectedIndex="1" SelectionChanged="OnVersionScopeChanged" MinWidth="210" />
+                                        <Button x:Name="ArchiveFavoritesFilter" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
+                                        <!-- F01 (21.11.): filters and sorting on the left; the view tools (Columns, then the Tiles/Table pair last) dock to the right edge. -->
+                                        <Button x:Name="ArchiveMediaColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
                                     </desktop:ActionToolBar>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
                                         <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">

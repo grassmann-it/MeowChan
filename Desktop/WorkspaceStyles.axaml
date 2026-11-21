@@ -954,6 +954,12 @@
     <Style Selector="DataGridRow:selected /template/ Border#BackgroundBorder">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
     </Style>
+    <!-- Tom's review 21.11.: the keyboard focus ring belongs around the whole row, not around the one cell that holds the current cell (it cut
+         the selected row in two). The cell's own focus rectangle is off; the focused grid's selected row gets the ring on its background layer. -->
+    <Style Selector="DataGridCell /template/ Rectangle#FocusVisual"><Setter Property="IsVisible" Value="False" /></Style>
+    <Style Selector="DataGrid:focus-within DataGridRow:selected /template/ Border#BackgroundBorder">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,1,1,1" />
+    </Style>
     <Style Selector="ListBox.workspace-selection-bar ListBoxItem:selected /template/ ContentPresenter">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
     </Style>
@@ -1716,7 +1722,11 @@
     </Style>
     <!-- HB1 tooltips: a long text wraps inside the 360 dip tooltip (ToolTipMaxWidth above) instead of running off as one line; a text
          may carry line breaks (CommandBindings.Tooltip: "Label · shortcut" on the first line, hint or reason on the second). -->
+    <!-- A tip never takes the pointer from the control it describes: a tip that sits under the pointer (footer: it opens above the bar and
+         the pointer enters from above) made the control lose hover, closed itself and opened again (flicker, Tom's video 21.11.). -->
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
+    <Style Selector="ToolTip"><Setter Property="IsHitTestVisible" Value="False" /></Style>
+    <Style Selector="Button.nav"><Setter Property="ToolTip.Placement" Value="Top" /><Setter Property="ToolTip.VerticalOffset" Value="-6" /></Style>
     <Style Selector="ToolTip ScrollViewer, ToolTip /template/ ScrollViewer"><Setter Property="HorizontalScrollBarVisibility" Value="Disabled" /></Style>
     <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
     <!-- HB1 help-round: the one help button (controls:HelpButton), flat like the other icon buttons (UX review 15.11.: the circled "?" was ugly).

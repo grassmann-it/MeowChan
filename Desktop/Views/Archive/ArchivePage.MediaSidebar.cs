@@ -495,7 +495,8 @@ public partial class ArchivePage
         _mediaSidebarTogglePresentation = presentation;
         Ursa.Controls.ToolBar.SetOverflowMode(button, available ? Ursa.Controls.OverflowMode.AsNeeded : Ursa.Controls.OverflowMode.Always);
         button.IsEnabled = enabled;
-        button.Content = label;
+        // Icon only (Tom's review 21.11.): the half of the frame the sidebar sits in, the full name stays the accessible name and the tip.
+        button.Content = CommandBindings.Icon("reader.sidebar.toggle", state: media.SidebarRight ? "right" : "left");
         ToolTip.SetTip(button, tip);
         Avalonia.Automation.AutomationProperties.SetName(button, label);
         Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
