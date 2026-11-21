@@ -293,7 +293,7 @@ public sealed class TileSizeTests : IDisposable
     [Fact]
     public void TheContextsKeepTheArchiveTilesApartFromTheReadersKeysAndShareTheMediaSizeWithTheTaggingGrid()
     {
-        Assert.Equal(new[] { "media", "tagging" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.reset"));
+        Assert.Equal(new[] { "media", "tagging", "booru" }, EffectiveShortcutBindings.ExecutionContexts("media.tile-size.reset"));
         foreach (string id in NewIds.Skip(1)) Assert.Equal(new[] { "archive" }, EffectiveShortcutBindings.ExecutionContexts(id));
         // The reader's own commands (font size and the rest) are another context: Ctrl+Plus there never conflicts with the archive tiles' Ctrl+Plus.
         Assert.False(EffectiveShortcutBindings.ContextsOverlap("archive.media-tile-size.larger", "reader.expand"));

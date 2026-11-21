@@ -756,6 +756,22 @@ namespace MeowChan
             get => _archiveMediaTileSize;
             set => _archiveMediaTileSize = Desktop.Controls.MediaTileSizes.Parse(value).ToString();
         }
+        // E1: the Booru page shows its results as a list or as tiles ("List" or "Grid") and the tiles in a size (Small, Medium, Large); view
+        // preferences of the profile. Unknown or empty text reads as the list and Medium, so a damaged entry never makes the settings file invalid.
+        private string _booruPageView = nameof(Desktop.Booru.BooruResultView.List);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string BooruPageView
+        {
+            get => _booruPageView;
+            set => _booruPageView = Desktop.Booru.BooruResultViews.Parse(value).ToString();
+        }
+        private string _booruTileSize = nameof(Desktop.MediaTileSize.Medium);
+        [JsonConverter(typeof(DesktopPreferenceStringConverter))]
+        public string BooruTileSize
+        {
+            get => _booruTileSize;
+            set => _booruTileSize = Desktop.Controls.MediaTileSizes.Parse(value).ToString();
+        }
         // TG1: the tagging page shows its queue as a list or as a grid of thumbnails ("List" or "Grid"); a view preference of the profile.
         private string _taggingPageView = nameof(TaggingViewMode.List);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
@@ -2024,6 +2040,8 @@ namespace MeowChan
                 MediaLayout = MediaLayout,
                 ArchiveMediaTileSize = ArchiveMediaTileSize,
                 TaggingPageView = TaggingPageView,
+                BooruPageView = BooruPageView,
+                BooruTileSize = BooruTileSize,
                 TaggingPreviewColumn = TaggingPreviewColumn,
                 TaggingStampBlock = TaggingStampBlock,
                 GalleryFitUpscaleLimited = GalleryFitUpscaleLimited,
@@ -2294,6 +2312,8 @@ namespace MeowChan
             MediaLayout = source.MediaLayout;
             ArchiveMediaTileSize = source.ArchiveMediaTileSize;
             TaggingPageView = source.TaggingPageView;
+            BooruPageView = source.BooruPageView;
+            BooruTileSize = source.BooruTileSize;
             TaggingPreviewColumn = source.TaggingPreviewColumn;
             TaggingStampBlock = source.TaggingStampBlock;
             GalleryFitUpscaleLimited = source.GalleryFitUpscaleLimited;
