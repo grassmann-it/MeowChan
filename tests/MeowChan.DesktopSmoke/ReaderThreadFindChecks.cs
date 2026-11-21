@@ -54,7 +54,7 @@ internal static class ReaderThreadFindChecks
                 Texts.SetLanguage(code); // ordinary catalogs/fallback, never fake packs
                 await JourneyAsync(owner, profile, first, second, code);
                 foreach (bool fullscreen in new[] { false, true })
-                foreach (string source in new[] { "ReaderFindQuery", "ReaderFindClose" })
+                foreach (string source in new[] { "ReaderFindQuery", "ReaderToolsClose" })
                     await ShellRoutingAsync(owner, code, fullscreen, source);
             }
         }
@@ -134,10 +134,10 @@ internal static class ReaderThreadFindChecks
             query.Text = Needle;
             await UntilAsync(() => !ReferenceEquals(previous, page.ThreadFindTask));
             await page.ThreadFindTask.WaitAsync(Deadline);
-            Click("ReaderFindClose");
+            Click("ReaderToolsClose");
             Click("ReaderFindOpen");
             Task closing = page.ThreadFindTask;
-            Click("ReaderFindClose");
+            Click("ReaderToolsClose");
             await closing.WaitAsync(Deadline);
             Closed();
             Click("ReaderFindOpen");
@@ -193,7 +193,7 @@ internal static class ReaderThreadFindChecks
                 query.SelectAll();
                 await InputAsync(Needle);
                 Status(0, 2);
-                Click("ReaderFindClose");
+                Click("ReaderToolsClose");
                 // SF-06: after a failed search one explicit retry runs with the unchanged query; no automatic retry.
                 int attempts = 0;
                 page.ThreadFindIndexFactory = (_, _, _) => { attempts++; throw new IOException("Synthetic find failure"); };
@@ -213,7 +213,7 @@ internal static class ReaderThreadFindChecks
                 await page.ThreadFindTask.WaitAsync(Deadline);
                 Status(0, 2);
                 Require(!C<Button>("ReaderFindRetry").IsVisible && query.Text == Needle, "Retry kept its button or changed the query.");
-                Click("ReaderFindClose");
+                Click("ReaderToolsClose");
                 Console.WriteLine($"SMOKE reader-find input-boundary [{language}]: TextInput preserves 511ASCII+emoji513 invalid/no-navigation; selection replacement 513/512; 256 complete emoji512 exact hit. Managed TextInput only, no OS keyboard/clipboard claim.");
 
                 async Task InputAsync(string text)
@@ -361,7 +361,7 @@ internal static class ReaderThreadFindChecks
             await page.MediaLoadTask.WaitAsync(Deadline);
             await OpenFindAsync();
             int unexpectedClicks = 0;
-            Button[] buttons = [C<Button>("ReaderFindPrevious"), C<Button>("ReaderFindNext"), C<Button>("ReaderFindClose")];
+            Button[] buttons = [C<Button>("ReaderFindPrevious"), C<Button>("ReaderFindNext"), C<Button>("ReaderToolsClose")];
             foreach (Button button in buttons) button.Click += CountClick;
             int routedAtShell = 0;
             shell.AddHandler(InputElement.KeyDownEvent, ObserveShell, RoutingStrategies.Tunnel, handledEventsToo: true);

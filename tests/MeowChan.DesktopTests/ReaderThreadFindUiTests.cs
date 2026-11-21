@@ -52,7 +52,7 @@ public sealed class ReaderThreadFindUiTests
         Assert.DoesNotContain("MaxLength=", queryElement);
         Assert.DoesNotContain("KeyDown=\"OnThreadFindKeyDown\"", xaml);
         foreach (string name in new[] { "ReaderFindOpen", "ReaderFindQuery", "ReaderFindStatus",
-                     "ReaderFindExcerpt", "ReaderFindPrevious", "ReaderFindNext", "ReaderFindClose" })
+                     "ReaderFindExcerpt", "ReaderFindPrevious", "ReaderFindNext", "ReaderToolsClose" })
             Assert.Contains("x:Name=\"" + name + "\"", xaml);
         string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
         Assert.Contains("if (IsThreadFindSource(e.Source)) return;", reader);
@@ -83,7 +83,9 @@ public sealed class ReaderThreadFindUiTests
     {
         string find = Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs");
         Assert.Contains("case \"ReaderFindPrevious\": MoveThreadFind(false)", find);
-        Assert.Contains("case \"ReaderFindClose\": CloseThreadFind()", find);
+        // F02: the shared x sits outside the find group; it closes every open group natively and on Escape.
+        Assert.Contains("CloseThreadTools()", find);
+        Assert.DoesNotContain("case \"ReaderToolsClose\"", find);
         Assert.Contains("case \"ReaderFindRetry\"", find);
     }
 

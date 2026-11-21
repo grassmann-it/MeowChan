@@ -31,7 +31,51 @@ public partial class ArchivePage
         // No XAML bubble registration and no handledEventsToo replay after a click.
         ReaderFindBar.AddHandler(KeyDownEvent,
             OnThreadFindKeyDown, RoutingStrategies.Tunnel);
+        WireThreadToolsRow();
         LocalizeThreadFind();
+    }
+
+    // F02: Find and Tags share one row; it shows while either group is open, its single x closes every open group.
+    private void WireThreadToolsRow()
+    {
+        void OnChange(object? sender, Avalonia.AvaloniaPropertyChangedEventArgs e)
+        {
+            if (e.Property == Avalonia.Visual.IsVisibleProperty) UpdateThreadToolsRow();
+        }
+        ReaderFindBar.PropertyChanged += OnChange;
+        ReaderTagBar.PropertyChanged += OnChange;
+        ReaderToolsRow.AddHandler(KeyDownEvent, OnThreadToolsCloseKeyDown, RoutingStrategies.Tunnel);
+    }
+
+    private void UpdateThreadToolsRow()
+    {
+        if (_ended) return;
+        bool find = ReaderFindBar.IsVisible, tags = ReaderTagBar.IsVisible;
+        ReaderToolsRow.IsVisible = find || tags;
+        ReaderFindDetails.IsVisible = find;
+        ReaderTagDetails.IsVisible = tags;
+        HeaderBar.MakeClose(ReaderToolsClose, Texts.T(tags && !find ? "tags.close" : "readerFind.close"));
+    }
+
+    private bool IsThreadToolsCloseSource(object? source) => source is Avalonia.Visual visual
+        && visual.GetSelfAndVisualAncestors().Contains(ReaderToolsClose);
+
+    private void OnCloseThreadTools(object? sender, RoutedEventArgs e) => CloseThreadTools();
+
+    private void CloseThreadTools()
+    {
+        bool tags = ReaderTagBar.IsVisible;
+        if (ReaderFindBar.IsVisible) CloseThreadFind();
+        if (tags) CloseTagBar(focusOpen: true);
+    }
+
+    // Escape on the shared x closes the row like it does inside either group; Enter keeps the button's native activation.
+    private void OnThreadToolsCloseKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
+            || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || !IsThreadToolsCloseSource(e.Source)) return;
+        e.Handled = true;
+        CloseThreadTools();
     }
 
     private bool IsThreadFindSource(object? source) => source is Avalonia.Visual visual
@@ -131,7 +175,6 @@ public partial class ArchivePage
     }
     private void OnNextThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(true);
     private void OnPreviousThreadFind(object? sender, RoutedEventArgs e) => MoveThreadFind(false);
-    private void OnCloseThreadFind(object? sender, RoutedEventArgs e) => CloseThreadFind();
     // One explicit attempt with the unchanged query against the current thread and revision. Never automatic.
     private void OnRetryThreadFind(object? sender, RoutedEventArgs e)
     {
@@ -163,8 +206,7 @@ public partial class ArchivePage
             // button runs that button; Shift+Enter has no hit to go back to.
             if (gesture != 1) return;
             e.Handled = true;
-            if (FocusedFindButton(e.Source) is { Name: "ReaderFindClose" }) CloseThreadFind();
-            else RunReaderScope(ReaderScopedBox);
+            RunReaderScope(ReaderScopedBox);
             return;
         }
         e.Handled = true;
@@ -175,7 +217,6 @@ public partial class ArchivePage
             switch (button.Name)
             {
                 case "ReaderFindPrevious": MoveThreadFind(false); break;
-                case "ReaderFindClose": CloseThreadFind(); break;
                 case "ReaderFindRetry": OnRetryThreadFind(button, e); break;
                 default: MoveThreadFind(true); break;
             }
@@ -192,7 +233,7 @@ public partial class ArchivePage
         ReaderFindQuery.PlaceholderText = Texts.T("readerFind.query");
         ReaderFindPrevious.Content = Texts.T("readerFind.previous");
         ReaderFindNext.Content = Texts.T("readerFind.next");
-        HeaderBar.MakeClose(ReaderFindClose, Texts.T("readerFind.close"));
+        UpdateThreadToolsRow();
         ReaderFindRetry.Content = Texts.T("readerFind.retry");
         ReaderFindRetry.IsVisible = _threadFindStatus == "readerFind.failed";
         var result = _threadFindResult;
