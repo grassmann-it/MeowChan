@@ -9,6 +9,10 @@ public sealed partial class MediaPage
     // hiding its only visible switch in Layout made the affordance too far away from the thing it controls.
     private readonly Avalonia.Controls.Primitives.ToggleButton _panelToggle = new() { Name = "MediaPanelToggle" };
     private bool _panelToggleSyncing;
+    private MeowChan.Desktop.MediaPanelSide? _panelIconSide;
+
+    /// <summary>The icon key of the switch now: the half of the frame the panel sits in (panel-left or panel-right).</summary>
+    internal string PanelToggleIconKey => MeowChan.Desktop.Commands.CommandCatalog.IconForState(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, _layout.PanelSide == MeowChan.Desktop.MediaPanelSide.Left ? "left" : "right");
 
     /// <summary>The direct media-sidebar switch in the toolbar (smoke and accessibility seam).</summary>
     internal Avalonia.Controls.Primitives.ToggleButton PanelToggleButton => _panelToggle;
@@ -23,7 +27,7 @@ public sealed partial class MediaPage
 
     private void LocalizePanelToggle()
     {
-        _panelToggle.Content = MeowChan.Desktop.Commands.CommandBindings.Icon(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId);
+        _panelIconSide = null;
         _panelToggle.Classes.Set("icon-square", true);
         _panelToggle.Classes.Set("subtle", true);
         string label = MeowChan.Desktop.Localization.Texts.T("command.media.panel.toggle");
@@ -40,6 +44,11 @@ public sealed partial class MediaPage
         try
         {
             _panelToggle.IsChecked = _layout.Panel;
+            if (_panelIconSide != _layout.PanelSide)
+            {
+                _panelIconSide = _layout.PanelSide;
+                _panelToggle.Content = MeowChan.Desktop.Commands.CommandBindings.Icon(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, state: _layout.PanelSide == MeowChan.Desktop.MediaPanelSide.Left ? "left" : "right");
+            }
             _panelToggle.IsEnabled = CanTogglePanel;
         }
         finally { _panelToggleSyncing = false; }
