@@ -257,6 +257,9 @@ proprietary theme assemblies are no longer dependencies or distributed assets.
 - `Assets/icons/feather/`: Feather Icons v4.29.2 (unchanged SVG originals and
   derived PNG alpha masks), attributed by the application's About window. The
   verified upstream MIT text and Cole Bemis attribution are included below.
+  `panel-left`, `panel-right`, `workspace-expand` and `workspace-shrink` in that
+  directory are MeowChan's own drawings in the Feather style (project license), not
+  Feather files.
 - `Avalonia.Fonts.Inter`: Inter font version `3.019;git-0a5106e0b`, verified from
   the font metadata at the package source commit. Font files are covered by SIL
   Open Font License 1.1; the Avalonia wrapper's MIT declaration does not replace
