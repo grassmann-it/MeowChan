@@ -4721,6 +4721,8 @@
     "media.tags.hint": "Enter 또는 클릭: 태그가 있는 미디어만 · Shift+Enter 또는 {0}+클릭: 숨기기 · Delete: 필터에서 태그 빼기 · 메뉴 키: 더 보기",
     "settings.limits.mediaTagListTop": "태그 목록: 그룹별 표시 태그 수",
     "settings.limits.mediaTagListTop.hint": "미디어 옆 태그 목록은 그룹마다 이 개수만큼 많은 순으로 표시합니다. ‘모두 보기’로 나머지를 표시합니다.",
+    "settings.limits.booruResultTagsShown": "Danbooru 결과: 결과당 표시 태그 수",
+    "settings.limits.booruResultTagsShown.hint": "목록의 Danbooru 결과마다 이 개수만큼 출처 태그를 표시합니다. 나머지는 “+N개 더”로 표시합니다. 0이면 모든 태그가 “+N개 더” 뒤에 남습니다.",
     "viewer.playback.menu": "슬라이드쇼 설정",
     "viewer.playback.menuHelp": "재생 모드, 이미지당 초 수, 동영상 처리 방식",
     "gallery.layout.button": "레이아웃",

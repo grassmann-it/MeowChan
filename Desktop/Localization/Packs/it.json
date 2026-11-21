@@ -4832,6 +4832,8 @@
     "media.tags.hint": "Invio o clic: solo i media con il tag · Maiusc+Invio o {0}+clic: nascondili · Canc: togli il tag dal filtro · tasto Menu: altro",
     "settings.limits.mediaTagListTop": "Elenco tag: tag mostrati per gruppo",
     "settings.limits.mediaTagListTop.hint": "L’elenco dei tag accanto ai media mostra questo numero di tag per gruppo, i più frequenti per primi; «Mostra tutti» elenca il resto.",
+    "settings.limits.booruResultTagsShown": "Risultati Danbooru: tag mostrati per risultato",
+    "settings.limits.booruResultTagsShown.hint": "Ogni risultato Danbooru nell’elenco mostra questo numero di tag di origine; «+N altri» mostra il resto. Con 0 tutti i tag restano dietro «+N altri».",
     "settings.limits.mediaTagListWidth": "Elenco tag: larghezza (dip)",
     "settings.limits.mediaTagListWidth.hint": "Larghezza dell’elenco tag accanto ai media. Si cambia anche trascinandone il bordo.",
     "media.tile.ownTags.one": "{0} tag personale",
