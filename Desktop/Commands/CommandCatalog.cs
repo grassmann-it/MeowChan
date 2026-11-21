@@ -214,7 +214,7 @@ public static class CommandCatalog
         new("gallery.previous", "command.gallery.previous", "Previous media", "Voriges Medium", "chevron-left", "Left", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.next", "command.gallery.next", "Next media", "Nächstes Medium", "chevron-right", "Right", CommandScope.Gallery, new[] { "gallery-toolbar", "gallery-keyboard" }),
         new("gallery.fit", "command.gallery.fit", "Fit", "Einpassen", "image", "Primary+0", CommandScope.Gallery, new[] { "gallery-toolbar", "image-double-click" }),
-        new("gallery.actual-size", "command.gallery.actual-size", "1:1", "1:1", "crosshair", "NumPad1", CommandScope.Gallery, new[] { "gallery-toolbar", "image-double-click" }),
+        new("gallery.actual-size", "command.gallery.actual-size", "1:1", "1:1", "crosshair", "Z", CommandScope.Gallery, new[] { "gallery-toolbar", "image-double-click" }),
         new("gallery.zoom-in", "command.gallery.zoom-in", "Zoom in", "Vergrößern", "zoom-in", "Plus", CommandScope.Gallery, new[] { "gallery-toolbar", "image-wheel" }),
         new("gallery.zoom-out", "command.gallery.zoom-out", "Zoom out", "Verkleinern", "zoom-out", "Minus", CommandScope.Gallery, new[] { "gallery-toolbar", "image-wheel" }),
         // Turns the shown picture or video clockwise by 90° (a view transform, never a file change; upright again with every new medium).

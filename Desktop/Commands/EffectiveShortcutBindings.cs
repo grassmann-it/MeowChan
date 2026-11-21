@@ -132,7 +132,7 @@ public sealed class EffectiveShortcutBindings
         // Revision 24 (Lightroom rating keys): 1 to 5 rate and 0 removes the rating (Shift+1 to Shift+5 and Shift+0 stay as the second key); Fit gains Primary+0
         // while the bare 0 and 1 of Fit and 1:1 are given up (NumPad0 and NumPad1 stay). The rating ids are listed below since revision 9: a saved binding of another
         // command on a digit wins over the new default.
-        ["gallery.fit"] = 24,
+        ["gallery.fit"] = 24, ["gallery.actual-size"] = 24,
         // Revision 24: the colour labels on the bare digits 6 to 9 (Lightroom); like every new default they yield to a saved binding of another command.
         ["media.label.red"] = 24, ["media.label.yellow"] = 24, ["media.label.green"] = 24, ["media.label.blue"] = 24,
         ["gallery.open"] = 23,
@@ -373,7 +373,9 @@ public sealed class EffectiveShortcutBindings
         {
             case "gallery.open": list.Add(ShortcutGesture.Parse("Shift+Enter")); break;
             case "gallery.fit": list.Add(ShortcutGesture.Parse("NumPad0")); break;
-            // Revision 24: the bare digits 0 and 1 belong to the rating (Lightroom scheme), so Fit keeps NumPad0 and gains Primary+0, and 1:1 keeps NumPad1.
+            // Revision 24: the bare digits 0 and 1 belong to the rating (Lightroom scheme), so Fit keeps NumPad0 and gains Primary+0, and 1:1 gains Z (Lightroom's
+            // zoom key; Primary+1 is the first main page) and keeps NumPad1. Z gives Mac laptops without a number pad a key for it.
+            case "gallery.actual-size": list.Add(ShortcutGesture.Parse("NumPad1")); break;
             case "media.rating.clear": list.Add(ShortcutGesture.Parse("Shift+0")); break;
             case "media.rating.set-1": case "media.rating.set-2": case "media.rating.set-3": case "media.rating.set-4": case "media.rating.set-5":
                 list.Add(ShortcutGesture.Parse("Shift+" + command.Id[^1])); break;
