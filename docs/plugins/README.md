@@ -16,6 +16,8 @@ candidate and the delivered compiler, with no developer SDK required.
 - [Additional local media filters](local-media-filters.md) — integration wave, separately validated from Alpha 2
 - [Optional hosting, prebuilt bundles and resources](hosting-and-resources.md)
 - [Validate a plugin and interpret failures](validation.md)
+- [Source capability matrix](source-capabilities.md) — what each source supports; required template for new sources
+- [Limits](../help/limits.md) — what MeowChan does not do (search, duplicates, import, offline)
 - [Six-source live results, 2026-10-24](live-sources-2026-10-24.md) — three full acquisition/offline passes; three original-size mismatches
 
 The SDK targets **.NET 10**, with contract version **1.1.0** (hosts accept 1.0.0 and 1.1.0). `libmeowchan`,
