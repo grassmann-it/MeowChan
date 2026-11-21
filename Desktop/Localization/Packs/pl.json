@@ -4212,6 +4212,8 @@
     "tags.quick.reason.sourceTag": "tag źródłowy",
     "tags.quick.gallery.position": "Medium {0} z {1}",
     "tags.quick.gallery.positionMore": "Medium {0} z co najmniej {1}",
+    "tags.quick.gallery.positionShort": "Nr {0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "Nr {0} / {1}+",
     "tags.quick.marked": "Oznaczono: {0}",
     "tags.quick.marked.clear": "Wyczyść oznaczenia",
     "tags.quick.marked.clearName": "Wyczyść wszystkie oznaczenia",

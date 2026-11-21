@@ -4132,6 +4132,8 @@
     "budgets.quickTagMarkedHint": "갤러리에서 마크해 두고 한 번에 태그를 지정할 수 있는 미디어의 개수입니다. 태그 파일의 할당 수에는 별도의 고정 한도가 그대로 적용됩니다. 기본값: {0}, 허용 범위: {1}~{2}.",
     "tags.quick.gallery.position": "미디어 {0}/{1}",
     "tags.quick.gallery.positionMore": "미디어 {0}/최소 {1}",
+    "tags.quick.gallery.positionShort": "{0}/{1}",
+    "tags.quick.gallery.positionMoreShort": "{0}/{1}+",
     "tags.quick.marked": "마크됨: {0}",
     "tags.quick.marked.clear": "마크 모두 지우기",
     "tags.quick.marked.clearName": "마크를 모두 지우기",

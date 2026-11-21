@@ -4208,6 +4208,8 @@
     "tags.quick.reason.sourceTag": "zdrojový štítek",
     "tags.quick.gallery.position": "Médium {0} z {1}",
     "tags.quick.gallery.positionMore": "Médium {0} z alespoň {1}",
+    "tags.quick.gallery.positionShort": "č. {0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "č. {0} / {1}+",
     "tags.quick.marked": "Označeno: {0}",
     "tags.quick.marked.clear": "Zrušit označení",
     "tags.quick.marked.clearName": "Zrušit všechna označení",

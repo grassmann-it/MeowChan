@@ -4189,6 +4189,8 @@
     "tags.quick.reason.sourceTag": "исходный тег",
     "tags.quick.gallery.position": "Медиа {0} из {1}",
     "tags.quick.gallery.positionMore": "Медиа {0} из не менее чем {1}",
+    "tags.quick.gallery.positionShort": "№ {0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "№ {0} / {1}+",
     "tags.quick.marked": "Отмечено: {0}",
     "tags.quick.marked.clear": "Снять отметки",
     "tags.quick.marked.clearName": "Снять все отметки",

@@ -4135,6 +4135,8 @@
     "tags.quick.reason.sourceTag": "来源标签",
     "tags.quick.gallery.position": "第 {0} 个媒体，共 {1} 个",
     "tags.quick.gallery.positionMore": "第 {0} 个媒体，至少共 {1} 个",
+    "tags.quick.gallery.positionShort": "{0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "{0} / {1}+",
     "tags.quick.marked": "已标记：{0}",
     "tags.quick.marked.clear": "清除标记",
     "tags.quick.marked.clearName": "清除所有标记",

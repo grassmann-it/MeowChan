@@ -18,8 +18,8 @@ internal enum GallerySidePanelSegment { Post, Tags }
 
 /// <summary>
 /// V2 (PLAN-MEDIEN-VIEWER-UND-SEITE §1.1): the host of the gallery side panel. Header: the segment "Post | Tags" on the left (two
-/// toggle buttons, ←/→ switch while one has the focus), the live medium counter immediately beside it, then at least 24 dip of space
-/// before the close button (×) alone at the right edge. Below
+/// toggle buttons, ←/→ switch while one has the focus), the live medium counter in its own column right of it (short "No. n / m", one line, trimmed or hidden when narrow, never over the tabs),
+/// at least 24 dip of space before the close button (×) alone at the right edge. Below
 /// it the two content slots <see cref="PostContent"/> and <see cref="TagContent"/>; only the one of <see cref="Segment"/> is visible.
 /// A 6-dip grip on the left edge drags the width (<see cref="Config.GalleryPanelWidthMinimum"/>–<see cref="Config.GalleryPanelWidthMaximum"/>).
 /// The host only shows state and raises requests: which segment may be shown, what closing does and where the width is kept is
@@ -30,11 +30,11 @@ internal sealed class GallerySidePanel : Grid
     /// <summary>The key of the preferred width in the layout profile's view preferences.</summary>
     internal const string WidthPreferenceKey = "gallery.panelWidth";
     internal const double GripWidth = 6;
-    // Gap between the Post / Tags segment and the counter, and the least clearance between the counter and the close button.
+    // Gap on each side of the counter; the star column holding it keeps at least CounterClearance between the tabs and the close button.
     private const double CounterGap = 8;
     private const double CounterClearance = 24;
-    // A counter squeezed beside the tabs may wrap to two lines down to this width; below that it takes its own row.
-    private const double CounterMinWrapWidth = 72;
+    // The narrowest trimmed counter worth showing; with less room it is hidden (its long text stays on the filmstrip and the status line).
+    private const double CounterMinWidth = 40;
     // The grip lies on the outer edge of the bordered slot (workspace-section, inset 16), not on the content.
     private const double SlotInset = 16;
     private readonly ToggleButton _post = new() { Name = "GalleryPanelPost", Classes = { "media-control" } };
@@ -42,8 +42,8 @@ internal sealed class GallerySidePanel : Grid
     private readonly StackPanel _segment = new() { Name = "GalleryPanelSegment", Orientation = Orientation.Horizontal, Spacing = 4,
         VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Left,
-        HorizontalContentAlignment = HorizontalAlignment.Left, Margin = new Thickness(CounterGap, 0, 0, 0) };
+        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right,
+        HorizontalContentAlignment = HorizontalAlignment.Right, Margin = new Thickness(CounterGap, 0, CounterGap, 0) };
     private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false };
     private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,
@@ -63,8 +63,8 @@ internal sealed class GallerySidePanel : Grid
         ColumnDefinitions = new ColumnDefinitions
         {
             new(GridLength.Auto),
-            new(GridLength.Auto) { MinWidth = 24 },
-            new(new GridLength(1, GridUnitType.Star))
+            new(new GridLength(1, GridUnitType.Star)) { MinWidth = CounterClearance },
+            new(GridLength.Auto)
         };
         _segment.Children.Add(_post);
         _segment.Children.Add(_tags);
@@ -108,24 +108,17 @@ internal sealed class GallerySidePanel : Grid
 
     private void ApplyHeaderLayout(double width)
     {
+        // The counter owns its own column of the tab row (tabs left, counter right, close alone at the edge) and is never an overlay:
+        // it is one line, trimmed to the room between the tabs and the close button, and hidden when even a trimmed chip does not fit.
         bool counter = HeaderCounter != null;
         _headerCounter.MaxWidth = double.PositiveInfinity;
+        _headerCounter.IsVisible = true;
+        if (!counter || width <= 0) return;
         _headerCounter.Measure(Size.Infinity);
-        double counterWidth = _headerCounter.DesiredSize.Width;
         double segmentWidth = _post.DesiredSize.Width + _tags.DesiredSize.Width + _segment.Spacing;
-        // The counter sits beside the tabs when one line fits; otherwise it may wrap to two lines there; only a real shortage uses its own row.
-        double room = width - segmentWidth - CounterGap - CounterClearance - CloseButton.DesiredSize.Width;
-        bool ownRow = counter && width > 0 && room < Math.Min(counterWidth, CounterMinWrapWidth);
-        if (counter && !ownRow && room > 0 && room < counterWidth) _headerCounter.MaxWidth = room;
-        _headerCounter.Margin = ownRow ? default : new Thickness(CounterGap, 0, 0, 0);
-        RowDefinitions = new RowDefinitions(ownRow ? "Auto,Auto,*" : "Auto,*");
-        SetRow(_headerCounter, ownRow ? 1 : 0);
-        SetColumn(_headerCounter, ownRow ? 0 : 1);
-        SetColumnSpan(_headerCounter, ownRow ? 3 : 1);
-        int contentRow = ownRow ? 2 : 1;
-        SetRow(_postSlot, contentRow);
-        SetRow(_tagSlot, contentRow);
-        SetRowSpan(_grip, contentRow + 1);
+        double room = width - segmentWidth - CloseButton.DesiredSize.Width - 2 * CounterGap;
+        if (room < CounterMinWidth) _headerCounter.IsVisible = false;
+        else if (room < _headerCounter.DesiredSize.Width) _headerCounter.MaxWidth = room;
     }
 
     /// <summary>The post card (built and kept by the viewer).</summary>

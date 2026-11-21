@@ -4132,6 +4132,8 @@
     "budgets.quickTagMarkedHint": "ギャラリーでマークし、1回の操作でタグ付けできるメディアの数です。タグファイルの割り当て数には、別途固定の上限があります。既定値: {0}、許容範囲: {1}～{2}。",
     "tags.quick.gallery.position": "メディア {0} / {1}",
     "tags.quick.gallery.positionMore": "メディア {0} / {1} 以上",
+    "tags.quick.gallery.positionShort": "{0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "{0} / {1}+",
     "tags.quick.marked": "マーク済み: {0}",
     "tags.quick.marked.clear": "マークを解除",
     "tags.quick.marked.clearName": "すべてのマークを解除",
