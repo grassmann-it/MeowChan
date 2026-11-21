@@ -253,6 +253,8 @@
     "diagnostics.observed.code": "Kod diagnostyczny: {0}",
     "diagnostics.clearFilters": "Wyczyść filtry",
     "diagnostics.filterCount": "Wpisy: {0} / {1} · zaznaczone: {2}",
+    "diagnostics.overview": "Przegląd bieżących wpisów",
+    "diagnostics.retryScopeCount": "Bieżący zakres: {0} cel(e) w tabeli. Liczba na karcie Stan obejmuje wszystkie bieżące wpisy, także oczekujące i bez akcji ponowienia, więc może być większa.",
     "diagnostics.noMatch": "Żaden wpis nie pasuje do filtrów.",
     "diagnostics.retryScope": "Ponawia problemy dla zamrożonych wątków/tablic w tym zakresie, a nie dla całej sesji. Ponowienia mediów obejmują brakujące pliki w tych wątkach. Limity i wstrzymanie nadal obowiązują. Komunikaty bez akcji ponowienia są pomijane.",
     "diagnostics.batchResult": "Zakres: cele: {0} · zlecone/już w kolejce sprawdzenia: {1}/{2} · ponowienia mediów w kolejce: {3} · pominięte akcje: {4} · nieudane: {5}. Limity i wstrzymanie nadal obowiązują.",
