@@ -195,9 +195,11 @@ public partial class DiagnosticsPage
             Button button = this.FindControl<Button>(name)!;
             CommandBindings.ApplyLabeled(button, command, CommandCatalog.Label(command) + " (" + scope.Length + ")");
             button.IsEnabled = CanRetryScope(scope);
-            ToolTip.SetTip(button, Texts.T("diagnostics.retryScope"));
-            AutomationProperties.SetHelpText(button, Texts.T("diagnostics.retryScope"));
+            string scopeHelp = Texts.T("diagnostics.retryScope") + " " + Texts.T("diagnostics.retryScopeCount", scope.Length);
+            ToolTip.SetTip(button, scopeHelp);
+            AutomationProperties.SetHelpText(button, scopeHelp);
         }
+        RefreshDiagnosticOverview(selected.Length > 0);
         // One selected target does what "Check now" does: the selection button only exists for a set of several targets.
         this.FindControl<Button>("RetryDiagnosticSelectionButton")!.IsVisible = selection.Length > 1;
         // "a / b entries · c selected" only while it says something: a filter is set or rows are selected.

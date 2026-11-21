@@ -39,8 +39,8 @@
                 <Expander x:Name="DiagnosticFiltersSection" wv:WorkViewElement.Id="diagnostics.filters" IsExpanded="True"
                           HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                     <WrapPanel Classes="workspace-toolbar">
-                        <ComboBox x:Name="DiagnosticSourceFilter" Width="200" SelectionChanged="OnDiagnosticFilterChanged" />
-                        <controls:SearchBox x:Name="DiagnosticTextFilter" Width="200" TextChanged="OnDiagnosticFilterChanged" />
+                        <ComboBox x:Name="DiagnosticSourceFilter" Width="170" SelectionChanged="OnDiagnosticFilterChanged" />
+                        <controls:SearchBox x:Name="DiagnosticTextFilter" Width="180" TextChanged="OnDiagnosticFilterChanged" />
                         <CheckBox x:Name="DiagnosticProblemsOnly" IsCheckedChanged="OnDiagnosticFilterChanged" />
                         <CheckBox x:Name="DiagnosticIncludeWaiting" IsChecked="False"
                                   IsCheckedChanged="OnDiagnosticFilterChanged">
@@ -61,9 +61,9 @@
                                       GridLinesVisibility="None" SelectionMode="Extended" RowHeight="44"
                                       CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn MinWidth="150" Width="150" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
-                                    <DataGridTextColumn Width="180" Binding="{Binding Resource, DataType=desktop:DiagnosticEntry}" />
-                                    <DataGridTextColumn MinWidth="180" Width="*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
+                                    <DataGridTextColumn MinWidth="110" Width="130" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
+                                    <DataGridTextColumn MinWidth="200" Width="3*" Binding="{Binding Resource, DataType=desktop:DiagnosticEntry}" />
+                                    <DataGridTextColumn MinWidth="160" Width="2*" Binding="{Binding Summary, DataType=desktop:DiagnosticEntry}" />
                                 </DataGrid.Columns>
                             </DataGrid>
                             <TextBlock x:Name="DiagnosticsEmpty" Classes="muted" Margin="12"
@@ -73,6 +73,8 @@
                     <Border x:Name="DiagnosticDetailPane" wv:WorkViewElement.Id="diagnostics.details" Grid.Row="1" Classes="workspace-section">
                         <StackPanel Classes="workspace-section-header">
                             <TextBlock x:Name="DiagnosticSelectionHint" Classes="workspace-help" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
+                            <TextBlock x:Name="DiagnosticOverviewTitle" Classes="section-title" TextWrapping="Wrap" />
+                            <TextBlock x:Name="DiagnosticOverview" Classes="workspace-meta" TextWrapping="Wrap" />
                             <TextBlock x:Name="DiagnosticSelectionTitle" Classes="section-title" TextWrapping="Wrap" IsVisible="False" />
                             <TextBlock x:Name="DiagnosticSelectionContext" Classes="workspace-meta" TextWrapping="Wrap" IsVisible="False" />
                             <TextBox x:Name="DiagnosticDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="50" MaxHeight="110" />
