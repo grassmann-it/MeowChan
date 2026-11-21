@@ -41,9 +41,13 @@ public sealed class SidebarIconAssignmentTests
     [InlineData("panel-right")]
     [InlineData("workspace-expand")]
     [InlineData("workspace-shrink")]
-    public void TheNewIconsHaveSvgAndMask(string icon, [System.Runtime.CompilerServices.CallerFilePath] string sourcePath = "")
+    public void TheNewIconsHaveSvgAndMask(string icon)
     {
-        string root = Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../.."));
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "MeowChan.sln")))
+        {
+            root = Path.GetDirectoryName(root) ?? throw new InvalidOperationException("Repository root not found.");
+        }
         Assert.True(File.Exists(Path.Combine(root, "Assets/icons/feather/" + icon + ".svg")));
         Assert.True(File.Exists(Path.Combine(root, "Assets/icons/feather/masks/" + icon + ".png")));
     }
