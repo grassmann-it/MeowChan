@@ -52,7 +52,7 @@ internal static class BooruUiCatalog
         ("booru.ui.status.lookingUp", "Looking up post #{0}…", "Post #{0} wird abgerufen…"),
         ("booru.ui.status.results", "{0} results on page {1} for “{2}”", "{0} Treffer auf Seite {1} für „{2}“"),
         ("booru.ui.status.post", "Post #{0}. Nothing is loaded until you choose Load original.", "Post #{0}. Es wird nichts geladen, bis du Original laden wählst."),
-        ("booru.ui.status.empty", "No posts found for “{0}” on page {1}.", "Keine Posts für „{0}“ auf Seite {1} gefunden."),
+        ("booru.ui.status.empty", "No posts on page {1} for “{0}”. Only the pages loaded here were checked, so this does not say the source has nothing more.", "Keine Posts auf Seite {1} für „{0}“. Geprüft wurden nur die hier geladenen Seiten; das heißt nicht, dass die Quelle sonst nichts hat."),
         ("booru.ui.status.offline", "Danbooru could not be reached. Check your connection, then search again. Nothing was loaded.", "Danbooru war nicht erreichbar. Verbindung prüfen und erneut suchen. Es wurde nichts geladen."),
         ("booru.ui.status.rateLimited", "Danbooru asked for a pause (HTTP 429). Requests resume at {0}; nothing is sent until then.", "Danbooru hat um eine Pause gebeten (HTTP 429). Anfragen sind ab {0} wieder möglich; bis dahin wird nichts gesendet."),
         ("booru.ui.status.cooldown", "Danbooru requests are paused until {0}; nothing is sent until then.", "Danbooru-Anfragen pausieren bis {0}; bis dahin wird nichts gesendet."),
