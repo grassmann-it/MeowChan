@@ -60,6 +60,7 @@ public sealed partial class TaggingPage
         WorkViewGate.Apply(_selectionBar, _workView, stateVisible: SelectedCount > 0);
         WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0);
         WorkViewGate.Apply(_lastShown, _workView, stateVisible: TaggingQueueView.LastShownIndex(_queueWork.Queue) != null);
+        _browseHint.IsVisible = _lastShown.IsVisible && !string.IsNullOrEmpty(_browseHint.Text);
         WorkViewGate.Apply(_error, _workView, stateVisible: !string.IsNullOrEmpty(_errorText.Text));
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: _clearConfirm.IsVisible);
         WorkViewGate.Apply(_stampPanel, _workView);

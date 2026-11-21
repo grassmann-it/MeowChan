@@ -170,6 +170,10 @@ internal sealed partial class GalleryViewer
             (_taggingDone, "tags.queue.done-next"), (_taggingStamp, QuickTagCommands.StampApply) })
             AutomationProperties.SetAcceleratorKey(button, CommandCatalog.ShortcutDisplay(id) ?? string.Empty);
         AutomationProperties.SetName(_taggingStrip, Texts.T("tagging.strip.name"));
+        // TQ3: browsing decides nothing; the progress line carries that as its tooltip and the strip as its help text.
+        string browse = Texts.T("tagging.strip.browseHint", CommandCatalog.ShortcutDisplay("tags.queue.done-next") ?? Texts.T("tagging.done"));
+        ToolTip.SetTip(_taggingProgress, browse);
+        AutomationProperties.SetHelpText(_taggingStrip, browse);
     }
 
     /// <summary>Shows the progress of the whole queue and enables the decisions for the shown medium (after every change and medium).</summary>

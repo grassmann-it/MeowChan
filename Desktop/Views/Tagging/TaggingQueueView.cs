@@ -9,7 +9,7 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 /// <summary>Which entries the tagging page lists; the queue order never changes by filtering.</summary>
-internal enum TaggingQueueFilter { All, Open, Done, Skipped }
+internal enum TaggingQueueFilter { All, Open, Done, Skipped, Untagged }
 
 /// <summary>One shown entry: the frozen queue entry, its position in the whole queue and whether "continue" starts there.</summary>
 internal sealed record TaggingQueueRow(TagQueueItem Item, int Index, bool Next, string? GroupName = null)
@@ -25,7 +25,7 @@ internal sealed record TaggingQueueRow(TagQueueItem Item, int Index, bool Next, 
     /// <summary>All table values, used as the keyboard/screen-reader detail when a narrow cell trims its visible text.</summary>
     internal string AccessibleDetails(int? tagCount)
     {
-        string tags = tagCount is { } count ? count.ToString("N0", Texts.Culture) : "–";
+        string tags = tagCount is { } count ? count.ToString("N0", Texts.Culture) : Texts.T("tagging.page.tags.unknown");
         return string.Join(", ",
             Texts.T("tagging.page.col.kind") + ": " + KindText,
             Texts.T("tagging.page.col.name") + ": " + Name,
@@ -138,7 +138,7 @@ internal static class TaggingQueueView
         TaggingQueueFilter.Open => state == TagQueueState.Open,
         TaggingQueueFilter.Done => state == TagQueueState.Done,
         TaggingQueueFilter.Skipped => state == TagQueueState.Skipped,
-        _ => true
+        _ => true // "All entries" and "Without tags" (the latter is a scope of the page, not a state)
     };
 
     /// <summary>The share of entries already decided (finished or skipped), 0 to 1; an empty queue has none.</summary>
@@ -151,6 +151,13 @@ internal static class TaggingQueueView
     }
 
     internal static string ProgressText(TagQueueSnapshot queue) => ProgressText(queue, null, false);
+
+    /// <summary>The short sentence beside the Start button: "12 of 201 done" (finished or skipped of all shown); the long sentence is its tooltip.</summary>
+    internal static string DoneText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
+    {
+        TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
+        return Texts.T("tagging.page.progress.done", (counts.Done + counts.Skipped).ToString("N0", Texts.Culture), counts.Count.ToString("N0", Texts.Culture));
+    }
 
     internal static string ProgressText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
     {
@@ -169,8 +176,8 @@ internal static class TaggingQueueView
     }
 
     /// <summary>
-    /// The start button: "Start tagging" while nothing is decided and the walk stands at the first open entry, else "Continue at n of
-    /// m" with n the position of the entry it resumes at. Null when there is nothing open, so the button is disabled.
+    /// The start button: "Start tagging" while nothing is decided and the walk stands at the first open entry, else "Continue tagging
+    /// (no. n)" with n the position of the entry it resumes at (a position, not a progress: the progress stands beside the button). Null when there is nothing open, so the button is disabled.
     /// </summary>
     internal static string? StartLabel(TagQueueSnapshot queue) => StartLabel(queue, null, false);
 
@@ -180,7 +187,7 @@ internal static class TaggingQueueView
         TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
         bool fresh = counts.Done + counts.Skipped == 0 && resume == FirstOpen(queue, groupId, ungrouped, scope);
         int ordinal = Ordinal(queue, resume, groupId, ungrouped, scope);
-        return fresh ? Texts.T("command.tagging.start") : Texts.T("tagging.page.continue", ordinal, counts.Count);
+        return fresh ? Texts.T("command.tagging.start") : Texts.T("tagging.page.continue", ordinal);
     }
 
     /// <summary>
@@ -273,6 +280,7 @@ internal static class TaggingQueueView
     });
 
     internal static string FilterText(TaggingQueueFilter filter) => filter == TaggingQueueFilter.All ? Texts.T("tagging.page.filter.all")
+        : filter == TaggingQueueFilter.Untagged ? Texts.T("tagging.page.filter.untagged")
         : StateText(filter switch { TaggingQueueFilter.Done => TagQueueState.Done, TaggingQueueFilter.Skipped => TagQueueState.Skipped, _ => TagQueueState.Open });
 
     internal static string KindText(SavedMediaKind kind) => Texts.T(kind switch

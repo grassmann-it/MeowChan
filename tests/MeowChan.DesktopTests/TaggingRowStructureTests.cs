@@ -53,16 +53,17 @@ public sealed class TaggingRowStructureTests
         StackPanel sections = Find<StackPanel>(page, "TaggingSections");
         Assert.Equal(new[] { "TaggingHeading", "TaggingError", "TaggingQueueControls", "TaggingStamp" }, sections.Children.Select(c => c.Name));
         StackPanel queue = Find<StackPanel>(page, "TaggingQueueControls");
-        Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingStatus", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
         TaggingControlRow actions = Find<TaggingControlRow>(page, "TaggingQueueActionRow");
-        Assert.Equal(new[] { "TaggingActions", "TaggingFeedback" }, actions.Children.Select(c => c.Name));
-        Assert.Equal(new[] { "TaggingProgress", "TaggingStatus" }, Find<StackPanel>(page, "TaggingFeedback").Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingActions" }, actions.Children.Select(c => c.Name));
+        // TQ2: the progress stands beside Start, in the same line of the same group.
+        Assert.Equal(new[] { "TaggingStart", "TaggingProgress" }, Find<StackPanel>(page, "TaggingStartLine").Children.Select(c => c.Name));
         Assert.Equal(new[] { "TaggingProgressText", "TaggingProgressMeter" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
         Assert.Equal(new[] { "TaggingProgressBar", "TaggingPercent" }, Find<WrapPanel>(page, "TaggingProgressMeter").Children.Select(c => c.Name));
         Assert.Contains(page.ProgressText, ((ILogical)actions).GetLogicalDescendants());
         Assert.Contains(Find<ProgressBar>(page, "TaggingProgressBar"), ((ILogical)actions).GetLogicalDescendants());
         Assert.Contains(Find<TextBlock>(page, "TaggingPercent"), ((ILogical)actions).GetLogicalDescendants());
-        Assert.Same(page.StartButton.Parent, page.LastShownContext.Parent);
+        Assert.Same(Find<StackPanel>(page, "TaggingStartLine").Parent, page.LastShownContext.Parent);
         Assert.IsType<TextBlock>(page.LastShownContext); // One continue entry point, not a second link.
         Assert.Equal(new[] { "TaggingStartContext", "TaggingAdd", "TaggingClearDone", "TaggingClear", "TaggingHelp" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
         Assert.DoesNotContain(((ILogical)page).GetLogicalDescendants().OfType<Control>(), c => c.Name is "TaggingKeysHint" or "TaggingSecondaryToolbar");
@@ -82,12 +83,12 @@ public sealed class TaggingRowStructureTests
         StackPanel queue = Find<StackPanel>(page, "TaggingQueueControls");
         typeof(TaggingPage).GetMethod("AskClear", Private)!.Invoke(page, null);
         Assert.True(page.ClearQuestionOpen);
-        Assert.Same(Find<Border>(page, "TaggingClearConfirm"), queue.Children[1]);
+        Assert.Same(Find<Border>(page, "TaggingClearConfirm"), queue.Children[2]);
         Assert.Same(Find<TaggingControlRow>(page, "TaggingQueueActionRow"), queue.Children[0]);
         page.ExecuteRowCommandAsync("tagging.mark-done", explain: true).GetAwaiter().GetResult();
         Assert.True(page.StatusText.IsVisible);
         Assert.True(page.StatusText.Parent is Control { IsVisible: true });
-        Assert.Same(Find<StackPanel>(page, "TaggingFeedback"), page.StatusText.Parent);
+        Assert.Same(queue, page.StatusText.Parent); // the status line stands right under the action row (TQ2)
     });
 
     [Theory]
