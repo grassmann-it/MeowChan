@@ -26,15 +26,21 @@ public sealed partial class MediaPage
 {
     private readonly Button _filterResetAll = new()
     {
-        Name = "MediaFilterResetAll", Classes = { "link" }, IsVisible = false, MinHeight = 32, Padding = new Thickness(8, 2),
-        BorderThickness = new Thickness(0), VerticalAlignment = VerticalAlignment.Top, VerticalContentAlignment = VerticalAlignment.Center
+        Name = "MediaFilterResetAll", Classes = { "link" }, IsVisible = false, BorderThickness = new Thickness(0)
     };
     // "+ Filter": the picker over every field (types, sounds, sources, boards, ratings, flags and the own tags), behind the last chip.
-    private readonly FilterTermPicker _filterAdd = new() { Name = "MediaFilterAdd", VerticalAlignment = VerticalAlignment.Top };
+    private readonly FilterTermPicker _filterAdd = new() { Name = "MediaFilterAdd" };
     // A filter that matches nothing offers the way back in the empty grid as well.
     private readonly Button _emptyReset = new() { Name = "MediaEmptyReset", IsVisible = false };
     private readonly Button _emptySearchInArchive = new() { Name = "MediaEmptySearchInArchive", IsVisible = false };
     private string[] _renderedChips = Array.Empty<string>();
+
+    // F05: "+ Filter" and "Reset filters" share the chips' height, inset and vertical centring (WorkspaceChips.MarkRowItem), and stay on the first line.
+    private void StyleChipRowItems()
+    {
+        WorkspaceChips.MarkRowItem(_filterResetAll).VerticalAlignment = VerticalAlignment.Top;
+        WorkspaceChips.MarkRowItem(_filterAdd).VerticalAlignment = VerticalAlignment.Top;
+    }
 
     // Term: the chip's term (null for the tag mode chip); ValueName: what its switch names ("Switch to exclude: Videos").
     private sealed record FilterChip(string Key, string Label, Action Remove, MediaFilterTerm? Term = null, string? ValueName = null)
@@ -54,6 +60,7 @@ public sealed partial class MediaPage
     private Control BuildFilterChipRow()
     {
         _filterError.Classes.Add("workspace-error");
+        StyleChipRowItems();
         _filterResetAll.Click += (_, _) =>
         {
             bool focused = _filterResetAll.IsFocused || FocusWithin(_filterChips);

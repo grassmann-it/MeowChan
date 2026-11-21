@@ -77,6 +77,52 @@ internal static partial class MediaPageChecks
         finally { Texts.SetLanguage(language); page.EndLifetime(); window.Close(); }
     }
 
+    // F05 layout contract of the chip row: every item (chips, "+ Filter", "Reset filters") has the one chip-row height and stands on one
+    // centre line, and in a chip the label and the close mark are centred on the chip's own middle.
+    private static Rect WindowBounds(Control control, Window window) => new(control.TranslatePoint(default, window) ?? default, control.Bounds.Size);
+
+    private static void RequireChipRowAlignment(Window window, MediaPage page, string state)
+    {
+        Rect Bounds(Control control) => WindowBounds(control, window);
+        Control[] items = page.FilterChips.Children.OfType<Control>().Concat(new Control[] { page.FilterAdd, page.FilterResetAll }).Where(item => item.IsEffectivelyVisible).ToArray();
+        Require(items.Length >= 3, state + ": the chip row must hold chips, + Filter and Reset filters: " + items.Length);
+        Rect first = Bounds(items[0]);
+        foreach (Control item in items)
+        {
+            Rect box = Bounds(item);
+            Require(Math.Abs(box.Height - WorkspaceChips.RowHeight) <= 0.5, state + ": " + (item.Name ?? item.GetType().Name) + " is " + box.Height + " dip high, not " + WorkspaceChips.RowHeight + ".");
+            Require(Math.Abs(box.Center.Y - first.Center.Y) <= 0.5, state + ": " + (item.Name ?? item.GetType().Name) + " is not on the centre line of the first chip: " + box + " / " + first);
+        }
+        foreach (Control item in items.Where(item => item is Ursa.Controls.ClosableTag || item is Button))
+        {
+            double middle = Bounds(item).Center.Y;
+            foreach (Control part in item.GetVisualDescendants().OfType<Control>().Where(part => part.IsEffectivelyVisible && part.Bounds.Height > 0 && (part is TextBlock || part is Button || (part is Avalonia.Controls.Shapes.Path path && !path.GetVisualAncestors().OfType<Viewbox>().Any()))))
+                Require(Math.Abs(Bounds(part).Center.Y - middle) <= 1.5, state + ": " + part.GetType().Name + " " + part.Name + " in " + (item.Name ?? item.GetType().Name) + " is not centred on its chip: " + Bounds(part) + " / " + Bounds(item));
+        }
+    }
+
+    // F05: a check box of the filter section is vertically centred on the dropdowns beside it (the ones whose cell shares its row).
+    private static void RequireFlagAlignment(Window window, MediaPage page, string state)
+    {
+        Rect Bounds(Control control) => WindowBounds(control, window);
+        ComboBox[] combos = page.FilterGrid.GetVisualDescendants().OfType<ComboBox>().Where(combo => combo.IsEffectivelyVisible).ToArray();
+        CheckBox[] flags = page.FilterGrid.GetVisualDescendants().OfType<CheckBox>().Where(flag => flag.IsEffectivelyVisible).ToArray();
+        int compared = 0;
+        foreach (CheckBox flag in flags)
+        {
+            Rect box = Bounds(flag);
+            // Beside = a dropdown at the same height in another column: its box overlaps the flag's cell row.
+            foreach (ComboBox combo in combos.Where(combo => Bounds(combo).Left > box.Right || Bounds(combo).Right < box.Left))
+            {
+                Rect other = Bounds(combo);
+                if (Math.Abs(other.Center.Y - box.Center.Y) > MediaPage.FilterFieldHeight) continue; // another row
+                Require(Math.Abs(other.Center.Y - box.Center.Y) <= 1.5, state + ": " + flag.Name + " is not centred on the dropdown " + combo.Name + ": " + box + " / " + other);
+                compared++;
+            }
+        }
+        Require(flags.Length == 0 || page.FilterGridColumns == 1 || compared > 0, state + ": no check box could be compared with a dropdown beside it.");
+    }
+
     // C3: with the surface closed, type, name, rating and favourites appear as chips beside the tag chip, the toggle counts them,
     // a chip resets exactly its field, "Reset all" clears everything and a filter that matches nothing offers its reset in the grid.
     private static async Task FilterChipRowAsync(Window window, MediaPage page, ThemeVariant theme, string code)
@@ -106,6 +152,7 @@ internal static partial class MediaPageChecks
             && page.FilterChips.Children.OfType<Ursa.Controls.ClosableTag>().All(tag => tag.Classes.Contains("chip-filter") && tag.IsEffectivelyVisible),
             state + ": chip row " + string.Join(" | ", labels) + " / " + filters.Count);
         window.UpdateLayout();
+        RequireChipRowAlignment(window, page, state);
         Program.CaptureWindow(window, $"smoke-media-filter-chips-{code}-{theme.ToString().ToLowerInvariant()}.png");
 
         // Removing the type chip resets only the type; the name chip removes its text at once.
@@ -315,6 +362,7 @@ internal static partial class MediaPageChecks
             Require((Math.Abs(at.X - before.X) <= 1 && at.Y > before.Y) || (at.X > before.X + 1 && at.Y < before.Y + 1),
                 state + ": the field order is not column by column at " + cells[index].Name + ": " + before + " then " + at);
         }
+        RequireFlagAlignment(window, page, state);
         // Long content scrolls inside the surface; the last field stays reachable.
         Button reset = C<Button>(page, "MediaTagAdd"); // the last field of the section since M5 (the tag button; the reset button is gone)
         scroll.Offset = new Vector(0, Math.Max(0, scroll.Extent.Height - scroll.Viewport.Height));
