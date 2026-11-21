@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using MeowChan.OfficialSources.Danbooru;
+using MeowChan.OfficialSources.E621;
 using MeowChan.OfficialSources.EightKun;
 using MeowChan.OfficialSources.FourChan;
 using MeowChan.PluginSdk;
@@ -17,7 +18,7 @@ public sealed class NoSecretLikeSettingsTests
         RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
 
     // One entry per project under plugins/Official; OfficialPluginListCoversEveryOfficialPluginProject guards drift.
-    private static IPlugin[] OfficialPlugins() => [new FourChanPlugin(), new EightKunPlugin(), new DanbooruPlugin()];
+    private static IPlugin[] OfficialPlugins() => [new FourChanPlugin(), new EightKunPlugin(), new DanbooruPlugin(), new E621Plugin()];
 
     [Fact]
     public void OfficialPluginSettingsDeclareNoSecretLikeKeysOrLabels()

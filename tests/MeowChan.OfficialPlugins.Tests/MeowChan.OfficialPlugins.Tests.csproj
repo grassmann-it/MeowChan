@@ -14,9 +14,11 @@
     <ProjectReference Include="../../plugins/Official/FourChan/MeowChan.Plugin.FourChan.csproj" />
     <ProjectReference Include="../../plugins/Official/EightKun/MeowChan.Plugin.EightKun.csproj" />
     <ProjectReference Include="../../plugins/Official/Danbooru/MeowChan.Plugin.Danbooru.csproj" />
+    <ProjectReference Include="../../plugins/Official/E621/MeowChan.Plugin.E621.csproj" />
     <ProjectReference Include="../../libmeowchan/libmeowchan.csproj" />
     <Using Include="Xunit" />
     <None Include="Fixtures/*.json" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Fixtures/danbooru/*.json;Fixtures/danbooru/*.html" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Fixtures/e621/*.json;Fixtures/e621/*.html" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

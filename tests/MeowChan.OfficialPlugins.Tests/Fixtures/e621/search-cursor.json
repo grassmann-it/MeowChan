@@ -1,0 +1,176 @@
+{
+  "posts": [
+    {
+      "id": 999,
+      "created_at": "2024-05-06T07:08:09.123-04:00",
+      "updated_at": "2024-05-07T07:08:09.123-04:00",
+      "file": {
+        "width": 1200,
+        "height": 800,
+        "ext": "png",
+        "size": 124455,
+        "md5": "00000000000000000000000000429957",
+        "url": "https://static1.e621.net/data/00/00/00000000000000000000000000429957.png"
+      },
+      "preview": {
+        "width": 150,
+        "height": 100,
+        "url": "https://static1.e621.net/data/preview/00/00/00000000000000000000000000429957.jpg"
+      },
+      "sample": {
+        "has": true,
+        "width": 850,
+        "height": 567,
+        "url": "https://static1.e621.net/data/sample/00/00/00000000000000000000000000429957.jpg"
+      },
+      "score": {
+        "up": 25,
+        "down": -2,
+        "total": 23
+      },
+      "tags": {
+        "general": [
+          "forest",
+          "sky"
+        ],
+        "artist": [
+          "artist_one"
+        ],
+        "copyright": [
+          "series_x"
+        ],
+        "character": [
+          "hero_a"
+        ],
+        "species": [
+          "canine"
+        ],
+        "invalid": [
+          "retired_tag"
+        ],
+        "meta": [
+          "hi_res"
+        ],
+        "lore": [
+          "lore_item"
+        ]
+      },
+      "locked_tags": [],
+      "change_seq": 1,
+      "flags": {
+        "pending": false,
+        "flagged": false,
+        "note_locked": false,
+        "status_locked": false,
+        "rating_locked": false,
+        "deleted": false
+      },
+      "rating": "s",
+      "fav_count": 5,
+      "sources": [
+        "https://example.invalid/art/999",
+        "https://example.invalid/b"
+      ],
+      "pools": [],
+      "relationships": {
+        "parent_id": null,
+        "has_children": false,
+        "has_active_children": false,
+        "children": []
+      },
+      "approver_id": null,
+      "uploader_id": 1,
+      "description": "",
+      "comment_count": 0,
+      "is_favorited": false,
+      "has_notes": false,
+      "duration": null
+    },
+    {
+      "id": 998,
+      "created_at": "2024-05-06T07:08:09.123-04:00",
+      "updated_at": "2024-05-07T07:08:09.123-04:00",
+      "file": {
+        "width": 1200,
+        "height": 800,
+        "ext": "png",
+        "size": 124454,
+        "md5": "00000000000000000000000000428846",
+        "url": "https://static1.e621.net/data/00/00/00000000000000000000000000428846.png"
+      },
+      "preview": {
+        "width": 150,
+        "height": 100,
+        "url": "https://static1.e621.net/data/preview/00/00/00000000000000000000000000428846.jpg"
+      },
+      "sample": {
+        "has": true,
+        "width": 850,
+        "height": 567,
+        "url": "https://static1.e621.net/data/sample/00/00/00000000000000000000000000428846.jpg"
+      },
+      "score": {
+        "up": 24,
+        "down": -2,
+        "total": 22
+      },
+      "tags": {
+        "general": [
+          "forest",
+          "sky"
+        ],
+        "artist": [
+          "artist_one"
+        ],
+        "copyright": [
+          "series_x"
+        ],
+        "character": [
+          "hero_a"
+        ],
+        "species": [
+          "canine"
+        ],
+        "invalid": [
+          "retired_tag"
+        ],
+        "meta": [
+          "hi_res"
+        ],
+        "lore": [
+          "lore_item"
+        ]
+      },
+      "locked_tags": [],
+      "change_seq": 1,
+      "flags": {
+        "pending": false,
+        "flagged": false,
+        "note_locked": false,
+        "status_locked": false,
+        "rating_locked": false,
+        "deleted": false
+      },
+      "rating": "s",
+      "fav_count": 7,
+      "sources": [
+        "https://example.invalid/art/998",
+        "https://example.invalid/b"
+      ],
+      "pools": [],
+      "relationships": {
+        "parent_id": null,
+        "has_children": false,
+        "has_active_children": false,
+        "children": []
+      },
+      "approver_id": null,
+      "uploader_id": 1,
+      "description": "",
+      "comment_count": 0,
+      "is_favorited": false,
+      "has_notes": false,
+      "duration": null
+    }
+  ]
+}
