@@ -199,6 +199,7 @@ internal static class CommandLabelCatalog
         ("command.media.export-original", "Export", "Exportieren"),
         ("command.media.show-in-folder", "Show in folder", "Im Ordner anzeigen"),
         ("command.media.details", "Show media details", "Mediendetails anzeigen"),
+        ("command.media.next-untagged", "Next untagged medium", "Nächstes Medium ohne Tags"),
         ("command.media.copy-path", "Copy file path", "Dateipfad kopieren"),
         ("command.media.open-external", "Open with default program", "Mit Standardprogramm öffnen"),
         ("command.post.copy-link", "Copy post link", "Post-Link kopieren"),

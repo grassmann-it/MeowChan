@@ -1,1 +1,2 @@
 #nullable enable
+static MeowChan.Favorites.FavoriteOriginalExporter.ExportAsync(System.Collections.Generic.IReadOnlyList<MeowChan.Favorites.FavoriteExportAsset!>! assets, string! destinationDirectory, string? filenameTemplate, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Favorites.FavoriteExportResult!>!

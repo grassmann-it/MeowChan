@@ -5226,6 +5226,23 @@
     "import.done.tags.one": "Tag aggiunto: {0}.",
     "export.collectionSelection.one": "Esporta {0} thread selezionato",
     "media.filter.count.one": "Filtro: {0} / ({1})",
-    "media.untagged.hint.one": "Mostra solo il {0} media senza tag del media: un punto da cui iniziare ad assegnare tag"
+    "media.untagged.hint.one": "Mostra solo il {0} media senza tag del media: un punto da cui iniziare ad assegnare tag",
+    "settings.exportFilenameTemplate": "Modello del nome file per i media esportati",
+    "settings.exportFilenameTemplateHint": "Dà il nome ai file copiati da «Esporta originali». Vuoto mantiene i nomi attuali. Segnaposto: {0}. Prima dell’estensione viene aggiunto un breve identificatore, così due file non ricevono mai lo stesso nome. Al massimo {1} caratteri.",
+    "settings.exportFilenameTemplatePlaceholder": "Vuoto: mantieni i nomi attuali",
+    "settings.exportFilenameTemplateOff": "Anteprima: i file esportati mantengono i nomi attuali.",
+    "settings.exportFilenameTemplatePreview": "Anteprima con tre file di esempio:",
+    "settings.exportFilenameTemplate.tooLong": "Il modello supera {0} caratteri.",
+    "settings.exportFilenameTemplate.invalid": "Usa solo i segnaposto {0}, ciascuno tra parentesi graffe. Una parentesi graffa isolata non è consentita.",
+    "settings.exportFilenameTemplate.extension": "Il modello deve terminare con «{0}» perché i file esportati mantengano il loro tipo.",
+    "settings.exportFilenameTemplate.unsafe": "Il risultato non sarebbe un nome file sicuro: niente / \\ : * ? \" < > | né «..», niente punto o spazio finale, niente nomi riservati come CON.",
+    "settings.exportFilenameTemplate.nameTooLong": "Il nome file risultante supererebbe {0} byte. Accorcia il modello.",
+    "settings.exportFilenameTemplate.unusable": "Questo modello non può essere usato per i nomi file.",
+    "export.filenameTemplateNote": "I file sono nominati con il tuo modello «{0}». Un file che il modello non può nominare in sicurezza mantiene il nome attuale. Modificalo in Impostazioni, sotto Download.",
+    "command.media.next-untagged": "Media successivo senza tag",
+    "media.nextUntagged.none": "Nessun altro media mostrato è senza tag del media.",
+    "media.nextUntagged.unknown": "I tag non sono ancora disponibili, quindi i media senza tag non si possono ancora distinguere.",
+    "work.scopeSummary": "Ambito del nuovo tentativo: {0} file multimediali in {1} thread. Non toccati: {2} di {3} già salvati, {4} già in coda.",
+    "work.scopeSummary.one": "Ambito del nuovo tentativo: {0} file multimediale in {1} thread. Non toccati: {2} di {3} già salvati, {4} già in coda."
   }
 }

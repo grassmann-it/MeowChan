@@ -5220,6 +5220,23 @@
     "import.done.tags.one": "Etiqueta añadida: {0}.",
     "export.collectionSelection.one": "Exportar el {0} hilo seleccionado",
     "media.filter.count.one": "Filtro: {0} / ({1})",
-    "media.untagged.hint.one": "Mostrar solo el {0} medio sin etiquetas de medio: un punto de partida para etiquetar"
+    "media.untagged.hint.one": "Mostrar solo el {0} medio sin etiquetas de medio: un punto de partida para etiquetar",
+    "settings.exportFilenameTemplate": "Plantilla de nombre de archivo para medios exportados",
+    "settings.exportFilenameTemplateHint": "Da nombre a los archivos que copia «Exportar originales». Vacía conserva los nombres actuales. Marcadores: {0}. Antes de la extensión se añade un identificador corto, así que dos archivos nunca reciben el mismo nombre. Máximo {1} caracteres.",
+    "settings.exportFilenameTemplatePlaceholder": "Vacía: conservar los nombres actuales",
+    "settings.exportFilenameTemplateOff": "Vista previa: los archivos exportados conservan sus nombres actuales.",
+    "settings.exportFilenameTemplatePreview": "Vista previa con tres archivos de ejemplo:",
+    "settings.exportFilenameTemplate.tooLong": "La plantilla tiene más de {0} caracteres.",
+    "settings.exportFilenameTemplate.invalid": "Usa solo los marcadores {0}, cada uno entre llaves. No se permite una llave suelta.",
+    "settings.exportFilenameTemplate.extension": "La plantilla debe terminar en «{0}» para que los archivos exportados conserven su tipo.",
+    "settings.exportFilenameTemplate.unsafe": "El resultado no sería un nombre de archivo seguro: sin / \\ : * ? \" < > | ni «..», sin punto ni espacio al final, sin nombres reservados como CON.",
+    "settings.exportFilenameTemplate.nameTooLong": "El nombre de archivo resultante superaría los {0} bytes. Acorta la plantilla.",
+    "settings.exportFilenameTemplate.unusable": "Esta plantilla no se puede usar para nombres de archivo.",
+    "export.filenameTemplateNote": "Los archivos se nombran con tu plantilla «{0}». Un archivo que la plantilla no pueda nombrar con seguridad conserva su nombre actual. Cámbiala en Ajustes, en Descargas.",
+    "command.media.next-untagged": "Siguiente medio sin etiquetas",
+    "media.nextUntagged.none": "Ningún otro medio mostrado está sin etiquetas de medio.",
+    "media.nextUntagged.unknown": "Las etiquetas aún no están disponibles, así que todavía no se pueden distinguir los medios sin etiquetas.",
+    "work.scopeSummary": "Alcance del reintento: {0} archivos multimedia en {1} hilos. Sin tocar: {2} de {3} ya guardados, {4} ya en cola.",
+    "work.scopeSummary.one": "Alcance del reintento: {0} archivo multimedia en {1} hilos. Sin tocar: {2} de {3} ya guardados, {4} ya en cola."
   }
 }

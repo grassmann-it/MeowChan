@@ -79,14 +79,14 @@ internal static class ReaderPointerChecks
         KeyEventArgs find = Press(body, Key.F, primary);
         await FlushAsync();
         Require(find.Handled && bar.IsVisible && query.IsKeyboardFocusWithin, $"The find key from a post's text did not open the thread find in the {where}.");
-        SmokeActionClick.Execute(page.FindControl<Button>("ReaderFindClose")!);
+        SmokeActionClick.Execute(page.FindControl<Button>("ReaderToolsClose")!);
         await FlushAsync();
         Require(!bar.IsVisible, $"The thread find did not close in the {where}.");
         body.SelectionStart = 0; body.SelectionEnd = 4;
         find = Press(body, Key.F, primary);
         await FlushAsync();
         Require(find.Handled && bar.IsVisible, $"A text selection held the find key back in the {where}.");
-        SmokeActionClick.Execute(page.FindControl<Button>("ReaderFindClose")!);
+        SmokeActionClick.Execute(page.FindControl<Button>("ReaderToolsClose")!);
         await FlushAsync();
 
         if (!large)
@@ -112,7 +112,7 @@ internal static class ReaderPointerChecks
             find = Press(sidebarFocus, Key.F, primary);
             await FlushAsync();
             Require(find.Handled && bar.IsVisible && query.IsKeyboardFocusWithin, $"The find key from the media sidebar did not open the thread find in the {where}.");
-            SmokeActionClick.Execute(page.FindControl<Button>("ReaderFindClose")!);
+            SmokeActionClick.Execute(page.FindControl<Button>("ReaderToolsClose")!);
             await FlushAsync();
             Require(!bar.IsVisible, $"The thread find did not close after the sidebar check in the {where}.");
             body.Focus();
