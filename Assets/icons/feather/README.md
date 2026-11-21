@@ -25,6 +25,12 @@ same renderer and size (`rsvg-convert -w 48 -h 48`).
 `help` (the plain question mark of the keyboard-shortcut help command, no ring) is the question-mark stroke of `help-circle.svg` without the circle, enlarged about 1.4 times
 about the centre so it fills the 24 grid like the other marks, written as SVG in the same stroke style and rendered with the same renderer and size (`rsvg-convert -w 48 -h 48`).
 
+`panel-left`, `panel-right`, `workspace-expand` and `workspace-shrink` are MeowChan's own drawings, not Feather originals (MIT-licensed
+Feather is only their style reference: 24 grid, 2 px round stroke, the frame of `sidebar.svg`). `panel-left`/`panel-right` are that frame with
+the divider and the filled left or right part (the side panel the switch controls); `workspace-expand`/`workspace-shrink` are the frame with
+two arrows pointing apart or together (viewer focus mode). Rendered like the others (`rsvg-convert -w 48 -h 48`). `sidebar.svg` is no longer
+used by a command.
+
 These are prepared assets, not a record of completed UI integration. The local
 0.9.0 architecture handoff contains the action map, source and derivative SHA-256
 inventory, preview and portable kit under

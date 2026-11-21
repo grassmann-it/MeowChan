@@ -2237,6 +2237,26 @@
         <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Card}" />
     </Style>
+    <!-- MV2 Booru result tile: the media page's tile look without the list host. No card: transparent at rest, with the 1-px edge reserved
+         (the picture size is unchanged), a quiet Raised background and ControlBorder edge on hover or keyboard focus, AccentSurface and a
+         3-px accent bar (Border.booru-tile-bar) when selected, together with the accent check on the picture. The actions row is transparent
+         until hover, focus inside or selection; it stays focusable. Square corners. -->
+    <Style Selector="Border.booru-tile">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="CornerRadius" Value="0" />
+        <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="Border.booru-tile:pointerover, Border.booru-tile:focus-within">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="Border.booru-tile.booru-tile-selected">
+        <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
+    </Style>
+    <Style Selector="Border.booru-tile-bar"><Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /></Style>
+    <Style Selector="Border.booru-tile WrapPanel.booru-tile-actions"><Setter Property="Opacity" Value="0" /></Style>
+    <Style Selector="Border.booru-tile:pointerover WrapPanel.booru-tile-actions, Border.booru-tile:focus-within WrapPanel.booru-tile-actions, Border.booru-tile.booru-tile-selected WrapPanel.booru-tile-actions">
+        <Setter Property="Opacity" Value="1" />
+    </Style>
     <!-- A card the keyboard reaches (Booru hit): the shared double focus ring, drawn only for keyboard focus (Avalonia shows the adorner for Tab and arrow focus). -->
     <Style Selector="Border.workspace-card-focusable">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />

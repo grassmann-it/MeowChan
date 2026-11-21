@@ -283,7 +283,7 @@ public static class CommandCatalog
         new("diagnostics.copy", "command.diagnostics.copy", "Copy details", "Details kopieren", "copy", "Primary+C", CommandScope.Diagnostics, new[] { "diagnostics-details" }),
         new("about.open-link", "command.about.open-link", "Open project, credit or license page", "Projekt-/Credit-/Lizenzseite öffnen", "external-link", null, CommandScope.About | CommandScope.Sources, new[] { "about-project-link", "about-author-link", "about-ychan-link", "about-gchan-link", "about-feather-link", "about-project-license-link", "credits-component-link:planned", "licenses-source-link:planned" }),
         new("about.close", "command.about.close", "Close", "Schließen", "x", null, CommandScope.About | CommandScope.Application, new[] { "about-footer" }),
-        new("viewer.focus-mode", "command.viewer.focus-mode", "Expand workspace / show list", "Arbeitsbereich vergrößern / Liste zeigen", "sidebar", null, CommandScope.Reader | CommandScope.Gallery, new[] { "embedded-reader", "embedded-gallery", "large-reader", "large-gallery" }),
+        new("viewer.focus-mode", "command.viewer.focus-mode", "Expand workspace / show list", "Arbeitsbereich vergrößern / Liste zeigen", "workspace-expand", null, CommandScope.Reader | CommandScope.Gallery, new[] { "embedded-reader", "embedded-gallery", "large-reader", "large-gallery" }),
         new("window.fullscreen", "command.window.fullscreen", "Enter / exit fullscreen", "Vollbild einschalten / verlassen", "maximize", "F11", CommandScope.Reader | CommandScope.Gallery | CommandScope.Downloads | CommandScope.Application, new[] { "shell", "downloads-threadwatcher", "reader", "gallery", "app-menu" }),
         new("viewer.shortcut-help", "command.viewer.shortcut-help", "Keyboard shortcuts", "Tastaturhilfe", "help", "F1", CommandScope.Reader | CommandScope.Gallery, new[] { "reader", "gallery", "workspace" }),
         new("viewer.shortcut-hints", "command.viewer.shortcut-hints", "Show / hide shortcut hints", "Kurzhilfe anzeigen / ausblenden", "help", null, CommandScope.Reader | CommandScope.Gallery | CommandScope.Media | CommandScope.Settings, new[] { "reader", "gallery", "settings-reading-media" }),
@@ -313,11 +313,11 @@ public static class CommandCatalog
         // The reader's settings popover (R7, the toolbar's gear since RL1); a user shortcut opens it too.
         new("reader.quick-settings", "command.reader.quick-settings", "Reader settings…", "Reader-Einstellungen…", "settings", null, CommandScope.Reader, new[] { "reader-settings" }),
         // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
-        new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "sidebar", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-settings", "reader-media-sidebar" }),
+        new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "panel-left", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-settings", "reader-media-sidebar" }),
         new("reader.sidebar.previous-media", "command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts", "chevron-left", "Alt+Shift+Left", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         new("reader.sidebar.next-media", "command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts", "chevron-right", "Alt+Shift+Right", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         // The Media page's media panel (a large medium beside the grid).
-        new("media.panel.toggle", "command.media.panel.toggle", "Media sidebar", "Medienleiste", "sidebar", "Primary+Shift+M", CommandScope.Media, new[] { "media-layout-menu", "media-panel" }),
+        new("media.panel.toggle", "command.media.panel.toggle", "Media sidebar", "Medienleiste", "panel-right", "Primary+Shift+M", CommandScope.Media, new[] { "media-layout-menu", "media-panel" }),
         // Revision 19: H hides the selected post (ArchivePage.OnPostFilterKeyDown; a text field keeps its letters).
         new("post.hide", "command.post.hide", "Hide post", "Post ausblenden", "eye-off", "H", CommandScope.Reader, new[] { "reader-post-menu" }),
         new("post.unhide", "command.post.unhide", "Show post again", "Post wieder anzeigen", "eye", null, CommandScope.Reader, new[] { "reader-post-menu" }),
@@ -448,7 +448,10 @@ public static class CommandCatalog
         { "archive.media-view", new Dictionary<string, string>(StringComparer.Ordinal) { { "tiles", "grid" }, { "list", "list" } } },
         { "archive.capture-toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "stopped", "circle" }, { "capturing", "square" } } },
         { "gallery.context-toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "hidden", "file-text" }, { "shown", "file-text" } } },
-        { "viewer.focus-mode", new Dictionary<string, string>(StringComparer.Ordinal) { { "embedded", "sidebar" }, { "expanded", "sidebar" } } },
+        { "viewer.focus-mode", new Dictionary<string, string>(StringComparer.Ordinal) { { "embedded", "workspace-expand" }, { "expanded", "workspace-shrink" } } },
+        // The side panel switches draw the half of the frame the panel sits in; the state is the side the panel is on now.
+        { "reader.sidebar.toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "left", "panel-left" }, { "right", "panel-right" } } },
+        { "media.panel.toggle", new Dictionary<string, string>(StringComparer.Ordinal) { { "left", "panel-left" }, { "right", "panel-right" } } },
         { "window.fullscreen", new Dictionary<string, string>(StringComparer.Ordinal) { { "windowed", "maximize" }, { "fullscreen", "minimize" } } },
         { "viewer.shortcut-hints", new Dictionary<string, string>(StringComparer.Ordinal) { { "hidden", "help" }, { "shown", "help" } } },
         { "watch.follow-live", new Dictionary<string, string>(StringComparer.Ordinal) { { "off", "arrow-down" }, { "on", "arrow-down" } } },

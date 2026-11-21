@@ -9,6 +9,8 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -36,6 +38,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
     private readonly Button _download = new() { Name = "BooruViewerDownload" };
     private readonly Button _previous = new() { Name = "BooruViewerPrevious" };
     private readonly Button _next = new() { Name = "BooruViewerNext" };
+    private readonly Button _close = new() { Name = "BooruViewerClose" };
     private readonly TextBlock _caption = new() { Name = "BooruViewerCaption", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _status = new() { Name = "BooruViewerStatus", TextWrapping = TextWrapping.Wrap };
     private int _index;
@@ -77,14 +80,25 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         _viewer.CloseRequested += Close;
         _viewer.MoveRequested += Move;
 
-        Button close = new() { Name = "BooruViewerClose", Content = Texts.T("action.close") + " · Esc" };
-        close.Click += (_, _) => Close();
+        _close.Click += (_, _) => Close();
         _previous.Click += (_, _) => Move(-1);
         _next.Click += (_, _) => Move(1);
         _select.Click += (_, _) => ToggleSelection();
         _download.Click += async (_, _) => await DownloadAsync();
-        WrapPanel toolbar = new() { ItemSpacing = 8, LineSpacing = 8, Margin = new Thickness(12) };
-        foreach (Control control in new Control[] { close, _previous, _next, _select, _download }) toolbar.Children.Add(control);
+        // Ordered bar: navigation | selection and download | (space) | close at the far right. Icon buttons carry
+        // tooltip and automation name; keys are unchanged.
+        WorkspaceIcons.MakeSquare(_previous, WorkspaceIcons.ChevronLeft, string.Empty);
+        WorkspaceIcons.MakeSquare(_next, WorkspaceIcons.ChevronLeft, string.Empty);
+        if (_next.Content is Control nextIcon) { nextIcon.RenderTransformOrigin = RelativePoint.Center; nextIcon.RenderTransform = new ScaleTransform(-1, 1); }
+        WorkspaceIcons.MakeSquare(_download, WorkspaceIcons.ArrowDown, string.Empty);
+        WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, string.Empty);
+        Border divider = new() { Name = "BooruViewerDivider", Width = 1, Margin = new Thickness(4, 2),
+            [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border") };
+        StackPanel actions = new() { Name = "BooruViewerBar", Orientation = Orientation.Horizontal, Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center, Children = { _previous, _next, divider, _select, _download } };
+        Grid toolbar = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(12), ColumnSpacing = 8 };
+        toolbar.Children.Add(actions);
+        Grid.SetColumn(_close, 1); toolbar.Children.Add(_close);
         StackPanel footer = new() { Spacing = 4, Margin = new Thickness(12), Children = { _caption, _status } };
         Grid root = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         root.Children.Add(toolbar);
@@ -176,14 +190,14 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         { Close(); return; }
         Title = Texts.T("booru.ui.post.title", CurrentPostId);
         _caption.Text = $"{Title} · {_index + 1}/{_ids.Length} · {Texts.T("booru.mediaRole.Preview")} · {Texts.T("booru.ui.post.rating", BooruText.Rating(row.Post.Rating))}";
-        _previous.Content = Texts.T("gallery.viewer1") + " · ←";
-        _next.Content = Texts.T("gallery.viewer2") + " · →";
+        WorkspaceIcons.MakeSquare(_previous, WorkspaceIcons.ChevronLeft, Texts.T("gallery.viewer1"), Texts.T("gallery.viewer1") + " · ←");
+        WorkspaceIcons.MakeSquare(_next, WorkspaceIcons.ChevronLeft, Texts.T("gallery.viewer2"), Texts.T("gallery.viewer2") + " · →");
+        WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, Texts.T("action.close"), Texts.T("action.close") + " · Esc");
         _previous.IsEnabled = _index > 0;
         _next.IsEnabled = _index < _ids.Length - 1;
         _select.Content = Texts.T("media.tile.selected") + " · Space / Enter";
         _select.IsChecked = _selected.Contains(CurrentPostId);
-        _download.Content = Texts.T("booru.ui.load") + " · " + CommandCatalog.ShortcutDisplay("media.export-original");
-        AutomationProperties.SetName(_download, Texts.T("booru.ui.loadFor", CurrentPostId));
+        string loadLabel = Texts.T("booru.ui.load") + " · " + CommandCatalog.ShortcutDisplay("media.export-original");
         _download.IsEnabled = row.CanLoad || row.CanRetry;
         string? previewNote = row.Preview switch
         {
@@ -194,7 +208,8 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         };
         _status.Text = (previewNote is null ? string.Empty : previewNote + " · ")
             + (BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned));
-        ToolTip.SetTip(_download, _status.Text);
+        WorkspaceIcons.MakeSquare(_download, WorkspaceIcons.ArrowDown, Texts.T("booru.ui.loadFor", CurrentPostId),
+            loadLabel + Environment.NewLine + _status.Text);
         ToolTip.SetShowOnDisabled(_download, true);
         if (_shownId == CurrentPostId && _shownPreview == row.Preview && ReferenceEquals(_shownBytes, row.PreviewBytes)) return;
         _shownPreview = row.Preview;
