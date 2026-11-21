@@ -181,7 +181,7 @@ public sealed class ActionOverflowLayoutTests
     [Fact]
     public void TheReaderMediaPairRanksAsItsBestMemberAndNeverSplitsAtAnyWidth()
     {
-        // ReaderMediaTools (PrioritizedOverflow): Tiles (40) | Table (45) | Columns (hidden, 60) | Favorites only (20) | Rating (30) | Sort (10).
+        // ReaderMediaTools (PrioritizedOverflow; priorities, not bar order, decide): Tiles (40) | Table (45) | Columns (hidden, 60) | Favorites only (20) | Rating (30) | Sort (10).
         double[] widths = [64, 64, 90, 100, 140, 160];
         int[] groups = [0, 0, 0, 0, 0, 0];
         bool[] segments = [true, true, false, false, false, false];
