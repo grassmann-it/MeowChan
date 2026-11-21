@@ -124,6 +124,7 @@ public partial class SettingsEditor
             Number(ClipboardUrlLimitInput, () => ClipboardUrlLimit, value => ClipboardUrlLimit = value, config => config.ClipboardUrlLimit),
             Number(ClipboardTextLimitKiBInput, () => ClipboardTextLimitKiB, value => ClipboardTextLimitKiB = value, config => config.ClipboardTextLimitKiB),
             Number(GalleryImageCacheMiBInput, () => GalleryImageCacheMiB, value => GalleryImageCacheMiB = value, config => config.GalleryImageCacheMiB),
+            Number(HeaderTaglineIntervalMinutesInput, () => HeaderTaglineIntervalMinutes, value => HeaderTaglineIntervalMinutes = value, config => config.HeaderTaglineIntervalMinutes),
             Number(GalleryPreloadAheadInput, () => GalleryPreloadAhead, value => GalleryPreloadAhead = value, config => config.GalleryPreloadAhead),
             Number(GalleryPreloadBehindInput, () => GalleryPreloadBehind, value => GalleryPreloadBehind = value, config => config.GalleryPreloadBehind),
             Number(ImportMaxFilesPerBatchInput, () => ImportMaxFilesPerBatch, value => ImportMaxFilesPerBatch = value, config => config.ImportMaxFilesPerBatch),

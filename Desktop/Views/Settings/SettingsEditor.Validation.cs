@@ -302,6 +302,7 @@ public partial class SettingsEditor
         foreach (var field in ReaderNumericFields()) yield return field;
         foreach (var field in TagQueueNumericFields()) yield return field;
         foreach (var field in ViewerNumericFields()) yield return field;
+        foreach (var field in HeaderTaglineNumericFields()) yield return field;
         foreach (var field in QuickTagNumericFields()) yield return field;
         foreach (var field in LimitsNumericFields()) yield return field;
     }

@@ -200,6 +200,7 @@ public static class SettingsTransfer
             MediaBadgeMaxPerCorner = source.MediaBadgeMaxPerCorner,
             HeaderTagline = source.HeaderTagline,
             HeaderTaglineFixedId = source.HeaderTaglineFixedId,
+            HeaderTaglineIntervalMinutes = source.HeaderTaglineIntervalMinutes,
             ProfileRegistryLimit = source.ProfileRegistryLimit,
             ReaderFocusedMediaEnlarge = source.ReaderFocusedMediaEnlarge,
             ReaderFocusedMediaScalePercent = source.ReaderFocusedMediaScalePercent,

@@ -209,6 +209,18 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider settings-conditional" desktop:SettingsConditional.When="{Binding HeaderTaglineIntervalEnabled}">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}" IsEnabled="{Binding HeaderTaglineIntervalEnabled}">
+                            <StackPanel VerticalAlignment="Center" Spacing="{StaticResource Workspace.Space.4}" Classes="settings-label">
+                                <TextBlock x:Name="HeaderTaglineIntervalMinutesFieldLabel" Text="{Binding HeaderTaglineIntervalMinutesLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding HeaderTaglineIntervalMinutesHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="HeaderTaglineIntervalMinutesInput" Value="{Binding HeaderTaglineIntervalMinutes, Mode=TwoWay}" Minimum="1" Maximum="1440" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=HeaderTaglineIntervalMinutesFieldLabel}" AutomationProperties.Name="{Binding HeaderTaglineIntervalMinutesLabel}" AutomationProperties.HelpText="{Binding HeaderTaglineIntervalMinutesHelp}" />
+                                <TextBlock x:Name="HeaderTaglineIntervalMinutesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                     <Border x:Name="StatsHeaderMonitorRow" Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">

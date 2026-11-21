@@ -449,7 +449,7 @@ namespace MeowChan
         /// <summary>Use coloured network/disk direction icons instead of words in the header. Off by default; the accessible description is unchanged.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool StatsHeaderIcons { get; set; }
-        /// <summary>What the header tagline does: "Off", "Fixed" (the quip of <see cref="HeaderTaglineFixedId"/>), "Daily" (one per day) or "PerStart" (a new one at every start, the default; see TaglinePicker).</summary>
+        /// <summary>What the header tagline does: "Off", "Fixed" (the quip of <see cref="HeaderTaglineFixedId"/>), "Daily" (one per day) or "PerStart" (a new one at every start, the default), "Interval" (a new one every <see cref="HeaderTaglineIntervalMinutes"/> minutes while the app runs); see TaglinePicker.</summary>
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string HeaderTagline
         {
@@ -465,6 +465,10 @@ namespace MeowChan
             set => _headerTaglineFixedId = Desktop.TaglineCatalog.NormalizeId(value);
         }
         private string _headerTaglineFixedId = Desktop.TaglineCatalog.DefaultId;
+        /// <summary>Minutes between two quips in the "Interval" mode of the header tagline (default 5, from 1 to 1440, one day).</summary>
+        [JsonConverter(typeof(DesktopPreferenceHeaderTaglineIntervalMinutesConverter))]
+        public int HeaderTaglineIntervalMinutes { get; set; } = HeaderTaglineIntervalMinutesDefault;
+        internal const int HeaderTaglineIntervalMinutesDefault = 5, HeaderTaglineIntervalMinutesMinimum = 1, HeaderTaglineIntervalMinutesMaximum = 1440;
         /// <summary>The version (major.minor.build) whose release quip this profile has had its chance to see; empty until the first start with a tagline.</summary>
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string LastTaglineVersion
@@ -1705,6 +1709,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
             if (GalleryStatusDwellMs is < GalleryStatusDwellMsMinimum or > GalleryStatusDwellMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryStatusDwellMs), "GalleryStatusDwellMs is outside its supported range (" + GalleryStatusDwellMsMinimum + " to " + GalleryStatusDwellMsMaximum + ").");
+            if (HeaderTaglineIntervalMinutes is < HeaderTaglineIntervalMinutesMinimum or > HeaderTaglineIntervalMinutesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(HeaderTaglineIntervalMinutes), "HeaderTaglineIntervalMinutes is outside its supported range (" + HeaderTaglineIntervalMinutesMinimum + " to " + HeaderTaglineIntervalMinutesMaximum + ").");
             if (GalleryPostTagChipLimit is < GalleryPostTagChipLimitMinimum or > GalleryPostTagChipLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryPostTagChipLimit), "GalleryPostTagChipLimit is outside its supported range (" + GalleryPostTagChipLimitMinimum + " to " + GalleryPostTagChipLimitMaximum + ").");
             if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
@@ -1976,6 +1982,7 @@ namespace MeowChan
                 StatsHeaderIcons = StatsHeaderIcons,
                 HeaderTagline = HeaderTagline,
                 HeaderTaglineFixedId = HeaderTaglineFixedId,
+                HeaderTaglineIntervalMinutes = HeaderTaglineIntervalMinutes,
                 LastTaglineVersion = LastTaglineVersion,
                 GalleryImageCacheMiB = GalleryImageCacheMiB,
                 GalleryPreloadAhead = GalleryPreloadAhead,
@@ -2250,6 +2257,7 @@ namespace MeowChan
             StatsHeaderIcons = source.StatsHeaderIcons;
             HeaderTagline = source.HeaderTagline;
             HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            HeaderTaglineIntervalMinutes = source.HeaderTaglineIntervalMinutes;
             LastTaglineVersion = source.LastTaglineVersion;
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
@@ -2500,6 +2508,7 @@ namespace MeowChan
             StatsHeaderIcons = source.StatsHeaderIcons;
             HeaderTagline = source.HeaderTagline;
             HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            HeaderTaglineIntervalMinutes = source.HeaderTaglineIntervalMinutes;
             // LastTaglineVersion is a direct view preference (the window writes it), not edited in Settings.
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;

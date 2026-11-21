@@ -51,6 +51,12 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("vibetested", new Version(1, 1, 0), TaglineTone.Playful),
         new("pink", new Version(1, 1, 0), TaglineTone.Playful),
         new("workflow", new Version(1, 1, 0), TaglineTone.Playful),
+        // Self-deprecating quips: introduced as 1.0.0 on purpose, so they never take the "release line" of the first start after an update.
+        new("jdownloader", new Version(1, 0, 0), TaglineTone.Playful),
+        new("worksonmine", new Version(1, 0, 0), TaglineTone.Playful),
+        new("noai", new Version(1, 0, 0), TaglineTone.Playful),
+        new("whatbooru", new Version(1, 0, 0), TaglineTone.Playful),
+        new("features", new Version(1, 0, 0), TaglineTone.Playful),
     ];
 
     private readonly Func<string, string?> _lookup;
