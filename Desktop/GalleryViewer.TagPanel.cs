@@ -72,7 +72,7 @@ internal sealed partial class GalleryViewer
         surface.UseSectionInset();
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
-        surface.CounterText = PanelCounter(controller.CounterFor(entry));
+        SetPanelCounter(surface, controller, entry);
         surface.MarkedCount = _marks.Count;
         AnnounceCounter(surface);
         // UX-LEDGER-14: keep the same live badge, but beside Post/Tags in the host header, not beside the file title below it.
@@ -188,14 +188,14 @@ internal sealed partial class GalleryViewer
         if (sameMedium)
         {
             // Only the position may have changed (more threads resolved).
-            surface.CounterText = PanelCounter(controller.CounterFor(entry));
+            SetPanelCounter(surface, controller, entry);
             RefreshDecisionRow();
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
         GalleryTagPanelFrame frame = controller.Frame(entry);
         surface.Retarget(frame.Target, frame.Label);
-        surface.CounterText = PanelCounter(frame.Counter);
+        SetPanelCounter(surface, controller, entry);
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
@@ -269,7 +269,7 @@ internal sealed partial class GalleryViewer
         GalleryTagPanelFrame frame = controller.Frame(controller.Entry);
         surface.Retarget(frame.Target, frame.Label);
         // The owner's position may already be on the next medium (a move was requested): the counter names that one.
-        surface.CounterText = PanelCounter(controller.CounterFor(controller.ShownEntry()));
+        SetPanelCounter(surface, controller, controller.ShownEntry());
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         RefreshDecisionRow();
@@ -278,11 +278,18 @@ internal sealed partial class GalleryViewer
     // QW1: in the tagging mode the position stands once, between the arrows ("Queue 3 of 27"); the panel head shows no second counter.
     private string? PanelCounter(string? counter) => GalleryChromePlan.PanelCounter(counter, IsTagMode);
 
+    // The chip shows the short "No. 4 / 27" (one line, never wider than the tab row allows); the long "Medium 4 of 27" stays its tooltip, accessible name and live text.
+    private void SetPanelCounter(QuickTagSurface surface, GalleryTagPanelController controller, GalleryEntry entry)
+    {
+        surface.CounterShortText = PanelCounter(controller.ShortCounterFor(entry));
+        surface.CounterText = PanelCounter(controller.CounterFor(entry));
+    }
+
     // The tagging mode started or ended under an open panel: its counter chip follows (shown outside the mode, away inside it).
     private void RefreshPanelCounter()
     {
         if (_tagController is { } controller && _tagSurface is { } surface)
-            surface.CounterText = PanelCounter(controller.CounterFor(controller.ShownEntry()));
+            SetPanelCounter(surface, controller, controller.ShownEntry());
     }
 
     // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------

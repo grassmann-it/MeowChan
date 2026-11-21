@@ -4170,6 +4170,8 @@
     "budgets.quickTagMarkedHint": "Le nombre de médias qui peuvent être marqués dans la galerie et étiquetés en une seule étape. Le fichier d’étiquettes conserve sa propre limite fixe d’attributions. Par défaut : {0}, autorisé : de {1} à {2}.",
     "tags.quick.gallery.position": "Média {0} sur {1}",
     "tags.quick.gallery.positionMore": "Média {0} sur au moins {1}",
+    "tags.quick.gallery.positionShort": "N° {0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "N° {0} / {1}+",
     "tags.quick.marked": "Marqués : {0}",
     "tags.quick.marked.clear": "Effacer les marques",
     "tags.quick.marked.clearName": "Effacer toutes les marques",

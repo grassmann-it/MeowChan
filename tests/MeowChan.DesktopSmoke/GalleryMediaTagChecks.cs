@@ -89,7 +89,7 @@ internal static class GalleryMediaTagChecks
                         && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite
                         && counter.Child is TextBlock liveLabel
                         && Avalonia.Automation.AutomationProperties.GetLiveSetting(liveLabel) == Avalonia.Automation.AutomationLiveSetting.Polite
-                        && liveLabel.Text == Texts.T("tags.quick.gallery.position", 1, 2),
+                        && liveLabel.Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
                         "The moved counter lost localization or polite announcements.");
                     var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
                     var segment = (Control)viewer.SidePanel.PostButton.Parent!;
@@ -137,8 +137,8 @@ internal static class GalleryMediaTagChecks
             marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
             Border movedCounter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Navigation lost the header counter.");
-            Require(movedCounter.Child is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.position", 2, 2)
-                && Avalonia.Automation.AutomationProperties.GetName(movedCounter) == movedLabel.Text
+            Require(movedCounter.Child is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.positionShort", 2, 2)
+                && Avalonia.Automation.AutomationProperties.GetName(movedCounter) == Texts.T("tags.quick.gallery.position", 2, 2)
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedCounter) == Avalonia.Automation.AutomationLiveSetting.Polite
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedLabel) == Avalonia.Automation.AutomationLiveSetting.Polite,
                 "Navigation did not update the reparented polite live region's text and accessible name.");

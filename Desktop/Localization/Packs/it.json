@@ -4173,6 +4173,8 @@
     "budgets.quickTagMarkedHint": "Quanti media possono essere contrassegnati nella galleria per assegnare loro tag in un solo passaggio. Il file dei tag mantiene il proprio limite fisso di assegnazioni. Valore predefinito: {0}, consentiti: da {1} a {2}.",
     "tags.quick.gallery.position": "Media {0} di {1}",
     "tags.quick.gallery.positionMore": "Media {0} di almeno {1}",
+    "tags.quick.gallery.positionShort": "N. {0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "N. {0} / {1}+",
     "tags.quick.marked": "Contrassegnati: {0}",
     "tags.quick.marked.clear": "Rimuovi contrassegni",
     "tags.quick.marked.clearName": "Rimuovi tutti i contrassegni",

@@ -4173,6 +4173,8 @@
     "budgets.quickTagMarkedHint": "Quantas mídias podem ser marcadas na galeria para receber tags em uma única etapa. O arquivo de tags mantém seu próprio limite fixo de atribuições. Padrão: {0}, permitido: {1} a {2}.",
     "tags.quick.gallery.position": "Mídia {0} de {1}",
     "tags.quick.gallery.positionMore": "Mídia {0} de pelo menos {1}",
+    "tags.quick.gallery.positionShort": "N.º {0} / {1}",
+    "tags.quick.gallery.positionMoreShort": "N.º {0} / {1}+",
     "tags.quick.marked": "Marcados: {0}",
     "tags.quick.marked.clear": "Limpar marcações",
     "tags.quick.marked.clearName": "Limpar todas as marcações",
