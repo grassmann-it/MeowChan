@@ -5,8 +5,8 @@ namespace MeowChan.Desktop.WorkViews;
 
 // PT2 (PLAN-POWER-TAGGEN §1.3): the tagging page. Progress, the start button, the queue list and its errors are the page itself
 // and the same in every view; the stamp set and the state filter are working tools shown in every view as well (a filter that is
-// not "All entries" is a state, R6). Only the toolbar thins out: removing the finished entries moves under More in Barebones,
-// clearing the whole queue (destructive, rare) everywhere but Advanced. Every row command stays in the list's context menu.
+// not "All entries" is a state, R6). Only the toolbar thins out: TQ2 moved removing the finished entries and clearing the whole queue (destructive,
+// rare) under More in every view, so no destructive action stands beside "Add…". Every row command stays in the list's context menu.
 public static partial class WorkViewPolicy
 {
     private static IEnumerable<WorkViewEntry> TaggingEntries() =>
@@ -41,7 +41,7 @@ public static partial class WorkViewPolicy
         new("tagging.selection.group", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, OverflowOrder: 40),
         new("tagging.selection.remove", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.remove", OverflowOrder: 50),
         new("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.add", OverflowOrder: 10),
-        new("tagging.toolbar.clear-done", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tagging.clear-done", OverflowOrder: 20),
-        new("tagging.toolbar.clear", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Direct, "tagging.clear", OverflowOrder: 30),
+        new("tagging.toolbar.clear-done", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear-done", OverflowOrder: 20),
+        new("tagging.toolbar.clear", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear", OverflowOrder: 30),
     ];
 }

@@ -220,7 +220,7 @@ public sealed class PageHeaderContractTests
     // page's own rows, never a "*,Auto" grid with actions beside the title, so there is nothing a long action row could push out.
     [Theory]
     [InlineData("Desktop/Views/Media/MediaPage.cs", "StackPanel header = new() { Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8), Classes = { \"workspace-page-header\" } };")]
-    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "StackPanel heading = new() { Name = \"TaggingHeading\", Classes = { \"workspace-page-header\" },\n            [!StackPanel.SpacingProperty] = new DynamicResourceExtension(\"Workspace.Space.8\"), Children = { _title, _subtitle } };")]
+    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "StackPanel heading = new() { Name = \"TaggingHeading\", Classes = { \"workspace-page-header\" },\n            [!StackPanel.SpacingProperty] = new DynamicResourceExtension(\"Workspace.Space.8\"), Children = { _title } };")]
     public void TheMediaAndTaggingTitlesStandInAVerticalHeaderStackWithoutActionsBesideThem(string file, string stack)
     {
         string code = File.ReadAllText(Root(file)).Replace("\r\n", "\n", StringComparison.Ordinal);

@@ -38,9 +38,10 @@ public sealed partial class TaggingPage
     internal Button GroupManageButton => _groupManage;
 
     private bool InSelectedGroup(TagQueueItem item) => TaggingQueueView.InGroup(item, _selectedGroupId, _ungroupedSelected);
-    private Func<TagQueueItem, bool>? EffectiveScope => Scope == null && _selectedGroupId == null && !_ungroupedSelected
+    // "Without tags" (TQ5) narrows like a group does: the entries whose own tag count is known and zero (an unknown count never counts as none).
+    private Func<TagQueueItem, bool>? EffectiveScope => Scope == null && _selectedGroupId == null && !_ungroupedSelected && Filter != TaggingQueueFilter.Untagged
         ? null
-        : item => InSelectedGroup(item) && (Scope == null || Scope(item));
+        : item => InSelectedGroup(item) && (Scope == null || Scope(item)) && (Filter != TaggingQueueFilter.Untagged || TagCountOf(item) == 0);
 
     // The combo box builds its selection box while ItemsSource is being swapped, and then the item is null for a moment:
     // the template must tolerate that (an exception here aborted Render and left the queue table empty).

@@ -2236,10 +2236,10 @@ storage limits are under **Storage and limits**.
 
 Open **Tagging** (German: **Taggen**) with its footer button right after Media (in Barebones under **More**) to see queue progress,
 the shared stamp editor and entries marked **Open**, **Finished** or **Skipped**.
-**Start tagging** or **Continue at n of m** opens a gallery walk over open entries.
+**Start tagging** or **Continue tagging (no. n)** opens a gallery walk over open entries; browsing in the walk marks nothing as finished.
 In the list, Enter continues at the selected entry, Delete removes it, Alt+Up/Down
 moves it, and the context menu changes its state. **Remove finished** and
-**Clear queue…** change only the queue: media tags, favorites and ratings stay.
+**Clear queue…** (under **More** above the list) change only the queue: media tags, favorites and ratings stay.
 **Walk through tagging queue** in the app menu’s tools also resumes a walk. Missing
 files stay in the queue and are reported rather than silently marked finished.
 

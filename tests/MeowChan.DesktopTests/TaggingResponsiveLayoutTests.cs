@@ -43,7 +43,7 @@ public sealed class TaggingResponsiveLayoutTests : IDisposable
 
         Assert.Contains("Type: Image", details);
         Assert.Contains("File: file-1.png", details);
-        Assert.Contains("Thread or source: 4chan · /g/ · 123", details);
+        Assert.Contains("Source: 4chan · /g/ · 123", details);
         Assert.Contains("Group: Review", details);
         Assert.Contains("Tags: 3", details);
         Assert.Contains("State: Finished", details);

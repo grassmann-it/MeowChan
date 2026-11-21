@@ -68,7 +68,7 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Equal(1, rows.Count(row => row.Next));
         Assert.Equal(new TaggingQueueCounts(1, 1, 1), TaggingQueueView.Counts(queue, group.Id));
         Assert.Equal("Open: 1 · Finished: 1 · Skipped: 1", TaggingQueueView.ProgressText(queue, group.Id, false));
-        Assert.Equal("Continue at 2 of 3", TaggingQueueView.StartLabel(queue, group.Id, false));
+        Assert.Equal("Continue tagging (no. 2)", TaggingQueueView.StartLabel(queue, group.Id, false));
         Assert.Equal(new[] { "All entries", "Without group", "Review" }, TaggingQueueView.GroupChoices(queue).Select(choice => choice.Label));
         Assert.Equal(new[] { 3, 5 }, TaggingQueueView.Rows(queue, TaggingQueueFilter.All, null, null, true).Select(row => row.Number));
     }
@@ -90,9 +90,9 @@ public sealed class TaggingPageTests : IDisposable
     public void TheStartButtonStartsAFreshQueueContinuesAWalkedOneAndIsOffWithoutOpenEntries()
     {
         Assert.Equal("Start tagging", TaggingQueueView.StartLabel(Queue(0, Item(1), Item(2))));
-        Assert.Equal("Continue at 2 of 3", TaggingQueueView.StartLabel(Queue(1, Item(1, TagQueueState.Done), Item(2), Item(3))));
+        Assert.Equal("Continue tagging (no. 2)", TaggingQueueView.StartLabel(Queue(1, Item(1, TagQueueState.Done), Item(2), Item(3))));
         // Nothing decided, but the cursor was moved behind the first open entry: that is a continue, too.
-        Assert.Equal("Continue at 2 of 2", TaggingQueueView.StartLabel(Queue(1, Item(1), Item(2))));
+        Assert.Equal("Continue tagging (no. 2)", TaggingQueueView.StartLabel(Queue(1, Item(1), Item(2))));
         Assert.Null(TaggingQueueView.StartLabel(Queue(0, Item(1, TagQueueState.Done), Item(2, TagQueueState.Skipped))));
         Assert.Null(TaggingQueueView.StartLabel(TagQueueSnapshot.Empty));
     }
@@ -228,9 +228,12 @@ public sealed class TaggingPageTests : IDisposable
             Assert.Equal(view == WorkView.Barebones ? Presence.Overflow : Presence.Direct, WorkViewPolicy.Resolve("tagging.help", view));
         }
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.toolbar.clear-done", WorkView.Barebones));
-        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.toolbar.clear-done", WorkView.Simple));
-        Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.toolbar.clear", WorkView.Simple));
-        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.toolbar.clear", WorkView.Advanced));
+        // TQ2: the destructive queue actions stand under "More" in every view, not beside "Add…".
+        foreach (WorkView view in WorkViewSetting.All)
+        {
+            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.toolbar.clear-done", view));
+            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.toolbar.clear", view));
+        }
         // The footer button: Barebones keeps the page under More, Simple and Advanced show it directly (like Media).
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("shell.footer.tagging", WorkView.Barebones));
         Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("shell.footer.tagging", WorkView.Simple));
@@ -263,7 +266,7 @@ public sealed class TaggingPageTests : IDisposable
             Assert.Equal(new[] { TagQueueState.Done, TagQueueState.Done, TagQueueState.Open, TagQueueState.Open }, host.GetTagQueue()!.Items.Select(item => item.State));
             Assert.Equal("Marked as finished: 2.", work.Status);
             Assert.Equal("Open: 2 · Finished: 2 · Skipped: 0", TaggingQueueView.ProgressText(work.Queue));
-            Assert.Equal("Continue at 3 of 4", TaggingQueueView.StartLabel(work.Queue));
+            Assert.Equal("Continue tagging (no. 3)", TaggingQueueView.StartLabel(work.Queue));
             // Marking what already has the state is no change and no write.
             long revision = work.Queue.Revision;
             Assert.False(await work.SetStatesAsync(new[] { Item(1).Key }, TagQueueState.Done));
@@ -276,7 +279,7 @@ public sealed class TaggingPageTests : IDisposable
             Assert.False(await work.MoveAsync(Item(1).Key, TaggingQueueFilter.All, -1));
             Assert.True(await work.SetCursorAsync(2));
             Assert.Equal(2, host.GetTagQueue()!.Cursor);
-            Assert.Equal("Continue at 3 of 4", TaggingQueueView.StartLabel(work.Queue));
+            Assert.Equal("Continue tagging (no. 3)", TaggingQueueView.StartLabel(work.Queue));
 
             Assert.True(await work.ClearFinishedAsync());
             Assert.Equal(new[] { "asset-4", "asset-3" }, host.GetTagQueue()!.Items.Select(item => item.AssetId));
