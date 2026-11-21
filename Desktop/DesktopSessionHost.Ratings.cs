@@ -16,6 +16,8 @@ internal sealed partial class DesktopSessionHost
     private IReadOnlyList<MediaRatingEntry>? _ratingEntries;
     private IReadOnlyDictionary<FavoriteAssetKey, int>? _ratingValues;
     private Exception? _ratingLoadError;
+    private IReadOnlyDictionary<FavoriteAssetKey, string>? _labelValues;
+    private IReadOnlyList<MediaLabelEntry>? _labelEntries;
 
     private Exception? _ratingReadError;
 
@@ -33,6 +35,49 @@ internal sealed partial class DesktopSessionHost
         if (values == null) throw new InvalidDataException("Ratings are unavailable: " + _ratingReadError?.Message, _ratingReadError);
         return values.TryGetValue(key, out int value) ? value : null;
     }
+    /// <summary>The colour label (red, yellow, green, blue) of a media identity, or null; throws like <see cref="GetMediaRating"/> when the store is unavailable.</summary>
+    internal string? GetMediaLabel(FavoriteAssetKey key)
+    {
+        MediaRatingStore.ValidateKey(key);
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        IReadOnlyDictionary<FavoriteAssetKey, string>? values = Volatile.Read(ref _labelValues);
+        if (values == null) throw new InvalidDataException("Ratings are unavailable: " + _ratingReadError?.Message, _ratingReadError);
+        return values.TryGetValue(key, out string? value) ? value : null;
+    }
+    internal IReadOnlyList<MediaLabelEntry> GetMediaLabels()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        // One snapshot instance per change, so the media page's SameSourcesAs sees "unchanged" for an untouched store.
+        return Volatile.Read(ref _labelEntries) ?? throw new InvalidDataException("Ratings are unavailable: " + _ratingReadError?.Message, _ratingReadError);
+    }
+    internal Task<MediaLabelCommit> SetMediaLabelAsync(FavoriteAssetKey key, string? color, CancellationToken token = default)
+        => RunInteractiveAsync(nameof(SetMediaLabelAsync), key.ToString(), () => SetMediaLabelAdmittedCoreAsync(key, color, token));
+
+    private async Task<MediaLabelCommit> SetMediaLabelAdmittedCoreAsync(FavoriteAssetKey key, string? color, CancellationToken token)
+    {
+        await _commands.WaitAsync(token).ConfigureAwait(false);
+        try
+        {
+            EnsureReady();
+            MediaLabelCommit commit;
+            lock (_ratingsSync)
+            {
+                LoadMediaRatingsIfNeeded();
+                commit = _ratingsStore!.SetLabel(key, color, token);
+                if (commit.Changed) PublishMediaLabels(_ratingsStore.ListLabels());
+            }
+            if (commit.Changed) SignalChanged();
+            return commit;
+        }
+        finally { _commands.Release(); }
+    }
+    private void PublishMediaLabels(IEnumerable<MediaLabelEntry> entries)
+    {
+        var snapshot = Array.AsReadOnly(entries.ToArray());
+        Volatile.Write(ref _labelEntries, snapshot);
+        Volatile.Write(ref _labelValues, snapshot.ToDictionary(entry => entry.Key, entry => entry.Color));
+    }
+
     internal Task<MediaRatingCommit> SetMediaRatingAsync(FavoriteAssetKey key, int? value, CancellationToken token = default)
         => RunInteractiveAsync(nameof(SetMediaRatingAsync), key.ToString(), () => SetMediaRatingAdmittedCoreAsync(key, value, token));
 
@@ -77,6 +122,7 @@ internal sealed partial class DesktopSessionHost
             LoadMediaRatingsIfNeeded();
             _ratingsStore!.RemoveThreads(ids);
             PublishMediaRatings(_ratingEntries!.Where(entry => !ids.Contains(entry.Key.Thread)).ToArray());
+            PublishMediaLabels(_ratingsStore.ListLabels());
         }
     }
     internal Task RetryMediaRatingCleanupAsync(IReadOnlyCollection<ResourceId> frozenIds, CancellationToken token = default)
@@ -100,6 +146,7 @@ internal sealed partial class DesktopSessionHost
         {
             _ratingsStore = new(_profileLease.ProfileDirectory, _profileLease);
             PublishMediaRatings(_ratingsStore.List());
+            PublishMediaLabels(_ratingsStore.ListLabels());
         }
         catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException or ArgumentException)
         { _ratingLoadError = error; throw; }

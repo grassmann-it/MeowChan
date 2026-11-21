@@ -169,7 +169,10 @@ public partial class MainWindow
         IReadOnlyList<Ratings.MediaRatingEntry>? ratings;
         try { ratings = _session.GetMediaRatings(); }
         catch (InvalidDataException) { ratings = null; }
-        return new MediaLibraryUserData(tags.State == PrivateTagLoadState.Ready ? tags.Snapshot : null, favorites, ratings);
+        IReadOnlyList<Ratings.MediaLabelEntry>? labels;
+        try { labels = _session.GetMediaLabels(); }
+        catch (InvalidDataException) { labels = null; }
+        return new MediaLibraryUserData(tags.State == PrivateTagLoadState.Ready ? tags.Snapshot : null, favorites, ratings, labels);
     }
 
     private async Task OpenMediaLibraryGalleryAsync(IReadOnlyList<MediaLibraryEntry> window, int start, Func<bool>? current = null)
@@ -289,6 +292,9 @@ public partial class MainWindow
                 case "media.rating.set-3": await RateMediaPageEntryAsync(entry, 3); break;
                 case "media.rating.set-4": await RateMediaPageEntryAsync(entry, 4); break;
                 case "media.rating.set-5": await RateMediaPageEntryAsync(entry, 5); break;
+                case "media.label.red": case "media.label.yellow": case "media.label.green": case "media.label.blue":
+                    await SetMediaLabelAsync(entry, id["media.label.".Length..]); break;
+                case "media.label.clear": await SetMediaLabelAsync(entry, null); break;
                 case "media.export-original":
                     await ArchivePage.OpenOriginalExportAsync(new[] { Favorites.FavoriteExportAsset.From(entry.Key.Thread,
                         entry.Manifest, entry.Asset) }, _mediaPage, scopeLabel: CommandCatalog.Label(id));

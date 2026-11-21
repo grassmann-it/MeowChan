@@ -25,6 +25,9 @@ internal sealed record MediaLibraryEntryState(MediaLibraryFlag Favorite, bool Ra
     /// </summary>
     internal IReadOnlyList<PrivateTagDefinition> CarriedTags { get; init; } = Array.Empty<PrivateTagDefinition>();
 
+    /// <summary>The colour label (red, yellow, green, blue) or null; a separate fact, never merged into rating or tags.</summary>
+    internal string? Label { get; init; }
+
     internal static MediaLibraryEntryState Of(MediaLibraryEntry entry, MediaLibraryUserData data)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -40,6 +43,7 @@ internal sealed record MediaLibraryEntryState(MediaLibraryFlag Favorite, bool Ra
         return new MediaLibraryEntryState(favorite, ratingKnown, ratingKnown ? data.RatingOf(entry) : null,
             tags != null, mediaTags.Select(tag => tag.Name.Display).ToArray(), threadTags.Select(tag => tag.Name.Display).ToArray(), target)
         {
+            Label = keyed ? data.LabelOf(entry) : null,
             CarriedTags = mediaTags.Concat(threadTags.Where(tag => !mediaTags.Any(own => own.Id == tag.Id))).ToArray()
         };
     }

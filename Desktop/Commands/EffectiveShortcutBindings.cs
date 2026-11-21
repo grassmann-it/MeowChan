@@ -133,6 +133,8 @@ public sealed class EffectiveShortcutBindings
         // while the bare 0 and 1 of Fit and 1:1 are given up (NumPad0 and NumPad1 stay). The rating ids are listed below since revision 9: a saved binding of another
         // command on a digit wins over the new default.
         ["gallery.fit"] = 24,
+        // Revision 24: the colour labels on the bare digits 6 to 9 (Lightroom); like every new default they yield to a saved binding of another command.
+        ["media.label.red"] = 24, ["media.label.yellow"] = 24, ["media.label.green"] = 24, ["media.label.blue"] = 24,
         ["gallery.open"] = 23,
         ["video.volume-up"] = 22, ["video.volume-down"] = 22,
         // (favorites.add and favorites.remove: revision 1, now listed with revision 20 below.)
@@ -689,6 +691,8 @@ public sealed class EffectiveShortcutBindings
         // Ctrl+O is one gesture with two readings: the folder of the selected thread (archive, downloads) and, in the media
         // page and the gallery, the folder of the shown medium (media.show-in-folder). Neither claims the other's page.
         if (id == "location.open-folder") return new[] { "archive", "dialog", "downloads" };
+        // The colour labels (keys 6 to 9) run where the rating digits run, except in the reader (not wired there yet).
+        if (id.StartsWith("media.label.", StringComparison.Ordinal)) return new[] { "media", "gallery" };
         if (id == "media.rating.clear" || id.StartsWith("media.rating.set-", StringComparison.Ordinal))
             return new[] { "media", "reader", "gallery" };
         if (id.StartsWith("navigation.") || id is "session.pause" or "window.fullscreen" or "input.focus-url" or "viewer.shortcut-help" or "workspace.view-cycle") return new[] { "shell" };

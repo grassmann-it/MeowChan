@@ -200,6 +200,14 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             router.RegisterOwned(new("media.rating.set-" + value, owner, () => owner.IsEffectivelyVisible, Ready,
                 () => RequestRating(selected), Priority: 200));
         }
+        // Colour labels (6 to 9): the same medium and gate as the rating keys; "Remove label" has no default key.
+        foreach (string color in MeowChan.Ratings.MediaLabelColors.All)
+        {
+            string chosen = color;
+            router.RegisterOwned(new(MediaLabelText.CommandId(color), owner, () => owner.IsEffectivelyVisible, Ready,
+                () => RequestLabel(chosen), Priority: 200));
+        }
+        router.RegisterOwned(new("media.label.clear", owner, () => owner.IsEffectivelyVisible, Ready, () => RequestLabel(null), Priority: 200));
         return router;
     }
     private int? _ratingValue;
@@ -208,11 +216,30 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     // A write is under way: the stars of the Post row stay enabled (the focus must not be lost under a keyboard user) and ignore clicks.
     private bool _ratingPending;
     private readonly TextBlock _ratingStatus = new() { Name = "GalleryRatingStatus", TextWrapping = TextWrapping.Wrap };
+    private string? _labelColor;
+    /// <summary>The shown medium's colour label (red, yellow, green, blue) or null; named in the info line beside the rating, never a colour alone.</summary>
+    internal void SetLabel(string? color)
+    {
+        if (_labelColor == color) return;
+        _labelColor = color;
+        if (!string.IsNullOrEmpty(_ratingStatus.Text) || color != null) UpdateRatingStatusText();
+    }
+    internal event Action<GalleryEntry, string?>? LabelSetRequested;
+    private void RequestLabel(string? color)
+    {
+        if (_entry == null) return;
+        LabelSetRequested?.Invoke(_entry, color);
+    }
+    private void UpdateRatingStatusText()
+    {
+        string text = MediaRatingText.Label + ": " + MediaRatingText.Value(_ratingValue);
+        _ratingStatus.Text = _labelColor == null ? text : text + " · " + MediaLabelText.Name(_labelColor);
+    }
     internal void SetRating(int? value, string? error, bool available = true, bool pending = false)
     {
         bool changedError = _ratingError != error;
         _ratingValue = value; _ratingError = error; _ratingAvailable = available; _ratingPending = pending;
-        _ratingStatus.Text = MediaRatingText.Label + ": " + MediaRatingText.Value(value);
+        UpdateRatingStatusText();
         if (changedError) ReportDiagnostic("rating", error);
         ApplyChrome();
         RefreshDecisionRow(); // the Tags panel's row shows the same rating
@@ -1240,7 +1267,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ResetMediaTags(); // A new medium's tags are unknown until the owner reports them.
         _favoriteKnown = _favoritePending = _favoriteSelected = false;
         UpdateFavorite();
-        _ratingValue = null; _ratingError = null; _ratingAvailable = false; _ratingPending = false;
+        _ratingValue = null; _ratingError = null; _ratingAvailable = false; _ratingPending = false; _labelColor = null;
         _ratingStatus.Text = string.Empty; ClearRatingSaved();
         _status.Text = Texts.T("gallery.loading"); _quality.Text = string.Empty; UpdateContext();
         await gifRetired;

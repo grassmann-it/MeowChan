@@ -28,7 +28,8 @@ internal static class MediaLibraryBadges
             TagCount: carried > 0 ? carried : row.IsUntagged ? 0 : null,
             Queued: queued,
             Missing: row.Entry.Presence == MediaLibraryPresence.Missing,
-            Booru: row.IsProviderMedium);
+            Booru: row.IsProviderMedium,
+            Label: row.State?.Label);
     }
 
     /// <summary>

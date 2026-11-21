@@ -29,6 +29,24 @@ public partial class MainWindow
         catch (Exception error) { _ratingErrors[key] = error.Message; throw; }
         finally { _ratingChanges.Remove(key); if (!_isClosing) RefreshGalleryRating(); }
     }
+    // The colour label of a medium (keys 6 to 9): written like a rating, then the gallery's info line and the media page's tiles follow.
+    private async Task SetMediaLabelAsync(GalleryEntry entry, string? color)
+    {
+        if (_isClosing) return;
+        try
+        {
+            await _session.SetMediaLabelAsync(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset), color);
+            if (_isClosing) return;
+            RefreshGalleryRating();
+            _mediaPage?.RefreshUserData();
+        }
+        catch (Exception error) when (error is not OperationCanceledException and not OutOfMemoryException)
+        {
+            if (!_isClosing) ShowNotification(Texts.T("notification.error"), MediaRatingText.FormatError(MediaRatingText.Catalog("media.rating.error.save"), error.Message),
+                NotificationType.Error, operation: "media.label");
+        }
+    }
+    private Task SetGalleryLabelAsync(GalleryEntry entry, string? color) => SetMediaLabelAsync(entry, color);
     private async Task SetGalleryRatingAsync(GalleryEntry entry, int? value)
     {
         FavoriteAssetKey key = FavoriteAssetKey.From(entry.Key.Thread, entry.Asset);
@@ -56,6 +74,7 @@ public partial class MainWindow
         bool pending = _ratingChanges.Contains(key);
         try { _gallery.SetRating(_session.GetMediaRating(key), _ratingErrors.GetValueOrDefault(key), available: !pending, pending: pending); }
         catch (Exception error) { _gallery.SetRating(null, error.Message, available: false); }
+        try { _gallery.SetLabel(_session.GetMediaLabel(key)); } catch (Exception error) when (error is System.IO.InvalidDataException or ObjectDisposedException) { _gallery.SetLabel(null); }
     }
     // The media page's rating menu (the stars, "Remove rating" and R): the dialog used to show a failed write, so it is a notification now.
     private async Task RateMediaPageEntryAsync(GalleryEntry entry, int? value)

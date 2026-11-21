@@ -255,10 +255,13 @@ internal sealed class MediaLibraryUserData
     private readonly Dictionary<LocalMediaTagTarget, HashSet<Guid>>? _localTags;
     private readonly HashSet<FavoriteAssetKey>? _favorites;
     private readonly Dictionary<FavoriteAssetKey, int>? _ratings;
+    private readonly Dictionary<FavoriteAssetKey, string>? _labels;
 
     internal MediaLibraryUserData(PrivateTagStoreSnapshot? tags, IReadOnlyList<FavoriteEntry>? favorites,
-        IReadOnlyList<MediaRatingEntry>? ratings)
+        IReadOnlyList<MediaRatingEntry>? ratings, IReadOnlyList<MediaLabelEntry>? labels = null)
     {
+        LabelSource = labels;
+        if (labels != null) _labels = labels.ToDictionary(entry => entry.Key, entry => entry.Color);
         TagSnapshot = tags;
         FavoriteSource = favorites;
         RatingSource = ratings;
@@ -289,6 +292,11 @@ internal sealed class MediaLibraryUserData
     internal PrivateTagStoreSnapshot? TagSnapshot { get; }
     internal IReadOnlyList<FavoriteEntry>? FavoriteSource { get; }
     internal IReadOnlyList<MediaRatingEntry>? RatingSource { get; }
+    internal IReadOnlyList<MediaLabelEntry>? LabelSource { get; }
+
+    /// <summary>The colour label of the occurrence, or null (also when labels are unavailable: a label is only shown, never filtered by).</summary>
+    internal string? LabelOf(MediaLibraryEntry entry) =>
+        _labels != null && MediaLibraryFilterEngine.AssetKey(entry) is { } key && _labels.TryGetValue(key, out string? value) ? value : null;
 
     /// <summary>
     /// What <see cref="TagsOf"/>, <see cref="TagCountOf"/> and <see cref="LacksMediaTags"/> were built from (the tag store's snapshot; null: tags
@@ -298,7 +306,8 @@ internal sealed class MediaLibraryUserData
 
     /// <summary>True when both views were built from the very same store states.</summary>
     internal bool SameSourcesAs(MediaLibraryUserData? other) => other != null && ReferenceEquals(TagSnapshot, other.TagSnapshot)
-        && ReferenceEquals(FavoriteSource, other.FavoriteSource) && ReferenceEquals(RatingSource, other.RatingSource);
+        && ReferenceEquals(FavoriteSource, other.FavoriteSource) && ReferenceEquals(RatingSource, other.RatingSource)
+        && ReferenceEquals(LabelSource, other.LabelSource);
 
     /// <summary>
     /// Own tags of the occurrence (its bound version, or its registered local revision) plus the tags of its thread.
