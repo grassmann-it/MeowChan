@@ -21,19 +21,42 @@ internal static class BooruMediaIdentity
     internal static string Source => DanbooruPostReference.ProviderId;
     internal const string Board = BooruOriginalQueue.PostsBoardCode;
 
-    internal static ResourceId Thread(string postId) => new(Source, Board, postId);
+    // A reserved board segment for provider posts, separate from plugin-owned chan boards.
+    private const string ScopedBoardPrefix = "booru:";
+
+    internal static ResourceId Thread(string postId) => Thread(BooruPostKey.FromLegacy(Source, postId));
+
+    internal static ResourceId Thread(BooruPostKey identity) =>
+        new(identity.SourceId, identity.IsLegacyDanbooru ? Board : ScopedBoardPrefix + identity.InstanceId, identity.PostId);
 
     /// <summary>The media identifier the queue gave the original: the manifest record must carry exactly this.</summary>
     internal static string MediaIdentifier(string postId) => $"booru-{Source}-{postId}";
 
     internal static bool IsBooruThread(ResourceId? thread) =>
-        thread is { Thread: { } post } && thread.Source == Source && thread.Board == Board && DanbooruPostReference.IsValidPostId(post);
+        TryGetPostKey(thread, out _);
 
     internal static bool TryGetPostId(ResourceId? thread, out string postId)
     {
         postId = thread?.Thread ?? string.Empty;
-        return IsBooruThread(thread);
+        return TryGetPostKey(thread, out BooruPostKey identity) && identity.IsLegacyDanbooru;
     }
+
+    internal static bool TryGetPostKey(ResourceId? thread, out BooruPostKey identity)
+    {
+        identity = default;
+        if (thread is not { Thread: { } post, Board: { } board }) return false;
+        string? instance = board.StartsWith(ScopedBoardPrefix, StringComparison.Ordinal)
+            ? board[ScopedBoardPrefix.Length..]
+            : thread.Source == Source && board == Board ? BooruPostKey.DefaultInstance : null;
+        if (instance is null) return false;
+        identity = new BooruPostKey(thread.Source, instance, post);
+        return identity.IsValid && Thread(identity) == thread;
+    }
+
+    internal static Uri? PostUrl(BooruPostKey identity, string? stored) =>
+        identity.IsLegacyDanbooru ? PostUrl(identity.PostId, stored)
+        : Uri.TryCreate(stored, UriKind.Absolute, out Uri? url) && url.Scheme == Uri.UriSchemeHttps
+            && url.UserInfo.Length == 0 && url.IsDefaultPort && url.Fragment.Length == 0 ? url : null;
 
     /// <summary>
     /// The page of the post at the provider. A stored provider URL is only used when it is the strict canonical
@@ -79,7 +102,7 @@ internal sealed record BooruMediaFinding(BooruFindingKind Kind, string? WatcherI
 /// category, and are never private MeowChan tags.
 /// </summary>
 internal sealed record BooruMediaDetails(
-    string PostId, Uri PostUrl, string? LocalAssetId,
+    string PostId, Uri? PostUrl, string? LocalAssetId,
     bool RatingKnown, BooruPostClaimRating Rating, string? RawRating,
     int? Score, int? FavoriteCount, DateTimeOffset? CreatedAtUtc,
     bool IsDeleted, bool IsBanned, string? SourceClaim,
@@ -120,7 +143,8 @@ internal static class BooruMediaProjection
             if (claim.Media.FirstOrDefault(media => media.Role == role) is { } other)
                 variants.Add(new(role, BooruMediaVariantState.ProviderClaimOnly, other.Extension, other.ExpectedSize, other.Width, other.Height));
 
-        Dictionary<string, BooruWatcherRecord> byId = watchers.ToDictionary(watcher => watcher.WatcherId, StringComparer.Ordinal);
+        Dictionary<string, BooruWatcherRecord> byId = watchers.Where(watcher => watcher.SourceId == record.SourceId)
+            .ToDictionary(watcher => watcher.WatcherId, StringComparer.Ordinal);
         BooruMediaFinding[] findings = record.Findings.OrderBy(finding => finding.FoundAtUtc).ThenBy(finding => finding.FindingId, StringComparer.Ordinal)
             .Select(finding =>
             {
@@ -134,7 +158,7 @@ internal static class BooruMediaProjection
 
         BooruPostClaimTag[] tags = claim.Tags.OrderBy(tag => Array.IndexOf(CategoryOrder, tag.Category))
             .ThenBy(tag => tag.Name, StringComparer.Ordinal).ToArray();
-        return new BooruMediaDetails(record.PostId, BooruMediaIdentity.PostUrl(record.PostId, claim.PostUrl), record.LocalAssetId,
+        return new BooruMediaDetails(record.PostId, BooruMediaIdentity.PostUrl(record.Identity, claim.PostUrl), record.LocalAssetId,
             Has(BooruPostClaimPresence.Rating) && claim.Rating != BooruPostClaimRating.Unknown, claim.Rating, claim.RawRating,
             Has(BooruPostClaimPresence.Score) ? claim.Score : null, Has(BooruPostClaimPresence.FavoriteCount) ? claim.FavoriteCount : null,
             Has(BooruPostClaimPresence.CreatedAt) ? claim.CreatedAtUtc : null,
@@ -145,9 +169,12 @@ internal static class BooruMediaProjection
 
     /// <summary>Details of one post by id, or null when the catalog no longer holds it.</summary>
     internal static BooruMediaDetails? Find(BooruCatalogSnapshot catalog, string postId, bool localFilePresent = true)
+        => Find(catalog, BooruPostKey.FromLegacy(BooruMediaIdentity.Source, postId), localFilePresent);
+
+    internal static BooruMediaDetails? Find(BooruCatalogSnapshot catalog, BooruPostKey identity, bool localFilePresent = true)
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        BooruPostRecord? record = catalog.TryGetPost(BooruMediaIdentity.Source, postId);
+        BooruPostRecord? record = catalog.TryGetPost(identity);
         return record == null ? null : Describe(record, catalog.Watchers, localFilePresent);
     }
 
@@ -183,28 +210,31 @@ internal static class BooruMediaProjection
         ArgumentNullException.ThrowIfNull(catalog);
         ArgumentNullException.ThrowIfNull(manifests);
         Dictionary<string, MediaLibraryManifestState> priorManifests = new(StringComparer.Ordinal);
-        Dictionary<string, MediaLibraryEntry> priorEntries = new(StringComparer.Ordinal);
+        Dictionary<BooruPostKey, MediaLibraryEntry> priorEntries = new();
         if (previous != null && manifests.UsesIdentity)
         {
             foreach (MediaLibraryManifestState state in previous.ProviderManifests) priorManifests.TryAdd(state.Directory, state);
             foreach (MediaLibraryEntry entry in previous.Entries)
-                if (entry.BooruPostId is { } id) priorEntries.TryAdd(id, entry);
+                if (entry.BooruIdentity is { } id) priorEntries.TryAdd(id, entry);
         }
         List<MediaLibraryEntry> entries = new();
         Dictionary<string, MediaLibraryManifestState> states = new(StringComparer.Ordinal);
         int unreadable = 0;
-        foreach (BooruPostRecord record in catalog.Posts.Where(post => post.Identity.IsLegacyDanbooru && post.LocalAssetId != null)
-            .OrderBy(post => post, Comparer<BooruPostRecord>.Create((left, right) => DanbooruPostReference.ComparePostIds(left.PostId, right.PostId))))
+        foreach (BooruPostRecord record in catalog.Posts.Where(post => post.LocalAssetId != null)
+            .OrderBy(post => post.SourceId, StringComparer.Ordinal)
+            .ThenBy(post => post.Identity.InstanceId, StringComparer.Ordinal)
+            .ThenBy(post => post, Comparer<BooruPostRecord>.Create((left, right) => left.Identity.IsLegacyDanbooru
+                ? DanbooruPostReference.ComparePostIds(left.PostId, right.PostId) : string.CompareOrdinal(left.PostId, right.PostId))))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (!DanbooruPostReference.IsValidPostId(record.PostId)) continue;
+            if (!record.Identity.IsValid) continue;
             MediaAssetReference? asset = null;
             MediaAssetSnapshot? manifest = null;
             string? directory = DirectoryOf(record);
             if (directory != null)
             {
                 if (priorManifests.TryGetValue(directory, out MediaLibraryManifestState? prior) && prior is { Generation: not null, Identity: { } identity }
-                    && priorEntries.TryGetValue(record.PostId, out MediaLibraryEntry? kept)
+                    && priorEntries.TryGetValue(record.Identity, out MediaLibraryEntry? kept)
                     && kept is { Presence: MediaLibraryPresence.Present, LocalSlot: not null } && kept.Directory == directory && kept.AssetId == record.LocalAssetId
                     && manifests.Probe(directory) == identity)
                 {
@@ -222,7 +252,7 @@ internal static class BooruMediaProjection
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
                 catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { unreadable++; }
                 if (manifest is { Status: MediaManifestStatus.Available }
-                    && manifest.FindById(record.LocalAssetId!) is { } found && IsTheOriginalOf(found, record.PostId)) asset = found;
+                    && manifest.FindById(record.LocalAssetId!) is { } found && IsTheOriginalOf(found, record.Identity)) asset = found;
             }
             entries.Add(EntryOf(record, directory, asset));
         }
@@ -230,18 +260,18 @@ internal static class BooruMediaProjection
     }
 
     // The manifest record must be exactly the original the queue saved for this post, not any file in that folder.
-    internal static bool IsTheOriginalOf(MediaAssetReference asset, string postId) =>
-        asset.Variant == BooruOriginalDownloadPlan.Variant && asset.MediaIdentifier == BooruMediaIdentity.MediaIdentifier(postId);
+    internal static bool IsTheOriginalOf(MediaAssetReference asset, BooruPostKey identity) =>
+        asset.Variant == BooruOriginalDownloadPlan.Variant && asset.MediaIdentifier == BooruMediaKey.Original(identity).StorageId;
 
     private static MediaLibraryEntry EntryOf(BooruPostRecord record, string? directory, MediaAssetReference? asset)
     {
         string postId = record.PostId;
-        ResourceId thread = BooruMediaIdentity.Thread(postId);
-        string title = "Danbooru #" + postId;
+        ResourceId thread = BooruMediaIdentity.Thread(record.Identity);
+        string title = (record.SourceId == BooruMediaIdentity.Source ? "Danbooru" : record.SourceId) + " #" + postId;
         string? localName = record.LocalPath == null ? null : Path.GetFileName(record.LocalPath);
         if (asset == null || directory == null)
             return new MediaLibraryEntry(thread, title, 0, record.FirstSeenAtUtc, record.LastSeenAtUtc, null, null, null, null, null,
-                null, null, null, null, BooruMediaIdentity.MediaIdentifier(postId), BooruOriginalDownloadPlan.Variant, localName,
+                null, null, null, null, record.OriginalIdentity.StorageId, BooruOriginalDownloadPlan.Variant, localName,
                 SavedMediaTypes.Classify(localName ?? string.Empty), MediaLibraryPresence.Missing, false, false) { BooruPostId = postId };
         string name = asset.OriginalFileName ?? Path.GetFileName(asset.Path);
         return new MediaLibraryEntry(thread, title, 0, record.FirstSeenAtUtc, record.LastSeenAtUtc, null, null, null, null, null,
@@ -263,22 +293,22 @@ internal static class BooruMediaGallery
     {
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(openManifest);
-        if (entry.BooruPostId is not { } postId || catalog == null || entry.Presence != MediaLibraryPresence.Present
+        if (entry.BooruIdentity is not { } identity || catalog == null || entry.Presence != MediaLibraryPresence.Present
             || entry.Directory == null || entry.AssetId == null) return null;
-        BooruPostRecord? record = catalog.TryGetPost(BooruMediaIdentity.Source, postId);
+        BooruPostRecord? record = catalog.TryGetPost(identity);
         if (record == null || record.LocalAssetId != entry.AssetId
             || !string.Equals(BooruMediaProjection.DirectoryOf(record), entry.Directory, StringComparison.Ordinal)) return null;
         MediaAssetSnapshot manifest;
         try { manifest = await openManifest(entry.Directory, cancellationToken).ConfigureAwait(false); }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException) { return null; }
         if (manifest.Status != MediaManifestStatus.Available || manifest.FindById(entry.AssetId) is not { } asset
-            || !BooruMediaProjection.IsTheOriginalOf(asset, postId)
+            || !BooruMediaProjection.IsTheOriginalOf(asset, identity)
             || !string.Equals(asset.Sha256, entry.Sha256, StringComparison.OrdinalIgnoreCase) || asset.Length != entry.Length
             || asset.IsCurrent == entry.Historical) return null;
         return new GalleryEntry(new GalleryAssetKey(entry.Thread, manifest.Directory, asset.AssetId), manifest, asset, null, null,
             !asset.IsCurrent, true)
         {
-            ThreadUrl = BooruMediaIdentity.PostUrl(postId, record.Post.PostUrl).AbsoluteUri,
+            ThreadUrl = BooruMediaIdentity.PostUrl(identity, record.Post.PostUrl)?.AbsoluteUri,
             // The saved original is a loose file of this post: its exact manifest slot is its private tag locator. The provider's
             // own tags stay in the Booru catalog; equal bytes saved for another post are another occurrence.
             LocalTagEligible = true

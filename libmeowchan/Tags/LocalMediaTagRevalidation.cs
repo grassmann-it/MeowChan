@@ -136,8 +136,8 @@ internal static class LocalMediaTagRevalidation
         {
             token.ThrowIfCancellationRequested();
             LocalMediaObservation observation = observations[index];
-            BooruMediaIdentity.TryGetPostId(observation.Locator.Thread, out string postId);
-            BooruPostRecord? record = catalog.TryGetPost(BooruMediaIdentity.Source, postId);
+            BooruMediaIdentity.TryGetPostKey(observation.Locator.Thread, out BooruPostKey identity);
+            BooruPostRecord? record = catalog.TryGetPost(identity);
             if (record == null || record.LocalAssetId != observation.AssetId
                 || !string.Equals(BooruMediaProjection.DirectoryOf(record), observation.Locator.Directory, StringComparison.Ordinal))
             { results[index] = LocalMediaCheck.Missing; continue; }
@@ -147,7 +147,7 @@ internal static class LocalMediaTagRevalidation
             if (manifest.Status == MediaManifestStatus.Corrupt) continue;
             if (manifest.Status != MediaManifestStatus.Available || manifest.FindById(observation.AssetId) is not { } asset)
             { results[index] = LocalMediaCheck.Missing; continue; }
-            if (asset.RequestedFileName != observation.Locator.RequestedFileName || !BooruMediaProjection.IsTheOriginalOf(asset, postId))
+            if (asset.RequestedFileName != observation.Locator.RequestedFileName || !BooruMediaProjection.IsTheOriginalOf(asset, identity))
             { results[index] = LocalMediaCheck.NotLoose; continue; }
             if (asset.Length != observation.Length || !string.Equals(asset.Sha256, observation.Sha256, StringComparison.OrdinalIgnoreCase))
             { results[index] = LocalMediaCheck.Changed; continue; }

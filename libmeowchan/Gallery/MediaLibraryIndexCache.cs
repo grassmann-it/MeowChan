@@ -120,7 +120,7 @@ internal static class MediaLibraryIndexCache
             if (entry == null) return null;
             // A downloaded provider post is no archived thread: its identity must be exactly the one its post id names,
             // and it never carries a post binding (a present one names its loose slot; an older cache without it is rebuilt on use).
-            if (entry.BooruPostId is { } postId && (!DanbooruPostReference.IsValidPostId(postId) || entry.Thread != BooruMediaIdentity.Thread(postId)
+            if (entry.BooruPostId != null && (entry.BooruIdentity is null
                 || entry.PostId != null || entry.AttachmentRevisionKey != null || entry.Position != null)) return null;
             // An imported file is no archived thread either: its batch identity is the borrowed thread, it never carries a
             // post binding, and a present one always names its loose slot.

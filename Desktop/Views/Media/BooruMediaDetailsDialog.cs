@@ -135,17 +135,18 @@ internal sealed class BooruMediaDetailsDialog : Window
     private Control PostRow(BooruMediaDetails details)
     {
         TextBlock where = new() { Name = "BooruPostLine", Text = Texts.T("booru.media.detail.post", details.PostId), TextWrapping = TextWrapping.Wrap };
+        if (details.PostUrl is not { } postUrl) return where;
         Button open = new() { Name = "BooruOpenPost", Content = Texts.T("booru.media.openPost") };
         Button copy = new() { Name = "BooruCopyPost", Content = Texts.T("booru.media.copyPost") };
         MeowChan.Desktop.Commands.CommandBindings.ShowIconBeforeText(open, "external-link");
         MeowChan.Desktop.Commands.CommandBindings.ShowIconBeforeText(copy, "copy");
-        ToolTip.SetTip(open, details.PostUrl.AbsoluteUri);
-        ToolTip.SetTip(copy, details.PostUrl.AbsoluteUri);
-        AutomationProperties.SetHelpText(open, details.PostUrl.AbsoluteUri);
-        AutomationProperties.SetHelpText(copy, details.PostUrl.AbsoluteUri);
+        ToolTip.SetTip(open, postUrl.AbsoluteUri);
+        ToolTip.SetTip(copy, postUrl.AbsoluteUri);
+        AutomationProperties.SetHelpText(open, postUrl.AbsoluteUri);
+        AutomationProperties.SetHelpText(copy, postUrl.AbsoluteUri);
         _initialFocus = open;
-        open.Click += async (_, _) => await RunAsync(() => _open(details.PostUrl), null, "booru.media.openFailed");
-        copy.Click += async (_, _) => await RunAsync(() => _copy(details.PostUrl), "booru.media.copied", "booru.media.copyFailed");
+        open.Click += async (_, _) => await RunAsync(() => _open(postUrl), null, "booru.media.openFailed");
+        copy.Click += async (_, _) => await RunAsync(() => _copy(postUrl), "booru.media.copied", "booru.media.copyFailed");
         WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8, Children = { open, copy } };
         return new StackPanel { Name = "BooruPostRow", Spacing = 8, Children = { where, actions } };
     }

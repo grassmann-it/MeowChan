@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
@@ -27,7 +28,7 @@ public partial class MainWindow
     private void ConfigureBooruMediaLinks(BooruWorkbenchView view)
     {
         view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);
-        view.IsPostSavedInMedia = IsSavedBooruPost;
+        view.IsPostSavedInMedia = postId => IsSavedBooruPost(ViewPostKey(view, postId));
         view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
         view.NewSearchTarget = () => _session.Config.BooruNewSearchTarget;
         view.SearchTabsLimit = () => _session.Config.BooruSearchTabs;
@@ -59,9 +60,7 @@ public partial class MainWindow
     /// <summary>Exact local catalog admission for a saved Danbooru original; pending/other-source records do not qualify.</summary>
     internal static bool CatalogHasSavedBooruPost(BooruCatalogSnapshot? catalog, string postId)
     {
-        ResourceId thread = BooruMediaIdentity.Thread(postId);
-        return BooruMediaIdentity.IsBooruThread(thread)
-            && catalog?.TryGetPost(BooruMediaIdentity.Source, postId) is { LocalAssetId: { Length: > 0 } };
+        return CatalogHasSavedBooruPost(catalog, BooruPostKey.FromLegacy(DanbooruPostReference.ProviderId, postId));
     }
 
     // The passive button-visibility probe may fail closed, but an invoked navigation must
@@ -69,9 +68,18 @@ public partial class MainWindow
     internal static bool CatalogHasSavedBooruPostForNavigation(Func<BooruCatalogSnapshot?> readCatalog, string postId) =>
         CatalogHasSavedBooruPost(readCatalog() ?? throw new InvalidOperationException("The local Booru catalog is unavailable."), postId);
 
-    private bool IsSavedBooruPost(string postId)
+    private static bool CatalogHasSavedBooruPost(BooruCatalogSnapshot? catalog, BooruPostKey identity) =>
+        identity.IsValid && catalog?.TryGetPost(identity) is { LocalAssetId.Length: > 0 };
+
+    private static BooruPostKey ViewPostKey(BooruWorkbenchView origin, string postId)
     {
-        if (_isClosing || !CatalogHasSavedBooruPost(SafeReadBooruCatalog(), postId)) return false;
+        BooruSearchView view = origin.Model.Search.View;
+        return new(view.ProviderId, view.InstanceId, postId);
+    }
+
+    private bool IsSavedBooruPost(BooruPostKey identity)
+    {
+        if (_isClosing || !CatalogHasSavedBooruPost(SafeReadBooruCatalog(), identity)) return false;
         // LocalAssetId is the catalog's durable saved-original link. The media page performs the second,
         // manifest-backed Presence check when the action is invoked, so a stale link is reported honestly.
         return true;
@@ -91,13 +99,17 @@ public partial class MainWindow
         if (!CanOpenBooru || _mediaPage is not { } page || _booruPage is not { } sourcePage
             || !ReferenceEquals(sourcePage.View, origin)) return Cancelled();
         // Only an admitted, current click may report that its saved original is missing.
-        if (!CatalogHasSavedBooruPostForNavigation(_session.ReadBooruCatalog, postId)) return false;
+        BooruPostKey identity = ViewPostKey(origin, postId);
+        BooruCatalogSnapshot catalog = _session.ReadBooruCatalog()
+            ?? throw new InvalidOperationException("The local Booru catalog is unavailable.");
+        if (!CatalogHasSavedBooruPost(catalog, identity)) return false;
         BooruWorkbenchServices services = sourcePage.Services;
         if (!ReferenceEquals(_session.BooruServices, services) || !NavigateWorkspace(WorkspacePage.Media)) return Cancelled();
         Func<bool> navigationCurrent = CaptureMediaPageMenuGuard();
         Func<bool> interactionCurrent = page.CaptureBooruHandoffInteraction();
         bool Current() => navigationCurrent() && CanOpenBooru
-            && ReferenceEquals(_booruPage, sourcePage) && ReferenceEquals(_session.BooruServices, services);
+            && ReferenceEquals(_booruPage, sourcePage) && ReferenceEquals(_session.BooruServices, services)
+            && ViewPostKey(origin, postId) == identity;
         // This is a local page-to-page handoff. If navigation or source composition changes
         // while Media activates, the old click must not reset the user's new filters or focus.
         try
@@ -106,7 +118,7 @@ public partial class MainWindow
             await page.ActivateAsync().ConfigureAwait(true);
             // User edits win even when the old workbench remains alive behind the Media page.
             if (!Current() || !interactionCurrent()) return Cancelled();
-            bool shown = await page.ShowBooruPostAsync(postId, Current, cancelNotice).ConfigureAwait(true);
+            bool shown = await page.ShowBooruPostAsync(identity, Current, cancelNotice).ConfigureAwait(true);
             if (!Current() || !interactionCurrent()) return Cancelled();
             return shown;
         }
