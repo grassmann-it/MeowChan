@@ -23,7 +23,8 @@ public sealed class BooruCatalogCompatibilityTests
         Assert.Equal(keys.Length, keys.Distinct(StringComparer.Ordinal).Count());
         string[] required = BooruText.RequiredKeys().ToArray();
         Assert.Equal(required.Length, required.Distinct(StringComparer.Ordinal).Count());
-        Assert.Empty(required.Except(keys));
+        string[] statusKeys = BooruStatusCatalog.Entries.Select(entry => entry.Key).ToArray();
+        Assert.Empty(required.Except(keys).Except(statusKeys));
         // booru.ui.command.open is requested by the command catalog, not by a window text.
         Assert.Empty(keys.Except(required).Where(key => key != "booru.ui.command.open"));
     }
