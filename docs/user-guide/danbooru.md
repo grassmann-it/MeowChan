@@ -5,8 +5,8 @@ schreibgeschützte Quelle**. Die Oberfläche zeigt Treffer und Provider-Metadate
 ein Original kommt erst durch **Original laden** oder einen anderen ausdrücklichen
 Downloadauftrag in die normale MeowChan-Downloadwarteschlange. Das Markieren eines
 Treffers allein startet keinen Download. Es gibt keine Provider-Anmeldung und keine
-Provider-Credentials in MeowChan. Die beschriebene 1.1.0-Entwicklungslinie ist noch
-nicht als fertiges Release abgenommen.
+Provider-Credentials in MeowChan. Für Änderungen an Tabs, gespeicherten Suchen und
+Galerie siehe die [deutschen Release Notes für 1.1.1](../releases/v1.1.1.md#deutsch).
 
 Das Danbooru-Plugin muss unter **Plugins → Alle Plugins** aktiviert und
 für das Profil verfügbar sein. Die Standard-Fußleiste zeigt **keinen** Booru-Knopf.
