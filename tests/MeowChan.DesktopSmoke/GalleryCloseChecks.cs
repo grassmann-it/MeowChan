@@ -234,7 +234,7 @@ internal static class GalleryCloseChecks
         await Program.WaitUntilAsync(() => !host.IsVisible && window.ArchivePage.CurrentThread?.Summary.Id == id);
         await window.GalleryCleanupTask;
         Require(IsNativeFullscreen(window), "Reader suspension changed the shell fullscreen state.");
-        await ObserveFullscreenPresentationAsync(window, host, "reader-suspended", immersive: false);
+        await ObserveFullscreenPresentationAsync(window, host, "reader-suspended", immersive: true);
         Click(window.ArchivePage.FindControl<Button>("ArchiveGalleryReturn")!);
         await Program.WaitUntilAsync(() => host.IsVisible);
         Require(ReferenceEquals(host.Content, viewer), "Gallery return replaced its media viewer.");
@@ -253,7 +253,7 @@ internal static class GalleryCloseChecks
         await ObserveFullscreenPresentationAsync(window, host, "f11-entered", immersive: true);
         Click(ButtonFor(viewer, "GalleryClose"));
         Require(!host.IsVisible && IsNativeFullscreen(window), "Closing the gallery changed shell fullscreen state.");
-        await ObserveFullscreenPresentationAsync(window, host, "gallery-closed", immersive: false);
+        await ObserveFullscreenPresentationAsync(window, host, "gallery-closed", immersive: true);
         await window.OpenGalleryAsync(id);
         await Program.WaitUntilAsync(() => host.IsVisible && host.Content is GalleryViewer);
         viewer = (GalleryViewer)host.Content!;

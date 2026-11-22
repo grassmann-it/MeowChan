@@ -97,7 +97,7 @@ internal sealed class BooruHostSearchAdapter : IBooruSearchPort
     public string ProviderId { get; }
     public string ProviderName { get; }
 
-    public async Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken)
+    public async Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken)
     {
         using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
         if (operation == null) return Unavailable<BooruResultPage>();
@@ -109,7 +109,7 @@ internal sealed class BooruHostSearchAdapter : IBooruSearchPort
             cancellationToken.ThrowIfCancellationRequested();
             if (!operation.IsCurrent) return Unavailable<BooruResultPage>();
             if (worker is null) return BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Unavailable, "no-worker");
-            if (!operation.TryStart(() => _service.SearchAsync(worker, ProviderId, canonicalQuery, page, operation.Token),
+            if (!operation.TryStart(() => _service.SearchAsync(worker, ProviderId, canonicalQuery, page, limit, operation.Token),
                 out Task<BooruSearchResult> pending))
                 return Unavailable<BooruResultPage>();
             BooruSearchResult result = await pending.ConfigureAwait(false);

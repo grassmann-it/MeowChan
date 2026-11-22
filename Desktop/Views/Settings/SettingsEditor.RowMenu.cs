@@ -111,6 +111,8 @@ public partial class SettingsEditor
             Choice(BooruNewSearchTargetInput, () => SelectedBooruNewSearchTarget?.Value,
                 value => SelectedBooruNewSearchTarget = Choice(BooruSearchTargetChoices, value), config => config.BooruNewSearchTarget),
             Flag(RestoreBooruSearchTabsInput, () => RestoreBooruSearchTabs, value => RestoreBooruSearchTabs = value, config => config.RestoreBooruSearchTabs),
+            Number(BooruSearchPagesInput, () => BooruSearchPages, value => BooruSearchPages = value, config => config.BooruSearchPages),
+            Number(BooruSearchPostsPerPageInput, () => BooruSearchPostsPerPage, value => BooruSearchPostsPerPage = value, config => config.BooruSearchPostsPerPage),
             Number(BooruSavedTabsInput, () => BooruSavedTabs, value => BooruSavedTabs = value, config => config.BooruSavedTabs),
             Number(BooruSavedResultsPerTabInput, () => BooruSavedResultsPerTab, value => BooruSavedResultsPerTab = value, config => config.BooruSavedResultsPerTab),
             Number(BooruSearchTabsInput, () => BooruSearchTabs, value => BooruSearchTabs = value, config => config.BooruSearchTabs),

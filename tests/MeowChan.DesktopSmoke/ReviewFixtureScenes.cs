@@ -221,8 +221,13 @@ internal static class ReviewFixtureScenes
         if (page == MainWindow.WorkspacePage.Tagging)
         {
             await Program.WaitUntilAsync(() => w.TaggingPage is { IsBusy: false });
-            w.TaggingPage!.RestoreStampBlock(surface == "tagging-stamp" ? TaggingStampBlockState.Open : TaggingStampBlockState.Closed);
-            if (surface == "tagging-stamp" && !w.TaggingPage.StampOpen) throw new InvalidOperationException("Stamp block not open");
+            TaggingPage tagging = w.TaggingPage!;
+            if (surface == "tagging-stamp")
+            {
+                tagging.StampButton.Flyout!.ShowAt(tagging.StampButton);
+                if (!tagging.StampOpen) throw new InvalidOperationException("Stamp editor not open");
+            }
+            else tagging.CloseStamp();
         }
     }
     private static void Click(Button b) => b.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

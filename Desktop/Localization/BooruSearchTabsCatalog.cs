@@ -1,14 +1,15 @@
 namespace MeowChan.Desktop.Localization;
 
 /// <summary>
-/// EN/DE texts of the Danbooru search tabs, of "Download all of this search" and of the setting that limits the tabs. The counts of the
-/// bulk result are labels (not sentences with a counted noun), so no plural forms are needed.
+/// EN/DE texts for the Danbooru search tabs, watcher shortcut, bulk download and tab settings.
 /// </summary>
 internal static class BooruSearchTabsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("booru.tabs.watchers", "Watchers", "Suchbeobachtungen"),
+        ("booru.tabs.watchersTip", "Open the Watchers tab. {0} active watchers.", "Tab für Suchbeobachtungen öffnen. {0} aktive Suchbeobachtungen."),
+        ("booru.tabs.watchersTip.one", "Open the Watchers tab. {0} active watcher.", "Tab für Suchbeobachtungen öffnen. {0} aktive Suchbeobachtung."),
         ("booru.tabs.searchNew", "Search in new tab", "In neuem Tab suchen"),
         ("booru.tabs.searchCurrent", "Search in current tab", "Im aktuellen Tab suchen"),
         ("booru.tabs.searchNewShort", "In new tab", "In neuem Tab"),
@@ -34,17 +35,21 @@ internal static class BooruSearchTabsCatalog
         ("booru.tabs.restore.load", "Search to load", "Suchen zum Laden"),
         ("settings.booru.restoreSearchTabs", "Restore Booru searches on startup", "Booru-Suchen beim Start wiederherstellen"),
         ("settings.booru.restoreSearchTabs.hint", "Save search tabs and results in this profile and reopen them on startup. Turning this off keeps the last saved copy.", "Speichert Such-Tabs und Ergebnisse in diesem Profil und öffnet sie beim Start wieder. Beim Ausschalten bleibt die letzte gespeicherte Kopie erhalten."),
+        ("settings.booru.searchPages", "Booru search page limit", "Seitenlimit für Booru-Suchen"),
+        ("settings.booru.searchPages.hint", "Maximum number of pages for each new search and its downloads.", "Höchstzahl der Seiten für jede neue Suche und ihre Downloads."),
+        ("settings.booru.searchPostsPerPage", "Booru posts per page", "Booru-Posts je Seite"),
+        ("settings.booru.searchPostsPerPage.hint", "Number of posts requested per page for each new search and its downloads.", "Angefragte Postzahl je Seite für jede neue Suche und ihre Downloads."),
         ("settings.limits.booruSavedTabs", "Booru saved search tabs", "Gespeicherte Booru-Such-Tabs"),
         ("settings.limits.booruSavedTabs.hint", "Maximum number of search tabs to save, including the permanent Search tab.", "Höchstzahl der gespeicherten Such-Tabs einschließlich des festen Such-Tabs."),
         ("settings.limits.booruSavedResultsPerTab", "Booru saved results per tab", "Gespeicherte Booru-Ergebnisse je Tab"),
         ("settings.limits.booruSavedResultsPerTab.hint", "Maximum number of results to save per search tab. Set to 0 to save the searches without results.", "Höchstzahl der gespeicherten Ergebnisse je Such-Tab. Bei 0 werden nur die Suchen gespeichert."),
         ("booru.bulk.button", "Download all of this search", "Alles aus dieser Suche laden"),
         ("booru.bulk.stop", "Stop collecting", "Sammeln beenden"),
-        ("booru.bulk.hint", "Fetches the existing results of the shown search and queues each original, up to the source's page limit (pages {0}, posts per page {1}). The watcher only takes new posts.", "Holt die vorhandenen Ergebnisse der angezeigten Suche und reiht jedes Original ein, höchstens bis zum Seitenlimit der Quelle (Seiten {0}, Posts je Seite {1}). Die Suchbeobachtung übernimmt nur neue Posts."),
+        ("booru.bulk.hint", "Fetches the results of the shown search and queues each original (page limit: {0}, posts per page: {1}). The watcher only takes new posts.", "Holt die Ergebnisse der angezeigten Suche und reiht jedes Original ein (Seitenlimit: {0}, Posts je Seite: {1}). Die Suchbeobachtung übernimmt nur neue Posts."),
         ("booru.bulk.needsSearch", "Run a tag search first; this fetches the results of the search that is shown.", "Führe zuerst eine Tag-Suche aus; geladen werden die Ergebnisse der angezeigten Suche."),
         ("booru.bulk.running", "Collecting results of “{0}”: pages read {1} of at most {2}, posts found {3}, queued {4}.", "Ergebnisse von „{0}“ werden gesammelt: gelesene Seiten {1} von höchstens {2}, gefundene Posts {3}, eingereiht {4}."),
         ("booru.bulk.result", "Download all of “{0}”: posts found {1}, pages read {2} of at most {3}. Queued {4}, already queued {5}, already saved {6}, no original offered {7}, failed {8}.", "Alles aus „{0}“: gefundene Posts {1}, gelesene Seiten {2} von höchstens {3}. Eingereiht {4}, schon in der Warteschlange {5}, schon gespeichert {6}, ohne angebotenes Original {7}, fehlgeschlagen {8}."),
-        ("booru.bulk.endLimit", "The source's page limit was reached; the search may have more results that cannot be listed.", "Das Seitenlimit der Quelle wurde erreicht; die Suche kann weitere Ergebnisse haben, die sich nicht auflisten lassen."),
+        ("booru.bulk.endLimit", "The page limit was reached. The search may have more results.", "Das Seitenlimit wurde erreicht. Die Suche kann weitere Ergebnisse haben."),
         ("booru.bulk.endEnd", "The source reported no further results after these.", "Die Quelle meldete nach diesen keine weiteren Ergebnisse."),
         ("booru.bulk.endBlocked", "The source stopped answering (pause, rate limit, offline or an error); the rest was not listed. Try again later.", "Die Quelle antwortete nicht mehr (Pause, Ratenlimit, offline oder Fehler); der Rest wurde nicht aufgelistet. Versuche es später erneut."),
         ("booru.bulk.endCanceled", "Stopped by you; the rest was not listed. What was queued stays queued.", "Von dir beendet; der Rest wurde nicht aufgelistet. Was eingereiht wurde, bleibt in der Warteschlange."),

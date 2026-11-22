@@ -2,11 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.Booru;
@@ -20,6 +19,13 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruWorkbenchView
 {
     private readonly BooruGalleryPanel _gallery = new();
+    private readonly ScrollViewer _resultScroll = new()
+    {
+        Name = "BooruResultScroll", HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto, IsTabStop = false
+    };
+    private readonly StackPanel _resultsArea = new() { Spacing = 8 };
+    private readonly StackPanel _bottomBar = new() { Spacing = 8 };
     private string? _cursorPostId;
     private BooruResultView _galleryReturn = BooruResultView.List;
 
@@ -39,13 +45,7 @@ internal sealed partial class BooruWorkbenchView
     private void InitializeGallery()
     {
         _gallery.Samples = () => _model.Search.Samples;
-        _gallery.SampleLimitBytes = () => Math.Clamp(GallerySampleMiB?.Invoke() ?? MeowChan.Config.BooruGallerySampleMiBDefault,
-            MeowChan.Config.BooruGallerySampleMiBMinimum, MeowChan.Config.BooruGallerySampleMiBMaximum) * 1024 * 1024;
-        _gallery.CacheBytes = () => Math.Clamp(GalleryCacheMiB?.Invoke() ?? MeowChan.Config.BooruGalleryCacheMiBDefault,
-            MeowChan.Config.BooruGalleryCacheMiBMinimum, MeowChan.Config.BooruGalleryCacheMiBMaximum) * 1024L * 1024;
-        _gallery.MaximumPixels = () => GalleryMaximumPixels?.Invoke() ?? Config.BooruGalleryMaximumPixelsDefault;
-        _gallery.MaximumWidth = () => GalleryMaximumWidth?.Invoke() ?? Config.BooruGalleryMaximumWidthDefault;
-        _gallery.TimeoutSeconds = () => GalleryTimeoutSeconds?.Invoke() ?? Config.BooruGalleryTimeoutSecondsDefault;
+        _gallery.SampleSettings = ReadGallerySampleSettings;
         _gallery.IsSelected = postId => _selectedResults.Contains(postId);
         _gallery.SelectionToggled = postId =>
         {
@@ -62,8 +62,17 @@ internal sealed partial class BooruWorkbenchView
         };
         _gallery.OpenWindowRequested = postId => OpenResultViewer(postId);
         _gallery.LeaveRequested = LeaveGallery;
-        SizeChanged += (_, _) => UpdateGalleryStageHeight();
+        _resultScroll.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == ScrollViewer.ViewportProperty) UpdateGalleryStageHeight();
+        };
+        _gallery.SizeChanged += (_, _) => UpdateGalleryStageHeight();
+        _bottomBar.SizeChanged += (_, _) => UpdateGalleryStageHeight();
     }
+
+    private BooruGallerySampleLimits ReadGallerySampleSettings() => BooruGallerySampleLimits.FromSettings(
+        GallerySampleMiB?.Invoke(), GalleryCacheMiB?.Invoke(), GalleryMaximumPixels?.Invoke(), GalleryMaximumWidth?.Invoke(),
+        GalleryTimeoutSeconds?.Invoke());
 
     private async Task DownloadOriginalAsync(string postId)
     {
@@ -73,15 +82,13 @@ internal sealed partial class BooruWorkbenchView
         else if (row.CanLoad) await _model.Search.LoadOriginalAsync(postId);
     }
 
-    /// <summary>The stage fills most of the window below the controls of the page (never less than its minimum).</summary>
+    /// <summary>Use the measured room after the gallery controls and pager, including any wrapped translations.</summary>
     private void UpdateGalleryStageHeight()
     {
-        if (TopLevel.GetTopLevel(this) is not { } top) return;
-        _gallery.StageHeight = top.ClientSize.Height - GalleryReservedHeight;
+        if (_resultView != BooruResultView.Gallery || !ReferenceEquals(_gallery.Parent, _results)) return;
+        double galleryChrome = _gallery.Bounds.Height - _gallery.Stage.Bounds.Height;
+        _gallery.StageHeight = _resultScroll.Viewport.Height - galleryChrome - _bottomBar.Bounds.Height - _resultsArea.Spacing;
     }
-
-    /// <summary>What the page keeps for its own controls above and below the stage, in dip (title, search row, view bar, gallery bar, status, pager).</summary>
-    private const double GalleryReservedHeight = 420;
 
     // ---- cursor ---------------------------------------------------------------------------------------------
 
@@ -130,7 +137,6 @@ internal sealed partial class BooruWorkbenchView
     internal bool OpenGallery(string postId)
     {
         if (_closed || !_model.Search.View.Rows.Any(row => row.Post.PostId == postId)) return false;
-        if (_resultView != BooruResultView.Gallery) _galleryReturn = _resultView;
         _cursorPostId = postId;
         SetResultView(BooruResultView.Gallery, save: false);
         ShowInGallery(_model.Search.View, requestSample: true);
@@ -140,7 +146,9 @@ internal sealed partial class BooruWorkbenchView
     private void LeaveGallery()
     {
         if (_closed || _resultView != BooruResultView.Gallery) return;
-        SetResultView(_galleryReturn == BooruResultView.Gallery ? BooruResultView.List : _galleryReturn, save: false);
+        bool focusWasInResults = _results.IsKeyboardFocusWithin;
+        SetResultView(_galleryReturn, save: false);
+        if (!focusWasInResults && _cursorPostId is { } id) FocusHit(id);
     }
 
     /// <summary>The post the gallery shows: the cursor when it is on this page, else the first hit (the cursor follows).</summary>
@@ -159,7 +167,7 @@ internal sealed partial class BooruWorkbenchView
     {
         _tiles = null;
         if (!ReferenceEquals(_gallery.Parent, _results) || _results.Children.Count != 1)
-            RebuildPanel(_results, () => new List<Control> { _gallery }, fallback: () => null);
+            RebuildPanel(_results, () => new List<Control> { _gallery }, preserveFocus: false);
         UpdateGalleryStageHeight();
         ShowInGallery(view);
     }
@@ -167,5 +175,23 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Another view than the gallery is shown: the gallery lets go of its pictures and cancels a sample that is still loading.</summary>
     private void ReleaseGallery() => _gallery.Release();
 
-    private void FocusGalleryStage() => Dispatcher.UIThread.Post(() => { if (!_closed) _gallery.FocusStage(); }, DispatcherPriority.Loaded);
+    private void FocusGalleryStage()
+    {
+        if (!_closed && _resultView == BooruResultView.Gallery && _gallery.CurrentPostId is not null
+            && IsSearchItem(_tabs.SelectedItem) && _gallery.IsEffectivelyVisible) _gallery.FocusStage();
+    }
+
+    private async Task ChangePageAsync(int delta)
+    {
+        BooruSearchModel search = _model.Search;
+        int tab = SearchTabs.ActiveId;
+        BooruSearchView before = search.View;
+        int page = before.Page + delta;
+        await search.GoToPageAsync(page);
+        BooruSearchView after = search.View;
+        if (_closed || SearchTabs.ActiveId != tab || after.Page != page || after.ExecutedQuery != before.ExecutedQuery
+            || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty || _input.IsKeyboardFocusWithin) return;
+        Render(force: false);
+        FocusGalleryStage();
+    }
 }

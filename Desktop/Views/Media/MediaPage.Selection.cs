@@ -79,6 +79,11 @@ public sealed partial class MediaPage
         _selectionRow.Children.Add(_selectionReason);
         _selectionRow.SizeChanged += (_, e) => { if (e.WidthChanged) FitSelectionLine(); };
         _selectionActions.SizeChanged += (_, _) => FitSelectionLine();
+        CommandBindings.EnsureIconBeforeText(_selQueue, CommandCatalog.Get("media.queue.add").Icon);
+        CommandBindings.EnsureIconBeforeText(_selTag, CommandCatalog.Get("tagging.tag-together").Icon);
+        CommandBindings.EnsureIconBeforeText(_selGallery, CommandCatalog.Get("gallery.open").Icon);
+        CommandBindings.EnsureIconBeforeText(_selExport, CommandCatalog.Get("media.export-original").Icon);
+        CommandBindings.EnsureIconBeforeText(_selClear, "x");
         _selTag.Click += async (_, _) => await TagSelectionAsync();
         _selGallery.Click += (_, _) => OpenActions.Start(OpenSelectionGalleryAsync, "media.selection.gallery");
         _selExport.Click += async (_, _) => await ExportSelectionAsync();

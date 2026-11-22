@@ -24,7 +24,7 @@ internal enum ContextMenuEntryKind
 internal sealed record ContextMenuEntry(ContextMenuEntryKind Kind, string Id, string Label, string? CommandId, string? Group,
     bool Checked, bool Available, string? Reason, Action? Invoke, bool ShowShortcut = true,
     Func<bool>? Availability = null, Func<string?>? ReasonFactory = null, Func<string>? LabelFactory = null,
-    IReadOnlyList<IReadOnlyList<ContextMenuEntry>>? Children = null, string? Icon = null);
+    IReadOnlyList<IReadOnlyList<ContextMenuEntry>>? Children = null, string? Icon = null, bool Dangerous = false, string? KeyContext = null);
 
 /// <summary>
 /// A composed context menu: sections of entries (a separator sits between two sections). Pure data, so what a menu offers can be

@@ -21,6 +21,6 @@ public partial class ArchivePage
         sidebar.Padding = archiveView ? default : new Thickness(16, 0, 16, 0);
         // Inset the header from the top and give its controls room at the archive pane edges.
         double horizontalInset = archiveView ? 8 : 0;
-        sidebar.HeaderRow.Margin = new Thickness(horizontalInset, 8, horizontalInset, 0);
+        sidebar.HeaderRow.Margin = new Thickness(horizontalInset, 8 + ReaderMediaSidebar.HeaderTopInset, horizontalInset, 0);
     }
 }

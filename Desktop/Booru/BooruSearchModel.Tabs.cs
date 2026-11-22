@@ -37,7 +37,8 @@ internal sealed partial class BooruSearchModel
             BooruInput.Parse(mode, input), status, target.Query, target.PostId, target.Page, target.IsEnd, rows,
             null, bound ? null : BooruCodes.SourceUnavailable, null, InstanceId: target.Instance,
             NeedsLoad: status == BooruSearchStatus.Idle
-                && (!string.IsNullOrWhiteSpace(input) || target.Query is not null || target.PostId is not null));
+                && (!string.IsNullOrWhiteSpace(input) || target.Query is not null || target.PostId is not null))
+        { PagerLimits = new(target.MaximumPage, target.PostsPerPage) };
     }
 
     private static bool IsValidCachedPost(BooruPost post, BooruSearchTabTarget target, SourceDescription? source)

@@ -1,5 +1,12 @@
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.WorkViews;
@@ -8,6 +15,7 @@ using Ursa.Controls;
 namespace MeowChan.DesktopTests;
 
 /// <summary>WV3 (plan AP5 §1.5): the reader rows of <see cref="WorkViewPolicy"/> and their registration in ArchivePage.axaml.</summary>
+[Collection("Localization")]
 public sealed class ReaderWorkViewTests
 {
     private static readonly XNamespace A = "https://github.com/avaloniaui";
@@ -34,7 +42,7 @@ public sealed class ReaderWorkViewTests
             Assert.Equal("True", (string?)bar.Attribute("PrioritizedOverflow"));
             XElement[] items = Items(bar);
             Assert.NotEmpty(items);
-            foreach (XElement item in items)
+            foreach (XElement item in items.SelectMany(item => item.Name.LocalName == "SidebarToggleGroup" ? item.Elements() : [item]))
             {
                 string label = name + "/" + (string?)item.Attribute(X + "Name");
                 string id = Id(item) ?? throw new Xunit.Sdk.XunitException(label + " has no wv:WorkViewElement.Id.");
@@ -46,10 +54,63 @@ public sealed class ReaderWorkViewTests
         XNamespace toolbarNamespace = readerToolbar.Name.Namespace;
         XElement[] toolbar = Items(readerToolbar);
         XElement[] viewGroup = toolbar.Where(item => (bool?)item.Attribute(toolbarNamespace + "ActionToolBar.End") == true).ToArray();
-        Assert.Equal(new[] { "reader.toolbar.thread-list", "reader.toolbar.fullscreen", "reader.toolbar.media-sidebar" }, viewGroup.Select(Id));
+        Assert.Equal(new[] { "reader.toolbar.unread-return", "reader.toolbar.history-back", "reader.toolbar.fullscreen", null }, viewGroup.Select(Id));
+        Assert.Equal(new[] { "reader.toolbar.thread-list", "reader.toolbar.media-sidebar" }, viewGroup[^1].Elements().Select(Id));
         Assert.Equal(viewGroup, toolbar.TakeLast(viewGroup.Length));
         Assert.NotNull(Assert.Single(viewGroup.Select(item => (int?)item.Attribute(toolbarNamespace + "ActionToolBar.Group")).Distinct()));
     }
+
+    [Fact]
+    public void OnlyTheSidebarGroupSetsAnInitialOverflowMode()
+    {
+        // The containing group owns placement. It stays on the toolbar and gives up its labels before either switch.
+        XElement group = Assert.Single(ReaderBars.SelectMany(name => Items(Bar(name)))
+            .Where(item => item.Attributes().Any(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode")));
+        Assert.Equal("SidebarToggleGroup", group.Name.LocalName);
+        Assert.Equal("Never", group.Attributes().Single(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode").Value);
+        Assert.All(group.Elements(), segment => Assert.All(WorkViewSetting.All,
+            view => Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(Id(segment)!, view))));
+    }
+
+    [Fact]
+    public void ArchiveToolbarMediaHeaderWrapsBelowItsActionsAtNarrowWidths() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Texts.Initialize();
+        ReaderMediaSidebar sidebar = new();
+        sidebar.Describe("No. 22486939", "wide-example-file-1234567890.jpg", "500 KiB · 2001×3000",
+            canOpen: true, postLinkTip: "Copy post reference", threadPosition: "3 of 37");
+        sidebar.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
+        Window window = new() { Content = sidebar, Width = 820, Height = 480, Classes = { MotionPolicy.OffClass } };
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            Control header = sidebar.HeaderRow;
+            Control number = header.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarPostLink");
+            TextBlock details = header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarHeader");
+            TextBlock counter = header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarThreadPosition");
+            Point At(Control item) => item.TranslatePoint(default, header)!.Value;
+
+            Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
+            Assert.DoesNotContain(header.GetVisualDescendants().OfType<TextBlock>(), text => text.Classes.Contains("section-title"));
+            Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, header.Bounds.Height);
+            Assert.Equal(0, At(number).X);
+            Assert.InRange(Math.Abs(At(details).Y + details.Bounds.Height / 2 - At(counter).Y - counter.Bounds.Height / 2), 0, 1);
+            Assert.True(At(counter).X > At(details).X);
+            Assert.True(At(sidebar.Open).X > At(sidebar.FavoriteButton).X);
+            double singleLineHeight = details.Bounds.Height;
+
+            BooruReviewTestPlatform.Resize(window, 272);
+            Assert.Equal(0, At(number).X);
+            Assert.True(At(details).Y > At(sidebar.Open).Y);
+            Assert.True(details.Bounds.Height > singleLineHeight);
+            Assert.InRange(header.Bounds.Height, ReaderMediaSidebar.HeaderLineHeight, 2 * ReaderMediaSidebar.HeaderLineHeight + 8);
+            Assert.True(At(sidebar.Open).X + sidebar.Open.Bounds.Width <= header.Bounds.Width);
+            Assert.Contains("2001×3000", details.Text);
+        }
+        finally { window.Close(); }
+    });
 
     // Every reader row backed by a control is registered exactly once in the page (orphan check of the work-views smoke, statically).
     [Fact]
@@ -88,14 +149,13 @@ public sealed class ReaderWorkViewTests
         [
             ("reader.toolbar.gallery", Presence.Direct, Presence.Direct, Presence.Direct),
             ("reader.toolbar.read", Presence.Direct, Presence.Direct, Presence.Direct),
-            ("reader.toolbar.media-sidebar", Presence.Direct, Presence.Direct, Presence.Direct),
-            ("reader.toolbar.thread-list", Presence.Direct, Presence.Direct, Presence.Direct),
+            ("reader.toolbar.media-sidebar", Presence.Required, Presence.Required, Presence.Required),
+            ("reader.toolbar.thread-list", Presence.Required, Presence.Required, Presence.Required),
             ("reader.toolbar.find", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.tags", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.settings", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.export", Presence.Overflow, Presence.Direct, Presence.Direct),
-            // Review 15.11.: full screen ends the bar and overflows only when it does not fit; Barebones keeps it under More.
-            ("reader.toolbar.fullscreen", Presence.Overflow, Presence.Direct, Presence.Direct),
+            ("reader.toolbar.fullscreen", Presence.Required, Presence.Required, Presence.Required),
             ("reader.toolbar.thread", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.sort", Presence.Direct, Presence.Direct, Presence.Direct),
             ("reader.media.layout-tiles", Presence.Overflow, Presence.Direct, Presence.Direct),
@@ -127,7 +187,7 @@ public sealed class ReaderWorkViewTests
     }
 
     // The single declarative keep-visible order (owner 14.11., RL1 15.11.): OverflowOrder follows it; a narrow window moves the tail first:
-    // full screen (the first to move when the room ends), the rarely used history return, Thread, the settings gear, export, tags, find, thread list, media sidebar, read, gallery.
+    // the rarely used history return, Thread, the settings gear, export, tags, find, read, gallery.
     // Required items are not in it (never move). The post-capture switch left the bar for the Thread menu (R2), so no "capture" tool exists.
     [Fact]
     public void ToolbarKeepVisibleOrderIsTheOverflowOrderAndEndsWithTheRarelyUsedActions()
@@ -140,12 +200,12 @@ public sealed class ReaderWorkViewTests
         Assert.Equal(order, tools.OrderBy(entry => entry.OverflowOrder).Select(entry => entry.Id));
         Assert.All(tools, entry => Assert.True(entry.OverflowOrder > 0, entry.Id));
         int Rank(string id) => order.ToList().IndexOf(id);
-        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.thread-list", "reader.toolbar.find", "reader.toolbar.tags"], order.Take(6));
-        Assert.Equal(["reader.toolbar.export", "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], order.Skip(6));
-        foreach (string later in new[] { "reader.toolbar.fullscreen", "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back" })
+        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags"], order.Take(4));
+        Assert.Equal(["reader.toolbar.export", "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back"], order.Skip(4));
+        foreach (string later in new[] { "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back" })
             Assert.True(Rank("reader.toolbar.export") < Rank(later), later);
         Assert.True(Rank("reader.toolbar.thread") < Rank("reader.toolbar.settings"));
-        Assert.Equal("reader.toolbar.fullscreen", order[^1]);
+        Assert.DoesNotContain("reader.toolbar.fullscreen", order);
         Assert.DoesNotContain("reader.toolbar.view", order);
         Assert.DoesNotContain("reader.toolbar.capture", order);
         // Required tool rows never take part in the width race.
@@ -154,7 +214,7 @@ public sealed class ReaderWorkViewTests
     }
 
     // The width race in Advanced with the bar's visual order and the policy priorities: whenever the room ends before the tail,
-    // export stays and full screen, history, Thread and settings go first (full screen ends the order, so it moves first). The pixel check at 1520 and 1280 is in the work-views
+    // export stays and history, settings and Thread go first. The pixel check at 1520 and 1280 is in the work-views
     // reader smoke; these widths are the English labels measured roughly (icon 16 + gap 5 + text + padding + 8 margin).
     // The way out (close, "Back to …") left the bar for the header row's end slot (Tom's rule 14.11.), so it no longer races.
     private static readonly (string Name, string Id, double Width)[] AdvancedBar =
@@ -185,12 +245,11 @@ public sealed class ReaderWorkViewTests
         string[] moved = MovedAt(available);
         Assert.DoesNotContain("ExportArchiveButton", moved);
         Assert.NotEmpty(moved); // the room really ends before the tail
-        Assert.All(moved, name => Assert.Contains(name, new[] { "ArchiveReaderFullscreen", "ReaderSettingsOpen", "ReaderThreadOpen", "ArchiveHistoryBack" }));
-        Assert.Contains("ArchiveReaderFullscreen", moved);
+        Assert.All(moved, name => Assert.Contains(name, new[] { "ReaderSettingsOpen", "ReaderThreadOpen", "ArchiveHistoryBack" }));
+        Assert.Contains("ArchiveHistoryBack", moved);
     }
 
-    // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar, full screen included: with room to
-    // spare nothing is forced under More (review 15.11.; RL1 had put full screen there in every view, a "More" with a single action).
+    // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar.
     [Fact]
     public void TheWideAdvancedBarKeepsEveryToolOnceTheWayOutLeftIt()
     {
@@ -207,7 +266,7 @@ public sealed class ReaderWorkViewTests
             if (entry.CommandId != null) Assert.Equal(entry.CommandId, CommandCatalog.Get(entry.CommandId).Id);
         }
         // The default-bound tools that Barebones moves under More (their shortcut runs via the WV0 reduced-control route).
-        Assert.Equal(["reader.find", "thread.tags", "export.open-html-dialog", "window.fullscreen"],
+        Assert.Equal(["reader.find", "thread.tags", "export.open-html-dialog"],
             ReaderRows().Where(entry => entry.Barebones == Presence.Overflow && entry.CommandId != null
                 && entry.Id.StartsWith("reader.toolbar.", StringComparison.Ordinal) && CommandCatalog.Get(entry.CommandId).DefaultGestures.Count > 0)
                 .OrderBy(entry => entry.OverflowOrder).Select(entry => entry.CommandId!));

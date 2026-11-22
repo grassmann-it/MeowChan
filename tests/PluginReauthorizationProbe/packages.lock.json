@@ -77,8 +77,8 @@
       "meowchan.pluginhost": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.1.0, )",
-          "libmeowchan": "[1.1.0, )"
+          "MeowChan.PluginSdk": "[1.1.1, )",
+          "libmeowchan": "[1.1.1, )"
         }
       }
     }

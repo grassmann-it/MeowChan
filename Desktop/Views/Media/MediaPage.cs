@@ -1434,7 +1434,7 @@ public sealed partial class MediaPage : UserControl
         LocalizeFocus();
         LocalizeBooruMode();
         LocalizeLayout();
-        LocalizePanelToggle();
+        SyncPanelToggle();
         LocalizePanel();
         LocalizeQueueTools();
         LocalizeWorkView();

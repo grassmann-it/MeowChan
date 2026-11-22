@@ -169,7 +169,7 @@ discarded-task	Desktop/Shell/MainWindow.Resume.cs	8
 discarded-task	Desktop/Shell/MainWindow.Shortcuts.cs	5
 discarded-task	Desktop/Shell/MainWindow.Status.cs	1
 discarded-task	Desktop/Shell/MainWindow.TagQueue.cs	1
-discarded-task	Desktop/Shell/MainWindow.TaggingPage.cs	5
+discarded-task	Desktop/Shell/MainWindow.TaggingPage.cs	4
 discarded-task	Desktop/Shell/MainWindow.ViewPreferences.cs	1
 discarded-task	Desktop/Shell/MainWindow.WorkViewMenu.cs	3
 discarded-task	Desktop/Shell/MainWindow.WorkViewNotice.cs	1
@@ -243,7 +243,5 @@ discarded-task	Desktop/Views/Sources/SourcesPage.ContextMenus.cs	1
 discarded-task	Desktop/Views/Statistics/StatisticsPage.RowMenu.cs	3
 discarded-task	Desktop/Views/Tagging/TaggingPage.Commands.cs	1
 discarded-task	Desktop/Views/Tagging/TaggingPage.EmptyStates.cs	2
-discarded-task	Desktop/Views/Tagging/TaggingPage.Groups.cs	2
-discarded-task	Desktop/Views/Tagging/TaggingPage.Selection.cs	1
 discarded-task	Desktop/Views/Tagging/TaggingQueueController.cs	1
 discarded-task	Desktop/Views/Tagging/TaggingThumbnail.cs	2

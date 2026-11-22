@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
 
@@ -12,7 +13,7 @@ namespace MeowChan.DesktopTests;
 public sealed class MediaPagePanelLayoutTests
 {
     [Fact]
-    public void PanelToggleAppearsOnlyWhenThePanelCanFitRegardlessOfSavedChoice()
+    public void PanelToggleStaysInTheToolbarWhenThePreviewCannotFit()
     {
         using IDisposable platform = AvaloniaTestPlatform.EnterSkia();
         MediaTileEnterTests.Run(fixture =>
@@ -33,14 +34,14 @@ public sealed class MediaPagePanelLayoutTests
             page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
             Layout(900);
             Assert.True(page.PageLayout.Panel);
-            Assert.False(page.PanelToggleButton.IsVisible);
+            Assert.True(page.PanelToggleButton.IsVisible);
             Layout(1300);
             Assert.True(page.PanelToggleButton.IsVisible);
 
             page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
             Layout(900);
             Assert.False(page.PageLayout.Panel);
-            Assert.False(page.PanelToggleButton.IsVisible);
+            Assert.True(page.PanelToggleButton.IsVisible);
             Layout(1300);
             Assert.True(page.PanelToggleButton.IsVisible);
         });
@@ -76,6 +77,7 @@ public sealed class MediaPagePanelLayoutTests
                 }
                 Assert.True(page.IsPanelShown);
                 panel = Assert.IsType<ReaderMediaSidebar>(page.Panel);
+                Assert.IsType<MediaSidebarHeader>(panel.HeaderRow);
                 Assert.Equal(host.Bounds.Height, panel.Bounds.Height);
                 Assert.Equal(0, panel.Bounds.Y);
                 Assert.Equal(host.Bounds.Height, page.PanelHandle.Bounds.Height);
@@ -89,7 +91,8 @@ public sealed class MediaPagePanelLayoutTests
                 Assert.Equal(0, panel.Margin.Bottom);
                 Assert.False(page.IsPanelHeaderLifted);
                 Assert.Equal(32, panel.HeaderRow.Bounds.Height);
-                Assert.Equal(0, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(40, panel.Card.TranslatePoint(default, panel)!.Value.Y);
                 Assert.True(panel.Card.Bounds.Height > 0);
                 Assert.Equal(panel.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y + panel.Card.Bounds.Height);
             }

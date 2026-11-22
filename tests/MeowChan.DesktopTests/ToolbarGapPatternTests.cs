@@ -1,6 +1,16 @@
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
+using Avalonia.Controls.Primitives;
+using Avalonia.Media;
+using Avalonia.Styling;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Motion;
+using Ursa.Controls;
 
 namespace MeowChan.DesktopTests;
 
@@ -9,6 +19,7 @@ namespace MeowChan.DesktopTests;
 /// List/Table toggle as the one joined segment pair, no local margin patches. The look is the toolbar smokes'; here the contract of the
 /// tokens, the XAML and the styles.
 /// </summary>
+[Collection("Avalonia global state")]
 public sealed class ToolbarGapPatternTests
 {
     private static readonly XNamespace X = "http://schemas.microsoft.com/winfx/2006/xaml";
@@ -24,6 +35,13 @@ public sealed class ToolbarGapPatternTests
     private static string? Attribute(XElement element, string localName) =>
         element.Attributes().SingleOrDefault(attribute => attribute.Name.LocalName == localName)?.Value;
 
+    internal static void AssertJoinedToggleClasses(IEnumerable<string> classes, string edge)
+    {
+        Assert.Contains("toolbar-toggle", classes);
+        Assert.Contains("segment", classes);
+        Assert.Equal(edge, Assert.Single(classes, name => name is "segment-first" or "segment-last" or "segment-single"));
+    }
+
     [Fact]
     public void TheBarTokensAreThePanelsGaps()
     {
@@ -33,27 +51,31 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheArchiveResultsBarKeepsPrimaryActionsLeftAndPresentationControlsJoinedOnTheRight()
+    public void TheArchiveResultsBarKeepsPrimaryActionsLeftAndPresentationControlsJoinedOnTheRight() => ReaderMediaSidebarLayoutTests.OnDispatcher(() =>
     {
-        XElement[] items = Items(Toolbar("Desktop/Views/Archive/ArchivePage.axaml", "ArchiveResultActions"));
-        Assert.Equal(["ArchiveResultsGallery", "ArchiveResultsOpenInMedia", "ArchiveFavoritesOverview",
-            "ArchiveResultsExport", "ArchiveSavedSearches", "ArchiveReaderGroups", "ArchiveThreadColumnsButton", "ArchiveLayoutList", "ArchiveLayoutTable"], items.Select(item => (string)item.Attribute(X + "Name")!));
-        Assert.Equal([1, 1, 1, 2, 2, 2, 3, 3, 3], items.Select(item => int.Parse(Attribute(item, "ActionToolBar.Group") ?? "0")));
-        Assert.Equal("segment segment-first", (string?)items[^2].Attribute("Classes"));
-        Assert.Equal("segment segment-last", (string?)items[^1].Attribute("Classes"));
-        foreach (XElement toggle in items.TakeLast(2))
+        ArchivePage page = ReaderMediaSidebarLayoutTests.Page();
+        try
         {
-            Assert.Null(toggle.Attribute("Padding"));
-            Assert.Equal("64", (string?)toggle.Attribute("MinWidth"));
-            Assert.Equal("32", (string?)toggle.Attribute("MinHeight"));
+            ActionToolBar bar = page.FindControl<ActionToolBar>("ArchiveResultActions")!;
+            Control[] items = bar.Items.Cast<Control>().ToArray();
+            Assert.Equal(["ArchiveResultsGallery", "ArchiveResultsOpenInMedia", "ArchiveFavoritesOverview",
+                "ArchiveResultsExport", "ArchiveSavedSearches", "ArchiveReaderGroups", "ArchivePostBookmarks", "ArchiveThreadColumnsButton", "ArchiveLayoutList", "ArchiveLayoutTable"],
+                items.Select(item => item.Name));
+            Assert.Equal([1, 1, 1, 2, 2, 2, 2, 3, 3, 3], items.Select(ActionToolBar.GetGroup));
+            AssertJoinedToggleClasses(items[^2].Classes, "segment-first");
+            AssertJoinedToggleClasses(items[^1].Classes, "segment-last");
+            foreach (Control item in items.TakeLast(2))
+            {
+                ToggleButton toggle = Assert.IsType<ToggleButton>(item);
+                Assert.False(toggle.IsSet(TemplatedControl.PaddingProperty));
+                Assert.Equal(64, toggle.MinWidth);
+                Assert.Equal(32, toggle.MinHeight);
+            }
+            Assert.Equal(["ArchiveThreadColumnsButton", "ArchiveLayoutList", "ArchiveLayoutTable"],
+                items.Where(ActionToolBar.GetEnd).Select(item => item.Name));
         }
-        Assert.Equal(["ArchiveThreadColumnsButton", "ArchiveLayoutList", "ArchiveLayoutTable"],
-            items.Where(item => Attribute(item, "ActionToolBar.End") == "True").Select(item => (string)item.Attribute(X + "Name")!));
-        // Dynamically installed actions stay before presentation controls.
-        Assert.Contains("Items.Insert(ArchiveResultActions.Items.IndexOf(ArchiveThreadColumnsButton), manager)",
-            File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.PostBookmarks.cs")));
-        Assert.Contains("ActionToolBar.SetGroup(manager, 2);", File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.PostBookmarks.cs")));
-    }
+        finally { page.EndLifetime(); }
+    });
 
     [Theory]
     [InlineData("ReaderToolbar")]
@@ -84,18 +106,83 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheFlatItemStylesLeaveTheOutlinedTheJoinedAndThePopupRowsAlone()
+    public void TheFlatItemStylesLeaveTheOutlinedTheJoinedAndThePopupRowsAlone() => BooruComponentDispatcher.Run(() =>
     {
-        string styles = File.ReadAllText(Root("Desktop/WorkspaceStyles.axaml"));
-        const string flat = "ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow)";
-        Assert.Contains(flat + ", ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), Button.bar-flat\">", styles);
-        Assert.Contains(flat + ":pointerover /template/ ContentPresenter#PART_ContentPresenter", styles);
-        Assert.Contains(flat + ":pressed /template/ ContentPresenter#PART_ContentPresenter", styles);
-        Assert.Contains(flat + ":disabled /template/ ContentPresenter#PART_ContentPresenter", styles);
-        Assert.Contains("ursa|ToolBar > SplitButton:not(:in-overflow)\">", styles);
-        // The outlined selection-bar button stays as it was.
-        Assert.Contains("<Style Selector=\"Button.bar-button:not(:in-overflow)\">", styles);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        // Give the workspace hover a distinct color so the native popup theme can be distinguished from it.
+        Application.Current!.Resources["Workspace.Hover"] = Brushes.Magenta;
+        Button plain = new() { Content = "Plain" };
+        Button outlined = new() { Content = "Outlined", Classes = { "bar-button" } };
+        ToggleButton toggle = new() { Content = "Toggle" };
+        ToggleButton toolbarToggle = new() { Content = "Sidebar", Classes = { "toolbar-toggle" }, IsChecked = true };
+        ToggleButton segment = new() { Content = "List", Classes = { "toolbar-toggle", "segment", "segment-first" } };
+        SplitButton split = new() { Content = "Split" };
+        ActionToolBar bar = new() { Items = { plain, outlined, toggle, toolbarToggle, segment, split } };
+        Window window = new() { Width = 1000, Height = 200, Content = bar, RequestedThemeVariant = ThemeVariant.Dark, Classes = { MotionPolicy.OffClass } };
+
+        static ContentPresenter Presenter(Control control) => control.GetVisualDescendants().OfType<ContentPresenter>()
+            .First(presenter => presenter.Name == "PART_ContentPresenter");
+        static Color ColorOf(IBrush? brush) => Assert.IsAssignableFrom<ISolidColorBrush>(brush).Color;
+        static object? Resource(object key)
+        {
+            Assert.True(Application.Current!.TryGetResource(key, ThemeVariant.Dark, out object? resource), $"Missing resource {key}");
+            return resource;
+        }
+        static Color Token(string key) => ColorOf(Assert.IsAssignableFrom<IBrush>(Resource(key)));
+
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(Colors.Transparent, ColorOf(Presenter(plain).Background));
+            Assert.Equal(Colors.Transparent, ColorOf(Presenter(toggle).Background));
+            Assert.Equal(Colors.Transparent, ColorOf(split.Background));
+            Assert.Equal(Token("Workspace.Accent"), ColorOf(Presenter(toolbarToggle).BorderBrush));
+            Assert.Equal(Token("Workspace.ToolbarToggleSurface"), ColorOf(Presenter(toolbarToggle).Background));
+            Assert.True(segment.CornerRadius.TopLeft > 0);
+            Assert.Equal(0, segment.CornerRadius.TopRight);
+            Assert.Equal(0, segment.CornerRadius.BottomRight);
+            ControlTheme outlinedTheme = Assert.IsType<ControlTheme>(Resource(typeof(Button)));
+            Assert.Same(outlinedTheme, outlined.Theme);
+
+            var state = (IPseudoClasses)plain.Classes;
+            state.Set(":pointerover", true);
+            Assert.Equal(Colors.Magenta, ColorOf(Presenter(plain).Background));
+            state.Set(":pointerover", false);
+            state.Set(":pressed", true);
+            Assert.Equal(Token("Workspace.AccentSurface"), ColorOf(Presenter(plain).Background));
+            state.Set(":pressed", false);
+            plain.IsEnabled = false;
+            Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(plain).Foreground));
+            plain.IsEnabled = true;
+
+            toolbarToggle.IsEnabled = false;
+            Assert.Equal(0.75, toolbarToggle.Opacity);
+            Assert.Equal(Colors.Transparent, ColorOf(Presenter(toolbarToggle).Background));
+            Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(toolbarToggle).Foreground));
+
+            var segmentState = (IPseudoClasses)segment.Classes;
+            segmentState.Set(":pressed", true);
+            Assert.Equal(Colors.Magenta, ColorOf(Presenter(segment).Background));
+            segment.IsEnabled = false;
+            Assert.Equal(Colors.Transparent, ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(segment).Foreground));
+            segment.IsChecked = true;
+            Assert.Equal(Token("Workspace.AccentSurface"), ColorOf(Presenter(segment).Background));
+
+            ToolBar.SetOverflowMode(plain, OverflowMode.Always);
+            ToolBar.SetOverflowMode(outlined, OverflowMode.Always);
+            window.UpdateLayout();
+            Assert.Contains(plain, bar.OverflowHost!.Children);
+            Assert.Contains(outlined, bar.OverflowHost.Children);
+            bar.More!.IsChecked = true;
+            Dispatcher.UIThread.RunJobs();
+            Assert.NotSame(outlinedTheme, outlined.Theme);
+            state.Set(":pointerover", true);
+            Assert.NotEqual(Colors.Magenta, ColorOf(Presenter(plain).Background));
+        }
+        finally { window.Close(); }
+    });
 
     [Fact]
     public void TheGalleryModeSwitchUsesTheBarGap()
@@ -104,13 +191,15 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheTaggingSelectionBarStaysOutlinedAndTheQueueActionsShareOneGroup()
+    public void TaggingActionsKeepTheirOutlinesAndGroupManagementStaysInThePageToolbar() => TaggingLayoutRhythmTests.WithPage(page =>
     {
-        Assert.Contains("button.Classes.Add(\"bar-button\");", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs")));
-        string commands = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("new Control[] { _add, _help, _clearDone, _clear }", commands);
+        Assert.All(new[] { page.SelectionTagButton, page.SelectionDoneButton, page.SelectionMoreButton, page.SelectionClearButton },
+            button => Assert.Contains("bar-button", button.Classes));
+        Assert.Equal(new Control[] { page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
+            page.Actions.Items.Cast<Control>());
+        Assert.Equal(OverflowMode.Always, ToolBar.GetOverflowMode(page.GroupManageButton));
         Assert.DoesNotContain("Margin = new Thickness(16", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
-    }
+    });
 
     // ---- UX-LEDGER-01: primary actions left, layout/secondary actions right, one gap token, no empty "…" -------------------------------
 
@@ -152,13 +241,14 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheTaggingBarDocksColumnsViewSwitchAndHelpAtTheRight()
+    public void TheTaggingHeaderEndsWithThePageOverflowThenTheJoinedViewControls() => TaggingLayoutRhythmTests.WithPage(page =>
     {
-        string commands = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("_queueActionRow.TrailingChild = _actions;", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
-        Assert.Contains("_listControls.TrailingChild = _listPresentation;", commands);
-        Assert.Contains("new Control[] { _columnsButton, _viewToggle }", commands);
-    }
+        ActionToolBar presentation = Assert.IsType<ActionToolBar>(page.Header.Children[^1]);
+        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
+        Assert.Same(page.Actions, page.Header.Children[^2]);
+        Assert.Equal(new Control[] { page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
+            page.Actions.Items.Cast<Control>());
+    });
 
     [Fact]
     public void MediaRowsUseTheBarItemGapTokenInsteadOfALocalEight()

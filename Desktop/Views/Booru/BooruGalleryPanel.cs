@@ -3,22 +3,18 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
-using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
-using MeowChan.PluginHost.Http;
 using SkiaSharp;
 
 namespace MeowChan.Desktop.Booru;
@@ -63,8 +59,7 @@ internal static class BooruGalleryStatus
 
 /// <summary>
 /// The third result view of the Danbooru page: one large image of the current page at a time, inside the tab (no window). The frame is a
-/// toolbar, a stage between a left and a right dock, a bottom dock and the status line; the docks are empty now and take the side panels and
-/// the filmstrip later (<see cref="SetDock"/>). Loading is progressive and only for the open post: the preview that Search already fetched is
+/// toolbar, a stage with a source-tag panel and the status line. Loading is progressive and only for the open post: the preview that Search already fetched is
 /// shown at once, then the provider's sample (the reduced-size version) replaces it through <see cref="IBooruSamplePort"/>; moving to another
 /// post cancels the sample that is still loading, and a sample is never fetched for a page ahead. The original is never fetched for display.
 /// </summary>
@@ -72,22 +67,15 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
 {
     internal const string PanelName = "BooruGallery";
 
-    private readonly CancellationTokenSource _lifetime = new();
+    private readonly BooruGallerySampleLoader _sample = new();
     private readonly Image _image = new() { Name = "BooruGalleryImage", Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both };
     private readonly TextBlock _placeholder = new() { Name = "BooruGalleryPlaceholder", Classes = { "workspace-meta" }, TextAlignment = TextAlignment.Center,
         TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _stage = new() { Name = "BooruGalleryStage", Focusable = true, IsTabStop = true, ClipToBounds = true, MinHeight = 320 };
-    private readonly Button _previous = new() { Name = "BooruGalleryPrevious" };
-    private readonly Button _next = new() { Name = "BooruGalleryNext" };
-    private readonly TextBlock _position = new() { Name = "BooruGalleryPosition", Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
-    private readonly CheckBox _select = new() { Name = "BooruGallerySelect", VerticalAlignment = VerticalAlignment.Center,
-        [!MinHeightProperty] = new DynamicResourceExtension(WorkspaceTokens.SizeControl) };
-    private readonly TextBlock _selectionLabel = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _selectionKey = new();
-    private readonly Button _download = new() { Name = "BooruGalleryDownload", Classes = { "primary" } };
-    private readonly Button _openPost = new() { Name = "BooruGalleryOpenPost" };
-    private readonly Button _openWindow = new() { Name = "BooruGalleryOpenWindow" };
-    private readonly Grid _toolbar = new() { Name = "BooruGalleryBar", ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, IsVisible = false };
+    internal const string StageBackground = "Workspace.Raised";
+    private readonly BooruGalleryToolbar _toolbar = new("BooruGallery") { IsVisible = false };
+    private readonly PointerFocusReclaim _toolbarFocus;
+    private readonly BooruGalleryTags _tags = new();
     private readonly TextBlock _status = new() { Name = "BooruGalleryStatus", TextWrapping = TextWrapping.Wrap, Classes = { "workspace-meta" } };
     private readonly ContentControl _left = new() { Name = "BooruGalleryDockLeft", IsVisible = false };
     private readonly ContentControl _right = new() { Name = "BooruGalleryDockRight", IsVisible = false };
@@ -98,12 +86,8 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     private IImage? _previewBitmap;
     private IImage? _sampleBitmap;
     private BooruGalleryPicture _picture;
-    private BooruGallerySampleState _sampleState = BooruGallerySampleState.NotOffered;
-    private Action? _cancelSample;
     private bool _requestSample;
-    private SampleLimits _sampleLimits;
-
-    private readonly record struct SampleLimits(int Bytes, long CacheBytes, int MaximumPixels, int MaximumWidth, int TimeoutSeconds);
+    private bool _samplesSuspended;
     private bool _disposed;
 
     internal BooruGalleryPanel()
@@ -113,29 +97,26 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         Focusable = false;
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.Group);
 
-        _stage.Child = new Panel { Children = { _image, _placeholder } };
-        _stage[!BackgroundProperty] = new DynamicResourceExtension("Workspace.Raised");
-        _stage.KeyDown += OnKeyDown;
-        _stage.Classes.Add("workspace-card-focusable");
+        Border focusRing = new() { Classes = { "booru-stage-focus" }, IsHitTestVisible = false };
+        AutomationProperties.SetAccessibilityView(focusRing, AccessibilityView.Raw);
+        _stage.Child = new Panel { Children = { _image, _placeholder, focusRing } };
+        _stage[!BackgroundProperty] = new DynamicResourceExtension(StageBackground);
+        AddHandler(KeyDownEvent, (_, e) => RouteKey(e), RoutingStrategies.Tunnel);
+        _stage.Classes.Add("booru-stage");
         AutomationProperties.SetControlTypeOverride(_stage, AutomationControlType.Image);
         AutomationProperties.SetAccessibilityView(_image, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(_placeholder, AccessibilityView.Raw);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
 
-        _previous.Click += (_, _) => Move(-1);
-        _next.Click += (_, _) => Move(1);
-        _select.Click += (_, _) => ToggleSelection();
-        _download.Click += (_, _) => { if (_currentId is { } id) DownloadRequested?.Invoke(id); };
-        _openPost.Click += (_, _) => { if (_currentId is { } id) OpenPostRequested?.Invoke(id); };
-        _openWindow.Click += (_, _) => { if (_currentId is { } id) OpenWindowRequested?.Invoke(id); };
-        CommandBindings.EnsureIconBeforeText(_download, "download-cloud");
-
-        ToolTip.SetShowOnDisabled(_previous, true);
-        ToolTip.SetShowOnDisabled(_next, true);
-        _toolbar.Children.Add(BuildToolbarGroups());
-        _openWindow.VerticalAlignment = VerticalAlignment.Top;
-        Grid.SetColumn(_openWindow, 1);
-        _toolbar.Children.Add(_openWindow);
+        _toolbar.Move = Move;
+        _toolbar.MoveToBoundary = last => MoveTo(last ? _rows.Length - 1 : 0);
+        _toolbar.ToggleSelection = ToggleSelection;
+        _toolbar.Load = () => { if (_currentId is { } id) DownloadRequested?.Invoke(id); };
+        _toolbar.OpenPost = () => { if (_currentId is { } id) OpenPostRequested?.Invoke(id); };
+        _toolbar.OpenWindow = () => { if (_currentId is { } id) OpenWindowRequested?.Invoke(id); };
+        _toolbar.Close = () => LeaveRequested?.Invoke();
+        _toolbarFocus = PointerFocusReclaim.Attach(_toolbar, FocusStage);
+        SetDock(BooruGalleryDock.Right, _tags);
 
         Grid middle = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8 };
         middle.Children.Add(_left);
@@ -143,6 +124,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         middle.Children.Add(_stage);
         Grid.SetColumn(_right, 2);
         middle.Children.Add(_right);
+        _right.VerticalContentAlignment = VerticalAlignment.Stretch;
 
         StackPanel frame = new() { Spacing = 8, Children = { _toolbar, middle, _bottom, _status } };
         Child = frame;
@@ -150,47 +132,31 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         DetachedFromVisualTree += (_, _) => StopObservingVisibility();
     }
 
-    private WrapPanel BuildToolbarGroups()
-    {
-        Border keycap = new() { Classes = { KeyCapText.CapClass }, Child = _selectionKey, VerticalAlignment = VerticalAlignment.Center };
-        AutomationProperties.SetAccessibilityView(keycap, AccessibilityView.Raw);
-        _select.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
-            Children = { _selectionLabel, keycap } };
-
-        StackPanel navigation = new() { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
-            Children = { _previous, _position, _next } };
-        StackPanel actions = new() { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center,
-            Children = { _download, _openPost } };
-        return new WrapPanel { Classes = { "workspace-toolbar" }, Children = { navigation, _select, actions } };
-    }
-
     /// <summary>The post on the stage (null before the first <see cref="Show"/>).</summary>
     internal string? CurrentPostId => _currentId;
     internal BooruGalleryPicture Picture => _picture;
-    internal BooruGallerySampleState SampleState => _sampleState;
+    internal BooruGallerySampleState SampleState => _sample.State;
     internal Control Stage => _stage;
     internal string StatusText => _status.Text ?? string.Empty;
-    internal Button DownloadButton => _download;
-    internal Button PreviousButton => _previous;
-    internal Button NextButton => _next;
-    internal CheckBox SelectBox => _select;
+    internal Button DownloadButton => _toolbar.Download;
+    internal Button PreviousButton => _toolbar.Previous;
+    internal Button NextButton => _toolbar.Next;
+    internal CheckBox SelectBox => _toolbar.Select;
 
     /// <summary>How long a post must stay open before its sample is requested, so flipping through posts sends nothing (a pause, not a limit of the user's data; tests shorten it).</summary>
-    internal TimeSpan SampleDelay { get; set; } = TimeSpan.FromMilliseconds(200);
+    internal TimeSpan SampleDelay { get; set; } = BooruGallerySampleLoader.DefaultDelay;
 
     /// <summary>Decodes still-image bytes to at most the given width (null: not decodable); the seam lets tests run without a rendering platform.</summary>
     internal Func<byte[], int, IImage?>? Decoder { get; set; }
 
-    /// <summary>The height of the stage; the view sets it from the window so the picture fills the tab.</summary>
-    internal double StageHeight { get => _stage.Height; set => _stage.Height = Math.Max(_stage.MinHeight, value); }
+    /// <summary>The stage height fitted to the results viewport, with a minimum on a short window.</summary>
+    internal double StageHeight
+    {
+        get => _stage.Height;
+        set => _stage.Height = _tags.MaxHeight = Math.Max(_stage.MinHeight, value);
+    }
 
-    /// <summary>Reads the setting "largest image" in bytes (the view's setting, read at each load).</summary>
-    internal Func<int>? SampleLimitBytes { get; set; }
-    /// <summary>Reads the setting "image memory" in bytes (read at each load).</summary>
-    internal Func<long>? CacheBytes { get; set; }
-    internal Func<int>? MaximumPixels { get; set; }
-    internal Func<int>? MaximumWidth { get; set; }
-    internal Func<int>? TimeoutSeconds { get; set; }
+    internal Func<BooruGallerySampleLimits>? SampleSettings { get; set; }
     /// <summary>The sample source; null when there is none (the preview then stays).</summary>
     internal Func<IBooruSamplePort?>? Samples { get; set; }
     internal Func<string, bool>? IsSelected { get; set; }
@@ -211,7 +177,15 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         host.IsVisible = content is not null;
     }
 
-    internal void FocusStage() => _stage.Focus(NavigationMethod.Directional);
+    internal void FocusStage()
+    {
+        if (!_disposed && _currentId is not null && _stage.IsEffectivelyVisible) _stage.Focus(NavigationMethod.Directional);
+    }
+
+    private void RouteKey(KeyEventArgs e)
+    {
+        if (_currentId is not null) _toolbar.RouteKey(e, _stage);
+    }
 
     /// <summary>
     /// Shows <paramref name="postId"/> of <paramref name="view"/>'s page. Another post than before: the sample load of the old one is cancelled,
@@ -231,8 +205,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         {
             ResetPost(postId);
             ShowPreview(row);
-            if (Samples?.Invoke() != null && row.Post.SampleUrl is not null)
-                _sampleState = BooruGallerySampleState.Deferred;
+            _sample.Reset(Samples?.Invoke() != null && row.Post.SampleUrl is not null);
         }
         else if (!ReferenceEquals(_previewBytes, row.PreviewBytes) && _picture != BooruGalleryPicture.Sample)
             ShowPreview(row);
@@ -251,13 +224,17 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
 
     private void ResetPost(string? postId)
     {
-        PauseSample();
+        _sample.Reset(offered: false);
         _requestSample = false;
         _currentId = postId;
         _toolbar.IsVisible = postId is not null;
+        if (postId is null)
+        {
+            _tags.Present(null);
+            _right.IsVisible = false;
+        }
         _previewBytes = null;
         _picture = BooruGalleryPicture.None;
-        _sampleState = BooruGallerySampleState.NotOffered;
         _image.Source = null;
         Release(_previewBitmap);
         _previewBitmap = null;
@@ -278,60 +255,17 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         if (_sampleBitmap is null) _picture = bitmap is null ? BooruGalleryPicture.None : BooruGalleryPicture.Preview;
     }
 
-    private void PauseSample()
+    internal void SuspendSamples(bool suspended)
     {
-        if (_sampleState != BooruGallerySampleState.Loading) return;
-        _cancelSample?.Invoke();
-        _cancelSample = null;
-        _sampleState = BooruGallerySampleState.Deferred;
+        _samplesSuspended = suspended;
+        if (suspended) _sample.Pause();
+        else ResumeWhenVisible();
     }
 
     private void StartSampleIfVisible(BooruResultRowView row)
     {
-        if (!_requestSample || !CanShowSample || _sampleState != BooruGallerySampleState.Deferred
-            || Samples?.Invoke() is not { } port) return;
-        _sampleState = BooruGallerySampleState.Loading;
-        _sampleLimits = new SampleLimits(
-            Math.Clamp(SampleLimitBytes?.Invoke() ?? Config.BooruGallerySampleMiBDefault * 1024 * 1024,
-                Config.BooruGallerySampleMiBMinimum * 1024 * 1024, Config.BooruGallerySampleMiBMaximum * 1024 * 1024),
-            Math.Clamp(CacheBytes?.Invoke() ?? Config.BooruGalleryCacheMiBDefault * 1024L * 1024,
-                Config.BooruGalleryCacheMiBMinimum * 1024L * 1024, Config.BooruGalleryCacheMiBMaximum * 1024L * 1024),
-            Math.Clamp(MaximumPixels?.Invoke() ?? Config.BooruGalleryMaximumPixelsDefault,
-                Config.BooruGalleryMaximumPixelsMinimum, Config.BooruGalleryMaximumPixelsMaximum),
-            Math.Clamp(MaximumWidth?.Invoke() ?? Config.BooruGalleryMaximumWidthDefault,
-                Config.BooruGalleryMaximumWidthMinimum, Config.BooruGalleryMaximumWidthMaximum),
-            Math.Clamp(TimeoutSeconds?.Invoke() ?? Config.BooruGalleryTimeoutSecondsDefault,
-                Config.BooruGalleryTimeoutSecondsMinimum, Config.BooruGalleryTimeoutSecondsMaximum));
-        SampleLimits limits = _sampleLimits;
-        OpenActions.Start(() => LoadSampleAsync(port, row.Post, limits), "booru.gallery.sample");
-    }
-
-    private async Task LoadSampleAsync(IBooruSamplePort port, BooruPostView post, SampleLimits limits)
-    {
-        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _cancelSample = () => { try { cancellation.Cancel(); } catch (ObjectDisposedException) { } };
-        CancellationToken token = cancellation.Token;
-        IImage? bitmap = null;
-        try
-        {
-            await Task.Delay(SampleDelay, token);
-            token.ThrowIfCancellationRequested();
-            BooruSampleResult result = await port.LoadSampleAsync(post, limits.Bytes, limits.CacheBytes,
-                TimeSpan.FromSeconds(limits.TimeoutSeconds), token);
-            BooruGallerySampleState state = result.TimedOut ? BooruGallerySampleState.TimedOut : BooruGallerySampleState.Failed;
-            if (result.Bytes is { Length: > 0 } bytes && bytes.Length <= limits.Bytes)
-                (bitmap, state) = await Task.Run(() => Decode(bytes, limits.MaximumWidth, limits.MaximumPixels), token);
-            token.ThrowIfCancellationRequested();
-            Adopt(post.PostId, token, bitmap, state);
-            bitmap = null;
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) when (exception is not OutOfMemoryException)
-        {
-            Serilog.Log.Warning(exception, "A Danbooru gallery sample could not be shown");
-            if (!token.IsCancellationRequested) Adopt(post.PostId, token, null, BooruGallerySampleState.Failed);
-        }
-        finally { Release(bitmap); }
+        if (_requestSample && CanShowSample)
+            _sample.Start(Samples?.Invoke(), row.Post, SampleSettings, SampleDelay, Decode, bitmap => ApplySample(row.Post.PostId, bitmap));
     }
 
     private (IImage? Bitmap, BooruGallerySampleState State) Decode(byte[] bytes, int width, int maximumPixels)
@@ -341,76 +275,40 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         return (bitmap, bitmap is null ? BooruGallerySampleState.Failed : BooruGallerySampleState.Shown);
     }
 
-    private void Adopt(string postId, CancellationToken token, IImage? bitmap, BooruGallerySampleState state)
+    private bool ApplySample(string postId, IImage? bitmap)
     {
-        if (Dispatcher.UIThread.CheckAccess()) Apply(postId, token, bitmap, state);
-        else Dispatcher.UIThread.Post(() => Apply(postId, token, bitmap, state));
-    }
-
-    private void Apply(string postId, CancellationToken token, IImage? bitmap, BooruGallerySampleState state)
-    {
-        if (_disposed || token.IsCancellationRequested || !CanShowSample || _currentId != postId)
-        {
-            Release(bitmap);
-            return;
-        }
-        _cancelSample = null;
-        _sampleState = state;
+        if (_disposed || !CanShowSample || _currentId != postId) return false;
         if (bitmap is not null)
         {
+            _image.Source = bitmap;
             Release(_sampleBitmap);
             _sampleBitmap = bitmap;
-            _image.Source = bitmap;
             _picture = BooruGalleryPicture.Sample;
             Release(_previewBitmap);
             _previewBitmap = null;
         }
         if (_rows.FirstOrDefault(row => row.Post.PostId == postId) is { } row) Render(row);
+        return true;
     }
 
     private void Render(BooruResultRowView row)
     {
         string id = row.Post.PostId;
-        int index = IndexOf(id);
-        IconButtons.Apply(_previous, "chevron-left", Texts.T("gallery.viewer1") + " · ←");
-        IconButtons.Apply(_next, "chevron-right", Texts.T("gallery.viewer2") + " · →");
-        _previous.IsEnabled = index > 0;
-        _next.IsEnabled = index >= 0 && index < _rows.Length - 1;
-        _position.Text = Texts.T("booru.gallery.position", index + 1, _rows.Length);
-        string selectionLabel = Texts.T("media.tile.selected");
-        string selectionKey = Texts.T("key.space");
-        _selectionLabel.Text = selectionLabel;
-        _selectionKey.Text = selectionKey;
-        ToolTip.SetTip(_select, selectionLabel + " · " + selectionKey);
-        _select.IsChecked = IsSelected?.Invoke(id) == true;
-        AutomationProperties.SetName(_select, selectionLabel + ": " + Texts.T("booru.ui.post.title", id));
-        AutomationProperties.SetAcceleratorKey(_select, selectionKey);
-
-        string action = row.CanRetry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
-        string actionName = row.CanRetry ? $"{action}: {Texts.T("booru.ui.post.title", id)}" : Texts.T("booru.ui.loadFor", id);
-        _download.Content = action;
-        _download.IsEnabled = row.CanLoad || row.CanRetry;
-        string? why = BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned);
-        ToolTip.SetTip(_download, actionName + Environment.NewLine + why);
-        ToolTip.SetShowOnDisabled(_download, true);
-        AutomationProperties.SetName(_download, actionName);
-
-        bool hasLink = BooruPostLinks.TryCanonical(row.Post, out string url);
-        _openPost.IsVisible = hasLink;
-        IconButtons.Apply(_openPost, "external-link", Texts.T("booru.ui.post.openFor", id));
-        if (hasLink) ToolTip.SetTip(_openPost, Texts.T("booru.ui.post.openTip", url));
-
-        IconButtons.Apply(_openWindow, "maximize", Texts.T("booru.gallery.openWindow"));
+        Button? focusedNavigation = PreviousButton.IsFocused ? PreviousButton : NextButton.IsFocused ? NextButton : null;
+        _toolbar.Present(row, IndexOf(id), _rows.Length, IsSelected?.Invoke(id) == true);
+        _tags.Present(row.Post);
+        _right.IsVisible = _tags.IsVisible;
 
         _placeholder.IsVisible = _picture == BooruGalleryPicture.None;
         _placeholder.Text = Texts.T(row.Preview == BooruPreviewState.Loading ? "booru.ui.post.previewLoading"
             : row.Preview == BooruPreviewState.None ? "booru.ui.post.noPreview" : "booru.ui.post.previewUnavailable");
         AutomationProperties.SetName(_stage, Texts.T("booru.ui.post.title", id));
-        _status.Text = BooruGalleryStatus.Line(row, _picture, _sampleState,
-            _sampleLimits.Bytes / (1024 * 1024), _sampleLimits.MaximumPixels, _sampleLimits.TimeoutSeconds);
+        BooruGallerySampleLimits limits = _sample.Limits;
+        _status.Text = BooruGalleryStatus.Line(row, _picture, _sample.State,
+            limits.Bytes / (1024 * 1024), limits.MaximumPixels, limits.TimeoutSeconds);
         AutomationProperties.SetName(this, Texts.T("booru.gallery.listName"));
         // A button that became disabled (the first or last post) must not take the keyboard focus with it.
-        if (!_previous.IsEnabled && _previous.IsFocused || !_next.IsEnabled && _next.IsFocused) FocusStage();
+        if (focusedNavigation is { IsEnabled: false }) FocusStage();
     }
 
     private void Move(int delta)
@@ -441,20 +339,6 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         if (_currentId is { } id) SelectionToggled?.Invoke(id);
     }
 
-    private void OnKeyDown(object? sender, KeyEventArgs e)
-    {
-        if (e.Handled || ShortcutService.IsCapturing || e.KeyModifiers != KeyModifiers.None) return;
-        switch (e.Key)
-        {
-            case Key.Left or Key.Up: e.Handled = true; Move(-1); break;
-            case Key.Right or Key.Down: e.Handled = true; Move(1); break;
-            case Key.Home: e.Handled = true; MoveTo(0); break;
-            case Key.End: e.Handled = true; MoveTo(_rows.Length - 1); break;
-            case Key.Space: e.Handled = true; ToggleSelection(); break;
-            case Key.Escape: e.Handled = true; LeaveRequested?.Invoke(); break;
-        }
-    }
-
     internal static (Bitmap? Bitmap, BooruGallerySampleState State) DecodeBitmap(byte[] bytes, int maximumWidth, int maximumPixels)
     {
         try
@@ -475,11 +359,11 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _lifetime.Cancel();
+        _toolbarFocus.Dispose();
+        _sample.Pause();
         // May run on any thread (the page is disposed by its host): only what is not a control is touched here.
         Release(_previewBitmap);
         Release(_sampleBitmap);
         _previewBitmap = _sampleBitmap = null;
-        _lifetime.Dispose();
     }
 }

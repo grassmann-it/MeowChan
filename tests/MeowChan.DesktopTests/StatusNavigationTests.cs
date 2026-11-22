@@ -8,8 +8,8 @@ using MeowChan.Desktop.Stats;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// Statistics and Diagnostics are the two segments of one Status page: the last main page, Primary+7, wired in the shell's
-/// markup. The old page commands stay as commands without a digit (Primary+8 is free) that open their segment, so a binding the
+/// Statistics and Diagnostics are the two segments of one Status page: the last main page, Primary+8, wired in the shell's
+/// markup. The old page commands stay as commands without a digit that open their segment, so a binding the
 /// user saved for them keeps working.
 /// </summary>
 [Collection("Localization")]
@@ -26,13 +26,12 @@ public sealed class StatusNavigationTests : IDisposable
     public void StatusIsTheLastMainPageAndTheEarlierPagesFollowTheFooterGroups()
     {
         Assert.Equal([.. Earlier, "navigation.status"], MainPageOrder.CommandIds);
-        // F1: the digits follow the visible footer buttons from the left, the hidden pages come last. Default layout: Booru is hidden, so it takes 8
-        // behind Status; Tagging owns 4 behind Media; Rules/Sources take 5/6; Status keeps its confirmed 7.
-        Assert.Equal(new int?[] { 1, 2, 3, 4, 8, 5, 6, 7 }, MainPageOrder.CommandIds.Select(MainPageOrder.Digit));
+        // The default digits follow the footer order.
+        Assert.Equal(new int?[] { 1, 2, 3, 4, 5, 6, 7, 8 }, MainPageOrder.CommandIds.Select(MainPageOrder.Digit));
         foreach (string id in Earlier)
             Assert.Equal("Primary+" + MainPageOrder.Digit(id), MainPageOrder.DefaultShortcut(id));
-        Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
-        Assert.Equal("Primary+7", MainPageOrder.DefaultShortcut("navigation.status"));
+        Assert.Equal(8, MainPageOrder.Digit("navigation.status"));
+        Assert.Equal("Primary+8", MainPageOrder.DefaultShortcut("navigation.status"));
         Assert.Null(CommandCatalog.Get("navigation.status").Shortcut); // the default gesture is derived from the footer numbering
         Assert.Equal("nav.status", MainPageOrder.Tag("navigation.status"));
         Assert.Equal("Status", MainPageOrder.ControlStem("navigation.status"));
@@ -79,10 +78,10 @@ public sealed class StatusNavigationTests : IDisposable
     }
 
     [Theory]
-    [InlineData(ShortcutPlatform.Linux, "Ctrl+7 / Ctrl+Shift+S")]
-    [InlineData(ShortcutPlatform.Windows, "Ctrl+7 / Ctrl+Shift+S")]
-    [InlineData(ShortcutPlatform.MacOS, "⌘7 / ⇧⌘S")]
-    public void TheShortcutIsPrimaryPlusSevenWithoutAConflict(ShortcutPlatform platform, string display)
+    [InlineData(ShortcutPlatform.Linux, "Ctrl+8 / Ctrl+Shift+S")]
+    [InlineData(ShortcutPlatform.Windows, "Ctrl+8 / Ctrl+Shift+S")]
+    [InlineData(ShortcutPlatform.MacOS, "⌘8 / ⇧⌘S")]
+    public void TheShortcutIsPrimaryPlusEightWithoutAConflict(ShortcutPlatform platform, string display)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         Assert.Equal(display, bindings.Display("navigation.status"));
@@ -99,7 +98,7 @@ public sealed class StatusNavigationTests : IDisposable
     {
         Assert.Contains("navigation.status", EffectiveShortcutBindings.YieldingDefaultCommandIds);
         Assert.True(EffectiveShortcutBindings.DefaultsRevision >= 7);
-        var section = new ShortcutBindingsSection().Set("thread.read", [ShortcutGesture.Parse("Primary+7")]);
+        var section = new ShortcutBindingsSection().Set("thread.read", [ShortcutGesture.Parse("Primary+8")]);
         var bindings = EffectiveShortcutBindings.Build(section, ShortcutPlatform.Linux);
         Assert.Equal(new[] { "S" }, bindings.For("navigation.status").Select(g => g.Key)); // the digit yields, the fixed letter stays
         Assert.Equal(1, bindings.For("thread.read").Count);
@@ -120,7 +119,7 @@ public sealed class StatusNavigationTests : IDisposable
         Assert.Equal("Ctrl+8", bindings.Display("navigation.statistics"));
         Assert.Equal("Ctrl+Shift+S", bindings.Display("navigation.status")); // only the digit yields; the fixed letter stays
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
-        Assert.Contains(bindings.Issues, issue => issue.CommandId == "navigation.status" && issue.OtherCommandId == "navigation.diagnostics"
+        Assert.Contains(bindings.Issues, issue => issue.CommandId == "navigation.status" && issue.OtherCommandId == "navigation.statistics"
             && issue.Reason?.Code == "defaultYields");
         Assert.Equal(before, section.Raw.GetRawText());
     }

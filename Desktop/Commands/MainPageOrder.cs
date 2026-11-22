@@ -27,9 +27,8 @@ public static class MainPageOrder
     public static int Group(string commandId) => Groups.Select((group, index) => (group, index))
         .First(entry => entry.group.Contains(commandId, StringComparer.Ordinal)).index;
     public static bool Contains(string commandId) => CommandIds.Contains(commandId, StringComparer.Ordinal);
-    /// <summary>Pages that stand in the footer only after the person switched them on (Tom, 14.11.2026: Booru). They still own a digit,
-    /// after the visible ones, and stay reachable from More, the ⋯ menu and their shortcut.</summary>
-    public static IReadOnlyList<string> DefaultHiddenPages { get; } = Array.AsReadOnly(new[] { "navigation.booru" });
+    /// <summary>Pages hidden by the default footer layout.</summary>
+    public static IReadOnlyList<string> DefaultHiddenPages { get; } = Array.Empty<string>();
     /// <summary>Downloads is the home page and cannot leave the footer; every other main page can (<see cref="FooterLayout"/>).</summary>
     public static bool CanHideFromFooter(string commandId) => commandId != "navigation.downloads";
     /// <summary>Most digits a page can own: Ctrl/Cmd+1 to 9. There are eight main pages, so no page is ever without one.</summary>
@@ -81,6 +80,6 @@ public static class MainPageOrder
         "navigation.booru", "navigation.tagging", "navigation.media", "navigation.archive",
     });
     /// <summary>The commands that open one segment of the Status page. They are no main pages of their own and carry no
-    /// default gesture (Primary+8 is free); a binding the user saved for them keeps working.</summary>
+    /// default gesture; a binding the user saved for them keeps working.</summary>
     public static IReadOnlyList<string> StatusSegmentCommandIds { get; } = Array.AsReadOnly(new[] { "navigation.statistics", "navigation.diagnostics" });
 }

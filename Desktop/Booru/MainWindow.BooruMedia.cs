@@ -31,6 +31,7 @@ public partial class MainWindow
         view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
         view.NewSearchTarget = () => _session.Config.BooruNewSearchTarget;
         view.SearchTabsLimit = () => _session.Config.BooruSearchTabs;
+        view.Model.Search.ReadPagerLimits = () => new(_session.Config.BooruSearchPages, _session.Config.BooruSearchPostsPerPage);
         view.GallerySampleMiB = () => _session.Config.BooruGallerySampleMiB;
         view.GalleryCacheMiB = () => _session.Config.BooruGalleryCacheMiB;
         view.GalleryMaximumPixels = () => _session.Config.BooruGalleryMaximumPixels;
@@ -45,6 +46,13 @@ public partial class MainWindow
         BooruWorkbenchView view = page.View;
         view.SaveResultView = mode => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruPageView = mode.ToString()), "booru.saveResultView");
         view.SaveTileSize = size => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruTileSize = size.ToString()), "booru.saveTileSize");
+        view.RestoreViewerBounds = () => _session.Config.ReadBooruViewerBounds();
+        view.SaveViewerBounds = bounds =>
+        {
+            if (!_isClosing)
+                OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.WriteBooruViewerBounds(bounds)),
+                    "booru.saveViewerBounds");
+        };
         view.RestoreResultView(BooruResultViews.Parse(_session.Config.BooruPageView), MediaTileSizes.Parse(_session.Config.BooruTileSize));
     }
 

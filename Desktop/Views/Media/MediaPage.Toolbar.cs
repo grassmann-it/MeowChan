@@ -1,10 +1,12 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Automation;
 using MeowChan.Gallery;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -13,20 +15,19 @@ namespace MeowChan;
 // S3: the media toolbar is one row in three groups. Left: the file name search, which fills the free width of the row up to a fixed cap
 // (MediaToolbarLayout.SearchMaxWidth; at least 240 dip), directly followed by the filter toggle (MediaToolbarQuery). Tom 16.11.2026: the order
 // (MediaToolbarSort: "Shuffle again" while the order is random, the criterion with its muted "Sort" prefix inside the box, and the direction right
-// beside it) sits on the right above the grid and ends at the grid's right edge. Right: the view tools (MediaToolbarEnd): "Refresh", the tag list
-// switch, "Layout", the focus mode and "More" (⋯), above the media panel. The free space between the filter toggle and the order is the spacer,
+// beside it) sits on the right above the grid and ends at the grid's right edge. Right: "Refresh", "Layout", focus mode, the combined
+// sidebar switches and "More" (⋯). The free space between the filter toggle and the order is the spacer,
 // at least the group gap (24 dip). UX review 17.11.2026: nothing of the row depends on the selection line under it. M1: the shuffle and
 // the refresh are drawn icons in square buttons (name as tooltip and accessible name), so the only text in the query group is the criterion;
-// the focus mode (M4, MediaPage.Focus.cs) is one more square between "Layout" and "More". Export all and the
-// saved-ratings manager always sit under More; the media-sidebar switch stays beside Layout in the right-hand cluster so the control is visually
-// close to the panel it owns; "show missing files" is a filter (a field of the filter section and a chip of the active
-// filters). When the row runs short the less important tools move under More first and the order stays visible (MediaToolbarLayout).
+// Export all and the saved-ratings manager always sit under More. When the row runs short, the other view tools move under More and the
+// sidebar switches stay visible (MediaToolbarLayout).
 public sealed partial class MediaPage
 {
     // The one item gap of every toolbar row (design language, UX-LEDGER-01): the ActionToolBar's own 8 dip, not a local literal.
     private const double ToolbarGap = ActionToolBarPanel.ItemGap;
     private MediaToolbarLayout.Level _toolbarLevel = MediaToolbarLayout.Level.Wide;
     private Grid? _toolbar;
+    private readonly SidebarToggleGroup _sidebarToggles = new() { Name = "MediaSidebarToggles" };
     private Func<bool>? _canOpenBooru;
     private Action? _openBooru;
     private readonly Button _booruOpen = new() { Name = "MediaBooruOpen", IsVisible = false };
@@ -53,6 +54,7 @@ public sealed partial class MediaPage
     private void LocalizeBooruOverflow()
     {
         _booruOpen.Content = Texts.T("media.toolbar.booru");
+        CommandBindings.EnsureIconBeforeText(_booruOpen, CommandCatalog.Get("booru.open").Icon);
         AutomationProperties.SetName(_booruOpen, Texts.T("media.toolbar.booru"));
         ToolTip.SetTip(_booruOpen, Texts.T("media.toolbar.booruTip"));
     }
@@ -85,13 +87,19 @@ public sealed partial class MediaPage
         StackPanel order = new() { Name = "MediaToolbarSort", Orientation = Orientation.Horizontal, Spacing = ToolbarGap, VerticalAlignment = VerticalAlignment.Center };
         // Right-aligned in its column: the column can be wider than the tools (it keeps the room of the media panel below, MediaPage.ToolbarAlignment.cs).
         StackPanel right = new() { Name = "MediaToolbarEnd", Orientation = Orientation.Horizontal, Spacing = ToolbarGap, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, Margin = new Thickness(ToolbarGap, 0, 0, 0) };
-        // MP4: the Booru mode switch (MP5: "Tag list") sits before the focus mode, MP5's "Layout" button after the switch; MP3: the queue walk and the Tagging page are entries under More only.
-        foreach (Control control in new Control[] { _filters, _shuffle, _sort, _sortDirection, _refresh, _booruMode, _layoutButton, _panelToggle, _focus, _exportAll, _manageRatings, _booruOpen,
+        _sidebarToggles.Children.Add(_booruMode);
+        _sidebarToggles.Children.Add(_panelToggle);
+        // Keep the independent switches together, after the focus-mode button.
+        foreach (Control control in new Control[] { _filters, _shuffle, _sort, _sortDirection, _refresh, _layoutButton, _focus, _sidebarToggles, _exportAll, _manageRatings, _booruOpen,
             _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders, _more })
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
-            if (control is Button) control.MinHeight = 32;
+            if (control is Button button)
+            {
+                button.MinHeight = 32;
+                if (button is not ToggleButton) button.Classes.Add("bar-flat");
+            }
             (control == _filters ? query : control == _shuffle || control == _sort || control == _sortDirection ? order : right).Children.Add(control);
         }
         _nameFilter.VerticalAlignment = VerticalAlignment.Center;
@@ -140,7 +148,7 @@ public sealed partial class MediaPage
     // HeaderOverflow lists it and its shortcut keeps working).
     private void ApplyToolbarLevel()
     {
-        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _booruMode, _layoutButton, _panelToggle })
+        foreach (Control tool in new Control[] { _focus, _refresh, _shuffle, _layoutButton })
             if (MediaToolbarLayout.IsMovedUnderMore(_toolbarLevel, Desktop.WorkViews.WorkViewElement.GetId(tool))) tool.IsVisible = false;
     }
 }

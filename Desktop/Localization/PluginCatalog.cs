@@ -270,6 +270,7 @@ internal static class PluginCatalog
         ("plugins.enable", "Enable plugin", "Plugin aktivieren"),
         ("plugins.disable", "Disable plugin", "Plugin deaktivieren"),
         ("plugins.selectCandidate", "Use this build next start", "Diese Fassung beim nächsten Start verwenden"),
+        ("plugins.installedBuildChanged", "The installed plugin build has changed. In Plugins, choose “Use this build next start”, then restart MeowChan.", "Der installierte Plugin-Build hat sich geändert. Wähle unter Plugins „Diese Fassung beim nächsten Start verwenden“ und starte MeowChan neu."),
         ("plugins.rollback", "Use last good saved build next start", "Letzte gute gespeicherte Fassung beim nächsten Start verwenden"),
         ("plugins.watches", "Show in Plugins", "In Plugins zeigen"),
         ("plugins.pluginSettings", "Plugin settings", "Plugineinstellungen"),

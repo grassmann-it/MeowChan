@@ -8,6 +8,7 @@ namespace MeowChan.PluginHost.Configuration;
 /// </summary>
 public static class PluginActivationProblems
 {
+    internal const string InstalledBuildChanged = "Installed plugin build changed. Select the new build in Plugins to use it after restart.";
     public const string ConfirmedTargetChanged = "Confirmed bundled target changed or disappeared; review repair again.";
     public const string NoDeliveredProvenance = "Bundled target has no matching delivered provenance; review is required.";
     public const string NoTrustedBasis = "Bundled replacement has no unambiguous trusted pre-replacement basis; review is required.";

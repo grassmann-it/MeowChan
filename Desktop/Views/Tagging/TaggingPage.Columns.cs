@@ -22,7 +22,7 @@ public sealed partial class TaggingPage
 
     internal bool ShowPreviewColumn => _showPreviewColumn;
     internal Grid ColumnHeader => _columnHeader;
-    internal TaggingControlRow ListControls => _listControls;
+    internal TaggingHeader Header => _header;
     internal ToggleButton ColumnsButton => _columnsButton;
     internal Action<bool>? SavePreviewColumn { get; set; }
 

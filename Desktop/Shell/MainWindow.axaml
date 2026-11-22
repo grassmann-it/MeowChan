@@ -36,8 +36,10 @@
                     <!-- The tagline's star column. Its width, reported by SizeChanged, decides which form of the tagline the text block shows
                          (MainWindow.Tagline.cs); the text block carries no localization tag because the form is set from code. -->
                     <Panel x:Name="WorkspaceTaglineHost" Grid.Column="1" ClipToBounds="True">
+                        <!-- The column clips at its own edge. The italic ink may extend beyond the text block's advance width. -->
                         <TextBlock x:Name="WorkspaceSubtitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}"
-                                   HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" IsVisible="False" />
+                                   HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextAlignment="Left"
+                                   TextWrapping="NoWrap" TextTrimming="None" ClipToBounds="False" IsVisible="False" />
                     </Panel>
                     <StackPanel x:Name="WorkspaceHeaderTools" Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
@@ -142,8 +144,7 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <!-- The media page's focus mode can hide the title bar above (MainWindow.MediaFocusChrome.cs): this thin strip at the top edge then
-             shows it again while the pointer rests on it. It is hidden otherwise; the title bar is not touched by it. -->
+        <!-- Reveal the floating title bar at the top edge in fullscreen and media focus mode. -->
         <Border x:Name="MediaFocusHeaderStrip" Grid.RowSpan="2" Height="6" VerticalAlignment="Top" IsVisible="False" ZIndex="119"
                 Background="Transparent" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="0,2,0,0" Opacity="0.7" />
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">
@@ -151,7 +152,7 @@
             <Grid ColumnDefinitions="*,Auto">
                 <Grid x:Name="ShellFeedbackLayout" RowDefinitions="Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.4}">
                     <ScrollViewer x:Name="ShellActionErrorScroll" Grid.ColumnSpan="2" MaxHeight="64" HorizontalScrollBarVisibility="Disabled"><TextBlock x:Name="ShellActionError" TextWrapping="Wrap" /></ScrollViewer>
-                    <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnDiagnosticsNavigationClick" HorizontalAlignment="Left" />
+                    <Button x:Name="ShellFeedbackDiagnosticsButton" Grid.Row="1" Click="OnShellFeedbackActionClick" HorizontalAlignment="Left" />
                 </Grid>
                 <Button x:Name="ShellFeedbackDismissButton" Grid.Column="1" Classes="subtle icon-square"
                         Margin="8,0,0,0" VerticalAlignment="Top"
@@ -307,9 +308,6 @@
 
                             <!-- Title Column -->
                             <DataGridTemplateColumn Header="Thread / title" Width="*" MinWidth="200" SortMemberPath="Title">
-                                <DataGridTemplateColumn.CellStyleClasses>
-                                    <x:String>cell-action</x:String>
-                                </DataGridTemplateColumn.CellStyleClasses>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
@@ -317,7 +315,7 @@
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
                                                 <!-- A drawn up arrow (P6) on a quiet button (dead-affordance audit): a click restores normal priority, the row menu's "Normal priority" for this one thread.
                                                      The button has its own automation peer, so the accessible name is the row description plus the action. -->
-                                                <Button Classes="subtle" Padding="2" MinWidth="0" MinHeight="0" BorderThickness="0" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center"
+                                                <Button Classes="subtle row-action" Padding="2" MinWidth="0" MinHeight="0" BorderThickness="0" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center"
                                                         ToolTip.Tip="{Binding PriorityActionDescription}" AutomationProperties.Name="{Binding PriorityActionDescription}" Click="OnPriorityArrowClick">
                                                     <Path Classes="glyph-icon" Data="M8,13 L8,3 M4,7 L8,3 L12,7" Stroke="{DynamicResource Workspace.Text}" />
                                                 </Button>

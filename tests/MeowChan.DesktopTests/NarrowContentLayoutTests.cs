@@ -170,19 +170,14 @@ public sealed class NarrowContentLayoutTests
                 header.Text = longLabel;
                 AssertTrimmedTip(header, longLabel, 80);
                 Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingEmptyActions"));
-                StackPanel progress = Assert.IsType<StackPanel>(controls.Single(control => control.Name == "TaggingProgress"));
-                WrapPanel meter = Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingProgressMeter"));
-                Assert.Equal(Orientation.Vertical, progress.Orientation);
-                Assert.Equal(new Control[] { meter, page.LastShownContext }, progress.Children);
-                Assert.Equal(Avalonia.Media.TextWrapping.Wrap, page.ProgressText.TextWrapping);
-                Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, meter.Children.Select(control => control.Name));
-                Assert.Equal(8, meter.ItemSpacing);
-                Assert.Equal(4, meter.LineSpacing);
-                meter.Children[1].Width = 60;
-                meter.Children[1].Height = 20;
-                Layout(meter, TaggingPage.MiniBarWidth + 20);
-                Assert.True(meter.Children[1].Bounds.Top >= meter.Children[0].Bounds.Bottom + meter.LineSpacing);
-                Assert.True(meter.DesiredSize.Height >= meter.Children[1].Bounds.Bottom);
+                Grid progress = Assert.IsType<Grid>(controls.Single(control => control.Name == "TaggingProgress"));
+                Assert.Equal(GridLength.Star, progress.ColumnDefinitions[0].Width);
+                Assert.Equal(GridLength.Auto, progress.ColumnDefinitions[1].Width);
+                Assert.Equal(64, progress.Children[0].MinWidth);
+                Grid boxes = Assert.IsType<Grid>(controls.Single(control => control.Name == "TaggingResultFilters"));
+                Assert.Equal(new[] { 120d, 112d }, boxes.ColumnDefinitions.Select(column => column.MinWidth));
+                Assert.Equal(new[] { 160d, 144d }, boxes.ColumnDefinitions.Select(column => column.MaxWidth));
+                Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, progress.Children.Select(control => control.Name));
             }
             finally { host.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
         });

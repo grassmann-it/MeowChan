@@ -179,6 +179,7 @@ public partial class SettingsEditor
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
         NotifyStatisticsHelpChanged();
         NotifyReaderHelpChanged();
+        NotifyBooruSearchHelpChanged();
         NotifyTagQueueHelpChanged();
         NotifyBooruGalleryHelpChanged();
         NotifyViewerHelpChanged();
@@ -308,6 +309,7 @@ public partial class SettingsEditor
             Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum, true);
         foreach (var field in StatisticsNumericFields()) yield return field;
         foreach (var field in ReaderNumericFields()) yield return field;
+        foreach (var field in BooruSearchNumericFields()) yield return field;
         foreach (var field in TagQueueNumericFields()) yield return field;
         foreach (var field in BooruGalleryNumericFields()) yield return field;
         foreach (var field in ViewerNumericFields()) yield return field;

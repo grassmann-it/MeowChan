@@ -10,8 +10,8 @@ using Ursa.Controls;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// RL1 (15.11.2026): the reader toolbar in groups with Read as the eye, "View" and the quick settings as one gear popover, full screen
-/// under More. The page needs an Avalonia application, so the contract is checked on the catalog, the XAML, the policy, the popover's
+/// The reader toolbar groups Read, the settings gear, Full screen and the sidebar switches. The page needs an Avalonia
+/// application, so the contract is checked on the catalog, the XAML, the policy, the popover's
 /// layout and the pure rules; the look and the behaviour (separators, the dot, the popover rows) are the reader-toolbar smokes.
 /// </summary>
 [Collection("Localization")]
@@ -38,26 +38,17 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     {
         XElement[] items = ToolbarItems();
         string[] all = items.Select(Name).ToArray();
-        // Actions run from Star through History back, then the view controls follow at the right edge.
-        Assert.Equal(["ArchiveCurrentThreadFavorite", "ReaderUnreadReturn", "ReaderSkipUnavailableGroupMember", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderFindOpen",
-            "ReaderTagsOpen", "ExportArchiveButton", "ReaderThreadOpen", "ReaderSettingsOpen", "ArchiveHistoryBack", "ArchiveThreadListToggle", "ArchiveReaderFullscreen",
-            "ReaderMediaSidebarToggle"], all);
-        // The returns of a state stay right behind the star, in its group, so a state never sits between two tools.
-        Assert.All(items.Take(3), item => Assert.Equal(0, Group(item)));
+        Assert.Equal(["ArchiveCurrentThreadFavorite", "ReaderSkipUnavailableGroupMember", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderFindOpen",
+            "ReaderTagsOpen", "ExportArchiveButton", "ReaderThreadOpen", "ReaderSettingsOpen", "ReaderUnreadReturn", "ArchiveHistoryBack",
+            "ArchiveReaderFullscreen", "ReaderSidebarToggles"], all);
         Dictionary<string, int> groups = items.ToDictionary(Name, Group);
+        Assert.All(items.Take(2), item => Assert.Equal(0, Group(item)));
         Assert.Equal(1, groups["ArchiveReadPosts"]); Assert.Equal(1, groups["ArchiveOpenGallery"]); Assert.Equal(1, groups["ReaderFindOpen"]);
         Assert.Equal(2, groups["ReaderTagsOpen"]); Assert.Equal(2, groups["ExportArchiveButton"]);
         Assert.Equal(3, groups["ReaderSettingsOpen"]); Assert.Equal(3, groups["ReaderThreadOpen"]);
-        Assert.Equal(4, groups["ArchiveHistoryBack"]);
-        Assert.Equal(5, groups["ArchiveThreadListToggle"]); Assert.Equal(5, groups["ArchiveReaderFullscreen"]); Assert.Equal(5, groups["ReaderMediaSidebarToggle"]);
-        // Five lines between the six groups when every item is shown; the default bar (no history return) has four.
-        Assert.Equal(5, GroupsOf(all, groups).Zip(GroupsOf(all, groups).Skip(1)).Count(pair => pair.First != pair.Second));
-        string[] shown = all.Where(name => name is not ("ReaderUnreadReturn" or "ReaderSkipUnavailableGroupMember" or "ArchiveHistoryBack")).ToArray();
-        Assert.Equal(4, GroupsOf(shown, groups).Zip(GroupsOf(shown, groups).Skip(1)).Count(pair => pair.First != pair.Second));
-        Assert.Equal(["ArchiveThreadListToggle", "ArchiveReaderFullscreen", "ReaderMediaSidebarToggle"], all.TakeLast(3));
-        Assert.Equal(all.TakeLast(3), items
-            .Where(item => item.Attributes().Any(attribute => attribute.Name.LocalName == "ActionToolBar.End" && attribute.Value == "True"))
-            .Select(Name));
+        Assert.All(items.TakeLast(4), item => Assert.Equal(4, Group(item)));
+        Assert.Equal(4, GroupsOf(all, groups).Zip(GroupsOf(all, groups).Skip(1)).Count(pair => pair.First != pair.Second));
+        Assert.Equal(["ArchiveThreadListToggle", "ReaderMediaSidebarToggle"], items[^1].Elements().Select(Name));
     }
 
     private static int[] GroupsOf(string[] names, Dictionary<string, int> groups) => names.Select(name => groups[name]).ToArray();
@@ -158,25 +149,23 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     // ---- work views ---------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheGearIsTheViewsOldRowAndFullScreenEndsTheOrderAndOverflowsOnlyWhenItDoesNotFit()
+    public void TheGearIsTheViewsOldRowAndFullScreenStaysOnTheToolbar()
     {
         Assert.Throws<KeyNotFoundException>(() => WorkViewPolicy.Get("reader.toolbar.view"));
         WorkViewEntry gear = WorkViewPolicy.Get("reader.toolbar.settings");
         Assert.Equal((Presence.Overflow, Presence.Direct, Presence.Direct), (gear.Barebones, gear.Simple, gear.Advanced));
         Assert.Null(gear.CommandId);
         WorkViewEntry full = WorkViewPolicy.Get("reader.toolbar.fullscreen");
-        // Review 15.11.: on the bar while it fits (Simple, Advanced), the first to move under More; Barebones keeps it under More.
-        Assert.Equal((Presence.Overflow, Presence.Direct, Presence.Direct), (full.Barebones, full.Simple, full.Advanced));
+        Assert.Equal((Presence.Required, Presence.Required, Presence.Required), (full.Barebones, full.Simple, full.Advanced));
         Assert.Equal("window.fullscreen", full.CommandId);
-        Assert.Equal("reader.toolbar.fullscreen", WorkViewPolicy.ReaderToolbarKeepVisibleOrder[^1]);
         foreach (WorkView view in WorkViewSetting.All)
-            Assert.Equal(view == WorkView.Barebones ? OverflowMode.Always : OverflowMode.AsNeeded,
+            Assert.Equal(OverflowMode.Never,
                 WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("reader.toolbar.fullscreen", view)));
         // The order a narrow window moves things under More, from the end (owner 14.11., the gear in View's place).
-        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.thread-list", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
-            "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
+        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
+            "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
         // Every bar item of the XAML has its row (the id registry is checked against the page by the work-view tests).
-        string[] ids = ToolbarItems().Select(item => item.Attributes().Single(attribute => attribute.Name.LocalName == "WorkViewElement.Id").Value).ToArray();
+        string[] ids = ToolbarItems().Where(item => item.Name.LocalName != "SidebarToggleGroup").Select(item => item.Attributes().Single(attribute => attribute.Name.LocalName == "WorkViewElement.Id").Value).ToArray();
         Assert.Contains("reader.toolbar.settings", ids);
         Assert.DoesNotContain("reader.toolbar.view", ids);
     }

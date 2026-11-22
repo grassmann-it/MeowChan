@@ -132,9 +132,10 @@ namespace MeowChan
         public bool ShowBooruTools { get; set; } = true;
         /// <summary>
         /// The footer of this profile (Settings › Appearance › Footer): the main pages in footer order, a leading "-" marking a page whose button is
-        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer (today's order, Booru off).
+        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer.
         /// Read and written through <see cref="Desktop.Commands.FooterLayout"/>: unknown ids and repeats are dropped, a page the list does not know
-        /// takes its default place, Downloads is always shown. <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
+        /// takes its default place, Downloads is always shown. The empty 1.1.0 layout follows the new default; a stored "-booru" stays hidden.
+        /// <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
         /// page is unavailable whatever this list says.
         /// </summary>
         [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
@@ -346,6 +347,14 @@ namespace MeowChan
         internal const int BooruSearchTabsMinimum = 1;
         internal const int BooruSearchTabsMaximum = 32;
         public bool RestoreBooruSearchTabs { get; set; } = true;
+        public int BooruSearchPages { get; set; } = BooruSearchPagesDefault;
+        internal const int BooruSearchPagesDefault = BooruSearchPagesMaximum;
+        internal const int BooruSearchPagesMinimum = 1;
+        internal const int BooruSearchPagesMaximum = Desktop.Booru.BooruSearchModel.MaximumPage;
+        public int BooruSearchPostsPerPage { get; set; } = BooruSearchPostsPerPageDefault;
+        internal const int BooruSearchPostsPerPageDefault = BooruSearchPostsPerPageMaximum;
+        internal const int BooruSearchPostsPerPageMinimum = 1;
+        internal const int BooruSearchPostsPerPageMaximum = Desktop.Booru.BooruSearchModel.PageSize;
         public int BooruSavedTabs { get; set; } = BooruSavedTabsDefault;
         internal const int BooruSavedTabsDefault = BooruSearchTabsDefault + 1;
         internal const int BooruSavedTabsMinimum = 2;
@@ -1753,6 +1762,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
+            if (BooruSearchPages is < BooruSearchPagesMinimum or > BooruSearchPagesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchPages));
+            if (BooruSearchPostsPerPage is < BooruSearchPostsPerPageMinimum or > BooruSearchPostsPerPageMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchPostsPerPage));
             if (BooruSavedTabs is < BooruSavedTabsMinimum or > BooruSavedTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSavedTabs));
             if (BooruSavedResultsPerTab is < BooruSavedResultsPerTabMinimum or > BooruSavedResultsPerTabMaximum)
@@ -2033,6 +2046,8 @@ namespace MeowChan
                 BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
                 RestoreBooruSearchTabs = RestoreBooruSearchTabs,
+                BooruSearchPages = BooruSearchPages,
+                BooruSearchPostsPerPage = BooruSearchPostsPerPage,
                 BooruSavedTabs = BooruSavedTabs,
                 BooruSavedResultsPerTab = BooruSavedResultsPerTab,
                 BooruGallerySampleMiB = BooruGallerySampleMiB,
@@ -2227,6 +2242,7 @@ namespace MeowChan
                 WindowPositionX = WindowPositionX,
                 WindowPositionY = WindowPositionY,
                 WindowMaximized = WindowMaximized,
+                BooruViewerPlacement = BooruViewerPlacement,
                 ColumnWidths = ColumnWidths,
                 LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
@@ -2325,6 +2341,8 @@ namespace MeowChan
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSearchPages = source.BooruSearchPages;
+            BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
@@ -2489,6 +2507,7 @@ namespace MeowChan
             WindowPositionX = source.WindowPositionX;
             WindowPositionY = source.WindowPositionY;
             WindowMaximized = source.WindowMaximized;
+            BooruViewerPlacement = source.BooruViewerPlacement;
             ColumnWidths = source.ColumnWidths;
             LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;
@@ -2569,6 +2588,8 @@ namespace MeowChan
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSearchPages = source.BooruSearchPages;
+            BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;

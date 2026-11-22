@@ -129,16 +129,17 @@ internal static partial class MediaPageChecks
             window.Width = 640;
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Compact);
             Require(sort.IsEffectivelyVisible && direction.IsEffectivelyVisible && search.IsEffectivelyVisible && filters.IsEffectivelyVisible && more.IsEffectivelyVisible
-                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
-                "At 640 the order must stay and Refresh and the Booru mode switch must be under More: " + string.Join(",", page.HeaderMoreIds));
+                && !refresh.IsVisible && page.HeaderMoreIds.SequenceEqual(["media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
+                "At 640 the order must stay and Refresh and Layout must be under More: " + string.Join(",", page.HeaderMoreIds));
             Require(sort.MinWidth == MediaToolbarLayout.NarrowSortMinWidth && search is { MinWidth: MediaToolbarLayout.SearchMinWidth }
                 && X(sort) + sort.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5, "The compact row must fit and keep the search at its minimum and shrink the order to its narrow minimum.");
-            Require(!((PrefixedComboBox)sort).ShowsPrefix && !((PrefixedComboBox)sort).PrefixDrawn && !C<ToggleButton>(page, "MediaBooruMode").IsVisible,
-                "The compact row must drop the Sort prefix and the Booru mode switch.");
+            Require(!((PrefixedComboBox)sort).ShowsPrefix && !((PrefixedComboBox)sort).PrefixDrawn && C<ToggleButton>(page, "MediaBooruMode").IsVisible
+                && C<ToggleButton>(page, "MediaPanelToggle").IsVisible && !page.SidebarLabelsShown,
+                "The compact row must drop the Sort prefix and keep both sidebar icons.");
             RequireToolbarFits("compact (640)");
             sort.SelectedIndex = (int)MediaLibrarySort.Random;
             // The page presents in the background here (BackgroundPresentEntries = 0); the view re-applies the tools after that.
-            await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
+            await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 () => "While the order is random the narrow row must also hold Shuffle again under More: " + string.Join(",", page.HeaderMoreIds));
             sort.SelectedIndex = 0;
             window.Width = MediaToolbarLayout.CompactWidth + 80; // inside the Reduced stage whatever the page padding is

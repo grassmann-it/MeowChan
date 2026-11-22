@@ -196,6 +196,7 @@ internal sealed class FooterLayoutEditor : UserControl
                     : focusUp == true ? (up.IsEnabled ? up : down) : (down.IsEnabled ? down : up);
         }
         _reset.Content = Texts.T("settings.footer.reset");
+        CommandBindings.EnsureIconBeforeText(_reset, "rotate-ccw");
         AutomationProperties.SetName(_reset, Texts.T("settings.footer.reset"));
         ToolTip.SetTip(_reset, Texts.T("settings.footer.reset.hint"));
         AutomationProperties.SetHelpText(_reset, Texts.T("settings.footer.reset.hint"));

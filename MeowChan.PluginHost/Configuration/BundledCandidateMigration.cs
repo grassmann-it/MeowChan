@@ -288,6 +288,29 @@ internal static class BundledCandidateMigration
         IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery, int presentCount) =>
         plugin.Pinned is null && CanCarryKnownBundleInPlace(document, plugin, candidate, previous, currentDelivery, presentCount, pinnedRelease: false);
 
+    // A versioned install directory (or Debug/Release output) changes the path-derived candidate ID.
+    // Only the exact old delivered release can follow its slot. Relocation cannot carry special
+    // permissions, authorizations from a previous repair, or a changed declaration.
+    internal static bool CanAutomaticallyFollowMovedBundle(BundledProfileDocument document, PluginActivationSnapshot plugin,
+        PluginCandidateSnapshot candidate, PreReplacementBasis previous, IReadOnlyList<DeliveredCandidateProvenance>? currentDelivery)
+    {
+        PluginReleaseSnapshot? established = plugin.Active ?? plugin.LastGood;
+        if (currentDelivery is null || plugin.Pinned is not null || previous.Missing ||
+            previous.Provenance is not { } oldProof || previous.Release is not { } oldRelease || established is null ||
+            established.CandidateId != plugin.SelectedCandidateId || established.CandidateId != previous.CandidateId ||
+            established.ExecutionRevision != previous.ExecutionRevision || candidate.CandidateId == established.CandidateId ||
+            plugin.Pending is { } pending && (pending.CandidateId != established.CandidateId || pending.ExecutionRevision != established.ExecutionRevision) ||
+            document.Bindings.Any(binding => binding.PluginId == plugin.PluginId) ||
+            candidate is not { IsPresent: true, Problem: null, Artifact: not null, Description: { } description } ||
+            HasInheritedRights(document, plugin, candidate, changed: true) ||
+            HasOwnerConflict(document.Profile, plugin.PluginId, description) ||
+            !SameJson(oldRelease.Description, description) ||
+            SdkValidation.ValidateConfiguration(description, oldRelease.Configuration).Count != 0) return false;
+
+        DeliveredCandidateProvenance[] slot = currentDelivery.Where(proof => proof.SlotId == oldProof.SlotId).ToArray();
+        return slot.Length == 1 && Matches(slot[0], candidate);
+    }
+
     // Decision #130 (17.11.2026, option C with the guardrails of option B): a pin on a bundled plugin
     // means "stay on this release", not "stay on this exact binary". A rebuild of the pinned release is
     // carried over only when ALL of these hold; anything else keeps the stale pin and the explicit review:

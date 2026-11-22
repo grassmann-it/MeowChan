@@ -4,7 +4,6 @@ using Avalonia;
 using Avalonia.Platform;
 using Avalonia.Skia;
 using Avalonia.Threading;
-using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -61,25 +60,18 @@ internal static class BooruComponentDispatcher
     {
         FieldInfo primary = Field(typeof(Dispatcher), "s_uiThread");
         FieldInfo languageHandlers = Field(typeof(Texts), "Changed");
-        FieldInfo shortcutHandlers = Field(typeof(ShortcutService), "Changed");
-        FieldInfo pruneCounter = Field(typeof(ShortcutService), "_observersUntilPrune");
-        var refreshers = (List<WeakReference<Action>>)Field(typeof(ShortcutService), "Refreshers").GetValue(null)!;
         object? previousDispatcher = primary.GetValue(null);
         object? previousHandlers = languageHandlers.GetValue(null);
-        object? previousShortcutHandlers = shortcutHandlers.GetValue(null);
-        object? previousPruneCounter = pruneCounter.GetValue(null);
-        WeakReference<Action>[] previousRefreshers = refreshers.ToArray();
         string language = Texts.Language;
         Dispatcher owner = Dispatcher.CurrentDispatcher;
         using IDisposable scope = AvaloniaLocator.EnterScope();
+        using ShortcutTestState shortcuts = new();
         try
         {
             // A fresh dispatcher is intentional: another test may have left a language-change
             // callback queued on the xunit worker's dispatcher. Running that stale callback here
             // would mutate controls owned by its original thread during fixture cleanup.
-            refreshers.Clear();
             languageHandlers.SetValue(null, null);
-            shortcutHandlers.SetValue(null, null);
             primary.SetValue(null, owner);
             // EnterScope alone inherits the parent's MediaContext and its animation clock.
             // Rendering and transitions must resolve services owned by this dispatcher.
@@ -110,11 +102,7 @@ internal static class BooruComponentDispatcher
                 try { Texts.SetLanguage(language); }
                 finally
                 {
-                    refreshers.Clear();
-                    refreshers.AddRange(previousRefreshers);
-                    pruneCounter.SetValue(null, previousPruneCounter);
                     languageHandlers.SetValue(null, previousHandlers);
-                    shortcutHandlers.SetValue(null, previousShortcutHandlers);
                     primary.SetValue(null, previousDispatcher);
                 }
             }

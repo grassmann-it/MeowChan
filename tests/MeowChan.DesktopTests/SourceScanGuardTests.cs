@@ -61,7 +61,7 @@ public sealed class SourceScanGuardTests
     // ---- G7: classes that swap process-global Avalonia state must be serialized -----------------------------------------------------------------------
 
     private static readonly Regex SwapperToken = new(
-        @"AppBuilder|SetupWithoutStarting|AvaloniaLocator|BooruComponentDispatcher\.Run|OwnedUiDispatcher\.Run|AvaloniaTestPlatform\.EnterSkia|TokenApplication\.Bind");
+        @"AppBuilder|SetupWithoutStarting|AvaloniaLocator|ShortcutTestState|BooruComponentDispatcher\.Run|OwnedUiDispatcher\.(?:Run|CreateHost)|AvaloniaTestPlatform\.EnterSkia|TokenApplication\.Bind");
     private static readonly Regex TestAttribute = new(@"\[(?:Fact|Theory)\b");
     private static readonly Regex CollectionDefinitionAttribute = new(
         @"\[CollectionDefinition\((?<arg>[^\]]*)\)\]\s*public\s+sealed\s+class\s+(?<cls>\w+)");
@@ -108,7 +108,7 @@ public sealed class SourceScanGuardTests
             if (!allSerialized) offenders.Add(Rel(file));
         }
         Assert.True(offenders.Count == 0,
-            "These test files swap the AvaloniaLocator / dispatcher / shortcut registry (AppBuilder, AvaloniaLocator, BooruComponentDispatcher.Run, OwnedUiDispatcher.Run) "
+            "These test files swap the AvaloniaLocator, dispatcher or shortcut registry "
             + "but are not in a DisableParallelization collection (use [Collection(\"Avalonia global state\")]); xunit would run them in parallel with each other:\n"
             + string.Join("\n", offenders));
     }

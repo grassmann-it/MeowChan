@@ -43,12 +43,13 @@ public sealed class BooruPluginRuntimeCompositionTests
             PluginProfileSnapshot plugins = await host.Plugins.ProfileStore.ReadAsync();
             PluginActivationSnapshot danbooru = Assert.Single(plugins.Plugins, plugin => plugin.PluginId == PluginId);
             Assert.NotNull(danbooru.Active);
-            if (!danbooru.Enabled) await host.Plugins.ProfileStore.SetEnabledAsync(PluginId, true, plugins.Revision);
+            Assert.True(danbooru.Enabled);
+            Assert.False(host.Plugins.DanbooruStartupRepairRequired);
             await BooruCompositionHostTests.WaitAsync(() => host.BooruServices != null, "the composition from the real plugin");
             Assert.Empty(stub.Requests);
             BooruWorkbenchServices services = host.BooruServices!;
 
-            BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, CancellationToken.None).WaitAsync(Deadline);
+            BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline);
             Assert.True(result.Status == BooruCallStatus.Ok, result.Status + " " + result.Code);
             BooruPostView found = Assert.Single(result.Value!.Posts);
             Assert.Equal("7001", found.PostId);
@@ -67,7 +68,7 @@ public sealed class BooruPluginRuntimeCompositionTests
             await host.Plugins.ProfileStore.SetEnabledAsync(PluginId, false, plugins.Revision);
             Assert.Null(host.BooruServices);
             Assert.Equal(BooruCallStatus.Unavailable,
-                (await services.Search.SearchAsync("cat_ears", 1, CancellationToken.None).WaitAsync(Deadline)).Status);
+                (await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline)).Status);
             Assert.Equal(1, stub.MetadataRequests);
         }
         finally { await StopAsync(host); }

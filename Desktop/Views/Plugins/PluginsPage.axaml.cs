@@ -217,6 +217,8 @@ public partial class PluginsPage : UserControl
         CommandBindings.EnsureIconBeforeText(C<Button>("PluginCopyTechnicalDetails"), "copy");
         CommandBindings.EnsureIconBeforeText(C<Button>("PluginDefaultEditor"), "external-link");
         CommandBindings.EnsureIconBeforeText(C<Button>("PluginEditorSave"), "save");
+        CommandBindings.EnsureIconBeforeText(C<Button>("PluginSelectCandidate"), CommandCatalog.Get("plugins.select-candidate").Icon);
+        CommandBindings.EnsureIconBeforeText(C<Button>("PluginRollback"), CommandCatalog.Get("plugins.rollback").Icon);
         Button add = C<Button>("PluginsAdd");
         add.Content = new StackPanel { Orientation = Avalonia.Layout.Orientation.Horizontal, Spacing = 8, Children = { CommandBindings.NamedIcon("plus"), new TextBlock { Text = Texts.T("plugins.add") } } }; AutomationProperties.SetName(add, Texts.T("plugins.add")); ToolTip.SetTip(add, Texts.T("plugins.add.help"));
         Button emptyAdd = C<Button>("PluginsEmptyAdd");
@@ -565,6 +567,7 @@ public partial class PluginsPage : UserControl
             panel.Children.Add(Label(grant.FilterKey + " · " + PluginGrantPresentation.Describe(grant,
                 _services?.GetRuleScopes?.Invoke() ?? Array.Empty<MeowChan.Rules.MediaRuleScope>(), effective: false)));
             Button revoke = new() { Content = Texts.T("plugins.revoke"), Tag = grant };
+            CommandBindings.ShowIconBeforeText(revoke, "x-circle");
             revoke.Click += async (_, _) => await CommandAsync((services, revision, token) => services.ProfileStore.SetGrantAsync(grant.PluginId, grant.FilterKey, grant.Scope, FilterDataAccess.None, revision, token));
             panel.Children.Add(revoke);
             panel.Children.Add(new SelectableTextBlock { Focusable = true, TextWrapping = TextWrapping.Wrap });

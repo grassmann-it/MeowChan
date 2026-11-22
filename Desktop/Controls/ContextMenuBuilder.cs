@@ -45,11 +45,13 @@ internal sealed class ContextMenuBuilder
     /// <paramref name="showShortcut"/> is false for an entry that is not what the command's shortcut does (an older place of a list:
     /// the shortcut opens the newest).
     /// </summary>
-    internal ContextMenuBuilder Command(string commandId, Action invoke, bool available = true, string? reason = null, string? label = null, string? entryId = null, bool showShortcut = true, Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null)
+    internal ContextMenuBuilder Command(string commandId, Action invoke, bool available = true, string? reason = null, string? label = null, string? entryId = null, bool showShortcut = true, Func<bool>? availableWhen = null, Func<string?>? reasonWhen = null, Func<string>? labelWhen = null,
+        bool dangerous = false, string? keyContext = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(commandId);
         ArgumentNullException.ThrowIfNull(invoke);
-        return Add(new(ContextMenuEntryKind.Command, entryId ?? commandId, label ?? CommandCatalog.Label(commandId), commandId, null, false, available, reason, invoke, showShortcut, availableWhen, reasonWhen, labelWhen));
+        return Add(new(ContextMenuEntryKind.Command, entryId ?? commandId, label ?? CommandCatalog.Label(commandId), commandId, null, false, available, reason, invoke, showShortcut, availableWhen, reasonWhen, labelWhen,
+            Dangerous: dangerous, KeyContext: keyContext));
     }
 
     /// <summary>
@@ -199,6 +201,12 @@ internal sealed class ContextMenuBuilder
         {
             MenuItem submenu = new() { Header = entry.Label, IsEnabled = entry.Available, ItemsSource = Items(entry.Children ?? Array.Empty<IReadOnlyList<ContextMenuEntry>>()) };
             AutomationProperties.SetName(submenu, entry.Label);
+            if (!entry.Available && entry.Reason is { } unavailable)
+            {
+                ToolTip.SetShowOnDisabled(submenu, true);
+                ToolTip.SetTip(submenu, entry.Label + " · " + unavailable);
+                AutomationProperties.SetHelpText(submenu, unavailable);
+            }
             if (entry.Icon != null) submenu.Icon = CommandBindings.IconFromKey(entry.Icon);
             submenu.Tag = entry.Id;
             return submenu;
@@ -209,7 +217,7 @@ internal sealed class ContextMenuBuilder
         string Label() => entry.LabelFactory?.Invoke() ?? entry.Label;
         MenuItem item;
         if (entry.CommandId is { } commandId)
-            item = CommandBindings.CreateMenuItem(commandId, invoke, Available, Reason, Label, entry.ShowShortcut);
+            item = CommandBindings.CreateMenuItem(commandId, invoke, Available, Reason, Label, entry.ShowShortcut, entry.KeyContext);
         else
         {
             item = new MenuItem { Header = Label(), Command = new DelegateCommand(invoke, Available), IsEnabled = Available() };
@@ -223,6 +231,7 @@ internal sealed class ContextMenuBuilder
             }
         }
         item.Tag = entry.Id;
+        if (entry.Dangerous) item.Classes.Add("danger");
         if (entry.Kind == ContextMenuEntryKind.Radio)
         {
             item.ToggleType = MenuItemToggleType.Radio;

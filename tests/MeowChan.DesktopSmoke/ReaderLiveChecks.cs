@@ -43,6 +43,9 @@ internal static class ReaderLiveChecks
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             TextBlock liveState = page.FindControl<TextBlock>("ReaderLiveState")!;
             Button show = page.FindControl<Button>("ReaderShowNewPosts")!;
+            TextBlock notice = page.FindControl<TextBlock>("ReaderNewPostsNotice")!;
+            Border bar = page.FindControl<Border>("ReaderNewPostsBar")!;
+            TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             await page.CheckReaderUpdatesAsync();
             // R3/RL1: following live is the settings popover's "Show new posts automatically" (a switch in the Thread section), its state a text in the status line.
             Require(page.CanChangeFollowLive && !page.FollowLive && !liveState.IsVisible, "Watched reader must offer explicit, initially disabled live following.");
@@ -59,18 +62,35 @@ internal static class ReaderLiveChecks
             object originalRows = posts.ItemsSource!;
             await catalog.CaptureAsync(Snapshot(2));
             await page.CheckReaderUpdatesAsync();
-            Require(!show.IsVisible, "Unchanged source poll advertised new posts.");
+            Require(!bar.IsVisible, "Unchanged source poll advertised new posts.");
             await catalog.CaptureAsync(Snapshot(4));
             await page.CheckReaderUpdatesAsync();
             await Program.WaitUntilAsync(() => show.IsVisible);
             Require(page.CurrentThread!.PostCount == 2 && ReferenceEquals(originalRows, posts.ItemsSource)
                 && (posts.SelectedItem as ArchivePostRow)?.Id == "7000", "New capture changed the frozen reader without consent.");
             Program.CaptureWindow(window, "smoke-reader-new-posts.png");
+            window.Width = 480;
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 480, 820));
+            window.UpdateLayout();
+            Require(show.Bounds.Right <= notice.Bounds.Left && notice.Bounds.Width > 0 && show.Bounds.Height > 0,
+                "The narrow update bar did not place the button left of the notice.");
+            Require(Avalonia.Automation.AutomationProperties.GetName(show) == Texts.T("command.reader.show-new-posts"),
+                "The new-post button lost its accessible command name.");
+            Program.CaptureWindow(window, "smoke-reader-new-posts-narrow.png");
+            tabs.SelectedIndex = 1;
+            window.UpdateLayout();
+            Require(!page.CanShowNewPostsByShortcut && (!show.IsEffectivelyVisible || TopLevel.GetTopLevel(show) == null),
+                "The update action remained reachable outside the Posts tab.");
+            tabs.SelectedIndex = 0;
+            window.Width = 1120;
+            await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, 1120, 820));
+            window.UpdateLayout();
+            Require(page.CanShowNewPostsByShortcut, "Returning to Posts lost the pending update.");
             show.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             // FocusPostAsync selects the row in its first layout pass but publishes the position only once the offset settled.
             await Program.WaitUntilAsync(() => page.CurrentThread?.PostCount == 4 && (posts.SelectedItem as ArchivePostRow)?.Id == "7002"
                 && consciousMoves > 0);
-            Require(!show.IsVisible, "Manual update retained a stale notice.");
+            Require(!bar.IsVisible, "Manual update retained a stale notice.");
             Require(consciousMoves > 0, "Manual new-post action did not publish a conscious reading position.");
             consciousMoves = 0; // Equivalent to discarding all pre-forget captures.
             await page.SetFollowLiveAsync(true);

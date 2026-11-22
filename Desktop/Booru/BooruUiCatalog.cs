@@ -17,6 +17,7 @@ internal static class BooruUiCatalog
         ("booru.ui.noFilterNote", "Results appear exactly as Danbooru returns them for your tags. MeowChan adds no rating filter and no extra search terms. Originals you load use the normal download queue.", "Die Treffer erscheinen genau so, wie Danbooru sie für deine Tags liefert. MeowChan fügt weder einen Einstufungsfilter noch weitere Suchbegriffe hinzu. Geladene Originale nutzen die normale Downloadwarteschlange."),
         ("booru.ui.tab.search", "Search", "Suche"),
         ("booru.ui.tab.watchers", "Watchers ({0})", "Suchbeobachtungen ({0})"),
+        ("booru.ui.tab.watchers.one", "Watcher ({0})", "Suchbeobachtung ({0})"),
 
         ("booru.ui.mode.label", "Input type", "Eingabeart"),
         ("booru.ui.mode.tags", "Tag search", "Tag-Suche"),
@@ -28,8 +29,9 @@ internal static class BooruUiCatalog
         ("booru.ui.lookup", "Look up post", "Post abrufen"),
         ("booru.ui.cancel", "Cancel", "Abbrechen"),
         ("booru.ui.query.sent", "Query sent to Danbooru: {0}", "An Danbooru gesendete Abfrage: {0}"),
+        ("booru.ui.query.draft", "Draft: {0}", "Entwurf: {0}"),
         ("booru.ui.query.hint", "Up to two tags and one optional rating: term, sent exactly as typed (separators become single spaces). MeowChan adds nothing.", "Bis zu zwei Tags und ein optionaler rating:-Term, genau wie eingegeben gesendet (Trennzeichen werden zu einzelnen Leerzeichen). MeowChan fügt nichts hinzu."),
-        ("booru.ui.post.sent", "Post to look up: #{0}", "Abzurufender Post: #{0}"),
+        ("booru.ui.post.sent", "Post requested from Danbooru: #{0}", "Bei Danbooru angefragter Post: #{0}"),
         ("booru.ui.page.info", "Page {0} of at most {1} · {2} results per page", "Seite {0} von höchstens {1} · {2} Treffer pro Seite"),
         ("booru.ui.page.previous", "Previous page", "Vorherige Seite"),
         ("booru.ui.page.next", "Next page", "Nächste Seite"),
@@ -71,6 +73,7 @@ internal static class BooruUiCatalog
         ("booru.ui.repair.nothing", "No current bundled Danbooru build is waiting for review.", "Kein aktueller mitgelieferter Danbooru-Build wartet auf eine Prüfung."),
         ("booru.ui.repair.openPlugin", "Open Danbooru plugin", "Danbooru-Plugin öffnen"),
         ("booru.ui.repair.notReady", "Plugin management is not ready yet. Try again in a moment.", "Die Pluginverwaltung ist noch nicht bereit. Versuche es gleich noch einmal."),
+        ("booru.ui.repair.startup", "Booru is unavailable because MeowChan could not activate the saved Danbooru build. Review the bundled build. If you confirm a repair, restart MeowChan.", "Booru ist nicht verfügbar, weil MeowChan den gespeicherten Danbooru-Build nicht aktivieren konnte. Prüfe den mitgelieferten Build. Wenn du eine Reparatur bestätigst, starte MeowChan neu."),
         ("booru.ui.repair.busy", "The Plugins page is still busy with another action. Try again when it has finished.", "Die Plugin-Seite ist noch mit einer anderen Aktion beschäftigt. Versuche es erneut, wenn sie fertig ist."),
         ("booru.ui.repair.notOpened", "The review did not open. Open Plugins and choose “{0}” there.", "Die Prüfung wurde nicht geöffnet. Plugins öffnen und dort „{0}“ wählen."),
 
@@ -166,7 +169,7 @@ internal static class BooruUiCatalog
         ("booru.ui.watcher.duplicate", "A watcher for “{0}” already exists.", "Eine Suchbeobachtung für „{0}“ existiert bereits."),
         ("booru.ui.watcher.createNeedsTags", "A single post cannot be watched. Switch to tag search with valid tags to create a watcher.", "Ein einzelner Post kann nicht beobachtet werden. Zur Tag-Suche mit gültigen Tags wechseln, um eine Suchbeobachtung anzulegen."),
         ("booru.ui.watcher.createInvalidTags", "Enter valid tags to create a watcher.", "Gib gültige Tags ein, um eine Suchbeobachtung anzulegen."),
-        ("booru.ui.watcher.creating", "Creating watcher…", "Suchbeobachtung wird angelegt …"),
+        ("booru.ui.watcher.creating", "Creating watcher…", "Suchbeobachtung wird angelegt…"),
         ("booru.ui.watcher.createFailed", "The watcher could not be created ({0}).", "Die Suchbeobachtung konnte nicht angelegt werden ({0})."),
 
         ("booru.ui.watchers.intro", "A watcher checks one Danbooru search for new posts and adds their originals to the normal download queue. It starts from the moment you create it.", "Eine Suchbeobachtung prüft eine Danbooru-Suche auf neue Posts und legt deren Originale in die normale Downloadwarteschlange. Sie beginnt ab dem Moment des Anlegens."),

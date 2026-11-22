@@ -79,9 +79,7 @@ public partial class ArchivePage
         string label = CommandCatalog.Label(ThreadListCommandId);
         button.Content = Texts.T("archive.threadList.compact");
         string tip = CommandBindings.Tooltip(ThreadListCommandId, null, Texts.T(listShown ? "archive.threadList.hide" : "archive.threadList.show"));
-        ToolTip.SetTip(button, tip);
-        Avalonia.Automation.AutomationProperties.SetName(button, label + ": " + Texts.T(listShown ? "window.fullscreen.on" : "window.fullscreen.off"));
-        Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
+        ReaderSidebarToggles.Describe(button, label, tip);
     }
 
     /// <summary>The command of the switch (a user shortcut); the window registers it for the embedded archive.</summary>

@@ -22,6 +22,7 @@ internal enum ThemeTokenVariation
     PressedAccentText,
     // Both themes use the accent RGB with 40% alpha, not an opaque seed mirror.
     AccentPreview,
+    ToolbarToggleSurface,
     // Light-only thumb hover happens to equal Muted text; it is not a text role.
     ScrollBarHover
 }
@@ -290,6 +291,7 @@ internal static class ThemeTokens
             ["RadioButtonCardCheckPressedBorderBrush"] = ThemeTokenVariation.PressedAccentBorder,
             ["BreadcrumbItemPressedForeground"] = ThemeTokenVariation.PressedAccentText,
             ["GridSplitterPreviewBackground"] = ThemeTokenVariation.AccentPreview,
+            ["Workspace.ToolbarToggleSurface"] = ThemeTokenVariation.ToolbarToggleSurface,
             ["DataGridDropLocationIndicatorBackground"] = ThemeTokenVariation.AccentPreview,
         };
 

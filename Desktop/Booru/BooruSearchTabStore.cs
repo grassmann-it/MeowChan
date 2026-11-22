@@ -19,14 +19,17 @@ internal sealed record BooruSearchTabRow(BooruPost Post, byte[]? Preview);
 
 internal sealed record BooruSearchTabTarget(string? SourceId, string? InstanceId, string? PostId, string? Query,
     int Page = 1, BooruInputMode? Mode = null, string? Input = null, bool IsEnd = true, bool Empty = false,
-    BooruSearchTabRow[]? Rows = null)
+    BooruSearchTabRow[]? Rows = null, int MaximumPage = BooruSearchModel.MaximumPage, int PostsPerPage = BooruSearchModel.PageSize)
 {
     internal const int MaximumDraftLength = 4096;
     internal string Source => SourceId ?? DanbooruPostReference.ProviderId;
     internal string Instance => InstanceId ?? BooruPostKey.DefaultInstance;
     internal BooruPostKey? PostIdentity => PostId is null ? null : new(Source, Instance, PostId);
 
-    internal bool IsValid => BooruPostKey.IsValidScope(Source, Instance) && Page is >= 1 and <= BooruSearchModel.MaximumPage
+    internal bool IsValid => BooruPostKey.IsValidScope(Source, Instance)
+        && MaximumPage is >= Config.BooruSearchPagesMinimum and <= Config.BooruSearchPagesMaximum
+        && PostsPerPage is >= Config.BooruSearchPostsPerPageMinimum and <= Config.BooruSearchPostsPerPageMaximum
+        && Page >= 1 && Page <= MaximumPage
         && (Mode is null || Enum.IsDefined(Mode.Value)) && Input is not { Length: > MaximumDraftLength }
         && (PostIdentity is null || PostIdentity is { IsValid: true } && Query is null && Page == 1 && Rows is not { Length: > 1 })
         && (Query is not null || PostId is not null || Page == 1 && Rows is not { Length: > 0 })
@@ -38,7 +41,7 @@ internal sealed record BooruSearchTabTarget(string? SourceId, string? InstanceId
     private bool RowsAreValid()
     {
         if (Rows is null) return true;
-        if (Rows.Length > BooruSearchModel.PageSize) return false;
+        if (Rows.Length > PostsPerPage) return false;
         HashSet<string> ids = new(StringComparer.Ordinal);
         foreach (BooruSearchTabRow? row in Rows)
         {
@@ -93,7 +96,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
         string? Query = null, int Page = 1);
     private sealed record LegacyFile(int Version, string ProviderId, int ActiveIndex, LegacyTab?[] Tabs);
     private sealed record LegacyTab(BooruInputMode Mode, string Input, string? Query, string? PostId,
-        int Page, bool IsEnd, bool Empty, BooruSearchTabRow[] Rows);
+        int Page, bool IsEnd, bool Empty, BooruSearchTabRow[] Rows,
+        int MaximumPage = BooruSearchModel.MaximumPage, int PostsPerPage = BooruSearchModel.PageSize);
 
     private readonly string _path = Path.Combine(lease.ProfileDirectory, FileName);
     private readonly ILogger _logger = logger ?? Log.Logger;
@@ -270,7 +274,7 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
             {
                 return (new(legacy.ActiveIndex, Array.ConvertAll(legacy.Tabs, tab => tab is null ? null
                     : new BooruSearchTabTarget(legacy.ProviderId, BooruPostKey.DefaultInstance, tab.PostId, tab.Query,
-                        tab.Page, tab.Mode, tab.Input, tab.IsEnd, tab.Empty, tab.Rows))), true);
+                        tab.Page, tab.Mode, tab.Input, tab.IsEnd, tab.Empty, tab.Rows, tab.MaximumPage, tab.PostsPerPage))), true);
             }
         }
         throw new InvalidDataException("The Booru tab state version is unsupported or missing.");

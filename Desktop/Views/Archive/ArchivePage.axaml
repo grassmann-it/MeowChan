@@ -63,8 +63,8 @@
                         </SplitButton>
                         <Button x:Name="ArchiveReaderGroups" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="archive.results.reader-groups" Content="Reader groups" Click="OnReaderGroupsClick" />
                         <Button x:Name="ArchiveThreadColumnsButton" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="archive.results.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" IsVisible="False" />
-                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
-                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutList" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-list" Content="List" Classes="toolbar-toggle segment segment-first" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
+                        <ToggleButton x:Name="ArchiveLayoutTable" desktop:ActionToolBar.Group="3" desktop:ActionToolBar.End="True" desktop:ActionToolBar.Stretch="True" HorizontalAlignment="Stretch" wv:WorkViewElement.Id="archive.results.layout-table" Content="Table" Classes="toolbar-toggle segment segment-last" MinWidth="64" MinHeight="32" ursa:ToolBar.OverflowMode="Never" />
                     </desktop:ActionToolBar>
                 </Grid></ScrollViewer>
                 <!-- P2: local filter surface anchored over the result list. Same controls and
@@ -229,9 +229,6 @@
                                      display (ArchivePage.ViewPreferences pins it at DisplayIndex 0). 48 dip, not resizable or movable; the button is a 24 dip square
                                      (the width the 12 dip cell padding leaves) with the 18 dip star. -->
                                 <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False">
-                                    <DataGridTemplateColumn.CellStyleClasses>
-                                        <x:String>cell-action</x:String>
-                                    </DataGridTemplateColumn.CellStyleClasses>
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate x:DataType="desktop:ArchiveThreadRow">
                                             <desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
@@ -289,32 +286,29 @@
                         <!-- Narrow-window sweep: the thread title trims beside the ways back; trimmed, its full text is the tooltip (TrimTipTextBlock). -->
                         <controls:TrimTipTextBlock x:Name="ArchiveReaderTitle" Classes="section-title" VerticalAlignment="Center" />
                     </controls:HeaderBar>
-                    <!-- WV3: every item has a work-view id. The view decides what sits under More; PrioritizedOverflow makes the
-                         policy's ReaderToolbarKeepVisibleOrder (not the visual order below) decide what a narrow window moves first. -->
+                    <!-- WV3: the work view and available width decide what sits under More. The sidebar group always stays on the bar. -->
                     <desktop:ActionToolBar x:Name="ReaderToolbar" PrioritizedOverflow="True">
                         <desktop:ActionToolBar.Styles><Style Selector=":is(Button)"><Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" /><Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" /></Style></desktop:ActionToolBar.Styles>
-                    <!-- RL1 (15.11.): the bar's visual order is its groups, with a thin line between them (ActionToolBar.Group): the thread mark and
-                         the returns of a state (0), the main actions Large reader, Gallery, Find (1), what concerns the thread: Tags, Export, Thread (2), the
-                         settings gear (3), the history return (4). What a narrow window moves under More first is the policy's ReaderToolbarKeepVisibleOrder. -->
                     <desktop:ArchiveThreadFavoriteButton x:Name="ArchiveCurrentThreadFavorite" wv:WorkViewElement.Id="reader.toolbar.thread-favorite" />
-                    <Button x:Name="ReaderUnreadReturn" wv:WorkViewElement.Id="reader.toolbar.unread-return" IsVisible="False" Click="OnReaderUnreadReturnClick" />
                     <!-- URSA-12: explicit skip preserves the displayed post on missing group targets. -->
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
                     <Button x:Name="ArchiveReadPosts" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveOpenGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <ToggleButton x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnThreadFindToggleClick" />
-                    <ToggleButton x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
+                    <ToggleButton x:Name="ReaderFindOpen" Classes="toolbar-toggle" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnThreadFindToggleClick" />
+                    <ToggleButton x:Name="ReaderTagsOpen" Classes="toolbar-toggle" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
                     <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
                          remove watch) in one menu; the settings gear next to it is the reader's own look. -->
                     <Button x:Name="ReaderThreadOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.thread" Click="OnReaderThreadMenuClick" />
                     <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
                     <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
-                    <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <!-- The view group docks to the right. Full screen is first to move under More when width is limited. -->
-                    <ToggleButton x:Name="ArchiveThreadListToggle" desktop:ActionToolBar.Group="5" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.thread-list" IsVisible="False" />
-                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="5" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
-                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="5" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" />
+                    <Button x:Name="ReaderUnreadReturn" desktop:ActionToolBar.Group="4" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.unread-return" IsVisible="False" Click="OnReaderUnreadReturnClick" />
+                    <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
+                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="4" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    <controls:SidebarToggleGroup x:Name="ReaderSidebarToggles" desktop:ActionToolBar.Group="4" desktop:ActionToolBar.End="True" ursa:ToolBar.OverflowMode="Never">
+                        <ToggleButton x:Name="ArchiveThreadListToggle" wv:WorkViewElement.Id="reader.toolbar.thread-list" IsVisible="False" />
+                        <ToggleButton x:Name="ReaderMediaSidebarToggle" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" />
+                    </controls:SidebarToggleGroup>
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <!-- F02: Find and Tags share ONE thread-tools row. Each group shows only while open; side by side they wrap (the tag group
@@ -361,8 +355,6 @@
                         <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
                         <!-- R3: following live is "Show new posts automatically" in the settings popover (section Thread); this line only says whether it is on. -->
                         <TextBlock x:Name="ReaderLiveState" wv:WorkViewElement.Id="reader.status.follow-live" Classes="workspace-meta" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>
                 </StackPanel>
                 <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="workspace-section-flush">
@@ -370,8 +362,19 @@
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
                             <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
-                                <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
-                                    <Grid>
+                                <Grid RowDefinitions="Auto,*,Auto">
+                                    <Border x:Name="ReaderNewPostsBar" IsVisible="False" Margin="8,4"
+                                            Background="{DynamicResource Workspace.Card}"
+                                            CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="8,4">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                            <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts"
+                                                    Classes="subtle" IsVisible="False" VerticalAlignment="Center" Click="OnShowReaderUpdates" />
+                                            <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts"
+                                                       Grid.Column="1" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                       AutomationProperties.LiveSetting="Polite" />
+                                        </Grid>
+                                    </Border>
+                                    <Grid Grid.Row="1" Margin="0,0,0,8">
                                         <!-- Reader post cards (study 2026-11-13, variant A): each post is a card with a
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
@@ -648,7 +651,7 @@
                                             </Border>
                                         </Border>
                                     </Grid>
-                                    <Grid x:Name="ArchivePostNavigation" Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                    <Grid x:Name="ArchivePostNavigation" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                         <Button x:Name="PreviousPostsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousPosts" />
                                         <TextBlock x:Name="ArchivePostPage" Grid.Column="1" Classes="muted tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         <Button x:Name="NextPostsButton" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextPosts" />
@@ -668,8 +671,8 @@
                                         <Button x:Name="ArchiveFavoritesFilter" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.media.favorites-filter" Content="Favorites only" Click="OnArchiveFavoritesFilterClick" />
                                         <!-- F01 (21.11.): filters and sorting on the left; the view tools (Columns, then the Tiles/Table pair last) dock to the right edge. -->
                                         <Button x:Name="ArchiveMediaColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.columns" Content="Columns" Click="OnArchiveColumnsClick" IsVisible="False" />
-                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
-                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTiles" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-tiles" Content="Tiles" Classes="toolbar-toggle segment segment-first" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" IsChecked="True" Click="OnMediaLayoutClick" />
+                                        <ToggleButton x:Name="ArchiveMediaLayoutTable" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="toolbar-toggle segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
                                     </desktop:ActionToolBar>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
                                         <DataGrid x:Name="ArchiveMediaGrid" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">

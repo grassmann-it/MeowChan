@@ -181,27 +181,49 @@ internal static class TaggingQueueMenu
             foreach (string id in TaggingCommands.Sections[section])
             {
                 TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);
-                menu.Command(id, action(id), state.Available, state.Reason);
+                menu.Command(id, action(id), state.Available, state.Reason, keyContext: "tagging");
             }
-            // The group submenu is a first-class section between state changes and the look/order actions.
-            if (section == 1)
-            {
-                menu.Section();
-                ContextMenuBuilder groups = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
-                groups.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.newMenu"), action(TaggingCommands.GroupNew), context.Capabilities.CanChange,
-                    icon: TaggingCommands.GroupNewIcon);
-                foreach (TagQueueGroup group in context.Queue.Groups)
-                {
-                    string groupId = TaggingCommands.GroupPrefix + group.Id;
-                    bool checkedValue = context.Selected.All(row => row.Item.GroupId == group.Id);
-                    groups.Radio("tagging-groups", groupId, group.Name, checkedValue, action(groupId));
-                }
-                groups.Item(TaggingCommands.GroupRemove, Texts.T("tagging.page.group.remove"), action(TaggingCommands.GroupRemove),
-                    context.Capabilities.CanChange && context.Selected.Any(row => row.Item.GroupId != null), icon: TaggingCommands.GroupRemoveIcon);
-                menu.Submenu(TaggingCommands.GroupMenu, Texts.T("tagging.page.group.assign"), groups.ToModel(), context.Capabilities.CanChange,
-                    Texts.T("tagging.menu.reason.busy"), TaggingCommands.GroupMenuIcon);
-            }
+            // Groups sit between decisions and navigation in the row menu.
+            if (section == 1) AddGroups(menu.Section(), context, action);
         }
         return menu;
+    }
+
+    internal static ContextMenuBuilder ComposeSelection(TaggingCommandContext context, Func<string, Action> action)
+    {
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.selection.name"));
+        void Add(string id, string? label = null, bool dangerous = false)
+        {
+            TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);
+            menu.Command(id, action(id), state.Available, state.Reason, label: label, dangerous: dangerous, keyContext: "tagging");
+        }
+        Add(TaggingCommands.ApplyStamp, Texts.T("tagging.page.selection.applyStamp"));
+        Add(TaggingCommands.MarkSkipped, Texts.T("tagging.page.selection.skip"));
+        Add(TaggingCommands.MarkOpen, Texts.T("tagging.page.selection.reopen"));
+        menu.Section();
+        Add(TaggingCommands.ContinueHere);
+        AddGroups(menu, context, action);
+        menu.Section();
+        Add(TaggingCommands.Remove, dangerous: true);
+        return menu;
+    }
+
+    private static void AddGroups(ContextMenuBuilder menu, TaggingCommandContext context, Func<string, Action> action)
+    {
+        bool available = context.Capabilities.CanChange;
+        string label = Texts.T("tagging.page.group.assign");
+        ContextMenuBuilder groups = new ContextMenuBuilder().Named(label);
+        groups.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.newMenu"), action(TaggingCommands.GroupNew),
+            available, icon: TaggingCommands.GroupNewIcon);
+        foreach (TagQueueGroup group in context.Queue.Groups)
+        {
+            string groupId = TaggingCommands.GroupPrefix + group.Id;
+            bool assigned = context.Selected.Count > 0 && context.Selected.All(row => row.Item.GroupId == group.Id);
+            groups.Radio("tagging-groups", groupId, group.Name, assigned, action(groupId), available);
+        }
+        groups.Item(TaggingCommands.GroupRemove, Texts.T("tagging.page.group.remove"), action(TaggingCommands.GroupRemove),
+            available && context.Selected.Any(row => row.Item.GroupId != null), icon: TaggingCommands.GroupRemoveIcon);
+        menu.Submenu(TaggingCommands.GroupMenu, label, groups.ToModel(), available,
+            Texts.T("tagging.menu.reason.busy"), TaggingCommands.GroupMenuIcon);
     }
 }

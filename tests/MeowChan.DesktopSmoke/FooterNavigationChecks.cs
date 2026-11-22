@@ -11,8 +11,7 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class FooterNavigationChecks
 {
-    // Booru is no entry of this table: it is hidden in the footer by default (F1), needs the Danbooru composition and is covered through the More
-    // entry BooruMoreMenuItem wherever the fixture offers it (BooruInMore).
+    // Booru needs a Danbooru composition. Its navigation is covered by the Booru composition smoke.
     private static readonly (string Name, MainWindow.WorkspacePage Page)[] Destinations =
     [
         ("Downloads", MainWindow.WorkspacePage.Downloads), ("Archive", MainWindow.WorkspacePage.Archive),
@@ -84,7 +83,7 @@ internal static class FooterNavigationChecks
                         }
                         if (wide && mode == "Advanced" && window.Bounds.Width >= 1280)
                             Require(!tools.IsVisible == !booruInMore && Destinations.All(destination => Button(window, destination.Name).IsVisible),
-                                scenario + ": wide Advanced does not expose every destination directly, including Plugins (Booru stays in More until the footer shows it).");
+                                scenario + ": wide Advanced does not expose every available destination directly.");
                         foreach ((string name, MainWindow.WorkspacePage page) in Destinations)
                         {
                             Button direct = Button(window, name);
@@ -364,8 +363,7 @@ internal static class FooterNavigationChecks
     }
 
     /// <summary>
-    /// The footer buttons stand in the profile's order and Ctrl/Cmd+1, 2, 3 ... follow the pages the footer shows from the left, the hidden pages
-    /// (Booru by default) after them. The numbering is the layout's, so a narrow window moving a button under More does not renumber.
+    /// The footer buttons stand in profile order. Ctrl/Cmd+1, 2, 3 ... follow the work view's buttons, then its overflow and hidden pages.
     /// </summary>
     private static void RequireFooterOrderAndDigits(MainWindow window)
     {
@@ -379,8 +377,6 @@ internal static class FooterNavigationChecks
         string[] shownDirectly = stems.Where(stem => footer.Children.OfType<Button>().Single(button => button.Name == stem + "NavigationButton").IsVisible).ToArray();
         Require(shownDirectly.SequenceEqual(shownDirectly.OrderBy(stem => Array.IndexOf(stems, stem))), "The shown footer buttons are not in layout order.");
         Require(layout.IsVisible("navigation.downloads") && Button(window, "Downloads").IsVisible, "Downloads left the footer.");
-        // Booru is off in a default layout, so it has no direct button; the setting never forces one a work view or the width removed.
-        if (layout.IsDefault) Require(!Button(window, "Booru").IsVisible, "Booru is shown in the default footer.");
         foreach (string id in layout.Order)
             if (!layout.IsVisible(id)) Require(!Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id)).IsVisible, id + " is hidden by the layout but its button is shown.");
         // Digits (Tom 15.11.): the buttons effectively shown in the work view (setting AND policy, never the width) from the left, then the pages under More.
@@ -392,29 +388,36 @@ internal static class FooterNavigationChecks
                 numbering[index] + " does not own Ctrl/Cmd+" + (index + 1) + " (owns " + MeowChan.Desktop.Commands.MainPageOrder.Digit(numbering[index]) + ").");
         if (layout.IsDefault)
         {
-            string[] defaultNumbering = MeowChan.Desktop.WorkViews.WorkViewSetting.Parse(window.SessionHost.Config.WorkspaceMode) switch
+            string[] defaultNumbering = (window.SessionHost.Config.WorkspaceMode, BooruAvailable(window)) switch
             {
-                MeowChan.Desktop.WorkViews.WorkView.Simple => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
-                    "navigation.status", "navigation.rules", "navigation.sources", "navigation.booru"],
-                _ => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
+                ("Simple", true) => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
+                    "navigation.booru", "navigation.status", "navigation.rules", "navigation.sources"],
+                ("Simple", false) => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
+                    "navigation.status", "navigation.booru", "navigation.rules", "navigation.sources"],
+                ("Advanced", false) => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
                     "navigation.rules", "navigation.sources", "navigation.status", "navigation.booru"],
+                _ => ["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging",
+                    "navigation.booru", "navigation.rules", "navigation.sources", "navigation.status"],
             };
             Require(numbering.SequenceEqual(defaultNumbering),
                 "The default footer numbering of this work view is wrong: " + string.Join(", ", numbering));
         }
-        // The tooltip of a shown button names the digit it owns.
-        foreach (string id in layout.Order.Where(layout.IsVisible))
+        HashSet<string> descriptions = new(StringComparer.Ordinal);
+        foreach (string id in layout.Order.Append("navigation.settings"))
         {
             Button button = Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id));
-            string? shortcut = MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay(id);
-            Require(shortcut != null && ToolTip.GetTip(button) is string tip && tip.Contains(shortcut, StringComparison.Ordinal),
+            string? shortcut = MeowChan.Desktop.Commands.ShortcutService.Current.Display(id);
+            string[] lines = (ToolTip.GetTip(button) as string ?? "").Split('\n');
+            Require(shortcut != null && lines[0].EndsWith(" · " + shortcut, StringComparison.Ordinal),
                 "The footer tooltip of " + id + " does not name its digit shortcut (" + shortcut + ").");
+            Require(lines.Length == 2 && lines[1] == Texts.T("command." + id + ".tip") && descriptions.Add(lines[1]),
+                "The footer tooltip of " + id + " lacks a unique page description.");
         }
     }
 
     /// <summary>
-    /// The work view's footer policy (Tom 15.11.): Barebones shows Downloads, Archive and Media directly, Simple adds Tagging and Status, Advanced adds
-    /// Rules and Plugins (Booru only when the footer setting shows it). The policy is the upper bound at every width; with room for the buttons (wide) every
+    /// The work view's footer policy: Barebones shows Downloads, Archive and Media directly, Simple adds Tagging, Booru and Status, Advanced adds
+    /// Rules and Plugins. The policy is the upper bound at every width; with room for the buttons (wide) every
     /// allowed page is direct; at the minimum width a page leaves for More from the right of the layout, so no allowed page stays direct behind one that left.
     /// </summary>
     private static void RequireWorkViewFooterPolicy(MainWindow window, string mode, bool wide, string scenario)
@@ -434,21 +437,17 @@ internal static class FooterNavigationChecks
         if (mode == "Barebones" && layout.IsDefault && wide && window.Bounds.Width >= 1280)
             Require(shown.SequenceEqual(["navigation.downloads", "navigation.archive", "navigation.media"]),
                 scenario + ": the Barebones footer is not Downloads, Archive, Media: " + string.Join(", ", shown));
-        if (mode == "Simple" && layout.IsDefault && wide && window.Bounds.Width >= 1280)
-            Require(shown.SequenceEqual(["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging", "navigation.status"]),
-                scenario + ": the Simple footer is not Downloads, Archive, Media, Tagging, Status: " + string.Join(", ", shown));
     }
 
-    // Booru has no direct button without the "Show Booru actions" setting (the layout shows it only on request, so a default layout never lists it).
     /// <summary>The digit order the work view and the footer setting give (the shell publishes the same list; width never changes it).</summary>
     internal static IReadOnlyList<string> ExpectedNumbering(MainWindow window) => window.FooterLayout.NumberingFor(
         MeowChan.Desktop.WorkViews.WorkViewSetting.Parse(window.SessionHost.Config.WorkspaceMode), id => id != "navigation.booru" || BooruAvailable(window));
 
-    /// <summary>The digit a page owns now in the work view in effect (Status is 7 in Barebones and Advanced, 5 in Simple).</summary>
+    /// <summary>The digit a page owns in the current work view.</summary>
     internal static int? ExpectedDigit(MainWindow window, string commandId) =>
         ExpectedNumbering(window).ToList().IndexOf(commandId) is int index and >= 0 && index < MeowChan.Desktop.Commands.MainPageOrder.MaximumDigit ? index + 1 : null;
 
-    private static bool BooruAvailable(MainWindow window) => window.SessionHost.Config.ShowBooruTools;
+    private static bool BooruAvailable(MainWindow window) => window.SessionHost.Config.ShowBooruTools && window.SessionHost.BooruServices is not null;
 
     private static bool BooruInMore(MainWindow window) => window.FindControl<MenuItem>("BooruMoreMenuItem") is { IsVisible: true };
 

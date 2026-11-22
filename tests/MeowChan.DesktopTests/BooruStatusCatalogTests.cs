@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using MeowChan.Archive;
 using MeowChan.Booru;
@@ -7,6 +8,9 @@ using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginSdk;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -88,18 +92,29 @@ public sealed class BooruStatusCatalogTests : IDisposable
             "MeowChan.PluginHost/Http/BooruHostHttp.cs", "MeowChan.PluginHost/Sources/Booru/BooruHostServices.cs",
             "MeowChan.PluginHost/Sources/Booru/BooruSearchService.cs", "plugins/Official/Danbooru/Danbooru.cs"
         };
-        Regex failure = new(@"(?:Failure|Failed|FailureDetail)\(\s*""(?<code>[a-z0-9_-]+)""", RegexOptions.CultureInvariant);
-        Regex deferred = new(@"""(?<code>booru-cooldown|provider-[a-z-]+)""", RegexOptions.CultureInvariant);
-        // Codes held in named constants (InvalidQueryCode, WorkerStoppedCode, ...) reach the window just the same.
-        Regex constant = new(@"const string \w+Code = ""(?<code>[a-z0-9_-]+)""", RegexOptions.CultureInvariant);
-        HashSet<string> codes = new(StringComparer.Ordinal) { "invalid_query", "post_id" /* BooruSearchService public constants */ };
+        Regex codeFormat = new(@"^[a-z0-9_-]+$", RegexOptions.CultureInvariant);
+        Regex deferred = new(@"^(booru-cooldown|provider-[a-z-]+)$", RegexOptions.CultureInvariant);
+        HashSet<string> codes = new(StringComparer.Ordinal);
         HashSet<string> reasons = new(StringComparer.Ordinal);
         foreach (string file in files)
         {
-            string text = File.ReadAllText(Path.Combine(root, file));
-            foreach (Match match in failure.Matches(text)) codes.Add(match.Groups["code"].Value);
-            foreach (Match match in deferred.Matches(text)) reasons.Add(match.Groups["code"].Value);
-            foreach (Match match in constant.Matches(text)) codes.Add(match.Groups["code"].Value);
+            var source = CSharpSource.Parse(File.ReadAllText(Path.Combine(root, file)));
+            var failures = source.Calls("Failure").Concat(source.Calls("Failed"))
+                .Select(call => call.ArgumentList.Arguments)
+                .Concat(source.DescendantNodes().OfType<ObjectCreationExpressionSyntax>()
+                    .Where(creation => creation.Type is IdentifierNameSyntax type && type.Identifier.ValueText == "FailureDetail")
+                    .Select(creation => creation.ArgumentList!.Arguments));
+            var namedCodes = source.DescendantNodes().OfType<FieldDeclarationSyntax>()
+                .Where(field => field.Modifiers.Any(SyntaxKind.ConstKeyword))
+                .SelectMany(field => field.Declaration.Variables)
+                .Where(variable => variable.Identifier.ValueText.EndsWith("Code", StringComparison.Ordinal))
+                .Select(variable => variable.Initializer?.Value);
+            codes.UnionWith(failures.Select(arguments => arguments.FirstOrDefault()?.Expression).Concat(namedCodes)
+                .OfType<LiteralExpressionSyntax>().Where(literal => literal.IsKind(SyntaxKind.StringLiteralExpression))
+                .Select(literal => literal.Token.ValueText).Where(code => codeFormat.IsMatch(code)));
+            reasons.UnionWith(source.DescendantNodes().OfType<LiteralExpressionSyntax>()
+                .Where(literal => literal.IsKind(SyntaxKind.StringLiteralExpression))
+                .Select(literal => literal.Token.ValueText).Where(reason => deferred.IsMatch(reason)));
         }
         Assert.NotEmpty(codes);
         Assert.Contains("booru-budget", codes);
@@ -107,13 +122,29 @@ public sealed class BooruStatusCatalogTests : IDisposable
         Assert.Contains("stopped", codes); // MS-R1: the search facade's "worker switched off mid-call" outcome
         Assert.Contains("booru-cooldown", reasons);
         Assert.Contains("provider-throttled", reasons);
-        foreach (string language in Languages)
+        foreach (string language in Languages.Concat(Texts.BundledPackCodes()).Distinct(StringComparer.Ordinal))
         {
             Texts.SetLanguage(language);
-            foreach (string code in codes.Where(code => code != "http-" /* dynamic "http-" + status */))
-                Assert.False(BooruMessages.Failure(code).Contains("(" + code + ")", StringComparison.Ordinal), language + " has no text for the failure code " + code);
+            foreach (string code in codes)
+                Assert.True(BooruMessages.Failure(code) != Texts.T("booru.failure.unknown", code),
+                    language + " has no text for the failure code " + code);
             foreach (string reason in reasons)
                 Assert.NotEqual(BooruMessages.Deferred("unlisted-reason", DateTimeOffset.UnixEpoch), BooruMessages.Deferred(reason, DateTimeOffset.UnixEpoch));
+        }
+    }
+
+    [Fact]
+    public void InvalidPageSizeHasItsOwnTextInEveryBundledPack()
+    {
+        const string key = "booru.failure.invalid_limit";
+        foreach (string language in Texts.BundledPackCodes())
+        {
+            using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(Texts.BundledPackResourcePrefix + language + ".json")!;
+            using JsonDocument document = JsonDocument.Parse(stream);
+            Assert.True(document.RootElement.GetProperty("strings").TryGetProperty(key, out JsonElement text), language);
+            Assert.False(string.IsNullOrWhiteSpace(text.GetString()), language);
+            Texts.SetLanguage(language);
+            Assert.Equal(text.GetString(), BooruMessages.Failure("invalid_limit"));
         }
     }
 

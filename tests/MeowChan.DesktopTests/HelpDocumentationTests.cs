@@ -591,22 +591,35 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void GalleryHelpMatchesLeftPlacementAndUnreducedSafetyState()
+    public void GalleryHelpMatchesHeaderAndSidePanelPlacementAndUnreducedSafetyState()
     {
         string text = Plain(Section(Read(Help), "Images, search and navigation"));
         Assert.Contains("far left of the header, before the title, with the favorite star directly to its right", text);
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
-        // The left-hand Post | Tags segment is not the gallery's Back action.
         Assert.Contains("Back to {target}", text);
-        Assert.Contains("The side panel has Post | Tags at the top left, the live medium counter immediately beside it, and × alone at the right", text);
+        Assert.Contains("The live medium counter is at the top left of the side panel", text);
+        Assert.Contains("Post | Tags are on the left and × is on the right", text);
+        Assert.Contains("The tabs wrap onto two lines when space is tight", text);
         Assert.Contains("The counter updates as you navigate, with localized position text and polite accessibility announcements", text);
-        string sidePanel = Read("Desktop/Controls/GallerySidePanel.cs");
-        Assert.Contains("Children.Add(_segment);", sidePanel);
-        Assert.Contains("Children.Add(close); SetColumn(close, 2);", sidePanel);
-        // Tom's rule of 14.11.: the code places the way back first at the LEFT with the star directly right of it. The two Help.md assertions
-        // above (right edge wording) change together with the Help section, which the coordinator edits (GL3 report has the sentence).
-        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Left", Read("Desktop/GalleryViewer.cs"));
-        Assert.Contains("_close.Bounds.Width : 44) + StarGap", Read("Desktop/GalleryViewer.Favorites.cs"));
+        Assert.Contains("the media title is left-aligned above the favorite and rating controls", text);
+        Assert.Contains("the line with the source, board and thread is left-aligned above those controls", text);
+        Assert.Contains("steht er oben links im Galerie-Seitenpanel", text);
+        Assert.Contains("der Medientitel linksbündig über den Favoriten- und Bewertungsfunktionen", text);
+        var viewer = CSharpSource.Parse(Read("Desktop/GalleryViewer.cs"));
+        Assert.Contains(viewer.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
+            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_close.HorizontalAlignment = HorizontalAlignment.Left")));
+        var context = viewer.Method("BuildContext");
+        var postWhere = Assert.Single(context.Calls("AddContext"), call => call.ArgumentList.Arguments.Any(argument =>
+            argument.Expression is LiteralExpressionSyntax name && name.Token.ValueText == "GalleryPostWhere"));
+        var postWhereAlignment = Assert.IsType<AssignmentExpressionSyntax>(postWhere.Parent!.Parent);
+        Assert.True(SyntaxFactory.AreEquivalent(postWhereAlignment.Right, SyntaxFactory.ParseExpression("TextAlignment.Left")));
+        Assert.True(postWhere.SpanStart < Assert.Single(context.Calls("PostDecisionSection")).SpanStart);
+        var favorites = CSharpSource.Parse(Read("Desktop/GalleryViewer.Favorites.cs"));
+        var starMargin = Assert.Single(favorites.DescendantNodes().OfType<PropertyDeclarationSyntax>(),
+            property => property.Identifier.ValueText == "StarLeftMargin");
+        Assert.Contains(starMargin.DescendantNodes().OfType<MemberAccessExpressionSyntax>(), member =>
+            SyntaxFactory.AreEquivalent(member, SyntaxFactory.ParseExpression("_close.Bounds.Width")));
+        Assert.Contains(starMargin.DescendantNodes().OfType<IdentifierNameSyntax>(), name => name.Identifier.ValueText == "StarGap");
         foreach (WorkView view in Enum.GetValues<WorkView>())
         {
             foreach (string id in new[] { "gallery.back", "gallery.favorite.indicator", "gallery.video.transport",
@@ -1261,7 +1274,7 @@ public sealed class HelpDocumentationTests
             @"(?m)^\| Page \| Letter \| Digit in Simple[^\r\n]*\|\r?\n\|[^\r\n]*\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)");
         string[] rows = pageTable.Groups["rows"].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.TrimEnd('\r')).ToArray();
-        // The table follows the digits a new profile (Simple, default footer) sees; Booru is hidden by default and comes last.
+        // The table follows the digits a new profile (Simple, default footer) sees.
         string[] ids = FooterLayout.Default.NumberingFor(WorkView.Simple).ToArray();
         Assert.Equal(MainPageOrder.DefaultNumbering.Count, rows.Length);
         Assert.Equal(ids.Length, rows.Length);
@@ -1278,16 +1291,15 @@ public sealed class HelpDocumentationTests
             Assert.Equal(i + 1, Number(row.Groups["simple"].Value));
             Assert.Equal(barebones.ToList().IndexOf(id) + 1, Number(row.Groups["other"].Value));
         }
-        // The default footer hides Booru, so its digit is the last one in every work view.
-        Assert.Equal("navigation.booru", ids[^1]);
-        Assert.Equal("navigation.booru", barebones[^1]);
+        Assert.Equal("navigation.booru", ids[4]);
+        Assert.Equal("navigation.booru", barebones[4]);
         Assert.Equal(MainPageOrder.CommandIds.Count, new HashSet<string>(ids).Count);
         // Shown in the footer, Booru takes the fifth digit in every work view (a button under More in Barebones counts as well).
         foreach (WorkView view in WorkViewSetting.All)
-            Assert.Equal(5, FooterLayout.Default.WithVisible("navigation.booru", true).NumberingFor(view).ToList().IndexOf("navigation.booru") + 1);
+            Assert.Equal(5, FooterLayout.Default.NumberingFor(view).ToList().IndexOf("navigation.booru") + 1);
         Assert.Contains("The table lists the pages in the order of the digits in Simple", section, StringComparison.Ordinal);
-        Assert.Contains("which the default footer hides, comes last", section, StringComparison.Ordinal);
-        Assert.Contains("it takes digit 5 in every work view", section, StringComparison.Ordinal);
+        Assert.Contains("then come the pages you hid from the footer", section, StringComparison.Ordinal);
+        Assert.Contains("Booru takes digit 5 in every work view", section, StringComparison.Ordinal);
         Assert.Contains("A binding you saved for another command always wins over a default", section, StringComparison.Ordinal);
         foreach (string compatibility in MainPageOrder.StatusSegmentCommandIds.Append("navigation.plugins"))
         {
@@ -1697,19 +1709,19 @@ public sealed class HelpDocumentationTests
         Assert.Contains("not permission to activate it", sources, StringComparison.Ordinal);
         string status = Plain(Section(Read(Help), "Status page"));
         Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
-        // The Status digit follows the footer of the work view: 7 in Barebones and Advanced, 5 in Simple, the start view of a new profile.
-        Assert.Equal(7, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.status") + 1);
-        Assert.Equal(5, FooterLayout.Default.NumberingFor(WorkView.Simple).ToList().IndexOf("navigation.status") + 1);
-        Assert.Equal(7, FooterLayout.Default.NumberingFor(WorkView.Advanced).ToList().IndexOf("navigation.status") + 1);
+        // The Status digit follows the footer of the work view: 8 in Barebones and Advanced, 6 in Simple, the start view of a new profile.
+        Assert.Equal(8, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.status") + 1);
+        Assert.Equal(6, FooterLayout.Default.NumberingFor(WorkView.Simple).ToList().IndexOf("navigation.status") + 1);
+        Assert.Equal(8, FooterLayout.Default.NumberingFor(WorkView.Advanced).ToList().IndexOf("navigation.status") + 1);
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
             "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
-            "Ctrl+7 in Barebones and Advanced, Ctrl+5 in Simple",
+            "Ctrl+8 in Barebones and Advanced, Ctrl+6 in Simple",
             "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru ist eine eigene Hauptseite, kein Status-Bereich",
-            "in Minimal und Erweitert Strg+7, in Einfach Strg+5" })
+            "in Minimal und Erweitert Strg+8, in Einfach Strg+6" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);
         Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
-        Assert.Equal(8, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.booru") + 1);
-        Assert.Equal(6, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.sources") + 1);
+        Assert.Equal(5, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.booru") + 1);
+        Assert.Equal(7, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.sources") + 1);
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 

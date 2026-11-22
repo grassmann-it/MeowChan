@@ -338,7 +338,7 @@ public partial class MainWindow
         CommandBindings.EnsureIconBeforeText(DownloadSearchClear, "x");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeAdvanced, "eye");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeDismiss, "check");
-        CommandBindings.ApplyLabeled(ShellFeedbackDiagnosticsButton, "navigation.diagnostics", Texts.T("feedback.open"));
+        LocalizeShellFeedbackAction();
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();

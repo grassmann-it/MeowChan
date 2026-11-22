@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Styling;
@@ -50,7 +51,7 @@ internal static class DownloadSearchChecks
                 "Normal success or waiting media were projected as an error.");
             tabs.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(rows[^1]));
-            CheckRowFocus(window, grid, complete, waiting);
+            await CheckRowFocusAsync(window, grid, complete, waiting);
             grid.SelectedItems.Clear();
             grid.SelectedItems.Add(rows[0]); grid.SelectedItems.Add(rows[1]);
             window.FocusDownloadSearch();
@@ -243,37 +244,72 @@ internal static class DownloadSearchChecks
         }
     }
 
-    private static void CheckRowFocus(MainWindow window, DataGrid grid, ThreadRow first, ThreadRow second)
+    private static async Task CheckRowFocusAsync(MainWindow window, DataGrid grid, ThreadRow first, ThreadRow second)
     {
         DataGridColumn title = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Title));
         DataGridColumn next = grid.Columns.Where(column => column.IsVisible && column.DisplayIndex > title.DisplayIndex)
             .MinBy(column => column.DisplayIndex)!;
-        grid.SelectedItem = first;
         grid.ScrollIntoView(first, next);
-        grid.CurrentColumn = next;
-        Require(grid.Focus(NavigationMethod.Tab), "The Downloads table did not take keyboard focus.");
         window.UpdateLayout();
 
         DataGridRow Row(ThreadRow item) => grid.GetVisualDescendants().OfType<DataGridRow>()
             .Single(row => ReferenceEquals(row.DataContext, item));
+        Button PriorityAction(DataGridRow row) => row.GetVisualDescendants().OfType<Button>()
+            .Single(button => button.Classes.Contains("row-action"));
         Border RowBackground(DataGridRow row) => row.GetVisualDescendants().OfType<Border>()
             .Single(border => border.Name == "BackgroundBorder");
-        void AssertRowFocus(DataGridRow row, bool cellAction = false)
+        void AssertRowFocus(DataGridRow row)
         {
-            DataGridCell cell = row.GetVisualDescendants().OfType<DataGridCell>()
-                .Single(cell => cell.Classes.Contains(":current"));
+            var cells = row.GetVisualDescendants().OfType<DataGridCell>().ToArray();
+            DataGridCell current = cells.Single(cell => cell.Classes.Contains(":current"));
             foreach (string part in new[] { "CurrencyVisual", "FocusVisual" })
-                Require((cell.GetVisualDescendants().OfType<Control>().Single(control => control.Name == part).Opacity > 0) == cellAction,
-                    $"The Downloads {grid.CurrentColumn.SortMemberPath} cell has the wrong visibility for {part} (interactive: {cellAction}).");
+            {
+                Require(current.GetVisualDescendants().OfType<Control>().Single(control => control.Name == part).Opacity == 0,
+                    $"The current Downloads cell exposes {part}.");
+                Require(cells.SelectMany(cell => cell.GetVisualDescendants().OfType<Control>())
+                        .Where(control => control.Name == part).All(control => control.Opacity == 0),
+                    $"A realized Downloads cell exposes {part}.");
+            }
             Require(RowBackground(row).BorderThickness == new Thickness(3, 1, 1, 1),
                 "The focused Downloads row lacks a border.");
         }
 
+        DataGridCell titleCell = PriorityAction(Row(first)).GetVisualAncestors().OfType<DataGridCell>().Single();
+        await SelectionChecks.PressAsync(window, titleCell);
+        Require(ReferenceEquals(grid.SelectedItem, first) && grid.CurrentColumn == title,
+            "Clicking the Downloads title did not select its row.");
+        AssertRowFocus(Row(first));
+        foreach (DataGridColumn column in grid.Columns.Where(column => column.IsVisible))
+        {
+            grid.CurrentColumn = column;
+            grid.ScrollIntoView(first, column);
+            window.UpdateLayout();
+            AssertRowFocus(Row(first));
+        }
+        grid.CurrentColumn = next;
+        Require(grid.Focus(NavigationMethod.Tab), "The Downloads table did not take keyboard focus.");
+        window.UpdateLayout();
         AssertRowFocus(Row(first));
         grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Left });
         Require(grid.CurrentColumn == title && ReferenceEquals(grid.SelectedItem, first),
             "Left Arrow did not reach the title cell in the same row.");
-        AssertRowFocus(Row(first), cellAction: true);
+        AssertRowFocus(Row(first));
+        first.ApplyUserPriority(true);
+        try
+        {
+            Button action = PriorityAction(Row(first));
+            window.UpdateLayout();
+            ((Control)window.FocusManager!.GetFocusedElement()!).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+            window.UpdateLayout();
+            Require(action.IsFocused && action.Focusable && AutomationProperties.GetName(action) == first.PriorityActionDescription
+                && window.GetVisualDescendants().OfType<Border>().Any(border =>
+                    ReferenceEquals(border.GetValue(AdornerLayer.AdornedElementProperty), action)
+                    && border.BorderThickness == new Thickness(2) && border.IsEffectivelyVisible),
+                "The priority action did not take Tab focus with an accessible name and its own visible ring.");
+            AssertRowFocus(Row(first));
+        }
+        finally { first.ApplyUserPriority(false); }
+        Require(grid.Focus(NavigationMethod.Tab), "The Downloads table did not retake keyboard focus.");
         grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
         Require(grid.CurrentColumn == next, "Right Arrow did not return to the adjacent ordinary cell.");
         grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down, KeyModifiers = KeyModifiers.Shift });

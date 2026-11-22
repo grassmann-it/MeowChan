@@ -133,7 +133,7 @@ internal sealed class BooruSearchTabs
             row.Preview == BooruPreviewState.Ready && row.PreviewBytes is { Length: > 0 and <= BooruPreviewHttp.MaximumPreviewBytes } bytes
                 ? bytes : null)).ToArray();
         return new(view.ProviderId, view.InstanceId, view.ExecutedPostIdentity?.PostId, view.ExecutedQuery, view.Page,
-            view.Mode, input, view.IsEnd, view.Status == BooruSearchStatus.Empty, rows);
+            view.Mode, input, view.IsEnd, view.Status == BooruSearchStatus.Empty, rows, view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
     }
 
     internal void RestoreTargets(BooruSearchTabState state, int tabLimit = Config.BooruSavedTabsMaximum,

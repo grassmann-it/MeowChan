@@ -53,9 +53,11 @@ public sealed class ThemeTokenMapTests
     {
         ThemeTokenTheme theme = Enum.Parse<ThemeTokenTheme>(themeName);
         Dictionary<string, XElement> resources = Resources(theme);
-        var explicitSeeds = resources.Where(pair => pair.Value.Name == A + "SolidColorBrush" &&
+        var workspaceColours = resources.Where(pair => pair.Value.Name == A + "SolidColorBrush" &&
             pair.Key.StartsWith("Workspace.", StringComparison.Ordinal)).Select(pair => pair.Key);
-        Assert.Equal(explicitSeeds.Order(StringComparer.Ordinal), ThemeTokens.Seeds.Order(StringComparer.Ordinal));
+        var expectedColours = ThemeTokens.Seeds.Append("Workspace.ToolbarToggleSurface");
+        Assert.Equal(expectedColours.Order(StringComparer.Ordinal), workspaceColours.Order(StringComparer.Ordinal));
+        Assert.Equal(ThemeTokenClassification.Variation, ThemeTokens.ForTheme(theme).Classify("Workspace.ToolbarToggleSurface"));
         foreach (string seed in ThemeTokens.Seeds)
             Assert.Equal(ThemeTokenClassification.Seed, ThemeTokens.ForTheme(theme).Classify(seed));
 
@@ -110,6 +112,7 @@ public sealed class ThemeTokenMapTests
             "CheckBoxPressedBorderBrush", "CheckBoxCardCheckedPressedBorderBrush",
             "RadioButtonUncheckIconPressedBorderBrush", "RadioButtonCardCheckPressedBorderBrush");
         Add(ThemeTokenVariation.PressedAccentText, "#8ABBFF", "#662F05", "BreadcrumbItemPressedForeground");
+        Add(ThemeTokenVariation.ToolbarToggleSurface, "#25344A", "#7D7367", "Workspace.ToolbarToggleSurface");
         Add(ThemeTokenVariation.AccentPreview, "#666AA7FF", "#66803B06",
             "GridSplitterPreviewBackground", "DataGridDropLocationIndicatorBackground");
         if (theme == ThemeTokenTheme.Light)

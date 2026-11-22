@@ -148,8 +148,8 @@ public sealed class BooruPortAvailabilityTests
 
     private static async Task<BooruCallStatus> InvokeSearch(IBooruSearchPort port, bool readPost,
         CancellationToken token = default) => readPost
-            ? (await port.ReadPostAsync("1", token).WaitAsync(Deadline)).Status
-            : (await port.SearchAsync("cat", 1, token).WaitAsync(Deadline)).Status;
+            ? (await port.ReadPostAsync("1", token).WaitAsync(Deadline, CancellationToken.None)).Status
+            : (await port.SearchAsync("cat", 1, BooruSearchModel.PageSize, token).WaitAsync(Deadline, CancellationToken.None)).Status;
 
     [Fact]
     public async Task ReenabledHostKeepsAutomaticChecksPausedButAllowsAnExplicitManualCheck()

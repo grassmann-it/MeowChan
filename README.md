@@ -17,6 +17,12 @@ Save the threads you care about—and make them worth coming back to. **MeowChan
 
 **1.1.0 is the biggest MeowChan release so far**: a Media page over everything you saved, private tags with a fast tagging workflow, your own file imports, a first Danbooru source and a new look for every window.
 
+## Booru navigation in 1.1.1
+
+Booru appears by default with the bundled Danbooru source enabled. The new footer default also applies to profiles that used the 1.1.0 default footer. To hide the page, turn off **Show Booru actions** in Settings → Interface → Footer.
+
+**Deutsch.** Booru erscheint standardmäßig mit aktivierter Danbooru-Quelle. Das gilt auch für Profile mit der 1.1.0-Standard-Fußleiste. Unter Einstellungen → Oberfläche → Fußleiste lässt sich die Seite über **Booru-Aktionen anzeigen** ausblenden.
+
 ## What's new in 1.1.0 🐾
 
 - **12 interface languages.** English, Deutsch, Español, Français, Русский, 简体中文, 日本語, 한국어, Português (Brasil), Čeština, Italiano and Polski. The ten new packs are AI-authored previews with language and plural reviews but no native-speaker acceptance yet; corrections are welcome. Chinese, Japanese and Korean need Noto Sans CJK on Linux.

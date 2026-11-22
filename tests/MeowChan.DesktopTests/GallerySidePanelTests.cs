@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
@@ -23,6 +25,39 @@ public sealed class GallerySidePanelTests : IDisposable
         return new GallerySidePanel(close) { PostContent = new StackPanel { Children = { new Button { Name = "PostAction" } } },
             TagContent = new StackPanel { Children = { new TextBox { Name = "TagField" } } } };
     }
+
+    [Theory]
+    [InlineData(140)]
+    [InlineData(148)]
+    public void WrappedSegmentsStayAboveTheContentAndTheCounterIsLeftAligned(int width) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Texts.SetLanguage("fr");
+        GallerySidePanel panel = Panel(out Button close);
+        panel.Width = width;
+        close.Width = close.Height = 40;
+        panel.Segment = GallerySidePanelSegment.Tags;
+        panel.HeaderCounter = new TextBlock { Text = "1 / 2" };
+        Window window = new() { Width = 360, Height = 240, Content = panel };
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Control segment = (Control)panel.PostButton.Parent!;
+            Assert.True(panel.TagsButton.Bounds.Top >= panel.PostButton.Bounds.Bottom);
+            Assert.True(segment.Bounds.Top + panel.TagsButton.Bounds.Bottom <= panel.TagSlot.Bounds.Top);
+            Assert.True(close.Bounds.Left - segment.Bounds.Right >= 23);
+            Control counter = Assert.IsType<TextBlock>(panel.HeaderCounter);
+            Point origin = counter.TranslatePoint(default, panel)!.Value;
+            Assert.InRange(origin.X, -0.5, 0.5);
+            Assert.True(origin.Y + counter.Bounds.Height <= segment.Bounds.Top);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
 
     // ---- segment ----
 
@@ -132,9 +167,9 @@ public sealed class GallerySidePanelTests : IDisposable
         // Within the segment: Post before Tags.
         Assert.True(((Panel)segment).Children.IndexOf(panel.PostButton) < ((Panel)segment).Children.IndexOf(panel.TagsButton));
         // The close button stands alone at the right edge, 24 dip at least from the segment.
-        Assert.Equal(2, Grid.GetColumn(close));
-        Assert.Equal(0, Grid.GetColumn(segment));
-        Assert.True(panel.ColumnDefinitions[1].MinWidth >= 24);
+        Assert.True(Grid.GetColumn(close) > Grid.GetColumn(segment));
+        Assert.Equal(Grid.GetRow(segment), Grid.GetRow(close));
+        Assert.True(segment.Margin.Right >= 24);
     }
 
     // ---- width ----

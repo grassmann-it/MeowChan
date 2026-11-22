@@ -123,6 +123,7 @@ internal static partial class SmokeScenarios
             Configure = config => { config.Theme = "Light"; config.WorkViewSwitchNoticeSeconds = 0; }
         },
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
+        ["reader-live"] = new(SmokeStage.Ready, mainWindow => ReaderLiveChecks.RunAsync(mainWindow)),
         ["tagging-mode"] = new(SmokeStage.Ready, mainWindow => TaggingModeChecks.RunAsync(mainWindow)),
         ["tagging-cards"] = new(SmokeStage.Ready, mainWindow => TaggingCardsChecks.RunAsync(mainWindow)),
         ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),
@@ -319,6 +320,10 @@ internal static partial class SmokeScenarios
         ["sources-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SourcesChecks.RunAsync(mainWindow)),
         ["pause-controls"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PauseChecks.RunAsync(mainWindow)),
         ["rules-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesPageChecks.RunAsync(mainWindow)),
+        ["page-header-help"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PageHeaderHelpChecks.RunAsync(mainWindow))
+        {
+            Configure = config => config.WorkspaceMode = "Barebones"
+        },
         ["settings-core"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsChecks.RunAsync(mainWindow)),
         ["page-refresh"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {

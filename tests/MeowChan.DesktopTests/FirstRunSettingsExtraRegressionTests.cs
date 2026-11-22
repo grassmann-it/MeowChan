@@ -11,6 +11,7 @@ namespace MeowChan.DesktopTests;
 /// Additional no-UI regressions for the already-implemented first-run Settings hydration.
 /// They use the coordinator/draft seams and one deterministic local host/provider fixture.
 /// </summary>
+[Collection("Avalonia global state")]
 public sealed class FirstRunSettingsExtraRegressionTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
@@ -32,7 +33,7 @@ public sealed class FirstRunSettingsExtraRegressionTests
 
         using HttpClient client = new(new ActivationFailureTransport());
         ActivationFailureProvider provider = new(client);
-        await using DesktopSessionHost host = new(directory.Path, new IImageBoard[] { provider });
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(directory.Path, new IImageBoard[] { provider }));
         await host.StartAsync().WaitAsync(Timeout);
         await host.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Timeout);
         await WaitUntilAsync(() => host.GetView().Threads.Any(thread => thread.Snapshot.Id.Thread == "123"));

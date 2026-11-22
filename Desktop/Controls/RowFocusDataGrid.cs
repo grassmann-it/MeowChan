@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace MeowChan.Desktop.Controls;
 
@@ -29,6 +33,20 @@ internal sealed class RowFocusDataGrid : DataGrid
             foreach (DataGridRow row in _realizedRows)
                 SetRowFocus(row, current);
         };
+        AddHandler(KeyDownEvent, OnRowActionTab, RoutingStrategies.Tunnel);
+    }
+
+    private void OnRowActionTab(object? sender, KeyEventArgs e)
+    {
+        // Arrow keys still navigate the grid. Tab can enter the action in the current cell.
+        if (e.Key != Key.Tab || e.KeyModifiers != KeyModifiers.None
+            || (!ReferenceEquals(e.Source, this) && e.Source is not DataGridCell)) return;
+        DataGridRow? row = _realizedRows.FirstOrDefault(row => row.Classes.Contains(CurrentRowClass));
+        DataGridCell? cell = row?.GetVisualDescendants().OfType<DataGridCell>()
+            .FirstOrDefault(cell => cell.Classes.Contains(":current"));
+        Button? action = cell?.GetVisualDescendants().OfType<Button>()
+            .FirstOrDefault(button => button.Classes.Contains("row-action") && button.IsEffectivelyVisible && button.IsEffectivelyEnabled);
+        if (action?.Focus(NavigationMethod.Tab) == true) e.Handled = true;
     }
 
     private static void SetRowFocus(DataGridRow row, object? current) =>

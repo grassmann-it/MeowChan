@@ -204,6 +204,7 @@ public partial class MainWindow
     {
         LegacyCommandAdapters.Register(this);
         RefreshShellCommands();
+        if (_workspaceInitialized) UpdatePauseControls(_restoreCompleted && !WorkspaceEditorBusy);
         // Rebuild an already visible help panel from the same committed snapshot.
         if (ShellHelpOverlay.IsVisible)
         { DismissShellHelp(); ShowShellHelp(); }

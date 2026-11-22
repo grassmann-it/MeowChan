@@ -148,7 +148,7 @@
                         <controls:HelpButton x:Name="StatisticsHelpButton" Grid.Column="1" HelpKey="help.stats" />
                     </Grid>
                     <TextBlock x:Name="SourcesEmpty" Classes="muted" TextWrapping="Wrap" IsVisible="False" />
-                    <DataGrid x:Name="StatisticsGrid" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
+                    <controls:RowFocusDataGrid x:Name="StatisticsGrid" Classes="row-focus" AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Single"
                               CanUserSortColumns="False" CanUserReorderColumns="False" CanUserResizeColumns="False"
                               GridLinesVisibility="Horizontal" HeadersVisibility="Column" RowHeight="34" ColumnHeaderHeight="72"
                               HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
@@ -215,14 +215,14 @@
                                         <!-- A count above zero leads to the problems of that source in the diagnostics segment (click or Enter). -->
                                         <Panel>
                                             <TextBlock Classes="stats-num" Text="{Binding Errors}" FontWeight="{Binding Weight}" VerticalAlignment="Center" IsVisible="{Binding !CanOpenDiagnostics}" />
-                                            <Button Classes="subtle stats-error-link" Content="{Binding Errors}" FontWeight="{Binding Weight}" HorizontalAlignment="Right" VerticalAlignment="Center"
+                                            <Button Classes="subtle stats-error-link row-action" Content="{Binding Errors}" FontWeight="{Binding Weight}" HorizontalAlignment="Right" VerticalAlignment="Center"
                                                     IsVisible="{Binding CanOpenDiagnostics}" AutomationProperties.Name="{Binding ErrorsLinkText}" ToolTip.Tip="{Binding ErrorsLinkText}" />
                                         </Panel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                         </DataGrid.Columns>
-                    </DataGrid>
+                    </controls:RowFocusDataGrid>
                     <StackPanel x:Name="CompactSources" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
                         <Grid ColumnDefinitions="*,90,90,64" ColumnSpacing="{StaticResource Workspace.Space.8}" Margin="32,0,12,0">
                             <TextBlock x:Name="CompactSourceHeader" TextWrapping="Wrap" />

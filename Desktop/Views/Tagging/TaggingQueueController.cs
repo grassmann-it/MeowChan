@@ -198,26 +198,7 @@ internal sealed class TaggingQueueController
             return AddStampNamesAsync(entry.Items.Select(item => item.Name).ToArray(), capacity);
         if (!PrivateTagName.TryCreate(candidate, out PrivateTagName? name, out _) || name == null)
             return Refuse(Texts.T("tagging.page.stamp.invalid", candidate));
-        if (ActiveGroup is { } group)
-        {
-            if (group.Stamp.Any(item => string.Equals(item, name.Display, StringComparison.Ordinal))) return Refuse(Texts.T("tagging.page.stamp.already", name.Display));
-            if (group.Stamp.Count >= capacity) return Refuse(Texts.T("tags.quick.stamp.full", capacity));
-            string[] groupNames = group.Stamp.Append(name.Display).ToArray();
-            return RunAsync(() => _host.SetTagQueueGroupStampAsync(group.Id, groupNames), _ => Texts.T("tags.quick.stamp.added", name.Display));
-        }
-        if (SharedStamp is { } shared)
-        {
-            if (shared.Contains(name)) return Refuse(Texts.T("tagging.page.stamp.already", name.Display));
-            if (shared.Count >= Math.Min(capacity, shared.Capacity)) return Refuse(Texts.T("tags.quick.stamp.full", Math.Min(capacity, shared.Capacity)));
-            if (shared.Add(name) != QuickTagStampAdd.Added) return Refuse(Texts.T("tags.quick.stamp.full", shared.Capacity));
-            Status = Texts.T("tags.quick.stamp.added", name.Display); // saved by the window on Changed
-            return Task.FromResult(true);
-        }
-        QuickTagStamp stamp = new(Queue.Stamp, QuickTagOptions.MaximumStampSize);
-        if (stamp.Contains(name)) return Refuse(Texts.T("tagging.page.stamp.already", name.Display));
-        if (stamp.Count >= capacity) return Refuse(Texts.T("tags.quick.stamp.full", capacity));
-        string[] names = stamp.ToNames().Append(name.Display).ToArray();
-        return RunAsync(() => _host.SetTagQueueStampAsync(names), _ => Texts.T("tags.quick.stamp.added", name.Display));
+        return AddStampNamesAsync([name], capacity);
     }
 
     // Several names of one entry: those not in the stamp yet, up to the room left, in one write of the stamp that is shown.

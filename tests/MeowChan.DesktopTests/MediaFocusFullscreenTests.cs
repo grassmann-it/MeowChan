@@ -3,11 +3,15 @@ using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Updates;
+using MeowChan.Gallery;
+using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
 
@@ -22,6 +26,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 
     private const string Focus = "Desktop/Views/Media/MediaPage.Focus.cs", Chrome = "Desktop/Shell/MainWindow.MediaFocusChrome.cs";
+    private static readonly string[] CaptionButtonNames = ["WindowMinimizeButton", "WindowMaximizeButton", "WindowCloseButton"];
 
     private sealed class Profile : IDisposable
     {
@@ -231,7 +236,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     });
 
     [Fact]
-    public void LeavingTheModeThePageOrTheSettingGivesTheChromeBackAndTheGalleryKeepsItsOwnFullscreenRule()
+    public void LeavingTheModeThePageOrTheSettingReappliesTheChromeAndFullscreenUsesTheSameTitleBar()
     {
         string media = Source("Desktop/Shell/MainWindow.Media.cs"), navigation = Source("Desktop/Shell/MainWindow.Navigation.cs"),
             presentation = Source("Desktop/Shell/MainWindow.Presentation.cs"), gallery = Source("Desktop/Shell/MainWindow.Gallery.cs");
@@ -240,11 +245,179 @@ public sealed class MediaFocusFullscreenTests : IDisposable
         Assert.Contains("_selectedPage = page;\n        UpdateMediaFocusChrome();", navigation.Replace("\r\n", "\n"));
         // A saved setting applies to a mode that is already on.
         Assert.Contains("UpdateMediaFocusChrome();", presentation);
-        // The gallery's immersive rule and the focus rule are applied together by one method; the gallery covering the page gives the chrome back.
-        Assert.Contains("_galleryImmersive = immersive;", gallery);
+        // A gallery covering Media recomputes media focus. Window fullscreen controls the shared title bar independently.
         Assert.Contains("UpdateMediaFocusChrome();", gallery);
-        Assert.DoesNotContain("WorkspaceTitleBarFrame.IsVisible = !immersive;", gallery);
-        Assert.Contains("Grid.SetRowSpan(host, immersive ? 4 : 3);", gallery);
+        Assert.DoesNotContain("WorkspaceTitleBarFrame", gallery);
+        Assert.Contains("_mediaFocusHeaderHidden || WindowState == WindowState.FullScreen", Source(Chrome));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ReaderFullscreenRevealsTheTitleBarWithoutMovingTheReaderOrLosingFocus(bool sidebarShown) =>
+        BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using Profile profile = new();
+        new Config
+        {
+            DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1,
+            WorkspaceMode = "Advanced", WindowWidth = 1200, WindowHeight = 700,
+            ReaderMediaSidebar = sidebarShown, ReaderMediaSidebarMinimumWidth = Config.ReaderMediaSidebarMinimumWidthMinimum
+        }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(Exercise());
+
+        async Task<bool> Exercise()
+        {
+            await using DesktopSessionHost session = new(profile.Path, Array.Empty<IImageBoard>(),
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            await using MainWindow window = new(session) { Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await window.StartupTimingRestoreTask;
+            typeof(MainWindow).GetMethod("OpenLargeReader", BindingFlags.Instance | BindingFlags.NonPublic,
+                [typeof(Control), typeof(IReadOnlyList<ResourceId>)])!.Invoke(window, [null, Array.Empty<ResourceId>()]);
+            Layout();
+
+            ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
+            Grid pane = window.ArchivePage.FindControl<Grid>("ArchiveReaderPane")!;
+            Button fullscreen = window.ArchivePage.FindControl<Button>("ArchiveReaderFullscreen")!;
+            Button readerFocus = window.ArchivePage.FindControl<Button>("ArchiveCloseReader")!;
+            Border strip = window.FindControl<Border>("MediaFocusHeaderStrip")!;
+            Border frame = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
+            Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
+            Assert.Equal(sidebarShown, window.ArchivePage.MediaSidebar?.IsEffectivelyVisible == true);
+            Assert.True(readerFocus.Focus());
+            fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Layout();
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            Assert.Equal(new GridLength(0), root.RowDefinitions[0].Height);
+            Assert.False(frame.IsVisible);
+            Assert.False(frame.IsHitTestVisible);
+            Assert.Equal(6, strip.Bounds.Height);
+            Rect readerBounds = reader.Bounds, paneBounds = pane.Bounds;
+            Rect? sidebarBounds = window.ArchivePage.MediaSidebar?.Bounds;
+
+            window.MouseMove(strip.TranslatePoint(new Point(strip.Bounds.Width / 2, 3), window)!.Value);
+            Layout();
+            Assert.True(frame.IsVisible && frame.IsHitTestVisible);
+            Assert.False(strip.IsVisible);
+            Assert.Same(readerFocus, window.FocusManager!.GetFocusedElement());
+            foreach (string name in CaptionButtonNames)
+            {
+                Button button = window.FindControl<Button>(name)!;
+                Point point = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+                window.MouseMove(point);
+                Assert.True(button.IsEffectivelyVisible && button.IsEffectivelyEnabled && button.IsPointerOver);
+            }
+            window.MouseMove(new Point(300, 250));
+            Layout();
+            Assert.False(frame.IsVisible);
+            Assert.True(strip.IsVisible);
+            Assert.Equal(readerBounds, reader.Bounds);
+            Assert.Equal(paneBounds, pane.Bounds);
+            Assert.Equal(sidebarBounds, window.ArchivePage.MediaSidebar?.Bounds);
+
+            Assert.True(Press(readerFocus, Key.F6));
+            Layout();
+            Button brand = window.FindControl<Button>("BrandAboutButton")!;
+            Assert.Same(brand, window.FocusManager.GetFocusedElement());
+            Button close = window.FindControl<Button>("WindowCloseButton")!;
+            Assert.True(close.Focus(NavigationMethod.Tab));
+            Layout();
+            Assert.True(frame.IsVisible);
+            Assert.True(Press(close, Key.F6));
+            Layout();
+            Assert.Same(readerFocus, window.FocusManager.GetFocusedElement());
+            Assert.False(frame.IsVisible);
+
+            Press(readerFocus, Key.LeftAlt, KeyModifiers.Alt);
+            var release = new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.LeftAlt };
+            readerFocus.RaiseEvent(release);
+            Assert.True(release.Handled);
+            Assert.Same(brand, window.FocusManager.GetFocusedElement());
+            Assert.True(Press(brand, Key.Escape));
+            Layout();
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.Equal(WorkspaceMetrics.TitleBarRow, root.RowDefinitions[0].Height);
+            Assert.Equal(1, Grid.GetRowSpan(frame));
+            Assert.True(frame.IsVisible && frame.IsHitTestVisible && reader.IsVisible);
+            Assert.False(strip.IsVisible);
+            Assert.Same(readerFocus, window.FocusManager.GetFocusedElement());
+            Assert.Equal(sidebarShown, window.ArchivePage.MediaSidebar?.IsEffectivelyVisible == true);
+
+            Assert.True(Press(readerFocus, Key.F11));
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            Assert.True(Press(readerFocus, Key.F11));
+            Layout();
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            return true;
+
+            void Layout()
+            {
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }
+    });
+
+    [Fact]
+    public void GalleryFullscreenSharesTheRevealWithoutMovingTheGallery() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using Profile profile = new();
+        new Config { DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1 }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(Exercise());
+
+        async Task<bool> Exercise()
+        {
+            await using DesktopSessionHost session = new(profile.Path, Array.Empty<IImageBoard>(),
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            await using MainWindow window = new(session) { Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await window.StartupTimingRestoreTask;
+            GalleryEntryKey unavailable = new(new(new ResourceId("offline", "gallery", "1"), profile.Path, "missing"), null, null);
+            await window.OpenMediaGalleryAsync(Array.Empty<GalleryEntry>(), unavailable);
+            ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+            GalleryViewer gallery = Assert.IsType<GalleryViewer>(host.Content);
+            Layout();
+            gallery.GetGalleryVisualDescendants().OfType<Button>().Single(button => button.Name == "GalleryFullscreen")
+                .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Layout();
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            Assert.True(host.IsVisible);
+            Assert.Equal(0, host.Bounds.Y);
+            Rect galleryBounds = host.Bounds;
+            Border frame = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
+            Border strip = window.FindControl<Border>("MediaFocusHeaderStrip")!;
+            Assert.False(frame.IsVisible);
+            window.MouseMove(strip.TranslatePoint(new Point(strip.Bounds.Width / 2, 3), window)!.Value);
+            Layout();
+            Assert.True(frame.IsVisible);
+            Assert.Equal(galleryBounds, host.Bounds);
+            window.MouseMove(new Point(300, 250));
+            Assert.False(frame.IsVisible);
+            Assert.Equal(galleryBounds, host.Bounds);
+            Assert.True(Press(gallery, Key.Escape));
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            Assert.True(host.IsVisible && frame.IsVisible);
+            Assert.False(strip.IsVisible);
+            return true;
+
+            void Layout()
+            {
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }
+    });
+
+    private static bool Press(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        var args = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
+        target.RaiseEvent(args);
+        return args.Handled;
     }
 
     [Fact]

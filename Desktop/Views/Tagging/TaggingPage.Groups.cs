@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -20,12 +21,8 @@ namespace MeowChan;
 /// <summary>TG2's named queue scopes: the page keeps the existing state-filter seam and narrows it with this selection.</summary>
 public sealed partial class TaggingPage
 {
-    private readonly StackPanel _groupPanel = new() { Name = "TaggingGroupPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
-    private readonly TextBlock _groupLabel = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly ComboBox _group = new() { Name = "TaggingGroup", Width = 168 };
-    // One icon square after the group box opens "New group", "Rename" and "Delete" (instead of a second "+" and two long flat labels
-    // on the bar); the menu opens on this button itself, also when the group panel stands in the second toolbar row.
-    private readonly Button _groupManage = new() { Name = "TaggingGroupManage", VerticalAlignment = VerticalAlignment.Center };
+    private readonly ComboBox _group = new() { Name = "TaggingGroup", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly Button _groupManage = new() { Name = "TaggingGroupManage" };
     private ContextMenuHost? _groupManageHost;
     private string? _selectedGroupId;
     private bool _ungroupedSelected;
@@ -58,12 +55,7 @@ public sealed partial class TaggingPage
     // The combo box builds its selection box while ItemsSource is being swapped, and then the item is null for a moment:
     // the template must tolerate that (an exception here aborted Render and left the queue table empty).
     internal static FuncDataTemplate<TaggingGroupChoice> GroupChoiceTemplate() =>
-        new((choice, _) =>
-        {
-            TextBlock label = new() { Text = choice?.Label, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
-            ToolTip.SetTip(label, choice?.Label);
-            return label;
-        });
+        new((choice, _) => new TrimTipTextBlock { Text = choice?.Label });
 
     private void InitializeGroups()
     {
@@ -75,14 +67,10 @@ public sealed partial class TaggingPage
             _ungroupedSelected = choice.Ungrouped;
             _queueWork.SelectGroup(_selectedGroupId, _ungroupedSelected);
             Render();
-            RenderStamp();
         };
-        _groupManage.Classes.Add("bar-button"); // outlined like the group box beside it, also inside the toolbar
-        _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent());
+        _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent(),
+            resolveOrigin: () => _groupManage.IsAttachedToVisualTree() ? _groupManage : _actions.More ?? (Control)_groupManage);
         _groupManage.Click += (_, _) => _groupManageHost?.Show(atPointer: false);
-        _groupPanel.Children.Add(_groupLabel);
-        _groupPanel.Children.Add(_group);
-        _groupPanel.Children.Add(_groupManage);
         RenderGroups();
     }
 
@@ -103,13 +91,17 @@ public sealed partial class TaggingPage
         finally { _groupLocalizing = false; }
         // The button stays usable while "New group" is: the entries inside the menu carry their own enabled rules.
         _groupManage.IsEnabled = CanChange;
-        AutomationProperties.SetName(_group, _groupLabel.Text ?? Texts.T("tagging.page.group"));
+        ToolTip.SetTip(_group, selected.Label);
+        AutomationProperties.SetHelpText(_group, selected.Label);
     }
 
     private void LocalizeGroups()
     {
-        _groupLabel.Text = Texts.T("tagging.page.group");
-        WorkspaceIcons.MakeSquare(_groupManage, WorkspaceIcons.More, Texts.T("tagging.page.group.manage"));
+        string manage = Texts.T("tagging.page.group.manage");
+        _groupManage.Content = manage;
+        CommandBindings.EnsureIconBeforeText(_groupManage, TaggingCommands.GroupMenuIcon);
+        ToolTip.SetTip(_groupManage, manage);
+        AutomationProperties.SetName(_groupManage, manage);
         AutomationProperties.SetName(_group, Texts.T("tagging.page.group"));
         RenderGroups();
     }
@@ -172,29 +164,12 @@ public sealed partial class TaggingPage
     {
         bool named = _selectedGroupId != null && CanChange;
         return new ContextMenuBuilder().Named(Texts.T("tagging.page.group.manage"))
-            .Item("tagging.group.new", Texts.T("tagging.page.group.newMenu"), () => _ = RunGroupAction(CreateGroupDialogAsync), CanChange)
-            .Item("tagging.group.rename", Texts.T("tagging.page.group.rename"), () => _ = RunGroupAction(RenameGroupDialogAsync), named)
-            .Item("tagging.group.delete", Texts.T("tagging.page.group.delete"), () => _ = RunGroupAction(DeleteGroupAsync), named);
-    }
-
-    internal ContextMenuModel? GroupMenuModel() => ComposeGroupMenu()?.ToModel();
-
-    private ContextMenuBuilder? ComposeGroupMenu()
-    {
-        if (SelectedCount == 0) return null;
-        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("tagging.page.group.assign"));
-        menu.Item(TaggingCommands.GroupNew, Texts.T("tagging.page.group.newMenu"), () => _ = RunGroupAction(CreateGroupDialogAsync), CanChange,
-            icon: TaggingCommands.GroupNewIcon);
-        foreach (TagQueueGroup group in _queueWork.Queue.Groups)
-        {
-            TagQueueGroup target = group;
-            bool checkedValue = Selected.All(row => row.Item.GroupId == target.Id);
-            menu.Radio("tagging-groups", TaggingCommands.GroupPrefix + target.Id, target.Name, checkedValue,
-                () => _ = AssignSelectionToGroupAsync(target.Id));
-        }
-        menu.Item(TaggingCommands.GroupRemove, Texts.T("tagging.page.group.remove"), () => _ = AssignSelectionToGroupAsync(null),
-            CanChange && Selected.Any(row => row.Item.GroupId != null), icon: TaggingCommands.GroupRemoveIcon);
-        return menu;
+            .Item("tagging.group.new", Texts.T("tagging.page.group.newMenu"), () => _ = RunGroupAction(CreateGroupDialogAsync),
+                CanChange, icon: TaggingCommands.GroupNewIcon)
+            .Item("tagging.group.rename", Texts.T("tagging.page.group.rename"), () => _ = RunGroupAction(RenameGroupDialogAsync),
+                named, icon: CommandCatalog.Get("reader-groups.rename").Icon)
+            .Item("tagging.group.delete", Texts.T("tagging.page.group.delete"), () => _ = RunGroupAction(DeleteGroupAsync),
+                named, icon: CommandCatalog.Get("reader-groups.delete").Icon);
     }
 
     private Task AssignSelectionToGroupAsync(string? groupId) => AfterAsync(_queueWork.AssignGroupAsync(Selected.Select(row => row.Key).ToArray(), groupId));
