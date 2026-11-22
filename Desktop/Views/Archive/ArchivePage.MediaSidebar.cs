@@ -502,6 +502,7 @@ public partial class ArchivePage
         button.IsEnabled = enabled;
         button.Content = content;
         ToolTip.SetTip(button, tip);
+        ToolTip.SetShowOnDisabled(button, true);
         Avalonia.Automation.AutomationProperties.SetName(button, name);
         Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
     }
@@ -670,10 +671,11 @@ public partial class ArchivePage
         OnMediaSidebarSelectionChanged(selectionChanged: false);
     }
 
-    /// <summary>The gallery uncovered the reader: a selection that changed meanwhile is shown now.</summary>
+    /// <summary>The gallery uncovered the reader: show a changed selection or retry an unanswered preview.</summary>
     internal void ResumeMediaSidebar()
     {
-        if (_mediaSidebarDirty && _mediaSidebarShown) RefreshMediaSidebar();
+        if (_mediaSidebarShown && (_mediaSidebarDirty || _mediaSidebar is { Load.HasPicture: false, Load.Awaiting: false }))
+            RefreshMediaSidebar();
     }
 
     private void CancelMediaSidebarLoad()

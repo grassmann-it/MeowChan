@@ -152,11 +152,13 @@ internal static class TaggingQueueView
 
     internal static string ProgressText(TagQueueSnapshot queue) => ProgressText(queue, null, false);
 
-    /// <summary>The short sentence beside the Start button: "12 of 201 done" (finished or skipped of all shown); the long sentence is its tooltip.</summary>
-    internal static string DoneText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
+    /// <summary>The count beside the Start button: "12 of 201" (finished or skipped of all shown).</summary>
+    internal static (string Text, string Description) ProgressCount(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
     {
         TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
-        return Texts.T("tagging.page.progress.done", (counts.Done + counts.Skipped).ToString("N0", Texts.Culture), counts.Count.ToString("N0", Texts.Culture));
+        string decided = (counts.Done + counts.Skipped).ToString("N0", Texts.Culture);
+        string total = counts.Count.ToString("N0", Texts.Culture);
+        return (Texts.T("tagging.page.progress.count", decided, total), Texts.T("tagging.page.progress.done", decided, total));
     }
 
     internal static string ProgressText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
@@ -165,7 +167,7 @@ internal static class TaggingQueueView
         return Texts.T("tagging.page.progress", counts.Open, counts.Done, counts.Skipped);
     }
 
-    /// <summary>The visible percentage next to the bar (the culture writes the percent sign); never rounds a rest up to 100 %.</summary>
+    /// <summary>The percentage for the bar's tooltip (the culture writes the percent sign); never rounds a rest up to 100 %.</summary>
     internal static string PercentText(TagQueueSnapshot queue) => PercentText(queue, null, false);
 
     internal static string PercentText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
@@ -207,12 +209,16 @@ internal static class TaggingQueueView
     /// <summary>T1: "Last shown: file.jpg · position 3 of 27", or null when <see cref="LastShownIndex"/> has none.</summary>
     internal static string? LastShownText(TagQueueSnapshot queue) => LastShownText(queue, null, false);
 
-    internal static string? LastShownText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
+    internal static string? LastShownText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null) =>
+        LastShown(queue, groupId, ungrouped, scope)?.Description;
+
+    internal static (string Name, string Description)? LastShown(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope)
     {
         if (LastShownIndex(queue, groupId, ungrouped, scope) is not { } index) return null;
         TagQueueItem item = queue.Items[index];
         TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
-        return Texts.T("tagging.page.lastShown", item.Name.Length == 0 ? item.AssetId : item.Name, Ordinal(queue, index, groupId, ungrouped, scope), counts.Count);
+        string name = item.Name.Length == 0 ? item.AssetId : item.Name;
+        return (name, Texts.T("tagging.page.lastShown", name, Ordinal(queue, index, groupId, ungrouped, scope), counts.Count));
     }
 
     private static int FirstOpen(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope)

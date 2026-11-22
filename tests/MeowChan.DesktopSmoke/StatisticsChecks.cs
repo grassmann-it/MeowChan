@@ -535,6 +535,15 @@ internal static class StatisticsChecks
         Button link = FindErrorLink(page, row)!;
         Require(AutomationProperties.GetName(link) == row.ErrorsLinkText && row.ErrorsLinkText.Contains(row.Name, StringComparison.Ordinal),
             "The error link does not name where it leads.");
+        DataGrid grid = page.RowsGrid;
+        grid.SelectedItem = row;
+        grid.CurrentColumn = grid.Columns[^2];
+        Require(grid.Focus(NavigationMethod.Tab), "The statistics table did not take keyboard focus.");
+        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
+        DataGridCell cell = link.GetVisualAncestors().OfType<DataGridCell>().Single();
+        Require(cell.Classes.Contains(":current")
+            && cell.GetVisualDescendants().OfType<Control>().Single(control => control.Name == "CurrencyVisual").Opacity > 0,
+            "The statistics diagnostics cell lost its current-cell indicator.");
         SmokeActionClick.Execute(link);
         await Program.WaitUntilAsync(() => window.DiagnosticsSegmentShown && window.DiagnosticsPageHost.Content is DiagnosticsPage { SourceFilter: SecondFixture, ProblemsOnly: true },
             () => "segment " + window.StatusSegmentSelected + ", filter " + (window.DiagnosticsPageHost.Content as DiagnosticsPage)?.SourceFilter);

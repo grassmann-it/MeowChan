@@ -142,7 +142,10 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             Services = new BooruWorkbenchServices(
                 new BooruHostSearchAdapter(
                     Search, binding.GetWorkerAsync, binding.Source.SourceId, binding.Source.Name, _availability),
-                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId, _availability, () => _previewHttp), clock);
+                _queuePort, _watcherPort, new BooruHostPreviewPort(_previewHttp, binding.Source.SourceId, _availability, () => _previewHttp), clock)
+            {
+                Source = binding.Source
+            };
             _binding.AvailabilityChanged += OnAvailabilityChanged;
         }
         catch

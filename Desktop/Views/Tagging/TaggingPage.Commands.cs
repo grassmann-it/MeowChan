@@ -65,22 +65,17 @@ public sealed partial class TaggingPage
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
         // Queue actions stay together; visible-result controls have their own measured row above the list.
-        (Control Item, int Group)[] items =
-        {
-            (_startContext, 0), (_add, 0), (_clearDone, 2), (_clear, 2), (_help, 4)
-        };
-        foreach ((Control item, int group) in items)
+        foreach (Control item in new Control[] { _add, _help, _clearDone, _clear })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
-            ActionToolBar.SetGroup(item, group);
             _actions.Items.Add(item);
         }
-        // Help stays at the trailing edge of the queue actions; list presentation docks on the list-controls row.
-        ActionToolBar.SetEnd(_help, true);
         _listControls.Children.Add(_groupPanel);
         _listControls.Children.Add(_filterPanel);
         _listControls.Children.Add(_listPresentation);
         _listControls.TrailingChild = _listPresentation;
+        _listControls.SetTrailingCompact = compact =>
+            _viewToggle.SetLabelsVisible(!compact || ToolBar.GetOverflowMode(_viewToggle) == OverflowMode.Always);
         foreach (Control item in new Control[] { _columnsButton, _viewToggle })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
@@ -185,7 +180,9 @@ public sealed partial class TaggingPage
         _help.Source = () =>
         {
             HelpContent content = HelpContent.FromKeys("help.taggingPage");
-            return content with { Paragraphs = content.Paragraphs.Append(Texts.T("tagging.page.keys",
+            return content with { Paragraphs = content.Paragraphs
+                .Append(Texts.T("tagging.strip.browseHint", Shortcut("tags.queue.done-next")))
+                .Append(Texts.T("tagging.page.keys",
                 Shortcut("tagging.continue-here"), Shortcut("tagging.remove"),
                 Shortcut("tagging.move-up"), Shortcut("tagging.move-down"))).ToArray() };
         };

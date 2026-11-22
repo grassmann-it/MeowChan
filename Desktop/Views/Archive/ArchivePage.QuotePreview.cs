@@ -434,7 +434,7 @@ public partial class ArchivePage
         host.IsVisible = true;
         card.MaxHeight = double.PositiveInfinity; // the width follows the medium's frame (FrameSized)
         QuotePreviewPopup.Placement = placed.Below ? PlacementMode.Bottom : PlacementMode.Top;
-        ArchiveAttachmentRow row = CreateAttachmentRow(_thread.Summary.Id, first, post.PostId, _mediaReady.Task);
+        ArchiveAttachmentRow row = CreateAttachmentRow(_thread.Summary.Id, first, post.PostId, _mediaRead);
         media.Autoplay = QuotePreviewVideoAutoplay;
         media.Muted = QuotePreviewVideoMuted;
         media.Show(row, attachments.Count, placed.Box, top.RenderScaling, _inlineVideo.Options);

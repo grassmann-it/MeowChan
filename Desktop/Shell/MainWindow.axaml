@@ -233,16 +233,46 @@
             </ScrollViewer>
             <Grid x:Name="WorkspaceContentGrid" Grid.Row="2" ColumnDefinitions="*,6,320" RowDefinitions="*,0">
                 <Border x:Name="DownloadsPanel" Classes="workspace-section-flush" ClipToBounds="True">
-                    <Grid RowDefinitions="Auto,Auto,*" ColumnDefinitions="Auto,*">
-                        <TabControl x:Name="DownloadsTabs" MinHeight="38" Padding="0" SelectionChanged="OnWorkspaceTabChanged">
-                            <TabControl.Styles>
-                                <Style Selector="TabItem"><Setter Property="MinHeight" Value="38" /><Setter Property="Padding" Value="12,8" /><Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /></Style>
-                            </TabControl.Styles>
-                            <TabItem x:Name="ThreadsTab" Header="Threads" />
-                            <TabItem x:Name="BoardsTab" Header="Boards" />
-                        </TabControl>
-                                <Grid x:Name="ThreadsResultPanel" Grid.Row="2" Grid.ColumnSpan="2">
-<DataGrid x:Name="ThreadsDataGrid"
+                    <Grid RowDefinitions="Auto,Auto,*">
+                        <Border x:Name="DownloadsListHeader" Padding="8,4">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <TabControl x:Name="DownloadsTabs" Padding="0" VerticalAlignment="Center" SelectionChanged="OnWorkspaceTabChanged">
+                                    <TabControl.Styles>
+                                        <Style Selector="TabItem">
+                                            <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
+                                            <Setter Property="Padding" Value="12,4" />
+                                            <Setter Property="VerticalAlignment" Value="Center" />
+                                            <Setter Property="VerticalContentAlignment" Value="Center" />
+                                            <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
+                                        </Style>
+                                        <!-- Semi reserves a two-DIP underline below the label. Balance it above the label. -->
+                                        <Style Selector="TabItem /template/ ContentPresenter#PART_HeaderPresenter">
+                                            <Setter Property="Margin" Value="0,2,0,0" />
+                                        </Style>
+                                    </TabControl.Styles>
+                                    <TabItem x:Name="ThreadsTab" Header="Threads" />
+                                    <TabItem x:Name="BoardsTab" Header="Boards" />
+                                </TabControl>
+                                <!-- Design language (UX-LEDGER-01): Search/Copy URLs are the primary actions on the left; Columns and Details are layout actions and dock to the right edge. -->
+                                <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
+                                            HorizontalAlignment="Stretch" VerticalAlignment="Center">
+                                    <desktop:ActionToolBar.Styles>
+                                        <Style Selector="Button:not(:in-overflow)">
+                                            <Setter Property="Padding" Value="12,4" />
+                                        </Style>
+                                        <Style Selector="StackPanel.command-icon-label">
+                                            <Setter Property="Spacing" Value="{StaticResource Workspace.Space.8}" />
+                                        </Style>
+                                    </desktop:ActionToolBar.Styles>
+                                    <Button x:Name="DownloadSearchButton" wv:WorkViewElement.Id="downloads.toolbar.search" Classes="localized" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                    <Button x:Name="CopyAllUrlsButton" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                    <Button x:Name="DownloadsColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="downloads.toolbar.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                    <Button x:Name="DetailsToggleButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="downloads.toolbar.details" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
+                                </desktop:ActionToolBar>
+                            </Grid>
+                        </Border>
+                                <Grid x:Name="ThreadsResultPanel" Grid.Row="2">
+<controls:RowFocusDataGrid x:Name="ThreadsDataGrid" Classes="row-focus"
                               ItemsSource="{Binding VisibleThreads}"
                               AutoGenerateColumns="False" HeadersVisibility="Column" CanUserReorderColumns="True" CanUserSortColumns="True"
                               GridLinesVisibility="Horizontal"
@@ -277,6 +307,9 @@
 
                             <!-- Title Column -->
                             <DataGridTemplateColumn Header="Thread / title" Width="*" MinWidth="200" SortMemberPath="Title">
+                                <DataGridTemplateColumn.CellStyleClasses>
+                                    <x:String>cell-action</x:String>
+                                </DataGridTemplateColumn.CellStyleClasses>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
@@ -342,7 +375,7 @@
 
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
-                    </DataGrid>
+                    </controls:RowFocusDataGrid>
                                     <!-- The text never takes input; only the next-step button below it does. -->
                                     <controls:WorkspaceEmptyState x:Name="ThreadsEmptyPanel">
                                         <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized workspace-empty-text"
@@ -351,8 +384,8 @@
                                                 Click="OnEmptyStateImportClick" />
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
-                                <Grid x:Name="BoardsResultPanel" Grid.Row="2" Grid.ColumnSpan="2" IsVisible="False">
-<DataGrid x:Name="BoardsDataGrid"
+                                <Grid x:Name="BoardsResultPanel" Grid.Row="2" IsVisible="False">
+                    <controls:RowFocusDataGrid x:Name="BoardsDataGrid" Classes="row-focus"
                               ItemsSource="{Binding VisibleBoards}"
                               AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" CanUserReorderColumns="True"
                               GridLinesVisibility="Horizontal"
@@ -387,7 +420,7 @@
 
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
-                    </DataGrid>
+                    </controls:RowFocusDataGrid>
                                     <!-- Same next step as the Threads state: the URL on the clipboard is imported (a board URL discovers its threads). -->
                                     <controls:WorkspaceEmptyState x:Name="BoardsEmptyPanel">
                                         <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized workspace-empty-text"
@@ -396,16 +429,8 @@
                                                 Click="OnEmptyStateImportClick" />
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
-                        <!-- Design language (UX-LEDGER-01): Search/Copy URLs are the primary actions on the left; Columns and Details are layout actions and dock to the right edge. -->
-                        <desktop:ActionToolBar x:Name="WorkspaceListActions" Grid.Column="1"
-                                    HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="8,0,8,0">
-                            <Button x:Name="DownloadSearchButton" wv:WorkViewElement.Id="downloads.toolbar.search" Classes="localized" Tag="downloads.search" Click="OnDownloadSearchClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
-                            <Button x:Name="CopyAllUrlsButton" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="downloads.toolbar.copy-urls" Tag="action.copyAllUrls" Classes="localized" Content="Copy URLs" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
-                            <Button x:Name="DownloadsColumnsButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="downloads.toolbar.columns" Content="Columns" ursa:ToolBar.OverflowMode="AsNeeded" FontSize="{StaticResource Workspace.Text.Meta}" />
-                            <Button x:Name="DetailsToggleButton" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="downloads.toolbar.details" Content="Details" Click="OnDetailsToggleClick" ursa:ToolBar.OverflowMode="Never" FontSize="{StaticResource Workspace.Text.Meta}" />
-                        </desktop:ActionToolBar>
                         <!-- The inline search row keeps its close at the right edge (HeaderBar end slot, Tom's item 35 of 14.11.): no back gap, no separator; only pages and overlays put their way back at the left. DL-07: it is a labelled "Close" with the collapse chevron, not a second ×: the field's own clear button is the only cross in the row. -->
-                        <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Grid.ColumnSpan="2" Margin="8,2,8,8" IsVisible="False">
+                        <controls:HeaderBar x:Name="DownloadSearchBar" Grid.Row="1" Margin="8,2,8,8" IsVisible="False">
                             <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                 <controls:SearchBox x:Name="DownloadSearchInput" MinWidth="100" TextChanged="OnDownloadSearchChanged" />
                                 <TextBlock x:Name="DownloadSearchSummary" Grid.Column="1" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" MaxWidth="220" />

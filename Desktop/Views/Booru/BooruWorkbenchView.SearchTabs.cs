@@ -58,30 +58,18 @@ internal sealed partial class BooruWorkbenchView
     private TabItem? _lastRealTab;
     private bool _syncingTabs;
     private bool _selectNewTab;
-    private BooruSearchTabState? _lastSavedTabTargets;
-    private Func<BooruSearchTabState, bool>? _saveTabTargets;
-
-    internal void ConfigureSearchTabTargets(BooruSearchTabState? saved, Func<BooruSearchTabState, bool> save)
-    {
-        if (saved != null) SearchTabs.RestoreTargets(saved);
-        _lastSavedTabTargets = SearchTabs.CaptureTargets();
-        _saveTabTargets = save;
-        SearchTabs.Changed += SaveSearchTabTargets;
-    }
-
-    private void SaveSearchTabTargets()
-    {
-        if (_saveTabTargets == null) return;
-        BooruSearchTabState current = SearchTabs.CaptureTargets();
-        if (_lastSavedTabTargets is { } saved && saved.ActiveIndex == current.ActiveIndex && saved.Tabs.SequenceEqual(current.Tabs))
-            return;
-        if (_saveTabTargets(current)) _lastSavedTabTargets = current;
-    }
-
     /// <summary>The setting that limits the extra search tabs (read at each use); the default without a host.</summary>
     internal Func<int>? SearchTabsLimit { get; set; }
 
     internal BooruSearchTabs SearchTabs => _searchTabs ?? throw new InvalidOperationException("The search tabs are built with the body.");
+
+    internal void RestoreSearchTabs(BooruSearchTabState state, int tabLimit, int resultLimit)
+    {
+        _selectNewTab = true;
+        try { SearchTabs.RestoreTargets(state, tabLimit, resultLimit, _model.Services.Source); }
+        finally { _selectNewTab = false; }
+        Render(force: true);
+    }
 
     /// <summary>Start with the permanent search and the button for adding searches.</summary>
     private TabItem[] CreateTabItems()
@@ -186,9 +174,7 @@ internal sealed partial class BooruWorkbenchView
             search.SetInput(draft.Input);
         }
         else ClearTabLimitNotice();
-        Task submission = search.SubmitAsync();
-        SaveSearchTabTargets();
-        await submission;
+        await search.SubmitAsync();
     }
 
     private void RenderSearchActions(BooruSearchView view)
@@ -204,8 +190,9 @@ internal sealed partial class BooruWorkbenchView
         string defaultTarget = Texts.T(opensNewTab ? "booru.tabs.searchNew" : "booru.tabs.searchCurrent");
         string alternateTarget = Texts.T(opensNewTab ? "booru.tabs.searchCurrent" : "booru.tabs.searchNew");
         DescribeSearchAction(_submit, SubmitCommand, defaultTarget, blocked);
-        _alternateSubmit.Content = Texts.T(opensNewTab ? "booru.tabs.searchCurrentShort" : "booru.tabs.searchNewShort");
-        AutomationProperties.SetName(_alternateSubmit, alternateTarget);
+        string alternateLabel = Texts.T(opensNewTab ? "booru.tabs.searchCurrentShort" : "booru.tabs.searchNewShort");
+        _alternateSubmit.Content = alternateLabel;
+        AutomationProperties.SetName(_alternateSubmit, alternateLabel);
         DescribeSearchAction(_alternateSubmit, AlternateSubmitCommand, alternateTarget,
             blocked is null ? alternateTarget : alternateTarget + "\n" + blocked);
     }
@@ -415,7 +402,6 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Tab titles, the buttons next to "Create watcher" and the bulk status; called with every render.</summary>
     private void RenderSearchTabs(BooruSearchView view)
     {
-        SaveSearchTabTargets();
         if (_searchTabs is not { } tabs) return;
         RenderBottomStatus(view);
         RenderViewToggleLabels();
@@ -430,10 +416,10 @@ internal sealed partial class BooruWorkbenchView
         IconButtons.Apply(_newTabButton, "plus", newName);
         _newTabButton.IsEnabled = true;
 
-        _openInNewTab.Content = Texts.T("settings.booru.newSearchTarget.new");
+        string openName = Texts.T("booru.tabs.duplicate");
+        _openInNewTab.Content = openName;
         _openInNewTab.IsEnabled = !view.IsBusy && (view.Parsed.IsValid || view.ExecutedQuery is not null || view.ExecutedPostId is not null);
         string openHint = Texts.T("booru.tabs.openCurrentHint");
-        string openName = Texts.T("booru.tabs.openCurrent");
         ToolTip.SetTip(_openInNewTab, openName + "\n" + openHint);
         ToolTip.SetShowOnDisabled(_openInNewTab, true);
         AutomationProperties.SetName(_openInNewTab, openName);

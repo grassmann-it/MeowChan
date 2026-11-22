@@ -243,6 +243,38 @@ public sealed class VideoPosterCacheTests
             testSeam: retryDecoder));
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task EitherReaderAttemptCanRetryImmediatelyAfterPosterFailure(bool firstAttemptUsesBackoff)
+    {
+        using TempDirectory temp = new();
+        var (manifest, asset) = await ManifestAsync(temp.Path);
+        string cache = Path.Combine(temp.Path, "cache");
+        VideoPosterCacheTestSeam failed = new()
+        {
+            Decoder = (verified, _) =>
+            {
+                verified.Dispose();
+                return Task.FromException<byte[]>(new IOException("Temporary poster read failure"));
+            }
+        };
+        Assert.Null(await VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+            testSeam: failed, useFailureBackoff: firstAttemptUsesBackoff));
+
+        byte[] png = Png(80, 60);
+        VideoPosterCacheTestSeam recovered = new()
+        {
+            Decoder = (verified, _) =>
+            {
+                verified.Dispose();
+                return Task.FromResult(png);
+            }
+        };
+        Assert.Equal(png, await VideoPosterCache.GetPngAsync(manifest, asset, cache, CancellationToken.None,
+            testSeam: recovered, useFailureBackoff: !firstAttemptUsesBackoff));
+    }
+
     [Fact]
     public async Task CancellationAfterDecodeDoesNotCreateANegativeCacheEntry()
     {

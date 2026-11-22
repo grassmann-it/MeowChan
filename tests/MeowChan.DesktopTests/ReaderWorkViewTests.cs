@@ -25,10 +25,8 @@ public sealed class ReaderWorkViewTests
 
     private static XElement[] Items(XElement bar) => bar.Elements().Where(element => !element.Name.LocalName.EndsWith(".Styles", StringComparison.Ordinal)).ToArray();
 
-    // Every item of the three reader bars has a reader row. The media sidebar keeps its bootstrap Never mode until the work-view policy is applied;
-    // all other items leave the XAML overflow mode unset so the policy is their only source.
     [Fact]
-    public void EveryReaderBarItemIsRegisteredAndOnlyTheMediaSidebarHasAnInitialOverflowMode()
+    public void EveryReaderBarItemIsRegisteredAndTheViewGroupDocksToTheRight()
     {
         foreach (string name in ReaderBars)
         {
@@ -41,15 +39,16 @@ public sealed class ReaderWorkViewTests
                 string label = name + "/" + (string?)item.Attribute(X + "Name");
                 string id = Id(item) ?? throw new Xunit.Sdk.XunitException(label + " has no wv:WorkViewElement.Id.");
                 Assert.Equal(WorkViewPage.Reader, WorkViewPolicy.Get(id).Page);
-                XAttribute? overflowMode = item.Attributes().FirstOrDefault(attribute => attribute.Name.LocalName == "ToolBar.OverflowMode");
-                if (id == "reader.toolbar.media-sidebar")
-                    Assert.Equal("Never", overflowMode?.Value);
-                else
-                    Assert.Null(overflowMode);
+                Assert.DoesNotContain(item.Attributes(), attribute => attribute.Name.LocalName == "ToolBar.OverflowMode");
             }
         }
-        // The toolbar carries the reader's eleven-plus labelled actions (P6: each with its icon).
-        Assert.True(Items(Bar("ReaderToolbar")).Length >= 11);
+        XElement readerToolbar = Bar("ReaderToolbar");
+        XNamespace toolbarNamespace = readerToolbar.Name.Namespace;
+        XElement[] toolbar = Items(readerToolbar);
+        XElement[] viewGroup = toolbar.Where(item => (bool?)item.Attribute(toolbarNamespace + "ActionToolBar.End") == true).ToArray();
+        Assert.Equal(new[] { "reader.toolbar.thread-list", "reader.toolbar.fullscreen", "reader.toolbar.media-sidebar" }, viewGroup.Select(Id));
+        Assert.Equal(viewGroup, toolbar.TakeLast(viewGroup.Length));
+        Assert.NotNull(Assert.Single(viewGroup.Select(item => (int?)item.Attribute(toolbarNamespace + "ActionToolBar.Group")).Distinct()));
     }
 
     // Every reader row backed by a control is registered exactly once in the page (orphan check of the work-views smoke, statically).

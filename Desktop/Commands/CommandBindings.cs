@@ -196,13 +196,17 @@ public static class CommandBindings
             ? new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } : null;
         Control content = ButtonIcon(id, iconSize, text);
         if (text != null)
-            content = new StackPanel
+        {
+            StackPanel panel = new()
             {
                 Orientation = Orientation.Horizontal,
-                Spacing = 4,
+                Classes = { "command-icon-label" },
                 VerticalAlignment = VerticalAlignment.Center,
                 Children = { content, text }
             };
+            panel.SetValue(StackPanel.SpacingProperty, 4, Avalonia.Data.BindingPriority.Style);
+            content = panel;
+        }
         button.Content = content;
         ButtonContents.Remove(button);
         ButtonContents.Add(button, new ButtonContent(id, iconSize, withLabel, content, text));

@@ -32,27 +32,21 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private readonly DesktopSessionHost _host;
     private readonly TaggingQueueController _queueWork;
     private readonly TextBlock _title = new() { Name = "TaggingTitle", Classes = { "page-title" } };
-    // Queue mutations and feedback share a measured row; visible-result controls live directly above the list.
-    private readonly ActionToolBar _actions = new() { Name = "TaggingActions", HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ActionToolBar _actions = new() { Name = "TaggingActions" };
     private readonly TaggingControlRow _listControls = new() { Name = "TaggingListControls" };
     private readonly ActionToolBar _listPresentation = new() { Name = "TaggingListPresentation" };
     private readonly Border _error = new() { Name = "TaggingError", Classes = { "workspace-error" }, IsVisible = false };
     private readonly TextBlock _errorText = new() { Name = "TaggingErrorText", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _retryLoad = new() { Name = "TaggingRetryLoad", Classes = { "subtle" } };
-    // Counters, mini bar and percentage are supporting feedback in the queue-action row.
-    private readonly StackPanel _progress = new() { Name = "TaggingProgress", Spacing = 2 };
+    private readonly StackPanel _progress = new() { Name = "TaggingProgress", [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.4") };
     private readonly TextBlock _progressText = (new TextBlock { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }).MetaText();
     internal const double MiniBarWidth = 96;
-    private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100, Width = MiniBarWidth, Height = 6, MinHeight = 0, MaxHeight = 6 };
-    private readonly TextBlock _percent = (new TextBlock { Name = "TaggingPercent", Classes = { "muted", "tnum" }, VerticalAlignment = VerticalAlignment.Center }).MetaText();
+    private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100,
+        Width = MiniBarWidth, MinWidth = 0, Height = 4, MinHeight = 0, MaxHeight = 4 };
     private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
-    // Passive supporting context for Start: never a second spatially separated continue action.
-    private readonly TextBlock _lastShown = new() { Name = "TaggingLastShown", Classes = { "muted", "tnum" }, MaxWidth = 280,
-        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false };
-    private readonly StackPanel _startContext = new() { Name = "TaggingStartContext", Spacing = 4 };
-    // TQ3: browsing the gallery marks nothing as finished; said once, quietly, while a walk is under way.
-    private readonly TextBlock _browseHint = new() { Name = "TaggingBrowseHint", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, MaxWidth = 480, IsVisible = false };
+    private readonly TextBlock _lastShown = (new TextBlock { Name = "TaggingLastShown", Classes = { "muted" }, MaxWidth = 280, MaxLines = 1,
+        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }).MetaText();
     private readonly TaggingControlRow _queueActionRow = new() { Name = "TaggingQueueActionRow" };
     private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -135,7 +129,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     internal TextBlock StatusText => _status;
     internal TextBlock ProgressText => _progressText;
     internal TextBlock LastShownContext => _lastShown;
-    internal TextBlock BrowseHint => _browseHint;
     internal Border ErrorPanel => _error;
     internal TextBlock ErrorSourceText => _errorSource;
     internal Button RetryLoadButton => _retryLoad;
@@ -147,11 +140,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         set => _filter.SelectedIndex = (int)value;
     }
 
-    private Control BuildLayout()
+    private Grid BuildLayout()
     {
-        StackPanel heading = new() { Name = "TaggingHeading", Classes = { "workspace-page-header" },
-            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _title } };
-
         _error.Child = new StackPanel { [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _errorText, _errorSource, _retryLoad } };
         AutomationProperties.SetLiveSetting(_errorText, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
@@ -163,33 +153,28 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         }
         _listControls.Margin = new Thickness(0, 0, 0, 8);
         _bar.VerticalAlignment = VerticalAlignment.Center;
-        WrapPanel meter = new() { Name = "TaggingProgressMeter", ItemSpacing = 8, LineSpacing = 2, Children = { _bar, _percent } };
-        _progress.Children.Add(_progressText);
+        WrapPanel meter = new() { Name = "TaggingProgressMeter", ItemSpacing = 8, LineSpacing = 4, Children = { _bar, _progressText } };
         _progress.Children.Add(meter);
-        _progress.VerticalAlignment = VerticalAlignment.Center;
-        // TQ2: the progress stands beside the one primary action (Start / Continue), not at the far edge of the page; the passive
-        // "last shown" line and the browse hint stand under both.
-        StackPanel startLine = new() { Name = "TaggingStartLine", Orientation = Orientation.Horizontal,
-            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"), Children = { _start, _progress } };
-        _startContext.Children.Add(startLine);
-        _startContext.Children.Add(_lastShown);
-        _startContext.Children.Add(_browseHint);
+        _progress.Children.Add(_lastShown);
+        _queueActionRow.Children.Add(_title);
+        _queueActionRow.Children.Add(_start);
+        _queueActionRow.Children.Add(_progress);
         _queueActionRow.Children.Add(_actions);
+        _queueActionRow.TrailingChild = _actions;
 
         _filterPanel.Children.Add(_filterLabel);
         _filterPanel.Children.Add(_filter);
 
-        // The title starts where every page title starts (PageHeader.PageTopOffset, LY-03); the page has no margin of its own.
+        // The first row uses the shared page-title inset (LY-03).
         StackPanel header = new() { Name = "TaggingSections",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"),
-            Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16) };
-        header.Children.Add(heading);
-        header.Children.Add(_error);
+            Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8) };
         // A confirmation belongs immediately after its trigger row, before the next major section.
         StackPanel queueControls = new() { Name = "TaggingQueueControls",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
             Children = { _queueActionRow, _status, BuildClearConfirmation() } };
         header.Children.Add(queueControls);
+        header.Children.Add(_error);
         header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
         {
@@ -433,14 +418,17 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             }
         }
         finally { _rendering = false; }
-        _progressText.Text = TaggingQueueView.DoneText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        var count = TaggingQueueView.ProgressCount(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        _progressText.Text = count.Text;
+        AutomationProperties.SetName(_progressText, count.Description);
         // The short sentence says how far the queue is; the open / finished / skipped breakdown is its tooltip and help text.
         string breakdown = TaggingQueueView.ProgressText(queue, _selectedGroupId, _ungroupedSelected, Scope);
         ToolTip.SetTip(_progressText, breakdown);
         _bar.Value = TaggingQueueView.Share(queue, _selectedGroupId, _ungroupedSelected, Scope) * 100;
-        _percent.Text = TaggingQueueView.PercentText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        string percent = TaggingQueueView.PercentText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        ToolTip.SetTip(_bar, percent + " · " + breakdown);
         AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
-        AutomationProperties.SetHelpText(_bar, _progressText.Text + " · " + _percent.Text + " · " + breakdown);
+        AutomationProperties.SetHelpText(_bar, count.Description + " · " + percent + " · " + breakdown);
         bool empty = _rows.Count == 0;
         _emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null;
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
@@ -462,18 +450,14 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     }
 
     // The work-view gate controls supporting context; the only activation target is Start.
-    private void RenderLastShown(TagQueueSnapshot queue)
+    private string? RenderLastShown(TagQueueSnapshot queue)
     {
-        string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
-        _lastShown.Text = text; // its visibility is the work-view gate's (RefreshWorkView)
-        string? done = CommandCatalog.ShortcutDisplay("tags.queue.done-next");
-        _browseHint.Text = text == null ? null : Texts.T("tagging.strip.browseHint", done ?? CommandCatalog.Label("tags.queue.done-next"));
-        if (text != null)
-        {
-            AutomationProperties.SetName(_lastShown, text);
-            AutomationProperties.SetHelpText(_lastShown, Texts.T("tagging.page.lastShown.help"));
-            ToolTip.SetTip(_lastShown, text);
-        }
+        var context = TaggingQueueView.LastShown(queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
+        _lastShown.Text = context?.Name;
+        AutomationProperties.SetName(_lastShown, context?.Description);
+        AutomationProperties.SetHelpText(_lastShown, Texts.T("tagging.page.lastShown.help"));
+        ToolTip.SetTip(_lastShown, context?.Description);
+        return context?.Description;
     }
 
     private TagQueueKey[] SelectedKeys() => ActiveList.SelectedItems?.OfType<TaggingQueueRow>().Select(row => row.Key).ToArray() ?? Array.Empty<TagQueueKey>();
@@ -490,8 +474,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _start.IsEnabled = label != null && CanStart;
         if (label == null)
             ToolTip.SetTip(_start, Texts.T(_queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone"));
-        RenderLastShown(_queueWork.Queue);
-        AutomationProperties.SetHelpText(_start, _lastShown.Text);
+        string? lastShown = RenderLastShown(_queueWork.Queue);
+        AutomationProperties.SetHelpText(_start, lastShown);
         RefreshCommandStates();
     }
 

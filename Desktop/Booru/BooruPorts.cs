@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Booru;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -188,4 +189,5 @@ internal sealed class BooruWorkbenchServices
     internal IBooruPreviewPort Previews { get; }
     internal TimeProvider Clock { get; }
     internal BooruLinkActions Links { get; }
+    internal SourceDescription? Source { get; init; }
 }

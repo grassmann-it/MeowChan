@@ -16,6 +16,7 @@ using MeowChan.Storage;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class GalleryFavoriteStateTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
@@ -348,7 +349,7 @@ public sealed class GalleryFavoriteStateTests
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(source)!, "../..", "Desktop/GalleryViewer.cs")));
 
     [Fact]
-    public void RealIndicatorInitializerKeepsDistinctNamedControlsInEachRoot()
+    public void RealIndicatorInitializerKeepsDistinctNamedControlsInEachRoot() => BooruComponentDispatcher.Run(() =>
     {
         var h = new IndicatorFixture();
         Assert.NotSame(h.Managed, h.Native);
@@ -370,32 +371,33 @@ public sealed class GalleryFavoriteStateTests
             Assert.Single(h.ManagedRoot.Children);
             Assert.Single(h.NativeRoot.Children);
         }
-    }
+    });
 
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void SetFavoriteShowsPersistedGlyphAndAccessibleStateEvenWithPendingAndHiddenTools(bool saved, bool pending)
-    {
-        var h = new IndicatorFixture();
-        SetField(h.Viewer, "_overlayHidden", true);
-        SetField(h.Viewer, "_mediaFocus", true);
-        h.Button.IsVisible = false; // Already-hidden tool; no full viewer visibility/focus simulation.
-        h.Viewer.SetFavorite(saved, pending);
-        Assert.Equal(saved, h.Button.IsChecked);
-        Assert.True(h.Button.IsEnabled); // Opposite intent remains available while saving.
-        Assert.False(h.Button.IsVisible);
-        Assert.True(h.Managed.IsVisible);
-        Assert.False(h.Native.IsVisible);
-        AssertArtwork(h, saved, pending);
-    }
+    public void SetFavoriteShowsPersistedGlyphAndAccessibleStateEvenWithPendingAndHiddenTools(bool saved, bool pending) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            var h = new IndicatorFixture();
+            SetField(h.Viewer, "_overlayHidden", true);
+            SetField(h.Viewer, "_mediaFocus", true);
+            h.Button.IsVisible = false; // Already-hidden tool; no full viewer visibility/focus simulation.
+            h.Viewer.SetFavorite(saved, pending);
+            Assert.Equal(saved, h.Button.IsChecked);
+            Assert.True(h.Button.IsEnabled); // Opposite intent remains available while saving.
+            Assert.False(h.Button.IsVisible);
+            Assert.True(h.Managed.IsVisible);
+            Assert.False(h.Native.IsVisible);
+            AssertArtwork(h, saved, pending);
+        });
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void PendingPresentationNeverOptimisticallyFlipsPersistedState(bool saved)
+    public void PendingPresentationNeverOptimisticallyFlipsPersistedState(bool saved) => BooruComponentDispatcher.Run(() =>
     {
         var h = new IndicatorFixture();
         h.Viewer.SetFavorite(saved);
@@ -408,12 +410,12 @@ public sealed class GalleryFavoriteStateTests
         h.Viewer.SetFavorite(!saved, pending: false);
         AssertArtwork(h, !saved, pending: false);
         Assert.Equal(!saved, h.Button.IsChecked);
-    }
+    });
 
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void UnknownSelectionMissingEntryAndTerminalRetirementHideBothBadges(bool native)
+    public void UnknownSelectionMissingEntryAndTerminalRetirementHideBothBadges(bool native) => BooruComponentDispatcher.Run(() =>
     {
         var h = new IndicatorFixture();
         SetField(h.Viewer, "_nativeOverlayActive", native);
@@ -439,10 +441,10 @@ public sealed class GalleryFavoriteStateTests
         Assert.False(h.Managed.IsVisible);
         Assert.False(h.Native.IsVisible);
         Assert.False(h.Button.IsEnabled);
-    }
+    });
 
     [Fact]
-    public void NativeTransparencyFallbackPlacesManagedBadgeAboveVideoWithoutTransferringEitherBadge()
+    public void NativeTransparencyFallbackPlacesManagedBadgeAboveVideoWithoutTransferringEitherBadge() => BooruComponentDispatcher.Run(() =>
     {
         var h = new IndicatorFixture();
         var body = new Grid();
@@ -473,7 +475,7 @@ public sealed class GalleryFavoriteStateTests
         Assert.Equal(0, Grid.GetRow(body));
         Assert.Equal(0, Grid.GetRow(h.Managed));
         Assert.True(h.Managed.IsVisible);
-    }
+    });
 
     private static void AssertArtwork(IndicatorFixture h, bool saved, bool pending)
     {

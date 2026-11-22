@@ -23,18 +23,53 @@ internal sealed class TaggingControlRow : Panel
     public double GroupSpacing { get => GetValue(GroupSpacingProperty); set => SetValue(GroupSpacingProperty, value); }
     public double LineSpacing { get => GetValue(LineSpacingProperty); set => SetValue(LineSpacingProperty, value); }
     public Control? TrailingChild { get; set; }
+    internal Action<bool>? SetTrailingCompact { get; set; }
+    private bool _trailingCompact;
 
     protected override Size MeasureOverride(Size availableSize)
     {
+        Size constraint = new(availableSize.Width, double.PositiveInfinity);
+        double leadingWidth = 0;
         foreach (Control child in Children)
-            child.Measure(new Size(availableSize.Width, double.PositiveInfinity));
+        {
+            if (ReferenceEquals(child, TrailingChild) && SetTrailingCompact != null) continue;
+            child.Measure(constraint);
+            if (child.IsVisible) leadingWidth += child.DesiredSize.Width + GroupSpacing;
+        }
+        if (TrailingChild is { IsVisible: true } trailing && SetTrailingCompact is { } compact)
+        {
+            // Measure the localized labels even when the last arrangement used icons. Try the compact
+            // presentation before wrapping whole groups. Use the same spare gap as the group wrap.
+            compact(false);
+            trailing.Measure(Size.Infinity);
+            double fullWidth = leadingWidth + trailing.DesiredSize.Width;
+            _trailingCompact = fullWidth + (_trailingCompact ? GroupSpacing : 0) > availableSize.Width;
+            compact(_trailingCompact);
+            trailing.Measure(constraint);
+        }
         return Place(availableSize.Width);
     }
 
     protected override Size ArrangeOverride(Size finalSize)
     {
         Place(finalSize.Width);
-        foreach ((Control child, Rect bounds) in _placements) child.Arrange(bounds);
+        for (int start = 0; start < _placements.Count;)
+        {
+            double y = _placements[start].Bounds.Y;
+            double height = _placements[start].Bounds.Height;
+            int end = start + 1;
+            while (end < _placements.Count && _placements[end].Bounds.Y == y)
+            {
+                height = Math.Max(height, _placements[end].Bounds.Height);
+                end++;
+            }
+            for (int i = start; i < end; i++)
+            {
+                (Control child, Rect bounds) = _placements[i];
+                child.Arrange(new Rect(bounds.X, y + (height - bounds.Height) / 2, bounds.Width, bounds.Height));
+            }
+            start = end;
+        }
         return finalSize;
     }
 

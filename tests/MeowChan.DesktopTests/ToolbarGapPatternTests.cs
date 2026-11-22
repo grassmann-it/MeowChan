@@ -104,11 +104,11 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheTaggingSelectionBarStaysOutlinedAndTheTaggingBarKeepsItsGroups()
+    public void TheTaggingSelectionBarStaysOutlinedAndTheQueueActionsShareOneGroup()
     {
         Assert.Contains("button.Classes.Add(\"bar-button\");", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs")));
         string commands = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("ActionToolBar.SetGroup(item, group);", commands);
+        Assert.Contains("new Control[] { _add, _help, _clearDone, _clear }", commands);
         Assert.DoesNotContain("Margin = new Thickness(16", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
     }
 
@@ -155,8 +155,8 @@ public sealed class ToolbarGapPatternTests
     public void TheTaggingBarDocksColumnsViewSwitchAndHelpAtTheRight()
     {
         string commands = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("ActionToolBar.SetEnd(_help, true);", commands);
-        // Columns and list/grid remain grouped in the list presentation row.
+        Assert.Contains("_queueActionRow.TrailingChild = _actions;", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
+        Assert.Contains("_listControls.TrailingChild = _listPresentation;", commands);
         Assert.Contains("new Control[] { _columnsButton, _viewToggle }", commands);
     }
 

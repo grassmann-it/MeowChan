@@ -100,9 +100,11 @@ internal static class MediaTileThumbnails
 
     /// <summary>Every local video surface checks the original before leasing a decoded poster, even on a memory-cache hit.</summary>
     internal static Task<Bitmap?> LoadPosterAsync(MediaAssetSnapshot manifest, MediaAssetReference asset, string posterCacheDirectory,
-        int maximumWidth, int maximumHeight, string? key, CancellationToken token, ThumbnailDecodeGate? gate = null) =>
+        int maximumWidth, int maximumHeight, string? key, CancellationToken token, ThumbnailDecodeGate? gate = null,
+        bool useFailureBackoff = true) =>
         KeepVerifiedPosterAsync(Cache, key,
-            cancellation => VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, cancellation, Verified),
+            cancellation => VideoPosterCache.GetPngAsync(manifest, asset, posterCacheDirectory, cancellation, Verified,
+                useFailureBackoff: useFailureBackoff),
             (png, cancellation) => VideoPosterCache.DecodeBitmapAsync(png, asset.AssetId, maximumWidth, maximumHeight, cancellation), token,
             gate);
 

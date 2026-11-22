@@ -31,7 +31,8 @@ internal sealed record BooruSearchView(
     string? Code,
     BooruNotice? Notice,
     bool Restored = false,
-    string InstanceId = BooruPostKey.DefaultInstance)
+    string InstanceId = BooruPostKey.DefaultInstance,
+    bool NeedsLoad = false)
 {
     internal BooruPostKey? ExecutedPostIdentity => ExecutedPostId is { } postId ? new(ProviderId, InstanceId, postId) : null;
     internal bool IsPostResult => ExecutedPostIdentity is not null;
@@ -334,7 +335,8 @@ internal sealed partial class BooruSearchModel : IDisposable
             _view = _view with
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
-                Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null, Restored = false
+                Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null,
+                Restored = false, NeedsLoad = false
             };
             return (_requestId, request.Acquire());
         }
@@ -406,7 +408,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         });
     }
 
-    private void OnLocalStatesChanged() => _ = RefreshLocalStatesAsync();
+    private void OnLocalStatesChanged() => OpenActions.Start(RefreshLocalStatesAsync, "booru.search.local-states");
 
     internal Task RefreshLocalStatesAsync()
     {
@@ -673,7 +675,8 @@ internal sealed partial class BooruSearchModel : IDisposable
             _originalActionVersions.Clear();
         }
         _queue.LocalStatesChanged -= OnLocalStatesChanged;
-        _ = _lifetime.RetireAsync();
+        Task retirement = _lifetime.RetireAsync();
+        OpenActions.Start(() => retirement, "booru.search.retire");
         Changed = null;
     }
 }

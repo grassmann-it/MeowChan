@@ -1,12 +1,15 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using MeowChan.PluginHost.Http;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Booru;
 
 /// <summary>
 /// The extra tabs next to the permanent search. Slot 0 is the permanent Search tab (it cannot be closed and does not count
 /// against the limit); every other slot is one opened search. The tabs share the one <see cref="BooruSearchModel"/>: leaving a tab stores
-/// the model's immutable view in it, entering a tab puts that view back (never sending a request). Submitted targets can be restored from the profile.
+/// the model's immutable view in it, entering a tab puts that view back without sending a request.
 /// </summary>
 internal sealed class BooruSearchTabs
 {
@@ -22,6 +25,7 @@ internal sealed class BooruSearchTabs
     {
         internal int Id { get; } = id;
         internal BooruSearchView? Snapshot { get; set; }
+        internal BooruSearchTabTarget? UnboundTarget { get; set; }
     }
 
     internal BooruSearchTabs(BooruSearchModel search, Func<int>? limit = null)
@@ -54,7 +58,7 @@ internal sealed class BooruSearchTabs
     internal int Add(bool copyCurrent)
     {
         if (!CanAdd) return -1;
-        Slot slot = new(_nextId++);
+        Slot slot = new(_nextId++) { UnboundTarget = copyCurrent ? Find(_activeId)?.UnboundTarget : null };
         BooruSearchView? copy = copyCurrent ? _search.View : null;
         Store();
         _slots.Add(slot);
@@ -94,34 +98,56 @@ internal sealed class BooruSearchTabs
         return true;
     }
 
-    internal BooruSearchTabState CaptureTargets()
+    internal BooruSearchTabState CaptureTargets(int tabLimit = Config.BooruSavedTabsMaximum,
+        int resultLimit = Config.BooruSavedResultsPerTabDefault)
     {
-        BooruSearchTabTarget?[] targets = new BooruSearchTabTarget?[_slots.Count];
-        int activeIndex = 0;
-        for (int index = 0; index < _slots.Count; index++)
-        {
-            int id = _slots[index].Id;
-            if (id == _activeId) activeIndex = index;
-            if (ViewOf(id) is { } view && (view.ExecutedPostIdentity != null || view.ExecutedQuery != null))
-                targets[index] = new(view.ProviderId, view.InstanceId, view.ExecutedPostIdentity?.PostId, view.ExecutedQuery, view.Page);
-        }
-        return new(activeIndex, targets);
+        int activeIndex = _slots.FindIndex(slot => slot.Id == _activeId);
+        int[] indices = RetainedIndices(_slots.Count, activeIndex, Math.Min(tabLimit, Limit + 1));
+        BooruSearchTabTarget?[] targets = Array.ConvertAll(indices, index => CaptureTarget(_slots[index], resultLimit));
+        return new(Array.IndexOf(indices, activeIndex), targets);
     }
 
-    internal void RestoreTargets(BooruSearchTabState state)
+    private BooruSearchTabTarget? CaptureTarget(Slot slot, int resultLimit)
     {
-        int count = Math.Min(state.Tabs.Length, Limit + 1);
+        if (ViewOf(slot.Id) is not { } view) return null;
+        string input = view.Input.Length <= BooruSearchTabTarget.MaximumDraftLength
+            ? view.Input : view.Input[..BooruSearchTabTarget.MaximumDraftLength];
+        if (slot.UnboundTarget is { } unbound)
+            return unbound with { Mode = view.Mode, Input = input, Rows = unbound.Rows?.Take(resultLimit).ToArray() };
+        if (input.Length == 0 && view.Mode == BooruInputMode.Tags && view.ExecutedQuery is null && view.ExecutedPostId is null)
+            return null;
+        BooruSearchTabRow[] rows = view.Rows.Take(resultLimit).Select(row => new BooruSearchTabRow(row.Post.Post,
+            row.Preview == BooruPreviewState.Ready && row.PreviewBytes is { Length: > 0 and <= BooruPreviewHttp.MaximumPreviewBytes } bytes
+                ? bytes : null)).ToArray();
+        return new(view.ProviderId, view.InstanceId, view.ExecutedPostIdentity?.PostId, view.ExecutedQuery, view.Page,
+            view.Mode, input, view.IsEnd, view.Status == BooruSearchStatus.Empty, rows);
+    }
+
+    internal void RestoreTargets(BooruSearchTabState state, int tabLimit = Config.BooruSavedTabsMaximum,
+        int resultLimit = Config.BooruSavedResultsPerTabDefault, SourceDescription? source = null)
+    {
+        int[] indices = RetainedIndices(state.Tabs.Length, state.ActiveIndex, Math.Min(tabLimit, Limit + 1));
         _slots.Clear();
-        for (int index = 0; index < count; index++)
+        foreach (int index in indices)
         {
             BooruSearchTabTarget? target = state.Tabs[index];
-            _slots.Add(new Slot(index) { Snapshot = target is null ? null : _search.ViewFromTarget(target) });
+            BooruSearchView? view = target is null ? null : _search.ViewFromTarget(target, resultLimit, source);
+            _slots.Add(new Slot(index == 0 ? PrimaryId : _nextId++)
+            {
+                Snapshot = view,
+                UnboundTarget = view?.Status == BooruSearchStatus.Unavailable ? target : null
+            });
         }
-        _nextId = count;
-        _activeId = Math.Min(state.ActiveIndex, count - 1);
-        _search.Restore(_slots[_activeId].Snapshot, _activeId);
+        Slot active = _slots[Array.IndexOf(indices, state.ActiveIndex)];
+        _activeId = active.Id;
+        _search.Restore(active.Snapshot, _activeId);
         Changed?.Invoke();
     }
+
+    // Keep the permanent and active tabs in strip order when applying a limit.
+    private static int[] RetainedIndices(int count, int activeIndex, int limit) =>
+        activeIndex < limit ? Enumerable.Range(0, Math.Min(count, limit)).ToArray()
+            : Enumerable.Range(0, limit - 1).Append(activeIndex).ToArray();
 
     /// <summary>The text of a tab: its search, else its post, else what is typed, else "new search" (the caller localizes the last two).</summary>
     internal static string Title(BooruSearchView? view, string blank, Func<string, string> post)

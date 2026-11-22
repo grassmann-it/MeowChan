@@ -1110,6 +1110,15 @@
                             </ComboBox>
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="RestoreBooruSearchTabsFieldLabel" Text="{Binding RestoreBooruSearchTabsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding RestoreBooruSearchTabsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ToggleSwitch x:Name="RestoreBooruSearchTabsInput" IsChecked="{Binding RestoreBooruSearchTabs, Mode=TwoWay}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=RestoreBooruSearchTabsFieldLabel}" AutomationProperties.Name="{Binding RestoreBooruSearchTabsLabel}" AutomationProperties.HelpText="{Binding RestoreBooruSearchTabsHint}" />
+                        </Grid>
+                    </Border>
                     <TextBlock x:Name="SettingsTaggingHeading" Text="{Binding TaggingGroupLabel}" Classes="workspace-field-label settings-subheading" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
@@ -1643,6 +1652,30 @@
                             <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <desktop:SettingsNumberInput x:Name="BooruSearchTabsInput" Value="{Binding BooruSearchTabs, Mode=TwoWay}" Minimum="{Binding BooruSearchTabsMinimum}" Maximum="{Binding BooruSearchTabsMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruSearchTabsFieldLabel}" AutomationProperties.Name="{Binding BooruSearchTabsLabel}" AutomationProperties.HelpText="{Binding BooruSearchTabsHelp}" />
                                 <TextBlock x:Name="BooruSearchTabsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruSavedTabsFieldLabel" Text="{Binding BooruSavedTabsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruSavedTabsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruSavedTabsInput" Value="{Binding BooruSavedTabs, Mode=TwoWay}" Minimum="{Binding BooruSavedTabsMinimum}" Maximum="{Binding BooruSavedTabsMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruSavedTabsFieldLabel}" AutomationProperties.Name="{Binding BooruSavedTabsLabel}" AutomationProperties.HelpText="{Binding BooruSavedTabsHelp}" />
+                                <TextBlock x:Name="BooruSavedTabsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruSavedResultsPerTabFieldLabel" Text="{Binding BooruSavedResultsPerTabLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruSavedResultsPerTabHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruSavedResultsPerTabInput" Value="{Binding BooruSavedResultsPerTab, Mode=TwoWay}" Minimum="{Binding BooruSavedResultsPerTabMinimum}" Maximum="{Binding BooruSavedResultsPerTabMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruSavedResultsPerTabFieldLabel}" AutomationProperties.Name="{Binding BooruSavedResultsPerTabLabel}" AutomationProperties.HelpText="{Binding BooruSavedResultsPerTabHelp}" />
+                                <TextBlock x:Name="BooruSavedResultsPerTabInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
                             </StackPanel>
                         </Grid>
                     </Border>

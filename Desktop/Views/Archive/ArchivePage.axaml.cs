@@ -36,8 +36,20 @@ public partial class ArchivePage : UserControl
     private readonly Func<string, CancellationToken, Task<MediaAssetSnapshot>> _openMedia = MediaAssetReader.OpenAsync;
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
     private readonly ThumbnailDecodeGate _thumbnailGate = new ThumbnailDecodeGate(ThumbnailDecodeGate.ArchiveSlots);
-    private TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> _mediaReady = NewMediaReady();
-    private static TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> NewMediaReady() => new TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>>(TaskCreationOptions.RunContinuationsAsynchronously);
+    // Rows keep their thread's read. A retry replaces the attempt inside it without rebuilding the posts.
+    private sealed class MediaRead
+    {
+        internal MediaReadAttempt Attempt { get; set; } = new();
+    }
+
+    private sealed class MediaReadAttempt
+    {
+        internal TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> Ready { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal bool Incomplete { get; set; }
+    }
+
+    private MediaRead _mediaRead = new();
+    private TaskCompletionSource<IReadOnlyList<ArchiveAssetRow>> _mediaReady => _mediaRead.Attempt.Ready;
     private readonly SemaphoreSlim _mediaGate = new SemaphoreSlim(1, 1);
     private CancellationTokenSource? _contentCancellation;
     private CancellationTokenSource? _mediaCancellation;
@@ -225,7 +237,8 @@ public partial class ArchivePage : UserControl
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token, applicationToken);
         _contentCancellation = loading;
         CancellationToken token = loading.Token;
-        CancelMediaLoad(); ClosePreview();
+        // The shown thread still owns its media scan until a replacement thread is committed.
+        CancelReaderMediaActivation(); ClosePreview();
         _busy = true;
         ResourceId? selected = _selectedThread;
         bool committed = false;
@@ -473,13 +486,14 @@ public partial class ArchivePage : UserControl
     private async Task LoadMediaAsync(ArchivedThreadView thread)
     {
         int request = ++_mediaRequest;
+        MediaReadAttempt attempt = _mediaRead.Attempt;
         using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _mediaCancellation = loading;
         CancellationToken cancellationToken = loading.Token;
         _mediaLoading = true;
-        RenderMedia();
         try
         {
+            RenderMedia();
             (List<ArchiveAssetRow> assets, List<string> warnings) loaded = await Task.Run(async () =>
             {
                 // A cancelled NAS operation may still be waiting in the OS. Keep at most one scan
@@ -509,15 +523,34 @@ public partial class ArchivePage : UserControl
             }, cancellationToken);
             if (_ended || request != _mediaRequest) return;
             _assets = loaded.assets.AsReadOnly();
-            OperationMessage("media", string.Join(Environment.NewLine, loaded.warnings), loaded.warnings.Count > 0);
+            attempt.Incomplete = loaded.warnings.Count > 0;
+            OperationMessage("media", string.Join(Environment.NewLine, loaded.warnings), attempt.Incomplete);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
-        catch (Exception exception) { if (!_ended && request == _mediaRequest) OperationMessage("media", exception.Message, true); }
+        catch (Exception exception)
+        {
+            attempt.Incomplete = true;
+            if (!_ended && request == _mediaRequest) OperationMessage("media", exception.Message, true);
+        }
         finally
         {
             if (ReferenceEquals(_mediaCancellation, loading)) _mediaCancellation = null;
-            if (!_ended && request == _mediaRequest) { _mediaLoading = false; _mediaProjectionPending = false; _mediaReady.TrySetResult(_assets); RenderMedia(); }
+            if (!_ended && request == _mediaRequest)
+            {
+                _mediaLoading = false;
+                _mediaProjectionPending = false;
+                attempt.Ready.TrySetResult(_assets);
+                RenderMedia();
+            }
         }
+    }
+
+    private void RetryMediaRead(MediaRead read)
+    {
+        if (_ended || !ReferenceEquals(read, _mediaRead) || !read.Attempt.Incomplete || _mediaLoading || _thread is not { } thread) return;
+        read.Attempt = new();
+        MediaLoadTask = LoadMediaAsync(thread);
+        RefreshMediaSidebar();
     }
 
     private void CancelMediaLoad()
@@ -526,7 +559,7 @@ public partial class ArchivePage : UserControl
         ClearOperationError("media");
         ++_mediaRequest;
         _mediaReady.TrySetCanceled();
-        _mediaReady = NewMediaReady();
+        _mediaRead = new();
         _mediaCancellation?.Cancel();
         _mediaLoading = false;
         _mediaProjectionPending = false;
@@ -643,7 +676,7 @@ public partial class ArchivePage : UserControl
         bool grid = ReaderMediaMultiRules.UseGrid(_readerDisplayPreferences.Media, shownImages, text, columnWidth);
         int tileWidth = grid ? ReaderMediaMultiRules.TileWidth(columnWidth) : textlessWidth;
         IReadOnlyList<ArchiveAttachmentRow> attachments = stub ? Array.Empty<ArchiveAttachmentRow>()
-            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaReady.Task, tileWidth)).ToArray());
+            : Array.AsReadOnly((post.Attachments ?? Array.Empty<CapturedAttachment>()).Select(attachment => CreateAttachmentRow(threadId, attachment, post.PostId, _mediaRead, tileWidth)).ToArray());
         return new ArchivePostRow(post.PostId, post.Subject ?? string.Empty, text, attachments)
         {
             Author = post.Author ?? string.Empty,
@@ -784,26 +817,36 @@ public partial class ArchivePage : UserControl
     }
 
     private ArchiveAttachmentRow CreateAttachmentRow(ResourceId resource, CapturedAttachment attachment, string postId,
-        Task<IReadOnlyList<ArchiveAssetRow>> ready, int widthOverride = 0)
+        MediaRead read, int widthOverride = 0)
     {
         bool large = _largeReader;
         int thumbnailWidth = widthOverride > 0 ? widthOverride : ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderThumbnailWidth, large);
         global::MeowChan.Desktop.ReaderDisplayPreferences.ThumbnailDecodeBounds bounds =
             global::MeowChan.Desktop.ReaderDisplayPreferences.DecodeBoundsForWidth(thumbnailWidth, large);
         ArchiveAttachmentRow row = new(attachment);
+        async Task<(ArchiveAssetRow? Match, MediaAttachmentBinding? Binding)> ResolveAsync(CancellationToken cancellationToken)
+        {
+            MediaReadAttempt attempt = read.Attempt;
+            IReadOnlyList<ArchiveAssetRow> assets = await attempt.Ready.Task.WaitAsync(cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(assets.Select(asset => asset.Manifest).Distinct(), resource, postId, attachment);
+            if (resolved != null)
+                return (assets.First(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset), resolved.Binding);
+            if (attempt.Incomplete) throw new IOException(Texts.T("archive.previewMediaReadFailed"));
+            if (assets.Any(asset => asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant))
+                throw new ArchiveAttachmentNotSavedException("archive.differentVersion");
+            return (null, null);
+        }
+
         // One decode at explicit bounds serves the ordinary preview, the enlarged focused card and the hover preview. Only the ordinary
         // size is kept by its bytes (a kept preview is leased at once, with no slot); the enlarged ones are held by their one view.
         async Task<Bitmap?> Load(int maximumWidth, int maximumHeight, bool keep, CancellationToken cancellationToken, bool small = false,
             ThumbnailDecodePriority priority = ThumbnailDecodePriority.Image)
         {
             using CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-            IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(loading.Token);
-            ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(assets.Select(asset => asset.Manifest).Distinct(), resource, postId, attachment);
-            row.Binding = resolved?.Binding;
-            ArchiveAssetRow? match = resolved == null ? null : assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
-            if (match == null) throw new InvalidDataException(Texts.T(assets.Any(asset =>
-                asset.Asset.MediaIdentifier == attachment.MediaId && asset.Asset.Variant == attachment.Variant)
-                ? "archive.differentVersion" : "archive.notSaved"));
+            (ArchiveAssetRow? match, MediaAttachmentBinding? binding) = await ResolveAsync(loading.Token);
+            row.Binding = binding;
+            if (match == null) throw new ArchiveAttachmentNotSavedException("archive.notSaved");
             // The normal-size previews are kept by their bytes (the large ones are about 3 MiB each and are not), so scrolling the
             // reader back shows them at once. The image size is the tile default, so the media page and the archive tiles share it.
             bool video = SavedMediaTypes.Classify(match.Asset.OriginalFileName ?? match.Asset.Path) == SavedMediaKind.Video;
@@ -817,7 +860,7 @@ public partial class ArchivePage : UserControl
             if (video)
                 return await MediaTileThumbnails.LoadPosterAsync(match.Manifest, match.Asset,
                     Path.Combine(Config.GetConfigDirectory(), "cache", "video-posters-v1"),
-                    maximumWidth, maximumHeight, key, loading.Token, _thumbnailGate).ConfigureAwait(false);
+                    maximumWidth, maximumHeight, key, loading.Token, _thumbnailGate, useFailureBackoff: false).ConfigureAwait(false);
             return await MediaTileThumbnails.KeepGatedAsync(_thumbnailGate, priority, key,
                 () => Task.Run(() => DecodeThumbnailAsync(match, loading.Token,
                     maximumWidth, maximumHeight, MediaTileThumbnails.Verified), loading.Token), loading.Token).ConfigureAwait(false);
@@ -830,6 +873,7 @@ public partial class ArchivePage : UserControl
             ThumbnailMaxHeight = widthOverride > 0
                 ? (int)Math.Round(thumbnailWidth * MediaFramePanel.MaximumHeight(large) / MediaFramePanel.MaximumWidth(large)) : 0,
             LoadThumbnail = cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken),
+            RetryMediaRead = () => RetryMediaRead(read),
             // Preloading (ArchivePage.PreviewReservation) never gets a slot before a visible image or poster; the large reader keeps no decodes to preload into.
             PrefetchThumbnail = large ? null : cancellationToken => Load(bounds.MaximumWidth, bounds.MaximumHeight, keep: true, cancellationToken,
                 priority: ThumbnailDecodePriority.Prefetch),
@@ -837,8 +881,7 @@ public partial class ArchivePage : UserControl
             LoadStripThumbnail = (maximumWidth, maximumHeight, cancellationToken) => Load(maximumWidth, maximumHeight, keep: true, cancellationToken, small: true),
             ResolveEntry = async cancellationToken =>
             {
-                IReadOnlyList<ArchiveAssetRow> assets = await ready.WaitAsync(cancellationToken);
-                ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, assets);
+                var (match, _) = await ResolveAsync(cancellationToken);
                 return match == null ? null : new GalleryEntry(new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),
                     match.Manifest, match.Asset, null, null, !match.Asset.IsCurrent, true);
             },
@@ -847,16 +890,20 @@ public partial class ArchivePage : UserControl
                 if (_ended || _lifetime.IsCancellationRequested || IsReaderDialogOpen || _busy || !_available) return;
                 // While the local manifest scan still runs (a slow or sleeping drive), the click waits for it instead of doing nothing (audit 16.11.2026);
                 // a scan that is replaced (another thread) or fails opens nothing, and the state is checked again after the wait.
-                IReadOnlyList<ArchiveAssetRow> assets;
-                try { assets = await ready.WaitAsync(_lifetime.Token); }
+                ArchiveAssetRow? match;
+                try { (match, _) = await ResolveAsync(_lifetime.Token); }
                 catch (OperationCanceledException) { return; }
-                if (_ended || IsReaderDialogOpen || _busy || !_available) return;
-                ArchiveAssetRow? match = FindMatchingAsset(resource, postId, attachment, assets);
-                if (match != null && _selectedThread == resource && OpenGallery != null)
+                catch (IOException exception)
+                {
+                    if (ReferenceEquals(read, _mediaRead) && !_ended) Message(exception.Message, true);
+                    return;
+                }
+                if (_ended || IsReaderDialogOpen || _busy || !_available || !ReferenceEquals(read, _mediaRead)) return;
+                if (match != null && OpenGallery != null)
                     await OpenGallery(resource, new GalleryEntryKey(
                         new GalleryAssetKey(resource, match.Manifest.Directory, match.Asset.AssetId),
                         postId, attachment.Position), this);
-                else Message(Texts.T("archive.notSaved"));
+                else if (match == null) Message(Texts.T("archive.notSaved"));
             }, "archive.attachment.preview")
         };
         return row;

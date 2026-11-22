@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -164,6 +165,9 @@ internal static class ReaderMediaSidebarChecks
             ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
             Require(!toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.Always,
                 "The unavailable narrow-width sidebar toggle stayed active in the direct toolbar.");
+            string widthHint = Texts.T("reader.sidebar.collapsed", Math.Ceiling(ReaderMediaSidebarRules.MinimumReaderWidth(page.ReaderMedia)));
+            Require(ToolTip.GetShowOnDisabled(toggle) && ToolTip.GetTip(toggle) is string tip && tip.Contains(widthHint, StringComparison.Ordinal),
+                "The disabled sidebar toggle does not expose its minimum width on hover.");
             page.ApplyReaderMediaPreferences(page.ReaderMedia with
             {
                 SidebarWidth = widthPreferences.SidebarWidth,
@@ -200,8 +204,25 @@ internal static class ReaderMediaSidebarChecks
         Require(pane.Parent == page.FindControl<Grid>("ArchiveSplit") && Grid.GetColumn(pane) == embeddedColumn,
             "The pane did not return to its archive split column.");
         await CheckArchiveViewAsync(page, pane, posts);
+        CheckDisabledGalleryTagsTooltip(window);
         await ReaderSettingsProbe.CheckDisposalAsync(window);
         Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, narrow-width overflow, Escape and return, archive view (Always) passed.");
+    }
+
+    private static void CheckDisabledGalleryTagsTooltip(Window owner)
+    {
+        GallerySidePanel panel = new(new Button());
+        Window fixture = new() { Content = panel, Width = 400, Height = 240, ShowInTaskbar = false };
+        string reason = Texts.T("archive.notSaved");
+        try
+        {
+            fixture.Show(owner);
+            panel.SetTagsAvailable(false, reason);
+            ToggleButton tags = panel.TagsButton;
+            Require(tags.IsEffectivelyVisible && !tags.IsEffectivelyEnabled && ToolTip.GetShowOnDisabled(tags)
+                && ToolTip.GetTip(tags) as string == reason, "The disabled Gallery Tags segment does not expose its reason on hover.");
+        }
+        finally { fixture.Close(); }
     }
 
     // "Always": the archive view shows the full-height sidebar beside the posts and their header, with the same following and width rules;
