@@ -65,6 +65,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.next", "The walk continues here.", "Hier geht es weiter."),
         ("tagging.page.listName", "Entries of the tagging queue", "Einträge der Tagging-Warteschlange"),
         ("tagging.page.filterEmpty", "No entry has this state.", "Kein Eintrag hat diesen Zustand."),
+        ("tagging.page.filterEmpty.untagged", "No entry without tags.", "Kein Eintrag ohne Tags."),
         ("tagging.page.keys", "{0} continues at the selected entry · {1} removes it · {2} and {3} move it", "{0} setzt beim ausgewählten Eintrag fort · {1} entfernt ihn · {2} und {3} verschieben ihn"),
         ("tagging.page.loading", "Reading the tagging queue…", "Tagging-Warteschlange wird gelesen…"),
         ("tagging.page.stamp.empty", "No stamp tag yet. What you give most media belongs here.", "Noch kein Stempel-Tag. Was du den meisten Medien gibst, gehört hierher."),

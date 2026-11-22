@@ -4572,6 +4572,7 @@
     "tagging.page.next": "ここから続きます。",
     "tagging.page.listName": "タグ付けキューの項目",
     "tagging.page.filterEmpty": "この状態の項目はありません。",
+    "tagging.page.filterEmpty.untagged": "タグのない項目はありません。",
     "tagging.page.keys": "{0} で選択した項目から続行 · {1} で削除 · {2} と {3} で移動",
     "tagging.page.loading": "タグ付けキューを読み込んでいます…",
     "tagging.page.stamp.empty": "スタンプにはまだタグがありません。ほとんどのメディアに付けるタグをここに入れます。",

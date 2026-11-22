@@ -4655,6 +4655,7 @@
     "tagging.page.next": "Le parcours reprend ici.",
     "tagging.page.listName": "Entrées de la file d’étiquetage",
     "tagging.page.filterEmpty": "Aucune entrée n’a cet état.",
+    "tagging.page.filterEmpty.untagged": "Aucune entrée sans étiquettes.",
     "tagging.page.keys": "{0} reprend à l’entrée sélectionnée · {1} la retire · {2} et {3} la déplacent",
     "tagging.page.loading": "Lecture de la file d’étiquetage…",
     "tagging.page.stamp.empty": "Aucune étiquette dans le tampon. Ce que vous donnez à la plupart des médias y a sa place.",

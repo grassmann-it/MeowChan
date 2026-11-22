@@ -4661,6 +4661,7 @@
     "tagging.page.next": "Il giro riprende da qui.",
     "tagging.page.listName": "Voci della coda di tagging",
     "tagging.page.filterEmpty": "Nessuna voce ha questo stato.",
+    "tagging.page.filterEmpty.untagged": "Nessuna voce senza tag.",
     "tagging.page.keys": "{0} continua dalla voce selezionata · {1} la rimuove · {2} e {3} la spostano",
     "tagging.page.loading": "Lettura della coda di tagging…",
     "tagging.page.stamp.empty": "Nessun tag nel timbro. Qui vanno quelli che dai alla maggior parte dei media.",

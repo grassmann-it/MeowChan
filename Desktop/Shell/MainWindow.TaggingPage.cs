@@ -61,6 +61,7 @@ public partial class MainWindow
             DecisionForEntries = DecisionForMediaEntries,
             ReadBooruCatalog = _session.ReadBooruCatalog,
             ReadUserData = ReadMediaLibraryUserData,
+            ReadIndexEntries = () => _mediaPage?.Snapshot?.Entries,
             CompactDensity = () => _config.CompactDensity,
             OpenGallery = OpenTaggingEntriesGalleryAsync,
             ShowInThread = ShowTaggingEntryInThreadAsync,

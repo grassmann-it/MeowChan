@@ -408,7 +408,7 @@ public sealed class TagQueueStoreTests
         JsonObject root = JsonNode.Parse(File.ReadAllText(FileOf(temp)))!.AsObject();
         root["Version"] = TagQueueStore.LegacyVersion;
         root.Remove("Groups");
-        foreach (JsonObject item in root["Items"]!.AsArray().OfType<JsonObject>()) item.Remove("GroupId");
+        foreach (JsonObject item in root["Items"]!.AsArray().OfType<JsonObject>()) { item.Remove("GroupId"); item.Remove("AttachmentRevisionKey"); }
         File.WriteAllText(FileOf(temp), root.ToJsonString());
 
         TagQueueSnapshot legacy = store.Read();
@@ -416,6 +416,75 @@ public sealed class TagQueueStoreTests
         Assert.Null(legacy.Items[0].GroupId);
         store.SetStamp(new[] { "legacy" });
         Assert.Equal(TagQueueStore.Version, JsonNode.Parse(File.ReadAllText(FileOf(temp)))!["Version"]!.GetValue<int>());
+    }
+
+    [Fact]
+    public void VersionTwoQueueReadsWithoutRevisionKeysAndIsUpgradedKeepingEverythingReadable()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        store.Add(new[] { Item(1) with { Position = 0 }, Item(2) });
+        JsonObject root = JsonNode.Parse(File.ReadAllText(FileOf(temp)))!.AsObject();
+        root["Version"] = TagQueueStore.GroupsVersion;
+        foreach (JsonObject item in root["Items"]!.AsArray().OfType<JsonObject>()) item.Remove("AttachmentRevisionKey");
+        File.WriteAllText(FileOf(temp), root.ToJsonString());
+
+        TagQueueSnapshot old = store.Read();
+        Assert.Equal(2, old.Count);
+        Assert.All(old.Items, item => Assert.Null(item.AttachmentRevisionKey));
+        store.SetStamp(new[] { "after" });
+        string text = File.ReadAllText(FileOf(temp));
+        Assert.Contains("\"Version\":3", text);
+        Assert.Contains("\"AttachmentRevisionKey\":null", text); // plain, strict, readable text; an absent key is an explicit null
+        Assert.Equal(2, store.Read().Count);
+    }
+
+    [Fact]
+    public void ARevisionKeyIsStoredReadBackAndNeverPartOfTheIdentity()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        TagQueueStore store = new(temp.Path, lease);
+        TagQueueItem keyed = Item(1) with { Position = 0, AttachmentRevisionKey = "rev-1" };
+        store.Add(new[] { keyed });
+        Assert.Contains("\"AttachmentRevisionKey\":\"rev-1\"", File.ReadAllText(FileOf(temp)));
+        TagQueueItem back = new TagQueueStore(temp.Path, lease).Read().Items.Single();
+        Assert.Equal("rev-1", back.AttachmentRevisionKey);
+        Assert.Equal("rev-1", back.ToLibraryEntry().AttachmentRevisionKey);
+        Assert.Equal((keyed with { AttachmentRevisionKey = null }).Key, back.Key);
+        // A key without a post attachment is an invalid entry, as is an over-long one.
+        Assert.NotNull((Item(2) with { AttachmentRevisionKey = "rev" }).Validate());
+        Assert.NotNull((keyed with { AttachmentRevisionKey = new string('k', TagQueueItem.MaximumTokenCharacters + 1) }).Validate());
+        Assert.Null(keyed.Validate());
+    }
+
+    [Fact]
+    public void AnIndexEntryKeepsItsRevisionKeyWhenQueued()
+    {
+        MediaLibraryEntry entry = (Item(3) with { Position = 0 }).ToLibraryEntry() with { AttachmentRevisionKey = "rev-3" };
+        Assert.Equal("rev-3", TagQueueItem.From(entry, T0)!.AttachmentRevisionKey);
+    }
+
+    [Fact]
+    public void TheIndexResolvesTheKeyOfAnOldEntryOnlyForTheExactOccurrence()
+    {
+        TagQueueItem old = Item(4) with { Position = 0 };
+        MediaLibraryEntry indexed = old.ToLibraryEntry() with { AttachmentRevisionKey = "rev-4" };
+        Assert.Equal("rev-4", new TagQueueKeyResolver(new[] { indexed }).Resolve(old).AttachmentRevisionKey);
+        // The same asset at another post, position or with other bytes, or a missing file, does not resolve it.
+        foreach (MediaLibraryEntry other in new[]
+        {
+            indexed with { PostId = "other" }, indexed with { Position = 5 }, indexed with { Sha256 = new string('0', 64) },
+            indexed with { Presence = MediaLibraryPresence.Missing }, indexed with { AttachmentRevisionKey = null }
+        })
+            Assert.Null(new TagQueueKeyResolver(new[] { other }).Resolve(old).AttachmentRevisionKey);
+        // Two keys for one occurrence are ambiguous: nothing is chosen. A stored key always wins.
+        Assert.Null(new TagQueueKeyResolver(new[] { indexed, indexed with { AttachmentRevisionKey = "rev-x" } }).Resolve(old).AttachmentRevisionKey);
+        Assert.Equal("kept", new TagQueueKeyResolver(new[] { indexed }).Resolve(old with { AttachmentRevisionKey = "kept" }).AttachmentRevisionKey);
+        // An entry without a post attachment (a loose or imported file) is never looked up.
+        TagQueueItem loose = Item(5) with { PostId = null };
+        Assert.Same(loose, new TagQueueKeyResolver(new[] { indexed }).Resolve(loose));
     }
 
     [Fact]

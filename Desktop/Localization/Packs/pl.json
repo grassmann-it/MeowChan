@@ -4698,6 +4698,7 @@
     "tagging.page.next": "Tutaj przejście jest kontynuowane.",
     "tagging.page.listName": "Wpisy kolejki tagowania",
     "tagging.page.filterEmpty": "Żaden wpis nie ma tego stanu.",
+    "tagging.page.filterEmpty.untagged": "Żaden wpis nie jest bez tagów.",
     "tagging.page.keys": "{0} kontynuuje od zaznaczonego wpisu · {1} go usuwa · {2} i {3} go przesuwają",
     "tagging.page.loading": "Wczytywanie kolejki tagowania…",
     "tagging.page.stamp.empty": "Stempel nie zawiera jeszcze tagów. Tu trafia to, co nadajesz większości mediów.",

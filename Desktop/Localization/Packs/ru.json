@@ -4675,6 +4675,7 @@
     "tagging.page.next": "Проход продолжится здесь.",
     "tagging.page.listName": "Записи очереди тегов",
     "tagging.page.filterEmpty": "Нет записей с этим состоянием.",
+    "tagging.page.filterEmpty.untagged": "Нет записей без тегов.",
     "tagging.page.keys": "{0} продолжает с выбранной записи · {1} убирает её · {2} и {3} перемещают её",
     "tagging.page.loading": "Чтение очереди тегов…",
     "tagging.page.stamp.empty": "В штампе пока нет тегов. Сюда относится то, что вы присваиваете большинству медиа.",

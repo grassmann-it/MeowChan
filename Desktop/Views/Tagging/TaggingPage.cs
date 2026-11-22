@@ -119,6 +119,11 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     internal Action? AddRequested { get; set; }
     /// <summary>The profile's tags, favourites and ratings as the media page reads them (passive, in memory); the tag counts come from it. Null: no counts.</summary>
     internal Func<MediaLibraryUserData>? ReadUserData { get; set; }
+    /// <summary>
+    /// The media index the media page holds in memory (null while it has not been built or read yet). An entry that was queued before the queue file
+    /// stored its attachment revision key is looked up in it, so its media tags are known; without the index they stay unknown (a dash).
+    /// </summary>
+    internal Func<IReadOnlyList<MediaLibraryEntry>?>? ReadIndexEntries { get; set; }
     /// <summary>True when the profile asks for the compact row density (Barebones always does); read whenever the list is shown.</summary>
     internal Func<bool>? CompactDensity { get; set; }
 
@@ -251,9 +256,29 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     internal int? TagCountOf(TagQueueItem item)
     {
         if (_userData == null) return null;
-        MediaLibraryEntryState state = MediaLibraryEntryState.Of(item.ToLibraryEntry(), _userData);
+        MediaLibraryEntryState state = MediaLibraryEntryState.Of(EntryOf(item), _userData);
         return state.TagsKnown && state.TagSubject != null ? state.MediaTags.Count : null;
     }
+
+    private IReadOnlyList<MediaLibraryEntry>? _resolverSource;
+    private TagQueueKeyResolver? _keyResolver;
+
+    /// <summary>The entry with the attachment revision key of its bound version: the stored one, else the media index's (never guessed).</summary>
+    internal TagQueueItem Effective(TagQueueItem item)
+    {
+        if (item.AttachmentRevisionKey != null || item.PostId == null || item.Position == null) return item;
+        IReadOnlyList<MediaLibraryEntry>? entries = ReadIndexEntries?.Invoke();
+        if (entries == null) return item;
+        if (!ReferenceEquals(entries, _resolverSource) || _keyResolver == null)
+        {
+            _keyResolver = new TagQueueKeyResolver(entries);
+            _resolverSource = entries;
+        }
+        return _keyResolver.Resolve(item);
+    }
+
+    /// <summary>The media index entry the page uses for tags: <see cref="TagQueueItem.ToLibraryEntry"/> of <see cref="Effective"/>.</summary>
+    internal MediaLibraryEntry EntryOf(TagQueueItem item) => Effective(item).ToLibraryEntry();
 
     // The profile's density (or Barebones) changed what a row should be: the rows are built again.
     private void ApplyDensity()

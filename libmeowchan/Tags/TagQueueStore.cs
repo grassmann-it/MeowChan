@@ -12,7 +12,7 @@ using MeowChan.Storage;
 namespace MeowChan.Tags;
 
 /// <summary>
-/// The profile's tagging queue (<c>tag-queue.json</c>, version 2): the media still to be tagged, their state, the position of the
+/// The profile's tagging queue (<c>tag-queue.json</c>, version 3): the media still to be tagged, their state, the position of the
 /// walk and the stamp set. Strict and atomic like the other private lists: an unknown property, a repeated property, a malformed
 /// identity, a damaged file or a link in place of the file is refused, never repaired; a file of a newer version is read as empty
 /// and kept untouched. Every write replaces the file atomically and rotates the last good copy into <c>.bak</c>. Limits (entries,
@@ -21,8 +21,10 @@ namespace MeowChan.Tags;
 /// </summary>
 internal sealed class TagQueueStore
 {
-    internal const int Version = 2;
+    internal const int Version = 3;
     internal const int LegacyVersion = 1;
+    /// <summary>Version 2 added the groups; version 3 adds the attachment revision key of an entry. Both older files are still read and become version 3 on the next write.</summary>
+    internal const int GroupsVersion = 2;
     internal const string FileName = "tag-queue.json";
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly ProfileLease _lease;
@@ -481,8 +483,8 @@ internal sealed class TagQueueStore
         if (!root.TryGetProperty("Version", out JsonElement versionValue) || versionValue.ValueKind != JsonValueKind.Number || !versionValue.TryGetInt32(out int version))
             throw new InvalidDataException("The tagging queue has no version.");
         if (version > Version) return new TagQueueSnapshot(0, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.NewerVersion);
-        if (version is not (LegacyVersion or Version)) throw new InvalidDataException("The tagging queue version is invalid.");
-        bool groupsInFile = version == Version;
+        if (version is not (LegacyVersion or GroupsVersion or Version)) throw new InvalidDataException("The tagging queue version is invalid.");
+        bool groupsInFile = version >= GroupsVersion;
         ExactProperties(root, groupsInFile ? new[] { "Version", "Revision", "Cursor", "Stamp", "Groups", "Items" }
             : new[] { "Version", "Revision", "Cursor", "Stamp", "Items" });
         long revision = root.GetProperty("Revision").GetInt64();
@@ -505,7 +507,7 @@ internal sealed class TagQueueStore
         HashSet<TagQueueKey> keys = new();
         foreach (JsonElement element in itemArray.EnumerateArray())
         {
-            TagQueueItem item = ParseItem(element, groupsInFile);
+            TagQueueItem item = ParseItem(element, groupsInFile, version >= Version);
             if (item.GroupId != null && !groupIds.Contains(item.GroupId)) throw new InvalidDataException("The tagging queue references a missing group.");
             if (!keys.Add(item.Key)) throw new InvalidDataException("The tagging queue holds an entry twice.");
             items.Add(item);
@@ -569,9 +571,11 @@ internal sealed class TagQueueStore
         DateTimeOffset.TryParseExact(text, "O", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.RoundtripKind, out DateTimeOffset value)
         && value.Offset == TimeSpan.Zero ? value : throw new InvalidDataException("A time is invalid.");
 
-    private static TagQueueItem ParseItem(JsonElement element, bool groupsInFile)
+    private static TagQueueItem ParseItem(JsonElement element, bool groupsInFile, bool keyInFile)
     {
-        ExactProperties(element, groupsInFile ? new[] { "Thread", "Directory", "AssetId", "Sha256", "Length", "MediaId", "Variant", "PostId", "Position", "ImportItem",
+        ExactProperties(element, keyInFile ? new[] { "Thread", "Directory", "AssetId", "Sha256", "Length", "MediaId", "Variant", "PostId", "Position", "ImportItem",
+            "BooruPost", "Historical", "LocalSlot", "Name", "Kind", "State", "AddedAtUtc", "DoneAtUtc", "GroupId", "AttachmentRevisionKey" }
+            : groupsInFile ? new[] { "Thread", "Directory", "AssetId", "Sha256", "Length", "MediaId", "Variant", "PostId", "Position", "ImportItem",
             "BooruPost", "Historical", "LocalSlot", "Name", "Kind", "State", "AddedAtUtc", "DoneAtUtc", "GroupId" } : new[] { "Thread", "Directory", "AssetId", "Sha256", "Length", "MediaId", "Variant", "PostId", "Position", "ImportItem",
             "BooruPost", "Historical", "LocalSlot", "Name", "Kind", "State", "AddedAtUtc", "DoneAtUtc" });
         JsonElement thread = element.GetProperty("Thread");
@@ -590,7 +594,7 @@ internal sealed class TagQueueStore
             RequiredString(element, "MediaId"), RequiredString(element, "Variant"), OptionalString(element, "PostId"), positionValue,
             OptionalString(element, "ImportItem"), OptionalString(element, "BooruPost"), historical.GetBoolean(), OptionalString(element, "LocalSlot"),
             RequiredString(element, "Name"), kind, state, Time(RequiredString(element, "AddedAtUtc")), done == null ? null : Time(done),
-            groupsInFile ? OptionalString(element, "GroupId") : null);
+            groupsInFile ? OptionalString(element, "GroupId") : null, keyInFile ? OptionalString(element, "AttachmentRevisionKey") : null);
         return item.Validate() == null ? item : throw new InvalidDataException("The tagging queue holds an invalid entry.");
     }
 
@@ -659,6 +663,7 @@ internal sealed class TagQueueStore
                 writer.WriteString("AddedAtUtc", item.AddedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
                 writer.WriteString("DoneAtUtc", item.DoneAtUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
                 writer.WriteString("GroupId", item.GroupId);
+                writer.WriteString("AttachmentRevisionKey", item.AttachmentRevisionKey);
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
