@@ -1226,6 +1226,7 @@ public partial class ArchivePage : UserControl
         DataGrid media = ArchiveMediaGrid;
         media.Columns[0].Header = Texts.T("archive.name"); media.Columns[1].Header = Texts.T("archive.size"); media.Columns[2].Header = Texts.T("archive.version");
         UpdateActions();
+        RefreshMediaSidebarToggle();
     }
     private void Message(string text, bool error = false) => OperationMessage("action", text, error);
     private T Control<T>(string name) where T : Control => this.FindControl<T>(name)!;

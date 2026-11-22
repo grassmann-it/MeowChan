@@ -265,6 +265,7 @@ internal static class ReaderMediaSidebarChecks
             && Math.Abs(sidebar.Bounds.Height - host.Bounds.Height) <= 1);
         await Flush();
         Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
+        Require(sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 7 and <= 9 }, "The sidebar header is missing its top inset.");
         Require(sidebar.HeaderRow.Bounds.Height == ReaderMediaSidebar.HeaderLineHeight, "The media title lost its stable height.");
         Require(sidebar.Padding.Top == 0 && sidebar.Padding.Bottom == 0, "Neighbour alignment reclaimed media height as padding.");
         Require(Math.Abs(sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height - sidebar.Bounds.Height) <= 1,
