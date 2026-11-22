@@ -166,8 +166,7 @@ internal sealed class TaggingHeader : Panel
         double width = availableSize.Width;
         _lines.Clear();
 
-        _trimStartLabel(0);
-        _walk.Measure(Size.Infinity);
+        MeasureFullWalk();
         Control[] tools = Visible(_stamp, _filters, _more, _presentation);
         Control[] all = [_walk, _addAndHelp, ..tools];
         bool wide = width >= TaggingHeaderSettings.SingleRowMinWidth;
@@ -177,16 +176,19 @@ internal sealed class TaggingHeader : Panel
         }
         else
         {
-            if (wide)
-            {
-                _trimStartLabel(0);
-                _walk.Measure(Size.Infinity);
-            }
-            TrimWalk(_walk.DesiredSize.Width - width);
+            if (wide) MeasureFullWalk();
             _addAndHelp.Measure(Size.Infinity);
-            bool actionsFitAbove = LineWidth([_walk, _addAndHelp]) <= width;
-            Control[] upper = actionsFitAbove ? [_walk, _addAndHelp] : [_walk];
-            Control[] lower = actionsFitAbove ? tools : [_addAndHelp, ..tools];
+            Control[] upper = [_walk, _addAndHelp];
+            Control[] lower = tools;
+            TrimWalk(LineWidth(upper) - width);
+            if (LineWidth(upper) > width)
+            {
+                // Keep the full resume label when the actions need their own line anyway.
+                MeasureFullWalk();
+                TrimWalk(_walk.DesiredSize.Width - width);
+                upper = [_walk];
+                lower = [_addAndHelp, ..tools];
+            }
             Fit(lower, width);
 
             // At the fallback width, pack the final line from the right so the
@@ -242,6 +244,12 @@ internal sealed class TaggingHeader : Panel
             _filters.Measure(new Size(budget, double.PositiveInfinity));
             return LineWidth(groups) + reserve <= width;
         }
+    }
+
+    private void MeasureFullWalk()
+    {
+        _trimStartLabel(0);
+        _walk.Measure(Size.Infinity);
     }
 
     private void TrimWalk(double excess)

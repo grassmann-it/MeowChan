@@ -265,6 +265,29 @@ public sealed class TaggingRowStructureTests
     });
 
     [Fact]
+    public void TheResumeLabelYieldsBeforeAddAndHelpLeaveTheFirstLine() => BooruComponentDispatcher.Run(() =>
+    {
+        Border walk = new() { Height = 32 };
+        Border actions = new() { Width = 150, Height = 32 };
+        Border stamp = new() { Width = 130, Height = 32 };
+        Border filters = new() { Width = 240, MinWidth = 240, Height = 32 };
+        Border more = new() { Width = 32, Height = 32 };
+        Border views = new() { Width = 125, Height = 32 };
+        TaggingHeader header = new(walk, actions, stamp, filters, more, views,
+            _ => { }, _ => { }, excess => walk.MinWidth = Math.Max(400, 630 - excess));
+
+        Layout(header, 736);
+        Assert.Equal(570, walk.Bounds.Width);
+        Assert.Equal(0, actions.Bounds.Top);
+        Assert.Equal(40, stamp.Bounds.Top);
+        Assert.Equal(40, views.Bounds.Top);
+
+        Layout(header, 520);
+        Assert.Equal(520, walk.Bounds.Width);
+        Assert.Equal(40, actions.Bounds.Top);
+    });
+
+    [Fact]
     public void WrapHysteresisPreventsOnePixelResizeFlickerWithoutReparentingOrOverlap() => BooruComponentDispatcher.Run(() =>
     {
         TaggingControlRow row = new();
