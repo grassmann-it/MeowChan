@@ -43,7 +43,8 @@ public sealed class BooruPluginRuntimeCompositionTests
             PluginProfileSnapshot plugins = await host.Plugins.ProfileStore.ReadAsync();
             PluginActivationSnapshot danbooru = Assert.Single(plugins.Plugins, plugin => plugin.PluginId == PluginId);
             Assert.NotNull(danbooru.Active);
-            if (!danbooru.Enabled) await host.Plugins.ProfileStore.SetEnabledAsync(PluginId, true, plugins.Revision);
+            Assert.True(danbooru.Enabled);
+            Assert.False(host.Plugins.DanbooruStartupRepairRequired);
             await BooruCompositionHostTests.WaitAsync(() => host.BooruServices != null, "the composition from the real plugin");
             Assert.Empty(stub.Requests);
             BooruWorkbenchServices services = host.BooruServices!;

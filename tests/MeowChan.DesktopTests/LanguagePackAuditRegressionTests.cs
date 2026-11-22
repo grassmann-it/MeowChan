@@ -11,6 +11,20 @@ public sealed class LanguagePackAuditRegressionTests : IDisposable
 
     [Theory]
     [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
+    public void BooruDefaultsAndBuildRecoveryHavePackTranslations(string code)
+    {
+        Texts.SetLanguage(code);
+        foreach (string key in new[] { "settings.footer.booruHint", "settings.footer.booruActions.hint",
+            "booru.ui.repair.startup", "plugins.installedBuildChanged" })
+        {
+            Assert.NotEqual(BuiltInCatalog.English[key], Texts.T(key));
+            Assert.NotEqual(key, Texts.T(key));
+        }
+        Assert.Empty(Texts.Warnings);
+    }
+
+    [Theory]
+    [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
     public void CooldownControlsAreTranslatedButProductNamesAreNot(string code)
     {
         Texts.SetLanguage(code);

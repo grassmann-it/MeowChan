@@ -98,6 +98,7 @@ public partial class MainWindow
             // Capture/count repeats even when this occurrence has already been dismissed.
             if (_feedback.IsDismissed(entry)) return;
             _shellFeedback = entry;
+            LocalizeShellFeedbackAction();
             // Freeze the displayed identity in the command, not a mutable control's Tag/current ID.
             Button dismiss = ShellFeedbackDismissButton;
             WireFeedbackDismissGesture(dismiss);
@@ -210,6 +211,24 @@ public partial class MainWindow
     }
 
     private WeakReference<Control>? _feedbackReturnTarget;
+
+    private const string BooruStartupRepairOperation = "booru.startup.repair";
+
+    private void LocalizeShellFeedbackAction()
+    {
+        bool review = _shellFeedback?.Operation == BooruStartupRepairOperation;
+        string label = Texts.T(review ? "plugins.repair.review" : "feedback.open");
+        CommandBindings.ApplyLabeled(ShellFeedbackDiagnosticsButton, review ? "navigation.sources" : "navigation.diagnostics",
+            label, describe: review ? _ => label : null);
+    }
+
+    private async void OnShellFeedbackActionClick(object? sender, RoutedEventArgs e)
+    {
+        if (_shellFeedback?.Operation == BooruStartupRepairOperation)
+            await OpenActions.RunAsync(ReviewStartupBooruBuildAsync, BooruStartupRepairOperation);
+        else
+            OnDiagnosticsNavigationClick(sender, e);
+    }
     private void RememberFeedbackReturnTarget(object? source)
     {
         if (source is not Control control || !control.Focusable) return;

@@ -26,9 +26,9 @@ public sealed class BooruPageNavigationContractTests
     public void MainPageAndShortcutFollowTheFooterNumbering()
     {
         Assert.Equal("navigation.booru", MainPageOrder.CommandIds[4]); // behind Media and Tagging
-        // F1: Booru is hidden in the default footer, so it is numbered behind the visible buttons (Ctrl/Cmd+8); showing it moves the digits.
-        Assert.Equal(8, MainPageOrder.Digit("navigation.booru"));
-        Assert.Equal("Primary+8", MainPageOrder.DefaultShortcut("navigation.booru"));
+        // Booru follows Tagging in the default footer.
+        Assert.Equal(5, MainPageOrder.Digit("navigation.booru"));
+        Assert.Equal("Primary+5", MainPageOrder.DefaultShortcut("navigation.booru"));
         Assert.Null(CommandCatalog.Get("navigation.booru").Shortcut);
         Assert.Equal(MainWindow.WorkspacePage.Booru, MainWindow.PageFor("navigation.booru"));
         Assert.Equal("Booru", CommandCatalog.Get("navigation.booru").LabelEn);

@@ -131,9 +131,10 @@ namespace MeowChan
         public bool ShowBooruTools { get; set; } = true;
         /// <summary>
         /// The footer of this profile (Settings › Appearance › Footer): the main pages in footer order, a leading "-" marking a page whose button is
-        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer (today's order, Booru off).
+        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer.
         /// Read and written through <see cref="Desktop.Commands.FooterLayout"/>: unknown ids and repeats are dropped, a page the list does not know
-        /// takes its default place, Downloads is always shown. <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
+        /// takes its default place, Downloads is always shown. The empty 1.1.0 layout follows the new default; a stored "-booru" stays hidden.
+        /// <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
         /// page is unavailable whatever this list says.
         /// </summary>
         [JsonConverter(typeof(DesktopPreferenceNameListConverter))]

@@ -71,6 +71,7 @@ internal static class BooruUiCatalog
         ("booru.ui.repair.nothing", "No current bundled Danbooru build is waiting for review.", "Kein aktueller mitgelieferter Danbooru-Build wartet auf eine Prüfung."),
         ("booru.ui.repair.openPlugin", "Open Danbooru plugin", "Danbooru-Plugin öffnen"),
         ("booru.ui.repair.notReady", "Plugin management is not ready yet. Try again in a moment.", "Die Pluginverwaltung ist noch nicht bereit. Versuche es gleich noch einmal."),
+        ("booru.ui.repair.startup", "Booru is unavailable because MeowChan could not activate the saved Danbooru build. Review the bundled build. If you confirm a repair, restart MeowChan.", "Booru ist nicht verfügbar, weil MeowChan den gespeicherten Danbooru-Build nicht aktivieren konnte. Prüfe den mitgelieferten Build. Wenn du eine Reparatur bestätigst, starte MeowChan neu."),
         ("booru.ui.repair.busy", "The Plugins page is still busy with another action. Try again when it has finished.", "Die Plugin-Seite ist noch mit einer anderen Aktion beschäftigt. Versuche es erneut, wenn sie fertig ist."),
         ("booru.ui.repair.notOpened", "The review did not open. Open Plugins and choose “{0}” there.", "Die Prüfung wurde nicht geöffnet. Plugins öffnen und dort „{0}“ wählen."),
 

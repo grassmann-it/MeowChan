@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeowChan.Desktop.Localization;
 using MeowChan.PluginHost.Activation;
+using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginSdk;
 
@@ -175,7 +177,8 @@ internal sealed class PluginEntryPresentation
             CandidateMissing = candidate?.IsPresent == false,
             HasCandidateConflict = state?.Candidates.Count(item => item.IsPresent) > 1,
             CandidateProblem = candidate?.Problem,
-            ActivationProblem = state?.Problem,
+            ActivationProblem = state?.Problem == PluginActivationProblems.InstalledBuildChanged
+                ? Texts.T("plugins.installedBuildChanged") : state?.Problem,
             HasSdkMismatch = sdkMismatch != null && pluginId != null && state is { Enabled: true, Active: { } running }
                 && sdkMismatch(pluginId, running.ExecutionRevision),
             CanSelectCandidate = canSelect,

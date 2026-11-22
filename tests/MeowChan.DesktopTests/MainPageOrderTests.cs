@@ -30,9 +30,8 @@ public sealed class MainPageOrderTests
         string[] pages = names.TakeWhile(name => name != "ToolsNavigationButton").ToArray();
         Assert.Equal(OrderedIds.Select(id => MainPageOrder.ControlStem(id) + "NavigationButton"), pages);
         Assert.Equal(new[] { "ToolsNavigationButton", "SettingsNavigationButton" }, names.Skip(pages.Length));
-        // The digits follow the visible footer buttons from the left (F1): with the default layout Booru is hidden, so it takes the digit
-        // behind the last visible button and Tagging owns 4. Status keeps its confirmed Primary+7.
-        int?[] digits = [1, 2, 3, 4, 8, 5, 6, 7];
+        // The default digits follow the footer order.
+        int?[] digits = [1, 2, 3, 4, 5, 6, 7, 8];
         Assert.Equal(digits.Length, pages.Length);
         for (int index = 0; index < pages.Length; index++)
         {
@@ -52,8 +51,8 @@ public sealed class MainPageOrderTests
             "navigation.sources", "navigation.status" }, OrderedIds);
         Assert.Equal(new[] { 5, 2, 1 }, MainPageOrder.Groups.Select(group => group.Count));
         Assert.Null(MainPageOrder.Digit("navigation.plugins"));
-        Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
-        // Diagnostics and Statistics are segments of Status, no main pages and no digits (Primary+8 is free).
+        Assert.Equal(8, MainPageOrder.Digit("navigation.status"));
+        // Diagnostics and Statistics are segments of Status, no main pages and no digits (Primary+9 is free).
         Assert.All(MainPageOrder.StatusSegmentCommandIds, id => Assert.Null(MainPageOrder.Digit(id)));
         XElement footer = Assert.Single(Markup().Descendants(), e => Name(e) == "WorkspaceNavigationButtons");
         string[] separators = { "FooterSeparatorWork", "FooterSeparatorSetUp", "FooterSeparatorObserve" };

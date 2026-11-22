@@ -8,6 +8,69 @@ namespace MeowChan.PluginHost.Configuration.Tests;
 
 public sealed partial class PluginProfileStoreTests
 {
+    [Theory]
+    [InlineData(false, false, true)]
+    [InlineData(true, false, true)]
+    [InlineData(true, true, true)]
+    [InlineData(true, false, false)]
+    public async Task DeliveredRebuildKeepsTheSourceAcrossInstallations(bool moved, bool previouslyMissing, bool enabled)
+    {
+        var old = await Delivered("MeowChan-1.1.0", "one", source: true);
+        var store = Store();
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
+        state = await store.SetEnabledAsync("test.plugin", enabled, state.Revision);
+        state = await store.SelectCandidateAsync("test.plugin", old.Candidate.CandidateId, state.Revision);
+        state = await store.SaveConfigurationAsync("test.plugin", old.Candidate.CandidateId,
+            Active(state).Configuration with { PluginSettings = Values("1", 7) }, state.Revision);
+        state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], state.Revision);
+        if (previouslyMissing)
+            state = await store.ApplyBundledStartupAsync([], [], [], state.Revision);
+
+        var next = await Delivered(moved ? "MeowChan-1.1.1" : "MeowChan-1.1.0", "two", source: true,
+            sdkFingerprint: previouslyMissing ? new('d', 64) : null);
+        Assert.Equal(moved, old.Candidate.CandidateId != next.Candidate.CandidateId);
+        Assert.NotEqual(old.Candidate.Artifact!.AssemblySha256, next.Candidate.Artifact!.AssemblySha256);
+        for (int restart = 0; restart < 2; restart++)
+        {
+            state = await Store().ApplyBundledStartupAsync([next.Candidate], [next.Proof], [], state.Revision);
+            var plugin = Assert.Single(state.Plugins);
+            Assert.Equal(next.Candidate.CandidateId, plugin.SelectedCandidateId);
+            Assert.Equal(next.Candidate.Artifact.ExecutionRevision, Active(state).ExecutionRevision);
+            Assert.Equal("shared", Assert.Single(Active(state).Description.Sources).SourceId);
+            Assert.Equal("test.plugin", state.SelectedSourceOwners["shared"]);
+            Assert.Equal(7, Number(Active(state)));
+            Assert.Equal(old.Candidate.Artifact.ExecutionRevision, plugin.LastGood!.ExecutionRevision);
+            Assert.Equal(enabled, plugin.Enabled);
+            Assert.Null(plugin.Problem);
+            Assert.Empty((await Store().PreviewBundledRepairsAsync()).Rows);
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task InstalledPluginWithChangedHashRequiresAnExplicitBuildSelection(bool sourceFile)
+    {
+        var old = await Delivered("user-install", "one");
+        var store = Store();
+        if (sourceFile) old.Candidate = old.Candidate with { CandidatePath = Path.Combine(profile, "plugins", "fixture.cs") };
+        var state = await store.ApplyBundledStartupAsync([old.Candidate], [], [], 0);
+        var next = await Delivered("user-install", "two");
+        if (sourceFile) next.Candidate = next.Candidate with { CandidatePath = old.Candidate.CandidatePath };
+        Assert.Equal(old.Candidate.CandidateId, next.Candidate.CandidateId);
+        Assert.NotEqual(old.Candidate.Artifact!.AssemblySha256, next.Candidate.Artifact!.AssemblySha256);
+        for (int restart = 0; restart < 2; restart++)
+        {
+            state = await store.ApplyBundledStartupAsync([next.Candidate], [], [], state.Revision);
+            Assert.Null(state.Plugins[0].Active);
+            Assert.Equal(old.Candidate.Artifact.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
+            Assert.Contains("Select the new build", state.Plugins[0].Problem);
+        }
+        state = await store.SelectCandidateAsync("test.plugin", next.Candidate.CandidateId, state.Revision);
+        state = await store.ApplyBundledStartupAsync([next.Candidate], [], [], state.Revision);
+        Assert.Equal(next.Candidate.Artifact.ExecutionRevision, Active(state).ExecutionRevision);
+    }
+
     // Synthetic delivered-store fixtures, not historical-release provenance.
     [Theory]
     [InlineData(true)]
@@ -87,14 +150,17 @@ public sealed partial class PluginProfileStoreTests
     }
 
     [Theory]
-    [InlineData("manifest")]
-    [InlineData("delivered-assembly")]
-    [InlineData("cache")]
-    public async Task AutomaticBundledRebuildReverifiesCurrentBytesAndFailsClosed(string corruption)
+    [InlineData("manifest", false)]
+    [InlineData("delivered-assembly", false)]
+    [InlineData("cache", false)]
+    [InlineData("manifest", true)]
+    [InlineData("delivered-assembly", true)]
+    [InlineData("cache", true)]
+    public async Task AutomaticBundledRebuildReverifiesCurrentBytesAndFailsClosed(string corruption, bool moved)
     {
         var old = await Delivered("corrupt-install", "one");
         var state = await Store().ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
-        var next = await Delivered("corrupt-install", "two");
+        var next = await Delivered(moved ? "corrupt-replacement" : "corrupt-install", "two");
         string path = corruption switch
         {
             "manifest" => next.Candidate.CandidatePath!,
@@ -229,7 +295,7 @@ public sealed partial class PluginProfileStoreTests
         var old = await Delivered("binding-old", "one");
         var state = await Store().ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
         var target = await Delivered("binding-target", "two");
-        state = await Store().ApplyBundledStartupAsync([target.Candidate], [target.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([target.Candidate], [target.Proof], [], state.Revision);
         var preview = await Store().PreviewBundledRepairsAsync();
         state = await Store().ConfirmBundledRepairAsync(Assert.Single(preview.Rows), preview.ProfileRevision);
         Assert.Null(state.Plugins[0].Active);

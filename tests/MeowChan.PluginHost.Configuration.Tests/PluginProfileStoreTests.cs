@@ -14,6 +14,8 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     private readonly string profile = Path.Combine(Path.GetTempPath(), "meowchan-activation-" + Guid.NewGuid().ToString("N"));
     private static readonly SettingsSchema Empty = new("1", Array.Empty<SettingDefinition>());
     private PluginProfileStore Store() => new(profile);
+    // Exercise explicit repair using a host with live permissions but without a shared startup gate.
+    private PluginProfileStore ReviewStore() => new(profile, static _ => true, static () => Array.Empty<string>());
     public void Dispose() { if (Directory.Exists(profile)) Directory.Delete(profile, true); }
 
     [Fact]
@@ -724,7 +726,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
         state = await store.SaveConfigurationAsync("test.plugin", old.Candidate.CandidateId, configured, state.Revision);
         state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], state.Revision);
         PluginReleaseSnapshot retained = Active(state);
-        state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
         Assert.Null(state.Plugins[0].Active);
         byte[] before = await File.ReadAllBytesAsync(store.StorePath);
         var preview = await store.PreviewBundledRepairsAsync();
@@ -763,7 +765,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
         state = await store.SaveConfigurationAsync("test.plugin", old.Candidate.CandidateId,
             Active(state).Configuration with { PluginSettings = Values("1", 9) }, state.Revision);
         byte[] latest = SdkJson.Serialize(state.Plugins[0].Pending!.Configuration);
-        state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync();
         state = await store.ConfirmBundledRepairAsync(Assert.Single(preview.Rows), preview.ProfileRevision);
         Assert.Equal(latest, SdkJson.Serialize(state.Plugins[0].Pending!.Configuration));
@@ -868,7 +870,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     {
         var old = await Delivered("old", "one"); var moved = await Delivered("new", "two");
         var store = Store(); var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
-        state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync(); var row = Assert.Single(preview.Rows);
         byte[] before = await File.ReadAllBytesAsync(store.StorePath);
         await Assert.ThrowsAsync<InvalidOperationException>(() => store.ConfirmBundledRepairAsync(row with { NewExecutionRevision = old.Candidate.Artifact!.ExecutionRevision }, preview.ProfileRevision));
@@ -888,7 +890,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     {
         var old = await Delivered("old", "one"); var moved = await Delivered("new", "two");
         var store = Store(); var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
-        state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync();
         state = await store.ConfirmBundledRepairAsync(Assert.Single(preview.Rows), preview.ProfileRevision);
         state = await store.SetGrantAsync("test.plugin", "dimensions", new("source"), FilterDataAccess.OriginalImage, state.Revision);
@@ -902,7 +904,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     {
         var old = await Delivered("old", "one"); var moved = await Delivered("new", "two");
         var store = Store(); var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
-        state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync();
         state = await store.ConfirmBundledRepairAsync(Assert.Single(preview.Rows), preview.ProfileRevision);
         var changed = await Delivered("new", "three");
@@ -950,7 +952,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
         state = await store.SelectCandidateAsync("test.plugin", old.Candidate.CandidateId, state.Revision);
         state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], state.Revision);
         byte[] owners = SdkJson.Serialize(state.SelectedSourceOwners);
-        state = await store.ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([moved.Candidate], [moved.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync();
         state = await store.ConfirmBundledRepairAsync(Assert.Single(preview.Rows), preview.ProfileRevision);
         Assert.Equal(owners, SdkJson.Serialize(state.SelectedSourceOwners));
@@ -976,7 +978,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
         Assert.Equal("description-changed", Assert.Single((await store.PreviewBundledRepairsAsync()).Rows).BlockedReason);
         // A different install path lets us retain immutable provenance for the changed description.
         var intact = await Delivered("intact", "two");
-        state = await store.ApplyBundledStartupAsync([intact.Candidate], [intact.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([intact.Candidate], [intact.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync(); var row = Assert.Single(preview.Rows); Assert.True(row.CanConfirm);
         byte[] before = await File.ReadAllBytesAsync(store.StorePath);
         await File.AppendAllTextAsync(intact.Candidate.CandidatePath!, " "); // valid JSON, different manifest digest
@@ -1203,7 +1205,7 @@ public sealed partial class PluginProfileStoreTests : IDisposable
     {
         var old = await Delivered("first", "one"); var changed = await Delivered("second", "two");
         var store = Store(); var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
-        state = await store.ApplyBundledStartupAsync([changed.Candidate], [changed.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([changed.Candidate], [changed.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync();
         state = await store.ConfirmBundledRepairAsync(Assert.Single(preview.Rows), preview.ProfileRevision);
         state = await store.ApplyBundledStartupAsync([changed.Candidate], [changed.Proof], [], state.Revision);

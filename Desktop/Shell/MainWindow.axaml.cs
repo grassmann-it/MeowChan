@@ -482,6 +482,13 @@ public partial class MainWindow : Window
                 ShowNotification(Texts.T("notification.session"), warning, NotificationType.Warning, operation: "session.warning");
             }
         }
+        if (_session.Plugins?.DanbooruStartupRepairRequired == true &&
+            currentWarnings.Add(BooruStartupRepairOperation) && !_knownWarnings.Contains(BooruStartupRepairOperation))
+        {
+            ShowActionNotification(Texts.T("notification.session"), Texts.T("booru.ui.repair.startup"),
+                NotificationType.Warning, [new(Texts.T("plugins.repair.review"), ReviewStartupBooruBuildAsync)],
+                operation: BooruStartupRepairOperation);
+        }
 
         _knownWarnings.Clear();
         _knownWarnings.UnionWith(currentWarnings);

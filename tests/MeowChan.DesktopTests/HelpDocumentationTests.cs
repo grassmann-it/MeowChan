@@ -1274,7 +1274,7 @@ public sealed class HelpDocumentationTests
             @"(?m)^\| Page \| Letter \| Digit in Simple[^\r\n]*\|\r?\n\|[^\r\n]*\|\r?\n(?<rows>(?:\|[^\r\n]*\|\r?\n)+)");
         string[] rows = pageTable.Groups["rows"].Value.Split('\n', StringSplitOptions.RemoveEmptyEntries)
             .Select(line => line.TrimEnd('\r')).ToArray();
-        // The table follows the digits a new profile (Simple, default footer) sees; Booru is hidden by default and comes last.
+        // The table follows the digits a new profile (Simple, default footer) sees.
         string[] ids = FooterLayout.Default.NumberingFor(WorkView.Simple).ToArray();
         Assert.Equal(MainPageOrder.DefaultNumbering.Count, rows.Length);
         Assert.Equal(ids.Length, rows.Length);
@@ -1291,16 +1291,15 @@ public sealed class HelpDocumentationTests
             Assert.Equal(i + 1, Number(row.Groups["simple"].Value));
             Assert.Equal(barebones.ToList().IndexOf(id) + 1, Number(row.Groups["other"].Value));
         }
-        // The default footer hides Booru, so its digit is the last one in every work view.
-        Assert.Equal("navigation.booru", ids[^1]);
-        Assert.Equal("navigation.booru", barebones[^1]);
+        Assert.Equal("navigation.booru", ids[4]);
+        Assert.Equal("navigation.booru", barebones[4]);
         Assert.Equal(MainPageOrder.CommandIds.Count, new HashSet<string>(ids).Count);
         // Shown in the footer, Booru takes the fifth digit in every work view (a button under More in Barebones counts as well).
         foreach (WorkView view in WorkViewSetting.All)
-            Assert.Equal(5, FooterLayout.Default.WithVisible("navigation.booru", true).NumberingFor(view).ToList().IndexOf("navigation.booru") + 1);
+            Assert.Equal(5, FooterLayout.Default.NumberingFor(view).ToList().IndexOf("navigation.booru") + 1);
         Assert.Contains("The table lists the pages in the order of the digits in Simple", section, StringComparison.Ordinal);
-        Assert.Contains("which the default footer hides, comes last", section, StringComparison.Ordinal);
-        Assert.Contains("it takes digit 5 in every work view", section, StringComparison.Ordinal);
+        Assert.Contains("then come the pages you hid from the footer", section, StringComparison.Ordinal);
+        Assert.Contains("Booru takes digit 5 in every work view", section, StringComparison.Ordinal);
         Assert.Contains("A binding you saved for another command always wins over a default", section, StringComparison.Ordinal);
         foreach (string compatibility in MainPageOrder.StatusSegmentCommandIds.Append("navigation.plugins"))
         {
@@ -1710,19 +1709,19 @@ public sealed class HelpDocumentationTests
         Assert.Contains("not permission to activate it", sources, StringComparison.Ordinal);
         string status = Plain(Section(Read(Help), "Status page"));
         Assert.Equal(new[] { "Statistics", "Diagnostics" }, Enum.GetNames<StatusSegment>());
-        // The Status digit follows the footer of the work view: 7 in Barebones and Advanced, 5 in Simple, the start view of a new profile.
-        Assert.Equal(7, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.status") + 1);
-        Assert.Equal(5, FooterLayout.Default.NumberingFor(WorkView.Simple).ToList().IndexOf("navigation.status") + 1);
-        Assert.Equal(7, FooterLayout.Default.NumberingFor(WorkView.Advanced).ToList().IndexOf("navigation.status") + 1);
+        // The Status digit follows the footer of the work view: 8 in Barebones and Advanced, 6 in Simple, the start view of a new profile.
+        Assert.Equal(8, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.status") + 1);
+        Assert.Equal(6, FooterLayout.Default.NumberingFor(WorkView.Simple).ToList().IndexOf("navigation.status") + 1);
+        Assert.Equal(8, FooterLayout.Default.NumberingFor(WorkView.Advanced).ToList().IndexOf("navigation.status") + 1);
         foreach (string phrase in new[] { "last-used segment", "header graph and tray open Statistics",
             "source selected", "Statistics becomes available after session recovery", "Booru is a separate main page",
-            "Ctrl+7 in Barebones and Advanced, Ctrl+5 in Simple",
+            "Ctrl+8 in Barebones and Advanced, Ctrl+6 in Simple",
             "zuletzt benutzten Bereich", "dieser Quelle als Filter", "Booru ist eine eigene Hauptseite, kein Status-Bereich",
-            "in Minimal und Erweitert Strg+7, in Einfach Strg+5" })
+            "in Minimal und Erweitert Strg+8, in Einfach Strg+6" })
             Assert.Contains(phrase, status, StringComparison.Ordinal);
         Assert.Contains("navigation.booru", MainPageOrder.CommandIds);
-        Assert.Equal(8, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.booru") + 1);
-        Assert.Equal(6, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.sources") + 1);
+        Assert.Equal(5, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.booru") + 1);
+        Assert.Equal(7, Array.IndexOf(MainPageOrder.DefaultNumbering.ToArray(), "navigation.sources") + 1);
         Assert.DoesNotContain("Open **Statistics** with Ctrl+8", Read(Help), StringComparison.Ordinal);
     }
 

@@ -291,7 +291,7 @@ public sealed partial class PluginProfileStoreTests
         var store = Store();
         var state = await store.ApplyBundledStartupAsync([old.Candidate], [old.Proof], [], 0);
         var next = await Delivered("no-rights-new", "B");
-        state = await store.ApplyBundledStartupAsync([next.Candidate], [next.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([next.Candidate], [next.Proof], [], state.Revision);
         var row = Assert.Single((await store.PreviewBundledRepairsAsync()).Rows);
         Assert.True(row.CanConfirm);
         Assert.False(row.CanReauthorize);

@@ -73,7 +73,7 @@ public sealed partial class PluginProfileStoreTests
         state = await store.SetEnabledAsync("test.plugin", false, state.Revision);
         byte[] configuration = SdkJson.Serialize(Active(state).Configuration);
         var target = await SdkDelivery("sdk-confirm-target", "B");
-        state = await store.ApplyBundledStartupAsync([target.Candidate], [target.Proof], [], state.Revision);
+        state = await ReviewStore().ApplyBundledStartupAsync([target.Candidate], [target.Proof], [], state.Revision);
         var preview = await store.PreviewBundledRepairsAsync();
         state = await store.ConfirmBundledRepairAsync(Assert.Single(preview.Rows), preview.ProfileRevision);
         byte[] owners = SdkJson.Serialize(state.SelectedSourceOwners);

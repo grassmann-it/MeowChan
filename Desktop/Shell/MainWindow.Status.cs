@@ -199,7 +199,7 @@ public partial class MainWindow
         ShowStatus();
     }
 
-    // The error banner's "Open diagnostics" and the Sources page lead to the diagnostics segment.
+    // The standard feedback action and the Sources page lead to the diagnostics segment.
     private void OnDiagnosticsNavigationClick(object? sender, RoutedEventArgs e)
     {
         ToolsNavigationButton.Flyout?.Hide();

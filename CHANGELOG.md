@@ -2,6 +2,9 @@
 
 ## 1.1.1
 
+- Show Booru in the default navigation, including profiles that used the 1.1.0
+  default footer. Reconnect the verified bundled Danbooru build across install
+  directories and offer repair review directly from the startup warning when needed.
 - Group the Reader’s thread-list and media-sidebar switches, and the Media page’s
   tag-list and media-sidebar switches. Show the active state of the Reader’s
   **Find** and **Tags** toggles in the toolbar.

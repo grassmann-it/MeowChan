@@ -2,9 +2,11 @@ using System;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Threading;
+using Avalonia.Controls.Notifications;
 using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using Serilog;
 
@@ -22,6 +24,18 @@ public partial class MainWindow
     private PluginSdkMismatchLedger? _booruRepairLedger;
     private long _booruRepairRevision;
     private bool _booruRepairMismatchSeen;
+
+    private async Task ReviewStartupBooruBuildAsync()
+    {
+        if (_isClosing || _sourcesPage is not { } sources || _pluginsPage is not { } plugins ||
+            !NavigateWorkspace(WorkspacePage.Sources)) return;
+        await sources.ActivateAsync(SourcesPluginsFilter.AllPlugins);
+        if (_isClosing || _selectedPage != WorkspacePage.Sources || !ReferenceEquals(_pluginsPage, plugins)) return;
+        if (!await plugins.ReviewBundledBuildsAsync())
+            ShowNotification(Texts.T("plugins.repair.review"),
+                Texts.T(plugins.BundledReviewBlockReasonKey() ?? "booru.ui.repair.notReady"),
+                NotificationType.Information);
+    }
 
     /// <summary>Smokes replace the session's probe with one over a fixture store; nothing else does.</summary>
     internal BooruBuildRepairProbe? BooruRepairProbeForTests { get; set; }

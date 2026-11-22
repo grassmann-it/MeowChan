@@ -39,10 +39,10 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         // The n-th main page from the left is Primary+n (the first gesture).
         for (int index = 0; index < Pages.Length; index++)
             Assert.Equal("D" + MainPageOrder.Digit(Pages[index])!.Value, bindings.For(Pages[index])[0].Key);
-        // Default layout: Tagging owns 4 behind Media, so Rules and Sources take 5 and 6 and Status keeps 7 (Booru is hidden and numbered last).
-        Assert.Equal("D6", bindings.For("navigation.sources")[0].Key);
+        // Booru takes 5. Rules, Sources and Status follow.
+        Assert.Equal("D7", bindings.For("navigation.sources")[0].Key);
         Assert.Null(bindings.Display("navigation.plugins"));
-        Assert.Equal("D7", bindings.For("navigation.status")[0].Key);
+        Assert.Equal("D8", bindings.For("navigation.status")[0].Key);
     }
 
     [Theory]
@@ -73,7 +73,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         Assert.Equal("Ctrl+3 / Ctrl+9", bindings.Display("navigation.rules"));
         Assert.Equal("Ctrl+5", bindings.Display("navigation.diagnostics"));
         Assert.Equal(new[] { PageKeyScheme.Letter("navigation.media") }, bindings.For("navigation.media").Select(g => g.Key));   // Ctrl+3 stays with Rules; Media keeps its letter
-        Assert.Equal("Ctrl+6 / Ctrl+Shift+X", bindings.Display("navigation.sources")); // Sources has its own digit now; Ctrl+5 stays with Diagnostics
+        Assert.Equal("Ctrl+7 / Ctrl+Shift+X", bindings.Display("navigation.sources")); // Sources has its own digit now; Ctrl+5 stays with Diagnostics
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Equal(before, section.Raw.GetRawText());
     }

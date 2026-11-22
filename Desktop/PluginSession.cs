@@ -19,6 +19,7 @@ using MeowChan.PluginHost.Sources;
 using MeowChan.PluginHost.Filters;
 using MeowChan.Persistence;
 using MeowChan.Archive;
+using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
 using Serilog;
 
@@ -27,6 +28,7 @@ namespace MeowChan.Desktop;
 /// <summary>One profile's optional process runtime. Registry objects and archive stores never cross IPC.</summary>
 internal sealed partial class PluginSession : IAsyncDisposable
 {
+    private const string DanbooruPluginId = "meowchan.official.danbooru";
     private readonly object _state = new object();
     private readonly Dictionary<string, PluginActivationSnapshot> _active = new(StringComparer.Ordinal);
     private readonly Dictionary<string, IPluginWorkerClient> _clients = new(StringComparer.Ordinal);
@@ -51,6 +53,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     private readonly CancellationTokenSource _lifetime = new CancellationTokenSource();
     private readonly Dictionary<PluginSourceImageBoard, string> _sourceOwners = new();
     private string[] _warnings = Array.Empty<string>();
+    private bool _danbooruStartupRepairRequired;
     private bool _disposed;
     // The read-only startup probe, begun at most once before StartAsync (see BeginProbe).
     private Task<StartupProbe>? _probe;
@@ -65,6 +68,12 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal ChanSiteSwitches SiteSwitches { get; }
     internal IReadOnlyList<PluginSourceImageBoard> Sources { get; private set; } = Array.Empty<PluginSourceImageBoard>();
     internal IReadOnlyList<string> Warnings => Volatile.Read(ref _warnings);
+    internal bool DanbooruStartupRepairRequired => Volatile.Read(ref _danbooruStartupRepairRequired);
+
+    internal static bool NeedsDanbooruStartupRepair(PluginActivationSnapshot activation) =>
+        activation.PluginId == DanbooruPluginId && activation.Enabled && activation.Active is null &&
+        (PluginActivationProblems.RequiresRepairReview(activation.Problem) ||
+            activation.Candidates.Any(candidate => candidate.CandidateId == activation.SelectedCandidateId && !candidate.IsPresent));
     // Observation only: the early probe's completion, never its result.
     internal Task? StartupProbeForTests { get { lock (_state) return _probe; } }
 
@@ -226,6 +235,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         Volatile.Write(ref _repairRestrictedSourceIds, RepairRestrictedSourceIds(_savedSourcePermissions, activated, probed));
         foreach (PluginActivationSnapshot activation in activated.Plugins)
             PluginStartupDiagnostics.LogActivationProblem(_logger, activation);
+        Volatile.Write(ref _danbooruStartupRepairRequired, activated.Plugins.Any(NeedsDanbooruStartupRepair));
         long adaptersStarted = Stopwatch.GetTimestamp();
         using MeowChan.Diagnostics.PerformanceDiagnostics.Measurement adapters = PluginStartupDiagnostics.Span("adapters-routing");
         lock (_state) _grants = activated;
@@ -245,7 +255,9 @@ internal sealed partial class PluginSession : IAsyncDisposable
                 _active[activation.PluginId] = activation;
                 _clientGates[activation.PluginId] = new SemaphoreSlim(1, 1);
             }
-            if (activation.Problem != null) warnings.Add(description.Name + ": " + activation.Problem);
+            if (activation.Problem != null && !NeedsDanbooruStartupRepair(activation))
+                warnings.Add(description.Name + ": " + (activation.Problem == PluginActivationProblems.InstalledBuildChanged
+                    ? Texts.T("plugins.installedBuildChanged") : activation.Problem));
             foreach (SourceDescription source in description.Sources)
             {
                 // A booru post-search source is served by the booru host services. It is never a chan board adapter,
