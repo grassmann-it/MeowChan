@@ -254,6 +254,7 @@ internal static class TaggingPageChecks
             tagging.ClearYesButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => window.SessionHost.GetTagQueue()!.Count == 0 && tagging.Rows.Count == 0);
             Require(!tagging.StartButton.IsEnabled, "Start stays enabled on an empty queue.");
+            CheckProgress(tagging, open: 0, finished: 0);
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
             await CheckGalleryCommandAsync(window, tagging);
             Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE/RU/JA captures.");
@@ -406,7 +407,9 @@ internal static class TaggingPageChecks
 
     private static void CheckProgress(TaggingPage tagging, int open, int finished)
     {
-        Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress.count", finished, open + finished), "Progress: " + tagging.ProgressText.Text);
+        Require(tagging.ProgressText.IsEffectivelyVisible
+            && tagging.ProgressText.Text == Texts.Count("tagging.page.progress.results", open + finished, finished, open + finished),
+            "Progress: " + tagging.ProgressText.Text);
         Require(Equals(ToolTip.GetTip(tagging.ProgressText), Texts.T("tagging.page.progress", open, finished, 0)), "Missing progress breakdown.");
     }
 
@@ -466,11 +469,9 @@ internal static class TaggingPageChecks
                 == Texts.T("tagging.page.stamp.summary", tagging.StampChips.Children.Count), "The narrow stamp did not switch to a count.");
             tagging.Filter = TaggingQueueFilter.Skipped;
             await SettleAsync(window);
-            string count = Texts.Count("tagging.page.results", 0);
-            Require(!tagging.ResultCount.IsVisible && tagging.ResultCount.Text == count
-                && AutomationProperties.GetHelpText(tagging.FilterBox)?.Contains(count, StringComparison.Ordinal) == true
-                && ToolTip.GetTip(tagging.FilterBox) is string tip && tip.Contains(count, StringComparison.Ordinal),
-                "Compact Show lost its localized zero-result count.");
+            Require(tagging.Rows.Count == 0 && Equals(ToolTip.GetTip(tagging.FilterBox), TaggingQueueView.FilterText(tagging.Filter)),
+                "Compact Show lost its full filter value.");
+            CheckProgress(tagging, open: 1, finished: 1);
         }
         catch (Exception error)
         {
@@ -527,7 +528,31 @@ internal static class TaggingPageChecks
         Point count = tagging.ProgressText.TranslatePoint(default, track) ?? throw new InvalidOperationException("Progress number and track are detached.");
         Require(track.IsEffectivelyVisible && track.Bounds.Width >= 63 && Math.Abs(count.X - track.Bounds.Width - 4) <= 1,
             $"{stage}: the number does not follow a visible and flexible progress track.");
-        Require(Math.Abs(groups[^1].Bounds.Right - header.Bounds.Width) <= 1, $"{stage}: page actions are not docked at the right edge.");
+        Point countOrigin = tagging.ProgressText.TranslatePoint(default, header)!.Value;
+        Require(area.Contains(new Rect(countOrigin, tagging.ProgressText.Bounds.Size)), $"{stage}: the progress count is outside the header.");
+        Require(Math.Abs(groups[^1].Bounds.Right - header.Bounds.Width) <= 1, $"{stage}: view controls are not docked at the right edge.");
+        ToggleButton more = tagging.Actions.More ?? throw new InvalidOperationException("The page has no More button.");
+        Control[] stops = [tagging.StartButton, tagging.AddButton, tagging.HelpButton, tagging.StampButton,
+            tagging.GroupBox, tagging.FilterBox, more, tagging.ColumnsButton, tagging.ViewToggle.First, tagging.ViewToggle.Second];
+        for (int i = 0; i < stops.Length; i++)
+        {
+            Control stop = stops[i];
+            Point origin = stop.TranslatePoint(default, header) ?? throw new InvalidOperationException(stop.Name + " is detached.");
+            Rect bounds = new(origin, stop.Bounds.Size);
+            Require(stop.IsEffectivelyVisible && area.Contains(bounds), $"{stage}: {stop.Name} is hidden or outside the header at {bounds}.");
+            if (i == 0) continue;
+            Control previous = stops[i - 1];
+            Point before = previous.TranslatePoint(default, header)!.Value;
+            bool nextLine = origin.Y >= before.Y + previous.Bounds.Height - 1;
+            bool nextOnLine = bounds.Bottom > before.Y && origin.X >= before.X + previous.Bounds.Width - 1;
+            Require(nextLine || nextOnLine,
+                $"{stage}: {stop.Name} at {bounds} is not after {previous.Name} at {before}.");
+        }
+        Require(!string.IsNullOrEmpty(AutomationProperties.GetName(more))
+            && ToolTip.GetTip(more) is string { Length: > 0 }, $"{stage}: More lost its accessible name or tooltip.");
+        Point secondSegment = tagging.ViewToggle.Second.TranslatePoint(default, header)!.Value;
+        Require(Math.Abs(secondSegment.X + tagging.ViewToggle.Second.Bounds.Width - header.Bounds.Width) <= 1,
+            $"{stage}: List/Grid leaves a gap at the right edge.");
         foreach (ComboBox box in new[] { tagging.GroupBox, tagging.FilterBox })
         {
             PathIcon chevron = box.GetVisualDescendants().OfType<PathIcon>().Single(icon => icon.Name == "DropDownGlyph");
@@ -569,13 +594,14 @@ internal static class TaggingPageChecks
             tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == group);
             await SettleAsync(window);
             Require(tagging.GroupBox.Bounds.Width <= 160 && Equals(ToolTip.GetTip(tagging.GroupBox), longName), "A long group name took over the filter line.");
-            Require(tagging.ResultCount.Text == Texts.Count("tagging.page.results", 1), "The group hit count did not follow the shown rows.");
+            Require(tagging.Rows.Count == 1, "The named group did not narrow the results.");
+            CheckProgress(tagging, open: 0, finished: 1);
             Require(tagging.GroupManageMenuModel()?.Entries.All(entry => entry.Available) == true, "Named group operations were unavailable.");
             tagging.Filter = TaggingQueueFilter.Untagged;
             await SettleAsync(window);
-            Require(tagging.Rows.Count == 0 && tagging.ResultCount.Text == Texts.Count("tagging.page.results", 0)
-                && tagging.FilterBox.IsEffectivelyVisible && tagging.EmptyShowAllButton.IsEffectivelyVisible, "Without tags lost the zero-result controls.");
-            Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress.count", 1, 1), "Without tags changed the group progress scope.");
+            Require(tagging.Rows.Count == 0 && tagging.FilterBox.IsEffectivelyVisible && tagging.EmptyShowAllButton.IsEffectivelyVisible,
+                "Without tags lost the zero-result controls.");
+            CheckProgress(tagging, open: 0, finished: 1);
         }
         finally
         {
@@ -637,25 +663,43 @@ internal static class TaggingPageChecks
                             CheckSelectionAction(tagging.SelectionDoneButton, tagging.SelectionMoreButton);
                             Require(tagging.SelectionMoreButton.IsFocused, "Resizing lost focus on More.");
                             CheckSelectionAction(tagging.SelectionMoreButton, tagging.SelectionClearButton);
-                            if (view != WorkView.Barebones) CheckSegments(tagging, SegmentLabelsVisible(tagging));
-                            if (view == WorkView.Barebones && width == 760 && language == "ru" && theme == "Dark")
-                                await CheckPresentationOverflowAsync(window, tagging);
+                            CheckSegments(tagging, SegmentLabelsVisible(tagging));
                             Program.CaptureWindow(window, $"smoke-tagging-{view}-{language}-{theme}-{width}.png");
                             Console.WriteLine($"SMOKE tagging geometry: {stage}, track {ProgressTrack(tagging).Bounds.Width} DIP.");
                         }
                     }
                 }
+                double pageMaxWidth = tagging.MaxWidth;
+                try
+                {
+                    tagging.MaxWidth = 440;
+                    await SettleAsync(window);
+                    CheckHeaderGeometry(tagging, null, language + "/440");
+                    CheckProgress(tagging, open: 201, finished: 0);
+                }
+                finally { tagging.MaxWidth = pageMaxWidth; }
             }
             await FooterNavigationChecks.PersistLanguageAsync(window, "de");
             await ReopenAsync(window, tagging);
             await PresentationChecks.SwitchModeAsync(window, WorkView.Advanced.ToString());
             await ResizeAsync(window, 1100);
-            foreach (string theme in new[] { "Light", "Dark" })
+            double originalMaxWidth = tagging.MaxWidth;
+            try
             {
-                await SetThemeAsync(window, theme);
-                await SettleAsync(window);
-                await CheckHeaderTabOrderAsync(window, tagging, theme);
+                foreach (string theme in new[] { "Light", "Dark" })
+                {
+                    await SetThemeAsync(window, theme);
+                    tagging.MaxWidth = originalMaxWidth;
+                    await SettleAsync(window);
+                    await CheckHeaderTabOrderAsync(window, tagging, theme, 1100);
+
+                    tagging.MaxWidth = 440;
+                    await SettleAsync(window);
+                    CheckHeaderGeometry(tagging, null, theme + "/440");
+                    await CheckHeaderTabOrderAsync(window, tagging, theme, 440);
+                }
             }
+            finally { tagging.MaxWidth = originalMaxWidth; }
         }
         finally
         {
@@ -679,7 +723,7 @@ internal static class TaggingPageChecks
         }
     }
 
-    private static async Task CheckHeaderTabOrderAsync(MainWindow window, TaggingPage tagging, string theme)
+    private static async Task CheckHeaderTabOrderAsync(MainWindow window, TaggingPage tagging, string theme, int width)
     {
         if (!OperatingSystem.IsLinux() || Environment.GetEnvironmentVariable("MEOWCHAN_DESKTOP_SMOKE_XVFB") != "1") return;
 
@@ -691,8 +735,9 @@ internal static class TaggingPageChecks
         Require(track.Background is ISolidColorBrush background && background.Color.A > 0
             && window.Background is ISolidColorBrush surface && background.Color != surface.Color,
             theme + ": the empty progress track does not stand out from the page.");
-        Control[] stops = [tagging.StampButton, tagging.GroupBox, tagging.FilterBox, tagging.ColumnsButton,
-            tagging.ViewToggle.First, tagging.AddButton, tagging.HelpButton, tagging.Actions.More!, tagging.SelectionTagButton];
+        ToggleButton more = tagging.Actions.More ?? throw new InvalidOperationException("The page has no More button.");
+        Control[] stops = [tagging.AddButton, tagging.HelpButton, tagging.StampButton, tagging.GroupBox, tagging.FilterBox,
+            more, tagging.ColumnsButton, tagging.ViewToggle.First, tagging.SelectionTagButton];
         foreach (Control stop in stops)
         {
             await native.KeyAsync(MediaNativeInput.Tab);
@@ -701,7 +746,14 @@ internal static class TaggingPageChecks
             string path = actual == null ? "<none>" : string.Join(" > ", actual.GetSelfAndVisualAncestors().OfType<Control>()
                 .Select(control => $"{control.GetType().Name}#{control.Name}[{control.TabIndex}/{KeyboardNavigation.GetTabNavigation(control)}]"));
             Require(stop.IsFocused || stop.IsKeyboardFocusWithin,
-                $"{theme}: Tab expected {stop.Name} (enabled={stop.IsEffectivelyEnabled}, visible={stop.IsEffectivelyVisible}), found {path}.");
+                $"{theme}/{width}: Tab expected {stop.Name} (enabled={stop.IsEffectivelyEnabled}, visible={stop.IsEffectivelyVisible}), found {path}.");
+            if (ReferenceEquals(stop, more))
+            {
+                await native.KeyAsync(MediaNativeInput.Space);
+                await Program.WaitUntilAsync(() => more.IsChecked == true && tagging.GroupManageButton.IsFocused);
+                await native.KeyAsync(MediaNativeInput.Escape);
+                await Program.WaitUntilAsync(() => more.IsChecked == false && more.IsFocused);
+            }
             if (ReferenceEquals(stop, tagging.ViewToggle.First))
             {
                 ToggleButton active = tagging.ViewToggle.First;
@@ -710,20 +762,10 @@ internal static class TaggingPageChecks
                 Require(active.IsChecked == true && active.Classes.Contains(":focus-visible")
                     && face.BorderBrush is ISolidColorBrush accent && accent.Color.A > 0,
                     theme + ": the active view lost its accent or keyboard focus.");
-                Program.CaptureWindow(window, $"smoke-tagging-view-focus-{theme.ToLowerInvariant()}-de.png");
+                string suffix = width == 1100 ? "" : $"-{width}";
+                Program.CaptureWindow(window, $"smoke-tagging-view-focus-{theme.ToLowerInvariant()}-de{suffix}.png");
             }
         }
-    }
-
-    private static async Task CheckPresentationOverflowAsync(MainWindow window, TaggingPage tagging)
-    {
-        ActionToolBar presentation = (ActionToolBar)tagging.Header.Children[^2];
-        ToggleButton more = presentation.More ?? throw new InvalidOperationException("The view toolbar is missing More.");
-        more.IsChecked = true;
-        await SettleAsync(window);
-        CheckSegments(tagging, labelsVisible: true);
-        more.IsChecked = false;
-        await SettleAsync(window);
     }
 
     private static void CheckSegments(TaggingPage tagging, bool labelsVisible)
