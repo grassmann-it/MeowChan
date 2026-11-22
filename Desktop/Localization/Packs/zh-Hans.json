@@ -5192,6 +5192,20 @@
     "booru.bulk.endLimit": "已达到来源的页数上限；该搜索可能还有无法列出的结果。",
     "booru.bulk.endEnd": "来源报告在这些结果之后没有更多结果。",
     "booru.bulk.endBlocked": "来源不再响应（暂停、限速、离线或出错）；其余未列出。请稍后再试。",
-    "booru.bulk.endCanceled": "已由你停止；其余未列出。已入队的内容仍在队列中。"
+    "booru.bulk.endCanceled": "已由你停止；其余未列出。已入队的内容仍在队列中。",
+    "booru.gallery.name": "图库",
+    "booru.gallery.hint": "一次一张大图地显示本页的结果。按 Esc 返回列表或网格。",
+    "booru.gallery.listName": "本页结果的图库",
+    "booru.gallery.position": "第 {0} 项，共 {1} 项",
+    "booru.gallery.shown.preview": "当前显示：预览",
+    "booru.gallery.shown.sample": "当前显示：缩小版（sample）",
+    "booru.gallery.sample.loading": "正在加载更大的版本…",
+    "booru.gallery.sample.none": "来源未提供缩小版，因此保留预览。",
+    "booru.gallery.sample.failed": "无法加载更大的版本（未送达或超过 {0} MiB）；保留预览。",
+    "booru.gallery.openWindow": "在新窗口中打开",
+    "settings.limits.booruGallerySampleMiB": "Danbooru 图库：最大图片（MiB）",
+    "settings.limits.booruGallerySampleMiB.hint": "图库为显示而加载的最大缩小版图片。更大的不会加载，保留预览。绝不会为显示而加载原图。",
+    "settings.limits.booruGalleryCacheMiB": "Danbooru 图库：图片内存（MiB）",
+    "settings.limits.booruGalleryCacheMiB.hint": "图库已加载的图片在内存中保留多少 MiB，这样往回翻页时无需再次加载。不会在磁盘上保存任何内容。"
   }
 }

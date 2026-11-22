@@ -314,6 +314,16 @@ namespace MeowChan
         internal const int BooruSearchTabsDefault = 8;
         internal const int BooruSearchTabsMinimum = 1;
         internal const int BooruSearchTabsMaximum = 32;
+        /// <summary>The largest reduced-size image (sample) the inline Danbooru gallery loads for display, in MiB; a larger one is refused and the preview stays.</summary>
+        public int BooruGallerySampleMiB { get; set; } = BooruGallerySampleMiBDefault;
+        internal const int BooruGallerySampleMiBDefault = 8;
+        internal const int BooruGallerySampleMiBMinimum = 1;
+        internal const int BooruGallerySampleMiBMaximum = 32;
+        /// <summary>How many MiB of loaded samples the inline Danbooru gallery keeps in memory so paging back does not fetch them again (never stored on disk).</summary>
+        public int BooruGalleryCacheMiB { get; set; } = BooruGalleryCacheMiBDefault;
+        internal const int BooruGalleryCacheMiBDefault = 32;
+        internal const int BooruGalleryCacheMiBMinimum = 8;
+        internal const int BooruGalleryCacheMiBMaximum = 256;
         /// <summary>MP5: the width of the media page's tag list in dip, set by dragging its edge (kept in <see cref="MediaLayout"/>, brought into this range when read).</summary>
         internal const int MediaTagListWidthDefault = 256;
         internal const int MediaTagListWidthMinimum = 180;
@@ -1685,6 +1695,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
+            if (BooruGallerySampleMiB is < BooruGallerySampleMiBMinimum or > BooruGallerySampleMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruGallerySampleMiB), "BooruGallerySampleMiB is outside its supported range (" + BooruGallerySampleMiBMinimum + " to " + BooruGallerySampleMiBMaximum + ").");
+            if (BooruGalleryCacheMiB is < BooruGalleryCacheMiBMinimum or > BooruGalleryCacheMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruGalleryCacheMiB), "BooruGalleryCacheMiB is outside its supported range (" + BooruGalleryCacheMiBMinimum + " to " + BooruGalleryCacheMiBMaximum + ").");
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
@@ -1948,6 +1962,8 @@ namespace MeowChan
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
                 BooruSearchTabs = BooruSearchTabs,
+                BooruGallerySampleMiB = BooruGallerySampleMiB,
+                BooruGalleryCacheMiB = BooruGalleryCacheMiB,
                 MediaPanelMinimumPageWidth = MediaPanelMinimumPageWidth,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
@@ -2225,6 +2241,8 @@ namespace MeowChan
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruSearchTabs = source.BooruSearchTabs;
+            BooruGallerySampleMiB = source.BooruGallerySampleMiB;
+            BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
@@ -2456,6 +2474,8 @@ namespace MeowChan
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruSearchTabs = source.BooruSearchTabs;
+            BooruGallerySampleMiB = source.BooruGallerySampleMiB;
+            BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;

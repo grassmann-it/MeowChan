@@ -5343,6 +5343,20 @@
     "booru.bulk.endLimit": "Osiągnięto limit stron źródła; wyszukiwanie może mieć więcej wyników, których nie da się wylistować.",
     "booru.bulk.endEnd": "Źródło nie zgłosiło dalszych wyników po tych.",
     "booru.bulk.endBlocked": "Źródło przestało odpowiadać (pauza, limit zapytań, brak sieci lub błąd); reszta nie została wylistowana. Spróbuj później.",
-    "booru.bulk.endCanceled": "Zatrzymane przez Ciebie; reszta nie została wylistowana. Co trafiło do kolejki, tam zostaje."
+    "booru.bulk.endCanceled": "Zatrzymane przez Ciebie; reszta nie została wylistowana. Co trafiło do kolejki, tam zostaje.",
+    "booru.gallery.name": "Galeria",
+    "booru.gallery.hint": "Pokazuje wyniki tej strony po jednym, jako duży obraz. Klawisz Esc wraca do listy lub siatki.",
+    "booru.gallery.listName": "Galeria wyników tej strony",
+    "booru.gallery.position": "{0} z {1}",
+    "booru.gallery.shown.preview": "Pokazano: podgląd",
+    "booru.gallery.shown.sample": "Pokazano: pomniejszona wersja (sample)",
+    "booru.gallery.sample.loading": "Wczytywanie większej wersji…",
+    "booru.gallery.sample.none": "Źródło nie oferuje pomniejszonej wersji, więc zostaje podgląd.",
+    "booru.gallery.sample.failed": "Nie udało się wczytać większej wersji (nie została dostarczona lub jest większa niż {0} MiB); zostaje podgląd.",
+    "booru.gallery.openWindow": "Otwórz w nowym oknie",
+    "settings.limits.booruGallerySampleMiB": "Galeria Danbooru: największy obraz (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "Największy pomniejszony obraz, który galeria wczytuje do wyświetlenia. Większy nie jest wczytywany i zostaje podgląd. Oryginał nigdy nie jest wczytywany do wyświetlenia.",
+    "settings.limits.booruGalleryCacheMiB": "Galeria Danbooru: pamięć obrazów (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "Ile MiB wczytanych obrazów galerii pozostaje w pamięci, aby cofanie ich nie wczytywało ponownie. Nic nie jest zapisywane na dysku."
   }
 }

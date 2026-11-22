@@ -5342,6 +5342,20 @@
     "booru.bulk.endLimit": "Bylo dosaženo limitu stránek zdroje; hledání může mít další výsledky, které nelze vypsat.",
     "booru.bulk.endEnd": "Zdroj po těchto nehlásil žádné další výsledky.",
     "booru.bulk.endBlocked": "Zdroj přestal odpovídat (pauza, limit četnosti, offline nebo chyba); zbytek nebyl vypsán. Zkuste to později.",
-    "booru.bulk.endCanceled": "Zastaveno vámi; zbytek nebyl vypsán. Co už je ve frontě, ve frontě zůstává."
+    "booru.bulk.endCanceled": "Zastaveno vámi; zbytek nebyl vypsán. Co už je ve frontě, ve frontě zůstává.",
+    "booru.gallery.name": "Galerie",
+    "booru.gallery.hint": "Zobrazí výsledky této stránky jako jeden velký obrázek po druhém. Klávesou Esc se vrátíte k seznamu nebo mřížce.",
+    "booru.gallery.listName": "Galerie výsledků na této stránce",
+    "booru.gallery.position": "{0} z {1}",
+    "booru.gallery.shown.preview": "Zobrazeno: náhled",
+    "booru.gallery.shown.sample": "Zobrazeno: zmenšená verze (sample)",
+    "booru.gallery.sample.loading": "Větší verze se načítá…",
+    "booru.gallery.sample.none": "Zdroj nenabízí zmenšenou verzi, proto zůstává náhled.",
+    "booru.gallery.sample.failed": "Větší verzi se nepodařilo načíst (nebyla doručena nebo je větší než {0} MiB); náhled zůstává.",
+    "booru.gallery.openWindow": "Otevřít v novém okně",
+    "settings.limits.booruGallerySampleMiB": "Galerie Danbooru: největší obrázek (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "Největší zmenšený obrázek, který galerie načte k zobrazení. Větší se nenačte a zůstane náhled. Originál se k zobrazení nikdy nenačítá.",
+    "settings.limits.booruGalleryCacheMiB": "Galerie Danbooru: paměť obrázků (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "Kolik MiB načtených obrázků galerie zůstává v paměti, aby je listování zpět nenačítalo znovu. Na disk se nic neukládá."
   }
 }

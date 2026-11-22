@@ -32,7 +32,8 @@ internal static class BooruResultViewerChecks
             await model.Search.SubmitAsync();
             await Program.WaitUntilAsync(() => model.Search.View.Rows.Count(row => row.Preview == BooruPreviewState.Ready) == 2);
             await SmokeDispatcher.SettleAsync();
-            Click(Find<Button>(view, "BooruView:701"));
+            // "Open in gallery" is the inline view now; the window is its "Open in new window" button (here called directly).
+            Require(view.OpenResultViewer("701"), "The preview window did not open.");
             viewer = host.OwnedWindows.OfType<BooruResultViewerWindow>().Single();
             await Program.WaitUntilAsync(() => Find<Image>(viewer, "GalleryImage").Source is Bitmap);
             Image image = Find<Image>(viewer, "GalleryImage");
@@ -77,6 +78,8 @@ internal static class BooruResultViewerChecks
             Require(host.FocusManager?.GetFocusedElement() is Control { Name: "BooruResult:703" },
                 "Closing did not restore focus to the browsed result.");
             Send(Find<Border>(view, "BooruResult:701"), Key.Enter);
+            Require(view.ResultView == BooruResultView.Gallery && view.Gallery.CurrentPostId == "701", "Card Enter did not open the inline gallery.");
+            Click(Find<Button>(view, "BooruGalleryOpenWindow"));
             viewer = host.OwnedWindows.OfType<BooruResultViewerWindow>().Single();
             Require(Find<CheckBox>(viewer, "BooruViewerSelect").IsChecked == true, "Card Enter did not reopen with per-image selection.");
             Click(Find<Button>(viewer, "BooruViewerDownload"));

@@ -5300,6 +5300,20 @@
     "booru.bulk.endLimit": "È stato raggiunto il limite di pagine della fonte; la ricerca può avere altri risultati che non si possono elencare.",
     "booru.bulk.endEnd": "La fonte non ha segnalato altri risultati dopo questi.",
     "booru.bulk.endBlocked": "La fonte ha smesso di rispondere (pausa, limite di frequenza, offline o errore); il resto non è stato elencato. Riprova più tardi.",
-    "booru.bulk.endCanceled": "Interrotto da te; il resto non è stato elencato. Ciò che è in coda resta in coda."
+    "booru.bulk.endCanceled": "Interrotto da te; il resto non è stato elencato. Ciò che è in coda resta in coda.",
+    "booru.gallery.name": "Galleria",
+    "booru.gallery.hint": "Mostra i risultati di questa pagina uno alla volta, come immagine grande. Con Esc si torna all’elenco o alla griglia.",
+    "booru.gallery.listName": "Galleria dei risultati di questa pagina",
+    "booru.gallery.position": "{0} di {1}",
+    "booru.gallery.shown.preview": "Mostrato: anteprima",
+    "booru.gallery.shown.sample": "Mostrato: versione ridotta (sample)",
+    "booru.gallery.sample.loading": "Caricamento della versione più grande…",
+    "booru.gallery.sample.none": "La fonte non offre una versione ridotta, quindi resta l’anteprima.",
+    "booru.gallery.sample.failed": "Impossibile caricare la versione più grande (non consegnata o più grande di {0} MiB); resta l’anteprima.",
+    "booru.gallery.openWindow": "Apri in una nuova finestra",
+    "settings.limits.booruGallerySampleMiB": "Galleria Danbooru: immagine più grande (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "Immagine ridotta più grande che la galleria carica per la visualizzazione. Una più grande non viene caricata e resta l’anteprima. L’originale non viene mai caricato per la visualizzazione.",
+    "settings.limits.booruGalleryCacheMiB": "Galleria Danbooru: memoria delle immagini (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "Quanti MiB di immagini caricate della galleria restano in memoria, così tornare indietro non le ricarica. Nulla viene salvato su disco."
   }
 }

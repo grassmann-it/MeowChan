@@ -5294,6 +5294,20 @@
     "booru.bulk.endLimit": "Se alcanzó el límite de páginas de la fuente; la búsqueda puede tener más resultados que no se pueden listar.",
     "booru.bulk.endEnd": "La fuente no indicó más resultados después de estos.",
     "booru.bulk.endBlocked": "La fuente dejó de responder (pausa, límite de frecuencia, sin conexión o error); el resto no se listó. Inténtalo más tarde.",
-    "booru.bulk.endCanceled": "Detenido por ti; el resto no se listó. Lo que se puso en cola sigue en cola."
+    "booru.bulk.endCanceled": "Detenido por ti; el resto no se listó. Lo que se puso en cola sigue en cola.",
+    "booru.gallery.name": "Galería",
+    "booru.gallery.hint": "Muestra los resultados de esta página de uno en uno, con una imagen grande. Con Esc vuelves a la lista o a la cuadrícula.",
+    "booru.gallery.listName": "Galería de los resultados de esta página",
+    "booru.gallery.position": "{0} de {1}",
+    "booru.gallery.shown.preview": "Mostrado: vista previa",
+    "booru.gallery.shown.sample": "Mostrado: versión reducida (sample)",
+    "booru.gallery.sample.loading": "Cargando la versión más grande…",
+    "booru.gallery.sample.none": "La fuente no ofrece una versión reducida, por lo que se mantiene la vista previa.",
+    "booru.gallery.sample.failed": "No se pudo cargar la versión más grande (no se entregó o supera {0} MiB); se mantiene la vista previa.",
+    "booru.gallery.openWindow": "Abrir en una ventana nueva",
+    "settings.limits.booruGallerySampleMiB": "Galería de Danbooru: imagen más grande (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "Imagen reducida más grande que la galería carga para mostrar. Una mayor no se carga y se mantiene la vista previa. El original nunca se carga para mostrarlo.",
+    "settings.limits.booruGalleryCacheMiB": "Galería de Danbooru: memoria de imágenes (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "Cuántos MiB de imágenes cargadas de la galería se conservan en memoria para que volver atrás no las cargue de nuevo. No se guarda nada en el disco."
   }
 }

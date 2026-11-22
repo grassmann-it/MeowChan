@@ -76,6 +76,7 @@ internal sealed partial class BooruWorkbenchView
     {
         AutomationProperties.SetControlTypeOverride(_results, AutomationControlType.List);
         AutomationProperties.SetControlTypeOverride(_watchers, AutomationControlType.List);
+        InitializeGallery();
     }
 
     /// <summary>Numbers the hits for assistive technology ("3 of 20") once the whole page of cards exists.</summary>
@@ -104,24 +105,26 @@ internal sealed partial class BooruWorkbenchView
         AutomationProperties.SetControlTypeOverride(card, AutomationControlType.ListItem);
         AutomationProperties.SetName(card, Texts.T("booru.ui.result.hitName", postId, BooruText.Rating(row.Post.Rating),
             Texts.T(showInMedia != null ? "booru.ui.result.localYes" : "booru.ui.result.localNo")));
-        // Saved originals keep their Show in Media route. Unsaved hits open the preview-only
-        // Booru viewer instead; neither Enter nor double-click implicitly downloads an original.
+        // Saved originals keep their Show in Media route. Unsaved hits open the inline gallery
+        // (preview and sample only); neither Enter nor double-click implicitly downloads an original.
         card.DoubleTapped += (_, e) =>
         {
             if (_closed || !ItemActivation.IsCardDoubleClick(e, card)) return;
             if (BooruHitKeys.Primary(showInMedia) is { } primary) { e.Handled = true; Click(primary); }
-            else e.Handled = OpenResultViewer(postId);
+            else e.Handled = OpenGallery(postId);
         };
         ConfigureMiddleClick(card, postId);
+        ConfigureHitCursor(card, postId);
         card.KeyDown += (_, e) =>
         {
             if (_closed) return;
+            if (TryToggleSelectionKey(e, card, postId)) { e.Handled = true; return; }
             BooruHitKey key = BooruHitKeys.Route(e, card, ShortcutServiceCapturing(), tiles: card.Parent is BooruTilePanel);
             switch (key)
             {
                 case BooruHitKey.Activate:
                     if (BooruHitKeys.Primary(showInMedia) is { } primary) { e.Handled = true; Click(primary); }
-                    else e.Handled = OpenResultViewer(postId);
+                    else e.Handled = OpenGallery(postId);
                     break;
                 case BooruHitKey.None:
                     break;
@@ -170,6 +173,7 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>The card of <paramref name="postId"/>, else the first hit, else the search field (after a menu action rebuilt the cards).</summary>
     private void FocusHit(string postId)
     {
+        if (_resultView == BooruResultView.Gallery && ReferenceEquals(_gallery.Parent, _results)) { FocusGalleryStage(); return; }
         IReadOnlyList<Control> cards = ResultCards;
         Control? card = cards.FirstOrDefault(child => child.Name == "BooruResult:" + postId) ?? cards.FirstOrDefault();
         if (card is { IsEffectivelyVisible: true }) card.Focus(NavigationMethod.Directional);
