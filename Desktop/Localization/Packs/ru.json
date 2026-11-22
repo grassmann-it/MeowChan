@@ -4467,6 +4467,8 @@
     "reader.sidebar.title": "Медиа поста",
     "reader.sidebar.close": "Закрыть боковую панель медиа",
     "reader.sidebar.open": "Открыть в галерее",
+    "thread.media.total": "Вложения темы: {0}",
+    "thread.media.unavailable": "Здесь недоступно: {0}",
     "reader.sidebar.position": "{0} из {1}",
     "reader.sidebar.empty": "Выберите пост, чтобы увидеть здесь его медиа.",
     "reader.sidebar.noMedia": "У № {0} нет медиа",

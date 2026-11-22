@@ -205,7 +205,8 @@ public partial class MainWindow
             if (NavigateWorkspace(WorkspacePage.Media)) _mediaPage?.ReceiveCarriedSearch(query, Texts.T("nav.archive"));
         };
         _archivePage.OpenGallery = (id, key, origin) => OpenGalleryAsync(id, key, origin);
-        _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin);
+        _archivePage.OpenMediaGallery = (entries, start, origin) => OpenMediaGalleryAsync(entries, start, origin,
+            threadMedia: _archivePage.ThreadMediaForGallery(entries));
         _archivePage.OpenResultsGallery = (query, workFilter, origin) => OpenSearchGalleryAsync(query, workFilter, origin);
         // The shell hides the host, not the page, when another page is shown (as for the media page host): inline and sidebar reader videos pause then.
         ArchivePageHost.PropertyChanged += (_, e) => { if (e.Property == Avalonia.Visual.IsVisibleProperty && e.NewValue is false) _ = _archivePage?.PauseInlineVideos(); };

@@ -698,6 +698,9 @@ public partial class ArchivePage : UserControl
         empty.Text = Texts.T(_mediaLoading ? "archive.loadingMedia"
             : _archiveFavoritesOnly ? "archive.noFavorites" : "archive.noMedia");
         empty.IsVisible = shown.Count == 0;
+        int total = _thread?.MediaPositions.Count ?? 0;
+        ArchiveThreadMediaTotal.IsVisible = total > 0;
+        if (total > 0) ArchiveThreadMediaTotal.Text = Texts.T("thread.media.total", total);
         UpdateActions();
     }
 

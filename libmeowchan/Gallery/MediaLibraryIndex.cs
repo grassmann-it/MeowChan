@@ -393,7 +393,7 @@ internal static class MediaLibraryIndexBuilder
         foreach (CapturedPost post in posts.Values.OrderBy(post => post.Ordinal).ThenBy(post => post.PostId, StringComparer.Ordinal))
             foreach (CapturedAttachment attachment in (post.Attachments ?? Array.Empty<CapturedAttachment>()).OrderBy(item => item.Position))
             {
-                if (attachment.IsDeleted || attachment.MediaId == null || found.Contains((post.PostId, attachment.Position))) continue;
+                if (!ThreadMediaPositions.Includes(attachment) || found.Contains((post.PostId, attachment.Position))) continue;
                 string? name = attachment.OriginalFileName;
                 yield return new MediaLibraryEntry(summary.Id, summary.Title, summary.Revision, summary.FirstSeenAt, summary.LastCapturedAt,
                     post.PostId, post.Ordinal, post.PostedAt, attachment.Position, attachment.AttachmentRevisionKey,

@@ -1324,6 +1324,7 @@ public partial class MainWindow : Window
             return;
         }
         if (_isClosing) return;
+        if (_gallery != null) { UpdateGalleryScope(); UpdateGalleryPosition(); }
         _sessionRefresh.Request();
         RefreshAdmissionResults();
         RefreshClipboardMonitor();

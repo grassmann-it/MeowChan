@@ -4364,6 +4364,8 @@
     "reader.sidebar.title": "게시물 미디어",
     "reader.sidebar.close": "미디어 사이드바 닫기",
     "reader.sidebar.open": "갤러리에서 열기",
+    "thread.media.total": "스레드 첨부 파일: {0}개",
+    "thread.media.unavailable": "여기에서 사용할 수 없는 파일: {0}개",
     "reader.sidebar.position": "{0}/{1}",
     "reader.sidebar.empty": "게시물을 선택하면 해당 미디어가 여기에 표시됩니다.",
     "reader.sidebar.noMedia": "No. {0}에는 미디어가 없습니다",

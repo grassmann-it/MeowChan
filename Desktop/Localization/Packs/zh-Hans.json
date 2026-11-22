@@ -4364,6 +4364,8 @@
     "reader.sidebar.title": "帖子媒体",
     "reader.sidebar.close": "关闭媒体侧栏",
     "reader.sidebar.open": "在图库中打开",
+    "thread.media.total": "主题附件：{0} 个",
+    "thread.media.unavailable": "此处不可用：{0} 个",
     "reader.sidebar.position": "{0}/{1}",
     "reader.sidebar.empty": "选择一个帖子即可在此查看其媒体。",
     "reader.sidebar.noMedia": "No. {0} 没有媒体",

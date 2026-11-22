@@ -35,6 +35,8 @@ internal interface IGalleryTagPanelOwner
     /// <summary>The list the gallery walks (read on the UI thread only; the panel copies what it needs).</summary>
     IReadOnlyList<GalleryEntry> Entries { get; }
     GalleryTagPanelPosition? Position { get; }
+    /// <summary>The displayed position may include unavailable attachments. Zero denotes a saved file outside the capture.</summary>
+    GalleryTagPanelPosition? CounterPosition => Position;
     /// <summary>Tags used in this session, most recent first; the context ranking reads it.</summary>
     TagRecentList Recent { get; }
     QuickTagOptions Options { get; }
@@ -100,8 +102,9 @@ internal static class GalleryTagPanelCommands
     internal static string? CounterText(GalleryTagPanelPosition? position, bool marked = false)
     {
         if (position is not { } value) return null;
-        string text = Texts.T(value.More ? "tags.quick.gallery.positionMore" : "tags.quick.gallery.position",
-            value.Number.ToString(Texts.Culture), value.Count.ToString(Texts.Culture));
+        string text = value.Number > 0
+            ? Texts.T(value.More ? "tags.quick.gallery.positionMore" : "tags.quick.gallery.position", value.Number, value.Count)
+            : Texts.T("thread.media.total", value.Count);
         return marked ? Texts.T("tags.quick.marked.counter", text) : text;
     }
 
@@ -109,8 +112,9 @@ internal static class GalleryTagPanelCommands
     internal static string? ShortCounterText(GalleryTagPanelPosition? position, bool marked = false)
     {
         if (position is not { } value) return null;
-        string text = Texts.T(value.More ? "tags.quick.gallery.positionMoreShort" : "tags.quick.gallery.positionShort",
-            value.Number.ToString(Texts.Culture), value.Count.ToString(Texts.Culture));
+        string text = value.Number > 0
+            ? Texts.T(value.More ? "tags.quick.gallery.positionMoreShort" : "tags.quick.gallery.positionShort", value.Number, value.Count)
+            : Texts.T("thread.media.total", value.Count);
         return marked ? Texts.T("tags.quick.marked.counter", text) : text;
     }
 
@@ -302,8 +306,8 @@ internal sealed class GalleryTagPanelController : IDisposable
     internal int ClearMarks() => Marks.Clear();
 
     /// <summary>The counter chip's text for <paramref name="entry"/>: position, with "marked" when this medium is.</summary>
-    internal string? ShortCounterFor(GalleryEntry entry) => GalleryTagPanelCommands.ShortCounterText(_owner.Position, IsMarked(entry));
-    internal string? CounterFor(GalleryEntry entry) => GalleryTagPanelCommands.CounterText(_owner.Position, IsMarked(entry));
+    internal string? ShortCounterFor(GalleryEntry entry) => GalleryTagPanelCommands.ShortCounterText(_owner.CounterPosition, IsMarked(entry));
+    internal string? CounterFor(GalleryEntry entry) => GalleryTagPanelCommands.CounterText(_owner.CounterPosition, IsMarked(entry));
 
     /// <summary>
     /// Moves the panel to <paramref name="entry"/>: a fresh target frozen to exactly that entry, the session's medium name and the

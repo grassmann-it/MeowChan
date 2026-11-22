@@ -4453,6 +4453,8 @@
     "reader.sidebar.title": "Mídia da postagem",
     "reader.sidebar.close": "Fechar a barra lateral de mídia",
     "reader.sidebar.open": "Abrir na galeria",
+    "thread.media.total": "Anexos do tópico: {0}",
+    "thread.media.unavailable": "Indisponíveis aqui: {0}",
     "reader.sidebar.position": "{0} de {1}",
     "reader.sidebar.empty": "Selecione uma postagem para ver a mídia dela aqui.",
     "reader.sidebar.noMedia": "O Nº {0} não tem mídia",

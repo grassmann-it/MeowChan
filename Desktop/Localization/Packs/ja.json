@@ -4364,6 +4364,8 @@
     "reader.sidebar.title": "投稿のメディア",
     "reader.sidebar.close": "メディアサイドバーを閉じる",
     "reader.sidebar.open": "ギャラリーで開く",
+    "thread.media.total": "スレッドの添付ファイル：{0} 件",
+    "thread.media.unavailable": "ここで利用できないファイル：{0} 件",
     "reader.sidebar.position": "{0} / {1}",
     "reader.sidebar.empty": "投稿を選択すると、そのメディアがここに表示されます。",
     "reader.sidebar.noMedia": "No. {0} にはメディアがありません",

@@ -142,9 +142,8 @@ public partial class MainWindow
 
         public IReadOnlyList<GalleryEntry> Entries => window._galleryEntries;
 
-        public GalleryTagPanelPosition? Position => window._galleryIndex >= 0 && window._galleryIndex < window._galleryEntries.Count
-            ? new GalleryTagPanelPosition(window._galleryIndex + 1, window._galleryEntries.Count, window._galleryThreadIndex < window._galleryThreads.Count)
-            : null;
+        public GalleryTagPanelPosition? Position => window.GalleryListPosition();
+        public GalleryTagPanelPosition? CounterPosition => window.CurrentGalleryPosition();
 
         public TagRecentList Recent => window.QuickTagRecent;
         // Legacy source seam retained for free-gallery callers: public QuickTagStamp? Stamp => window.QuickTagStampSet;

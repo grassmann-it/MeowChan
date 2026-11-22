@@ -4453,6 +4453,8 @@
     "reader.sidebar.title": "Media del post",
     "reader.sidebar.close": "Chiudi la barra laterale dei media",
     "reader.sidebar.open": "Apri nella galleria",
+    "thread.media.total": "Allegati della discussione: {0}",
+    "thread.media.unavailable": "Non disponibili qui: {0}",
     "reader.sidebar.position": "{0} di {1}",
     "reader.sidebar.empty": "Seleziona un post per vederne qui i media.",
     "reader.sidebar.noMedia": "Il N. {0} non ha media",

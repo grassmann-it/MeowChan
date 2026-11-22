@@ -166,6 +166,7 @@ internal sealed partial class GalleryViewer
         // The post context was not kept current meanwhile.
         _contextDirty = true;
         EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk is the panel; it ends with it
+        RefreshPostPanelPosition();
         return true;
     }
 
@@ -290,6 +291,7 @@ internal sealed partial class GalleryViewer
     {
         if (_tagController is { } controller && _tagSurface is { } surface)
             SetPanelCounter(surface, controller, controller.ShownEntry());
+        else RefreshPostPanelPosition();
     }
 
     // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------

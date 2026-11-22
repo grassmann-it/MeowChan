@@ -105,13 +105,15 @@ internal sealed partial class GalleryViewer
     /// <summary>A favourite, rating or tag changed: the tiles in view read their flags again.</summary>
     internal void RefreshFilmstripFlags() => _filmstrip.RefreshFlags();
 
+    internal ThreadGalleryPositions? ThreadPositions { get; set; }
+
     // The strip follows the list the shell owns: the entries (the same list that grows as further threads load) and the shown one.
     private void FilmstripShown(GalleryEntry entry, IReadOnlyList<GalleryEntry> list)
     {
         int index = IndexInList(list, entry);
         // Further threads are still to be resolved when the next arrow is live at the last loaded medium (the shell's own rule).
         bool more = index >= 0 && index == list.Count - 1 && _next.IsEnabled;
-        _filmstrip.SetEntries(list, list.Count, more);
+        _filmstrip.SetEntries(list, list.Count, more, ThreadPositions);
         _filmstrip.SetCurrent(index);
         // The player reports the new length asynchronously. Clear the selected slot first so a reused
         // viewer never leaves the previous medium's duration on a video whose length is not known yet.
