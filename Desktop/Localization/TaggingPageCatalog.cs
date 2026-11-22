@@ -135,7 +135,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.selection.reopen", "Reopen", "Wieder öffnen"),
         ("tagging.page.selection.applyStamp", "Apply stamp", "Stempel anwenden"),
         ("tagging.page.selection.skip", "Skip", "Überspringen"),
-        ("tagging.page.selection.editable", "{0} of {1} selected entries can be tagged", "{0} von {1} ausgewählten Einträgen lassen sich taggen"),
+        ("tagging.page.selection.editable", "Taggable: {0} · Selected: {1}", "Taggbar: {0} · Ausgewählt: {1}"),
         ("tagging.page.selection.state", "State", "Zustand"),
         ("tagging.page.selection.moreState", "More status", "Mehr Status"),
         ("tagging.page.selection.state.hint", "Mark the selected entries as finished, open or skipped", "Die ausgewählten Einträge als erledigt, offen oder übersprungen markieren"),
