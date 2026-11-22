@@ -116,8 +116,8 @@ public sealed class TaggingPageTests : IDisposable
     {
         IDataTemplate template = TaggingPage.GroupChoiceTemplate();
         // The selection box builds the template without an item while the source is replaced: no exception, empty text.
-        Assert.Equal(string.Empty, Assert.IsType<TextBlock>(template.Build(null)!).Text ?? string.Empty);
-        Assert.Equal("Review", Assert.IsType<TextBlock>(template.Build(new TaggingGroupChoice("g", false, "Review"))!).Text);
+        Assert.Equal(string.Empty, Assert.IsAssignableFrom<TextBlock>(template.Build(null)!).Text ?? string.Empty);
+        Assert.Equal("Review", Assert.IsAssignableFrom<TextBlock>(template.Build(new TaggingGroupChoice("g", false, "Review"))!).Text);
 
         TagQueueGroup group = new("group-1", "Review", 0, new[] { "common" });
         TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { Item(1) with { GroupId = group.Id } }, TagQueueLoadState.Ready, new[] { group });

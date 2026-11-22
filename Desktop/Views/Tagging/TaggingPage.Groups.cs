@@ -21,7 +21,7 @@ namespace MeowChan;
 /// <summary>TG2's named queue scopes: the page keeps the existing state-filter seam and narrows it with this selection.</summary>
 public sealed partial class TaggingPage
 {
-    private readonly ComboBox _group = new() { Name = "TaggingGroup", Width = 160 };
+    private readonly ComboBox _group = new() { Name = "TaggingGroup", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Button _groupManage = new() { Name = "TaggingGroupManage" };
     private ContextMenuHost? _groupManageHost;
     private string? _selectedGroupId;
@@ -55,12 +55,7 @@ public sealed partial class TaggingPage
     // The combo box builds its selection box while ItemsSource is being swapped, and then the item is null for a moment:
     // the template must tolerate that (an exception here aborted Render and left the queue table empty).
     internal static FuncDataTemplate<TaggingGroupChoice> GroupChoiceTemplate() =>
-        new((choice, _) =>
-        {
-            TextBlock label = new() { Text = choice?.Label, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
-            ToolTip.SetTip(label, choice?.Label);
-            return label;
-        });
+        new((choice, _) => new TrimTipTextBlock { Text = choice?.Label });
 
     private void InitializeGroups()
     {
@@ -97,6 +92,7 @@ public sealed partial class TaggingPage
         // The button stays usable while "New group" is: the entries inside the menu carry their own enabled rules.
         _groupManage.IsEnabled = CanChange;
         ToolTip.SetTip(_group, selected.Label);
+        AutomationProperties.SetHelpText(_group, selected.Label);
     }
 
     private void LocalizeGroups()

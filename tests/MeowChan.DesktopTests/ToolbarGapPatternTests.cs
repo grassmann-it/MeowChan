@@ -227,13 +227,14 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheTaggingBarDocksColumnsViewSwitchAndHelpAtTheRight()
+    public void TheTaggingHeaderEndsWithTheViewControlsAndPageActionsInReadingOrder() => TaggingLayoutRhythmTests.WithPage(page =>
     {
-        string commands = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("_queueActionRow.TrailingChild = _actions;", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
-        Assert.Contains("_listControls.TrailingChild = _listPresentation;", commands);
-        Assert.Contains("new Control[] { _columnsButton, _viewToggle }", commands);
-    }
+        ActionToolBar presentation = Assert.IsType<ActionToolBar>(page.Header.Children[^2]);
+        Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
+        Assert.Same(page.Actions, page.Header.Children[^1]);
+        Assert.Equal(new Control[] { page.AddButton, page.HelpButton, page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
+            page.Actions.Items.Cast<Control>());
+    });
 
     [Fact]
     public void MediaRowsUseTheBarItemGapTokenInsteadOfALocalEight()

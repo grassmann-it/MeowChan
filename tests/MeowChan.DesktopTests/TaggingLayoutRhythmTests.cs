@@ -57,19 +57,19 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(Token(sections, "Workspace.Space.12"), sections.Margin.Left);
         Assert.Equal(Token(sections, "Workspace.Space.12"), sections.Margin.Right);
         Assert.Equal(Token(queue, "Workspace.Space.8"), queue.Spacing);
-        Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingStatus", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
-        TaggingControlRow heading = Find<TaggingControlRow>(page, "TaggingQueueActionRow");
-        Assert.Equal(Token(heading, "Workspace.Space.16"), heading.GroupSpacing);
-        Assert.Equal(Token(heading, "Workspace.Space.8"), heading.LineSpacing);
-        StackPanel progress = Find<StackPanel>(page, "TaggingProgress");
-        Assert.Equal(Token(progress, "Workspace.Space.4"), progress.Spacing);
-        Assert.Equal(Orientation.Horizontal, progress.Orientation);
+        Assert.Equal(new[] { "TaggingHeader", "TaggingStatus", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
+        TaggingHeader heading = page.Header;
+        Assert.Equal(Token(heading, "Workspace.Space.16"), TaggingHeader.GroupSpacing);
+        Assert.Equal(Token(heading, "Workspace.Space.8"), TaggingHeader.LineSpacing);
+        Grid walk = Find<Grid>(page, "TaggingWalk");
+        Assert.Equal(Token(walk, "Workspace.Space.8"), walk.ColumnSpacing);
+        Grid progress = Find<Grid>(page, "TaggingProgress");
+        Assert.Equal(Token(progress, "Workspace.Space.4"), progress.ColumnSpacing);
         StackPanel error = Assert.IsType<StackPanel>(page.ErrorPanel.Child);
         Assert.Equal(Token(error, "Workspace.Space.8"), error.Spacing);
         Assert.Contains(page.StampButton, heading.Children);
         // Hidden feedback/secondary rows must not add phantom spacing.
         Assert.False(page.ErrorPanel.IsVisible);
-        Assert.Equal(new[] { "TaggingResultFilters", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
     });
     private static readonly BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 
@@ -249,9 +249,6 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(2, preview.Children.OfType<Border>().Count());
         Assert.Equal("+1", Assert.Single(preview.Children.OfType<TextBlock>()).Text);
         Assert.Contains("review", Assert.IsType<string>(ToolTip.GetTip(page.StampButton)), StringComparison.Ordinal);
-        Find<TaggingControlRow>(page, "TaggingQueueActionRow").CompactGroups[0].SetCompact(true);
-        Assert.False(preview.IsVisible);
-        Assert.Equal(Texts.T("tagging.page.stamp.summary", 3), summary.Text);
     });
 
     [Fact]

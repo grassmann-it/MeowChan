@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.VisualTree;
 
 namespace MeowChan.Desktop;
 
@@ -23,50 +24,10 @@ internal sealed class TaggingControlRow : Panel
     public double GroupSpacing { get => GetValue(GroupSpacingProperty); set => SetValue(GroupSpacingProperty, value); }
     public double LineSpacing { get => GetValue(LineSpacingProperty); set => SetValue(LineSpacingProperty, value); }
     public Control? TrailingChild { get; set; }
-    internal Action<bool>? SetTrailingCompact { get; set; }
-    internal IReadOnlyList<(Control Group, Action<bool> SetCompact)> CompactGroups { get; set; } = [];
-    private bool _trailingCompact;
-
     protected override Size MeasureOverride(Size availableSize)
     {
         Size constraint = new(availableSize.Width, double.PositiveInfinity);
-        foreach (var (_, setCompact) in CompactGroups) setCompact(false);
-        double leadingWidth = 0;
-        foreach (Control child in Children)
-        {
-            if (ReferenceEquals(child, TrailingChild) && SetTrailingCompact != null) continue;
-            child.Measure(constraint);
-            if (child.IsVisible) leadingWidth += child.DesiredSize.Width + GroupSpacing;
-        }
-        if (TrailingChild is { IsVisible: true } trailing && SetTrailingCompact is { } compact)
-        {
-            // Measure the localized labels even when the last arrangement used icons. Try the compact
-            // presentation before wrapping whole groups. Use the same spare gap as the group wrap.
-            compact(false);
-            trailing.Measure(Size.Infinity);
-            double fullWidth = leadingWidth + trailing.DesiredSize.Width;
-            _trailingCompact = fullWidth + (_trailingCompact ? GroupSpacing : 0) > availableSize.Width;
-            compact(_trailingCompact);
-            trailing.Measure(constraint);
-        }
-        double rowWidth = 0;
-        int visibleCount = 0;
-        foreach (Control child in Children)
-        {
-            if (!child.IsVisible) continue;
-            rowWidth += child.DesiredSize.Width;
-            visibleCount++;
-        }
-        rowWidth += Math.Max(0, visibleCount - 1) * GroupSpacing;
-        foreach (var (group, setCompact) in CompactGroups)
-        {
-            if (rowWidth <= availableSize.Width) break;
-            if (!group.IsVisible) continue;
-            double fullWidth = group.DesiredSize.Width;
-            setCompact(true);
-            group.Measure(constraint);
-            rowWidth -= fullWidth - group.DesiredSize.Width;
-        }
+        foreach (Control child in Children) child.Measure(constraint);
         return Place(availableSize.Width);
     }
 
@@ -128,5 +89,175 @@ internal sealed class TaggingControlRow : Panel
             }
         }
         return new Size(usedWidth, y + lineHeight);
+    }
+}
+
+/// <summary>
+/// Keeps five header groups in reading order, with a flexible walk group and a
+/// flexible gap after the filters on the second line. Measure chooses the detail
+/// and line breaks; arrange only distributes the remaining space.
+/// </summary>
+internal sealed class TaggingHeader : Panel
+{
+    internal const double GroupSpacing = 16;
+    internal const double LineSpacing = 8;
+    private const double WideWidth = 1376;
+    private const double RestoreReserve = 8;
+
+    [Flags]
+    private enum Compact { None = 0, View = 1, Count = 2, Stamp = 4 }
+
+    private readonly Control _walk, _stamp, _presentation, _actions;
+    private readonly Grid _filters;
+    private readonly Control _count;
+    private readonly Action<bool> _setViewCompact, _setCountCompact, _setStampCompact;
+    private readonly List<Line> _lines = new();
+    private Compact _compact;
+
+    private sealed record Line(Control[] Groups, double Width, double Height, double WalkWidth);
+
+    internal TaggingHeader(Control walk, Control stamp, Grid filters, Control count, Control presentation, Control actions,
+        Action<bool> setViewCompact, Action<bool> setCountCompact, Action<bool> setStampCompact)
+    {
+        _walk = walk;
+        _stamp = stamp;
+        _filters = filters;
+        _count = count;
+        _presentation = presentation;
+        _actions = actions;
+        _setViewCompact = setViewCompact;
+        _setCountCompact = setCountCompact;
+        _setStampCompact = setStampCompact;
+        Children.AddRange([walk, stamp, filters, presentation, actions]);
+    }
+
+    internal bool ResultCountCompact => _compact.HasFlag(Compact.Count);
+
+    // These content changes happen during the header's own measure. Refresh the path
+    // synchronously so the next fit attempt sees the new width through the templates.
+    internal static void InvalidateGroupMeasure(Control content)
+    {
+        for (Visual? visual = content; visual is Layoutable layout && visual is not TaggingHeader; visual = visual.GetVisualParent())
+            layout.InvalidateMeasure();
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double width = availableSize.Width;
+        _lines.Clear();
+
+        Control[] all = Visible(_walk, _stamp, _filters, _presentation, _actions);
+        if (width >= WideWidth && Fit(all, width, [_setViewCompact, _setCountCompact, _setStampCompact],
+                [Compact.View, Compact.Count, Compact.Stamp], out Compact wide))
+        {
+            _compact = wide;
+            AddLines(all, width);
+        }
+        else
+        {
+            Control[] top = Visible(_walk, _stamp);
+            Control[] bottom = Visible(_filters, _presentation, _actions);
+            Fit(top, width, [_setStampCompact], [Compact.Stamp], out Compact upper);
+            Fit(bottom, width, [_setViewCompact, _setCountCompact], [Compact.View, Compact.Count], out Compact lower);
+            _compact = upper | lower;
+            AddLines(top, width);
+            AddLines(bottom, width);
+        }
+
+        double height = 0, usedWidth = 0;
+        foreach (Line line in _lines)
+        {
+            height += line.Height;
+            usedWidth = Math.Max(usedWidth, line.Width);
+        }
+        return new Size(usedWidth, height + LineSpacing * Math.Max(0, _lines.Count - 1));
+    }
+
+    private bool Fit(Control[] groups, double width, Action<bool>[] setters, Compact[] steps, out Compact compact)
+    {
+        Compact details = Compact.None;
+        for (int i = 0; i < steps.Length; i++)
+        {
+            setters[i](false);
+            details |= steps[i];
+        }
+
+        compact = Compact.None;
+        for (int i = 0; ; i++)
+        {
+            double reserve = (_compact & details & ~compact) != Compact.None ? RestoreReserve : 0;
+            foreach (Control group in groups) group.Measure(Size.Infinity);
+
+            double measured = LineWidth(groups);
+            if (measured + reserve <= width) return true;
+            if (Array.IndexOf(groups, _filters) >= 0)
+            {
+                double minimum = _filters.MinWidth + (_count.IsVisible ? _count.DesiredSize.Width : 0);
+                double budget = Math.Max(minimum, _filters.DesiredSize.Width - (measured + reserve - width));
+                _filters.Measure(new Size(budget, double.PositiveInfinity));
+                if (LineWidth(groups) + reserve <= width) return true;
+            }
+
+            if (i == steps.Length) return false;
+            compact |= steps[i];
+            setters[i](true);
+        }
+    }
+
+    private static Control[] Visible(params Control[] groups) => Array.FindAll(groups, group => group.IsVisible);
+
+    private static double LineWidth(ReadOnlySpan<Control> groups)
+    {
+        double width = GroupSpacing * Math.Max(0, groups.Length - 1);
+        foreach (Control group in groups) width += group.DesiredSize.Width;
+        return width;
+    }
+
+    private void AddLines(ReadOnlySpan<Control> groups, double width)
+    {
+        while (!groups.IsEmpty)
+        {
+            int count = 1;
+            while (count < groups.Length && LineWidth(groups[..(count + 1)]) <= width) count++;
+            ReadOnlySpan<Control> line = groups[..count];
+            double minimum = LineWidth(line);
+            double extra = double.IsFinite(width) ? Math.Max(0, width - minimum) : 0;
+            double walkWidth = 0;
+            if (ReferenceEquals(line[0], _walk))
+            {
+                walkWidth = _walk.DesiredSize.Width;
+                _walk.Measure(new Size(walkWidth + extra, double.PositiveInfinity));
+            }
+            double height = 0;
+            foreach (Control group in line) height = Math.Max(height, group.DesiredSize.Height);
+            _lines.Add(new Line(line.ToArray(), minimum, height, walkWidth));
+            groups = groups[count..];
+        }
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        double y = 0;
+        foreach (Line line in _lines)
+        {
+            double x = 0;
+            double extra = Math.Max(0, finalSize.Width - line.Width);
+            bool hasWalk = ReferenceEquals(line.Groups[0], _walk);
+            foreach (Control group in line.Groups)
+            {
+                if (!hasWalk && (ReferenceEquals(group, _presentation) || ReferenceEquals(group, _actions)))
+                {
+                    x += extra;
+                    extra = 0;
+                }
+
+                Size size = group.DesiredSize;
+                double width = ReferenceEquals(group, _walk) ? line.WalkWidth + extra : size.Width;
+                group.Arrange(new Rect(x, y + (line.Height - size.Height) / 2, width, size.Height));
+                x += width + GroupSpacing;
+            }
+            y += line.Height + LineSpacing;
+        }
+        return finalSize;
     }
 }
