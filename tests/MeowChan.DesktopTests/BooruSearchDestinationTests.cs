@@ -55,7 +55,7 @@ public sealed class BooruSearchDestinationTests
     });
 
     [Fact]
-    public void WatchersButtonAlignsAboveTheBrowserAndStacksBeneathTheDescription() => BooruComponentDispatcher.Run(() =>
+    public void HeaderActionsAlignAboveTheBrowserAndStackBeneathTheTitle() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = new();
@@ -65,31 +65,39 @@ public sealed class BooruSearchDestinationTests
         {
             window.Show();
             Button button = FindWatchersButton(page);
-            TextBlock description = page.View.Header.GetVisualDescendants().OfType<TextBlock>()
-                .Single(text => text.Classes.Contains("workspace-help"));
+            HelpButton help = page.View.Header.GetVisualDescendants().OfType<HelpButton>()
+                .Single(control => control.Name == BooruWorkbenchView.SearchHelpName);
+            TextBlock title = page.View.Header.GetVisualDescendants().OfType<TextBlock>()
+                .Single(text => text.Classes.Contains("page-title"));
+            WrapPanel actions = Assert.IsType<WrapPanel>(button.GetVisualParent());
             Border browser = page.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "BooruPageBody");
             foreach (string language in new[] { "en", "de", "pl", "ja" })
             {
                 Texts.SetLanguage(language);
                 CheckAtWidth(1360, stacked: false);
-                CheckAtWidth(320, stacked: true);
+                // Fit both actions plus the page insets, with too little room for the title beside them.
+                double pageInsets = page.Bounds.Width - browser.Bounds.Width;
+                CheckAtWidth(Math.Ceiling(actions.Bounds.Width + pageInsets) + 4, stacked: true);
             }
 
             void CheckAtWidth(double width, bool stacked)
             {
                 BooruReviewTestPlatform.Resize(window, width);
                 Rect buttonBox = InPage(button);
-                Rect descriptionBox = InPage(description);
+                Rect helpBox = InPage(help);
+                Rect titleBox = InPage(title);
+                Rect actionsBox = InPage(actions);
                 Rect browserBox = InPage(browser);
-                Assert.True(buttonBox.Width > 0);
-                Assert.Equal(browserBox.Right, buttonBox.Right, 0);
-                Assert.Equal(4, browserBox.Top - buttonBox.Bottom, 0);
+                Assert.True(buttonBox.Width > 0 && helpBox.Width > 0);
+                Assert.True(buttonBox.Right <= helpBox.Left);
+                Assert.Equal(browserBox.Right, helpBox.Right, 0);
+                Assert.Equal(4, browserBox.Top - actionsBox.Bottom, 0);
                 if (stacked)
-                    Assert.True(buttonBox.Top >= descriptionBox.Bottom + 7.5);
+                    Assert.True(actionsBox.Top >= titleBox.Bottom + 7.5);
                 else
                 {
-                    Assert.Equal(descriptionBox.Bottom, buttonBox.Bottom, 0);
-                    Assert.True(buttonBox.Left >= descriptionBox.Right);
+                    Assert.Equal(titleBox.Bottom, actionsBox.Bottom, 0);
+                    Assert.True(actionsBox.Left >= titleBox.Right);
                 }
             }
 
