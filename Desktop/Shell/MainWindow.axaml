@@ -309,9 +309,6 @@
 
                             <!-- Title Column -->
                             <DataGridTemplateColumn Header="Thread / title" Width="*" MinWidth="200" SortMemberPath="Title">
-                                <DataGridTemplateColumn.CellStyleClasses>
-                                    <x:String>cell-action</x:String>
-                                </DataGridTemplateColumn.CellStyleClasses>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
@@ -319,7 +316,7 @@
                                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}">
                                                 <!-- A drawn up arrow (P6) on a quiet button (dead-affordance audit): a click restores normal priority, the row menu's "Normal priority" for this one thread.
                                                      The button has its own automation peer, so the accessible name is the row description plus the action. -->
-                                                <Button Classes="subtle" Padding="2" MinWidth="0" MinHeight="0" BorderThickness="0" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center"
+                                                <Button Classes="subtle row-action" Padding="2" MinWidth="0" MinHeight="0" BorderThickness="0" IsVisible="{Binding IsHighPriority}" VerticalAlignment="Center"
                                                         ToolTip.Tip="{Binding PriorityActionDescription}" AutomationProperties.Name="{Binding PriorityActionDescription}" Click="OnPriorityArrowClick">
                                                     <Path Classes="glyph-icon" Data="M8,13 L8,3 M4,7 L8,3 L12,7" Stroke="{DynamicResource Workspace.Text}" />
                                                 </Button>

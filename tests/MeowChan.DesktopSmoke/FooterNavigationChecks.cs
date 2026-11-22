@@ -402,13 +402,16 @@ internal static class FooterNavigationChecks
             Require(numbering.SequenceEqual(defaultNumbering),
                 "The default footer numbering of this work view is wrong: " + string.Join(", ", numbering));
         }
-        // The tooltip of a shown button names the digit it owns.
-        foreach (string id in layout.Order.Where(layout.IsVisible))
+        HashSet<string> descriptions = new(StringComparer.Ordinal);
+        foreach (string id in layout.Order.Append("navigation.settings"))
         {
             Button button = Button(window, MeowChan.Desktop.Commands.MainPageOrder.ControlStem(id));
-            string? shortcut = MeowChan.Desktop.Commands.CommandCatalog.ShortcutDisplay(id);
-            Require(shortcut != null && ToolTip.GetTip(button) is string tip && tip.Contains(shortcut, StringComparison.Ordinal),
+            string? shortcut = MeowChan.Desktop.Commands.ShortcutService.Current.Display(id);
+            string[] lines = (ToolTip.GetTip(button) as string ?? "").Split('\n');
+            Require(shortcut != null && lines[0].EndsWith(" · " + shortcut, StringComparison.Ordinal),
                 "The footer tooltip of " + id + " does not name its digit shortcut (" + shortcut + ").");
+            Require(lines.Length == 2 && lines[1] == Texts.T("command." + id + ".tip") && descriptions.Add(lines[1]),
+                "The footer tooltip of " + id + " lacks a unique page description.");
         }
     }
 

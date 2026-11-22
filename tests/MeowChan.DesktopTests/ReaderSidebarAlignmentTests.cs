@@ -15,7 +15,7 @@ public sealed class ReaderSidebarAlignmentTests
     public void FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation() => OnDispatcher(() =>
     {
         Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
-        Assert.Equal(8, ReaderMediaSidebar.HeaderGap);
+        Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
         Assert.Equal(MediaPage.PanelHeaderLineHeight, ReaderMediaSidebar.HeaderLineHeight);
         ArchivePage page = Page();
         try
@@ -59,6 +59,11 @@ public sealed class ReaderSidebarAlignmentTests
                 TextBlock metadata = Assert.Single(sidebar.HeaderRow.GetVisualDescendants().OfType<TextBlock>(),
                     text => text.Name == "ReaderMediaSidebarHeader");
                 Assert.Equal(sidebar.HeaderLine, ToolTip.GetTip(metadata));
+                Assert.Equal(2, metadata.TextLayout.TextLines.Count);
+                Assert.True(metadata.TranslatePoint(new Point(0, metadata.Bounds.Height), sidebar)!.Value.Y
+                    <= sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y);
+                Assert.True(sidebar.Open.TranslatePoint(new Point(0, sidebar.Open.Bounds.Height), sidebar)!.Value.Y
+                    <= metadata.TranslatePoint(default, sidebar)!.Value.Y);
 
                 Layout(root, new Size(1440, 900));
                 Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);

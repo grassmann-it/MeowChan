@@ -961,10 +961,9 @@
     <Style Selector="DataGridRow:selected /template/ Border#BackgroundBorder">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
     </Style>
-    <!-- Semi draws separate outlines for the current cell and for cell focus. Suppress both in row tables,
-         leaving editable grids and columns marked cell-action their own cell indicators. -->
-    <Style Selector="DataGrid.row-focus DataGridCell:not(.cell-action) /template/ Rectangle#CurrencyVisual,
-                     DataGrid.row-focus DataGridCell:not(.cell-action) /template/ Panel#FocusVisual">
+    <!-- Semi draws separate outlines for the current cell and for cell focus. Row tables use the row border. -->
+    <Style Selector="DataGrid.row-focus DataGridCell /template/ Rectangle#CurrencyVisual,
+                     DataGrid.row-focus DataGridCell /template/ Panel#FocusVisual">
         <Setter Property="Opacity" Value="0" />
     </Style>
     <Style Selector="DataGrid.row-focus:focus-within DataGridRow.current-cell-row /template/ Border#BackgroundBorder">
@@ -1030,6 +1029,17 @@
     <!-- AX-05 (a11y package): ToggleSwitch and TabItem are listed explicitly; a type selector does not match derived types, so the ToggleButton entry never reached ToggleSwitch, and TabItem was never listed. -->
     <Style Selector="Button, ToggleButton, ToggleSwitch, TabItem, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="Button.row-action">
+        <Setter Property="FocusAdorner">
+            <Template>
+                <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
+                        CornerRadius="{StaticResource Workspace.Radius.Control}" IsHitTestVisible="False">
+                    <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                            CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
+                </Border>
+            </Template>
+        </Setter>
     </Style>
     <!-- An inline link: accent text only, no outline and no fill (the default button outline made About links look like boxes). -->
     <Style Selector="Button.link">

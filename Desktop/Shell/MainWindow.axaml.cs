@@ -1348,8 +1348,7 @@ public partial class MainWindow : Window
         bool paused = _session.Projection.IsPaused;
         MenuItem menu = PauseMenuItem;
         menu.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
-        CommandBindings.Apply(menu, "session.pause");
-        menu.Header = Texts.T(paused ? "action.resume" : "action.pause");
+        CommandBindings.Apply(menu, "session.pause", label: () => Texts.T(paused ? "action.resume" : "action.pause"));
         menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
         Button button = PauseButton;
         button.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
@@ -1361,7 +1360,7 @@ public partial class MainWindow : Window
         string label = Texts.T(_session.Projection.IsPauseTransitioning ? "action.pausingShort" : paused ? "action.resume" : "action.pause");
         Avalonia.Automation.AutomationProperties.SetName(button, label);
         button.Classes.Set("selected", paused);
-        string tip = label + " · " + CommandCatalog.ShortcutDisplay("session.pause") + " · " + CommandCatalog.ScopeHint("session.pause");
+        string tip = CommandBindings.Tooltip("session.pause", visibleLabel: label);
         ToolTip.SetTip(button, tip);
         Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
     }
