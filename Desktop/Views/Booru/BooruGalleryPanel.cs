@@ -97,10 +97,12 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         Focusable = false;
         AutomationProperties.SetControlTypeOverride(this, AutomationControlType.Group);
 
-        _stage.Child = new Panel { Children = { _image, _placeholder } };
+        Border focusRing = new() { Classes = { "booru-stage-focus" }, IsHitTestVisible = false };
+        AutomationProperties.SetAccessibilityView(focusRing, AccessibilityView.Raw);
+        _stage.Child = new Panel { Children = { _image, _placeholder, focusRing } };
         _stage[!BackgroundProperty] = new DynamicResourceExtension(StageBackground);
         AddHandler(KeyDownEvent, (_, e) => RouteKey(e), RoutingStrategies.Tunnel);
-        _stage.Classes.Add("workspace-card-focusable");
+        _stage.Classes.Add("booru-stage");
         AutomationProperties.SetControlTypeOverride(_stage, AutomationControlType.Image);
         AutomationProperties.SetAccessibilityView(_image, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(_placeholder, AccessibilityView.Raw);
@@ -147,7 +149,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     /// <summary>Decodes still-image bytes to at most the given width (null: not decodable); the seam lets tests run without a rendering platform.</summary>
     internal Func<byte[], int, IImage?>? Decoder { get; set; }
 
-    /// <summary>The height of the stage; the view sets it from the window so the picture fills the tab.</summary>
+    /// <summary>The stage height fitted to the results viewport, with a minimum on a short window.</summary>
     internal double StageHeight
     {
         get => _stage.Height;
@@ -180,7 +182,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         if (!_disposed && _currentId is not null && _stage.IsEffectivelyVisible) _stage.Focus(NavigationMethod.Directional);
     }
 
-    internal void RouteKey(KeyEventArgs e)
+    private void RouteKey(KeyEventArgs e)
     {
         if (_currentId is not null) _toolbar.RouteKey(e, _stage);
     }

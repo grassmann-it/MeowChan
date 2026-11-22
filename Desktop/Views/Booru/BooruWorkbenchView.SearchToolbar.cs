@@ -1,11 +1,35 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
+using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Booru;
 
 internal sealed partial class BooruWorkbenchView
 {
+    private static HelpContent BuildSearchHelp(BooruSearchView view)
+    {
+        List<string> paragraphs = [Texts.T("booru.ui.provider", view.ProviderName), Texts.T("booru.ui.intro")];
+        if (ExecutedSearchText(view) is { } executed) paragraphs.Add(executed);
+        if (DraftSearchText(view) is { } draft) paragraphs.Add(draft);
+        if (view.Mode == BooruInputMode.Tags) paragraphs.Add(Texts.T("booru.ui.query.hint"));
+        paragraphs.Add(Texts.T("booru.ui.noFilterNote"));
+        return new HelpContent(Texts.T("booru.ui.title"), paragraphs, []);
+    }
+
+    private static string? ExecutedSearchText(BooruSearchView view) =>
+        view.ExecutedQuery is { } query ? Texts.T("booru.ui.query.sent", query)
+        : view.ExecutedPostId is { } postId ? Texts.T("booru.ui.post.sent", postId) : null;
+
+    private static string? DraftSearchText(BooruSearchView view) => view.Parsed.Kind switch
+    {
+        BooruInputKind.Tags when view.Parsed.Canonical != view.ExecutedQuery => Texts.T("booru.ui.query.draft", view.Parsed.Canonical),
+        BooruInputKind.Post when view.Parsed.PostId != view.ExecutedPostId => Texts.T("booru.ui.query.draft", "#" + view.Parsed.PostId),
+        _ => null
+    };
+
     private sealed class SearchToolbar : Panel
     {
         private const double Gap = 8;

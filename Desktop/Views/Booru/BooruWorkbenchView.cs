@@ -40,7 +40,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal const string SubmitName = "BooruSubmit";
     internal const string CancelName = "BooruCancel";
     internal const string RetryName = "BooruRetry";
-    internal const string QueryName = "BooruQuery";
+    internal const string SearchHelpName = "BooruSearchHelp";
     internal const string StatusName = "BooruStatus";
     internal const string PreviousName = "BooruPreviousPage";
     internal const string NextName = "BooruNextPage";
@@ -88,8 +88,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly IDisposable _keyContextHost;
 
     private readonly TextBlock _title = new() { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _intro = new() { Classes = { "workspace-help" } };
-    private readonly TextBlock _provider = new() { Classes = { "workspace-meta" } };
+    private readonly HelpButton _searchHelp = new() { Name = SearchHelpName };
     private readonly TabControl _tabs = new() { Name = TabsName, Classes = { "booru-tabs" } };
     private readonly TabItem _searchTab = new() { Tag = BooruSearchTabs.PrimaryId, Classes = { "booru-tab" } };
     private readonly TabItem _watchersTab = new() { Name = WatchersTabName };
@@ -98,8 +97,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false };
     private readonly Button _submit = new() { Name = SubmitName };
     private readonly Button _cancel = new() { Name = CancelName };
-    private readonly SelectableTextBlock _queryLine = new() { Name = QueryName, Classes = { "workspace-meta", "mono" } };
-    private readonly TextBlock _queryHint = new() { Classes = { "workspace-help" } };
     // Why the field is not accepted, shown under it: the red border alone is colour only.
     private readonly TextBlock _inputIssue = new() { Name = InputIssueName, Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly Border _statusHost = new() { Name = StatusName };
@@ -194,7 +191,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ScrollViewer scroll = new()
         {
             Name = "BooruWorkbenchScroll", Content = body,
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
         };
         Grid.SetRow(scroll, 1); layout.Children.Add(scroll);
         Grid.SetRow(footer, 2); layout.Children.Add(footer);
@@ -295,13 +293,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private Control BuildHeader()
     {
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), ColumnSpacing = 12 };
-        StackPanel details = new() { Spacing = 4 };
-        details.Children.Add(_title);
-        details.Children.Add(_provider);
-        details.Children.Add(_intro);
-        header.Children.Add(details);
+        _title.VerticalAlignment = VerticalAlignment.Center;
+        header.Children.Add(_title);
+        _searchHelp.Source = () => BuildSearchHelp(_model.Search.View);
         _openWatchers.Click += (_, _) => ShowWatchers();
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, Children = { _openWatchers, _more } };
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, Children = { _openWatchers, _more, _searchHelp } };
         Grid.SetColumn(actions, 1);
         header.Children.Add(actions);
         _tabLimitHost.Child = _tabLimitText;
@@ -362,7 +358,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         SearchToolbar searchToolbar = new(_mode, _input, _submit, BuildSearchTabActions());
 
-        _queryLine.TextWrapping = TextWrapping.Wrap;
         StackPanel status = new() { Spacing = 8 };
         status.Children.Add(_statusText);
         status.Children.Add(_retry);
@@ -384,14 +379,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(searchToolbar);
         AutomationProperties.SetLiveSetting(_inputIssue, AutomationLiveSetting.Polite);
         tab.Children.Add(_inputIssue);
-        tab.Children.Add(_queryLine);
-        tab.Children.Add(_queryHint);
         tab.Children.Add(_noticeHost);
         tab.Children.Add(BuildBulkStatus());
         tab.Children.Add(_statusHost);
         tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
-        _resultScroll.Content = new StackPanel { Spacing = 12, Children = { _results, BuildBottomBar() } };
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 12, Children = { tab, _resultScroll } };
+        _resultsArea.Children.Add(_results);
+        _resultsArea.Children.Add(BuildBottomBar());
+        _resultScroll.Content = _resultsArea;
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 8, Children = { tab, _resultScroll } };
         Grid.SetRow(_resultScroll, 1);
         return layout;
     }
@@ -421,7 +416,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(_watchersState);
         tab.Children.Add(_watchersReload);
         tab.Children.Add(_watchers);
-        return tab;
+        return new ScrollViewer
+        {
+            Content = tab, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+        };
     }
 
     private static bool ShortcutServiceCapturing() => MeowChan.Desktop.Commands.ShortcutService.IsCapturing;
@@ -499,8 +497,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private void RenderChrome()
     {
         _title.Text = Texts.T("booru.ui.title");
-        _provider.Text = Texts.T("booru.ui.provider", _model.Search.View.ProviderName);
-        _intro.Text = Texts.T("booru.ui.intro");
         _searchTab.Header = Texts.T("booru.ui.tab.search");
         Footer.IsVisible = _linkNote.IsVisible = _linkNoteState is not null;
         _linkNote.Text = _linkNoteState is { } note ? Texts.T(note.Key, note.Argument) : string.Empty;
@@ -539,25 +535,15 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _cancel.Content = Texts.T("booru.ui.cancel");
         _cancel.IsVisible = view.IsBusy;
 
-        bool hasSearched = view.ExecutedQuery is not null || view.ExecutedPostId is not null;
-        _queryLine.IsVisible = !hasSearched && view.Parsed.Kind is BooruInputKind.Tags or BooruInputKind.Post;
-        _queryLine.Text = view.Parsed.Kind switch
-        {
-            BooruInputKind.Tags => Texts.T("booru.ui.query.sent", view.Parsed.Canonical),
-            BooruInputKind.Post => Texts.T("booru.ui.post.sent", view.Parsed.PostId),
-            _ => string.Empty
-        };
-        _queryHint.IsVisible = !hasSearched && view.Mode == BooruInputMode.Tags;
-        _queryHint.Text = Texts.T("booru.ui.query.hint");
-        string? queryHelp = view.ExecutedQuery is { } sentQuery ? Texts.T("booru.ui.query.sent", sentQuery)
-            : view.ExecutedPostId is { } sentPost ? Texts.T("booru.ui.post.sent", sentPost) : _queryLine.Text;
         string help = string.Join(Environment.NewLine, new[]
         {
-            issue, queryHelp, view.Mode == BooruInputMode.Tags ? _queryHint.Text : null,
+            issue, ExecutedSearchText(view), DraftSearchText(view),
+            view.Mode == BooruInputMode.Tags ? Texts.T("booru.ui.query.hint") : null,
             Texts.T("booru.ui.noFilterNote")
         }.Where(text => !string.IsNullOrEmpty(text)));
         ToolTip.SetTip(_input, help);
         AutomationProperties.SetHelpText(_input, help);
+        _searchHelp.Refresh();
 
         string createName = Texts.T("booru.tabs.watchShort");
         _createWatcher.Content = createName;

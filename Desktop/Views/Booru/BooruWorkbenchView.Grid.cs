@@ -6,6 +6,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -182,7 +183,11 @@ internal sealed partial class BooruWorkbenchView
     internal void SetResultView(BooruResultView view, bool save)
     {
         if (_closed || view == _resultView) { SyncViewBar(); return; }
-        if (view == BooruResultView.Gallery) _galleryReturn = _resultView;
+        if (view == BooruResultView.Gallery)
+        {
+            _galleryReturn = _resultView;
+            _resultScroll.ScrollToHome();
+        }
         bool focus = _results.IsKeyboardFocusWithin;
         string? focused = focus ? (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual)?.GetSelfAndVisualAncestors()
             .OfType<Control>().FirstOrDefault(control => control.Name?.StartsWith("BooruResult:", StringComparison.Ordinal) == true)?.Name : null;
@@ -194,7 +199,12 @@ internal sealed partial class BooruWorkbenchView
             SaveResultView?.Invoke(view);
             if (view == BooruResultView.Gallery) ShowInGallery(_model.Search.View, requestSample: true);
         }
-        if (view == BooruResultView.Gallery) FocusGalleryStage();
+        if (view == BooruResultView.Gallery)
+        {
+            FocusGalleryStage();
+            // The segmented control moves focus to the newly selected segment after its keyboard handler runs.
+            Dispatcher.UIThread.Post(() => { if (_viewToggle.IsKeyboardFocusWithin) FocusGalleryStage(); }, DispatcherPriority.Loaded);
+        }
         else if (focused is not null) FocusHit(focused["BooruResult:".Length..]);
     }
 
@@ -227,7 +237,7 @@ internal sealed partial class BooruWorkbenchView
 
     private void RenderResultViewBar(BooruSearchView view)
     {
-        _viewBar.IsVisible = view.Rows.Any();
+        _viewBar.IsVisible = view.Rows.Any() || _pager.IsVisible;
         _viewToggle.SetIconItem(0, "list", Texts.T("tagging.page.view.list"), Texts.T("booru.ui.view.listHint"));
         _viewToggle.SetIconItem(1, "grid", Texts.T("tagging.page.view.grid"), Texts.T("booru.ui.view.gridHint"));
         _viewToggle.SetIconItem(2, "image", Texts.T("booru.gallery.name"), Texts.T("booru.gallery.hint"));

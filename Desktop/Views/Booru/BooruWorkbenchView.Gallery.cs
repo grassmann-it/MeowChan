@@ -2,12 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.VisualTree;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.Booru;
@@ -24,8 +22,10 @@ internal sealed partial class BooruWorkbenchView
     private readonly ScrollViewer _resultScroll = new()
     {
         Name = "BooruResultScroll", HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-        VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, IsTabStop = false
+        VerticalScrollBarVisibility = ScrollBarVisibility.Auto, IsTabStop = false
     };
+    private readonly StackPanel _resultsArea = new() { Spacing = 8 };
+    private readonly StackPanel _bottomBar = new() { Spacing = 8 };
     private string? _cursorPostId;
     private BooruResultView _galleryReturn = BooruResultView.List;
 
@@ -62,33 +62,17 @@ internal sealed partial class BooruWorkbenchView
         };
         _gallery.OpenWindowRequested = postId => OpenResultViewer(postId);
         _gallery.LeaveRequested = LeaveGallery;
-        AddHandler(KeyDownEvent, (_, e) =>
+        _resultScroll.PropertyChanged += (_, e) =>
         {
-            if (_resultView == BooruResultView.Gallery && IsSearchItem(_tabs.SelectedItem))
-                _gallery.RouteKey(e);
-        }, RoutingStrategies.Tunnel);
-        SizeChanged += (_, _) => UpdateGalleryStageHeight();
+            if (e.Property == ScrollViewer.ViewportProperty) UpdateGalleryStageHeight();
+        };
+        _gallery.SizeChanged += (_, _) => UpdateGalleryStageHeight();
+        _bottomBar.SizeChanged += (_, _) => UpdateGalleryStageHeight();
     }
 
     private BooruGallerySampleLimits ReadGallerySampleSettings() => BooruGallerySampleLimits.FromSettings(
         GallerySampleMiB?.Invoke(), GalleryCacheMiB?.Invoke(), GalleryMaximumPixels?.Invoke(), GalleryMaximumWidth?.Invoke(),
         GalleryTimeoutSeconds?.Invoke());
-
-    private void UpdateGalleryScroll()
-    {
-        bool gallery = _resultView == BooruResultView.Gallery && _viewBar.IsVisible && IsSearchItem(_tabs.SelectedItem);
-        // One scroll owner at a time. The gallery can scroll its stage and pager below the fixed view switch.
-        if (Body.FindAncestorOfType<ScrollViewer>() is { Name: "BooruPageScroll" or "BooruWorkbenchScroll" } outer)
-        {
-            var visibility = gallery ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
-            if (outer.VerticalScrollBarVisibility != visibility)
-            {
-                outer.Offset = default;
-                outer.VerticalScrollBarVisibility = visibility;
-            }
-        }
-        _resultScroll.VerticalScrollBarVisibility = gallery ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
-    }
 
     private async Task DownloadOriginalAsync(string postId)
     {
@@ -98,15 +82,13 @@ internal sealed partial class BooruWorkbenchView
         else if (row.CanLoad) await _model.Search.LoadOriginalAsync(postId);
     }
 
-    /// <summary>The stage fills most of the window below the controls of the page (never less than its minimum).</summary>
+    /// <summary>Use the measured room after the gallery controls and pager, including any wrapped translations.</summary>
     private void UpdateGalleryStageHeight()
     {
-        if (TopLevel.GetTopLevel(this) is not { } top) return;
-        _gallery.StageHeight = top.ClientSize.Height - GalleryReservedHeight;
+        if (_resultView != BooruResultView.Gallery || !ReferenceEquals(_gallery.Parent, _results)) return;
+        double galleryChrome = _gallery.Bounds.Height - _gallery.Stage.Bounds.Height;
+        _gallery.StageHeight = _resultScroll.Viewport.Height - galleryChrome - _bottomBar.Bounds.Height - _resultsArea.Spacing;
     }
-
-    /// <summary>What the page keeps for its own controls above and below the stage, in dip (title, search row, view bar, gallery bar, status, pager).</summary>
-    private const double GalleryReservedHeight = 420;
 
     // ---- cursor ---------------------------------------------------------------------------------------------
 
@@ -165,7 +147,7 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_closed || _resultView != BooruResultView.Gallery) return;
         bool focusWasInResults = _results.IsKeyboardFocusWithin;
-        SetResultView(_galleryReturn == BooruResultView.Gallery ? BooruResultView.List : _galleryReturn, save: false);
+        SetResultView(_galleryReturn, save: false);
         if (!focusWasInResults && _cursorPostId is { } id) FocusHit(id);
     }
 

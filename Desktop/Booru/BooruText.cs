@@ -159,7 +159,7 @@ internal static class BooruText
             "booru.ui.title", "booru.ui.command.open", "booru.ui.intro", "booru.ui.provider", "booru.ui.noFilterNote",
             "booru.ui.tab.search", "booru.ui.tab.watchers", "booru.ui.mode.label", "booru.ui.mode.tags", "booru.ui.mode.post",
             "booru.ui.input.label", "booru.ui.input.placeholder.tags", "booru.ui.input.placeholder.post", "booru.ui.search",
-            "booru.ui.lookup", "booru.ui.cancel", "booru.ui.query.sent", "booru.ui.query.hint", "booru.ui.post.sent",
+            "booru.ui.lookup", "booru.ui.cancel", "booru.ui.query.sent", "booru.ui.query.draft", "booru.ui.query.hint", "booru.ui.post.sent",
             "booru.ui.page.info", "booru.ui.page.previous", "booru.ui.page.next", "booru.ui.page.limit",
             "booru.ui.status.idle", "booru.ui.status.idlePost", "booru.ui.status.searching", "booru.ui.status.lookingUp",
             "booru.ui.status.results", "booru.ui.status.post", "booru.ui.status.empty", "booru.ui.status.offline",

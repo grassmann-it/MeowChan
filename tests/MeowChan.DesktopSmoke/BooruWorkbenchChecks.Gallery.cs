@@ -23,13 +23,13 @@ internal static partial class BooruWorkbenchChecks
         string result = BooruText.SearchStatus(page.Model.Search.View, false);
         Require(!resultLine.IsVisible && pageInfo.IsEffectivelyVisible
             && AutomationProperties.GetLiveSetting(pageInfo) == AutomationLiveSetting.Polite
-            && AutomationProperties.GetName(pageInfo)!.Contains(result) && Equals(ToolTip.GetTip(pageInfo), result),
+            && AutomationProperties.GetName(pageInfo)!.Contains(result) && (ToolTip.GetTip(pageInfo) as string)?.Contains(result) == true,
             "The gallery pager must keep the result status as accessible help and a polite announcement.");
         TextBlock position = Find<TextBlock>(gallery, "BooruGalleryPosition");
         Require(position.Text == "1 of 3" && !gallery.PreviousButton.IsEnabled, "The gallery must start at the first result.");
-        page.View.ViewToggle.Third.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
+        gallery.Stage.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
         await SettleAsync(owner);
-        Require(position.Text == "2 of 3" && gallery.CurrentPostId == "102", "Right on the mode switch did not advance the gallery.");
+        Require(position.Text == "2 of 3" && gallery.CurrentPostId == "102", "Right on the stage did not advance the gallery.");
 
         Button openPost = Find<Button>(gallery, "BooruGalleryOpenPost");
         Button openWindow = Find<Button>(gallery, "BooruGalleryOpenWindow");
@@ -50,18 +50,6 @@ internal static partial class BooruWorkbenchChecks
             && AutomationProperties.GetName(openWindow) == "Open in new window" && ToolTip.GetTip(openWindow) as string == "Open in new window"
             && (ToolTip.GetTip(openPost) as string)?.Contains("/posts/102", StringComparison.Ordinal) == true,
             "The gallery toolbar actions lack their visual hierarchy or tooltips.");
-        ScrollViewer results = Find<ScrollViewer>(page, "BooruResultScroll");
-        Rect switchBefore = SearchLayoutBounds(page.View.ViewToggle, owner);
-        double stageHeight = gallery.StageHeight;
-        gallery.StageHeight = Math.Max(stageHeight, results.Viewport.Height + 32);
-        await SettleAsync(owner);
-        results.ScrollToEnd();
-        await SettleAsync(owner);
-        Require(results.Offset.Y > 0 && SearchLayoutBounds(page.View.ViewToggle, owner) == switchBefore,
-            "Scrolling to the pager clipped or moved the gallery's view switch.");
-        gallery.StageHeight = stageHeight;
-        results.ScrollToHome();
-        await SettleAsync(owner);
         Capture(owner, shots, "gallery-toolbar-light");
         page.View.SetResultView(BooruResultView.List, save: false);
     }
