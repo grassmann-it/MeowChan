@@ -41,6 +41,7 @@ internal static partial class MediaPageChecks
             ComboBox sort = C<ComboBox>(page, "MediaSort");
             Button direction = C<Button>(page, "MediaSortDirection"), refresh = C<Button>(page, "MediaRefresh"), layout = C<Button>(page, "MediaLayout"), more = C<Button>(page, "MediaMore");
             Control search = C<Control>(page, "MediaNameFilter"), filters = C<Control>(page, "MediaFilters");
+            ToggleButton tags = C<ToggleButton>(page, "MediaBooruMode"), media = C<ToggleButton>(page, "MediaPanelToggle");
             string[] Order() => page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")).ToArray();
 
             // Layout: search, filters and the order in one group on the left, the view tools on the right, in one row.
@@ -53,10 +54,16 @@ internal static partial class MediaPageChecks
                 foreach (Control tool in new Control[] { search, filters, sort, direction, more })
                     Require(!tool.IsVisible || X(tool) + tool.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5,
                         "The " + stage + " toolbar must show " + tool.Name + " completely: right edge " + (X(tool) + tool.Bounds.Width) + " of " + page.ToolbarRow.Bounds.Width);
-                foreach (Control tool in new Control[] { C<ToggleButton>(page, "MediaBooruMode"), layout, refresh })
+                foreach (Control tool in new Control[] { tags, media, layout, refresh })
                     Require(!tool.IsVisible || X(tool) + tool.Bounds.Width <= page.ToolbarRow.Bounds.Width + 0.5,
                         "The " + stage + " toolbar must show " + tool.Name + " completely.");
+                Require(tags.IsEffectivelyVisible && media.IsEffectivelyVisible
+                    && tags.Parent is SidebarToggleGroup group && ReferenceEquals(media.Parent, group)
+                    && Math.Abs(X(media) - X(tags) - tags.Bounds.Width) <= 1
+                    && Math.Abs(X(more) - X(media) - media.Bounds.Width - ActionToolBarPanel.ItemGap) <= 1,
+                    "The " + stage + " toolbar must keep the Tag list and Media sidebar switches joined directly before More.");
             }
+            RequireToolbarFits("initial (1100)");
             Require(X(search) < X(filters) && X(filters) + filters.Bounds.Width < X(sort) && X(sort) + sort.Bounds.Width <= X(direction)
                 && X(direction) + direction.Bounds.Width <= X(refresh) && X(refresh) + refresh.Bounds.Width <= X(more),
                 "The toolbar must read search, filters, order, direction, then the view tools: refresh, more.");
