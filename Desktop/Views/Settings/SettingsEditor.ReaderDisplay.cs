@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Linq;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Persistence;
 
 namespace MeowChan;
 
@@ -123,8 +125,20 @@ public partial class SettingsEditor
     private decimal? _postFilterRuleLimit;
     public decimal? PostFilterRuleLimit { get => _postFilterRuleLimit; set => SetField(ref _postFilterRuleLimit, value, nameof(PostFilterRuleLimit)); }
     public string PostFilterRuleLimitLabel => Texts.T("settings.limits.postFilterRules");
-    public string PostFilterRuleLimitHint => Texts.T("settings.limits.postFilterRules.hint") + " " + Texts.T("settings.reader.range", Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum);
+    private int? _enabledPostFilterRules;
+    public string PostFilterRuleLimitHint => (_enabledPostFilterRules is int count ? Texts.T("settings.limits.postFilterRules.active", count) + " " : string.Empty)
+        + Texts.T("settings.limits.postFilterRules.hint") + " " + Texts.T("settings.reader.range", Config.PostFilterRuleLimitMinimum, Config.PostFilterRuleLimitMaximum);
     public string PostFilterRuleLimitHelp => FieldHelp(nameof(PostFilterRuleLimitInput), PostFilterRuleLimitHint);
+
+    internal void UpdatePostFilterRules(PostFilterSnapshot? snapshot)
+    {
+        int? count = snapshot is { State: PostFilterStoreState.Ready }
+            ? snapshot.Rules.Count(rule => rule.CanApply && rule.Enabled) : null;
+        if (_enabledPostFilterRules == count) return;
+        _enabledPostFilterRules = count;
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PostFilterRuleLimitHint)));
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(PostFilterRuleLimitHelp)));
+    }
     private decimal? _hiddenPostLimit;
     public decimal? HiddenPostLimit { get => _hiddenPostLimit; set => SetField(ref _hiddenPostLimit, value, nameof(HiddenPostLimit)); }
     public string HiddenPostLimitLabel => Texts.T("settings.limits.hiddenPosts");

@@ -18,6 +18,7 @@ public sealed class HelpPlacesTests : IDisposable
         ("help.rules", "Desktop/Views/Rules/RulesPage.axaml"),
         ("help.workviews", "Desktop/Views/Settings/SettingsEditor.axaml"),
         ("help.limits", "Desktop/Views/Settings/SettingsEditor.axaml"),
+        ("help.diagnosticCounts", "Desktop/Views/Diagnostics/DiagnosticsPage.axaml"),
         ("help.statsSettings", "Desktop/Views/Settings/SettingsEditor.axaml"),
         ("help.admissionWizard", "Desktop/Views/Settings/SettingsEditor.axaml"),
         ("help.plugins", "Desktop/Views/Plugins/PluginsPage.axaml"),

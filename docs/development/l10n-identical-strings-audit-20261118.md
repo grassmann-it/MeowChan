@@ -42,6 +42,23 @@ each exact-match set (`key`, tab, source-equal value) and recomputes it from the
 embedded JSON and `BuiltInCatalog.English`. This prevents a future newly copied
 English value from being silently accepted without an explicit audit update.
 
+## B1 inventory update
+
+The English catalog has 5,363 unique keys, including two empty sentinels. B1 added four translated keys to each bundled pack. The exact-English sets and their SHA-256 fingerprints stay the same.
+
+| Pack | Pack entries | Exact English values |
+|---|---:|---:|
+| `cs` | 5,407 | 93 |
+| `es` | 5,359 | 84 |
+| `fr` | 5,359 | 120 |
+| `it` | 5,365 | 128 |
+| `ja` | 5,257 | 58 |
+| `ko` | 5,257 | 53 |
+| `pl` | 5,408 | 95 |
+| `pt-BR` | 5,365 | 143 |
+| `ru` | 5,385 | 60 |
+| `zh-Hans` | 5,257 | 48 |
+
 ## Why the equal values remain
 
 The audited equal values are source-backed, context-specific values in these

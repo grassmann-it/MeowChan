@@ -6,7 +6,11 @@
 
 MeowChan verwahrt bereits gespeicherte Chan-Medien lokal. Sie können sie im Archiv und in der Galerie ansehen, navigieren und als Medienfavoriten markieren. Threads lassen sich zusätzlich als Threadfavoriten markieren. Ein favoritenbezogener Archiv-Überblick kann vorhandene Favoriten nach aktuellem, ausgewähltem, gefiltertem oder ganzem Archivumfang suchen, lokal prüfen, anzeigen, entfernen und die angezeigten Originale exportieren. Lokales Ansehen und Prüfen allein startet keinen Download.
 
-Booru-Suche, Booru-Sammlungen, ein universeller Sammlungs-Browser und ein Import-/Apply-Ablauf gehören weiterhin nicht zum freigeschalteten Umfang. Im Archivkopf ist zusätzlich die unten beschriebene Suche über gespeicherte Dateinamenmetadaten erreichbar.
+## Danbooru durchsuchen
+
+Öffnen Sie **Mehr → Booru** in der Hauptnavigation, geben Sie Tags ein und wählen Sie **Suchen**. Sie erreichen die Seite auch über **Medien → Mehr → Booru öffnen**. Das Danbooru-Plugin muss unter **Plugins → Alle Plugins** verfügbar und aktiviert sein. Falls Booru ausgeblendet ist, aktivieren Sie **Booru-Aktionen anzeigen** unter **Einstellungen → Oberfläche → Fußleiste**.
+
+Die Suche liefert öffentliche Danbooru-Posts. Sie können Treffer in der Vorschau ansehen und ausgewählte Originale ausdrücklich zum Download einreihen. Die Bedienwege stehen unter [Danbooru-Suche und Suchbeobachtungen](../Help.md#danbooru-search-and-watchers).
 
 ## Gespeicherte Dateinamen im Archiv suchen
 
@@ -36,20 +40,16 @@ Das Favoritenzeichen oben links neben **Zurück zu …** zeigt **★** einen ges
 
 Die Favoritenübersicht löst die gewählte Menge gegen gespeicherte lokale Manifeste auf. Fehlende oder nicht verifizierbare Dateien bleiben Favoriten, werden aber als nicht verfügbar gemeldet und nicht exportiert. Der Originalexport friert die angezeigte Auswahl ein, meldet fehlende Dateien vor dem Kopieren und kopiert nur lokal verifizierte Dateien. Dabei wird kein Netzwerkabruf gestartet. Favoritenmarkierungen selbst werden dadurch nicht in ein anderes Profil übertragen.
 
-## Transferpaket prüfen und anwenden
+## Transferpakete prüfen und übernehmen
 
-Im Archivkopf öffnen Sie **Transferpaket prüfen…** und wählen im Dialog über **Transferpaket wählen…** eine vorhandene lokale ZIP-Datei. MeowChan prüft sie mit dem produktiven Paketleser und zeigt ein begrenztes Inventar: Threads, Beiträge, eindeutige Payloads, Bytegröße sowie Status vorhandener Originale, Vorschauen und erhaltener Bindungen. Für einen öffentlichen `chan-v4`-Einzelthread kann der Dialog anschließend einen Neu- oder Merge-Plan anwenden.
+Öffnen Sie im Archivkopf **Archiv importieren…** und wählen Sie über **Archiv wählen…** eine vorhandene ZIP-Datei. MeowChan prüft das Paket und zeigt den Bestand mit Threads, Posts und Medien an. Erst **Importieren** übernimmt den angezeigten Plan.
 
-Der Ablauf ist bei Apply ausdrücklich begrenzt:
+- Beim Zusammenführen werden bestehende Threads ergänzt. Medienkonflikte werden gemeldet. Nicht unterstützte Pakete und veraltete Pläne werden abgelehnt.
+- Die Prüfung und Übernahme laufen lokal.
+- Die Prüfung nutzt ein temporäres Arbeitsverzeichnis. MeowChan meldet zurückgebliebene temporäre Daten oder unklare Bereinigungszustände.
+- Nach einem Abbruch oder einer unterbrochenen Antwort zeigt der Wiederherstellungszustand, was übernommen wurde. Das erneute Anwenden derselben Operation erzeugt keine doppelten Schreibvorgänge.
 
-- Prüfen/Lesen verändert noch keinen Zielbestand. Apply ist eine separate, ausdrückliche Nutzeraktion gegen die angezeigte Generation.
-- Unterstützt ist aktuell nur der öffentliche Single-Thread-`chan-v4`-Pfad. Ein vorhandener oder 404ter Thread wird additiv gemergt; Originale, Favoriten, Bewertungen und Notizen werden nicht still überschrieben.
-- Private Transfermetadaten, Mehrthread-Apply, rootless Pakete und unklare/stale Pläne bleiben gesperrt, bis der jeweilige Consent-/Batch-/Recoveryvertrag abgenommen ist.
-- Es wird kein Quellenanbieter oder Netzwerk benutzt.
-- Die Prüfung schreibt eine temporäre Staging-Kopie in einen eigenen Arbeitsordner und versucht anschließend, die eigenen Staging-Dateien und Ordner zu entfernen. Prüfung und Abschluss warten auf diese Bereinigung; sie kann den Abschluss blockieren. Bleiben temporäre Daten zurück oder ist die Bereinigung unklar, wird das gemeldet.
-- Bei Apply werden Receipt-/Recoveryzustände reconciliert; ein Cancel oder eine verlorene Antwort wird nicht als sicherer Nicht-Apply behauptet. Ein erneuter Apply desselben Vorgangs ist idempotent.
-
-Die Oberfläche erstellt auch kein Transferpaket. Es gibt noch keine bedienbare Wahl zwischen vollständigem und kuratiertem Transfer, keine manuelle Nichtfavoritenauswahl für ein Transferpaket und keinen Transferexport anhand von Favoriten. Interne Archiv- und kuratierte Paketproduzenten sind technische Kernbausteine ohne vollständigen Exportdialog; der vorhandene Originalexport aus der Favoritenübersicht ist davon getrennt.
+Über **Archiv exportieren…** erstellen Sie Transferpakete für ausgewählte Threads oder das gesamte Archiv. Zur Wahl stehen **Nur Metadaten**, **Originale** und **Alles**. Der Export von Originaldateien aus dem Favoritenüberblick ist eine eigene Aktion.
 
 ## Videolautstärke, Mute und Wiederholen
 
@@ -80,7 +80,7 @@ Quellenlimits, Bandbreite, Medienprüfung und Festplattenkapazität gelten unabh
 
 ## Sprachen
 
-Neben Englisch und Deutsch sind **Español (Untested)**, **Français (Untested)** und **Русский (Untested)** direkt eingebunden und in Einstellungen auswählbar. Dafür muss kein Sprachpaket kopiert werden. Das bloße Einbinden ändert eine bestehende Sprachwahl nicht.
+Englisch und Deutsch sind eingebaut. Zehn [mitgelieferte Sprachvorschauen](../../Desktop/Localization/Packs/README.md) lassen sich ohne separaten Download in den Einstellungen auswählen.
 
 „Untested“ bedeutet hier: keine qualifizierte sprachliche oder native UI-Abnahme. Fehlende oder bewusst nicht übersetzte Flächen fallen auf Englisch zurück; einzelne Helfer und native Steuerungen können weiterhin Englisch zeigen. Aus dieser Vorschau folgt keine Windows-, macOS- oder sonstige Plattformabnahme.
 
@@ -98,15 +98,10 @@ Diese Vorschau ist bewusst inert:
 
 Nach einem Absturz, unsauberen Beenden oder ersten Start ohne geeigneten Cache gibt es diese Vorschau nicht. Sie ist keine Latenzgarantie und ersetzt keine Wiederherstellung.
 
-## Noch nicht freigeschaltet
+## Weitere lokale Sammlungswerkzeuge
 
-Die geplante Sammlungsrichtung — Booru-Suche, ausgewählte Originale, Offline-Bibliothek, kuratierte Ausgaben und ergänzender Import — ist Arbeit in Fortgang:
+- **SHA-256:** Hat der gespeicherte Thread genau einen Medienbestand, wählen Sie im Archiv oder Reader den Suchbereich **SHA-256** und geben Sie einen exakten Hash ein. Die Suche verwendet die erfassten Hashwerte dieses Bestands.
+- **Eigene Tags:** Sie können Threads und Medien taggen und die Medienseite nach eigenen Tags filtern. Die [Hilfe zu eigenen Tags](../Help.md#own-tags-and-the-shared-media-menu) beschreibt die Bedienwege.
+- **Lokale Dateien:** Über **Dateien importieren…** können Sie [eigene Dateien](../Help.md#importing-your-own-files) in die Medienbibliothek aufnehmen.
 
-- **SHA-256-Suche:** Der separate Dialog und der Operationskern existieren als technische Bausteine und prüfen einen exakten 64-Zeichen-ASCII-Hex-SHA-256 in genau einem erfassten Inventar. Sie öffnen und hashen keine Dateien neu. Archivoberfläche, Startbutton und produktiver Hash-Host sind bisher nicht verdrahtet; deshalb wird hier keine nutzbare Hashsuche angeboten.
-- **Booru:** Es gibt keine freigeschaltete Site-Suche, Quellenaufnahme, Sammlungsaufnahme oder Booru-Bibliothek. Eine interne, begrenzte Danbooru-Abfragesyntax existiert; sie ist kein Bedienelement, liest keine privaten Tags und stellt keinen Provider-, API- oder Netzwerkadapter dar.
-- **Eigene Tags:** Interne, begrenzte Tagmodelle existieren, aber es gibt keine Tag-Benutzeroberfläche, keine dauerhafte eigene Tag-Sammlung, keine Tag-Suche und keinen Tag-Transfer. Token-Chips in den Regeln sind Regelbestandteile, keine privaten Tags.
-- **Kuratierter Export:** Der interne Auswahl- und Projektionskern ist nicht in der Benutzeroberfläche freigelegt. Es gibt daher keinen bedienbaren „Favoriten plus kleine Vorschauen“-Export und keinen privaten Metadaten-Rundtrip.
-- **Interner Import-Merge:** Interne Vorbereitungs- und Vergleichsarbeit ist nicht bedienbar. Vorhandene Bestände oder 404-Threads können derzeit nicht über die App importiert und ergänzt werden.
-- **Fremdprogramme:** Es wird keine Grabber-, Hydrus-, gallery-dl- oder sonstige Fremdsammlungs-Kompatibilität behauptet.
-
-Bestehende HTML- und Originalexporte bleiben eigene Ausgabefunktionen. Sie sind kein vollständiger App-Rundtrip, kein Profilbackup, kein Transferpaket-Erzeuger und keine Importzusage.
+Transferpakete nur für Favoriten und der Import fremder Sammlungsformate gehören derzeit nicht zur Vorschau.

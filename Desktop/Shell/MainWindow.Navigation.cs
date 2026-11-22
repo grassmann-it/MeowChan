@@ -241,6 +241,7 @@ public partial class MainWindow
         {
             case 0:
                 _settingsEditor = new SettingsEditor(_config, ApplySettingsAsync, ForgetReadingPositionAsync);
+                RefreshSettingsPostFilters();
                 _settingsEditor.HeaderMonitorToggled += show =>
                     ChooseHeaderGraph(show ? IoStatsDisplay.HeaderGraphShownAgain(_lastShownHeaderGraph) : IoStatsDisplay.HeaderGraphOff);
                 _settingsEditor.Updates = _session.Updates;
