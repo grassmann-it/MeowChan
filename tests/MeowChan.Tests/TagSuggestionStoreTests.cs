@@ -175,6 +175,32 @@ public sealed class TagSuggestionStoreTests : IDisposable
     }
 
     [Fact]
+    public void ADecisionCannotTargetTwoTaggerDuplicatesInOneBatchOrByHiddenId()
+    {
+        TagSuggestionStore store = Store();
+        TagSuggestionSnapshot pending = store.CommitRuns([Run(MediaA, R1, ("cat", 0.9)),
+            Run(MediaA, R1 with { PluginId = "other" }, ("cat", 0.8))]);
+        long[] ids = pending.PendingFor(MediaA, 0.35).Select(suggestion => suggestion.Id).ToArray();
+        Assert.Equal(2, ids.Length);
+        byte[] before = File.ReadAllBytes(store.FilePath);
+
+        Assert.Equal(TagSuggestionStoreError.InvalidTransition, Assert.Throws<TagSuggestionStoreException>(() =>
+            store.Decide(ids, TagSuggestionState.Accepted, pending.Revision)).Error);
+        Assert.Equal(before, File.ReadAllBytes(store.FilePath));
+
+        TagSuggestionSnapshot accepted = store.Decide([ids[0]], TagSuggestionState.Accepted, pending.Revision);
+        Assert.Empty(accepted.PendingFor(MediaA, 0.35));
+        byte[] decision = File.ReadAllBytes(store.FilePath);
+        Assert.Equal(TagSuggestionStoreError.InvalidTransition, Assert.Throws<TagSuggestionStoreException>(() =>
+            store.Decide([ids[1]], TagSuggestionState.Rejected, accepted.Revision)).Error);
+        Assert.Equal(decision, File.ReadAllBytes(store.FilePath));
+
+        TagSuggestionSnapshot undone = store.Decide([ids[0]], TagSuggestionState.Pending, accepted.Revision);
+        TagSuggestionSnapshot rejected = store.Decide([ids[1]], TagSuggestionState.Rejected, undone.Revision);
+        Assert.Equal(ids[1], Assert.Single(rejected.Suggestions.Where(suggestion => suggestion.IsDecided)).Id);
+    }
+
+    [Fact]
     public void RepeatedWritesReuseOneStagingFileAndDoNotCreateSnapshots()
     {
         TagSuggestionStore store = Store();

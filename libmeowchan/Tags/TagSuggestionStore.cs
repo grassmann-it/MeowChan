@@ -205,11 +205,10 @@ internal sealed partial class TagSuggestionStore
                 if (index < 0) throw new TagSuggestionStoreException(TagSuggestionStoreError.UnknownSuggestion);
                 StoredTagSuggestion current = document.Suggestions[index];
                 bool allowed = target == TagSuggestionState.Pending
-                    ? current.IsDecided
-                    : current.State == TagSuggestionState.Pending;
-                if (!allowed) throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);
-                if (target == TagSuggestionState.Pending
-                    && document.Events.FindLast(review => review.SuggestionId == id)?.OperationId is not null)
+                    ? current.IsDecided && document.Events.FindLast(review => review.SuggestionId == id)?.OperationId is null
+                    : current.State == TagSuggestionState.Pending
+                        && !document.Suggestions.Any(value => value.IsDecided && value.TagKey == current.TagKey);
+                if (!allowed)
                     throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);
                 document.Suggestions[index] = current with { State = target, DecidedAt = target == TagSuggestionState.Pending ? null : now };
                 document.AddEvent(id, current.State, target, now);
