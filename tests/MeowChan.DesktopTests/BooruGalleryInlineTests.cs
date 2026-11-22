@@ -1,5 +1,6 @@
 using System.Reflection;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
@@ -59,15 +60,15 @@ public sealed class BooruGalleryInlineTests
     }
 
     [Fact]
-    public void TheStatusLineNamesPositionRatingPictureSampleAndOriginal() => OnDispatcher(() =>
+    public void TheStatusLineNamesRatingPictureSampleAndOriginal() => OnDispatcher(() =>
     {
         BooruResultRowView row = new(BooruUiFixtures.Post("55", sample: true, rating: BooruRating.Questionable), Preview: BooruPreviewState.Ready);
-        string loading = BooruGalleryStatus.Line(row, 2, 20, BooruGalleryPicture.Preview, BooruGallerySampleState.Loading, 8);
-        Assert.Equal("Post #55 · 3 of 20 · Danbooru rating: Questionable · Shown: preview · Larger version loading… · Original available", loading);
-        Assert.Contains("Shown: reduced-size version (sample)", BooruGalleryStatus.Line(row, 0, 1, BooruGalleryPicture.Sample, BooruGallerySampleState.Shown, 8));
-        Assert.Contains("larger than 8 MiB", BooruGalleryStatus.Line(row, 0, 1, BooruGalleryPicture.Preview, BooruGallerySampleState.Failed, 8));
-        Assert.Contains("offers no reduced-size version", BooruGalleryStatus.Line(row, 0, 1, BooruGalleryPicture.Preview, BooruGallerySampleState.NotOffered, 8));
-        Assert.Contains("Loading preview", BooruGalleryStatus.Line(row with { Preview = BooruPreviewState.Loading }, 0, 1, BooruGalleryPicture.None, BooruGallerySampleState.Loading, 8));
+        string loading = BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.Loading, 8);
+        Assert.Equal("Post #55 · Danbooru rating: Questionable · Shown: preview · Larger version loading… · Original available", loading);
+        Assert.Contains("Shown: reduced-size version (sample)", BooruGalleryStatus.Line(row, BooruGalleryPicture.Sample, BooruGallerySampleState.Shown, 8));
+        Assert.Contains("larger than 8 MiB", BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.Failed, 8));
+        Assert.Contains("offers no reduced-size version", BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.NotOffered, 8));
+        Assert.Contains("Loading preview", BooruGalleryStatus.Line(row with { Preview = BooruPreviewState.Loading }, BooruGalleryPicture.None, BooruGallerySampleState.Loading, 8));
         return Task.CompletedTask;
     });
 
@@ -116,7 +117,10 @@ public sealed class BooruGalleryInlineTests
                 Assert.Equal("101", view.CursorPostId);
                 Assert.Same(gallery, Results(view).Children.Single());
                 Assert.Equal(BooruGalleryPicture.Preview, gallery.Picture);
-                Assert.Contains("1 of 3", gallery.StatusText);
+                TextBlock position = GalleryPosition(gallery);
+                Assert.Equal("1 of 3", position.Text);
+                Assert.False(gallery.PreviousButton.IsEnabled);
+                Assert.True(gallery.NextButton.IsEnabled);
 
                 await BooruTestSupport.WaitAsync(() => gallery.Picture == BooruGalleryPicture.Sample, "the sample of 101");
                 Assert.Equal(BooruGallerySampleState.Shown, gallery.SampleState);
@@ -130,11 +134,13 @@ public sealed class BooruGalleryInlineTests
                 gallery.Stage.RaiseEvent(right);
                 Assert.True(right.Handled);
                 Assert.Equal("102", gallery.CurrentPostId);
+                Assert.Equal("2 of 3", position.Text);
                 Assert.Equal(BooruGalleryPicture.Preview, gallery.Picture);
                 await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 2, "the request of 102");
                 Assert.Equal(BooruGallerySampleState.Loading, gallery.SampleState);
                 gallery.Stage.RaiseEvent(Press(Key.Right, gallery.Stage));
                 Assert.Equal("103", gallery.CurrentPostId);
+                Assert.Equal("3 of 3", position.Text);
                 await BooruTestSupport.WaitAsync(() => secondCanceled, "the cancellation of the sample of 102");
                 Assert.Equal(BooruGallerySampleState.NotOffered, gallery.SampleState);
                 Assert.Contains("offers no reduced-size version", gallery.StatusText);
@@ -367,7 +373,7 @@ public sealed class BooruGalleryInlineTests
     });
 
     [Fact]
-    public void TheGallerySelectionUsesTheLocalizedSpaceKeyName() => OnDispatcher(async () =>
+    public void GalleryToolbarUpdatesThePositionAndSelectionHintWhenTheLanguageChanges() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model)
@@ -376,12 +382,28 @@ public sealed class BooruGalleryInlineTests
             await SearchAsync(harness, model, view);
             Texts.SetLanguage("de");
             Assert.True(view.OpenGallery("101"));
-            Assert.EndsWith(" · Leertaste", Assert.IsType<string>(view.Gallery.SelectBox.Content));
+            CheckBox selection = view.Gallery.SelectBox;
+            StackPanel content = Assert.IsType<StackPanel>(selection.Content);
+            TextBlock label = Assert.IsType<TextBlock>(content.Children[0]);
+            Border keycap = Assert.IsType<Border>(content.Children[1]);
+            Assert.Contains(KeyCapText.CapClass, keycap.Classes);
+            TextBlock key = Assert.IsType<TextBlock>(keycap.Child);
+            TextBlock position = GalleryPosition(view.Gallery);
+            Assert.Equal("1 von 3", position.Text);
+            Assert.Equal("Ausgewählt", label.Text);
+            Assert.Equal("Leertaste", key.Text);
+            Assert.Equal(key.Text, AutomationProperties.GetAcceleratorKey(selection));
+
             Texts.SetLanguage("ja");
-            view.OpenGallery("102");
-            Assert.EndsWith(" · " + Texts.Own("key.space"), Assert.IsType<string>(view.Gallery.SelectBox.Content));
+            await BooruTestSupport.WaitAsync(() => key.Text == Texts.Own("key.space"), "the localized gallery shortcut");
+            Assert.Equal(Texts.T("booru.gallery.position", 1, 3), position.Text);
+            Assert.Equal(Texts.Own("media.tile.selected"), label.Text);
+            Assert.Equal(key.Text, AutomationProperties.GetAcceleratorKey(selection));
         }
     });
+
+    private static TextBlock GalleryPosition(BooruGalleryPanel gallery) => gallery.GetLogicalDescendants().OfType<TextBlock>()
+        .Single(block => block.Name == "BooruGalleryPosition");
 
     private static T ControlField<T>(Control owner, string name) where T : Control =>
         Assert.IsType<T>(owner.GetType().GetField(name, Private)!.GetValue(owner));
