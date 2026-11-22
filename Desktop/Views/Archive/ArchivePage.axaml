@@ -228,7 +228,16 @@
                                 <!-- A2: the favourite star is the last column by key (saved widths and orders of older versions stay valid) and the first by
                                      display (ArchivePage.ViewPreferences pins it at DisplayIndex 0). 48 dip, not resizable or movable; the button is a 24 dip square
                                      (the width the 12 dip cell padding leaves) with the 18 dip star. -->
-                                <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
+                                <DataGridTemplateColumn Header="Favorite" SortMemberPath="FavoriteSortKey" Width="48" MinWidth="48" MaxWidth="48" CanUserResize="False" CanUserReorder="False">
+                                    <DataGridTemplateColumn.CellStyleClasses>
+                                        <x:String>cell-action</x:String>
+                                    </DataGridTemplateColumn.CellStyleClasses>
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate x:DataType="desktop:ArchiveThreadRow">
+                                            <desktop:ArchiveThreadFavoriteButton Width="24" Height="24" MinWidth="24" MinHeight="24" Padding="2" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <!-- Relevance: where the search text was found; appended after the favourite key so saved layouts keep their meaning, shown only for a ranked result. -->
                                 <DataGridTemplateColumn Header="Found in" SortMemberPath="FoundInSortKey" Width="140" MinWidth="90" IsVisible="False"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveThreadRow"><TextBlock Text="{Binding FoundIn}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap" ToolTip.Tip="{Binding FoundIn}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                             </DataGrid.Columns>

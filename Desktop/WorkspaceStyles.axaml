@@ -959,10 +959,13 @@
     <Style Selector="DataGridRow:selected /template/ Border#BackgroundBorder">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
     </Style>
-    <!-- Tom's review 21.11.: the keyboard focus ring belongs around the whole row, not around the one cell that holds the current cell (it cut
-         the selected row in two). The cell's own focus rectangle is off; the focused grid's selected row gets the ring on its background layer. -->
-    <Style Selector="DataGridCell /template/ Rectangle#FocusVisual"><Setter Property="IsVisible" Value="False" /></Style>
-    <Style Selector="DataGrid:focus-within DataGridRow:selected /template/ Border#BackgroundBorder">
+    <!-- Semi draws separate outlines for the current cell and for cell focus. Suppress both in row tables,
+         leaving editable grids and columns marked cell-action their own cell indicators. -->
+    <Style Selector="DataGrid[IsReadOnly=True] DataGridCell:not(.cell-action) /template/ Rectangle#CurrencyVisual,
+                     DataGrid[IsReadOnly=True] DataGridCell:not(.cell-action) /template/ Panel#FocusVisual">
+        <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="DataGrid[IsReadOnly=True]:focus-within DataGridRow:selected /template/ Border#BackgroundBorder">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,1,1,1" />
     </Style>
     <Style Selector="ListBox.workspace-selection-bar ListBoxItem:selected /template/ ContentPresenter">
