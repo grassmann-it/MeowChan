@@ -216,6 +216,40 @@ public sealed class TagReviewJournalTests
     }
 
     [Fact]
+    public void AcceptingAReviewRequiresTheProfileStoreAndHonorsItsCurrentFileLimit()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        byte[] original = PrivateTagScaleDocument.Create(new(100, 30_000, 20_000, 0, 0));
+        string privatePath = Path.Combine(temp.Path, PrivateTagStore.FileName);
+        File.WriteAllBytes(privatePath, original);
+        Assert.InRange(original.Length, PrivateTagLimits.MinimumDocumentLimitBytes, PrivateTagLimits.DefaultDocumentLimitBytes);
+        var limits = new PrivateTagLimits();
+        var tags = new PrivateTagStore(temp.Path, lease, limits);
+        var suggestions = new TagSuggestionStore(lease, privateTags: tags);
+        var pending = RunDouble(suggestions, "raw");
+        var subject = Bound("100");
+        var preview = Preview(tags, pending, subject);
+        byte[] journal = File.ReadAllBytes(suggestions.FilePath);
+        Guid operation = Guid.NewGuid();
+
+        limits.DocumentLimitBytes = original.Length;
+        var unconfigured = new TagSuggestionStore(lease);
+        Assert.Equal(TagSuggestionStoreError.InvalidInput, Assert.Throws<TagSuggestionStoreException>(() =>
+            unconfigured.AcceptReview(operation, preview)).Error);
+        Assert.Equal(PrivateTagStoreError.DocumentLimitReached, Assert.Throws<PrivateTagStoreException>(() =>
+            suggestions.AcceptReview(operation, preview)).Error);
+        Assert.Equal(original, File.ReadAllBytes(privatePath));
+        Assert.Equal(journal, File.ReadAllBytes(suggestions.FilePath));
+
+        limits.DocumentLimitBytes = PrivateTagLimits.MaximumDocumentLimitBytes;
+        var accepted = suggestions.AcceptReview(operation, preview);
+        Assert.Equal(TagReviewStatus.Completed, accepted.Operation.Status);
+        Assert.Equal(operation, tags.LastReviewReceipt()!.OperationId);
+        Assert.Equal(["canonical"], Names(tags.ReadSnapshot(), subject));
+    }
+
+    [Fact]
     public void RejectionAndItsUndoAreJournalledWithoutPrivateWrites()
     {
         using TempDirectory temp = new();

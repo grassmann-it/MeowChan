@@ -54,7 +54,9 @@ internal sealed partial class TagSuggestionStore
         return _lease.RunStoreWrite(admission, () => RecoverReviewCore(token));
     }
 
-    private PrivateTagStore PrivateTags() => _privateTags ?? new(_lease.ProfileDirectory, _lease);
+    // An occurrence review must use the profile's configured write limits.
+    private PrivateTagStore PrivateTags() => _privateTags
+        ?? throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidInput);
 
     private TagSuggestionSnapshot RecoverReviewCore(CancellationToken token)
     {
