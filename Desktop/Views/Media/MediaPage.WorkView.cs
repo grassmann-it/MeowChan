@@ -36,7 +36,7 @@ public sealed partial class MediaPage
         VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new OverflowMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     // The fields of the filter surface that a view may hold back, opened by this toggle until the view changes (R13: nothing is saved).
-    private readonly ToggleButton _moreFilters = new() { Name = "MediaMoreFilters", IsVisible = false };
+    private readonly ToggleButton _moreFilters = new() { Name = "MediaMoreFilters", IsVisible = false, Classes = { "toolbar-toggle" } };
 
     /// <summary>The view this page last applied (Advanced until the shell applies the window's view).</summary>
     internal WorkView CurrentWorkView => _workView;
@@ -176,7 +176,7 @@ public sealed partial class MediaPage
         WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true);
         WorkViewGate.Apply(_booruMode, view);
         WorkViewGate.Apply(_layoutButton, view);
-        WorkViewGate.Apply(_panelToggle, view, stateVisible: CanDisplayPanelToggle);
+        WorkViewGate.Apply(_panelToggle, view, stateVisible: CanTogglePanel);
         WorkViewGate.Apply(_queueWalk, view, stateVisible: OpenTagQueueWalk != null);
         WorkViewGate.Apply(_taggingPageOpen, view, stateVisible: OpenTaggingPage != null);
         WorkViewGate.Apply(_queueAll, view, stateVisible: AddToTagQueue != null);
@@ -206,7 +206,7 @@ public sealed partial class MediaPage
 
     // The tools of the header a view moved under More, in policy order, with their own state still wanting them (R6 raised the rest).
     // A tool the view leaves out of every surface (Hidden) is in no menu, so it neither fills More nor keeps its button alive (MediaToolbarLayout.IsUnderMore).
-    private List<Control> HeaderOverflow() => Overflowed(_booruMode, _layoutButton, _panelToggle, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)
+    private List<Control> HeaderOverflow() => Overflowed(_layoutButton, _focus, _refresh, _shuffle, _exportAll, _manageRatings, _booruOpen, _queueWalk, _taggingPageOpen, _queueAll, _mediaFolders)
         .Where(control => MediaToolbarLayout.IsUnderMore(_toolbarLevel, WorkViewElement.GetId(control), WorkViewPolicy.Resolve(WorkViewElement.GetId(control)!, _workView))).ToList();
 
     // The selection line's More: what the view moved there and what the line's width moved there (FitSelectionLine), in policy order.

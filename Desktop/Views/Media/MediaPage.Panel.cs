@@ -35,7 +35,7 @@ public sealed partial class MediaPage
     private ReaderMediaSidebar? _panel;
     private ReaderInlineVideoSlot? _panelVideo;
     private readonly ReaderInlineVideoController _panelVideoController = new();
-    private bool _panelShown, _panelCollapsed, _panelDisplayCapable = true;
+    private bool _panelShown, _panelCollapsed;
     private MediaLibraryTileRow? _panelRow, _panelWanted;
     private string _panelSizeText = string.Empty, _panelDimensions = string.Empty;
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();

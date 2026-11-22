@@ -992,7 +992,7 @@ public partial class ArchivePage
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None || CommandBindings.Matches(e, "reader.close")) { e.Handled = true; CloseReaderRequested?.Invoke(); return; }
         if (TryPageByShortcut(e)) return;
-        if (ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
+        if (SidebarToggleGroup.IsSegmentArrow(e) || ReaderArrowBelongsToNativeControl(e.Source, e.Key)) return;
         // The reader guard deliberately permits its post list and tab content.
         // A generic native-input check would also reject Home/End/Page remaps
         // from ordinary tab content because TabControl is a SelectingItemsControl.

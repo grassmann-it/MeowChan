@@ -1,5 +1,6 @@
 using Avalonia.Controls;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.DesktopSmoke;
@@ -14,30 +15,25 @@ internal static class ReaderWorkViewChecks
     internal static void RequireOverflowFollowsPolicy(ArchivePage page, ActionToolBar toolbar, Func<string> describe)
     {
         WorkView view = page.ReaderWorkView;
-        Control[] items = toolbar.Items.OfType<Control>().ToArray();
+        Control[] items = toolbar.Items.OfType<Control>().Where(item => item is not SidebarToggleGroup).ToArray();
+        if (toolbar.Items.OfType<SidebarToggleGroup>().SingleOrDefault() is { } group
+            && (toolbar.OverflowHost?.Children.Contains(group) == true
+                || Ursa.Controls.ToolBar.GetOverflowMode(group) != Ursa.Controls.OverflowMode.Never))
+            throw new InvalidOperationException("The sidebar group left the toolbar: " + describe());
         Control[] overflowed = items.Where(item => toolbar.OverflowHost?.Children.Contains(item) == true && item.IsVisible).ToArray();
         string Id(Control item) => WorkViewElement.GetId(item)
             ?? throw new InvalidOperationException(toolbar.Name + "/" + item.Name + " has no work-view id: " + describe());
         Presence PresenceOf(Control item) => WorkViewPolicy.Resolve(Id(item), view);
-        Control? collapsedSidebarToggle = null;
         foreach (Control item in items.Where(item => item.IsVisible))
         {
             bool under = overflowed.Contains(item);
-            // At its minimum reader width the sidebar deliberately moves the disabled toggle into More.
-            if (item.Name == "ReaderMediaSidebarToggle" &&
-                Ursa.Controls.ToolBar.GetOverflowMode(item) == Ursa.Controls.OverflowMode.Always)
-            {
-                if (item.IsEnabled || !under)
-                    throw new InvalidOperationException($"{view}: collapsed sidebar toggle must be disabled under More: " + describe());
-                collapsedSidebarToggle = item;
-            }
             if (PresenceOf(item) == Presence.Required && under)
                 throw new InvalidOperationException($"{view}: Required {item.Name} moved under More: " + describe());
             if (PresenceOf(item) == Presence.Overflow && !under && toolbar.Name != "ReaderMediaTools")
                 throw new InvalidOperationException($"{view}: {item.Name} belongs under More in this view: " + describe());
         }
         // The width race: among the visible items the view keeps on the bar, the moved ones are the lowest-ranked tail.
-        Control[] racing = items.Where(item => item.IsVisible && item != collapsedSidebarToggle && PresenceOf(item) is Presence.Direct)
+        Control[] racing = items.Where(item => item.IsVisible && PresenceOf(item) is Presence.Direct)
             .OrderBy(item => WorkViewPolicy.Get(Id(item)).OverflowOrder).ToArray();
         int firstMoved = Array.FindIndex(racing, overflowed.Contains);
         if (firstMoved >= 0 && racing.Skip(firstMoved).Any(item => !overflowed.Contains(item)))

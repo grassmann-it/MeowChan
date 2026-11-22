@@ -138,6 +138,9 @@ internal static class ReaderToolbarChecks
                 Require(OnBar(bar, threads) && OnBar(bar, Named(page, "ArchiveReaderFullscreen")) && OnBar(bar, media),
                     "The embedded reader's three view controls do not fit in " + Describe());
                 Require(threads.Content is "Threads" && media.Content is "Media", "The sidebar buttons are missing their short labels.");
+                Require(threads.Parent is SidebarToggleGroup group && ReferenceEquals(group, media.Parent)
+                    && Named(page, "ArchiveReaderFullscreen").TranslatePoint(default, bar)!.Value.X < group.TranslatePoint(default, bar)!.Value.X,
+                    "Full screen must precede the joined sidebar switches in " + Describe());
             }
             CheckSeparators(bar, Named(page, "ArchiveReadPosts"), Describe);
             await CaptureThemesAsync(window, "smoke-reader-toolbar-1380-" + view.ToLowerInvariant());
@@ -273,7 +276,7 @@ internal static class ReaderToolbarChecks
         Button fullscreen = Named(page, "ArchiveReaderFullscreen");
         try
         {
-            // Keep the Media switch eligible for the toolbar so its translated width takes part in overflow.
+            // Keep the sidebar narrow so the post column gets enough room for the translated labels on resize.
             page.ApplyReaderMediaPreferences(mediaPreferences with { SidebarWidth = Config.ReaderMediaSidebarWidthMinimum });
             Texts.SetLanguage("pl");
             await page.ReaderLocalizationTask;
@@ -284,6 +287,8 @@ internal static class ReaderToolbarChecks
                 ReaderWorkViewChecks.RequireOverflowFollowsPolicy(page, bar, Describe);
                 CheckSeparators(bar, Named(page, "ArchiveOpenGallery"), Describe);
                 Require(media.Content is "Multimedia" && OnBar(bar, media), "The translated Media action is missing in " + Describe());
+                Require(media.Parent is SidebarToggleGroup group && (width == 760 ? !group.ShowLabels : group.ShowLabels),
+                    "The sidebar group did not switch between icons and labels in " + Describe());
                 Require(width == 760 ? UnderMore(bar, fullscreen) : OnBar(bar, fullscreen), "Full screen is misplaced in " + Describe());
                 if (width == 760) Program.CaptureWindow(window, "smoke-reader-toolbar-760-advanced-pl.png");
             }

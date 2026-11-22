@@ -29,6 +29,7 @@ public sealed class FilterToggleButton : ToggleButton
     public FilterToggleButton()
     {
         Classes.Add("filter-toggle");
+        Classes.Add("toolbar-toggle");
         _badge = new Border { Classes = { "chip-badge", "chip-compact" }, Child = _badgeText, VerticalAlignment = VerticalAlignment.Center, IsVisible = false, IsHitTestVisible = false };
         AutomationProperties.SetAccessibilityView(_badge, AccessibilityView.Raw);
         _content.Children.Add(_label);

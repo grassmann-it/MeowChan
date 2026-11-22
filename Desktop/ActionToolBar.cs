@@ -599,6 +599,8 @@ public sealed class ActionToolBarPanel : StackPanel
         for (int i = 0; i < count; i++)
         {
             Control item = items[i];
+            if (item is Controls.SidebarToggleGroup sidebars)
+                sidebars.ShowLabels = availableSize.Width >= Controls.SidebarToggleGroup.ReaderLabelWidth;
             item.Measure(unbounded);
             // An omitted item takes part like an invisible one: no width, never in the overflow.
             bool visible = item.IsVisible && !ActionToolBar.GetOmitted(item);

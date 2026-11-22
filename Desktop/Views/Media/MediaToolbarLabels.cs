@@ -1,9 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
-using Avalonia.Media;
 
 namespace MeowChan;
 
@@ -20,7 +18,7 @@ internal static class MediaToolbarLabels
         private readonly ContentControl _icon = new();
         private readonly TextBlock _label = new()
         {
-            IsVisible = false, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         internal SidebarContent()
@@ -34,14 +32,13 @@ internal static class MediaToolbarLabels
 
         internal void SetIcon(Control icon) => _icon.Content = icon;
 
-        internal void Apply(ToggleButton button, bool show, string text, bool textFirst)
+        internal void Apply(string text, bool textFirst)
         {
             SetColumn(_icon, textFirst ? 1 : 0);
             SetColumn(_label, textFirst ? 0 : 1);
             _label.Margin = textFirst ? new Thickness(0, 0, 8, 0) : new Thickness(8, 0, 0, 0);
             _label.Text = text;
-            _label.IsVisible = show;
-            button.Classes.Set("icon-square", !show);
+
         }
     }
 }

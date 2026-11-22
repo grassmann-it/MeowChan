@@ -495,18 +495,14 @@ public sealed class MediaPageLayoutTests : IDisposable
     }
 
     [Fact]
-    public void TheWorkViewsPutTheLayoutButtonUnderMoreInBarebonesAndTheSwitchIsCalledTagList()
+    public void TheWorkViewsPutTheLayoutButtonUnderMoreInBarebonesAndKeepBothSidebarSegments()
     {
         Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct],
             new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.layout", view)));
-        Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct],
-            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.tag-list", view)));
-        Assert.True(WorkViewPolicy.Get("media.toolbar.tag-list").OverflowOrder < WorkViewPolicy.Get("media.toolbar.layout").OverflowOrder);
+        Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("media.toolbar.tag-list", view)));
         Assert.True(WorkViewPolicy.Get("media.toolbar.layout").OverflowOrder < WorkViewPolicy.Get("media.toolbar.focus").OverflowOrder);
         Assert.Equal(WorkViewPage.Media, WorkViewPolicy.Get("media.toolbar.layout").Page);
-        Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct],
-            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.panel", view)));
-        Assert.True(WorkViewPolicy.Get("media.toolbar.layout").OverflowOrder < WorkViewPolicy.Get("media.toolbar.panel").OverflowOrder);
+        Assert.All(WorkViewSetting.All, view => Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("media.toolbar.panel", view)));
         Assert.Equal("media.panel.toggle", WorkViewPolicy.Get("media.toolbar.panel").CommandId);
     }
 

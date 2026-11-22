@@ -163,11 +163,8 @@ internal static class ReaderMediaSidebarChecks
             });
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
-            Require(!toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.Always,
-                "The unavailable narrow-width sidebar toggle stayed active in the direct toolbar.");
-            string widthHint = Texts.T("reader.sidebar.collapsed", Math.Ceiling(ReaderMediaSidebarRules.MinimumReaderWidth(page.ReaderMedia)));
-            Require(ToolTip.GetShowOnDisabled(toggle) && ToolTip.GetTip(toggle) is string tip && tip.Contains(widthHint, StringComparison.Ordinal),
-                "The disabled sidebar toggle does not expose its minimum width on hover.");
+            Require(toggle.IsEnabled && toggle.Parent is SidebarToggleGroup group && Ursa.Controls.ToolBar.GetOverflowMode(group) == Ursa.Controls.OverflowMode.Never,
+                "The narrow reader lost its sidebar switch.");
             page.ApplyReaderMediaPreferences(page.ReaderMedia with
             {
                 SidebarWidth = widthPreferences.SidebarWidth,
@@ -264,8 +261,8 @@ internal static class ReaderMediaSidebarChecks
             });
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
-            Require(!toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.Always,
-                "The narrow archive-view sidebar toggle stayed active in the direct toolbar.");
+            Require(toggle.IsEnabled && toggle.Parent is SidebarToggleGroup group && Ursa.Controls.ToolBar.GetOverflowMode(group) == Ursa.Controls.OverflowMode.Never,
+                "The narrow archive view lost its sidebar switch.");
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarWidth = ReaderDisplayPreferences.MediaSidebarWidthMinimum });
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
             page.ToggleMediaSidebar();
@@ -287,7 +284,7 @@ internal static class ReaderMediaSidebarChecks
         await Flush();
         Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
         Require(sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 7 and <= 9 }, "The sidebar header is missing its top inset.");
-        Require(sidebar.HeaderRow.Bounds.Height == ReaderMediaSidebar.HeaderLineHeight, "The media title lost its stable height.");
+        Require(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight, "The sidebar header is shorter than a control row.");
         Require(sidebar.Padding.Top == 0 && sidebar.Padding.Bottom == 0, "Neighbour alignment reclaimed media height as padding.");
         Require(Math.Abs(sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height - sidebar.Bounds.Height) <= 1,
             "There is unused height below the media card.");

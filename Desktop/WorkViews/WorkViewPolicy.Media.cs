@@ -25,10 +25,10 @@ public static partial class WorkViewPolicy
         new("media.toolbar.shuffle", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 20),
         // MP4: the tag list (the "Booru mode", beside the grid) is a switch of the header from Simple on; Barebones keeps it under More as a checked entry.
         // MP5: the switch is called "Tag list"; the "Layout ▾" menu (the same block and the other blocks, presets) follows it, under More in Barebones.
-        new("media.toolbar.tag-list", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 3),
+        new("media.toolbar.tag-list", WorkViewPage.Media, WorkViewKind.Action, Required, Required, Required, OverflowOrder: 3),
         new("media.toolbar.layout", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, OverflowOrder: 4),
         // S-4: the panel switch is direct in the normal views, beside Layout; Barebones keeps it under More but still exposes the same checked action.
-        new("media.toolbar.panel", WorkViewPage.Media, WorkViewKind.Action, Overflow, Direct, Direct, "media.panel.toggle", OverflowOrder: 5),
+        new("media.toolbar.panel", WorkViewPage.Media, WorkViewKind.Action, Required, Required, Required, "media.panel.toggle", OverflowOrder: 5),
         // MP3: the two ways from the media page to tagging, side by side under More in every view.
         new("media.toolbar.queue-walk", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 32),
         new("media.toolbar.tagging-page", WorkViewPage.Media, WorkViewKind.Action, Overflow, Overflow, Overflow, OverflowOrder: 34),

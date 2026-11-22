@@ -54,13 +54,9 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal("panel-left", IconButtons.KeyOf(threads));
             Assert.Equal("Thread list: On", AutomationProperties.GetName(threads));
             Assert.StartsWith("Hide the thread list", Assert.IsType<string>(ToolTip.GetTip(threads)));
-            // 071e43347 deliberately registered this tool as Direct in every work
-            // view. Direct tools stay discoverable but overflow when they do not fit.
-            var policy = MeowChan.Desktop.WorkViews.WorkViewPolicy.Find("reader.toolbar.media-sidebar")!;
-            Assert.Equal(MeowChan.Desktop.WorkViews.Presence.Direct, policy.Barebones);
-            Assert.Equal(policy.Barebones, policy.Simple);
-            Assert.Equal(policy.Simple, policy.Advanced);
-            Assert.Equal(Ursa.Controls.OverflowMode.AsNeeded, Ursa.Controls.ToolBar.GetOverflowMode(button));
+            var group = Assert.IsType<SidebarToggleGroup>(button.Parent);
+            Assert.Same(group, threads.Parent);
+            Assert.Equal(Ursa.Controls.OverflowMode.Never, Ursa.Controls.ToolBar.GetOverflowMode(group));
             Assert.Equal(ReaderMediaPreferences.From(new Config()), page.ReaderMedia);
             Assert.True(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: true));
             Assert.False(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: false));
@@ -188,9 +184,9 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.Equal(0, sidebar.TranslatePoint(default, host)!.Value.Y);
                     Assert.Equal(0, sidebar.Padding.Top);
                     Assert.Equal(0, sidebar.Padding.Bottom);
-                    Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
+                    Assert.True(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight);
                     Assert.Equal(8, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
-                    Assert.Equal(sidebar.Bounds.Height - 8 - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, sidebar.Card.Bounds.Height);
+                    Assert.Equal(sidebar.Bounds.Height - 8 - sidebar.HeaderRow.Bounds.Height - ReaderMediaSidebar.HeaderGap, sidebar.Card.Bounds.Height);
                     Assert.Equal(sidebar.Bounds.Height, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
                     double chrome = sidebar.Bounds.Height - sidebar.Frame.Bounds.Height;
                     chromeHeight ??= chrome;

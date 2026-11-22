@@ -34,7 +34,7 @@ public sealed partial class MediaPage
     /// <summary>The width of the drag handle between the tag list and the grid.</summary>
     internal const double HandleWidth = 6;
 
-    private readonly Button _layoutButton = new() { Name = "MediaLayout" };
+    private readonly Button _layoutButton = new() { Name = "MediaLayout", Classes = { "toolbar-toggle" } };
     private readonly Flyout _layoutFlyout = new() { Placement = PlacementMode.BottomEdgeAlignedRight };
     private LayoutMenuPanel _layoutPanel = null!;
     private bool _layoutMenuHadFocus, _layoutMenuKeyboard;
@@ -99,9 +99,14 @@ public sealed partial class MediaPage
             _layoutPanel.Refresh(); // the rows show the layout as it is at this moment
         };
         // The keyboard continues in the menu: the first usable row.
-        _layoutFlyout.Opened += (_, _) => Dispatcher.UIThread.Post(() => _layoutPanel.FocusFirst(), DispatcherPriority.Loaded);
+        _layoutFlyout.Opened += (_, _) =>
+        {
+            _layoutButton.Classes.Add("menu-open");
+            Dispatcher.UIThread.Post(() => _layoutPanel.FocusFirst(), DispatcherPriority.Loaded);
+        };
         _layoutFlyout.Closed += (_, _) =>
         {
+            _layoutButton.Classes.Remove("menu-open");
             if (!_layoutMenuHadFocus || _lifetime.IsCancellationRequested || !_layoutButton.IsEffectivelyVisible) return;
             _layoutMenuHadFocus = false;
             // The focus returns to the button the menu came from.
@@ -264,9 +269,7 @@ public sealed partial class MediaPage
         if (_bodyRow is not { } row || _bodySurface is not { } surface || _contentGrid is not { } content) return;
         double bodyWidth = row.Bounds.Width;
         MediaPanelColumns panelColumns = MediaPanelColumns.Of(_layout, bodyWidth, PanelMinimumPageWidth);
-        bool panelDisplayCapable = !MediaPanelColumns.Of(_layout with { Panel = true }, bodyWidth, PanelMinimumPageWidth).CollapsedByWidth;
-        bool panelCapabilityChanged = panelDisplayCapable != _panelDisplayCapable;
-        _panelDisplayCapable = panelDisplayCapable;
+
         bool right = plan.TagListSide == MediaTagListSide.Right, shown = MediaPanelColumns.TagListShown(_layout, bodyWidth, panelColumns);
         bool tagFocusLost = !shown && _tagSidebar.IsKeyboardFocusWithin;
         int listColumn = right ? 2 : 0, contentColumn = right ? 0 : 2;
@@ -332,7 +335,7 @@ public sealed partial class MediaPage
         }
         if (_panel is { } aligned) AlignPanel(aligned, panelRight, edge);
         ApplyToolbarAlignment();
-        if (panelCapabilityChanged) RefreshWorkView();
+        ReapplyToolbarLabels(force: false);
         if (focusLost || tagFocusLost) FocusGrid();
     }
 
