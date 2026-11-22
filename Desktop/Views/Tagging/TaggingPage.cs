@@ -26,13 +26,14 @@ namespace MeowChan;
 /// The tagging page (PT2, PLAN-POWER-TAGGEN §1.3): a thin working page over the tagging queue. It shows the progress, edits the
 /// stamp set, lists the entries with their state (open, finished, skipped) and lets the user reorder, remove and clear them;
 /// "Start tagging" hands over to the gallery (<see cref="StartTagging"/>, the seam of the tagging mode). The queue work itself is
-/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: queue actions, stamp, list controls, selection, list.
+/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: start, add and help, filters, overflow, view controls, selection, list.
 /// </summary>
 public sealed partial class TaggingPage : UserControl, IDisposable
 {
     private readonly DesktopSessionHost _host;
     private readonly TaggingQueueController _queueWork;
     private readonly TextBlock _title = new() { Name = "TaggingTitle", Classes = { "page-title" } };
+    private readonly ActionToolBar _addAndHelp = new() { Name = "TaggingAddAndHelp" };
     private readonly ActionToolBar _actions = new() { Name = "TaggingActions" };
     private readonly TaggingHeader _header;
     private readonly ActionToolBar _listPresentation = new() { Name = "TaggingListPresentation" };
@@ -45,11 +46,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private readonly TextBlock _progressText = (new TextBlock { Name = "TaggingProgressText", Classes = { "tnum" },
         VerticalAlignment = VerticalAlignment.Center }).MetaText();
     private readonly ProgressBar _bar = new TaggingProgressTrack() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100,
-        MinWidth = 64, Height = 4, MinHeight = 0, MaxHeight = 4, VerticalAlignment = VerticalAlignment.Center };
+        MinWidth = TaggingHeaderSettings.ProgressMinWidth, Height = 4, MinHeight = 0, MaxHeight = 4, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _start = new TaggingActivationButton() { Name = "TaggingStart", Classes = { "primary" } };
     private readonly ComboBox _filter = new() { Name = "TaggingFilter", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly TextBlock _resultCount = (new TextBlock { Name = "TaggingResultCount", Classes = { "tnum" },
-        VerticalAlignment = VerticalAlignment.Center, IsVisible = false }).MetaText();
     private readonly HelpButton _help = new() { Name = "TaggingHelp", HelpKey = "help.taggingPage" };
     private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0),
         // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
@@ -139,7 +138,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     internal ListBox List => _list;
     internal Button StartButton => _start;
     internal ComboBox FilterBox => _filter;
-    internal TextBlock ResultCount => _resultCount;
     internal TextBlock StatusText => _status;
     internal TextBlock ProgressText => _progressText;
     internal Border ErrorPanel => _error;
@@ -166,21 +164,30 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         Grid.SetColumn(_progress, 2);
 
         _filter.ItemTemplate = new FuncDataTemplate<string>((value, _) => new TrimTipTextBlock { Text = value });
-        ColumnDefinition groupColumn = new(1, GridUnitType.Star) { MinWidth = 120, MaxWidth = 160 };
-        ColumnDefinition filterColumn = new(1, GridUnitType.Star) { MinWidth = 112, MaxWidth = 144 };
+        ColumnDefinition groupColumn = new(1, GridUnitType.Star) { MinWidth = TaggingHeaderSettings.GroupMinWidth, MaxWidth = TaggingHeaderSettings.GroupMaxWidth };
+        ColumnDefinition filterColumn = new(1, GridUnitType.Star) { MinWidth = TaggingHeaderSettings.FilterMinWidth, MaxWidth = TaggingHeaderSettings.FilterMaxWidth };
         // Bound the templates during the natural-width probe as well. Otherwise a
         // long selection can put Semi's chevron outside the arranged grid column.
         _group.MaxWidth = groupColumn.MaxWidth;
         _filter.MaxWidth = filterColumn.MaxWidth;
-        Grid boxes = new() { Name = "TaggingFilterBoxes", ColumnDefinitions = new ColumnDefinitions { groupColumn, filterColumn },
+        Grid filters = new() { Name = "TaggingResultFilters", ColumnDefinitions = new ColumnDefinitions { groupColumn, filterColumn },
             ColumnSpacing = 8, Children = { _group, _filter } };
+        filters.MinWidth = groupColumn.MinWidth + filterColumn.MinWidth + filters.ColumnSpacing;
         Grid.SetColumn(_filter, 1);
-        _resultCount.Margin = new Thickness(8, 0, 0, 0);
-        Grid filters = new() { Name = "TaggingResultFilters", ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-            MinWidth = groupColumn.MinWidth + filterColumn.MinWidth + boxes.ColumnSpacing, Children = { boxes, _resultCount } };
-        Grid.SetColumn(_resultCount, 1);
-        return new TaggingHeader(walk, BuildStamp(), filters, _resultCount, _listPresentation, _actions,
-            SetViewCompact, SetResultCountCompact, SetStampCompact) { Name = "TaggingHeader" };
+        return new TaggingHeader(walk, _addAndHelp, BuildStamp(), filters, _actions, _listPresentation,
+            SetStampCompact, SetViewCompact, TrimStartLabel) { Name = "TaggingHeader" };
+    }
+
+    // At fallback widths the resume label yields space to the track and counter.
+    // CommandBindings keeps the full label in the tooltip and accessible name.
+    private void TrimStartLabel(double excess)
+    {
+        if (_start.Content is not StackPanel { Children: [_, TextBlock label] }) return;
+        double limit = excess > 0 ? Math.Max(0, label.DesiredSize.Width - excess) : double.PositiveInfinity;
+        if (label.MaxWidth == limit) return;
+        label.MaxWidth = limit;
+        label.TextTrimming = TextTrimming.CharacterEllipsis;
+        TaggingHeader.InvalidateGroupMeasure(label);
     }
 
     private Grid BuildLayout()
@@ -459,8 +466,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         ToolTip.SetTip(_bar, percent + " · " + breakdown);
         AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
         AutomationProperties.SetHelpText(_bar, count.Description + " · " + percent + " · " + breakdown);
-        _resultCount.Text = _queueWork.Loaded && _queueWork.ErrorText == null ? Texts.Count("tagging.page.results", _rows.Count) : null;
-        SetResultCountCompact(_header.ResultCountCompact);
+        string filter = TaggingQueueView.FilterText(Filter);
+        ToolTip.SetTip(_filter, filter);
+        AutomationProperties.SetHelpText(_filter, filter);
         _header.InvalidateMeasure();
         bool empty = _rows.Count == 0;
         _emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null;
@@ -537,20 +545,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             Localize();
             Show();
         });
-    }
-
-    private void SetResultCountCompact(bool compact)
-    {
-        bool visible = !compact && _resultCount.Text != null;
-        if (_resultCount.IsVisible != visible)
-        {
-            _resultCount.IsVisible = visible;
-            TaggingHeader.InvalidateGroupMeasure(_resultCount);
-        }
-        string value = TaggingQueueView.FilterText(Filter);
-        string help = compact && _resultCount.Text is { } count ? value + "\n" + count : value;
-        ToolTip.SetTip(_filter, help);
-        AutomationProperties.SetHelpText(_filter, help);
     }
 
     private void Localize()

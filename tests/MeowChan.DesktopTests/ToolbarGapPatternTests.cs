@@ -195,7 +195,7 @@ public sealed class ToolbarGapPatternTests
     {
         Assert.All(new[] { page.SelectionTagButton, page.SelectionDoneButton, page.SelectionMoreButton, page.SelectionClearButton },
             button => Assert.Contains("bar-button", button.Classes));
-        Assert.Equal(new Control[] { page.AddButton, page.HelpButton, page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
+        Assert.Equal(new Control[] { page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
             page.Actions.Items.Cast<Control>());
         Assert.Equal(OverflowMode.Always, ToolBar.GetOverflowMode(page.GroupManageButton));
         Assert.DoesNotContain("Margin = new Thickness(16", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
@@ -241,12 +241,12 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheTaggingHeaderEndsWithTheViewControlsAndPageActionsInReadingOrder() => TaggingLayoutRhythmTests.WithPage(page =>
+    public void TheTaggingHeaderEndsWithThePageOverflowThenTheJoinedViewControls() => TaggingLayoutRhythmTests.WithPage(page =>
     {
-        ActionToolBar presentation = Assert.IsType<ActionToolBar>(page.Header.Children[^2]);
+        ActionToolBar presentation = Assert.IsType<ActionToolBar>(page.Header.Children[^1]);
         Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
-        Assert.Same(page.Actions, page.Header.Children[^1]);
-        Assert.Equal(new Control[] { page.AddButton, page.HelpButton, page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
+        Assert.Same(page.Actions, page.Header.Children[^2]);
+        Assert.Equal(new Control[] { page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
             page.Actions.Items.Cast<Control>());
     });
 

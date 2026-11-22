@@ -65,28 +65,21 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        foreach (Control item in new Control[] { _add, _help, _groupManage, _clearDone, _clear })
-        {
-            ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
+        _addAndHelp.Items.Add(_add);
+        _addAndHelp.Items.Add(_help);
+        foreach (Control item in new Control[] { _groupManage, _clearDone, _clear })
             _actions.Items.Add(item);
-        }
-        foreach (Control item in new Control[] { _columnsButton, _viewToggle })
-        {
-            ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
-            _listPresentation.Items.Add(item);
-        }
-        // Ursa's More toggles precede the items in the visual tree. Keep tab
-        // order local to the header and follow the order in which it reads.
+        _listPresentation.Items.Add(_columnsButton);
+        _listPresentation.Items.Add(_viewToggle);
+
+        // Ursa's More toggle precedes its items in the visual tree. Keep tab
+        // order local to the header and follow the visual order across lines.
         KeyboardNavigation.SetTabNavigation(_header, KeyboardNavigationMode.Local);
-        Control[] stops = [_start, _stampButton, _group, _filter, _columnsButton, _viewToggle.First, _viewToggle.Second, _add, _help];
+        Control[] stops = [_start, _add, _help, _stampButton, _group, _filter, _columnsButton, _viewToggle.First, _viewToggle.Second];
         for (int i = 0; i < stops.Length; i++) stops[i].TabIndex = 2 * i;
-        _listPresentation.TemplateApplied += (_, _) =>
-        {
-            if (_listPresentation.More is { } more) more.TabIndex = _viewToggle.Second.TabIndex + 1;
-        };
         _actions.TemplateApplied += (_, _) =>
         {
-            if (_actions.More is { } more) more.TabIndex = _help.TabIndex + 1;
+            if (_actions.More is { } more) more.TabIndex = _filter.TabIndex + 1;
         };
         // The error banner's "Retry" reads the queue file again (RetryLoadAsync is a no-op unless the page may reload now).
         _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
@@ -111,7 +104,12 @@ public sealed partial class TaggingPage
 
     private void SetViewCompact(bool compact)
     {
-        bool visible = !compact || ToolBar.GetOverflowMode(_viewToggle) == OverflowMode.Always;
+        bool visible = !compact;
+        if (_columnsButton.Content is StackPanel { Children: [_, Control thumbnails] } && thumbnails.IsVisible != visible)
+        {
+            thumbnails.IsVisible = visible;
+            TaggingHeader.InvalidateGroupMeasure(thumbnails);
+        }
         if (_viewToggle.First.Content is not StackPanel { Children: [_, Control label] } || label.IsVisible == visible) return;
         _viewToggle.SetLabelsVisible(visible);
         TaggingHeader.InvalidateGroupMeasure(label);
@@ -205,7 +203,6 @@ public sealed partial class TaggingPage
                 Shortcut("tagging.move-up"), Shortcut("tagging.move-down"))).ToArray() };
         };
         _actions.RefreshOverflowLabel();
-        _listPresentation.RefreshOverflowLabel();
     }
 
     // "Add…" and "Remove finished" always show their icon with their word (U06: removing the finished entries is a named action, not a

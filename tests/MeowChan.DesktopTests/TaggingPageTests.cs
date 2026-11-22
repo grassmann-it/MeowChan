@@ -225,7 +225,7 @@ public sealed class TaggingPageTests : IDisposable
         {
             foreach (string id in new[] { "tagging.progress", "tagging.start", "tagging.list", "tagging.error", "tagging.stamp", "tagging.filter" })
                 Assert.True(WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, view)), id + " in " + view);
-            Assert.Equal(view == WorkView.Barebones ? Presence.Overflow : Presence.Direct, WorkViewPolicy.Resolve("tagging.help", view));
+            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.help", view));
         }
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.toolbar.clear-done", WorkView.Barebones));
         // TQ2: the destructive queue actions stand under "More" in every view, not beside "Add…".

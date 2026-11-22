@@ -174,7 +174,7 @@ public sealed class NarrowContentLayoutTests
                 Assert.Equal(GridLength.Star, progress.ColumnDefinitions[0].Width);
                 Assert.Equal(GridLength.Auto, progress.ColumnDefinitions[1].Width);
                 Assert.Equal(64, progress.Children[0].MinWidth);
-                Grid boxes = Assert.IsType<Grid>(controls.Single(control => control.Name == "TaggingFilterBoxes"));
+                Grid boxes = Assert.IsType<Grid>(controls.Single(control => control.Name == "TaggingResultFilters"));
                 Assert.Equal(new[] { 120d, 112d }, boxes.ColumnDefinitions.Select(column => column.MinWidth));
                 Assert.Equal(new[] { 160d, 144d }, boxes.ColumnDefinitions.Select(column => column.MaxWidth));
                 Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, progress.Children.Select(control => control.Name));
