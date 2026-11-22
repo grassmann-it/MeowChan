@@ -534,7 +534,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    public Task ApplySettingsAsync(Config settings)
+    // False means the settings were committed and reading-file deletion can be retried.
+    public Task<bool> ApplySettingsAsync(Config settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
         Config frozen = settings.Clone();
@@ -554,16 +555,17 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         frozen.Validate();
         Commands.ShortcutService.ValidateForCommit(frozen.ShortcutBindings);
         var flush = new FinalWriteFlushRegistration(0);
-        return RunInteractiveWithAdmissionAsync(nameof(ApplySettingsAsync), "settings", admission => ApplySettingsAdmittedCoreAsync(frozen, admission, flush),
-            frozen.RememberReadingPosition ? null : InvalidateReadingPositionWrites, finalWriteFlush: flush);
+        return RunInteractiveWithAdmissionAsync<bool>(nameof(ApplySettingsAsync), "settings",
+            admission => ApplySettingsAdmittedCoreAsync(frozen, admission, flush), finalWriteFlush: flush);
     }
 
-    private async Task ApplySettingsAdmittedCoreAsync(Config settings, ProfileAdmissionToken admission, FinalWriteFlushRegistration flush)
+    private async Task<bool> ApplySettingsAdmittedCoreAsync(Config settings, ProfileAdmissionToken admission, FinalWriteFlushRegistration flush)
     {
         ArgumentNullException.ThrowIfNull(settings);
         await FlushCommandPreferencesAsync(flush).ConfigureAwait(false);
         settings.Validate();
         Commands.ShortcutService.ValidateForCommit(settings.ShortcutBindings);
+        bool readingFilesCleanedUp;
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -576,7 +578,6 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             candidate.Validate();
             if (candidate.BoardAdmissionSizeMiB != Config.BoardAdmissionSizeMiB)
                 CheckBoardAdmissionSizeLimit(candidate.BoardAdmissionSizeMiB);
-            if (!candidate.RememberReadingPosition) DeleteReadingPositionFile();
             SessionOptions options = new SessionOptions
             {
                 DownloadPath = candidate.DownloadPath,
@@ -588,6 +589,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             await _registry.ApplyOptionsAdmittedAsync(options, candidate.SaveUrlsOnExit,
                 () => candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission), admission).ConfigureAwait(false);
             PublishConfig(candidate);
+            if (!candidate.RememberReadingPosition) InvalidateReadingPositionWrites();
+            readingFilesCleanedUp = candidate.TryCleanUpReadingPositionAfterOptOut();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             ApplyBooruCatalogLimit();
@@ -600,6 +603,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
         finally { _commands.Release(); }
         SignalChanged();
+        return readingFilesCleanedUp;
     }
 
     internal Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAsync(FirstRunSetupValues values)

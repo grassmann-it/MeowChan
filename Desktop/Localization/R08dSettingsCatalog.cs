@@ -171,6 +171,7 @@ internal static class R08dSettingsCatalog
         ("resume.forget", "Forget reading position", "Lesestelle vergessen"),
         ("resume.forgotten", "Reading position forgotten. A new position is remembered only after your next reader action.", "Lesestelle vergessen. Erst die nächste bewusste Readeraktion merkt eine neue Stelle."),
         ("resume.forgetFailed", "Could not forget the reading position: {0}", "Lesestelle konnte nicht vergessen werden: {0}"),
+        ("resume.optOutCleanupFailed", "Reading position saving is off. Some saved reading data could not be deleted. Use Forget reading position in Settings to try again.", "Das Speichern der Lesestelle ist aus. Einige gespeicherte Lesedaten konnten nicht gelöscht werden. Wähle in den Einstellungen erneut „Lesestelle vergessen“."),
         ("resume.saveFailed", "Could not save the reading position: {0}", "Lesestelle konnte nicht gespeichert werden: {0}"),
         ("resume.readFailed", "The saved reading position is unavailable or unreadable. You can forget it in Settings. {0}", "Die gespeicherte Lesestelle ist nicht verfügbar oder unlesbar. Sie kann in den Einstellungen vergessen werden. {0}"),
         ("resume.none", "No reading position is saved. Enable it in Settings, then consciously open the reader.", "Keine Lesestelle gespeichert. In den Einstellungen einschalten und anschließend den Reader bewusst öffnen."),

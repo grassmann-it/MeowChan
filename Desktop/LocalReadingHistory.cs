@@ -28,6 +28,9 @@ internal sealed record LocalReadingHistoryEntry(LocalReadingPosition Position, D
 /// </summary>
 internal sealed record LocalReadingHistory(LocalReadingHistoryEntry[] Entries)
 {
+    internal const string FileName = "reading-history.json";
+    internal const string CorruptSuffix = ".corrupt";
+
     /// <summary>
     /// The fixed file ceiling (documented, not a setting): the entry limit is the user-facing bound. 1 MiB holds the maximum of 500
     /// entries even with long, non-ASCII titles (about 1.2 KiB each); a usual entry is about 0.3 KiB, so 500 of them are about 150 KiB.

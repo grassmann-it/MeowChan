@@ -496,11 +496,11 @@ public partial class ArchivePage
     // passiveOpen: the first-post focus of a reader that was only opened. Opening is no reading: it never writes a reading position
     // (the saved place stays the one "Continue reading" offers); only the user's own jumps and input do.
     private async Task FocusPostAsync(string postId, int? interactionRevision, bool restoreFocus = true,
-        ReaderFocusIntent? focusIntent = null, bool passiveOpen = false)
+        ReaderFocusIntent? focusIntent = null, bool passiveOpen = false, Func<bool>? stillRequested = null)
     {
         // A live continuation can already be stale before its first dispatcher
         // yield. Validate before ShowPost changes the page or selection.
-        if (_ended || IsFilenameSearchOpen || _thread?.FindPostIndex(postId) is not >= 0
+        if (_ended || IsFilenameSearchOpen || stillRequested?.Invoke() == false || _thread?.FindPostIndex(postId) is not >= 0
             || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
         if (_projectionReady is { } preparing)
         {
@@ -508,7 +508,7 @@ public partial class ArchivePage
             ResourceId? preparingThread = _thread?.Summary.Id;
             int preparingContent = _contentRequest;
             await preparing.Task;
-            if (_ended || IsFilenameSearchOpen || preparingContent != _contentRequest || _thread?.Summary.Id != preparingThread
+            if (_ended || IsFilenameSearchOpen || stillRequested?.Invoke() == false || preparingContent != _contentRequest || _thread?.Summary.Id != preparingThread
                 || _thread?.FindPostIndex(postId) is not >= 0
                 || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
         }
@@ -533,7 +533,7 @@ public partial class ArchivePage
         int interactionBaseline = interactionRevision ?? _readerInteractionRevision;
         bool IsCurrent() => !_ended && focusRequest == _readerFocusRequest && request == _contentRequest
             && _thread?.Summary.Id == threadId
-            && interactionBaseline == _readerInteractionRevision;
+            && interactionBaseline == _readerInteractionRevision && stillRequested?.Invoke() != false;
         if (focusIntent != null && BeforePassiveReaderFocusAsync is { } beforeFocus)
         {
             await beforeFocus();
@@ -557,7 +557,7 @@ public partial class ArchivePage
         // the focus ring moves with the selection; the alignment below stays the only scroll of the jump.
         void FocusTarget(Control container)
         {
-            if (!restoreFocus || container.IsFocused) return;
+            if (!restoreFocus || container.IsFocused || !IsCurrent()) return;
             if (focusIntent != null) focusIntent.Restore(container);
             else container.Focus();
         }
@@ -1412,21 +1412,21 @@ public partial class ArchivePage
     }
 
     private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor, bool restoreFocus = true,
-        ReaderFocusIntent? focusIntent = null)
+        ReaderFocusIntent? focusIntent = null, Func<bool>? stillRequested = null, Action? onRestored = null)
     {
-        if (_ended || _thread?.Summary.Id != anchor.Thread) return;
+        if (_ended || stillRequested?.Invoke() == false || _thread?.Summary.Id != anchor.Thread) return;
         if (_projectionReady is { } preparing)
         {
-            int preparingContent = _contentRequest;
+            Func<bool> preparingCurrent = CaptureReadingRequestGuard();
             await preparing.Task;
-            if (_ended || preparingContent != _contentRequest || _thread?.Summary.Id != anchor.Thread) return;
+            if (!preparingCurrent() || stillRequested?.Invoke() == false || _thread?.Summary.Id != anchor.Thread) return;
         }
         ReaderPostProjection? shown = Projection;
         if (_thread.FindPostIndex(anchor.PostId) < 0)
         {
             string? fallback = shown is { Count: > 0 } ? shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId : null;
             Message(Texts.T(fallback != null ? "reader.anchorUnavailable" : _thread.PostCount == 0 ? "archive.noPosts" : "reader.view.empty"));
-            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus, focusIntent);
+            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus, focusIntent, stillRequested: stillRequested);
             return;
         }
         // A retained place in a post this view hides moves to the nearest shown post (it is no explicit jump).
@@ -1449,12 +1449,14 @@ public partial class ArchivePage
         if (initialScroll != null) initialScroll.Offset = new Vector(initialScroll.Offset.X, 0);
         list.UpdateLayout();
         if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest + 1
-            || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread) return;
-        await FocusPostAsync(anchor.PostId, interactionRevision, restoreFocus, focusIntent);
+            || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread
+            || stillRequested?.Invoke() == false) return;
+        await FocusPostAsync(anchor.PostId, interactionRevision, restoreFocus, focusIntent, stillRequested: stillRequested);
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
             if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest
-                || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread) return;
+                || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread
+                || stillRequested?.Invoke() == false) return;
             ++_readerLayoutRevision;
             if (anchor.SelectedPostId != null && list.ItemsSource is IEnumerable<ArchivePostRow> rows)
             {
@@ -1466,6 +1468,7 @@ public partial class ArchivePage
             if (scroll != null && anchored != null && list.ContainerFromItem(anchored) is Control container
                 && container.TranslatePoint(default, list) is Point position)
                 scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + position.Y - anchor.Top));
+            onRestored?.Invoke();
         }, DispatcherPriority.Loaded);
     }
 

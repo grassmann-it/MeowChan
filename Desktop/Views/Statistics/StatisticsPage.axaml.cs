@@ -29,6 +29,7 @@ public partial class StatisticsPage : UserControl
     private IoStatsSnapshot? _last;
     private string? _netGraphName, _writeGraphName, _readGraphName;
     private bool _resetting;
+    private string? _resetStatusKey;
     private bool _ended;
     private IDisposable? _statusHide;
     private bool _restoreResetFocus;
@@ -113,7 +114,7 @@ public partial class StatisticsPage : UserControl
         StatisticsSubtitle.Text = Texts.T("stats.subtitle");
         foreach (TextBlock end in new[] { HistoryEnd, WriteHistoryEnd, ReadHistoryEnd }) end.Text = Texts.T("stats.now");
         HistoryEmpty.Text = Texts.T("stats.sources.empty");
-        if (ResetStatusPanel.IsVisible) StatisticsStatus.Text = Texts.T("stats.reset.done");
+        if (_resetStatusKey != null) StatisticsStatus.Text = Texts.T(_resetStatusKey);
         NetCaption.Text = Texts.T("stats.metric.net");
         DiskWriteCaption.Text = Texts.T("stats.metric.diskWrite");
         DiskReadCaption.Text = Texts.T("stats.metric.diskRead");
@@ -344,17 +345,23 @@ public partial class StatisticsPage : UserControl
 
     private async void OnConfirmResetClick(object? sender, RoutedEventArgs e)
     {
+        if (ResetConfirmation.IsOpen) await ResetStatisticsAsync();
+    }
+
+    internal async Task ResetStatisticsAsync()
+    {
         IoStatsHub? hub = _hub;
-        if (_ended || hub == null || _resetting || !ResetConfirmation.IsOpen) return;
+        if (_ended || hub == null || _resetting) return;
         _resetting = true;
         ConfirmResetButton.IsEnabled = false;
         ResetStatisticsButton.IsEnabled = false;
         try
         {
             // Deleting the file is I/O: off the UI thread. The hub raises Sampled afterwards, which refreshes the page.
-            await Task.Run(hub.Reset);
+            bool cleared = await Task.Run(hub.Reset);
             if (_ended) return;
-            StatisticsStatus.Text = Texts.T("stats.reset.done");
+            _resetStatusKey = cleared ? "stats.reset.done" : "stats.reset.failed";
+            StatisticsStatus.Text = Texts.T(_resetStatusKey);
             ResetStatusPanel.IsVisible = true;
             _statusHide?.Dispose();
             _statusHide = DispatcherTimer.RunOnce(() => ResetStatusPanel.IsVisible = false, TimeSpan.FromSeconds(5));

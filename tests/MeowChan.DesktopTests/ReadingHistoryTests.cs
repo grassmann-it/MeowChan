@@ -194,7 +194,57 @@ public sealed class ReadingHistoryTests
         Assert.Equal("1", (await host.ReadReadingPositionAsync())!.Thread);
         IReadOnlyList<LocalReadingHistoryEntry> history = await host.ReadReadingHistoryAsync();
         Assert.Equal("1", Assert.Single(history).Position.Thread);
+        Assert.Equal("broken JSON", File.ReadAllText(file + ".corrupt"));
         Assert.Equal(DesktopSessionState.Ready, host.State);
+    }
+
+    [Fact]
+    public async Task AReadSharingFailurePreservesTheOriginalHistoryUntilTheNextWrite()
+    {
+        using TempDirectory directory = new();
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false }.SaveConfig(directory.Path);
+        string file = Path.Combine(directory.Path, "reading-history.json");
+        await using DesktopSessionHost host = Host(directory.Path);
+        await host.StartAsync();
+        long generation = host.ReadingPositionGeneration;
+        await host.RememberReadingPositionAsync(Place(1), generation);
+        byte[] original = File.ReadAllBytes(file);
+
+        using (FileStream locked = new(file, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            await Assert.ThrowsAsync<IOException>(() => host.ReadReadingHistoryAsync());
+            await host.RememberReadingPositionAsync(Place(2), generation);
+        }
+
+        Assert.Equal(original, File.ReadAllBytes(file));
+        Assert.False(File.Exists(file + ".corrupt"));
+        Assert.Equal("2", (await host.ReadReadingPositionAsync())!.Thread);
+        await host.RememberReadingPositionAsync(Place(3), generation);
+        Assert.Equal(new[] { "3", "1" }, (await host.ReadReadingHistoryAsync()).Select(entry => entry.Position.Thread));
+    }
+
+    [Fact]
+    public async Task AFormatErrorWithAnUnavailableBackupPathPreservesTheOriginalUntilItCanBeMoved()
+    {
+        using TempDirectory directory = new();
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false }.SaveConfig(directory.Path);
+        string file = Path.Combine(directory.Path, "reading-history.json");
+        string corrupt = file + ".corrupt";
+        byte[] original = """{"Entries":3,"ThreadTitle":"Still recoverable"}"""u8.ToArray();
+        File.WriteAllBytes(file, original);
+        Directory.CreateDirectory(corrupt);
+        await using DesktopSessionHost host = Host(directory.Path);
+        await host.StartAsync();
+        long generation = host.ReadingPositionGeneration;
+
+        await host.RememberReadingPositionAsync(Place(1), generation);
+
+        Assert.Equal(original, File.ReadAllBytes(file));
+        Assert.Equal("1", (await host.ReadReadingPositionAsync())!.Thread);
+        Directory.Delete(corrupt);
+        await host.RememberReadingPositionAsync(Place(2), generation);
+        Assert.Equal(original, File.ReadAllBytes(corrupt));
+        Assert.Equal("2", Assert.Single(await host.ReadReadingHistoryAsync()).Position.Thread);
     }
 
     [Fact]

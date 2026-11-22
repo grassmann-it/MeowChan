@@ -132,14 +132,17 @@ internal sealed class IoStatsHub : IDisposable
     internal IDisposable Attach(IoStatsStore? store, Func<IoActivity>? activity)
     {
         object attachment = new();
-        lock (_gate)
+        lock (_writeGate)
         {
-            _store = store;
-            _activity = activity;
-            _attachment = attachment;
-            _loaded = false;
+            lock (_gate)
+            {
+                _store = store;
+                _activity = activity;
+                _attachment = attachment;
+                _loaded = false;
+            }
+            LoadSavedLocked();
         }
-        LoadSaved();
         NotifyActivityChanged();
         return new Detacher(this, attachment);
     }
@@ -152,29 +155,35 @@ internal sealed class IoStatsHub : IDisposable
 
     private void Detach(object attachment)
     {
-        lock (_gate) if (!ReferenceEquals(_attachment, attachment)) return;
-        Flush();
-        lock (_gate)
+        lock (_writeGate)
         {
-            if (!ReferenceEquals(_attachment, attachment)) return;
-            // The days belong to the profile just left (written by the flush above); the next attachment loads its own.
-            _store = null; _activity = null; _attachment = null; _loaded = false; _activeLast = false;
-            _days.Clear(); _dirty = false;
-            ApplyTimersLocked();
+            lock (_gate) if (!ReferenceEquals(_attachment, attachment)) return;
+            Flush();
+            lock (_gate)
+            {
+                // The days belong to the profile just left (written by the flush above); the next attachment loads its own.
+                _store = null; _activity = null; _attachment = null; _loaded = false; _activeLast = false;
+                _days.Clear(); _dirty = false;
+                ApplyTimersLocked();
+            }
         }
     }
 
-    private void LoadSaved()
+    private void LoadSavedLocked()
     {
         IoStatsStore? store;
         IoStatsOptions options;
         DateOnly today;
-        lock (_gate) { store = _store; options = _options; today = _today = DateOnly.FromDateTime(_time.GetLocalNow().DateTime); }
-        if (store == null || !options.Persist) return;
+        lock (_gate)
+        {
+            if (_loaded || _store == null || !_options.Persist) return;
+            store = _store;
+            options = _options;
+            today = _today = DateOnly.FromDateTime(_time.GetLocalNow().DateTime);
+        }
         IoStatsLoadResult result = store.Load(today, options.RetentionDays, options.MaxSources);
         lock (_gate)
         {
-            if (!ReferenceEquals(_store, store)) return;
             foreach ((DateOnly day, Dictionary<string, IoCounts> sources) in result.Days.Days) _days.Merge(day, sources, _options.MaxSources);
             _loaded = result.Status != IoStatsLoadStatus.Unreadable; // an unreadable file is read again when settings change
             _loadNotice = result.Notice;
@@ -201,7 +210,10 @@ internal sealed class IoStatsHub : IDisposable
             loadNow = options.Persist && !_loaded && _store != null;
             if (!loadNow) ApplyTimersLocked();
         }
-        if (loadNow) LoadSaved();
+        if (loadNow)
+        {
+            lock (_writeGate) LoadSavedLocked();
+        }
     }
 
     /// <summary>Re-reads the download queue's activity. The host calls it when the queue changes; it is a no-op unless "any download active" flipped.</summary>
@@ -289,12 +301,14 @@ internal sealed class IoStatsHub : IDisposable
         }
     }
 
-    /// <summary>Clears the counts, the ring and io-stats.json (with its backup). The transport counters themselves are not touched.</summary>
-    internal void Reset()
+    /// <summary>Deletes the saved copies, then clears the counts and ring. A failed delete keeps the in-memory statistics.</summary>
+    internal bool Reset()
     {
         IoStatsStore? store;
         lock (_writeGate)
         {
+            lock (_gate) store = _store;
+            if (store?.Delete() == false) return false;
             lock (_gate)
             {
                 CollectLocked();
@@ -302,12 +316,11 @@ internal sealed class IoStatsHub : IDisposable
                 _totalRate = _previousTotalRate = IoRates.Zero;
                 _ring.Clear(); _zeroRun = 0; _dirty = false; _lastPersistError = null; _loadNotice = null;
                 _lastSampleTimestamp = _time.GetTimestamp();
-                store = _store;
                 ApplyTimersLocked();
             }
-            store?.Delete();
         }
         Sampled?.Invoke();
+        return true;
     }
 
     /// <summary>Writes changed totals now (at exit, on detach). A failed write is kept for the next try and never throws.</summary>
@@ -504,9 +517,7 @@ internal sealed class IoStatsHub : IDisposable
         lock (_writeGate)
         {
             // A file that could not be read (locked) must not be overwritten by this session alone: try reading it again first.
-            bool retryLoad;
-            lock (_gate) retryLoad = _store != null && _options.Persist && !_loaded;
-            if (retryLoad) LoadSaved();
+            LoadSavedLocked();
             IoStatsStore store;
             string json;
             lock (_gate)

@@ -28,6 +28,7 @@ public sealed partial class MediaPage
     private ResourceId? _mediaCountThread;
     private MediaLibrarySnapshot? _mediaCountIndex;
     private ThreadMediaPositions? _threadMedia;
+    private (ThreadMediaPositions Media, IReadOnlyList<MediaLibraryEntry> Shown, IReadOnlyDictionary<int, int> Ranks)? _mediaViewRanks;
     private CancellationTokenSource? _mediaCountRequest;
     private Task _mediaCountTask = Task.CompletedTask;
 
@@ -77,20 +78,42 @@ public sealed partial class MediaPage
     private string? ThreadMediaSummary() => _threadMedia is { Count: > 0 } media
         ? Texts.T("thread.media.total", media.Count) : null;
 
-    private int? ThreadMediaNumberOf(MediaLibraryEntry entry) =>
-        entry.Thread == _mediaCountThread ? _threadMedia?.NumberOf(entry.PostId, entry.Position) : null;
+    private int? ThreadMediaNumberOf(MediaLibraryEntry entry)
+    {
+        if (entry.Thread != _mediaCountThread || _threadMedia is not { } media
+            || media.NumberOf(entry.PostId, entry.Position) is not int number) return null;
+        if (entry.Presence == MediaLibraryPresence.Present && IsUnfilteredThreadMedia
+            && MediaViewRanks(media, _shown).TryGetValue(number, out int rank))
+            return rank;
+        return number;
+    }
 
     private string? ThreadPositionOf(MediaLibraryEntry entry) => ThreadMediaNumberOf(entry) is int number
         ? Texts.T("reader.sidebar.position", number, _threadMedia!.Count) : null;
 
-    internal async Task<ThreadMediaPositions?> ThreadMediaForGalleryAsync(IReadOnlyList<MediaLibraryEntry> window)
+    private bool IsUnfilteredThreadMedia => _mediaCountThread != null
+        && _terms.All(term => term.Field is MediaFilterField.Thread or MediaFilterField.Threads or MediaFilterField.Missing)
+        && !MediaLibraryFilter.HasText(_nameFilter.Text);
+
+    private IReadOnlyDictionary<int, int> MediaViewRanks(ThreadMediaPositions media, IReadOnlyList<MediaLibraryEntry> shown)
+    {
+        if (_mediaViewRanks is { } cached && ReferenceEquals(cached.Media, media) && ReferenceEquals(cached.Shown, shown))
+            return cached.Ranks;
+        IReadOnlyDictionary<int, int> ranks = ThreadGalleryPositions.RankMediaView(media, shown);
+        _mediaViewRanks = (media, shown, ranks);
+        return ranks;
+    }
+
+    internal async Task<ThreadGalleryPositions?> ThreadPositionsForGalleryAsync(IReadOnlyList<MediaLibraryEntry> shown,
+        IReadOnlyList<MediaLibraryTile> tiles, IReadOnlyList<MediaLibraryEntry> window, IReadOnlyList<GalleryEntry> entries)
     {
         ResourceId? thread = _mediaCountThread;
-        if (thread == null || window.Any(entry => entry.Thread != thread)
-            || _terms.Any(term => term.Field is not (MediaFilterField.Thread or MediaFilterField.Threads or MediaFilterField.Missing))
-            || MediaLibraryFilter.HasText(_nameFilter.Text)) return null;
+        if (!IsUnfilteredThreadMedia || shown.Any(entry => entry.Thread != thread)) return null;
         await _mediaCountTask;
-        return thread == _mediaCountThread ? _threadMedia : null;
+        if (thread != _mediaCountThread || !IsUnfilteredThreadMedia || _threadMedia is not { } media) return null;
+        IEnumerable<MediaLibraryEntry> groupedOccurrences = tiles.Where(tile => tile.IsGroup)
+            .SelectMany(tile => tile.Occurrences).Where(entry => entry.Thread == thread);
+        return ThreadGalleryPositions.ForMediaView(media, MediaViewRanks(media, shown), window, entries, groupedOccurrences);
     }
 
     /// <summary>
