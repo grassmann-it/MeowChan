@@ -4674,6 +4674,7 @@
     "tagging.page.next": "Tady se pokračuje.",
     "tagging.page.listName": "Položky fronty štítkování",
     "tagging.page.filterEmpty": "Žádná položka nemá tento stav.",
+    "tagging.page.filterEmpty.untagged": "Žádná položka bez tagů.",
     "tagging.page.keys": "{0} pokračuje u vybrané položky · {1} ji odebere · {2} a {3} ji posunou",
     "tagging.page.loading": "Načítá se fronta štítkování…",
     "tagging.page.stamp.empty": "Razítko zatím neobsahuje žádný štítek. Sem patří to, co dáváte většině médií.",

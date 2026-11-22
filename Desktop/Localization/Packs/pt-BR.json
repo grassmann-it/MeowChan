@@ -4638,6 +4638,7 @@
     "tagging.page.next": "O percurso continua aqui.",
     "tagging.page.listName": "Entradas da fila de tags",
     "tagging.page.filterEmpty": "Nenhuma entrada tem este estado.",
+    "tagging.page.filterEmpty.untagged": "Nenhuma entrada sem tags.",
     "tagging.page.keys": "{0} continua na entrada selecionada · {1} a remove · {2} e {3} a movem",
     "tagging.page.loading": "Lendo a fila de tags…",
     "tagging.page.stamp.empty": "Ainda não há tags no carimbo. As que você atribui à maioria das mídias ficam aqui.",

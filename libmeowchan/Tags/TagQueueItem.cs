@@ -27,7 +27,7 @@ internal readonly record struct TagQueueKey(ResourceId Thread, string Directory,
 /// </summary>
 internal sealed record TagQueueItem(ResourceId Thread, string Directory, string AssetId, string Sha256, long Length, string MediaId,
     string Variant, string? PostId, int? Position, string? ImportItem, string? BooruPost, bool Historical, string? LocalSlot,
-    string Name, SavedMediaKind Kind, TagQueueState State, DateTimeOffset AddedAtUtc, DateTimeOffset? DoneAtUtc = null, string? GroupId = null)
+    string Name, SavedMediaKind Kind, TagQueueState State, DateTimeOffset AddedAtUtc, DateTimeOffset? DoneAtUtc = null, string? GroupId = null, string? AttachmentRevisionKey = null)
 {
     internal const int MaximumNameCharacters = 256;
     internal const int MaximumPathCharacters = 1_024;
@@ -44,7 +44,8 @@ internal sealed record TagQueueItem(ResourceId Thread, string Directory, string 
             || entry.Length == null || entry.MediaId == null) return null;
         TagQueueItem item = new(entry.Thread, entry.Directory, entry.AssetId, entry.Sha256.ToLowerInvariant(), entry.Length.Value,
             entry.MediaId, entry.Variant, entry.PostId, entry.Position, entry.ImportItemId, entry.BooruPostId, entry.Historical,
-            entry.LocalSlot, CleanName(entry.Name), entry.Kind, TagQueueState.Open, now.ToUniversalTime());
+            entry.LocalSlot, CleanName(entry.Name), entry.Kind, TagQueueState.Open, now.ToUniversalTime(),
+            AttachmentRevisionKey: entry.AttachmentRevisionKey);
         return item.IsValid() ? item : null;
     }
 
@@ -59,15 +60,18 @@ internal sealed record TagQueueItem(ResourceId Thread, string Directory, string 
         TagQueueItem item = new(entry.Key.Thread, entry.Manifest.Directory, asset.AssetId, asset.Sha256.ToLowerInvariant(), asset.Length,
             asset.MediaIdentifier, asset.Variant, entry.Post?.PostId, entry.Attachment?.Position, import, booru, !asset.IsCurrent,
             entry.LocalTagEligible ? asset.RequestedFileName : null, CleanName(asset.OriginalFileName ?? System.IO.Path.GetFileName(asset.Path)),
-            entry.Kind, TagQueueState.Open, now.ToUniversalTime());
+            entry.Kind, TagQueueState.Open, now.ToUniversalTime(),
+            AttachmentRevisionKey: entry.AttachmentResolution?.Binding?.Reference.RevisionKey);
         return item.IsValid() ? item : null;
     }
 
     /// <summary>
     /// The media index entry this item stands for, as the gallery resolver expects it: a present entry with the identity fields.
-    /// The thread title, revision and capture times are not part of the queue; the resolver does not read them.
+    /// The thread title, revision and capture times are not part of the queue; the resolver does not read them. The attachment revision
+    /// key (file version 3) is what makes the entry's bound media tag target known; an older entry has none until
+    /// <see cref="TagQueueKeyResolver"/> finds it in the media index.
     /// </summary>
-    internal MediaLibraryEntry ToLibraryEntry() => new(Thread, string.Empty, 0, AddedAtUtc, null, PostId, null, null, Position, null,
+    internal MediaLibraryEntry ToLibraryEntry() => new(Thread, string.Empty, 0, AddedAtUtc, null, PostId, null, null, Position, AttachmentRevisionKey,
         Directory, AssetId, Sha256, Length, MediaId, Variant, Name.Length == 0 ? null : Name, Kind, MediaLibraryPresence.Present,
         Unassigned: PostId == null, Historical: Historical, LocalSlot: LocalSlot)
     { ImportItemId = ImportItem, BooruPostId = BooruPost };
@@ -91,6 +95,8 @@ internal sealed record TagQueueItem(ResourceId Thread, string Directory, string 
         if (ImportItem != null && !ManualImportIdentity.TryParseId(ImportItem, out _)) return "import";
         if (!Token(BooruPost, MaximumTokenCharacters, true) || ImportItem != null && BooruPost != null) return "provider";
         if (!Token(LocalSlot, MaximumTokenCharacters, true)) return "slot";
+        if (!Token(AttachmentRevisionKey, MaximumTokenCharacters, true) || AttachmentRevisionKey != null && (PostId == null || Position == null))
+            return "revision";
         if (Name == null || Name.Length > MaximumNameCharacters || Name.Any(char.IsControl)) return "name";
         if (GroupId != null && (GroupId.Length == 0 || GroupId.Length > MaximumGroupIdCharacters || GroupId.Any(char.IsControl))) return "group";
         if (!Enum.IsDefined(Kind) || !Enum.IsDefined(State)) return "enum";

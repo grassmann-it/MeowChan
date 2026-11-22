@@ -69,7 +69,7 @@ public sealed partial class TaggingPage
             TaggingEmptyKind.QueueEmpty => Texts.T("tagging.page.empty.queue"),
             TaggingEmptyKind.AllDone => Texts.T("tagging.page.empty.allDone", selectedCounts.Count.ToString("N0", Texts.Culture)),
             TaggingEmptyKind.GroupEmpty => Texts.T("tagging.page.empty.group", selectedGroupName ?? Texts.T("tagging.page.group.ungrouped")),
-            TaggingEmptyKind.FilterNoHits => Texts.T("tagging.page.filterEmpty"),
+            TaggingEmptyKind.FilterNoHits => Texts.T(Filter == TaggingQueueFilter.Untagged ? "tagging.page.filterEmpty.untagged" : "tagging.page.filterEmpty"),
             _ => null
         };
         _emptyMedia.IsVisible = _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone or TaggingEmptyKind.GroupEmpty;

@@ -4632,6 +4632,7 @@
     "tagging.page.next": "El recorrido continúa aquí.",
     "tagging.page.listName": "Entradas de la cola de etiquetado",
     "tagging.page.filterEmpty": "Ninguna entrada tiene este estado.",
+    "tagging.page.filterEmpty.untagged": "Ninguna entrada sin etiquetas.",
     "tagging.page.keys": "{0} continúa en la entrada seleccionada · {1} la quita · {2} y {3} la mueven",
     "tagging.page.loading": "Leyendo la cola de etiquetado…",
     "tagging.page.stamp.empty": "Aún no hay etiquetas en el sello. Aquí van las que asigna a la mayoría de los medios.",

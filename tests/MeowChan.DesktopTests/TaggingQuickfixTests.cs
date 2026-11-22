@@ -90,6 +90,65 @@ public sealed class TaggingQuickfixTests : IDisposable
         Assert.Equal(TaggingEmptyKind.FilterNoHits, page.EmptyKind);
     });
 
+    // TQ5 rest: the queue entry knows (or the media index tells) its bound version, so its own media tags are counted; no key stays unknown.
+    private static readonly string K1 = "att-v1:" + new string('a', 64), K2 = "att-v1:" + new string('b', 64);
+
+    private static TagQueueItem Bound(int n, string? key = null) => Item(n) with { Position = 0, AttachmentRevisionKey = key };
+
+    private static MediaLibraryUserData UserData(params TagQueueItem[] tagged)
+    {
+        Assert.True(PrivateTagName.TryCreate("cat", out PrivateTagName? name, out _));
+        PrivateTagDefinition tag = new(new TagId(Guid.NewGuid()), name!);
+        PrivateMediaTagAssignment[] media = tagged.Select(item => new PrivateMediaTagAssignment(tag.Id, MediaLibraryFilterEngine.TagTarget(item.ToLibraryEntry())!)).ToArray();
+        return new MediaLibraryUserData(new PrivateTagStoreSnapshot(1, "tq5", new[] { tag }, Array.Empty<PrivateThreadTagAssignment>(), media), [], []);
+    }
+
+    [Fact]
+    public void AStoredRevisionKeyMakesTheTagCountKnownAndWithoutTagsFindsTheUntaggedOnes() => WithPage(page =>
+    {
+        TagQueueItem tagged = Bound(1, K1), bare = Bound(2, K2), unknown = Bound(3);
+        MediaLibraryUserData data = UserData(tagged);
+        page.ReadUserData = () => data;
+        Render(page, Queue(0, tagged, bare, unknown));
+        Assert.Equal(1, page.TagCountOf(tagged));
+        Assert.Equal(0, page.TagCountOf(bare));
+        Assert.Null(page.TagCountOf(unknown)); // no key and no index: unknown, never "no tags"
+        Render(page, Queue(0, tagged, bare, unknown), TaggingQueueFilter.Untagged);
+        Assert.Equal(new[] { bare.Key }, page.Rows.Select(row => row.Key).ToArray());
+    });
+
+    [Fact]
+    public void AnOldEntryWithoutAKeyIsResolvedThroughTheMediaIndexAndStaysUnknownWithoutIt() => WithPage(page =>
+    {
+        TagQueueItem tagged = Bound(1), bare = Bound(2), absent = Bound(3);
+        MediaLibraryEntry Indexed(TagQueueItem item, string key) => item.ToLibraryEntry() with { AttachmentRevisionKey = key };
+        MediaLibraryUserData data = UserData(tagged with { AttachmentRevisionKey = K1 });
+        page.ReadUserData = () => data;
+        IReadOnlyList<MediaLibraryEntry>? index = null;
+        page.ReadIndexEntries = () => index;
+        Render(page, Queue(0, tagged, bare, absent), TaggingQueueFilter.Untagged);
+        Assert.Null(page.TagCountOf(tagged));
+        Assert.Empty(page.Rows); // the index is not there yet: nothing is called untagged
+        index = new[] { Indexed(tagged, K1), Indexed(bare, K2) };
+        Render(page, Queue(0, tagged, bare, absent), TaggingQueueFilter.Untagged);
+        Assert.Equal(1, page.TagCountOf(tagged));
+        Assert.Equal(0, page.TagCountOf(bare));
+        Assert.Null(page.TagCountOf(absent)); // not in the index: still unknown
+        Assert.Equal(new[] { bare.Key }, page.Rows.Select(row => row.Key).ToArray());
+    });
+
+    [Fact]
+    public void AnEmptyWithoutTagsFilterSaysSoInsteadOfTheGenericStateText() => WithPage(page =>
+    {
+        page.ReadUserData = () => UserData(Bound(1, K1));
+        Render(page, Queue(0, Bound(1, K1)), TaggingQueueFilter.Untagged);
+        Assert.Equal(TaggingEmptyKind.FilterNoHits, page.EmptyKind);
+        Assert.Equal("No entry without tags.", page.EmptyText.Text);
+        Assert.Equal("Kein Eintrag ohne Tags.", WithLanguage("de", () => Texts.T("tagging.page.filterEmpty.untagged")));
+        Render(page, Queue(0, Item(1, TagQueueState.Open)), TaggingQueueFilter.Done);
+        Assert.Equal("No entry has this state.", page.EmptyText.Text);
+    });
+
     [Fact]
     public void OpeningThePageSelectsNothingAndKeepsTheSelectionBarAway() => WithPage(page =>
     {
