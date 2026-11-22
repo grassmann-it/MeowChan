@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using AvaloniaPath = Avalonia.Controls.Shapes.Path;
 
 namespace MeowChan.DesktopTests;
 
@@ -55,6 +56,29 @@ public sealed class SearchBoxTests : IDisposable
 
     private static KeyEventArgs Press(Key key, KeyModifiers modifiers = KeyModifiers.None) =>
         new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
+
+    [Fact]
+    public void EachSearchBoxUsesIconGeometryOwnedByItsDispatcher()
+    {
+        BooruComponentDispatcher.Run(CheckIcons);
+        BooruComponentDispatcher.Run(CheckIcons);
+
+        static void CheckIcons()
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            SearchBox box = new() { Text = "cat" };
+            Window window = new() { Content = box };
+            try
+            {
+                window.Show();
+                var search = Assert.IsType<AvaloniaPath>(box.InnerLeftContent);
+                var clear = Assert.IsType<AvaloniaPath>(box.ClearButton.Content);
+                Assert.True(search.Data?.CheckAccess());
+                Assert.True(clear.Data?.CheckAccess());
+            }
+            finally { window.Close(); }
+        }
+    }
 
     [Fact]
     public void FirstEscapeClearsTheTextAndIsSwallowed()
