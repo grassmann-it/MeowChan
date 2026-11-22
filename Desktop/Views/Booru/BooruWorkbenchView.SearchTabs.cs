@@ -33,6 +33,7 @@ internal sealed partial class BooruWorkbenchView
     internal static readonly string TabLimitNoticeName = "BooruTabLimitNotice";
 
     private sealed record TabHeader(TextBlock Title, Button Close);
+    private sealed record TabResults(string? Cursor, HashSet<string> Selected);
 
     private readonly Button _alternateSubmit = new() { Name = AlternateSubmitName, Classes = { "subtle" } };
     private readonly Button _openWatchers = new() { Name = OpenWatchersName };
@@ -51,6 +52,7 @@ internal sealed partial class BooruWorkbenchView
     private readonly Button _newTabButton = new() { Name = NewSearchTabName, Classes = { "booru-add-tab-button" } };
     private readonly TabItem _plusTab = new() { Classes = { "booru-tab", "booru-add-tab" } };
     private readonly Dictionary<int, (TabItem Item, TabHeader Header)> _extraTabs = new();
+    private readonly Dictionary<int, TabResults> _tabResults = new();
     private List<TabItem>? _tabItems;
     private BooruSearchTabs? _searchTabs;
     private int _renderedSearchTab = BooruSearchTabs.PrimaryId;
@@ -229,6 +231,7 @@ internal sealed partial class BooruWorkbenchView
     private bool OpenSearchTab(bool copyCurrent)
     {
         if (_closed || _searchTabs is not { } tabs) return false;
+        string? copiedCursor = copyCurrent ? _resultViewer?.CurrentPostId ?? _cursorPostId : null;
         int id;
         _selectNewTab = true;
         try { id = tabs.Add(copyCurrent); }
@@ -240,6 +243,7 @@ internal sealed partial class BooruWorkbenchView
             return false;
         }
         ClearTabLimitNotice();
+        SetCursor(copiedCursor);
         Dispatcher.UIThread.Post(() =>
         {
             if (!_closed && tabs.ActiveId == id && IsSearchItem(_tabs.SelectedItem)) FocusSearchInput();
@@ -321,15 +325,21 @@ internal sealed partial class BooruWorkbenchView
         if (_closed || _searchTabs is not { } tabs || _tabItems is not { } items) return;
         if (_renderedSearchTab != tabs.ActiveId)
         {
+            _tabResults[_renderedSearchTab] = new TabResults(_resultViewer?.CurrentPostId ?? _cursorPostId, _selectedResults);
             _renderedSearchTab = tabs.ActiveId;
+            DismissResultViewer();
             ReleaseGallery();
-            _cursorPostId = null;
+            _tabResults.TryGetValue(tabs.ActiveId, out TabResults? restored);
+            _cursorPostId = restored?.Cursor;
+            _selectedResults = restored?.Selected ?? new HashSet<string>(StringComparer.Ordinal);
             _resultsKey = null;
         }
         _syncingTabs = true;
         try
         {
             HashSet<int> wanted = tabs.Ids.Where(id => id != BooruSearchTabs.PrimaryId).ToHashSet();
+            foreach (int id in _tabResults.Keys.Where(id => id != BooruSearchTabs.PrimaryId && !wanted.Contains(id)).ToArray())
+                _tabResults.Remove(id);
             bool selectionWasHere = IsSearchItem(_tabs.SelectedItem);
             foreach (int id in _extraTabs.Keys.Where(id => !wanted.Contains(id)).ToList())
             {
