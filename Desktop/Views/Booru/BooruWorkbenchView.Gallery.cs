@@ -4,9 +4,11 @@ using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.Desktop.Booru;
@@ -20,6 +22,11 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruWorkbenchView
 {
     private readonly BooruGalleryPanel _gallery = new();
+    private readonly ScrollViewer _resultScroll = new()
+    {
+        Name = "BooruResultScroll", HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        VerticalScrollBarVisibility = ScrollBarVisibility.Disabled, IsTabStop = false
+    };
     private string? _cursorPostId;
     private BooruResultView _galleryReturn = BooruResultView.List;
 
@@ -62,7 +69,45 @@ internal sealed partial class BooruWorkbenchView
         };
         _gallery.OpenWindowRequested = postId => OpenResultViewer(postId);
         _gallery.LeaveRequested = LeaveGallery;
+        _gallery.FullscreenRequested = ToggleGalleryFullscreen;
+        AddHandler(KeyDownEvent, (_, e) =>
+        {
+            if (_resultView == BooruResultView.Gallery && IsSearchItem(_tabs.SelectedItem))
+                _gallery.RouteKey(e);
+        }, RoutingStrategies.Tunnel);
         SizeChanged += (_, _) => UpdateGalleryStageHeight();
+    }
+
+    private WindowState _beforeFullscreen;
+
+    private void ToggleGalleryFullscreen()
+    {
+        if (TopLevel.GetTopLevel(this) is MainWindow shell) shell.ToggleFullscreen();
+        else if (TopLevel.GetTopLevel(this) is Window window)
+        {
+            if (window.WindowState == WindowState.FullScreen) window.WindowState = _beforeFullscreen;
+            else
+            {
+                _beforeFullscreen = window.WindowState;
+                window.WindowState = WindowState.FullScreen;
+            }
+        }
+    }
+
+    private void UpdateGalleryScroll()
+    {
+        bool gallery = _resultView == BooruResultView.Gallery && _viewBar.IsVisible && IsSearchItem(_tabs.SelectedItem);
+        // One scroll owner at a time. The gallery can scroll its stage and pager below the fixed view switch.
+        if (Body.FindAncestorOfType<ScrollViewer>() is { Name: "BooruPageScroll" or "BooruWorkbenchScroll" } outer)
+        {
+            var visibility = gallery ? ScrollBarVisibility.Disabled : ScrollBarVisibility.Auto;
+            if (outer.VerticalScrollBarVisibility != visibility)
+            {
+                outer.Offset = default;
+                outer.VerticalScrollBarVisibility = visibility;
+            }
+        }
+        _resultScroll.VerticalScrollBarVisibility = gallery ? ScrollBarVisibility.Auto : ScrollBarVisibility.Disabled;
     }
 
     private async Task DownloadOriginalAsync(string postId)
@@ -167,5 +212,9 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Another view than the gallery is shown: the gallery lets go of its pictures and cancels a sample that is still loading.</summary>
     private void ReleaseGallery() => _gallery.Release();
 
-    private void FocusGalleryStage() => Dispatcher.UIThread.Post(() => { if (!_closed) _gallery.FocusStage(); }, DispatcherPriority.Loaded);
+    private void FocusGalleryStage() => Dispatcher.UIThread.Post(() =>
+    {
+        if (!_closed && _resultView == BooruResultView.Gallery && _gallery.CurrentPostId is not null
+            && IsSearchItem(_tabs.SelectedItem)) _gallery.FocusStage();
+    }, DispatcherPriority.Loaded);
 }

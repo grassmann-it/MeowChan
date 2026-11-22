@@ -191,7 +191,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         layout.Children.Add(header);
-        ScrollViewer scroll = new() { Content = body, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
+        ScrollViewer scroll = new()
+        {
+            Name = "BooruWorkbenchScroll", Content = body,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled
+        };
         Grid.SetRow(scroll, 1); layout.Children.Add(scroll);
         Grid.SetRow(footer, 2); layout.Children.Add(footer);
         return layout;
@@ -386,9 +390,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(BuildBulkStatus());
         tab.Children.Add(_statusHost);
         tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
-        tab.Children.Add(_results);
-        tab.Children.Add(BuildBottomBar()); // result line and pager under the list
-        return tab;
+        _resultScroll.Content = new StackPanel { Spacing = 12, Children = { _results, BuildBottomBar() } };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 12, Children = { tab, _resultScroll } };
+        Grid.SetRow(_resultScroll, 1);
+        return layout;
     }
 
     internal const string CatalogStorageName = "BooruCatalogStorage";

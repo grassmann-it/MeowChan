@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Tests.Shared;
@@ -64,8 +65,8 @@ public sealed class BooruPageHostContractTests
         TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
         Assert.Equal(BooruWorkbenchView.WatchersTabName, watchersTab.Name);
         Control watchers = Assert.IsAssignableFrom<Control>(watchersTab.Content);
-        string?[] names = search.GetVisualDescendants().Concat(watchers.GetVisualDescendants())
-            .OfType<Control>().Select(control => control.Name).Append(page.View.Footer.Name).ToArray();
+        string?[] names = search.GetLogicalDescendants().Concat(watchers.GetLogicalDescendants())
+            .Concat(page.View.Footer.GetLogicalDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
         // Actual content, not aliases to a replacement/placeholder. Dynamic result and watcher
         // cards remain the view's responsibility and are covered by the existing workbench checks.
         foreach (string name in new[] { BooruWorkbenchView.ModeName, BooruWorkbenchView.InputName,

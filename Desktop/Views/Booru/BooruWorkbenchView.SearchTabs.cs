@@ -300,6 +300,7 @@ internal sealed partial class BooruWorkbenchView
         if (selected is not TabItem item) return;
         ClearTabLimitNotice();
         _lastRealTab = item;
+        UpdateGalleryScroll();
         if (item.Tag is not int searchId) return;
         AttachSearchContent(item);
         _searchTabs?.Select(searchId);
@@ -410,6 +411,7 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_searchTabs is not { } tabs) return;
         RenderBottomStatus(view);
+        UpdateGalleryScroll();
         RenderViewToggleLabels();
         foreach (var (id, tab) in _extraTabs)
             RenderTabHeader(tab.Item, tab.Header,
