@@ -323,19 +323,43 @@ public static class CommandBindings
     /// action of a toolbar carries an icon (the Reader toolbar rule) whatever sets its label. A button that holds a control as
     /// content (a button of <see cref="ApplyLabeled"/>) is not templated.
     /// </summary>
-    internal static void ShowIconBeforeText(Button button, string icon, int size = 16)
+    internal static void ShowIconBeforeText(Button button, string icon, int size = 16, bool closeWhenChecked = false)
     {
         MeowChan.Desktop.Controls.IconButtons.Record(button, icon);
         button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
         {
             TextBlock text = new() { Text = content?.ToString(), VerticalAlignment = VerticalAlignment.Center };
-            return new StackPanel
+            StackPanel panel = new()
             {
                 Orientation = Orientation.Horizontal,
                 Spacing = 4,
                 VerticalAlignment = VerticalAlignment.Center,
                 Children = { ButtonIcon(icon, size, text, byKey: true), text }
             };
+            // F17: a toggle tool shows a small x inside its own button while it is on (the bar it opened closes with it).
+            if (closeWhenChecked)
+            {
+                Avalonia.Controls.Shapes.Path close = MeowChan.Desktop.Controls.WorkspaceIcons.Create(MeowChan.Desktop.Controls.WorkspaceIcons.Close);
+                close.Width = 10;
+                close.Height = 10;
+                close.Stretch = Stretch.Uniform;
+                close.VerticalAlignment = VerticalAlignment.Center;
+                close.Name = "ToolActiveClose";
+                // Follows the owner's IsChecked through the captured button (no ancestor lookup, which is not resolvable while the template
+                // content is still detached); the subscription ends with the content (a new label builds a new content).
+                Avalonia.Controls.Primitives.ToggleButton owner = (Avalonia.Controls.Primitives.ToggleButton)button;
+                close.IsVisible = owner.IsChecked == true;
+                WeakReference<Avalonia.Controls.Shapes.Path> weak = new(close);
+                void Follow(object? sender, AvaloniaPropertyChangedEventArgs e)
+                {
+                    if (e.Property != Avalonia.Controls.Primitives.ToggleButton.IsCheckedProperty) return;
+                    if (weak.TryGetTarget(out Avalonia.Controls.Shapes.Path? target)) target.IsVisible = owner.IsChecked == true;
+                    else owner.PropertyChanged -= Follow; // a rebuilt content replaced this one
+                }
+                owner.PropertyChanged += Follow;
+                panel.Children.Add(close);
+            }
+            return panel;
         });
     }
 

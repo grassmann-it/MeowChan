@@ -102,7 +102,7 @@ internal static partial class UiCatalogChecks
             await UntilAsync(() => Named<Control>(a, "ReaderFindBar").IsVisible, "the find bar did not open");
             await Settle(w, 250);
             UiCatalog.Record(w, "reader-find-bar", Standard, "Find in thread bar (scope chip, previous/next, close at the right edge)");
-            Click(Named<Button>(a, "ReaderToolsClose"));
+            Click(Named<Button>(a, "ReaderFindOpen"));
             await Settle(w, 150);
         });
         await StepAsync("reader-tag-bar", async () =>
@@ -111,7 +111,7 @@ internal static partial class UiCatalogChecks
             await UntilAsync(() => Named<Control>(a, "ReaderTagBar").IsVisible, "the thread tag bar did not open");
             await Settle(w, 250);
             UiCatalog.Record(w, "reader-tag-bar", Standard, "Thread tag bar");
-            Click(Named<Button>(a, "ReaderToolsClose"));
+            Click(Named<Button>(a, "ReaderTagsOpen"));
             await Settle(w, 150);
         });
         foreach ((string option, string key, string note) in new[]

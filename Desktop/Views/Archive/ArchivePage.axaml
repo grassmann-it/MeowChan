@@ -293,8 +293,8 @@
                     <Button x:Name="ReaderSkipUnavailableGroupMember" wv:WorkViewElement.Id="reader.toolbar.skip-unavailable" IsVisible="False" Click="OnSkipUnavailableGroupMember" />
                     <Button x:Name="ArchiveReadPosts" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.read" Tag="gallery.read" Classes="localized" Click="OnReadPostsClick" />
                     <Button x:Name="ArchiveOpenGallery" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.gallery" Tag="gallery.open" Classes="localized" Click="OnCurrentGalleryClick" />
-                    <Button x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnOpenThreadFind" />
-                    <Button x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
+                    <ToggleButton x:Name="ReaderFindOpen" desktop:ActionToolBar.Group="1" wv:WorkViewElement.Id="reader.toolbar.find" Click="OnThreadFindToggleClick" />
+                    <ToggleButton x:Name="ReaderTagsOpen" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.tags" Click="OnOpenThreadTags" />
                     <Button x:Name="ExportArchiveButton" desktop:ActionToolBar.Group="2" wv:WorkViewElement.Id="reader.toolbar.export" Tag="archive.export" Classes="localized" Click="OnExportClick" />
                     <!-- R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link,
                          remove watch) in one menu; the settings gear next to it is the reader's own look. -->
@@ -310,9 +310,9 @@
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <!-- F02: Find and Tags share ONE thread-tools row. Each group shows only while open; side by side they wrap (the tag group
-                         to a second line) at narrow width. The single x at the right edge (HeaderBar end slot, Tom's item 35) closes every open group.
+                         to a second line) at narrow width. F17: no separate x; the Find and Tags buttons of the toolbar are toggles (active while their group is open, with an x inside) and close their own group.
                          The status lines, chips and suggestions stay below the row, each following its own group. -->
-                    <controls:HeaderBar x:Name="ReaderToolsRow" IsVisible="False">
+                    <StackPanel x:Name="ReaderToolsRow" IsVisible="False">
                     <WrapPanel ItemSpacing="{StaticResource Workspace.Space.16}" LineSpacing="{StaticResource Workspace.Space.4}">
                     <StackPanel x:Name="ReaderFindBar" IsVisible="False">
                         <!-- AP2: the same scope chip as the archive field; File name and SHA-256 open their result
@@ -338,8 +338,7 @@
                         </WrapPanel>
                     </StackPanel>
                     </WrapPanel>
-                    <Button x:Name="ReaderToolsClose" controls:HeaderBar.IsEnd="True" Click="OnCloseThreadTools" />
-                    </controls:HeaderBar>
+                    </StackPanel>
                     <StackPanel x:Name="ReaderFindDetails" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
                         <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
                         <controls:SearchCarryOffer x:Name="ReaderFindCarryOffer" />

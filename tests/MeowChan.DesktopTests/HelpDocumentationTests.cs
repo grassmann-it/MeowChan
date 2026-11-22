@@ -465,8 +465,6 @@ public sealed class HelpDocumentationTests
     [InlineData("Back and Close", "gallery.return")]
     [InlineData("Back and Close", "command.media.return")]
     [InlineData("Back and Close", "reader.close")]
-    [InlineData("Back and Close", "readerFind.close")]
-    [InlineData("Back and Close", "tags.close")]
     [InlineData("Back and Close", "command.preview.close")]
     [InlineData("Back and Close", "action.hideDetails")]
     public void HelpActionNamesMatchEnglishAndGermanCatalogs(string heading, string key)
@@ -747,7 +745,7 @@ public sealed class HelpDocumentationTests
         (string Xaml, string Name)[] ends =
         [
             (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
-            (archive, "ReaderToolsClose"), (archive, "ClosePreviewButton")
+            (archive, "ClosePreviewButton")
         ];
         foreach ((string xaml, string name) in ends)
             Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsEnd=\"True\"", xaml);
