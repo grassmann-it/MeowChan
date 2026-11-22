@@ -198,9 +198,11 @@ internal static partial class GalleryPlaybackFeatureChecks
             await using GalleryViewer viewer = new();
             viewer.Configure(contextOpen: true, showShortcutHelp: true, videoAutoplay: false,
                 videoStartMuted: true, videoVolume: 0);
+            // Change placement even when the case matches the default preferences.
+            // The simulated native overlay flag alone does not reparent anything.
+            viewer.ConfigurePlayback(new GalleryPlaybackPreferences().WithControlsOverlay(false));
             if (externalRoot) ShellErrorSet(viewer, "_nativeOverlayActive", true);
             viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayPostContext: postOverlay).WithControlsOverlay(true));
-            viewer.SetInteractionAvailable(false); // Explicit reveal, held stable during sizing.
             Window window = new() { Width = 1000, Height = 700, Content = viewer,
                 Title = "Private gallery layout ownership regression", WindowStartupLocation = WindowStartupLocation.CenterScreen };
             Window? overlay = externalRoot ? new Window
@@ -211,44 +213,55 @@ internal static partial class GalleryPlaybackFeatureChecks
             try
             {
                 window.Show(owner);
-                overlay?.Show(window);
+                await ActivateLayoutRootAsync(window);
+                viewer.SetInteractionAvailable(true);
+                if (overlay != null)
+                {
+                    overlay.Show(window);
+                    await ActivateLayoutRootAsync(overlay);
+                }
+
+                Window footerRoot = overlay ?? window;
+                using var native = new MediaNativeInput(footerRoot);
                 Border context = Find<Border>(viewer, "GalleryContext");
                 StackPanel footer = Find<StackPanel>(viewer, "GalleryOverlayFooter");
+                Task<Button> RevealAsync() => MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer,
+                    () => MediaInteractionSmokeHelpers.GalleryControl<Button>(viewer, "GalleryMore"),
+                    $"Root layout footer did not reveal: external={externalRoot}, postOverlay={postOverlay}.");
+
+                // Use the painted toolbar button above the empty part of the forced
+                // footer. Its current position changes when the footer is resized.
+                Button target = await RevealAsync();
                 foreach (double height in new[] { 180d, 280d, 180d })
                 {
+                    await native.MoveAsync(target);
                     footer.Height = height; // Actual SizeChanged callbacks, including repeated sizing.
                     await LayoutAsync(window);
                     if (overlay != null) await LayoutAsync(overlay);
-                    Require(footer.IsVisible && footer.Bounds.Height > 0 && context.IsVisible,
+                    Require(footer.IsEffectivelyVisible && footer.Bounds.Height > 0
+                        && context.IsEffectivelyVisible && context.Bounds.Width > 0 && context.Bounds.Height > 0,
                         "Root layout regression requires actually visible footer/context controls.");
                     Require(Math.Abs(footer.Bounds.Height - height) < .01,
                         $"Footer did not realize the requested layout height {height}: {footer.Bounds.Height}.");
                     Require(ReferenceEquals(context.Parent, postOverlay
                         ? externalRoot ? ErrorField<Grid>(viewer, "_nativeVideoOverlay") : ErrorField<Grid>(viewer, "_visualRoot")
-                        : ErrorField<Grid>(viewer, "_body")), "Context left its selected layout parent.");
-                    Require(ReferenceEquals(TopLevel.GetTopLevel(footer), overlay ?? window),
+                        : ErrorField<Grid>(viewer, "_body"))
+                        && ReferenceEquals(TopLevel.GetTopLevel(context), postOverlay ? footerRoot : window),
+                        "Context left its selected layout parent or window.");
+                    Require(ReferenceEquals(TopLevel.GetTopLevel(footer), footerRoot),
                         "Footer did not belong to the selected real layout root.");
                     double expected = postOverlay ? footer.Bounds.Height + 16
                         : externalRoot ? 0 : footer.Bounds.Height + 8;
                     Require(Math.Abs(context.Margin.Bottom - expected) < .01,
                         $"Context inherited the wrong root's footer inset: external={externalRoot}, postOverlay={postOverlay}, actual={context.Margin.Bottom}, expected={expected}.");
+                    target = await RevealAsync();
                 }
-                // Put the actual OS pointer over the closing root, rather than
-                // relying on where a hosted runner happened to leave its cursor.
+                Require(target.GetVisualAncestors().Contains(footer),
+                    "Closing-root pointer target is outside the sized footer.");
+                await EnterClosingRootAsync(native, footerRoot, RevealAsync);
                 Control pointerRoot = externalRoot ? ErrorField<Grid>(viewer, "_nativeVideoOverlay") : viewer;
-                using (var native = new MediaNativeInput(overlay ?? window))
-                {
-                    // The forced 180px footer includes transparent, unpainted space:
-                    // its center hits the viewport, not the footer (ARM 43908445672,
-                    // also reproduced with X11). Target its real painted controls,
-                    // retaining the driver's strict center hit check in this root.
-                    Border controls = Find<Border>(viewer, "GalleryOverlayControls");
-                    Require(controls.GetVisualAncestors().Contains(footer),
-                        "Closing-root pointer target is not inside the sized footer.");
-                    await EnterClosingRootAsync(native, overlay ?? window, controls, externalRoot, postOverlay);
-                    await UntilAsync(() => footer.IsPointerOver && pointerRoot.IsPointerOver,
-                        "Closing-root regression did not receive real OS pointer entry.");
-                }
+                Require(footer.IsPointerOver && pointerRoot.IsPointerOver,
+                    "Closing-root regression did not retain real OS pointer entry.");
                 Console.WriteLine($"SMOKE gallery context root PASS: external={externalRoot}, postOverlay={postOverlay}, repeated footer sizing, own-root clearance retained; real pointer over closing root; no native playback claim");
             }
             finally
@@ -269,70 +282,51 @@ internal static partial class GalleryPlaybackFeatureChecks
         }
     }
 
-    private static async Task EnterClosingRootAsync(MediaNativeInput native, Window root, Control target,
-        bool externalRoot, bool postOverlay)
+    private static async Task ActivateLayoutRootAsync(Window root)
     {
-        // Show/UpdateLayout do not establish native activation. In particular the
-        // second external-root case can inherit the previous case's cursor pixel.
-        // A single CGEvent at that pixel is submission, not proof of entry into
-        // the newly created NSWindow. Exercise motion across two distinct points
-        // and require native delivery, without an activation click or routed input.
         root.Activate();
-        await UntilAsync(() => root.IsVisible && root.IsActive && root.IsArrangeValid,
-            "Closing-root native window did not become active and arranged.");
-        Point[] points = GalleryNativePointerProbe.EntryPoints(target.Bounds.Size);
-        bool primed = false;
-        foreach (Point point in new[] { points[1], points[0], points[1] })
+        await UntilAsync(() => root.IsVisible && root.IsActive,
+            $"Native layout root did not activate: {root.Title}.");
+        await LayoutAsync(root);
+    }
+
+    private static async Task EnterClosingRootAsync(MediaNativeInput native, Window root, Func<Task<Button>> resolveTarget)
+    {
+        // The previous scene may already have left the pointer on the first pixel.
+        // Prime that position, then require actual movement in both directions.
+        for (int attempt = 0; attempt < 3; attempt++)
         {
-            PixelPoint pixel = target.PointToScreen(point);
-            var screen = root.Screens.ScreenFromPoint(pixel);
-            Visual? hit = root.InputHitTest(root.PointToClient(pixel)) as Visual;
-            Visual? localHit = target.InputHitTest(point) as Visual;
-            Console.WriteLine($"SMOKE closing-root native readiness: external={externalRoot}, postOverlay={postOverlay}, "
-                + $"position={root.Position}, client={root.ClientSize}, scale={root.RenderScaling}, active={root.IsActive}, "
-                + $"pixel={pixel}, working-area={screen?.WorkingArea}, hit={(hit as Control)?.Name ?? hit?.GetType().Name}, "
-                + $"local-hit={(localHit as Control)?.Name ?? localHit?.GetType().Name}");
-            Require(screen != null && screen.WorkingArea.Contains(pixel),
-                "Closing-root pointer target is outside the native working area.");
-            // ARM 43938129569: active, on-screen first root reported GalleryViewport
-            // here before any motion was submitted. Layout/activation do not prove
-            // the compositor's top-level hit snapshot is current. Match the shared
-            // native driver's live local-hit readiness, but never treat that as
-            // delivery: BOTH probes below must actually route through this target.
-            Require(hit?.GetSelfAndVisualAncestors().Contains(target) == true
-                || localHit?.GetSelfAndVisualAncestors().Contains(target) == true,
-                "Closing-root pointer target has no live painted hit geometry.");
-            if (!primed)
-            {
-                // Seed a known OS position, even if the runner initially left
-                // the cursor exactly at our entry pixel. Submission alone is
-                // sufficient only for this seed, never for the two probes.
-                await native.MoveAsync(target, point);
-                primed = true;
-                continue;
-            }
-            Point expected = root.PointToClient(pixel);
-            TaskCompletionSource<bool> moved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            int pointIndex = attempt % 2 == 0 ? 1 : 0;
+            Button? target = null;
+            PixelPoint expected = default;
+            var moved = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             void OnMoved(object? sender, PointerEventArgs args)
             {
-                Point actual = args.GetPosition(root);
-                if (args.Source is Visual source && ReferenceEquals(TopLevel.GetTopLevel(source), root)
+                if (target != null && args.Source is Visual source && ReferenceEquals(TopLevel.GetTopLevel(source), root)
                     && source.GetSelfAndVisualAncestors().Contains(target)
-                    && target.IsPointerOver
-                    && GalleryNativePointerProbe.IsAt(actual, expected))
-                    moved.TrySetResult(true);
+                    && GalleryNativePointerProbe.IsAt(args.GetPosition(root), root.PointToClient(expected)))
+                    moved.TrySetResult();
             }
             root.AddHandler(InputElement.PointerMovedEvent, OnMoved, RoutingStrategies.Tunnel, handledEventsToo: true);
             try
             {
-                await native.MoveAsync(target, point);
-                await moved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+                await native.MoveAsync(resolveTarget, current =>
+                {
+                    Require(ReferenceEquals(TopLevel.GetTopLevel(current), root),
+                        "Closing-root target moved to a different window.");
+                    Point point = GalleryNativePointerProbe.EntryPoints(current.Bounds.Size)[pointIndex];
+                    expected = current.PointToScreen(point);
+                    target = current;
+                    Require(root.Screens.ScreenFromPoint(expected)?.WorkingArea.Contains(expected) == true,
+                        $"Closing-root pointer target is outside the native working area: {expected}.");
+                    return Task.FromResult<Point?>(point);
+                });
+                if (attempt > 0) await moved.Task.WaitAsync(TimeSpan.FromSeconds(2));
             }
             catch (TimeoutException)
             {
-                throw new TimeoutException($"Closing-root OS motion was not delivered: external={externalRoot}, "
-                    + $"postOverlay={postOverlay}, pixel={pixel}, position={root.Position}, active={root.IsActive}, "
-                    + $"target-over={target.IsPointerOver}; required motion source inside target subtree.");
+                throw new TimeoutException($"Closing-root OS motion was not delivered to {target?.Name}: "
+                    + $"window={root.Title}, active={root.IsActive}, pixel={expected}.");
             }
             finally { root.RemoveHandler(InputElement.PointerMovedEvent, OnMoved); }
         }
@@ -405,22 +399,35 @@ internal static partial class GalleryPlaybackFeatureChecks
         viewer.ConfigurePlayback(new GalleryPlaybackPreferences(VideoRepeat: true).WithControlsOverlay(overlay));
         await viewer.ShowAsync(clip, CancellationToken.None).WaitAsync(Deadline);
         GalleryVideoPlayer player = Player(viewer);
-        await UntilAsync(async () => HasRealFrames(await player.InspectPlaybackAsync()), "Notice fixture did not decode real frames.");
+        GalleryVideoPlayer.PlaybackEvidence playback = await player.InspectPlaybackAsync();
+        await UntilAsync(async () =>
+        {
+            playback = await player.InspectPlaybackAsync();
+            return HasRealFrames(playback);
+        }, "Notice fixture did not decode real frames in Playing state.");
         using MediaNativeInput native = new(fixture.Window);
+        Button? CurrentPause() => MediaInteractionSmokeHelpers.GalleryControl<Button>(viewer, "GalleryVideoPlayPause");
         if (paused)
         {
-            Button playPause = Find<Button>(viewer, "GalleryVideoPlayPause");
-            if (!playPause.IsEffectivelyVisible)
+            Button playPause = await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, CurrentPause,
+                "Notice fixture did not expose its current native pause control.");
+            Console.WriteLine($"SMOKE gallery notification before native pause: state={playback.State}, time={playback.Time}, length={playback.Length}, playingIntent={player.IsPlayingNow}");
+            await native.ClickButtonAsync(playPause);
+            Console.WriteLine("SMOKE gallery notification pause click delivered");
+            try
             {
-                await native.MoveAsync(viewer, new Avalonia.Point(viewer.Bounds.Width * .45, viewer.Bounds.Height - 2));
-                await UntilAsync(() => playPause.IsEffectivelyVisible, "Bottom-edge hover did not expose native pause control.");
+                await UntilAsync(async () => (playback = await player.InspectPlaybackAsync()).State == "Paused",
+                    "Notice fixture received the pause Click but the player did not enter Paused.");
             }
-            await native.ClickAsync(playPause);
-            await UntilAsync(async () => (await player.InspectPlaybackAsync()).State == "Paused", "Notice fixture did not pause.");
+            finally
+            {
+                Console.WriteLine($"SMOKE gallery notification after native pause: state={playback.State}, time={playback.Time}, length={playback.Length}, playingIntent={player.IsPlayingNow}");
+            }
         }
         string expected = paused ? "Paused" : "Playing";
         viewer.FocusGallerySurface();
-        await native.MoveAsync(viewer, new Avalonia.Point(viewer.Bounds.Width * .4, viewer.Bounds.Height * .3));
+        Button transportAction = CurrentPause() ?? throw new InvalidOperationException("Notice transport detached after playback setup.");
+        await MediaInteractionSmokeHelpers.MoveInGalleryAsync(native, viewer, transportAction, .4);
         Border controls = Find<Border>(viewer, "GalleryOverlayControls");
         if (overlay) await UntilAsync(() => !Visible(controls), "Notice precondition: overlay did not auto-hide.");
         TopLevel inputRoot = TopLevel.GetTopLevel(Find<Button>(viewer, "GalleryVideoPlayPause"))!;
