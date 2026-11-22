@@ -1,6 +1,8 @@
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -13,7 +15,7 @@ internal sealed class MediaNativeInput : IDisposable
     private readonly nint _display;
     private readonly Window _owner;
     private readonly Action<string, object>? _trace;
-    private int _x, _y;
+    private Control? _pointerTarget;
     private TopLevel? _lastMacPointerRoot;
     private readonly HashSet<uint> _heldKeys = new();
     private uint _heldButton;
@@ -74,7 +76,7 @@ internal sealed class MediaNativeInput : IDisposable
             try
             {
                 target = await resolveTarget();
-                await PrepareTargetAsync(target, requireEnabled, requireHitTest);
+                await PrepareTargetAsync(target, requireEnabled);
                 point = resolvePoint == null ? null : await resolvePoint(target);
                 await MoveOnceAsync(target, point, requireEnabled, requireHitTest);
                 return;
@@ -94,7 +96,7 @@ internal sealed class MediaNativeInput : IDisposable
         }
     }
 
-    private async Task PrepareTargetAsync(Control target, bool requireEnabled, bool requireHitTest)
+    private async Task PrepareTargetAsync(Control target, bool requireEnabled)
     {
         // The gallery volume opens above the speaker when it is pointed at (plan V1):
         // point at the live host first, then re-check this same current control.
@@ -106,8 +108,7 @@ internal sealed class MediaNativeInput : IDisposable
                 () => IsNativeGeometryReady(target, requireEnabled),
                 () => "The volume above the speaker did not open: " + target.Name);
         }
-        if (!IsNativeGeometryReady(target, requireEnabled)
-            || requireHitTest && !IsNativeHitTargetReady(target, requireEnabled))
+        if (!IsNativeGeometryReady(target, requireEnabled))
             throw new ArgumentException("Native pointer target presentation is not ready.", nameof(target));
     }
 
@@ -143,29 +144,43 @@ internal sealed class MediaNativeInput : IDisposable
         }
     }
 
-    private async Task MoveOnceAsync(Control target, Point? point, bool requireEnabled, bool requireHitTest)
+    private async Task<PixelPoint> MoveOnceAsync(Control target, Point? point, bool requireEnabled, bool requireHitTest)
     {
-        if (requireHitTest && !IsNativeHitTargetReady(target, requireEnabled, point))
-            throw new ArgumentException("Native pointer hit target changed before delivery.", nameof(target));
-        PixelPoint pixel = target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
-        if (_display == 0)
+        PixelPoint pixel = PointerPixel(target, point, requireEnabled, requireHitTest);
+        _pointerTarget = target;
+        await ObserveInputAsync("move", target, pixel, async () =>
         {
-            EnsureOwnActiveWindow();
-            _x = pixel.X; _y = pixel.Y;
-            if (OperatingSystem.IsWindows())
-            { if (!SetCursorPos(_x, _y)) throw new InvalidOperationException("Win32 pointer movement rejected: " + Marshal.GetLastWin32Error()); }
+            if (_display != 0)
+            {
+                int screen = XDefaultScreen(_display);
+                if (pixel.X < 0 || pixel.Y < 0 || pixel.X >= XDisplayWidth(_display, screen) || pixel.Y >= XDisplayHeight(_display, screen))
+                    throw new InvalidOperationException("Native pointer target is outside private screen: " + target.Name);
+                Require(XTestFakeMotionEvent(_display, screen, pixel.X, pixel.Y, 0));
+                Flush();
+            }
+            else if (OperatingSystem.IsWindows())
+            {
+                EnsureOwnActiveWindow();
+                if (!SetCursorPos(pixel.X, pixel.Y))
+                    throw new InvalidOperationException("Win32 pointer movement rejected: " + Marshal.GetLastWin32Error());
+            }
             else
             {
+                EnsureOwnActiveWindow();
                 PostMacMotion(pixel);
                 _lastMacPointerRoot = TopLevel.GetTopLevel(target);
             }
-            await Task.Delay(70); return;
-        }
-        int screen = XDefaultScreen(_display);
-        if (pixel.X < 0 || pixel.Y < 0 || pixel.X >= XDisplayWidth(_display, screen) || pixel.Y >= XDisplayHeight(_display, screen))
-            throw new InvalidOperationException("Native pointer target is outside private screen: " + target.Name);
-        Require(XTestFakeMotionEvent(_display, screen, pixel.X, pixel.Y, 0));
-        Flush(); await Task.Delay(70);
+            await Task.Delay(70);
+        }, InputElement.PointerMovedEvent);
+        return pixel;
+    }
+
+    private static PixelPoint PointerPixel(Control target, Point? point, bool requireEnabled, bool requireHitTest)
+    {
+        if (!IsNativeGeometryReady(target, requireEnabled)
+            || requireHitTest && !IsNativeHitTargetReady(target, requireEnabled, point))
+            throw new ArgumentException("Native pointer hit target changed before delivery.", nameof(target));
+        return target.PointToScreen(point ?? new Point(target.Bounds.Width / 2, target.Bounds.Height / 2));
     }
 
     private void PostMacMotion(PixelPoint pixel)
@@ -175,7 +190,6 @@ internal sealed class MediaNativeInput : IDisposable
         if (Math.Abs(screenInfo.Bounds.Width - bounds.Width * screenInfo.Scaling) > 2
             || Math.Abs(screenInfo.Bounds.Height - bounds.Height * screenInfo.Scaling) > 2)
             throw new PlatformNotSupportedException("Ambiguous Quartz/Avalonia display coordinate mapping.");
-        _x = pixel.X; _y = pixel.Y;
         _macPoint = new(bounds.X + (pixel.X - screenInfo.Bounds.X) / screenInfo.Scaling,
             bounds.Y + (pixel.Y - screenInfo.Bounds.Y) / screenInfo.Scaling);
         PostMouse(_heldButton != 0 ? 6u : 5u);
@@ -213,8 +227,11 @@ internal sealed class MediaNativeInput : IDisposable
         _owner.AddHandler(InputElement.PointerMovedEvent, Moved, RoutingStrategies.Tunnel, handledEventsToo: true);
         try
         {
-            PostMacMotion(entryPixel);
-            await arrived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            await ObserveInputAsync("owner re-entry", _owner, entryPixel, async () =>
+            {
+                PostMacMotion(entryPixel);
+                await arrived.Task.WaitAsync(TimeSpan.FromSeconds(2));
+            }, InputElement.PointerMovedEvent);
             _trace?.Invoke("native-owner-reentered", new
             {
                 target.Name, retiredRoot = retiredRoot.GetType().Name,
@@ -237,6 +254,30 @@ internal sealed class MediaNativeInput : IDisposable
     internal Task ClickAsync(Control target, Point? point = null, bool requireHitTest = true) =>
         ClickAsync(() => Task.FromResult(target), _ => Task.FromResult(point), requireHitTest);
 
+    /// <summary>Requires the actual button activation independently of the command's observable effect.</summary>
+    internal async Task ClickButtonAsync(Button target, bool requireHitTest = true)
+    {
+        int clicks = 0;
+        void Clicked(object? sender, RoutedEventArgs args)
+        {
+            if (ReferenceEquals(args.Source, target)) clicks++;
+        }
+        target.AddHandler(Button.ClickEvent, Clicked, RoutingStrategies.Bubble, handledEventsToo: true);
+        try
+        {
+            await ClickAsync(target, requireHitTest: requireHitTest);
+            await Program.WaitUntilAsync(() => clicks > 0,
+                () => $"No native Click reached {target.Name} after pointer submission.");
+            if (clicks != 1)
+                throw new InvalidOperationException($"Native button activation expected one Click on {target.Name}, observed {clicks}.");
+        }
+        finally
+        {
+            target.RemoveHandler(Button.ClickEvent, Clicked);
+            Console.WriteLine($"SMOKE native-button {target.Name}: Click={clicks}");
+        }
+    }
+
     /// <summary>
     /// Clicks a freshly resolved target; readiness, coordinate conversion and native delivery are one bounded operation.
     /// A popup may opt out of the framework hit-test probe when its current native root
@@ -255,19 +296,13 @@ internal sealed class MediaNativeInput : IDisposable
             {
                 target = await resolveTarget();
                 await ReenterMacOwnerAfterPopupAsync(target);
-                await PrepareTargetAsync(target, requireEnabled: true, requireHitTest);
+                await PrepareTargetAsync(target, requireEnabled: true);
                 point = resolvePoint == null ? null : await resolvePoint(target);
-                await MoveOnceAsync(target, point, true, requireHitTest);
-                await ButtonAsync(true); await ButtonAsync(false);
-                // This is OS submission evidence, not proof that Avalonia handled
-                // the click. The caller still asserts the actual menu/panel effect.
-                _trace?.Invoke("native-click-submitted", new
-                {
-                    target = target.GetType().Name, target.Name, attempt, requireHitTest,
-                    root = TopLevel.GetTopLevel(target)?.GetType().Name,
-                    _owner.IsActive
-                });
-                return;
+                TopLevel? root = TopLevel.GetTopLevel(target);
+                PixelPoint pixel = await MoveOnceAsync(target, point, true, requireHitTest);
+                if (!ReferenceEquals(root, TopLevel.GetTopLevel(target)) || pixel != PointerPixel(target, point, true, requireHitTest))
+                    throw new ArgumentException("Native click target moved before button press.", nameof(resolveTarget));
+                break;
             }
             catch (ArgumentException) when (attempt < MaxTargetAttempts)
             {
@@ -281,6 +316,7 @@ internal sealed class MediaNativeInput : IDisposable
                 throw;
             }
         }
+        await PressAndReleaseAsync(1);
     }
 
     internal Task RightClickAsync(Control target, Point? point = null) =>
@@ -296,12 +332,10 @@ internal sealed class MediaNativeInput : IDisposable
             try
             {
                 target = await resolveTarget();
-                await PrepareTargetAsync(target, requireEnabled: true, requireHitTest: true);
+                await PrepareTargetAsync(target, requireEnabled: true);
                 point = resolvePoint == null ? null : await resolvePoint(target);
                 await MoveOnceAsync(target, point, true, true);
-                try { await ButtonAsync(3, true); }
-                finally { if (_heldButton == 3) await ButtonAsync(3, false); }
-                return;
+                break;
             }
             catch (ArgumentException) when (attempt < MaxTargetAttempts)
             {
@@ -313,6 +347,7 @@ internal sealed class MediaNativeInput : IDisposable
                 throw;
             }
         }
+        await PressAndReleaseAsync(3);
     }
 
     private void TraceFinalArgument(string operation, int attempts, Control? target, Point? point,
@@ -341,6 +376,8 @@ internal sealed class MediaNativeInput : IDisposable
             {
                 operation, attempts, requireEnabled, requireHitTest,
                 point = point?.ToString(),
+                activeWindow = DescribeRoot(ActiveWindow()),
+                delivered = Array.Empty<string>(),
                 target = target == null ? null : new
                 {
                     type = target.GetType().Name, name = target.Name,
@@ -370,37 +407,159 @@ internal sealed class MediaNativeInput : IDisposable
 
     internal Task ButtonAsync(bool down) => ButtonAsync(1, down);
 
-    private async Task ButtonAsync(uint button, bool down)
+    private async Task PressAndReleaseAsync(uint button)
     {
-        if (down)
-        {
-            EnsureOwnActiveWindow();
-            if (_heldButton != 0) throw new InvalidOperationException("Native input already holds mouse button " + _heldButton + ".");
-            // Mark before dispatch so Dispose can release even if the native call throws
-            // after the OS accepted the down event.
-            _heldButton = button;
-        }
-        if (_display != 0) Require(XTestFakeButtonEvent(_display, button, down ? 1 : 0, 0));
-        else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 0, Data = new WinInputUnion { Mouse = new WinMouse { Flags = button == 3 ? (down ? 0x0008u : 0x0010u) : (down ? 0x0002u : 0x0004u) } } });
-        else PostMouse(down ? (button == 3 ? 3u : 1u) : (button == 3 ? 4u : 2u), button == 3 ? 1u : 0u);
-        if (!down) _heldButton = 0;
-        Flush(); await Task.Delay(down ? 40 : 90);
+        if (_heldButton != 0)
+            throw new InvalidOperationException("Native input already holds mouse button " + _heldButton + ".");
+        try { await ButtonAsync(button, true); }
+        finally { if (_heldButton == button) await ButtonAsync(button, false); }
     }
 
-    internal async Task KeyAsync(ulong key, bool modified = false)
+    private async Task ButtonAsync(uint button, bool down)
     {
+        string operation = $"button {button} {(down ? "down" : "up")}";
+        PixelPoint? pixel = CursorPixel();
+        async Task SendButtonAsync()
+        {
+            if (down)
+            {
+                EnsureOwnActiveWindow();
+                if (_heldButton != 0) throw new InvalidOperationException("Native input already holds mouse button " + _heldButton + ".");
+                // Track the hold before dispatch so cleanup can release it even if submission throws.
+                _heldButton = button;
+            }
+            if (_display != 0) Require(XTestFakeButtonEvent(_display, button, down ? 1 : 0, 0));
+            else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 0, Data = new WinInputUnion { Mouse = new WinMouse { Flags = button == 3 ? (down ? 0x0008u : 0x0010u) : (down ? 0x0002u : 0x0004u) } } });
+            else PostMouse(down ? (button == 3 ? 3u : 1u) : (button == 3 ? 4u : 2u), button == 3 ? 1u : 0u);
+            if (!down) _heldButton = 0;
+            Flush(); await Task.Delay(down ? 40 : 90);
+        }
+        if (down) await ObserveInputAsync(operation, _pointerTarget, pixel, SendButtonAsync, InputElement.PointerPressedEvent);
+        else await ObserveInputAsync(operation, _pointerTarget, pixel, SendButtonAsync, InputElement.PointerReleasedEvent);
+    }
+
+    internal Task KeyAsync(ulong key, bool modified = false) => KeyboardInputAsync(key, TimeSpan.FromMilliseconds(40),
+        modified ? new[] { ControlLeft, ShiftLeft } : []);
+
+    private Task KeyboardInputAsync(ulong key, TimeSpan duration, ulong[] modifiers, bool hold = false)
+    {
+        TopLevel? pointerRoot = _pointerTarget == null ? null : TopLevel.GetTopLevel(_pointerTarget);
+        Control? focused = (pointerRoot is PopupRoot { IsVisible: true } ? pointerRoot : ActiveWindow())
+            ?.FocusManager?.GetFocusedElement() as Control;
+        string keys = string.Join("+", modifiers.Append(key).Select(symbol => $"0x{symbol:x}"));
+        return ObserveInputAsync("key " + keys, focused, CursorPixel(), PressAsync,
+            InputElement.KeyDownEvent, InputElement.KeyUpEvent);
+
+        async Task PressAsync()
+        {
+            // Queue an X11 tap's release on the server. A loaded UI dispatcher
+            // can otherwise keep the key down long enough to trigger autorepeat.
+            nuint releaseDelay = _display != 0 && !hold ? (nuint)duration.TotalMilliseconds : 0;
+            try
+            {
+                foreach (ulong modifier in modifiers) Key(modifier, true);
+                Key(key, true);
+                if (releaseDelay == 0)
+                {
+                    Flush();
+                    await Task.Delay(duration);
+                }
+            }
+            finally
+            {
+                Key(key, false, releaseDelay);
+                foreach (ulong modifier in modifiers.Reverse()) Key(modifier, false);
+                Flush();
+            }
+            await Task.Delay(100);
+        }
+    }
+
+    private async Task ObserveInputAsync<TEventArgs>(string operation, Control? target, PixelPoint? pixel, Func<Task> submit,
+        params RoutedEvent<TEventArgs>[] routes) where TEventArgs : RoutedEventArgs
+    {
+        Window? active = ActiveWindow();
+        TopLevel? targetRoot = target == null ? active : TopLevel.GetTopLevel(target);
+        object? activeWindow = DescribeRoot(active);
+        object? targetPresentation = DescribeRoot(targetRoot);
+        TopLevel? pointerRoot = _pointerTarget == null ? null : TopLevel.GetTopLevel(_pointerTarget);
+        TopLevel[] roots = new TopLevel?[] { _owner, active, targetRoot, pointerRoot }.OfType<TopLevel>().Distinct().ToArray();
+        var delivered = new List<object>();
+        void Observe(object? sender, TEventArgs args)
+        {
+            if (sender is not TopLevel root) return;
+            delivered.Add(new
+            {
+                route = args.RoutedEvent?.Name,
+                source = DescribeVisual(args.Source),
+                withinTarget = target != null && args.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(target),
+                root = DescribeRoot(root),
+                pixel = args is PointerEventArgs pointer ? PointerEventPixel(root, pointer) : null,
+                key = args is KeyEventArgs key ? key.Key.ToString() : null
+            });
+        }
+        foreach (TopLevel root in roots)
+        foreach (RoutedEvent<TEventArgs> route in routes)
+            root.AddHandler(route, Observe, RoutingStrategies.Tunnel, handledEventsToo: true);
         try
         {
-            if (modified) { Key(ControlLeft, true); Key(ShiftLeft, true); }
-            Key(key, true); Flush(); await Task.Delay(40);
+            await submit();
         }
         finally
         {
-            Key(key, false);
-            if (modified) { Key(ShiftLeft, false); Key(ControlLeft, false); }
-            Flush();
+            foreach (TopLevel root in roots)
+            foreach (RoutedEvent<TEventArgs> route in routes)
+                root.RemoveHandler(route, Observe);
+            Console.WriteLine("SMOKE native-input " + JsonSerializer.Serialize(new
+            {
+                operation, activeWindow, target = DescribeVisual(target),
+                targetRoot = targetPresentation, pixel = pixel?.ToString(), delivered
+            }));
         }
-        await Task.Delay(100);
+    }
+
+    private static string? PointerEventPixel(TopLevel root, PointerEventArgs pointer)
+    {
+        // The routed event may close its own popup before diagnostics can convert coordinates.
+        try { return root.PointToScreen(pointer.GetPosition(root)).ToString(); }
+        catch (ArgumentException) { return null; }
+        catch (InvalidOperationException) { return null; }
+    }
+
+    private Window? ActiveWindow() => _owner.IsActive ? _owner
+        : _owner.OwnedWindows.FirstOrDefault(window => window.IsVisible && window.IsActive);
+
+    private static string? DescribeVisual(object? source) => source is Control { Name: { } name }
+        ? name : source?.GetType().Name;
+
+    private static object? DescribeRoot(TopLevel? root) => root == null ? null : new
+    {
+        type = root.GetType().Name,
+        title = (root as Window)?.Title,
+        handle = root.TryGetPlatformHandle()?.Handle.ToString("x")
+    };
+
+    private PixelPoint? CursorPixel()
+    {
+        if (_display != 0)
+        {
+            nint root = XDefaultRootWindow(_display);
+            return XQueryPointer(_display, root, out _, out _, out int x, out int y, out _, out _, out _) != 0
+                ? new PixelPoint(x, y) : null;
+        }
+        if (OperatingSystem.IsWindows())
+            return GetCursorPos(out WinPoint point) ? new PixelPoint(point.X, point.Y) : null;
+        nint current = CGEventCreate(0);
+        if (current == 0) return null;
+        try
+        {
+            MacPoint point = CGEventGetLocation(current);
+            var display = _owner.Screens.All.Single();
+            MacRect bounds = CGDisplayBounds(CGMainDisplayID());
+            return new PixelPoint(display.Bounds.X + (int)Math.Round((point.X - bounds.X) * display.Scaling),
+                display.Bounds.Y + (int)Math.Round((point.Y - bounds.Y) * display.Scaling));
+        }
+        finally { CFRelease(current); }
     }
 
     internal const ulong AltLeft = 0xffe9, BackSpace = 0xff08;
@@ -417,39 +576,26 @@ internal sealed class MediaNativeInput : IDisposable
     }
 
     /// <summary>Holds one key down for <paramref name="duration"/> (X11 keysym; Linux XTest only): with autorepeat on, the server repeats it.</summary>
-    internal async Task HoldAsync(ulong key, TimeSpan duration)
+    internal Task HoldAsync(ulong key, TimeSpan duration)
     {
         if (_display == 0) throw new PlatformNotSupportedException("Held keys are only implemented for the private X11 server.");
-        try { Key(key, true); Flush(); await Task.Delay(duration); }
-        finally { Key(key, false); Flush(); }
-        await Task.Delay(100);
+        return KeyboardInputAsync(key, duration, [], hold: true);
     }
 
     /// <summary>One key with the given modifier keys held (X11 keysyms; Linux XTest only).</summary>
-    internal async Task ChordAsync(ulong key, params ulong[] modifiers)
+    internal Task ChordAsync(ulong key, params ulong[] modifiers)
     {
         if (_display == 0) throw new PlatformNotSupportedException("Chords are only implemented for the private X11 server.");
-        try
-        {
-            foreach (ulong modifier in modifiers) Key(modifier, true);
-            Key(key, true); Flush(); await Task.Delay(40);
-        }
-        finally
-        {
-            Key(key, false);
-            foreach (ulong modifier in modifiers.Reverse()) Key(modifier, false);
-            Flush();
-        }
-        await Task.Delay(100);
+        return KeyboardInputAsync(key, TimeSpan.FromMilliseconds(40), modifiers);
     }
 
-    private void Key(ulong symbol, bool down)
+    private void Key(ulong symbol, bool down, nuint delay = 0)
     {
         if (down) EnsureOwnActiveWindow();
         uint code = _display != 0 ? XKeysymToKeycode(_display, (nuint)symbol) : NativeKey(symbol);
         if (code == 0) throw new InvalidOperationException("Native test key is not mapped by private X server.");
         if (down) _heldKeys.Add(code); else _heldKeys.Remove(code);
-        if (_display != 0) Require(XTestFakeKeyEvent(_display, code, down ? 1 : 0, 0));
+        if (_display != 0) Require(XTestFakeKeyEvent(_display, code, down ? 1 : 0, delay));
         else if (OperatingSystem.IsWindows()) Send(new WinInput { Type = 1, Data = new WinInputUnion {
             Keyboard = new WinKeyboard { VirtualKey = (ushort)code, Flags = (down ? 0u : 2u) | (IsExtendedWindowsKey(code) ? 1u : 0u) } } });
         else
@@ -483,7 +629,7 @@ internal sealed class MediaNativeInput : IDisposable
 
     private void EnsureOwnActiveWindow()
     {
-        if (!_owner.IsActive && !_owner.OwnedWindows.Any(w => w.IsActive && w.IsVisible))
+        if (ActiveWindow() == null)
             throw new InvalidOperationException("Refusing input: the harness does not own the active window.");
         if (OperatingSystem.IsWindows())
         {
@@ -502,6 +648,8 @@ internal sealed class MediaNativeInput : IDisposable
     [StructLayout(LayoutKind.Sequential)] private struct WinInput { internal uint Type; internal WinInputUnion Data; }
     private static void Send(WinInput input)
     { if (SendInput(1, new[] { input }, Marshal.SizeOf<WinInput>()) != 1) throw new InvalidOperationException("SendInput rejected input: " + Marshal.GetLastWin32Error()); }
+    [StructLayout(LayoutKind.Sequential)] private struct WinPoint { internal int X, Y; }
+    [DllImport("user32.dll")] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetCursorPos(out WinPoint point);
     [DllImport("user32.dll")] private static extern nint GetForegroundWindow();
     [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(nint window, out uint process);
     [DllImport("user32.dll", SetLastError = true)] private static extern uint SendInput(uint count, WinInput[] inputs, int size);
@@ -520,6 +668,8 @@ internal sealed class MediaNativeInput : IDisposable
     [DllImport(CG)] [return: MarshalAs(UnmanagedType.I1)] private static extern bool CGPreflightPostEventAccess();
     [DllImport(CG)] private static extern uint CGMainDisplayID();
     [DllImport(CG)] private static extern MacRect CGDisplayBounds(uint display);
+    [DllImport(CG)] private static extern nint CGEventCreate(nint source);
+    [DllImport(CG)] private static extern MacPoint CGEventGetLocation(nint e);
     [DllImport(CG)] private static extern nint CGEventCreateKeyboardEvent(nint source, ushort key, [MarshalAs(UnmanagedType.I1)] bool down);
     [DllImport(CG)] private static extern nint CGEventCreateMouseEvent(nint source, uint type, MacPoint position, uint button);
     [DllImport(CG)] private static extern void CGEventSetFlags(nint e, ulong flags);
@@ -529,6 +679,9 @@ internal sealed class MediaNativeInput : IDisposable
     [DllImport("libX11.so.6")] private static extern nint XOpenDisplay(nint name);
     [DllImport("libX11.so.6")] private static extern int XCloseDisplay(nint display);
     [DllImport("libX11.so.6")] private static extern int XDefaultScreen(nint display);
+    [DllImport("libX11.so.6")] private static extern nint XDefaultRootWindow(nint display);
+    [DllImport("libX11.so.6")] private static extern int XQueryPointer(nint display, nint window,
+        out nint root, out nint child, out int x, out int y, out int localX, out int localY, out uint mask);
     [DllImport("libX11.so.6")] private static extern int XDisplayWidth(nint display, int screen);
     [DllImport("libX11.so.6")] private static extern int XDisplayHeight(nint display, int screen);
     [DllImport("libX11.so.6")] private static extern byte XKeysymToKeycode(nint display, nuint keysym);
