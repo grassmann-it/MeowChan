@@ -182,10 +182,10 @@ internal sealed partial class BooruWorkbenchView
     internal void SetResultView(BooruResultView view, bool save)
     {
         if (_closed || view == _resultView) { SyncViewBar(); return; }
+        if (view == BooruResultView.Gallery) _galleryReturn = _resultView;
         bool focus = _results.IsKeyboardFocusWithin;
         string? focused = focus ? (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual)?.GetSelfAndVisualAncestors()
             .OfType<Control>().FirstOrDefault(control => control.Name?.StartsWith("BooruResult:", StringComparison.Ordinal) == true)?.Name : null;
-        // Leaving the gallery with the focus on its stage or buttons: the cursor's hit takes the focus; entering it from a hit: the stage does.
         if (focused is null && focus && _resultView == BooruResultView.Gallery && _cursorPostId is { } leaving) focused = "BooruResult:" + leaving;
         _resultView = view;
         Render(force: true);
@@ -194,8 +194,8 @@ internal sealed partial class BooruWorkbenchView
             SaveResultView?.Invoke(view);
             if (view == BooruResultView.Gallery) ShowInGallery(_model.Search.View, requestSample: true);
         }
-        if (focused is not null) FocusHit(focused["BooruResult:".Length..]);
-        else if (view == BooruResultView.Gallery) FocusGalleryStage();
+        if (view == BooruResultView.Gallery) FocusGalleryStage();
+        else if (focused is not null) FocusHit(focused["BooruResult:".Length..]);
     }
 
     /// <summary>Sets the tile size (shown at once, saved once); false when it is the current one.</summary>
@@ -269,11 +269,13 @@ internal sealed partial class BooruWorkbenchView
             RebuildGallery(view);
             return;
         }
+        bool returningFromGallery = ReferenceEquals(_gallery.Parent, _results);
         ReleaseGallery();
         if (_resultView != BooruResultView.Grid || !view.Rows.Any())
         {
             _tiles = null;
-            RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null);
+            RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null,
+                preserveFocus: !returningFromGallery);
             ApplyCursor();
             return;
         }
@@ -287,7 +289,7 @@ internal sealed partial class BooruWorkbenchView
         {
             foreach (Control tile in NumberHits(view.Rows.Select(CreateResultTile).ToList())) tiles.Children.Add(tile);
             return new List<Control> { tiles };
-        }, fallback: () => null);
+        }, fallback: () => null, preserveFocus: !returningFromGallery);
         ApplyCursor();
     }
 

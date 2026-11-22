@@ -356,8 +356,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _submit.Click += async (_, _) => await SubmitSearchAsync();
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
-        _previous.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page - 1);
-        _next.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page + 1);
+        _previous.Click += async (_, _) => await ChangePageAsync(-1);
+        _next.Click += async (_, _) => await ChangePageAsync(1);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
         SearchToolbar searchToolbar = new(_mode, _input, _submit, BuildSearchTabActions());
@@ -711,9 +711,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     /// <paramref name="fallback"/>. Without a fallback a vanished control leaves focus where the platform puts it.
     /// </summary>
     private void RebuildPanel(Panel panel, Func<List<Control>> build, string? moveTo = null, Func<Control?>? fallback = null,
-        bool waitWhileDisabled = false)
+        bool waitWhileDisabled = false, bool preserveFocus = true)
     {
-        Visual? focused = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual;
+        var focusManager = TopLevel.GetTopLevel(this)?.FocusManager;
+        Visual? focused = preserveFocus ? focusManager?.GetFocusedElement() as Visual : null;
         int card = -1;
         if (focused is not null)
             for (int index = 0; index < panel.Children.Count; index++)
@@ -728,9 +729,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         panel.Children.Clear();
         foreach (Control child in build()) panel.Children.Add(child);
         if (card < 0) return;
+        IInputElement? focusAfterRebuild = focusManager?.GetFocusedElement();
         Dispatcher.Post(() =>
         {
-            if (_closed) return;
+            if (_closed || !ReferenceEquals(focusAfterRebuild, focusManager?.GetFocusedElement())) return;
             Control? target = Enabled(panel, moveTo) ?? Enabled(panel, focusedName) ?? Enabled(panel, Counterpart(focusedName));
             if (target is null && waitWhileDisabled && focusedName is not null
                 && panel.GetVisualDescendants().OfType<Control>().Any(control => control.Name == focusedName))

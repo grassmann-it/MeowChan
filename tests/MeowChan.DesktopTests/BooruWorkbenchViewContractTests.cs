@@ -146,10 +146,11 @@ public sealed class BooruWorkbenchViewContractTests
     public void FocusRecoveryAndPreviewBoundsSurviveTheNewVisualOwner()
     {
         string view = ViewSource();
-        Assert.Contains("TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()", view);
+        Assert.Contains("var focusManager = TopLevel.GetTopLevel(this)?.FocusManager;", view);
+        Assert.Contains("focusManager?.GetFocusedElement()", view);
         Assert.Contains("ReferenceEquals(focused, TopLevel.GetTopLevel(this))", view);
         Assert.Contains("TopLevel.GetTopLevel(this)?.Clipboard", view);
-        Assert.Contains("if (_closed) return;\n            Control? target", view.Replace("\r\n", "\n"));
+        Assert.Contains("if (_closed || !ReferenceEquals(focusAfterRebuild, focusManager?.GetFocusedElement())) return;", view);
         Assert.Contains("bytes.Length > MaximumPreviewBytes", view);
         Assert.Contains("(long)codec.Info.Width * codec.Info.Height > 40_000_000", view);
         Assert.Contains("if (cached is not null) cached.Bitmap.Dispose();", view);

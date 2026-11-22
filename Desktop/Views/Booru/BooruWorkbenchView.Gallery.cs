@@ -7,7 +7,6 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Controls;
 
@@ -156,7 +155,6 @@ internal sealed partial class BooruWorkbenchView
     internal bool OpenGallery(string postId)
     {
         if (_closed || !_model.Search.View.Rows.Any(row => row.Post.PostId == postId)) return false;
-        if (_resultView != BooruResultView.Gallery) _galleryReturn = _resultView;
         _cursorPostId = postId;
         SetResultView(BooruResultView.Gallery, save: false);
         ShowInGallery(_model.Search.View, requestSample: true);
@@ -166,7 +164,9 @@ internal sealed partial class BooruWorkbenchView
     private void LeaveGallery()
     {
         if (_closed || _resultView != BooruResultView.Gallery) return;
+        bool focusWasInResults = _results.IsKeyboardFocusWithin;
         SetResultView(_galleryReturn == BooruResultView.Gallery ? BooruResultView.List : _galleryReturn, save: false);
+        if (!focusWasInResults && _cursorPostId is { } id) FocusHit(id);
     }
 
     /// <summary>The post the gallery shows: the cursor when it is on this page, else the first hit (the cursor follows).</summary>
@@ -185,7 +185,7 @@ internal sealed partial class BooruWorkbenchView
     {
         _tiles = null;
         if (!ReferenceEquals(_gallery.Parent, _results) || _results.Children.Count != 1)
-            RebuildPanel(_results, () => new List<Control> { _gallery }, fallback: () => null);
+            RebuildPanel(_results, () => new List<Control> { _gallery }, preserveFocus: false);
         UpdateGalleryStageHeight();
         ShowInGallery(view);
     }
@@ -193,9 +193,23 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Another view than the gallery is shown: the gallery lets go of its pictures and cancels a sample that is still loading.</summary>
     private void ReleaseGallery() => _gallery.Release();
 
-    private void FocusGalleryStage() => Dispatcher.UIThread.Post(() =>
+    private void FocusGalleryStage()
     {
         if (!_closed && _resultView == BooruResultView.Gallery && _gallery.CurrentPostId is not null
-            && IsSearchItem(_tabs.SelectedItem)) _gallery.FocusStage();
-    }, DispatcherPriority.Loaded);
+            && IsSearchItem(_tabs.SelectedItem) && _gallery.IsEffectivelyVisible) _gallery.FocusStage();
+    }
+
+    private async Task ChangePageAsync(int delta)
+    {
+        BooruSearchModel search = _model.Search;
+        int tab = SearchTabs.ActiveId;
+        BooruSearchView before = search.View;
+        int page = before.Page + delta;
+        await search.GoToPageAsync(page);
+        BooruSearchView after = search.View;
+        if (_closed || SearchTabs.ActiveId != tab || after.Page != page || after.ExecutedQuery != before.ExecutedQuery
+            || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty || _input.IsKeyboardFocusWithin) return;
+        Render(force: false);
+        FocusGalleryStage();
+    }
 }

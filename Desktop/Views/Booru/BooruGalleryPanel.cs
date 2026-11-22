@@ -13,6 +13,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using SkiaSharp;
 
@@ -73,6 +74,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     private readonly Border _stage = new() { Name = "BooruGalleryStage", Focusable = true, IsTabStop = true, ClipToBounds = true, MinHeight = 320 };
     internal const string StageBackground = "Workspace.Raised";
     private readonly BooruGalleryToolbar _toolbar = new("BooruGallery") { IsVisible = false };
+    private readonly PointerFocusReclaim _toolbarFocus;
     private readonly BooruGalleryTags _tags = new();
     private readonly TextBlock _status = new() { Name = "BooruGalleryStatus", TextWrapping = TextWrapping.Wrap, Classes = { "workspace-meta" } };
     private readonly ContentControl _left = new() { Name = "BooruGalleryDockLeft", IsVisible = false };
@@ -111,6 +113,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         _toolbar.OpenPost = () => { if (_currentId is { } id) OpenPostRequested?.Invoke(id); };
         _toolbar.OpenWindow = () => { if (_currentId is { } id) OpenWindowRequested?.Invoke(id); };
         _toolbar.Close = () => LeaveRequested?.Invoke();
+        _toolbarFocus = PointerFocusReclaim.Attach(_toolbar, FocusStage);
         SetDock(BooruGalleryDock.Right, _tags);
 
         Grid middle = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8 };
@@ -172,7 +175,10 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         host.IsVisible = content is not null;
     }
 
-    internal void FocusStage() => _stage.Focus(NavigationMethod.Directional);
+    internal void FocusStage()
+    {
+        if (!_disposed && _currentId is not null && _stage.IsEffectivelyVisible) _stage.Focus(NavigationMethod.Directional);
+    }
 
     internal void RouteKey(KeyEventArgs e)
     {
@@ -286,6 +292,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     private void Render(BooruResultRowView row)
     {
         string id = row.Post.PostId;
+        Button? focusedNavigation = PreviousButton.IsFocused ? PreviousButton : NextButton.IsFocused ? NextButton : null;
         _toolbar.Present(row, IndexOf(id), _rows.Length, IsSelected?.Invoke(id) == true);
         _tags.Present(row.Post);
         _right.IsVisible = _tags.IsVisible;
@@ -299,7 +306,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
             limits.Bytes / (1024 * 1024), limits.MaximumPixels, limits.TimeoutSeconds);
         AutomationProperties.SetName(this, Texts.T("booru.gallery.listName"));
         // A button that became disabled (the first or last post) must not take the keyboard focus with it.
-        if (!PreviousButton.IsEnabled && PreviousButton.IsFocused || !NextButton.IsEnabled && NextButton.IsFocused) FocusStage();
+        if (focusedNavigation is { IsEnabled: false }) FocusStage();
     }
 
     private void Move(int delta)
@@ -350,6 +357,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
+        _toolbarFocus.Dispose();
         _sample.Pause();
         // May run on any thread (the page is disposed by its host): only what is not a control is touched here.
         Release(_previewBitmap);
