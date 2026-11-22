@@ -39,11 +39,10 @@ internal sealed record StoredTagSuggestion(long Id, string MediaSha256, long Med
     double Confidence, long? StartMilliseconds, long? EndMilliseconds, TagSuggestionProvenance Provenance,
     TagSuggestionState State, DateTimeOffset CreatedAt, DateTimeOffset? DecidedAt = null)
 {
-    internal bool SameTag(StoredTagSuggestion other) => SameTag(other.MediaSha256, other.Name, other.Category, other.StartMilliseconds, other.EndMilliseconds);
+    internal (string MediaSha256, long MediaLength, string Name, string Category, long? Start, long? End) TagKey
+        => (MediaSha256, MediaLength, Name, Category, StartMilliseconds, EndMilliseconds);
 
-    internal bool SameTag(string media, string name, string category, long? start, long? end)
-        => string.Equals(MediaSha256, media, StringComparison.Ordinal) && string.Equals(Name, name, StringComparison.Ordinal)
-            && string.Equals(Category, category, StringComparison.Ordinal) && StartMilliseconds == start && EndMilliseconds == end;
+    internal bool IsDecided => State is TagSuggestionState.Accepted or TagSuggestionState.Rejected;
 }
 
 internal sealed record TagSuggestionRun(string MediaSha256, TagSuggestionProvenance Provenance, string Outcome,
@@ -87,10 +86,15 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<Stored
     }
 
     private IOrderedEnumerable<StoredTagSuggestion> PendingForContent(string mediaSha256, double threshold, long? mediaLength)
-        => Suggestions.Where(value => value.State == TagSuggestionState.Pending && value.Confidence >= threshold
-                && string.Equals(value.MediaSha256, mediaSha256, StringComparison.Ordinal)
-                && (mediaLength is null || value.MediaLength == mediaLength))
+    {
+        IEnumerable<StoredTagSuggestion> forContent = Suggestions.Where(value =>
+            string.Equals(value.MediaSha256, mediaSha256, StringComparison.Ordinal)
+            && (mediaLength is null || value.MediaLength == mediaLength));
+        var decided = forContent.Where(value => value.IsDecided).Select(value => value.TagKey).ToHashSet();
+        return forContent.Where(value => value.State == TagSuggestionState.Pending && value.Confidence >= threshold
+                && !decided.Contains(value.TagKey))
             .OrderByDescending(value => value.Confidence).ThenBy(value => value.Name, StringComparer.Ordinal);
+    }
 }
 
 internal enum TagSuggestionStoreError { None, StaleRevision, UnknownSuggestion, InvalidTransition, InvalidInput, LimitReached, NotWritable }
@@ -192,7 +196,7 @@ internal sealed class TagSuggestionStore
                 if (index < 0) throw new TagSuggestionStoreException(TagSuggestionStoreError.UnknownSuggestion);
                 StoredTagSuggestion current = document.Suggestions[index];
                 bool allowed = target == TagSuggestionState.Pending
-                    ? current.State is TagSuggestionState.Accepted or TagSuggestionState.Rejected
+                    ? current.IsDecided
                     : current.State == TagSuggestionState.Pending;
                 if (!allowed) throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);
                 document.Suggestions[index] = current with { State = target, DecidedAt = target == TagSuggestionState.Pending ? null : now };
@@ -224,17 +228,18 @@ internal sealed class TagSuggestionStore
         {
             StoredTagSuggestion value = document.Suggestions[index];
             if (value.State != TagSuggestionState.Pending || value.Provenance.TaggerIdentity != provenance.TaggerIdentity
-                || !string.Equals(value.MediaSha256, run.MediaSha256, StringComparison.Ordinal)) continue;
+                || !string.Equals(value.MediaSha256, run.MediaSha256, StringComparison.Ordinal) || value.MediaLength != run.MediaLength) continue;
             document.Suggestions[index] = value with { State = TagSuggestionState.Superseded, DecidedAt = now };
             document.AddEvent(value.Id, TagSuggestionState.Pending, TagSuggestionState.Superseded, now);
         }
+        // Decisions apply across taggers. Pending duplicates are coalesced only within the incoming run.
+        var seen = document.Suggestions.Where(value => value.IsDecided
+                && string.Equals(value.MediaSha256, run.MediaSha256, StringComparison.Ordinal) && value.MediaLength == run.MediaLength)
+            .Select(value => value.TagKey).ToHashSet();
         foreach (TagSuggestionCandidate candidate in candidates)
         {
-            bool decided = document.Suggestions.Any(value => value.State is TagSuggestionState.Accepted or TagSuggestionState.Rejected
-                && value.SameTag(run.MediaSha256, candidate.Name, candidate.Category, candidate.StartMilliseconds, candidate.EndMilliseconds));
-            bool pending = document.Suggestions.Any(value => value.State == TagSuggestionState.Pending
-                && value.SameTag(run.MediaSha256, candidate.Name, candidate.Category, candidate.StartMilliseconds, candidate.EndMilliseconds));
-            if (decided || pending) continue;
+            if (!seen.Add((run.MediaSha256, run.MediaLength, candidate.Name, candidate.Category,
+                candidate.StartMilliseconds, candidate.EndMilliseconds))) continue;
             long id = document.NextId;
             document.NextId = checked(id + 1);
             document.Suggestions.Add(new StoredTagSuggestion(id, run.MediaSha256, run.MediaLength, candidate.Name,
@@ -264,7 +269,6 @@ internal sealed class TagSuggestionStore
     {
         try
         {
-            if (!File.Exists(_path)) return _current = TagSuggestionSnapshot.Empty;
             using FileStream file = File.OpenRead(_path);
             long length = file.Length;
             if (length > MaximumBytes) return _current = Failed("The tag suggestion file exceeds its read ceiling.");
@@ -272,11 +276,16 @@ internal sealed class TagSuggestionStore
             file.ReadExactly(bytes);
             if (file.ReadByte() != -1) return _current = Failed("The tag suggestion file changed during reading.");
             Document? document = JsonSerializer.Deserialize<Document>(bytes, JsonOptions);
-            if (document is null || document.Format != Format) return _current = Failed("The tag suggestion file has an unknown format.");
+            if (document is null || document.Format != Format || document.Version is null)
+                return _current = Failed("The tag suggestion file has an unknown format.");
             if (document.Version != FormatVersion)
                 return _current = Failed("The tag suggestion file was written by a newer version.", TagSuggestionStoreState.Unsupported);
             document.Check();
             return _current = document.ToSnapshot();
+        }
+        catch (FileNotFoundException)
+        {
+            return _current = TagSuggestionSnapshot.Empty;
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException
             or NotSupportedException or ArgumentException or OverflowException)
@@ -328,17 +337,20 @@ internal sealed class TagSuggestionStore
     /// <summary>The persisted document. Public members only for System.Text.Json; the type itself stays internal.</summary>
     private sealed class Document
     {
-        public string Format { get; set; } = TagSuggestionStore.Format;
-        public int Version { get; set; } = FormatVersion;
-        public long Revision { get; set; }
+        public string? Format { get; init; }
+        public int? Version { get; init; }
+        public long Revision { get; set; } = -1;
         public long NextId { get; set; } = 1;
         public long NextSequence { get; set; } = 1;
-        public List<StoredTagSuggestion> Suggestions { get; set; } = new();
-        public List<TagSuggestionRun> Runs { get; set; } = new();
-        public List<TagSuggestionReviewEvent> Events { get; set; } = new();
+        // Check rejects omitted or null lists on read. From always supplies all three on write.
+        public List<StoredTagSuggestion> Suggestions { get; init; } = null!;
+        public List<TagSuggestionRun> Runs { get; init; } = null!;
+        public List<TagSuggestionReviewEvent> Events { get; init; } = null!;
 
         internal static Document From(TagSuggestionSnapshot snapshot) => new()
         {
+            Format = TagSuggestionStore.Format,
+            Version = FormatVersion,
             Revision = snapshot.Revision,
             NextId = snapshot.NextId,
             NextSequence = snapshot.NextSequence,
