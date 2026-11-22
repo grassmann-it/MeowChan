@@ -49,8 +49,7 @@ public sealed class MediaToolbarLabelsTests
 
             foreach ((double width, bool showsLabels) in new[] { (950d, false), (1800d, true), (950d, false) })
             {
-                window.Width = width;
-                Dispatcher.UIThread.RunJobs();
+                BooruReviewTestPlatform.Resize(window, width);
                 Assert.Equal(showsLabels, page.ToolbarRow.Bounds.Width >= MediaToolbarLabels.SidebarLabelsWidth);
                 Assert.Equal(showsLabels, tagsLabel.IsVisible);
                 Assert.Equal(showsLabels, mediaLabel.IsVisible);

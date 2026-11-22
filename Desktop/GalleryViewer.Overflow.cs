@@ -25,7 +25,7 @@ namespace MeowChan.Desktop;
 // are routed by the viewer's key handler and work without opening the menu.
 internal sealed partial class GalleryViewer
 {
-    /// <summary>Below this viewer width the labelled primary controls (close, fit, post, favorite, tools) show only their icon.</summary>
+    /// <summary>Below this viewer width the mode switch and slideshow use their compact presentation.</summary>
     internal const double CompactToolbarWidth = 1100;
     /// <summary>Below this viewer width the post panel overlays the picture instead of taking a column from it.</summary>
     internal const double CompactPostWidth = 900;
@@ -323,7 +323,6 @@ internal sealed partial class GalleryViewer
         bool compact = Bounds.Width > 0 && Bounds.Width < CompactToolbarWidth;
         if (compact == _compactToolbar) return;
         _compactToolbar = compact;
-        PresentToolbarControls(); // Icon or labelled presentation of the primary controls; no other text changes.
         PresentLayoutButton();
         PresentSlideshowIcon();
         PresentModeSwitch();

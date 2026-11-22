@@ -75,7 +75,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Equal(2, Grid.GetColumn(panel.CloseButton));
         Assert.False(slot.Focusable);
         Assert.Equal(new Avalonia.Thickness(8, 0, 8, 0), slot.Margin); // its own column right of the tabs
-        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Right, slot.HorizontalAlignment);
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, slot.HorizontalAlignment);
         TextBlock label = Assert.IsType<TextBlock>(counter.Child);
         Assert.Equal("Medium 4 of 27", label.Text);
         Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping); // one line: the tab row never grows

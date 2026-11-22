@@ -26,8 +26,7 @@ internal sealed partial class GalleryViewer
     /// panel and the shortcut help start below it, so they never cover the way back.</summary>
     internal const double TopRowClearance = 56;
 
-    private sealed class ToolSlot(string id, Control control, Panel menuHost, Control? anchor, Control? caption, Action<Button>? addRow,
-        bool iconOnly)
+    private sealed class ToolSlot(string id, Control control, Panel menuHost, Control? anchor, Control? caption, Action<Button>? addRow)
     {
         internal string Id { get; } = id;
         internal Control Control { get; } = control;
@@ -37,7 +36,6 @@ internal sealed partial class GalleryViewer
         /// <summary>A caption above the control in the flyout, hidden while the control is on the bar.</summary>
         internal Control? Caption { get; } = caption;
         internal Action<Button>? AddRow { get; } = addRow;
-        internal bool IconOnly { get; } = iconOnly;
         internal int Order => WorkViewPolicy.Get(Id).OverflowOrder;
         internal bool OnBar { get; set; }
     }
@@ -135,11 +133,11 @@ internal sealed partial class GalleryViewer
     {
         _workViewTools.IsVisible = false;
         _toolSlots.Add(new("gallery.toolbar.tags", _tagsButton, _overflowPanel, _exportOriginal, null,
-            button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel), iconOnly: true));
-        _toolSlots.Add(new("gallery.toolbar.slideshow-seconds", _slideshowSeconds, _slideshowHome, _videoRuleCaption, _secondsCaption, null, iconOnly: false));
-        _toolSlots.Add(new("gallery.toolbar.playback-mode", _playbackMode, _slideshowHome, _secondsCaption, _modeCaption, null, iconOnly: false));
+            button => AddOverflowItem(button, "media.tags.edit", label: TagsLabel)));
+        _toolSlots.Add(new("gallery.toolbar.slideshow-seconds", _slideshowSeconds, _slideshowHome, _videoRuleCaption, _secondsCaption, null));
+        _toolSlots.Add(new("gallery.toolbar.playback-mode", _playbackMode, _slideshowHome, _secondsCaption, _modeCaption, null));
         _toolSlots.Add(new("gallery.toolbar.help", _helpButton, _overflowPanel, null, null,
-            button => AddOverflowItem(button, "viewer.shortcut-help", label: () => CommandCatalog.Label("viewer.shortcut-help")), iconOnly: true));
+            button => AddOverflowItem(button, "viewer.shortcut-help", label: () => CommandCatalog.Label("viewer.shortcut-help"))));
         _toolSlots.Sort((a, b) => a.Order.CompareTo(b.Order));
     }
 
@@ -200,6 +198,7 @@ internal sealed partial class GalleryViewer
             button.Tag = null;
             button.Classes.Set("command-icon", false);
             button.Classes.Set("icon-only", false);
+            button.Classes.Set("gallery-toolbar-action", false);
             slot.AddRow!(button); // appends to the flyout (and to _overflowButtons)
             slot.MenuHost.Children.Remove(button);
         }
@@ -222,11 +221,8 @@ internal sealed partial class GalleryViewer
         {
             Button button = (Button)slot.Control;
             string id = WorkViewPolicy.Get(slot.Id).CommandId!;
-            bool iconOnly = _compactToolbar || slot.IconOnly;
-            CommandBindings.Apply(button, id, iconOnly: iconOnly, iconWithLabel: !iconOnly);
+            PresentToolbarAction(button, button.Name!, id);
             button.Tag = ToolbarTool;
-            // GL5d (S1): the tools of the bar are squares of the input height with a tooltip.
-            button.Classes.Set("icon-only", iconOnly);
         }
         UpdateTagsButton();
         UpdateHelpButtonTooltip(); // the help button's tooltip names the favourite and post keys as well

@@ -140,11 +140,11 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
     }
 
     [Theory]
-    [InlineData("en", "Close", "Fit", "Post", "Favorite", "Original", "Full screen")]
-    [InlineData("de", "Schließen", "Einpassen", "Post", "Favorit", "Original", "Vollbild")]
-    [InlineData("es", "Cerrar", "Ajustar", "Publicación", "Favorito", "Original", "Pantalla completa")]
-    [InlineData("fr", "Fermer", "Ajuster", "Message", "Favori", "Original", "Plein écran")]
-    [InlineData("ru", "Закрыть", "Вписать", "Пост", "Избранное", "Оригинал", "Полный экран")]
+    [InlineData("en", "Close", "Fit", "Info", "Favorite", "Original", "Full screen")]
+    [InlineData("de", "Schließen", "Einpassen", "Info", "Favorit", "Original", "Vollbild")]
+    [InlineData("es", "Cerrar", "Ajustar", "Detalles", "Favorito", "Original", "Pantalla completa")]
+    [InlineData("fr", "Fermer", "Ajuster", "Infos", "Favori", "Original", "Plein écran")]
+    [InlineData("ru", "Закрыть", "Вписать", "Сведения", "Избранное", "Оригинал", "Полный экран")]
     public void GalleryCompactSelectorsStayLocalizedWhileFullCommandTitlesRemainSeparate(string language,
         string close, string fit, string context, string favorite, string export, string fullscreen)
     {
@@ -157,6 +157,7 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
         Assert.Equal(fullscreen, MeowChan.Desktop.GalleryViewer.CompactLabelFor("GalleryFullscreen"));
         Assert.Null(MeowChan.Desktop.GalleryViewer.CompactLabelFor("GalleryNotAControl"));
         Assert.NotEqual(close, CommandCatalog.Label("gallery.close"));
+        Assert.NotEqual(context, CommandCatalog.Label("gallery.context-toggle"));
         Assert.NotEqual(export, CommandCatalog.Label("media.export-original"));
     }
 
