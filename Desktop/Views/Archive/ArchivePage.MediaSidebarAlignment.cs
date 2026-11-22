@@ -19,8 +19,8 @@ public partial class ArchivePage
     {
         sidebar.Margin = default;
         sidebar.Padding = archiveView ? default : new Thickness(16, 0, 16, 0);
-        // F15 (21.11.): the archive view's sidebar sits flush at the pane edge, so its header row (star and image icons at the right) stood without
-        // distance there and looked cut off. The row keeps the same inset on both sides; the card below stays flush with its neighbour.
-        sidebar.HeaderRow.Margin = archiveView ? new Thickness(8, 0, 8, 0) : default;
+        // Inset the header from the top and give its controls room at the archive pane edges.
+        double horizontalInset = archiveView ? 8 : 0;
+        sidebar.HeaderRow.Margin = new Thickness(horizontalInset, 8, horizontalInset, 0);
     }
 }

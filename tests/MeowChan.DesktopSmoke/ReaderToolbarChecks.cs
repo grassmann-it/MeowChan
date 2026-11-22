@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -15,14 +16,14 @@ using Texts = MeowChan.Desktop.Localization.Texts;
 
 namespace MeowChan.DesktopSmoke;
 
-// RL1 (15.11.2026): the reader toolbar in groups, "Large reader" (Tom 15.11., was "Read" as the eye), the gear "Settings" in place of "View", full screen last (under More when it does not fit). One detached
-// reader in a private profile; five checks, named like the spec's ids:
+// The embedded reader in a private profile exercises the action group and the view controls, including the Threads switch.
+// The same page is then detached to check the large reader's view controls.
 //   reader-toolbar-order        the bar's order and groups at 1380 in all three work views, the lines between groups (and none for a group that moved
 //                               under More), full screen last on the bar or under More, the overflow following the policy
 //   reader-toolbar-read-icon    Large reader carries external-link (the catalog has no expand arrow), the gear, tags and thread their icons
-//   reader-settings-sections    the popover's four sections, its session rows, the media rows and a conditional row
+//   reader-settings-sections    the popover's sections, session rows, media rows and a conditional row
 //   reader-settings-session-dot a view filter of the session puts the accent dot on the gear (and its tip and accessible name), switching off removes it
-//   reader-toolbar-760          Simple at 760: the gear and Thread under More, the gear opens the popover from there; Barebones the same at any width
+//   reader-toolbar-760          Simple and Barebones overflow, and the gear opens its popover from More in Barebones
 // Captures wanted from the central run (also written here): smoke-reader-toolbar-<width>-<view>-<theme>.png for 1380 and 760, the three work views, light
 // and dark, plus smoke-reader-settings-popover-<theme>.png.
 internal static class ReaderToolbarChecks
@@ -51,8 +52,7 @@ internal static class ReaderToolbarChecks
             page = new ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { });
             Config config = new();
             page.QuickSettingsHost = ReaderSettingsProbe.StandIn(config);
-            Control pane = page.DetachReader();
-            window = new Window { Width = 1380, Height = 820, Content = pane, Title = "Private reader toolbar" };
+            window = new Window { Width = 1380, Height = 820, Content = page, Title = "Private reader toolbar" };
             window.Show(owner);
             page.IsAvailable = true;
             await page.LoadThreadAsync(id);
@@ -63,12 +63,23 @@ internal static class ReaderToolbarChecks
             Console.WriteLine("SMOKE reader-toolbar-order: Read, Gallery, Find | Tags, Export, Thread | gear in order and groups, lines only between bar-resident groups, full screen last on the bar or under More, overflow follows the policy in three views.");
             CheckReadIcon(page);
             Console.WriteLine("SMOKE reader-toolbar-read-icon: Large reader carries external-link; the gear, Tags and Thread carry their icons.");
+            await CheckLocalizedResizeAsync(page, window);
             await CheckSectionsAsync(page, config);
-            Console.WriteLine("SMOKE reader-settings-sections: four sections, session rows, media rows and the conditional side row passed.");
+            Console.WriteLine("SMOKE reader-settings-sections: sections, session rows, media rows and the conditional side row passed.");
             await CheckSessionDotAsync(page, window);
             Console.WriteLine("SMOKE reader-settings-session-dot: an active view filter marks the gear (dot, tip, accessible name), switching it off clears it.");
             await CheckNarrowAsync(page, window);
-            Console.WriteLine("SMOKE reader-toolbar-760: Simple at 760 and Barebones keep Read and Gallery on the bar, the gear and Thread under More, and the gear opens the popover from More.");
+            Console.WriteLine("SMOKE reader-toolbar-760: Read and Gallery stay on the bar, and the Barebones gear opens its popover from More.");
+            window.Content = page.DetachReader();
+            await SizeAsync(page, window, "Advanced", 1380);
+            ActionToolBar bar = Bar(page);
+            Require(!Named(page, "ArchiveThreadListToggle").IsVisible && !Named(page, "ArchiveReadPosts").IsVisible,
+                "The detached reader shows an embedded-only action.");
+            CheckSeparators(bar, Named(page, "ArchiveOpenGallery"), () => "detached Reader at 1380");
+            await Program.WaitUntilAsync(() => page.MediaSidebar is { IsEffectivelyVisible: true } sidebar
+                && sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 7 and <= 9 },
+                () => "The detached reader's media header is missing its top inset.");
+            await CaptureThemesAsync(window, "smoke-reader-toolbar-detached-1380-advanced");
         }
         finally
         {
@@ -119,8 +130,15 @@ internal static class ReaderToolbarChecks
                 "Full screen is neither on the bar nor under More as the policy says in " + Describe() + ".");
             Require(OnBar(bar, Named(page, "ArchiveReadPosts")) && OnBar(bar, Named(page, "ArchiveOpenGallery")), "Read and Gallery left the bar in " + Describe() + ".");
             if (view == "Advanced")
+            {
                 Require(order.All(name => OnBar(bar, Named(page, name))), "The Advanced bar at 1380 has not all seven actions: "
                     + string.Join(", ", order.Where(name => !OnBar(bar, Named(page, name)))));
+                Button threads = Named(page, "ArchiveThreadListToggle");
+                Button media = Named(page, "ReaderMediaSidebarToggle");
+                Require(OnBar(bar, threads) && OnBar(bar, Named(page, "ArchiveReaderFullscreen")) && OnBar(bar, media),
+                    "The embedded reader's three view controls do not fit in " + Describe());
+                Require(threads.Content is "Threads" && media.Content is "Media", "The sidebar buttons are missing their short labels.");
+            }
             CheckSeparators(bar, Named(page, "ArchiveReadPosts"), Describe);
             await CaptureThemesAsync(window, "smoke-reader-toolbar-1380-" + view.ToLowerInvariant());
         }
@@ -136,32 +154,37 @@ internal static class ReaderToolbarChecks
     private static ActionToolBarPanel PanelOf(ActionToolBar bar, Control onBar) =>
         bar.GetVisualDescendants().OfType<ActionToolBarPanel>().First(panel => panel.Children.Contains(onBar));
 
-    // The panel's lines equal the group changes between its shown items, each in the gap of its two neighbours.
+    // Check the docked edge and the separators between adjacent visible groups.
     private static void CheckSeparators(ActionToolBar bar, Control anchor, Func<string> describe)
     {
         ActionToolBarPanel panel = PanelOf(bar, anchor);
         Control[] shown = panel.Children.Where(child => child.IsVisible && child.Bounds.Width > 0).ToArray();
+        if (ActionToolBar.GetEnd(shown[^1]))
+            Require(Math.Abs(panel.Bounds.Width - shown[^1].Bounds.Right) <= 1, "The view group is off the right edge in " + describe());
         IReadOnlyList<int> starts = ActionToolBarPanel.GroupStarts(shown.Select(ActionToolBar.GetGroup).ToArray(), shown.Select(_ => true).ToArray());
-        Require(panel.GroupSeparators.Count == starts.Count, "The bar draws " + panel.GroupSeparators.Count + " lines for " + starts.Count + " group changes in " + describe()
+        int[] separated = starts.Where(index => !ActionToolBar.GetEnd(shown[index])
+            || shown[index].Bounds.Left - shown[index - 1].Bounds.Right <= ActionToolBarPanel.GroupGap + 0.5).ToArray();
+        Require(panel.GroupSeparators.Count == separated.Length, "The bar draws " + panel.GroupSeparators.Count + " lines for " + separated.Length + " adjacent group changes in " + describe()
             + ": " + string.Join(", ", shown.Select(item => item.Name + "/" + ActionToolBar.GetGroup(item))));
-        for (int index = 0; index < starts.Count; index++)
+        for (int index = 0; index < separated.Length; index++)
         {
             Rect line = panel.GroupSeparators[index];
-            Control before = shown[starts[index] - 1], after = shown[starts[index]];
+            Control before = shown[separated[index] - 1], after = shown[separated[index]];
             Require(line.X >= before.Bounds.Right - 1 && line.Right <= after.Bounds.X + 1, "A line is not between " + before.Name + " and " + after.Name + " in " + describe() + ": " + line);
         }
     }
 
     private static void CheckReadIcon(ArchivePage page)
     {
-        Require(IconButtons.KeyOf(Named(page, "ArchiveReadPosts")) == "external-link", "Large reader does not carry the external-link icon: " + IconButtons.KeyOf(Named(page, "ArchiveReadPosts")));
-        Require(Named(page, "ArchiveReadPosts").Content is StackPanel { Children.Count: 2 }, "Large reader does not show its icon before its text.");
+        Require(Named(page, "ArchiveReadPosts").Content is StackPanel { Children: [Border { OpacityMask: ImageBrush icon }, TextBlock] }
+            && ReferenceEquals(icon.Source, CommandBindings.IconMask("external-link")), "Large reader does not show its external-link icon before its text.");
         Require(IconButtons.KeyOf(Named(page, "ReaderSettingsOpen")) == "settings", "The gear does not carry the settings icon.");
         Require(IconButtons.KeyOf(Named(page, "ReaderTagsOpen")) == "tag", "Tags do not carry the tag icon: " + IconButtons.KeyOf(Named(page, "ReaderTagsOpen")));
         ActionToolBar bar = Bar(page);
         string[] twins = bar.Items.OfType<Button>().Where(button => IconButtons.KeyOf(button) == "external-link").Select(button => button.Name ?? "?").ToArray();
         Require(twins.Length == 0, "A reader bar button still carries the external-link of 'Open source in browser': " + string.Join(", ", twins));
-        Require(IconButtons.KeyOf(Named(page, "ArchiveReadPosts")) != IconButtons.KeyOf(Named(page, "ArchiveOpenGallery")), "Read and Gallery carry the same icon.");
+        Require(Named(page, "ArchiveOpenGallery").Content is StackPanel { Children: [Border { OpacityMask: ImageBrush gallery }, TextBlock] }
+            && !ReferenceEquals(gallery.Source, CommandBindings.IconMask("external-link")), "Read and Gallery carry the same icon.");
     }
 
     private static async Task CheckSectionsAsync(ArchivePage page, Config config)
@@ -169,7 +192,8 @@ internal static class ReaderToolbarChecks
         QuickSettingsSurface surface = await ReaderSettingsProbe.OpenAsync(page);
         // A heading stands only over rows that are shown; the Thread section holds the live switch, which the page offers for a watched thread.
         string[] headings = surface.SectionHeadings.Where(heading => heading.IsVisible).Select(heading => heading.Text ?? "").ToArray();
-        string[] expected = new[] { "view", "media", "text" }.Concat(ReaderSettingsProbe.Row(surface, "watch.follow-live").IsEffectivelyVisible ? new[] { "thread" } : [])
+        string[] expected = new[] { "view", "media", "postVideo", "sidebarVideo", "text" }
+            .Concat(ReaderSettingsProbe.Row(surface, "watch.follow-live").IsEffectivelyVisible ? new[] { "thread" } : [])
             .Select(key => Texts.T("quicksettings.reader.section." + key)).ToArray();
         Require(headings.SequenceEqual(expected), "The popover's sections are " + string.Join(" | ", headings) + ", expected " + string.Join(" | ", expected));
         Require(surface.SessionCommandIds.Take(3).SequenceEqual(new[] { "reader.view.media-only", "reader.view.hide-media", "reader.view.conversation" })
@@ -223,8 +247,9 @@ internal static class ReaderToolbarChecks
             ReaderWorkViewChecks.RequireOverflowFollowsPolicy(page, bar, Describe);
             Require(OnBar(bar, Named(page, "ArchiveReadPosts")) && OnBar(bar, Named(page, "ArchiveOpenGallery")), "Read and Gallery are not on the bar in " + Describe() + ".");
             Require(UnderMore(bar, Named(page, "ArchiveReaderFullscreen")), "Full screen is not under More in " + Describe() + ".");
-            Require(UnderMore(bar, Named(page, "ReaderThreadOpen")) && UnderMore(bar, Named(page, "ReaderSettingsOpen")) && bar.More?.IsEffectivelyVisible == true,
-                "The gear and Thread are not under More in " + Describe() + ".");
+            if (view == "Barebones")
+                Require(UnderMore(bar, Named(page, "ReaderThreadOpen")) && UnderMore(bar, Named(page, "ReaderSettingsOpen")) && bar.More?.IsEffectivelyVisible == true,
+                    "The gear and Thread are not under More in " + Describe() + ".");
             CheckSeparators(bar, Named(page, "ArchiveReadPosts"), Describe);
             await CaptureThemesAsync(window, "smoke-reader-toolbar-" + (int)width + "-" + view.ToLowerInvariant());
         }
@@ -237,6 +262,38 @@ internal static class ReaderToolbarChecks
         await ReaderSettingsProbe.CloseAsync(page);
         bar.More.IsChecked = false;
         await SizeAsync(page, window, "Advanced", 1380);
+    }
+
+    private static async Task CheckLocalizedResizeAsync(ArchivePage page, Window window)
+    {
+        string language = Texts.Language;
+        ReaderMediaPreferences mediaPreferences = page.ReaderMedia;
+        ActionToolBar bar = Bar(page);
+        Button media = Named(page, "ReaderMediaSidebarToggle");
+        Button fullscreen = Named(page, "ArchiveReaderFullscreen");
+        try
+        {
+            // Keep the Media switch eligible for the toolbar so its translated width takes part in overflow.
+            page.ApplyReaderMediaPreferences(mediaPreferences with { SidebarWidth = Config.ReaderMediaSidebarWidthMinimum });
+            Texts.SetLanguage("pl");
+            await page.ReaderLocalizationTask;
+            foreach (double width in new[] { 1520d, 760d, 1520d })
+            {
+                await SizeAsync(page, window, "Advanced", width);
+                string Describe() => $"Polish at {width}";
+                ReaderWorkViewChecks.RequireOverflowFollowsPolicy(page, bar, Describe);
+                CheckSeparators(bar, Named(page, "ArchiveOpenGallery"), Describe);
+                Require(media.Content is "Multimedia" && OnBar(bar, media), "The translated Media action is missing in " + Describe());
+                Require(width == 760 ? UnderMore(bar, fullscreen) : OnBar(bar, fullscreen), "Full screen is misplaced in " + Describe());
+                if (width == 760) Program.CaptureWindow(window, "smoke-reader-toolbar-760-advanced-pl.png");
+            }
+        }
+        finally
+        {
+            page.ApplyReaderMediaPreferences(mediaPreferences);
+            Texts.SetLanguage(language);
+            await page.ReaderLocalizationTask;
+        }
     }
 
     private static async Task CaptureThemesAsync(Window? window, string name)

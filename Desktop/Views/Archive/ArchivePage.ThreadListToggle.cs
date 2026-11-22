@@ -12,7 +12,7 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// The reader toolbar's "Thread list" switch (21.11.2026 review, 1.1.1): the archive's thread list on or off while the window is wide enough for list and
+// The reader toolbar's "Threads" switch: the archive's thread list on or off while the window is wide enough for list and
 // reader side by side. It reuses the narrow-window path of UpdateLayoutMode (list column and splitter collapse, the reader takes the width); the width
 // the list had stays in ArchiveSplitWidth. A narrow window has its own "Back to the thread list" and keeps it; the large reader hosts the reader
 // elsewhere. The state is Config.ArchiveThreadListHidden (default off, no default shortcut). With the list hidden there is no Left/Right
@@ -77,7 +77,7 @@ public partial class ArchivePage
         if (button.IsVisible != offered) button.IsVisible = offered;
         if (button.IsChecked != listShown) button.IsChecked = listShown;
         string label = CommandCatalog.Label(ThreadListCommandId);
-        button.Content = label;
+        button.Content = Texts.T("archive.threadList.compact");
         string tip = CommandBindings.Tooltip(ThreadListCommandId, null, Texts.T(listShown ? "archive.threadList.hide" : "archive.threadList.show"));
         ToolTip.SetTip(button, tip);
         Avalonia.Automation.AutomationProperties.SetName(button, label + ": " + Texts.T(listShown ? "window.fullscreen.on" : "window.fullscreen.off"));
