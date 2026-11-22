@@ -118,7 +118,7 @@ internal sealed partial class PrivateTagStore
     {
         // Loading through the same lease also serializes the check with P10 run commits and review decisions.
         TagSuggestionSnapshot? snapshot = null;
-        Dictionary<long, TagSuggestion>? byId = null;
+        Dictionary<long, StoredTagSuggestion>? byId = null;
         foreach (TagRuleInput input in inputs)
         {
             token.ThrowIfCancellationRequested();
@@ -127,8 +127,8 @@ internal sealed partial class PrivateTagStore
             if (!snapshot.CanWrite) throw new TagSuggestionStoreException(TagSuggestionStoreError.NotWritable);
             if (snapshot.Revision != origin.Revision) throw new TagSuggestionStoreException(TagSuggestionStoreError.StaleRevision);
             byId ??= snapshot.Suggestions.ToDictionary(value => value.Id);
-            TagSuggestion suggestion = origin.Suggestion;
-            if (!byId.TryGetValue(suggestion.Id, out TagSuggestion? saved))
+            StoredTagSuggestion suggestion = origin.Suggestion;
+            if (!byId.TryGetValue(suggestion.Id, out StoredTagSuggestion? saved))
                 throw new TagSuggestionStoreException(TagSuggestionStoreError.UnknownSuggestion);
             if (saved.State != TagSuggestionState.Pending)
                 throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);

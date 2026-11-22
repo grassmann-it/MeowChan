@@ -35,11 +35,11 @@ internal sealed record TagSuggestionCandidate(string Name, string Category, doub
 internal sealed record TagSuggestionRunInput(string MediaSha256, long MediaLength, TagSuggestionProvenance Provenance,
     string Outcome, IReadOnlyList<TagSuggestionCandidate> Candidates);
 
-internal sealed record TagSuggestion(long Id, string MediaSha256, long MediaLength, string Name, string Category,
+internal sealed record StoredTagSuggestion(long Id, string MediaSha256, long MediaLength, string Name, string Category,
     double Confidence, long? StartMilliseconds, long? EndMilliseconds, TagSuggestionProvenance Provenance,
     TagSuggestionState State, DateTimeOffset CreatedAt, DateTimeOffset? DecidedAt = null)
 {
-    internal bool SameTag(TagSuggestion other) => SameTag(other.MediaSha256, other.Name, other.Category, other.StartMilliseconds, other.EndMilliseconds);
+    internal bool SameTag(StoredTagSuggestion other) => SameTag(other.MediaSha256, other.Name, other.Category, other.StartMilliseconds, other.EndMilliseconds);
 
     internal bool SameTag(string media, string name, string category, long? start, long? end)
         => string.Equals(MediaSha256, media, StringComparison.Ordinal) && string.Equals(Name, name, StringComparison.Ordinal)
@@ -53,11 +53,11 @@ internal sealed record TagSuggestionRun(string MediaSha256, TagSuggestionProvena
 internal sealed record TagSuggestionReviewEvent(long Sequence, long SuggestionId, TagSuggestionState From,
     TagSuggestionState To, DateTimeOffset At);
 
-internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<TagSuggestion> Suggestions,
+internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<StoredTagSuggestion> Suggestions,
     IReadOnlyList<TagSuggestionRun> Runs, IReadOnlyList<TagSuggestionReviewEvent> Events,
     TagSuggestionStoreState State, string? Error = null)
 {
-    internal static TagSuggestionSnapshot Empty { get; } = new(0, Array.Empty<TagSuggestion>(), Array.Empty<TagSuggestionRun>(),
+    internal static TagSuggestionSnapshot Empty { get; } = new(0, Array.Empty<StoredTagSuggestion>(), Array.Empty<TagSuggestionRun>(),
         Array.Empty<TagSuggestionReviewEvent>(), TagSuggestionStoreState.Ready);
 
     internal bool CanWrite => State == TagSuggestionStoreState.Ready;
@@ -70,7 +70,7 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<TagSug
             && run.Provenance.RunKey == provenance.RunKey && run.Outcome == TagSuggestionStore.TaggedOutcome);
 
     /// <summary>Pending suggestions of one medium at or above the display threshold, best first. The threshold never changes stored data.</summary>
-    internal IReadOnlyList<TagSuggestion> PendingFor(string mediaSha256, double threshold)
+    internal IReadOnlyList<StoredTagSuggestion> PendingFor(string mediaSha256, double threshold)
         => PendingForContent(mediaSha256, threshold, mediaLength: null).ToArray();
 
     /// <summary>Binds pending raw suggestions for the observed bytes to the exact occurrence being reviewed.</summary>
@@ -86,7 +86,7 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<TagSug
             .Select(value => new TagRuleInput(value.Name, subject, new TagRuleOrigin.Model(value, Revision))).ToArray();
     }
 
-    private IOrderedEnumerable<TagSuggestion> PendingForContent(string mediaSha256, double threshold, long? mediaLength)
+    private IOrderedEnumerable<StoredTagSuggestion> PendingForContent(string mediaSha256, double threshold, long? mediaLength)
         => Suggestions.Where(value => value.State == TagSuggestionState.Pending && value.Confidence >= threshold
                 && string.Equals(value.MediaSha256, mediaSha256, StringComparison.Ordinal)
                 && (mediaLength is null || value.MediaLength == mediaLength))
@@ -190,7 +190,7 @@ internal sealed class TagSuggestionStore
             {
                 int index = document.Suggestions.FindIndex(value => value.Id == id);
                 if (index < 0) throw new TagSuggestionStoreException(TagSuggestionStoreError.UnknownSuggestion);
-                TagSuggestion current = document.Suggestions[index];
+                StoredTagSuggestion current = document.Suggestions[index];
                 bool allowed = target == TagSuggestionState.Pending
                     ? current.State is TagSuggestionState.Accepted or TagSuggestionState.Rejected
                     : current.State == TagSuggestionState.Pending;
@@ -222,7 +222,7 @@ internal sealed class TagSuggestionStore
         if (run.Outcome != TaggedOutcome) return;
         for (int index = 0; index < document.Suggestions.Count; index++)
         {
-            TagSuggestion value = document.Suggestions[index];
+            StoredTagSuggestion value = document.Suggestions[index];
             if (value.State != TagSuggestionState.Pending || value.Provenance.TaggerIdentity != provenance.TaggerIdentity
                 || !string.Equals(value.MediaSha256, run.MediaSha256, StringComparison.Ordinal)) continue;
             document.Suggestions[index] = value with { State = TagSuggestionState.Superseded, DecidedAt = now };
@@ -237,7 +237,7 @@ internal sealed class TagSuggestionStore
             if (decided || pending) continue;
             long id = document.NextId;
             document.NextId = checked(id + 1);
-            document.Suggestions.Add(new TagSuggestion(id, run.MediaSha256, run.MediaLength, candidate.Name,
+            document.Suggestions.Add(new StoredTagSuggestion(id, run.MediaSha256, run.MediaLength, candidate.Name,
                 candidate.Category, candidate.Confidence, candidate.StartMilliseconds, candidate.EndMilliseconds, provenance,
                 TagSuggestionState.Pending, now));
         }
@@ -333,7 +333,7 @@ internal sealed class TagSuggestionStore
         public long Revision { get; set; }
         public long NextId { get; set; } = 1;
         public long NextSequence { get; set; } = 1;
-        public List<TagSuggestion> Suggestions { get; set; } = new();
+        public List<StoredTagSuggestion> Suggestions { get; set; } = new();
         public List<TagSuggestionRun> Runs { get; set; } = new();
         public List<TagSuggestionReviewEvent> Events { get; set; } = new();
 

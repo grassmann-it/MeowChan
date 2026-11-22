@@ -104,7 +104,8 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
   admission. The primary is the commit record. Each file is bounded by the
   configured size during normal writes. Run commits leave a configurable share
   of the limit available for review writes.
-- Suggestions are bound to content (SHA-256 + length) and provenance (plugin,
+- Each persisted tagger proposal is a `StoredTagSuggestion`. Suggestions are
+  bound to content (SHA-256 + length) and provenance (plugin,
   tagger, plugin version, model id, model revision, model hash), never to an
   archive occurrence: accepting applies the tag to the occurrence the user is
   looking at.

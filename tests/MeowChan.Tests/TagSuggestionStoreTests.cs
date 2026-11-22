@@ -119,7 +119,7 @@ public sealed class TagSuggestionStoreTests : IDisposable
         TagSuggestionStore store = Store();
         store.CommitRuns([Run(MediaA, R1, ("cat", 0.9), ("dog", 0.8))]);
         TagSuggestionSnapshot snapshot = store.CommitRuns([Run(MediaA, R1, ("cat", 0.7))]);
-        TagSuggestion only = Assert.Single(snapshot.PendingFor(MediaA, 0.05));
+        StoredTagSuggestion only = Assert.Single(snapshot.PendingFor(MediaA, 0.05));
         Assert.Equal(("cat", 0.7, TagSuggestionState.Pending), (only.Name, only.Confidence, only.State));
         Assert.Single(snapshot.Runs);
         Assert.Equal(2, snapshot.Events.Count);
