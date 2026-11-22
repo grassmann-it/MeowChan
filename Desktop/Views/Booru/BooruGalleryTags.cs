@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -10,6 +11,8 @@ namespace MeowChan.Desktop.Booru;
 /// <summary>Copyable source tags from the displayed post, in the provider's order within each category.</summary>
 internal sealed class BooruGalleryTags : ScrollViewer
 {
+    protected override Type StyleKeyOverride => typeof(ScrollViewer);
+
     private readonly StackPanel _groups = new() { Spacing = 8 };
     private BooruPostView? _post;
     private string? _language;
