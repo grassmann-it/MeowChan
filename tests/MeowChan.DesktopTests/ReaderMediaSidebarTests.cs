@@ -271,7 +271,7 @@ public sealed class ReaderMediaSidebarTests : IDisposable
     {
         // UX-LEDGER-27 keeps the same stable title line, now inside the full-height sidebar.
         // Host geometry and independence from neighbouring chrome are measured in MediaPagePanelLayoutTests.
-        Assert.Equal(32, MediaPage.PanelHeaderLineHeight);
+        Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
         Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
     }
 }

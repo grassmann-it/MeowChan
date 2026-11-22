@@ -87,10 +87,15 @@ internal static class ReaderMediaSidebarChecks
             await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
             await page.MediaSidebarTask;
             Require(sidebar.Shown != null || sidebar.StatusText.Length > 0, "The sidebar shows neither the medium nor a reason.");
-            // The header is one compact row (post, file, size; the star, "Open in gallery" and the cross beside it); it replaces the old title and info box.
+            // The post number starts the header, and the actions end it.
             Require(sidebar.HeaderLine.Contains(withMedia!.Id, StringComparison.Ordinal) && !sidebar.HeaderLine.Contains('\n', StringComparison.Ordinal),
-                "The sidebar header is not one line naming the post.");
+                "The sidebar header does not name the post.");
             Require(sidebar.Open.IsEffectivelyVisible && sidebar.Close.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
+            await Flush();
+            double postLeft = sidebar.PostLink.TranslatePoint(default, sidebar.HeaderRow)!.Value.X;
+            double closeRight = sidebar.Close.TranslatePoint(new Point(sidebar.Close.Bounds.Width, 0), sidebar.HeaderRow)!.Value.X;
+            Require(Math.Abs(postLeft) <= 1 && Math.Abs(closeRight - sidebar.HeaderRow.Bounds.Width) <= 1,
+                "The post number and header actions must sit at opposite edges.");
             await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia!.Id, StringComparison.Ordinal));
 
             // Held ↓: many selection changes, at most one decode start per interval; the sidebar ends on the last selected post.

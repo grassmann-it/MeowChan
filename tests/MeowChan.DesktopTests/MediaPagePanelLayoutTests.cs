@@ -5,6 +5,7 @@ using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
 
@@ -76,6 +77,7 @@ public sealed class MediaPagePanelLayoutTests
                 }
                 Assert.True(page.IsPanelShown);
                 panel = Assert.IsType<ReaderMediaSidebar>(page.Panel);
+                Assert.IsType<MediaSidebarHeader>(panel.HeaderRow);
                 Assert.Equal(host.Bounds.Height, panel.Bounds.Height);
                 Assert.Equal(0, panel.Bounds.Y);
                 Assert.Equal(host.Bounds.Height, page.PanelHandle.Bounds.Height);
