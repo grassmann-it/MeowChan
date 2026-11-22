@@ -43,7 +43,8 @@ public partial class MainWindow
 
     private void OnTitleBarPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (e.Handled || !WindowChrome.ShowsCaption(WindowChrome.Mode) || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (e.Handled || WindowState == WindowState.FullScreen || !WindowChrome.ShowsCaption(WindowChrome.Mode)
+            || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         // Header commands keep their own input; only branding and empty space drag.
         if (e.Source is Visual source && source.GetVisualAncestors().Prepend(source)
             .Any(visual => visual is Button or Menu or MenuItem)) return;
@@ -58,7 +59,11 @@ public partial class MainWindow
         if (CanMinimize) MinimizeWindow(_config.MinimizeToTray);
     }
 
-    private void OnWindowMaximizeClick(object? sender, RoutedEventArgs e) => ToggleWindowMaximized();
+    private void OnWindowMaximizeClick(object? sender, RoutedEventArgs e)
+    {
+        if (WindowState != WindowState.FullScreen) ToggleWindowMaximized();
+        else if (CanMaximize && CanChangeFullscreen) LeaveFullscreen(WindowState.Maximized);
+    }
 
     private void ToggleWindowMaximized()
     {
@@ -117,7 +122,8 @@ public partial class MainWindow
         Button minimize = WindowMinimizeButton;
         Button maximize = WindowMaximizeButton;
         minimize.IsEnabled = CanMinimize;
-        maximize.IsEnabled = WindowChromePolicy.CanToggleMaximize(WindowState, CanMaximize, CanResize);
+        maximize.IsEnabled = WindowState == WindowState.FullScreen ? CanMaximize
+            : WindowChromePolicy.CanToggleMaximize(WindowState, CanMaximize, CanResize);
         WindowMaximizeIcon.Data = maximized ? RestoreGeometry : MaximizeGeometry;
         SetWindowControlLabel(minimize, "window.minimize");
         SetWindowControlLabel(maximize, WindowChromePolicy.MaximizeLabel(WindowState));

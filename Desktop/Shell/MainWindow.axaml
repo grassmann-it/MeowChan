@@ -144,8 +144,7 @@
                 </StackPanel>
             </Grid>
         </Border>
-        <!-- The media page's focus mode can hide the title bar above (MainWindow.MediaFocusChrome.cs): this thin strip at the top edge then
-             shows it again while the pointer rests on it. It is hidden otherwise; the title bar is not touched by it. -->
+        <!-- Reveal the floating title bar at the top edge in fullscreen and media focus mode. -->
         <Border x:Name="MediaFocusHeaderStrip" Grid.RowSpan="2" Height="6" VerticalAlignment="Top" IsVisible="False" ZIndex="119"
                 Background="Transparent" BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="0,2,0,0" Opacity="0.7" />
         <Grid x:Name="WorkspacePages" Grid.Row="1" RowDefinitions="Auto,Auto,*">

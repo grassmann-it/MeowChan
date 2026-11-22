@@ -107,6 +107,8 @@ public partial class MainWindow
         }
         InitializeShortcutRouting();
         AddHandler(KeyDownEvent, OnShellKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, OnShellKeyUp, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        Deactivated += OnShellDeactivated;
         PositionChanged += OnShellPositionChanged;
         Resized += OnFullscreenRestoreResized;
         PropertyChanged += OnFullscreenStateChanged;
@@ -125,6 +127,8 @@ public partial class MainWindow
         _fullscreenWindowStateFeedback = null;
         DisposeShortcutRouting();
         RemoveHandler(KeyDownEvent, OnShellKeyDown);
+        RemoveHandler(KeyUpEvent, OnShellKeyUp);
+        Deactivated -= OnShellDeactivated;
         PositionChanged -= OnShellPositionChanged;
         Resized -= OnFullscreenRestoreResized;
         PropertyChanged -= OnFullscreenStateChanged;
@@ -159,8 +163,7 @@ public partial class MainWindow
     internal void ToggleFullscreen()
     {
         TraceFullscreen("toggle requested");
-        if (_isClosing || _restoringFullscreen || !IsEnabled || HasVisibleShellDialog()
-            || _archivePage?.IsFilenameSearchOpen == true)
+        if (!CanChangeFullscreen)
         {
             TraceFullscreen("toggle blocked");
             return;
@@ -183,12 +186,16 @@ public partial class MainWindow
         RefreshShellCommands();
     }
 
-    private void LeaveFullscreen()
+    private bool CanChangeFullscreen => !_isClosing && !_restoringFullscreen && IsEnabled && !HasVisibleShellDialog()
+        && _archivePage?.IsFilenameSearchOpen != true;
+
+    private void LeaveFullscreen(WindowState? targetState = null)
     {
         TraceFullscreen("leave started");
         FullscreenOrigin origin = _fullscreenOrigin ?? _fullscreenExitIntent
             ?? new(WindowState.Normal, _lastNormalClient, _lastNormalPosition, null, _normalDecoration);
-        if (OperatingSystem.IsMacOS() && _fullscreenExitIntent == null)
+        if (targetState is { } target) origin = origin with { State = target };
+        if (OperatingSystem.IsMacOS() && (_fullscreenExitIntent == null || targetState != null))
         {
             _fullscreenExitIntent = origin;
             _fullscreenExitMode = _config.WorkspaceMode;
@@ -394,9 +401,12 @@ public partial class MainWindow
                 _fullscreenMaximizeSizeCorrectionQueued = false;
                 TraceFullscreen("maximized exit superseded by explicit normal request");
             }
-            UpdateGalleryFullscreenPresentation();
             if (e.OldValue is WindowState before && e.NewValue is WindowState after
-                && FullscreenPresentationChanged(before, after)) RefreshFullscreenButton();
+                && FullscreenPresentationChanged(before, after))
+            {
+                ApplyTitleBarPresentation();
+                RefreshFullscreenButton();
+            }
             ContinueLinuxFullscreenNormalRestore();
             ContinueFullscreenRestore();
             ContinuePendingFullscreenExitSizeRepair();
@@ -782,8 +792,25 @@ public partial class MainWindow
         return true;
     }
 
+    private Key _titleBarAltKey;
+
+    private void OnShellDeactivated(object? sender, EventArgs e) => _titleBarAltKey = Key.None;
+
+    private void OnShellKeyUp(object? sender, KeyEventArgs e)
+    {
+        if (_titleBarAltKey == Key.None || e.Key != _titleBarAltKey) return;
+        _titleBarAltKey = Key.None;
+        if (!e.Handled && !ShortcutService.IsCapturing && CanChangeFullscreen
+            && !HasBlockingPageDecision() && _archivePage?.IsReaderDialogOpen != true
+            && !CommandRouter.HasOpenPopup(this))
+            e.Handled = ToggleTitleBarFocus();
+    }
+
     private void OnShellKeyDown(object? sender, KeyEventArgs e)
     {
+        // A bare Alt release transfers focus. Alt-based commands keep their current focus and routing.
+        _titleBarAltKey = TitleBarFloats && (e.Key is Key.LeftAlt or Key.RightAlt)
+            && (e.KeyModifiers is KeyModifiers.None or KeyModifiers.Alt) ? e.Key : Key.None;
         if (ShortcutService.IsCapturing) return;
         if (e.Handled || _isClosing || !IsEnabled || HasVisibleShellDialog()) return;
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
@@ -829,6 +856,9 @@ public partial class MainWindow
             if (_archivePage?.IsReaderDialogOpen == true) return;
             e.Handled = true; ToggleFullscreen(); return;
         }
+        if (e.Key == Key.F6 && e.KeyModifiers == KeyModifiers.None && _archivePage?.IsReaderDialogOpen != true
+            && !CommandRouter.HasOpenPopup(this) && ToggleTitleBarFocus())
+        { e.Handled = true; return; }
         if (CommandBindings.Matches(e, "viewer.shortcut-help") && (_gallery == null || _gallerySuspended))
         { e.Handled = true; ShowShellHelp(); return; }
         // Command-M on macOS (the Window menu entry): the menu bar never owns a key equivalent, the window resolves it.
