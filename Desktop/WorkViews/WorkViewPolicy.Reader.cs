@@ -10,12 +10,8 @@ public static partial class WorkViewPolicy
 {
     /// <summary>
     /// The reader toolbar's one keep-visible order (OverflowOrder, lower stays on the bar longer). The toolbar has
-    /// PrioritizedOverflow, so this list, not the visual order of the bar, decides what a narrow window moves into "More"
-    /// first: the tail of this list. RL1 (15.11.): gallery, read, media sidebar, thread list, find, tags, export, settings (the gear that replaced "View"),
-    /// thread; the rarely used history return goes before full screen, which ends the list: it is the first to move under More
-    /// when the bar runs out of room (review 15.11.: an action only overflows when it does not fit; a forced "More" with free room
-    /// beside it hid actions). The post-capture switch is no bar item any more: it is an entry of the Thread menu (R2).
-    /// Required items (way back, favourite star, state returns) never move.
+    /// PrioritizedOverflow moves actions from the tail of this list into "More" as room runs out.
+    /// The favourite star, Full screen and the sidebar switches stay on the toolbar.
     /// </summary>
     public static IReadOnlyList<string> ReaderToolbarKeepVisibleOrder => ReaderKeepVisible();
 
@@ -23,7 +19,7 @@ public static partial class WorkViewPolicy
     private static string[] ReaderKeepVisible() =>
     [
         "reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
-        "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back", "reader.toolbar.fullscreen"
+        "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back"
     ];
 
     private static int ReaderOrder(string id) => 10 * (System.Array.IndexOf(ReaderKeepVisible(), id) + 1);
@@ -44,7 +40,9 @@ public static partial class WorkViewPolicy
         Same("reader.toolbar.media-return", WorkViewPage.Reader, WorkViewKind.Action, Required, "media.return"),
         Same("reader.toolbar.skip-unavailable", WorkViewPage.Reader, WorkViewKind.Action, Required, "reader.skip-unavailable-group-member"),
 
-        // The containing group stays on the bar. Threads is offered only in the embedded reader.
+        // Keep Full screen beside the sidebar group at the right edge in every view.
+        Same("reader.toolbar.fullscreen", WorkViewPage.Reader, WorkViewKind.Action, Required, "window.fullscreen"),
+        // Threads is offered only in the embedded reader.
         Same("reader.toolbar.media-sidebar", WorkViewPage.Reader, WorkViewKind.Action, Required),
         Same("reader.toolbar.thread-list", WorkViewPage.Reader, WorkViewKind.Action, Required, "archive.thread-list.toggle"),
 
@@ -62,10 +60,6 @@ public static partial class WorkViewPolicy
         ReaderTool("reader.toolbar.settings", Overflow, Direct, Direct, null),
         // Shown only with a history (state); as a navigation it stays on the bar in every view while it fits.
         ReaderTool("reader.toolbar.history-back", Direct, Direct, Direct, "reader.history-back"),
-        // Review 15.11. (Tom): with room to spare, nothing hides under More. Full screen stands at the end of the bar while it fits and
-        // is the first to move under More (the end of the keep-visible order); Barebones keeps it under More. The header button and F11
-        // carry it as well. RL1 had it under More in every view, which showed a "More" holding only this one action beside free room.
-        ReaderTool("reader.toolbar.fullscreen", Overflow, Direct, Direct, "window.fullscreen"),
 
         // ---- Status line and messages: state and safety, Required in every view (R5). ----
         Same("reader.status.capture", WorkViewPage.Reader, WorkViewKind.Element, Required, safety: true),
