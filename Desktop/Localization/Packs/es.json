@@ -4804,6 +4804,8 @@
     "media.status.queue": "{0} pendientes en la cola de etiquetado",
     "media.tagList": "Lista de etiquetas",
     "media.tagList.tip": "Lista de etiquetas: muestra junto a la cuadrícula todas las etiquetas de los resultados y cuántos medios las llevan. Haga clic en una etiqueta para ver solo los medios con ella, {0}+clic para ocultarlos.",
+    "media.toolbar.tagsLabel": "Etiquetas",
+    "media.toolbar.mediaLabel": "Medios",
     "media.layout.name": "Diseño",
     "media.layout.tip": "Elija qué muestra la página Medios: lista de etiquetas, chips de filtro, línea de estado, subtítulo, pies de las miniaturas y tamaño de las miniaturas, o un diseño ya preparado.",
     "media.layout.menuName": "Diseño de la página Medios",

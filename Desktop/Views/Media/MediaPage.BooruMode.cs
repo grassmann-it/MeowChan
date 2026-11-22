@@ -73,6 +73,7 @@ public sealed partial class MediaPage
         WorkspaceIcons.MakeSquare(_booruMode, WorkspaceIcons.TagList, Texts.T("media.tagList"), tip);
         Avalonia.Automation.AutomationProperties.SetHelpText(_booruMode, tip);
         _tagSidebar.Localize();
+        ReapplyToolbarLabels();
     }
 
     /// <summary>The saved mode and order of the profile (the shell, once); nothing is saved back.</summary>

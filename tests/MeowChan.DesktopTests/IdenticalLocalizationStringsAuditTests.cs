@@ -11,16 +11,16 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     private static readonly IReadOnlyDictionary<string, (int Entries, int ExactEnglish, string Digest)> Expected =
         new Dictionary<string, (int, int, string)>(StringComparer.Ordinal)
         {
-            ["cs"] = (5319, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),,
-            ["es"] = (5271, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),,
-            ["fr"] = (5271, 120, "7b5f781094edcf29e359eeb3a7c733241c4161be7e0a5ad3df54f954ca68d8f1"),,
-            ["it"] = (5277, 127, "5add6f5041f184e50bb1a936b86631e34d12927caef036482a371523ae59379a"),,
-            ["ja"] = (5169, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),,
-            ["ko"] = (5169, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),,
-            ["pl"] = (5320, 94, "ad2651a487ed6388133da381ef186bd8664a9e3a41569115a7b71a47cd66e437"),,
-            ["pt-BR"] = (5277, 142, "3073576ea12a1cc013e5c4f2e478674e272788c2dcabe502725168e85c930361"),,
-            ["ru"] = (5297, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),,
-            ["zh-Hans"] = (5169, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),,
+            ["cs"] = (5321, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
+            ["es"] = (5273, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
+            ["fr"] = (5273, 120, "7b5f781094edcf29e359eeb3a7c733241c4161be7e0a5ad3df54f954ca68d8f1"),
+            ["it"] = (5279, 128, "f93b0af50e3347ddbf8a6e1b9f7b1b30f640987d7d9f99cc47911421f0e64f98"),
+            ["ja"] = (5171, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
+            ["ko"] = (5171, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
+            ["pl"] = (5322, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
+            ["pt-BR"] = (5279, 143, "a21be79decfd7566b0ee5cc93b958d6ed69282dd547064012f8b1a488bd54557"),
+            ["ru"] = (5299, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),
+            ["zh-Hans"] = (5171, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),
         };
 
     public IdenticalLocalizationStringsAuditTests() => Texts.Initialize();
@@ -33,7 +33,7 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     [Fact]
     public void EnglishSourceCatalogHasTheAuditedUniqueInventory()
     {
-        Assert.Equal(5275, BuiltInCatalog.English.Count);
+        Assert.Equal(5277, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }

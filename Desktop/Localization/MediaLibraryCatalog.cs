@@ -193,6 +193,9 @@ internal static class MediaLibraryCatalog
         ("media.status.queue", "{0} open in the tagging queue", "{0} offen in der Tagging-Warteschlange"),
         ("media.tagList", "Tag list", "Tag-Liste"),
         ("media.tagList.tip", "Tag list: shows every tag of the results beside the grid, with how many media carry it. Click a tag to show only media with it, {0}+click to hide them.", "Tag-Liste: zeigt neben dem Raster alle Tags der Treffer mit ihrer Anzahl. Ein Klick auf einen Tag zeigt nur Medien mit diesem Tag, {0}+Klick blendet sie aus."),
+        // F10: the words beside the sidebar switches of the media toolbar while the row has room.
+        ("media.toolbar.tagsLabel", "Tags", "Tags"),
+        ("media.toolbar.mediaLabel", "Media", "Medien"),
         // MP5: the Layout menu of the media page (tag list side and width, the rows above the grid, tile caption and size, ready-made layouts).
         ("media.layout.name", "Layout", "Layout"),
         ("media.layout.tip", "Choose what the Media page shows: the tag list, filter chips, status line, subtitle, tile captions and tile size, or pick a ready-made layout.", "Wähle, was die Medienseite zeigt: Tag-Liste, Filter-Chips, Statuszeile, Untertitel, Kachelbeschriftung und Kachelgröße – oder eine fertige Vorlage."),

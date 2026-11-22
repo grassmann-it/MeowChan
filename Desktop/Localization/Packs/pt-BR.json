@@ -4810,6 +4810,8 @@
     "media.status.queue": "{0} pendentes na fila de tags",
     "media.tagList": "Lista de tags",
     "media.tagList.tip": "Lista de tags: mostra ao lado da grade todas as tags dos resultados e quantas mídias as têm. Clique em uma tag para ver só as mídias com ela, {0}+clique para ocultá-las.",
+    "media.toolbar.tagsLabel": "Tags",
+    "media.toolbar.mediaLabel": "Mídia",
     "media.layout.name": "Layout",
     "media.layout.tip": "Escolha o que a página Mídia mostra: lista de tags, chips de filtro, linha de status, subtítulo, legendas e tamanho dos blocos, ou um layout pronto.",
     "media.layout.menuName": "Layout da página Mídia",

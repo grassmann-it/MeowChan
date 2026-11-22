@@ -4836,6 +4836,8 @@
     "theme.colors.preview.error": "出了点问题",
     "media.tagList": "标签列表",
     "media.tagList.tip": "标签列表：在网格旁列出结果中的所有标签及带有该标签的媒体数量。单击标签只显示带有它的媒体，{0}+单击则隐藏它们。",
+    "media.toolbar.tagsLabel": "标签",
+    "media.toolbar.mediaLabel": "媒体",
     "media.layout.name": "布局",
     "media.layout.tip": "选择媒体页显示的内容：标签列表、过滤条件、状态行、副标题、图块说明和图块大小，或选用现成的布局。",
     "media.layout.menuName": "媒体页布局",

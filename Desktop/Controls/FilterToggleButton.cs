@@ -41,6 +41,9 @@ public sealed class FilterToggleButton : ToggleButton
     /// <summary>The visible text.</summary>
     public string Label => _label.Text ?? string.Empty;
 
+    /// <summary>Whether the text shows (F10: a narrow toolbar keeps only the icon and the badge; the accessible name and tooltip stay).</summary>
+    public bool LabelVisible { get => _label.IsVisible; set { if (_label.IsVisible != value) _label.IsVisible = value; } }
+
     /// <summary>How many filters are active; the badge shows it while it is above zero.</summary>
     public int Count { get; private set; }
 
