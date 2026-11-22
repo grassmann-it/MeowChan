@@ -63,6 +63,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
                              "Linux run and continue after failures; entries the registry marks as skipped are recorded.")
     parser.add_argument("--only", action="append", default=[], metavar="ID",
                         help="With --registry: run only these registry ids (repeatable).")
+    parser.add_argument("--require-passed", action="store_true",
+                        help="Require exactly one passing result for every explicitly selected registry id.")
     args = parser.parse_args(argv)
     if args.registry:
         if args.mode or args.expect_scenario is not None or args.native_display or args.scale is not None:
@@ -71,6 +73,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
             parser.error("--registry runs only on Linux in the isolated runner")
     elif args.only:
         parser.error("--only requires --registry")
+    if args.require_passed and (not args.registry or not args.only or len(set(args.only)) != len(args.only)):
+        parser.error("--require-passed requires --registry and distinct --only ids")
     if not math.isfinite(args.timeout) or args.timeout <= 0:
         parser.error("--timeout must be finite and positive")
     args.modes = tuple(dict.fromkeys(args.mode or STANDARD_MODES))
@@ -568,6 +572,10 @@ def run_registry(args: argparse.Namespace) -> int:
     failed, counts = write_report(True)
     print("Registry summary: " + ", ".join(f"{status} {count}" for status, count in counts.items())
           + (" ; failed: " + ", ".join(failed) if failed else ""), flush=True)
+    if args.require_passed and (sorted(result["id"] for result in results) != sorted(args.only)
+                                or counts["passed"] != len(args.only)):
+        print("Required registry ids must each have exactly one passing result.", file=sys.stderr)
+        return 1
     return 1 if failed else 0
 
 

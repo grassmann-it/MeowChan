@@ -504,31 +504,23 @@ class StableFixtures(PrereleaseFixtures):
 
 
 class CandidateWorkflowFixtures(unittest.TestCase):
-    # Independent expected matrix: full/gui-only use all existing GUI workers;
-    # focused selectors retain one native primary and four non-macOS lanes.
-    NON_MAC_MATRIX = tuple(
-        {'os': platform, 'lane': 'lane-' + lane, 'full': lane == 'a'}
-        for platform in ('ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022')
-        for lane in 'abcd')
-    VALIDATE_MATRIX = NON_MAC_MATRIX + tuple(
-        {'os': platform, 'lane': 'native' if shard == 1 else f'native-{shard:02}',
-         'full': shard == 1, 'mac_shard': shard}
-        for platform in ('macos-15', 'macos-15-intel') for shard in range(1, 9))
-    FOCUSED_MATRIX = NON_MAC_MATRIX + tuple(
-        {'os': platform, 'lane': 'native', 'full': True, 'mac_shard': 1}
-        for platform in ('macos-15', 'macos-15-intel'))
-    # Explicit contract, not derived from the production planner under test.
+    # Expected scope and dedicated smoke inventory are independent of the planner.
+    PORTABLE = ('ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022')
+    NATIVE = ('macos-15', 'macos-15-intel')
     DEDICATED_OWNERS = {
         'first_run': (2, 2), 'preference_startup': (3, 1),
         'scoped_diagnostics': (4, 4), 'reader_media': (7, 4),
         'gallery_features': (8, 2), 'media_input': (2, 3), 'tray_lifecycle': (3, 1),
     }
 
-    def matrix(self, scenario='all', event='workflow_dispatch'):
+    def matrix(self, scenario='all', event='workflow_dispatch', mode='validate'):
         from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
-        rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event)
-        expected = self.VALIDATE_MATRIX if event != 'workflow_dispatch' or scenario in ('all', 'gui-only') else self.FOCUSED_MATRIX
-        self.assertEqual(list(expected), rows)
+        rows = DotnetDesktopWorkflowContractTests().matrix(scenario=scenario, event=event, mode=mode)
+        balanced = event != 'workflow_dispatch' or scenario in ('all', 'gui-only')
+        for platform in (*self.PORTABLE, *self.NATIVE):
+            platform_rows = [row for row in rows if row['os'] == platform]
+            self.assertEqual(1 if not balanced else 5 if platform in self.PORTABLE else 9, len(platform_rows))
+            self.assertEqual(1, sum(row['full'] for row in platform_rows))
         return rows
 
     @staticmethod
@@ -550,22 +542,8 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             return full and identifier == focused[scenario]
         self.assertIn(scenario, ('all', 'gui-only'))
         if identifier == 'smoke_normal':
-            return True  # Every distributed worker owns a disjoint scene subset.
-        if identifier in ('gallery_errors', 'gif_playback'):
-            return False  # Split families are in smoke_normal, not duplicated here.
-        if identifier in self.DEDICATED_OWNERS:
-            native, other = self.DEDICATED_OWNERS[identifier]
-            owner = matrix['mac_shard'] == native if os == 'macOS' else matrix['lane'] == 'lane-' + 'abcd'[other - 1]
-            return owner and (scenario == 'all' or identifier not in ('media_input', 'tray_lifecycle'))
-        if identifier == 'smoke_plugins':
-            return full and os == 'Linux'
-        if identifier == 'smoke_1_1_registry':
-            return full and os == 'Linux' and arch == 'X64' and event == 'workflow_dispatch' and mode in ('prerelease-candidate', 'stable-candidate')
-        if identifier == 'upgrade_replay':
-            return full and scenario == 'all'
-        if identifier == 'tray_host':
-            return full and os == 'Linux' and scenario == 'all'
-        self.fail('Unmodelled GUI step: ' + identifier)
+            return bool(matrix['scenes'])
+        return identifier in matrix['tasks']
 
     @classmethod
     def setUpClass(cls):
@@ -593,7 +571,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         expression = expression.replace('always()', 'True')
         expression = expression.replace('&&', ' and ').replace('||', ' or ')
         expression = re.sub(r'!(?!=)', ' not ', expression)
-        return eval(expression, {'__builtins__': {}}, {})
+        return eval(expression, {'__builtins__': {}}, {'contains': lambda values, item: item in values})
 
     def test_both_candidate_modes_reach_every_same_run_dependency(self):
         required = ('validate', 'macos-offline-gate', 'desktop-offline-gate',
@@ -611,7 +589,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
 
     def test_portable_coverage_gate_only_accepts_complete_nonmac_validation_scope(self):
         job = self.jobs['desktop-offline-gate']
-        self.assertIn('    needs: validate\n', job)
+        self.assertIn('    needs: [validate, validate-plan]\n', job)
         self.assertIn('always()', re.search(r'^    if: (.+)$', job, re.M)[1])
         platforms = ('', 'all', 'ubuntu-24.04', 'ubuntu-24.04-arm', 'windows-2022',
                      'macos-15', 'macos-15-intel')
@@ -756,13 +734,13 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             'gif_playback', 'gallery_errors', 'tray_host'})
         for event in ('workflow_dispatch', 'push', 'pull_request'):
             for scenario in ('all', 'gui-only', 'selection', *selectors):
-                for matrix in self.matrix(scenario, event):
+                mode = 'prerelease-candidate' if scenario == 'all' and event == 'workflow_dispatch' else 'validate'
+                for matrix in self.matrix(scenario, event, mode):
                     os, arch = self.runner(matrix)
                     for name, body in scenes.items():
                         condition = re.search(r'^        if: (.+)$', body, re.M)
                         expression = condition.group(1) if condition else 'True'
                         expression = expression.replace('runner.os', repr(os)).replace('runner.arch', repr(arch))
-                        mode = 'prerelease-candidate' if scenario == 'all' else 'validate'
                         expected = self.scene_expected(scene_ids[name], matrix, scenario, event, mode)
                         with self.subTest(os=matrix['os'], lane=matrix['lane'], event=event,
                                           scenario=scenario, scene=name):
@@ -812,14 +790,13 @@ class CandidateWorkflowFixtures(unittest.TestCase):
         self.assertIn('default: all', self.workflow.split('      scenario:', 1)[1].split('permissions:', 1)[0])
         matrix = re.search(r'^      matrix: (.+)$', self.jobs['validate'], re.M).group(1)
         self.assertIn('fromJSON(', matrix)
-        self.assertIn('\"include\"', matrix)
-        # Full validation now expands eight native macOS shards. Focused GUI
-        # selectors must still retain the original machine set and preparation.
+        self.assertIn('needs.validate-plan.outputs.matrix', matrix)
+        # Focused GUI selectors still use one primary per platform.
         from tests.test_dotnet_desktop_workflow_contract import DotnetDesktopWorkflowContractTests
         matrix_contract = DotnetDesktopWorkflowContractTests()
         for scenario in selectors:
             rows = matrix_contract.matrix(scenario=scenario)
-            self.assertEqual(14, len(rows))
+            self.assertEqual(5, len(rows))
             native = [row for row in rows if row['os'].startswith('macos-')]
             self.assertEqual({'macos-15', 'macos-15-intel'}, {row['os'] for row in native})
             self.assertTrue(all(row['full'] and row['mac_shard'] == 1 for row in native))
@@ -827,7 +804,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
             for platform in ('all', 'ubuntu-24.04', 'windows-2022', 'macos-15'):
                 self.assertTrue(self.condition('validate', 'validate', scenario, platform))
                 for job in self.jobs:
-                    if job != 'validate':
+                    if job not in ('validate', 'validate-plan'):
                         with self.subTest(scenario=scenario, platform=platform, job=job):
                             # The workflow-wide outcome gate intentionally also runs on
                             # focused retests; only unrelated workload jobs must skip.
@@ -845,7 +822,6 @@ class CandidateWorkflowFixtures(unittest.TestCase):
 
         runner = load('run-gui-ci-scenes')
         plan = load('gui-ci-plan')
-        gate = load('compute-validation-required')
         # Independent, complete inventory: deletion/duplication in the runner or
         # planner must fail, even if its own self-reported coverage says PASS.
         families = {
@@ -889,22 +865,20 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                 ('workflow_dispatch', 'all', 'prerelease-candidate'),
                 ('workflow_dispatch', 'all', 'stable-candidate'),
                 ('workflow_dispatch', 'gui-only', 'validate')):
-            rows = self.matrix(scenario, event)
+            rows = self.matrix(scenario, event, mode)
             for platform in {row['os'] for row in rows}:
                 actual_coverage = []
                 dedicated_coverage = []
                 for row in (row for row in rows if row['os'] == platform):
                     os, arch = self.runner(row)
-                    shard = row['mac_shard'] if os == 'macOS' else 'abcd'.index(row['lane'][-1]) + 1
-                    workers = 8 if os == 'macOS' else 4
+                    shard = row['lane']
                     selected = set()
                     for identifier, body in scenes.items():
                         expression = re.search(r'^        if: (.+)$', body, re.M)[1]
                         expression = expression.replace('runner.os', repr(os)).replace('runner.arch', repr(arch))
                         if self.evaluate(expression, event=event, scenario=scenario, mode=mode, matrix=row):
                             selected.add(identifier)
-                    required = plan.overlay(gate.required_steps(event, mode, scenario, row['lane'], os, arch),
-                                            shard, os, scenario)
+                    required = row['required'].split(',')
                     with self.subTest(platform=platform, shard=shard, event=event, scenario=scenario, mode=mode):
                         self.assertEqual(selected, set(required) & scenes.keys(),
                                          'Selected GUI steps and final required gates diverged')
@@ -913,7 +887,7 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                         self.assertNotIn('gallery_errors', required)
                         self.assertNotIn('gif_playback', required)
                     if 'smoke_normal' in selected:
-                        actual_coverage.extend(plan.scenes_for(inventory, shard, workers))
+                        actual_coverage.extend(row['scenes'].split(','))
                     dedicated_coverage.extend(selected & self.DEDICATED_OWNERS.keys())
                 with self.subTest(platform=platform, event=event, scenario=scenario, mode=mode):
                     self.assertCountEqual(inventory, actual_coverage)
@@ -922,12 +896,12 @@ class CandidateWorkflowFixtures(unittest.TestCase):
                                           dedicated_coverage)
         # Keep real collector dispatch and final fail-closed aggregation connected.
         self.assertIn('scripts/run-gui-ci-scenes.py', scenes['smoke_normal'])
-        self.assertIn('matrix.mac_shard', scenes['smoke_normal'])
-        self.assertIn('--workers {1}', scenes['smoke_normal'])
+        self.assertIn('matrix.scenes', scenes['smoke_normal'])
+        self.assertIn('--scenes', scenes['smoke_normal'])
         final_gate = bodies['Fail validation after collecting all evidence']
-        self.assertIn('scripts/gui-ci-plan.py --required "$required_csv"', final_gate)
+        self.assertIn('scripts/balance-validation.py verify-cell', final_gate)
         self.assertIn('scripts/aggregate-release-gates.py steps', final_gate)
-        self.assertIn('--required "$required_csv"', final_gate)
+        self.assertIn('--required "$REQUIRED_STEPS"', final_gate)
 
     def test_downloads_stay_in_current_run_and_candidate_channel_is_explicit(self):
         job = self.jobs['current-source-inventory']

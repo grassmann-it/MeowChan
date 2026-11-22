@@ -21,7 +21,8 @@ class TrayLifecycleSelectorTests(unittest.TestCase):
                      'reader_media', 'gallery_features', 'media_input', 'tray_host'}
         for platform, arch in [('macos-15', 'ARM64'), ('macos-15-intel', 'X64')]:
             rows = matrix.matrix(platform=platform, scenario='tray-lifecycle')
-            self.assertEqual([dict(os=platform, lane='native', full=True, mac_shard=1)], rows)
+            self.assertEqual(1, len(rows))
+            self.assertEqual((platform, 'native', True, 1), tuple(rows[0][k] for k in ('os', 'lane', 'full', 'mac_shard')))
             selected = {name for name in expected | unrelated
                         if predicate(steps[name], 'workflow_dispatch', 'validate', 'tray-lifecycle',
                                      True, 'macOS', arch, lane='native', shard=1)}
@@ -48,7 +49,7 @@ class TrayLifecycleSelectorTests(unittest.TestCase):
         upload = text.split('      - name: Upload regression and graphical evidence', 1)[1]
         self.assertTrue(upload.lstrip().startswith('if: always()'))
         gate = text.split('scripts/aggregate-release-gates.py steps', 1)[1]
-        self.assertIn('--required "$required_csv"', gate)
+        self.assertIn('--required "$REQUIRED_STEPS"', gate)
         # Workflow does not override the existing 16-cycle harness contract.
         from pathlib import Path
         root = Path(__file__).resolve().parents[1]

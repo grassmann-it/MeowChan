@@ -43,7 +43,7 @@ on:
           - macos-15
           - macos-15-intel
       offline_lane:
-        description: Lane for offline-retest only (ubuntu/windows, scenario all; no GUI, packaging or candidate work)
+        description: Lane in the selected portable shard count for offline-retest (ubuntu/windows, scenario all)
         type: choice
         required: false
         default: lane-c
@@ -52,6 +52,22 @@ on:
           - lane-b
           - lane-c
           - lane-d
+          - lane-e
+          - lane-f
+          - lane-g
+          - lane-h
+          - lane-i
+          - lane-j
+          - lane-k
+          - lane-l
+      portable_shards:
+        description: Portable workers per platform for full validation or GUI-only (4–12)
+        type: number
+        default: 5
+      macos_shards:
+        description: Native workers per architecture for full validation or GUI-only (8–12)
+        type: number
+        default: 9
       scenario:
         description: Native GUI scenarios (Focused gallery/GIF/media-input/tray diagnostics; candidates require all)
         type: choice
@@ -79,11 +95,46 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  validate-plan:
+    if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'offline-retest' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+      portable_shards: ${{ steps.plan.outputs.portable_shards }}
+      macos_shards: ${{ steps.plan.outputs.macos_shards }}
+    steps:
+      - uses: actions/checkout@v7
+      - id: plan
+        shell: bash
+        env:
+          VALIDATE_MODE: ${{ inputs.mode || 'validate' }}
+          VALIDATE_SCENARIO: ${{ inputs.scenario || 'all' }}
+          VALIDATE_PLATFORM: ${{ inputs.platform || 'all' }}
+          OFFLINE_LANE: ${{ inputs.offline_lane || 'lane-c' }}
+          PORTABLE_SHARDS: ${{ inputs.portable_shards }}
+          MACOS_SHARDS: ${{ inputs.macos_shards }}
+        run: |
+          count_args=()
+          if [[ -n "$PORTABLE_SHARDS" ]]; then count_args+=(--portable-shards "$PORTABLE_SHARDS"); fi
+          if [[ -n "$MACOS_SHARDS" ]]; then count_args+=(--macos-shards "$MACOS_SHARDS"); fi
+          python3 scripts/balance-validation.py matrix --event "$GITHUB_EVENT_NAME" \
+            --mode "$VALIDATE_MODE" --scenario "$VALIDATE_SCENARIO" --platform "$VALIDATE_PLATFORM" \
+            --offline-lane "$OFFLINE_LANE" "${count_args[@]}" --github-output "$GITHUB_OUTPUT" \
+            --report artifacts/validate-plan.json
+      - uses: actions/upload-artifact@v7
+        with:
+          name: validate-plan
+          path: artifacts/validate-plan.json
+          if-no-files-found: error
+          retention-days: 14
   validate:
+    name: validate (${{ matrix.os }}, ${{ matrix.lane }}, ${{ matrix.full }}${{ matrix.mac_shard && format(', {0}', matrix.mac_shard) || '' }})
+    needs: validate-plan
     if: github.event_name != 'workflow_dispatch' || inputs.mode == 'validate' || inputs.mode == 'offline-retest' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate'
     strategy:
       fail-fast: false
-      matrix: ${{ fromJSON((github.event_name == 'workflow_dispatch' && inputs.mode == 'offline-retest') && ((!inputs.platform || inputs.platform == 'all') && format('{{"include":[{{"os":"ubuntu-24.04","lane":"{0}","full":false}},{{"os":"ubuntu-24.04-arm","lane":"{0}","full":false}},{{"os":"windows-2022","lane":"{0}","full":false}}]}}', inputs.offline_lane) || format('{{"include":[{{"os":"{0}","lane":"{1}","full":false}}]}}', inputs.platform, inputs.offline_lane)) || (github.event_name != 'workflow_dispatch' || !inputs.platform || inputs.platform == 'all') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15","lane":"native-08","full":false,"mac_shard":8},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native-02","full":false,"mac_shard":2},{"os":"macos-15-intel","lane":"native-03","full":false,"mac_shard":3},{"os":"macos-15-intel","lane":"native-04","full":false,"mac_shard":4},{"os":"macos-15-intel","lane":"native-05","full":false,"mac_shard":5},{"os":"macos-15-intel","lane":"native-06","full":false,"mac_shard":6},{"os":"macos-15-intel","lane":"native-07","full":false,"mac_shard":7},{"os":"macos-15-intel","lane":"native-08","full":false,"mac_shard":8}]}' || '{"include":[{"os":"ubuntu-24.04","lane":"lane-a","full":true},{"os":"ubuntu-24.04","lane":"lane-b","full":false},{"os":"ubuntu-24.04","lane":"lane-c","full":false},{"os":"ubuntu-24.04","lane":"lane-d","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-a","full":true},{"os":"ubuntu-24.04-arm","lane":"lane-b","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-c","full":false},{"os":"ubuntu-24.04-arm","lane":"lane-d","full":false},{"os":"windows-2022","lane":"lane-a","full":true},{"os":"windows-2022","lane":"lane-b","full":false},{"os":"windows-2022","lane":"lane-c","full":false},{"os":"windows-2022","lane":"lane-d","full":false},{"os":"macos-15","lane":"native","full":true,"mac_shard":1},{"os":"macos-15-intel","lane":"native","full":true,"mac_shard":1}]}') || (inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel') && ((github.event_name != 'workflow_dispatch' || !inputs.scenario || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}},{{"os":"{0}","lane":"native-02","full":false,"mac_shard":2}},{{"os":"{0}","lane":"native-03","full":false,"mac_shard":3}},{{"os":"{0}","lane":"native-04","full":false,"mac_shard":4}},{{"os":"{0}","lane":"native-05","full":false,"mac_shard":5}},{{"os":"{0}","lane":"native-06","full":false,"mac_shard":6}},{{"os":"{0}","lane":"native-07","full":false,"mac_shard":7}},{{"os":"{0}","lane":"native-08","full":false,"mac_shard":8}}]}}', inputs.platform) || format('{{"include":[{{"os":"{0}","lane":"native","full":true,"mac_shard":1}}]}}', inputs.platform)) || format('{{"include":[{{"os":"{0}","lane":"lane-a","full":true}},{{"os":"{0}","lane":"lane-b","full":false}},{{"os":"{0}","lane":"lane-c","full":false}},{{"os":"{0}","lane":"lane-d","full":false}}]}}', inputs.platform)) }}
+      matrix: ${{ fromJSON(needs.validate-plan.outputs.matrix) }}
     runs-on: ${{ matrix.os }}
     # Existing checks, scoped native regressions and two genuine old-release replays.
     timeout-minutes: 75
@@ -102,7 +153,7 @@ jobs:
           RETEST_PLATFORM: ${{ inputs.platform }}
           RETEST_SCENARIO: ${{ inputs.scenario }}
         run: |
-          case "$RETEST_LANE" in lane-a|lane-b|lane-c|lane-d) ;; *) echo "invalid offline_lane: $RETEST_LANE" >&2; exit 1;; esac
+          case "$RETEST_LANE" in lane-[a-l]) ;; *) echo "invalid offline_lane: $RETEST_LANE" >&2; exit 1;; esac
           case "$RETEST_PLATFORM" in macos-*) echo "offline-retest does not support macOS" >&2; exit 1;; esac
           test "$RUNNER_OS" != macOS
           test "$RETEST_SCENARIO" = all
@@ -119,6 +170,8 @@ jobs:
         id: setup_dotnet
         with:
           global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages*.lock.json'
       - name: Record SDK and source commit
         id: record_source
         # Keep independent checks running so one failure yields a complete evidence set.
@@ -198,17 +251,15 @@ jobs:
         timeout-minutes: 35
         shell: bash
         run: |
-          # A focused offline-retest executes only this lane's cell + unchanged
-          # project owners. It is NOT a four-lane/platform coverage proof.
           python scripts/run-dotnet-shards.py --lane "${{ matrix.lane }}" \
-            --desktop-platform "${{ matrix.os }}" --source "$(git rev-parse HEAD)" \
+            --desktop-shard-count "${{ matrix.workers }}" --desktop-platform "${{ matrix.os }}" --source "$(git rev-parse HEAD)" \
             --results-root test-results/offline-shards
       - name: Run native macOS offline test shard with bounded diagnostics
         id: mac_tests
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
         if: runner.os == 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
-        # Eight native machines partition each compiled inventory; no suite replay.
+        # Native workers partition each compiled inventory.
         # Discovery is INCLUDED in the unchanged 300/600s (candidate 390/810s)
         # bounds. Leave two minutes for diagnostic sampling and group cleanup.
         timeout-minutes: 22
@@ -218,7 +269,8 @@ jobs:
             watchdog_args=(--candidate-validation)
           fi
           python3 scripts/run-macos-test-shards.py run --shard "${{ matrix.mac_shard }}" \
-            --platform "${{ matrix.os }}" --source "$(git rev-parse HEAD)" "${watchdog_args[@]}"
+            --shard-count "${{ matrix.workers }}" --platform "${{ matrix.os }}" \
+            --source "$(git rev-parse HEAD)" "${watchdog_args[@]}"
       - name: Check package layout fixtures
         id: package_fixtures
         # Keep independent checks running so one failure yields a complete evidence set.
@@ -278,12 +330,32 @@ jobs:
         continue-on-error: true
         shell: bash
         run: cp tests/MeowChan.DesktopSmoke/obj/project.assets.json artifacts/build-evidence/desktop-smoke-assets.json
+      - name: Record runner image for graphical harness cache
+        id: smoke_cache_image
+        if: matrix.balanced && steps.build_all.outcome == 'success' && steps.smoke_restore.outcome == 'success'
+        shell: bash
+        run: printf 'version=%s\n' "${ImageVersion:-}" >> "$GITHUB_OUTPUT"
+      - name: Restore exact-source graphical harness output
+        id: smoke_cache
+        if: steps.smoke_cache_image.outputs.version != ''
+        uses: actions/cache/restore@v5
+        with:
+          path: tests/MeowChan.DesktopSmoke/bin/Release/net10.0
+          key: validate-smoke-v1-${{ matrix.os }}-${{ runner.arch }}-${{ steps.smoke_cache_image.outputs.version }}-${{ github.sha }}-${{ hashFiles('global.json') }}
       - name: Build graphical harness
         id: smoke_build
         if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        run: dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj --configuration Release --no-restore
+        shell: bash
+        env:
+          SMOKE_CACHE_HIT: ${{ steps.smoke_cache.outputs.cache-hit }}
+        run: |
+          if [[ "$SMOKE_CACHE_HIT" == true ]]; then
+            test -f tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll
+          else
+            dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj --configuration Release --no-restore
+          fi
       - name: Verify plugin delivery in desktop and transitive harness outputs
         id: plugin_delivery
         if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))
@@ -301,6 +373,13 @@ jobs:
           esac
           python scripts/package-plugins.py --verify bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/desktop-plugins.json
           python scripts/package-plugins.py --verify tests/MeowChan.DesktopSmoke/bin/Release/net10.0 --runtime "$plugin_rid" --development --report artifacts/build-evidence/smoke-plugins.json
+      - name: Save verified graphical harness output
+        if: steps.smoke_cache.outcome == 'success' && steps.smoke_cache.outputs.cache-hit != 'true' && steps.smoke_build.outcome == 'success' && steps.plugin_delivery.outcome == 'success'
+        continue-on-error: true
+        uses: actions/cache/save@v5
+        with:
+          path: tests/MeowChan.DesktopSmoke/bin/Release/net10.0
+          key: ${{ steps.smoke_cache.outputs.cache-primary-key }}
       - name: Install Linux virtual display and private session bus
         id: linux_setup
         # Keep independent checks running so one failure yields a complete evidence set.
@@ -331,18 +410,20 @@ jobs:
         id: smoke_normal
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (matrix.full || (inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only'))) && (github.event_name != 'workflow_dispatch' || (inputs.scenario != 'gallery-errors' && inputs.scenario != 'gallery-features' && inputs.scenario != 'gif-playback' && inputs.scenario != 'media-input' && inputs.scenario != 'tray-lifecycle'))
+        if: (matrix.balanced && matrix.scenes != '' || !matrix.balanced && matrix.full) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'selection')
         # Each normal scope has a fresh process/profile and its own bounded evidence.
         shell: bash
         env:
-          GUI_CI_SCENARIO: ${{ inputs.scenario || 'all' }}
+          GUI_CI_SCENES: ${{ matrix.scenes }}
         run: |
+          scene_args=()
+          if [[ -n "$GUI_CI_SCENES" ]]; then scene_args=(--scenes "$GUI_CI_SCENES"); fi
           python scripts/run-gui-ci-scenes.py \
             --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
             --timeout "${{ runner.os == 'macOS' && '300' || '180' }}" \
             ${{ runner.os != 'Linux' && '--allow-native-desktop' || '' }} \
             ${{ inputs.scenario == 'selection' && '--selection-only' || '' }} \
-            ${{ inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && format('--shard {0} --workers {1}', matrix.mac_shard || (matrix.lane == 'lane-a' && 1 || matrix.lane == 'lane-b' && 2 || matrix.lane == 'lane-c' && 3 || 4), runner.os == 'macOS' && 8 || 4) || '' }} \
+            "${scene_args[@]}" \
             --output artifacts/desktop-smoke
 
       # Dedicated Program.cs branches return before the ordinary normal/reader-ux
@@ -355,7 +436,7 @@ jobs:
         id: smoke_plugins
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && ((github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only') && runner.os == 'Linux')
+        if: contains(matrix.tasks, 'smoke_plugins')
         shell: bash
         env:
           MEOWCHAN_PLUGIN_RESELECTION_ONLY: '1'
@@ -367,7 +448,7 @@ jobs:
         # The registry runner isolates entries and continues after individual failures;
         # the candidate gate below still rejects this step unless every entry passes.
         continue-on-error: true
-        if: matrix.full && (github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && runner.os == 'Linux' && runner.arch == 'X64')
+        if: contains(matrix.tasks, 'smoke_1_1_registry') && github.event_name == 'workflow_dispatch' && (inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && runner.os == 'Linux' && runner.arch == 'X64'
         run: |
           python scripts/gui-ci-safety.py
           python scripts/run-desktop-smoke.py \
@@ -381,13 +462,14 @@ jobs:
             --only media-page-booru-captures \
             --only media-menu-surfaces \
             --only settings-reader-display \
+            --require-passed \
             --timeout 300 \
             --output artifacts/desktop-smoke-1.1-registry
       - name: Replay genuine 1.0.0 and 1.0.1 profiles with confirmed new selections
         id: upgrade_replay
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        if: contains(matrix.tasks, 'upgrade_replay')
         shell: bash
         run: |
           python scripts/gui-ci-safety.py
@@ -403,7 +485,7 @@ jobs:
         id: upgrade_102_replay
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
+        if: contains(matrix.tasks, 'upgrade_102_replay')
         shell: bash
         run: |
           python scripts/gui-ci-safety.py
@@ -552,7 +634,7 @@ jobs:
         id: first_run
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 2) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: contains(matrix.tasks, 'first_run')
         shell: bash
         env:
           MEOWCHAN_FIRST_RUN_SETUP_ONLY: '1'
@@ -563,7 +645,7 @@ jobs:
         id: preference_startup
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: contains(matrix.tasks, 'preference_startup')
         shell: bash
         env:
           MEOWCHAN_PREFERENCE_STARTUP_ONLY: '1'
@@ -574,7 +656,7 @@ jobs:
         id: scoped_diagnostics
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 4) || (runner.os != 'macOS' && matrix.lane == 'lane-d'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: contains(matrix.tasks, 'scoped_diagnostics')
         shell: bash
         env:
           MEOWCHAN_COMPACT_DIAGNOSTICS_ONLY: '1'
@@ -620,7 +702,7 @@ jobs:
         id: reader_media
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 7) || (runner.os != 'macOS' && matrix.lane == 'lane-d'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')
+        if: contains(matrix.tasks, 'reader_media')
         shell: bash
         env:
           MEOWCHAN_READER_MEDIA_INPUT_ONLY: '1'
@@ -632,7 +714,7 @@ jobs:
         id: gallery_features
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 8) || (runner.os != 'macOS' && matrix.lane == 'lane-b'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only' || inputs.scenario == 'gallery-features')
+        if: contains(matrix.tasks, 'gallery_features') || (!matrix.balanced && matrix.full && github.event_name == 'workflow_dispatch' && inputs.scenario == 'gallery-features')
         shell: bash
         env:
           MEOWCHAN_GALLERY_PLAYBACK_FEATURES_ONLY: '1'
@@ -652,7 +734,7 @@ jobs:
         id: media_input
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 2) || (runner.os != 'macOS' && matrix.lane == 'lane-c'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'media-input')
+        if: contains(matrix.tasks, 'media_input') || (!matrix.balanced && matrix.full && github.event_name == 'workflow_dispatch' && inputs.scenario == 'media-input')
         shell: bash
         run: |
           python scripts/gui-ci-safety.py
@@ -666,7 +748,7 @@ jobs:
         id: tray_lifecycle
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: (((inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')) && ((runner.os == 'macOS' && matrix.mac_shard == 3) || (runner.os != 'macOS' && matrix.lane == 'lane-a'))) || (matrix.full && !(inputs.mode != 'offline-retest' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'gui-only')))) && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all' || inputs.scenario == 'tray-lifecycle')
+        if: contains(matrix.tasks, 'tray_lifecycle') || (!matrix.balanced && matrix.full && github.event_name == 'workflow_dispatch' && inputs.scenario == 'tray-lifecycle')
         shell: bash
         run: |
           python scripts/gui-ci-safety.py
@@ -675,7 +757,7 @@ jobs:
         id: tray_host
         # Keep independent checks running so one failure yields a complete evidence set.
         continue-on-error: true
-        if: matrix.full && (runner.os == 'Linux' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all'))
+        if: contains(matrix.tasks, 'tray_host')
         shell: bash
         run: |
           python scripts/gui-ci-safety.py
@@ -756,27 +838,16 @@ jobs:
         if: always()
         shell: bash
         env:
+          REQUIRED_STEPS: ${{ matrix.required }}
           VALIDATION_STEPS: ${{ toJSON(steps) }}
+          VALIDATION_CELL: ${{ toJSON(matrix) }}
         run: |
-          # Preserve the offline/release planner. The GUI-only overlay assigns
-          # required scene receipts and dedicated GUI steps to existing workers;
-          # every worker must pass its own gate. Focused input scenarios retain
-          # their original single-primary requirements. Push/PR are full.
-          required_csv="$(python3 scripts/compute-validation-required.py \
-            --event-name "${{ github.event_name }}" \
-            --mode "${{ inputs.mode }}" \
-            --scenario "${{ inputs.scenario }}" \
-            --lane "${{ matrix.lane }}" \
-            --runner-os "$RUNNER_OS" \
-            --runner-arch "$RUNNER_ARCH")"
-          if [[ "${{ inputs.mode }}" != offline-retest && ( "${{ github.event_name }}" != workflow_dispatch || ( "${{ inputs.scenario }}" == all || "${{ inputs.scenario }}" == gui-only ) ) ]]; then
-            required_csv="$(python3 scripts/gui-ci-plan.py --required "$required_csv" \
-              --shard "${{ matrix.mac_shard || (matrix.lane == 'lane-a' && 1 || matrix.lane == 'lane-b' && 2 || matrix.lane == 'lane-c' && 3 || 4) }}" --runner-os "$RUNNER_OS" --scenario "${{ inputs.scenario || 'all' }}")"
-          fi
+          test -n "$REQUIRED_STEPS"
           python3 scripts/aggregate-release-gates.py steps \
             --json-env VALIDATION_STEPS \
-            --required "$required_csv" \
+            --required "$REQUIRED_STEPS" \
             --report artifacts/build-evidence/release-validation-gate.json
+          python3 scripts/balance-validation.py verify-cell --smoke-output artifacts/desktop-smoke
       - name: Upload portable Desktop shard coverage
         if: always() && runner.os != 'macOS' && (github.event_name != 'workflow_dispatch' || inputs.scenario == 'all')
         uses: actions/upload-artifact@v7
@@ -831,11 +902,11 @@ jobs:
           retention-days: ${{ github.event_name == 'workflow_dispatch' && inputs.scenario == 'selection' && 2 || 14 }}
 
   # Matrix success alone is insufficient: verify matching source/inventory,
-  # all eight workers per selected native platform, and every actual TRX row.
+  # all planned workers per selected native platform, and every actual TRX row.
   macos-offline-gate:
     name: Native macOS offline coverage (fail-closed)
     if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all' || inputs.platform == 'macos-15' || inputs.platform == 'macos-15-intel'))) }}
-    needs: validate
+    needs: [validate, validate-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -852,7 +923,11 @@ jobs:
           if [[ "${{ inputs.platform }}" == macos-* ]]; then
             platforms=(--platform "${{ inputs.platform }}")
           fi
-          python3 scripts/run-macos-test-shards.py aggregate \
+          profile=--no-candidate-validation
+          if [[ "${{ inputs.mode }}" == prerelease-candidate || "${{ inputs.mode }}" == stable-candidate ]]; then
+            profile=--candidate-validation
+          fi
+          python3 scripts/run-macos-test-shards.py aggregate --shard-count "${{ needs.validate-plan.outputs.macos_shards }}" "$profile" \
             --input artifacts/macos-offline-inputs --source "$(git rev-parse HEAD)" \
             "${platforms[@]}" --report artifacts/macos-offline-gate.json
       - uses: actions/upload-artifact@v7
@@ -867,7 +942,7 @@ jobs:
     name: Portable Desktop four-lane coverage (fail-closed)
     # A one-lane offline-retest deliberately cannot satisfy full coverage.
     if: ${{ always() && (github.event_name != 'workflow_dispatch' || ((inputs.mode == 'validate' || inputs.mode == 'prerelease-candidate' || inputs.mode == 'stable-candidate') && inputs.scenario == 'all' && (!inputs.platform || inputs.platform == 'all' || inputs.platform == 'ubuntu-24.04' || inputs.platform == 'ubuntu-24.04-arm' || inputs.platform == 'windows-2022'))) }}
-    needs: validate
+    needs: [validate, validate-plan]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -884,7 +959,7 @@ jobs:
           if [[ -n "${{ inputs.platform }}" && "${{ inputs.platform }}" != all ]]; then
             platforms=(--platform "${{ inputs.platform }}")
           fi
-          python3 scripts/desktop-test-shards.py \
+          python3 scripts/desktop-test-shards.py --shard-count "${{ needs.validate-plan.outputs.portable_shards }}" \
             --input artifacts/desktop-offline-inputs --source "$(git rev-parse HEAD)" \
             "${platforms[@]}" --report artifacts/desktop-offline-gate.json
       - uses: actions/upload-artifact@v7
@@ -1888,7 +1963,7 @@ jobs:
   full-sweep-aggregate:
     name: Desktop full-sweep aggregate
     if: always()
-    needs: [validate, macos-offline-gate, desktop-offline-gate, library-package, package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory, ap04-upgrade, release-candidate-gate, macos-diagnose, homebrew-macos, smoke-retest]
+    needs: [validate, validate-plan, macos-offline-gate, desktop-offline-gate, library-package, package, macos-package, package-media, linux-distribution, macos-source-candidate, current-source-inventory, ap04-upgrade, release-candidate-gate, macos-diagnose, homebrew-macos, smoke-retest]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -1897,10 +1972,27 @@ jobs:
         if: always()
         env:
           SWEEP_NEEDS: ${{ toJSON(needs) }}
+          VALIDATE_MODE: ${{ inputs.mode || 'validate' }}
+          VALIDATE_SCENARIO: ${{ inputs.scenario || 'all' }}
+          VALIDATE_PLATFORM: ${{ inputs.platform || 'all' }}
         run: |
+          strict=''
+          if [[ "$GITHUB_EVENT_NAME" != workflow_dispatch || "$VALIDATE_MODE" == validate ||
+                "$VALIDATE_MODE" == offline-retest || "$VALIDATE_MODE" == prerelease-candidate ||
+                "$VALIDATE_MODE" == stable-candidate ]]; then
+            strict=validate-plan,validate
+            if [[ "$VALIDATE_MODE" != offline-retest && "$VALIDATE_SCENARIO" == all ]]; then
+              if [[ "$VALIDATE_PLATFORM" == all || "$VALIDATE_PLATFORM" == macos-* ]]; then
+                strict+=,macos-offline-gate
+              fi
+              if [[ "$VALIDATE_PLATFORM" != macos-* ]]; then
+                strict+=,desktop-offline-gate
+              fi
+            fi
+          fi
           python3 scripts/aggregate-release-gates.py needs --json-env SWEEP_NEEDS \
-            --required validate,macos-offline-gate,desktop-offline-gate,library-package,package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory,ap04-upgrade,release-candidate-gate,macos-diagnose,homebrew-macos,smoke-retest \
-            --allow-skipped --report artifacts/full-sweep-aggregate.json
+            --required validate,validate-plan,macos-offline-gate,desktop-offline-gate,library-package,package,macos-package,package-media,linux-distribution,macos-source-candidate,current-source-inventory,ap04-upgrade,release-candidate-gate,macos-diagnose,homebrew-macos,smoke-retest \
+            --allow-skipped --require-success "$strict" --report artifacts/full-sweep-aggregate.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:

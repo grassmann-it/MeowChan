@@ -61,6 +61,7 @@ LANE_SHARDS: Mapping[str, tuple[str, ...]] = {
     "lane-c": ("shard-03", "shard-07"),
     "lane-d": ("shard-04", "shard-05"),
 }
+MAX_DESKTOP_SHARDS = 12
 DEFAULT_SHARD_TIMEOUT_SECONDS = 1800.0
 DEFAULT_LIGHT_SHARD_TIMEOUT_SECONDS = 900.0
 DEFAULT_PROJECT_TIMEOUT_SECONDS = 1800.0
@@ -562,12 +563,18 @@ def run_all(
     coverage_source: str | None = None,
     coverage_platform: str | None = None,
     is_windows: bool | None = None,
+    desktop_shard_count: int = len(LANE_SHARDS),
 ) -> int:
     """Launch the selected shards concurrently and aggregate every result."""
 
-    if lane is not None and lane not in LANE_SHARDS:
+    allowed_lanes = tuple(LANE_SHARDS)
+    if desktop_task:
+        if not len(LANE_SHARDS) <= desktop_shard_count <= MAX_DESKTOP_SHARDS:
+            raise ValueError("Invalid Desktop shard count")
+        allowed_lanes = tuple(f"lane-{chr(ord('a') + index)}" for index in range(desktop_shard_count))
+    if lane is not None and lane not in allowed_lanes:
         raise ValueError(f"unknown lane: {lane}")
-    selected_names = LANE_SHARDS[lane] if lane is not None else tuple(SHARDS)
+    selected_names = LANE_SHARDS.get(lane, ()) if lane is not None else tuple(SHARDS)
     selected_shards = {name: SHARDS[name] for name in selected_names}
 
     if desktop_task is not None:
@@ -627,7 +634,9 @@ def run_all(
         "lane": lane,
         "source": coverage_source,
         "coverage_platform": coverage_platform,
-        "coverage_scope": "desktop-four-lane-cell-not-full-proof" if desktop_task else "legacy-project-lane",
+        "coverage_scope": ("desktop-four-lane-cell-not-full-proof" if desktop_shard_count == len(LANE_SHARDS)
+                           else "desktop-sharded-cell") if desktop_task else "legacy-project-lane",
+        "desktop_shard_count": desktop_shard_count if desktop_task else None,
         "started_at": started_at,
         "completed_at": utc_now(),
         "duration_seconds": round(time.monotonic() - started, 3),
@@ -675,7 +684,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cleanup-grace", type=float, default=DEFAULT_CLEANUP_GRACE_SECONDS)
     parser.add_argument("--desktop-platform", choices=("ubuntu-24.04", "ubuntu-24.04-arm", "windows-2022"))
     parser.add_argument("--source", help="Full source SHA for Desktop coverage")
-    parser.add_argument("--lane", choices=tuple(LANE_SHARDS), help="Run one CI two-shard lane")
+    parser.add_argument("--lane", help="Run one CI lane")
+    parser.add_argument("--desktop-shard-count", type=int, default=len(LANE_SHARDS))
     return parser.parse_args(argv)
 
 
@@ -692,11 +702,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         desktop_task = lambda remaining: cells.run_cell(
             sys.modules[__name__], args.lane, args.desktop_platform, args.source,
             args.results_root / "desktop-cells", args.repo_root, args.dotnet,
-            min(args.project_timeout, args.shard_timeout, remaining), args.cleanup_grace)
+            min(args.project_timeout, args.shard_timeout, remaining), args.cleanup_grace, args.desktop_shard_count)
     return run_all(
         desktop_task=desktop_task,
         coverage_source=args.source,
         coverage_platform=args.desktop_platform,
+        desktop_shard_count=args.desktop_shard_count,
         results_root=args.results_root,
         repo_root=args.repo_root,
         dotnet=args.dotnet,

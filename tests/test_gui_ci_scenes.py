@@ -223,21 +223,20 @@ class NativeShardTests(unittest.TestCase):
             condition = re.search(r'(?m)^        if: (.+)$', block)
             if identifier and condition:
                 steps[identifier[1]] = {'if': condition[1]}
-        from test_validation_gate import predicate
-        for runner_os, workers in (('macOS', 8), ('Linux', 4), ('Windows', 4)):
-            for shard in range(1, workers + 1):
-                lane = ('native' if shard == 1 else f'native-{shard:02}') if workers == 8 else 'lane-' + chr(96 + shard)
-                for scenario in ('all', 'gui-only'):
-                    required = self.plan.overlay([], shard, runner_os, scenario)
-                    for step in self.plan.PREREQUISITES + ['smoke_normal'] + list(self.plan.DEDICATED):
-                        observed = predicate(steps[step]['if'], 'workflow_dispatch', 'validate', scenario,
-                                             shard == 1, runner_os, 'X64', lane, shard)
-                        self.assertEqual(observed, step in required, (runner_os, shard, scenario, step))
+        from tests.test_validation_gate import balance, predicate
+        for scenario in ('all', 'gui-only'):
+            for row in balance.matrix('workflow_dispatch', 'validate', scenario, 'all', 'lane-c', 5, 9)['include']:
+                runner_os = 'macOS' if row['mac_shard'] else 'Linux' if row['os'].startswith('ubuntu') else 'Windows'
+                required = row['required'].split(',')
+                for step in self.plan.PREREQUISITES + ['smoke_normal'] + list(self.plan.DEDICATED):
+                    observed = predicate(steps[step]['if'], 'workflow_dispatch', 'validate', scenario,
+                                         row['full'], runner_os, 'X64', row=row)
+                    self.assertEqual(observed, step in required, (row['os'], row['lane'], scenario, step))
         upload = next(b for b in blocks if b.startswith('Upload regression and graphical evidence'))
         self.assertIn('if: always()', upload)
         self.assertIn('artifacts/desktop-smoke/**', upload)
         gate = next(b for b in blocks if b.startswith('Fail validation after collecting all evidence'))
-        self.assertIn('gui-ci-plan.py', gate)
+        self.assertIn('balance-validation.py verify-cell', gate)
 
     def test_cleanup_failure_quarantines_remainder_with_evidence(self):
         calls = []

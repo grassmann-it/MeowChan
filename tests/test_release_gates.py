@@ -54,6 +54,12 @@ class AggregationTests(unittest.TestCase):
         self.assertEqual("failure", report["failures"]["validate"])
         self.assertEqual("skipped", report["failures"]["package-media"])
 
+    def test_sweep_rejects_skipped_in_scope_coverage(self):
+        needs = {"desktop-offline-gate": {"result": "skipped"}, "macos-offline-gate": {"result": "skipped"}}
+        report = GATES.needs_gate(needs, list(needs), allow_skipped=True, require_success=("desktop-offline-gate",))
+        self.assertFalse(report["passed"])
+        self.assertEqual({"desktop-offline-gate": "skipped"}, report["failures"])
+
     def test_run_gate_requires_successful_named_jobs_and_exact_source(self):
         run = {
             "headSha": "a" * 40,
@@ -89,7 +95,8 @@ class WorkflowContractTests(unittest.TestCase):
     def test_validation_keeps_parallel_diagnostics_and_uses_aggregator(self):
         self.assertIn("continue-on-error: true", self.workflow)
         self.assertIn("python3 scripts/aggregate-release-gates.py steps", self.workflow)
-        self.assertIn("scripts/compute-validation-required.py", self.workflow)
+        self.assertIn("scripts/balance-validation.py matrix", self.workflow)
+        self.assertIn("scripts/balance-validation.py verify-cell", self.workflow)
         full = GATE_REQUIRED.required_steps("push", "", "", "lane-a", "Linux", "X64")
         self.assertTrue({"linux_setup", "tray_host", "core_tests", "smoke_plugins"} <= set(full))
         mac = GATE_REQUIRED.required_steps("push", "", "", "native", "macOS", "ARM64")
@@ -110,6 +117,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("runner.os == 'Linux'", section)
         self.assertIn("runner.arch == 'X64'", section)
         self.assertIn("--registry --only booru-workbench", section)
+        self.assertIn("--require-passed", section)
         for identifier in (
             "booru-composition",
             "booru-media",

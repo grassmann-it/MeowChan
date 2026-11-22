@@ -40,7 +40,7 @@ def effective_scenario(event_name: str, scenario: str) -> str:
     return scenario
 
 
-OFFLINE_RETEST_LANES = ("lane-a", "lane-b", "lane-c", "lane-d")
+OFFLINE_RETEST_LANES = tuple(f"lane-{letter}" for letter in "abcdefghijkl")
 OFFLINE_RETEST_REQUIRED = ["offline_retest_guard", "record_source", "restore_release", "build_all", "process_probe", "core_tests"]
 
 
