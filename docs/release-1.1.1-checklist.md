@@ -39,6 +39,15 @@ dotnet test tests/MeowChan.Tests --filter "FullyQualifiedName~Release|FullyQuali
 - The Windows application manifest still declares `MeowChan.Desktop` identity 1.0.0.0. About and package versions come from managed build metadata. Whether the manifest identity should follow future product releases is open. The plugin SDK compatibility contract remains 1.1.0.
 - The public downloads, README and platform support documentation continue to refer to the published 1.1.0 assets during preparation. Any 1.1.1 publication metadata belongs to the later release step.
 
+## Release assets and notes (Tom, 22 Nov)
+
+The 1.1.1 release page follows the clearer 1.0.2 layout rather than the 1.1.0 one:
+
+- Application downloads keep the `01-`..`09-` order and readable names (`01-MeowChan-1.1.1-win-x64.zip`, `02-...-osx-arm64.dmg`, ...). Nothing else sorts before them.
+- The release text carries a **Downloads** table with a plain platform label per package (Windows x64 .zip, macOS Apple Silicon .dmg, macOS Intel .dmg, Linux x64/ARM64 AppImage, Linux bundled-VLC and system-VLC .tar.gz) and a direct link to each file, followed by the `SHA256SUMS` link and a one-line note on system VLC requirements.
+- Supporting files (`candidate-inventory.json`, the NuGet packages, the corresponding video-source archives) are explained in one sentence so no asset name is cryptic. The 1.1.0 page lacked the table and these explanations.
+- Check the final asset list and every link against the uploaded names before publishing; Tom publishes.
+
 ## Version audit
 
 | Location | Result |
