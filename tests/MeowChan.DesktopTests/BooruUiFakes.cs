@@ -88,7 +88,7 @@ internal sealed class FakeBooruSearchPort : IBooruSearchPort
 
     internal int Requests { get { lock (_gate) return Searches.Count + PostReads.Count; } }
 
-    public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken)
+    public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken)
     {
         lock (_gate) Searches.Add((canonicalQuery, page));
         return OnSearch?.Invoke(canonicalQuery, page, cancellationToken)

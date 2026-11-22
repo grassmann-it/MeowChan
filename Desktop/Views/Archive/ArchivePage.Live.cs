@@ -2,6 +2,7 @@ using MeowChan.Desktop.WorkViews;
 using System;
 using System.Linq;
 using System.Threading.Tasks;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -43,7 +44,8 @@ public partial class ArchivePage
 
     private void LocalizeReaderUpdates()
     {
-        ReaderShowNewPosts.Content = CommandCatalog.Label("reader.show-new-posts");
+        ReaderShowNewPosts.Content = Texts.T("reader.view.show");
+        AutomationProperties.SetName(ReaderShowNewPosts, CommandCatalog.Label("reader.show-new-posts"));
         ToolTip.SetTip(ReaderShowNewPosts, CommandBindings.Tooltip("reader.show-new-posts"));
         LocalizeReaderUnread();
         LocalizeReaderLink();
@@ -89,14 +91,16 @@ public partial class ArchivePage
         TextBlock liveState = ReaderLiveState;
         liveState.Text = Texts.T("reader.live.stateOn");
         WorkViewGate.Apply(liveState, ArchiveWorkView, _followReader);
-        // Live state: Required in every view (WorkViewPolicy.Reader), so the gate only records the state.
-        WorkViewGate.Apply(ReaderShowNewPosts, ArchiveWorkView, _pendingReaderUpdate != null);
+        bool pending = _pendingReaderUpdate != null;
+        WorkViewGate.Apply(ReaderShowNewPosts, ArchiveWorkView, pending);
         ReaderShowNewPosts.IsEnabled = !_busy;
         TextBlock notice = ReaderNewPostsNotice;
-        WorkViewGate.Apply(notice, ArchiveWorkView, _pendingReaderUpdate != null);
+        WorkViewGate.Apply(notice, ArchiveWorkView, pending);
+        ReaderNewPostsBar.IsVisible = ReaderShowNewPosts.IsVisible || notice.IsVisible;
         int added = (_pendingReaderUpdate?.PostCount ?? 0) - (_thread?.PostCount ?? 0);
-        notice.Text = _pendingReaderUpdate == null ? string.Empty
+        string text = !pending ? string.Empty
             : added > 0 ? Texts.Count("reader.newPostsCount", added) : Texts.T("reader.savedUpdate");
+        if (notice.Text != text) notice.Text = text;
     }
 
     /// <summary>Whether the open thread's new saved posts are shown without a click (session-wide, reset on a thread switch).</summary>
@@ -209,7 +213,7 @@ public partial class ArchivePage
     {
         if (CanToggleFollowLiveByShortcut) _ = SetFollowLiveAsync(!_followReader);
     }
-    internal bool CanShowNewPostsByShortcut => !_ended && !IsReaderDialogOpen && ReaderShowNewPosts.IsEffectivelyVisible
+    internal bool CanShowNewPostsByShortcut => MayRefreshReaderNow && ReaderShowNewPosts.IsEffectivelyVisible
         && ReaderShowNewPosts.IsEnabled;
 
     internal async Task ShowReaderUpdatesAsync(bool deliberate = true)

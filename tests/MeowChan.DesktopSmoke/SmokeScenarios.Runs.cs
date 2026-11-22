@@ -123,6 +123,7 @@ internal static partial class SmokeScenarios
             Configure = config => { config.Theme = "Light"; config.WorkViewSwitchNoticeSeconds = 0; }
         },
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
+        ["reader-live"] = new(SmokeStage.Ready, mainWindow => ReaderLiveChecks.RunAsync(mainWindow)),
         ["tagging-mode"] = new(SmokeStage.Ready, mainWindow => TaggingModeChecks.RunAsync(mainWindow)),
         ["tagging-cards"] = new(SmokeStage.Ready, mainWindow => TaggingCardsChecks.RunAsync(mainWindow)),
         ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),

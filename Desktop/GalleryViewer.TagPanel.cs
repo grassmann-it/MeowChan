@@ -75,8 +75,11 @@ internal sealed partial class GalleryViewer
         SetPanelCounter(surface, controller, entry);
         surface.MarkedCount = _marks.Count;
         AnnounceCounter(surface);
-        // UX-LEDGER-14: keep the same live badge, but beside Post/Tags in the host header, not beside the file title below it.
+        // The panel header owns the position. The title above the stars spans the tag surface.
         _sidePanel.HeaderCounter = surface.DetachCounter();
+        Grid.SetColumn(surface.Title, 0);
+        Grid.SetColumnSpan(surface.Title, surface.Header.ColumnDefinitions.Count);
+        surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Center;
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
@@ -91,7 +94,7 @@ internal sealed partial class GalleryViewer
         controller.Suggestions.Ready += OnTagSuggestionsReady;
         if (controller.Decisions is { } decisions)
         {
-            _decisionRow = new GalleryDecisionRow(TagPanelName + "Decision")
+            _decisionRow = new GalleryDecisionRow(TagPanelName + "Decision", compact: true)
             { FieldFocused = () => surface.Input.IsKeyboardFocusWithin, ReturnFocus = () => surface.FocusField(), KeyContext = "gallery" };
             _decisionRow.FavoriteRequested += OnDecisionFavoriteRequested;
             _decisionRow.RatingRequested += RequestDecisionRating;
@@ -279,7 +282,7 @@ internal sealed partial class GalleryViewer
     // QW1: in the tagging mode the position stands once, between the arrows ("Queue 3 of 27"); the panel head shows no second counter.
     private string? PanelCounter(string? counter) => GalleryChromePlan.PanelCounter(counter, IsTagMode);
 
-    // The chip shows the short "No. 4 / 27" (one line, never wider than the tab row allows); the long "Medium 4 of 27" stays its tooltip, accessible name and live text.
+    // The position badge uses the short text, with the full text as its tooltip and accessible name.
     private void SetPanelCounter(QuickTagSurface surface, GalleryTagPanelController controller, GalleryEntry entry)
     {
         surface.CounterShortText = PanelCounter(controller.ShortCounterFor(entry));

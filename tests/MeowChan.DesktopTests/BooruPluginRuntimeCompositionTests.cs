@@ -48,7 +48,7 @@ public sealed class BooruPluginRuntimeCompositionTests
             Assert.Empty(stub.Requests);
             BooruWorkbenchServices services = host.BooruServices!;
 
-            BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, CancellationToken.None).WaitAsync(Deadline);
+            BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline);
             Assert.True(result.Status == BooruCallStatus.Ok, result.Status + " " + result.Code);
             BooruPostView found = Assert.Single(result.Value!.Posts);
             Assert.Equal("7001", found.PostId);
@@ -67,7 +67,7 @@ public sealed class BooruPluginRuntimeCompositionTests
             await host.Plugins.ProfileStore.SetEnabledAsync(PluginId, false, plugins.Revision);
             Assert.Null(host.BooruServices);
             Assert.Equal(BooruCallStatus.Unavailable,
-                (await services.Search.SearchAsync("cat_ears", 1, CancellationToken.None).WaitAsync(Deadline)).Status);
+                (await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline)).Status);
             Assert.Equal(1, stub.MetadataRequests);
         }
         finally { await StopAsync(host); }

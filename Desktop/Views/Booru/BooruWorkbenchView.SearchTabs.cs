@@ -435,7 +435,7 @@ internal sealed partial class BooruWorkbenchView
         _downloadAll.IsEnabled = running || model.CanDownloadAll;
         string bulkHint = running ? string.Empty
             : bulk.IsRunning ? Texts.T("booru.bulk.otherTab", bulk.Query)
-            : model.CanDownloadAll ? Texts.T("booru.bulk.hint", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize)
+            : model.CanDownloadAll ? Texts.T("booru.bulk.hint", view.PagerLimits.Pages, view.PagerLimits.PostsPerPage)
             : Texts.T("booru.bulk.needsSearch");
         ToolTip.SetTip(_downloadAll, running ? downloadName : downloadName + "\n" + bulkHint);
         ToolTip.SetShowOnDisabled(_downloadAll, true);
@@ -449,7 +449,7 @@ internal sealed partial class BooruWorkbenchView
         if (!showBulk) return;
         if (running)
         {
-            _bulkText.Text = Texts.T("booru.bulk.running", bulk.Query, bulk.PagesRead, BooruSearchModel.MaximumPage, bulk.Found, bulk.Queued);
+            _bulkText.Text = Texts.T("booru.bulk.running", bulk.Query, bulk.PagesRead, bulk.PagerLimits.Pages, bulk.Found, bulk.Queued);
             ApplyTone(_bulkHost, BooruNoticeKind.Info);
             return;
         }
@@ -460,7 +460,7 @@ internal sealed partial class BooruWorkbenchView
             BooruBulkEnd.Canceled => "booru.bulk.endCanceled",
             _ => "booru.bulk.endBlocked"
         });
-        _bulkText.Text = Texts.T("booru.bulk.result", bulk.Query, bulk.Found, bulk.PagesRead, BooruSearchModel.MaximumPage, bulk.Queued,
+        _bulkText.Text = Texts.T("booru.bulk.result", bulk.Query, bulk.Found, bulk.PagesRead, bulk.PagerLimits.Pages, bulk.Queued,
             bulk.AlreadyQueued, bulk.AlreadySaved, bulk.NoOriginal, bulk.Failed) + " " + end;
         ApplyTone(_bulkHost, bulk.End is BooruBulkEnd.Blocked or BooruBulkEnd.Canceled || bulk.Failed > 0 ? BooruNoticeKind.Warning : BooruNoticeKind.Info);
     }

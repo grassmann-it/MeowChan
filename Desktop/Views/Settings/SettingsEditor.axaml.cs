@@ -1249,8 +1249,7 @@ namespace MeowChan
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
                 ApplyStatisticsDraft(candidate, _config);
                 ApplyReaderDraft(candidate);
-                candidate.RestoreBooruSearchTabs = RestoreBooruSearchTabs;
-                candidate.BooruNewSearchTarget = SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget;
+                ApplyBooruSearchDraft(candidate);
                 ApplyTagQueueDraft(candidate);
                 ApplyBooruGalleryDraft(candidate);
                 ApplyViewerDraft(candidate);

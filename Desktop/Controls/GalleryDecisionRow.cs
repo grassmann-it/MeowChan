@@ -21,10 +21,10 @@ internal sealed class GalleryDecisionRow : StackPanel
     private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" }, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
-    /// <summary>Edge of a star glyph in dip; the cell around it (class "rating-star") is the Workspace.Size.Nav high, equal-width hit area.</summary>
+    /// <summary>Edge of a star glyph in dip.</summary>
     private const int StarGlyphSize = 20;
     // The rating bar: five equal star columns, an 8 dip gap and the remove button (a fixed 32 dip square).
-    private readonly Grid _group = new() { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto"), MaxWidth = 200 };
+    private readonly Grid _group = new() { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto") };
     // The rating value gets its own centered line, with the full text available in the tooltip when trimmed.
     private readonly TextBlock _summary = new TrimTipTextBlock
     {
@@ -40,10 +40,11 @@ internal sealed class GalleryDecisionRow : StackPanel
     private bool _attached;
     private string? _keyContext;
 
-    internal GalleryDecisionRow(string name)
+    internal GalleryDecisionRow(string name, bool compact = false)
     {
         Name = name;
         Spacing = 8;
+        if (compact) _group.MaxWidth = 200;
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
         _favoriteContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8,
@@ -54,6 +55,11 @@ internal sealed class GalleryDecisionRow : StackPanel
         {
             int number = index + 1;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
+            if (!compact)
+            {
+                star.Height = 40;
+                star.MinWidth = 40;
+            }
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
             Grid.SetColumn(star, index);

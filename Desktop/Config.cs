@@ -332,6 +332,14 @@ namespace MeowChan
         internal const int BooruSearchTabsMinimum = 1;
         internal const int BooruSearchTabsMaximum = 32;
         public bool RestoreBooruSearchTabs { get; set; } = true;
+        public int BooruSearchPages { get; set; } = BooruSearchPagesDefault;
+        internal const int BooruSearchPagesDefault = BooruSearchPagesMaximum;
+        internal const int BooruSearchPagesMinimum = 1;
+        internal const int BooruSearchPagesMaximum = Desktop.Booru.BooruSearchModel.MaximumPage;
+        public int BooruSearchPostsPerPage { get; set; } = BooruSearchPostsPerPageDefault;
+        internal const int BooruSearchPostsPerPageDefault = BooruSearchPostsPerPageMaximum;
+        internal const int BooruSearchPostsPerPageMinimum = 1;
+        internal const int BooruSearchPostsPerPageMaximum = Desktop.Booru.BooruSearchModel.PageSize;
         public int BooruSavedTabs { get; set; } = BooruSavedTabsDefault;
         internal const int BooruSavedTabsDefault = BooruSearchTabsDefault + 1;
         internal const int BooruSavedTabsMinimum = 2;
@@ -1733,6 +1741,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
+            if (BooruSearchPages is < BooruSearchPagesMinimum or > BooruSearchPagesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchPages));
+            if (BooruSearchPostsPerPage is < BooruSearchPostsPerPageMinimum or > BooruSearchPostsPerPageMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchPostsPerPage));
             if (BooruSavedTabs is < BooruSavedTabsMinimum or > BooruSavedTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSavedTabs));
             if (BooruSavedResultsPerTab is < BooruSavedResultsPerTabMinimum or > BooruSavedResultsPerTabMaximum)
@@ -2010,6 +2022,8 @@ namespace MeowChan
                 BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
                 RestoreBooruSearchTabs = RestoreBooruSearchTabs,
+                BooruSearchPages = BooruSearchPages,
+                BooruSearchPostsPerPage = BooruSearchPostsPerPage,
                 BooruSavedTabs = BooruSavedTabs,
                 BooruSavedResultsPerTab = BooruSavedResultsPerTab,
                 BooruGallerySampleMiB = BooruGallerySampleMiB,
@@ -2299,6 +2313,8 @@ namespace MeowChan
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSearchPages = source.BooruSearchPages;
+            BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
@@ -2540,6 +2556,8 @@ namespace MeowChan
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSearchPages = source.BooruSearchPages;
+            BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
             BooruSavedTabs = source.BooruSavedTabs;
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;

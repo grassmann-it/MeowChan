@@ -350,7 +350,7 @@ public sealed class BooruPageHostContractTests
             CatalogReads++;
             return Task.FromResult<BooruCatalogUsageView?>(null);
         }
-        public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken)
+        public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken)
         {
             SearchReads++; SearchToken = cancellationToken;
             return SearchResult ?? throw new InvalidOperationException("No search was expected.");

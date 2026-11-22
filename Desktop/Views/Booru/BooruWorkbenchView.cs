@@ -607,9 +607,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _previous.IsEnabled = view.HasPreviousPage && !paused;
         IconButtons.Apply(_next, "chevron-right", Texts.T("booru.ui.page.next"));
         _next.IsEnabled = view.HasNextPage && !paused;
-        _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
+        _pageInfo.Text = Texts.T("booru.ui.page.info", view.Page, view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
         _pageLimit.IsVisible = view.PageLimitReached;
-        _pageLimit.Text = Texts.T("booru.ui.page.limit", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
+        _pageLimit.Text = Texts.T("booru.ui.page.limit", view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
         RenderResultViewBar(view);
 
         string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, string.Join('|',
