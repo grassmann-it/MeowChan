@@ -353,6 +353,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ToolTip.SetShowOnDisabled(_createWatcher, true);
         CommandBindings.EnsureIconBeforeText(_submit, "search");
         CommandBindings.EnsureIconBeforeText(_createWatcher, "plus");
+        CommandBindings.EnsureIconBeforeText(_cancel, CardMenuIcons.Cancel);
+        CommandBindings.EnsureIconBeforeText(_retry, CardMenuIcons.Retry);
         _submit.Click += async (_, _) => await SubmitSearchAsync();
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
@@ -409,6 +411,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _watcherNoticeHost.Child = _watcherNoticeText;
         AutomationProperties.SetLiveSetting(_watcherNoticeText, AutomationLiveSetting.Polite);
         _watchersReload.Click += async (_, _) => await _model.Watchers.RefreshAsync();
+        CommandBindings.EnsureIconBeforeText(_watchersReload, CardMenuIcons.Retry);
+        CommandBindings.EnsureIconBeforeText(_resetCooldown, "rotate-ccw");
         _resetCooldown.Click += async (_, _) => await _model.Watchers.ResetProviderCooldownAsync();
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         tab.Children.Add(_watchersIntro);
@@ -825,7 +829,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
         Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, HorizontalAlignment = HorizontalAlignment.Left };
         load.Classes.Add("primary");
-        CommandBindings.ShowIconBeforeText(load, "download-cloud");
+        CommandBindings.ShowIconBeforeText(load, cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load);
         RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
             _resultWorkViewActions);
         load.IsEnabled = cancel || retry || row.CanLoad;
@@ -845,6 +849,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         if (retry && row.CanCancel)
         {
             Button cancelPending = new() { Name = CancelLoadPrefix + post.PostId, Content = Texts.T("booru.ui.cancel") };
+            CommandBindings.ShowIconBeforeText(cancelPending, CardMenuIcons.Cancel);
             AutomationProperties.SetName(cancelPending, $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}");
             cancelPending.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
             RegisterWorkViewAction(cancelPending, "booru.result.cancel", _resultWorkViewActions);
@@ -885,6 +890,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private Button CreateShowInMediaAction(string name, string accessibleName, string postId)
     {
         Button show = new() { Name = name, Content = Texts.T("booru.ui.result.showInMedia") };
+        CommandBindings.ShowIconBeforeText(show, CommandCatalog.Get("thread.show-in-media").Icon);
         show.Classes.Add("ghost");
         AutomationProperties.SetName(show, accessibleName);
         ToolTip.SetTip(show, accessibleName);
@@ -1367,32 +1373,32 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         WrapPanel actions = new() { Classes = { "workspace-toolbar" } };
         BooruWatcherBlock checkBlock = model.CheckBlock(row);
         Button check = WatcherButton(CheckPrefix + watcher.WatcherId, "booru.ui.watcher.checkNow", "booru.ui.watcher.checkNowFor",
-            watcher.Query, checkBlock, cooling, async () => await model.CheckNowAsync(watcher.WatcherId));
+            watcher.Query, checkBlock, cooling, async () => await model.CheckNowAsync(watcher.WatcherId), CommandCatalog.Get("watch.check").Icon);
         RegisterWorkViewAction(check, "booru.watcher.check-now", _watcherWorkViewActions);
         actions.Children.Add(check);
         if (watcher.Status == BooruWatcherStatus.Paused)
         {
             Button resume = WatcherButton(ResumePrefix + watcher.WatcherId, "booru.ui.watcher.resume", "booru.ui.watcher.resumeFor",
-                watcher.Query, model.ResumeBlock(row), cooling, async () => await model.ResumeAsync(watcher.WatcherId), ghost: true);
+                watcher.Query, model.ResumeBlock(row), cooling, async () => await model.ResumeAsync(watcher.WatcherId), CardMenuIcons.Resume, ghost: true);
             RegisterWorkViewAction(resume, "booru.watcher.pause", _watcherWorkViewActions);
             actions.Children.Add(resume);
         }
         else
         {
             Button pause = WatcherButton(PausePrefix + watcher.WatcherId, "booru.ui.watcher.pause", "booru.ui.watcher.pauseFor",
-                watcher.Query, model.PauseBlock(row), cooling, async () => await model.PauseAsync(watcher.WatcherId), ghost: true);
+                watcher.Query, model.PauseBlock(row), cooling, async () => await model.PauseAsync(watcher.WatcherId), CardMenuIcons.Pause, ghost: true);
             RegisterWorkViewAction(pause, "booru.watcher.pause", _watcherWorkViewActions);
             actions.Children.Add(pause);
         }
         Button remove = WatcherButton(RemovePrefix + watcher.WatcherId, "booru.ui.watcher.remove", "booru.ui.watcher.removeFor",
-            watcher.Query, model.RemoveBlock(row), cooling, () => { model.RequestRemoval(watcher.WatcherId); return Task.CompletedTask; });
+            watcher.Query, model.RemoveBlock(row), cooling, () => { model.RequestRemoval(watcher.WatcherId); return Task.CompletedTask; }, CommandCatalog.Get("watch.remove").Icon);
         remove.Classes.Add("danger");
         RegisterWorkViewAction(remove, "booru.watcher.remove", _watcherWorkViewActions);
         actions.Children.Add(remove);
         if (BooruWatcherListModel.CanRestartFromNow(watcher))
         {
             Button restart = WatcherButton(RestartPrefix + watcher.WatcherId, "booru.ui.watcher.restart", "booru.ui.watcher.restartFor",
-                watcher.Query, model.RestartBlock(row), cooling, async () => await model.RestartFromNowAsync(watcher.WatcherId), ghost: true);
+                watcher.Query, model.RestartBlock(row), cooling, async () => await model.RestartFromNowAsync(watcher.WatcherId), CardMenuIcons.Restart, ghost: true);
             RegisterWorkViewAction(restart, "booru.watcher.restart", _watcherWorkViewActions);
             actions.Children.Add(restart);
         }
@@ -1426,9 +1432,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     }
 
     private static Button WatcherButton(string name, string labelKey, string nameKey, string query, BooruWatcherBlock block,
-        DateTimeOffset? cooling, Func<Task> action, bool ghost = false)
+        DateTimeOffset? cooling, Func<Task> action, string icon, bool ghost = false)
     {
         Button button = new() { Name = name, Content = Texts.T(labelKey), IsEnabled = block == BooruWatcherBlock.None };
+        CommandBindings.ShowIconBeforeText(button, icon);
         // Check now keeps its outline as the card's one findable action, Remove keeps its red one; the rest is quiet (UX round 3).
         if (ghost) button.Classes.Add("ghost");
         string accessible = Texts.T(nameKey, query);

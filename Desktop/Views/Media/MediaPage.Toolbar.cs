@@ -6,6 +6,7 @@ using Avalonia.Layout;
 using Avalonia.Automation;
 using MeowChan.Gallery;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -53,6 +54,7 @@ public sealed partial class MediaPage
     private void LocalizeBooruOverflow()
     {
         _booruOpen.Content = Texts.T("media.toolbar.booru");
+        CommandBindings.EnsureIconBeforeText(_booruOpen, CommandCatalog.Get("booru.open").Icon);
         AutomationProperties.SetName(_booruOpen, Texts.T("media.toolbar.booru"));
         ToolTip.SetTip(_booruOpen, Texts.T("media.toolbar.booruTip"));
     }

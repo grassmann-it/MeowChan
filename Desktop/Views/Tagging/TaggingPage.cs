@@ -566,6 +566,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             AutomationProperties.SetName(_list, Texts.T("tagging.page.listName"));
             LocalizeEmptyStates();
             _retryLoad.Content = Texts.T("action.retry");
+            CommandBindings.EnsureIconBeforeText(_retryLoad, "refresh-cw");
             AutomationProperties.SetName(_retryLoad, Texts.T("action.retry"));
             LocalizeGroups();
             CommandBindings.Apply(_columnsButton, "tagging.preview-column", iconWithLabel: true);

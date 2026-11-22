@@ -99,6 +99,7 @@ public sealed partial class TaggingPage
     {
         string manage = Texts.T("tagging.page.group.manage");
         _groupManage.Content = manage;
+        CommandBindings.EnsureIconBeforeText(_groupManage, TaggingCommands.GroupMenuIcon);
         ToolTip.SetTip(_groupManage, manage);
         AutomationProperties.SetName(_groupManage, manage);
         AutomationProperties.SetName(_group, Texts.T("tagging.page.group"));
@@ -163,9 +164,12 @@ public sealed partial class TaggingPage
     {
         bool named = _selectedGroupId != null && CanChange;
         return new ContextMenuBuilder().Named(Texts.T("tagging.page.group.manage"))
-            .Item("tagging.group.new", Texts.T("tagging.page.group.newMenu"), () => _ = RunGroupAction(CreateGroupDialogAsync), CanChange)
-            .Item("tagging.group.rename", Texts.T("tagging.page.group.rename"), () => _ = RunGroupAction(RenameGroupDialogAsync), named)
-            .Item("tagging.group.delete", Texts.T("tagging.page.group.delete"), () => _ = RunGroupAction(DeleteGroupAsync), named);
+            .Item("tagging.group.new", Texts.T("tagging.page.group.newMenu"), () => _ = RunGroupAction(CreateGroupDialogAsync),
+                CanChange, icon: TaggingCommands.GroupNewIcon)
+            .Item("tagging.group.rename", Texts.T("tagging.page.group.rename"), () => _ = RunGroupAction(RenameGroupDialogAsync),
+                named, icon: CommandCatalog.Get("reader-groups.rename").Icon)
+            .Item("tagging.group.delete", Texts.T("tagging.page.group.delete"), () => _ = RunGroupAction(DeleteGroupAsync),
+                named, icon: CommandCatalog.Get("reader-groups.delete").Icon);
     }
 
     private Task AssignSelectionToGroupAsync(string? groupId) => AfterAsync(_queueWork.AssignGroupAsync(Selected.Select(row => row.Key).ToArray(), groupId));

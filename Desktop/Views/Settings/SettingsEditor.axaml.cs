@@ -221,6 +221,12 @@ namespace MeowChan
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
             InitializeResetIcons();
+            CommandBindings.EnsureIconBeforeText(ThemeColorsButton, "sliders");
+            CommandBindings.EnsureIconBeforeText(GalleryLayoutResetButton, "rotate-ccw");
+            CommandBindings.EnsureIconBeforeText(ForgetReadingPositionButton, "x-circle");
+            CommandBindings.EnsureIconBeforeText(CheckDestinationButton, "check");
+            CommandBindings.EnsureIconBeforeText(ProfileFolderOpenButton, CommandCatalog.Get("location.open-folder").Icon);
+            CommandBindings.EnsureIconBeforeText(CancelDestinationCheckButton, "x");
             WorkspaceModeHelpButton.Source = HelpSources.WorkViews;
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);

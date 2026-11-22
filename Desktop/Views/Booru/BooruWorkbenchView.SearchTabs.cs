@@ -91,8 +91,9 @@ internal sealed partial class BooruWorkbenchView
 
     private WrapPanel BuildSearchTabActions()
     {
-        CommandBindings.EnsureIconBeforeText(_downloadAll, "download");
         CommandBindings.EnsureIconBeforeText(_alternateSubmit, "search");
+
+        CommandBindings.EnsureIconBeforeText(_openWatchers, CommandCatalog.Get("admission.monitor-all").Icon);
         _alternateSubmit.Click += async (_, _) => await SubmitSearchAsync(alternate: true);
         CommandBindings.EnsureIconBeforeText(_openInNewTab, "copy");
         _openInNewTab.Click += (_, _) => OpenSearchTab(copyCurrent: true);
@@ -418,7 +419,10 @@ internal sealed partial class BooruWorkbenchView
                 BooruSearchTabs.Title(tabs.ViewOf(id), Texts.T("booru.tabs.blank"), id => Texts.T("booru.tabs.post", id)));
         if (_watcherHeader is { } header)
             RenderTabHeader(_watchersTab, header, Texts.T("booru.ui.tab.watchers", _model.Watchers.Count));
-        _openWatchers.Content = Texts.T("booru.tabs.watchers");
+        string watchersName = Texts.T("booru.tabs.watchers");
+        _openWatchers.Content = watchersName;
+        AutomationProperties.SetName(_openWatchers, watchersName);
+        ToolTip.SetTip(_openWatchers, watchersName);
         RenderTabLimitNotice();
         string newName = Texts.T("booru.tabs.new");
         IconButtons.Apply(_newTabButton, "plus", newName);
@@ -437,6 +441,9 @@ internal sealed partial class BooruWorkbenchView
         BooruBulkView bulk = model.Bulk;
         bool belongsToTab = bulk.TabId == tabs.ActiveId;
         bool running = bulk.IsRunning && belongsToTab;
+        string bulkIcon = running ? "x" : "download";
+        if (IconButtons.KeyOf(_downloadAll) != bulkIcon)
+            CommandBindings.ShowIconBeforeText(_downloadAll, bulkIcon);
         string downloadName = Texts.T(running ? "booru.bulk.stop" : "booru.bulk.button");
         _downloadAll.Content = running ? downloadName : Texts.T("booru.tabs.downloadShort");
         _downloadAll.IsEnabled = running || model.CanDownloadAll;

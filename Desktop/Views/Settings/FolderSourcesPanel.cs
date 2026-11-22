@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.FolderSources;
 
@@ -127,6 +128,8 @@ internal sealed class FolderSourcesPanel : UserControl
         bool paused = false;
         try { paused = _services.GetPaused(); } catch (Exception error) when (error is ObjectDisposedException or InvalidOperationException) { }
         _pause.Content = Texts.T(paused ? "folderSource.section.resume" : "folderSource.section.pause");
+        string icon = paused ? "play" : "pause";
+        if (IconButtons.KeyOf(_pause) != icon) CommandBindings.ShowIconBeforeText(_pause, icon);
         AutomationProperties.SetName(_pause, (string)_pause.Content!);
         _pause.IsVisible = _views.Count > 0;
         _status.Text = StatusLine(_activity, paused);
@@ -167,6 +170,9 @@ internal sealed class FolderSourcesPanel : UserControl
         Button rescan = new() { Name = "FolderSourceRescan_" + id, Content = Texts.T("folderSource.row.rescan"), IsEnabled = !_busy && !view.Scanning };
         Button rename = new() { Name = "FolderSourceRename_" + id, Content = Texts.T("folderSource.row.rename"), IsEnabled = !_busy };
         Button remove = new() { Name = "FolderSourceRemove_" + id, Content = Texts.T("folderSource.row.remove"), IsEnabled = !_busy && !view.Scanning };
+        CommandBindings.ShowIconBeforeText(rescan, "refresh-cw");
+        CommandBindings.ShowIconBeforeText(rename, "edit-2");
+        CommandBindings.ShowIconBeforeText(remove, "minus");
         remove.Classes.Add("subtle");
         foreach (Button button in new[] { rescan, rename, remove }) AutomationProperties.SetName(button, (string)button.Content! + " · " + root.Name);
         rescan.Click += async (_, _) => await RunAsync(() => _services.Rescan(root.Id));

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Media;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Configuration;
@@ -109,6 +110,7 @@ public partial class RulesPage
                 panel.Children.Add(FilterLabel(Texts.T("plugins.ruleSchemaChanged", _draft.ImageFilter.SchemaVersion, selectedFilter.Filter.Settings.Version)));
                 panel.Children.Add(FilterLabel(string.Join("\n", _draft.ImageFilter.Parameters.Select(pair => pair.Key + " = " + pair.Value))));
                 Button accept = new() { Content = Texts.T("plugins.acceptSchema") };
+                CommandBindings.ShowIconBeforeText(accept, "check");
                 accept.Click += (_, _) => { _draft.FilterSchemaAcknowledged = true; _draft.FilterParameters.AcknowledgeRemovedFields(); _filterRenderedDraft = null; DraftChanged(); };
                 panel.Children.Add(accept);
             }
@@ -250,6 +252,7 @@ public partial class RulesPage
                 string origin = PluginGrantPresentation.Describe(grant, _confirmed.Rules.Select(rule => rule.Scope).Append(ruleScope), effective: true);
                 origins.Children.Add(FilterLabel(origin));
                 Button revoke = new() { Content = Texts.T("plugins.revokeGrant"), Tag = grant.Scope };
+                CommandBindings.ShowIconBeforeText(revoke, "x-circle");
                 revoke.Classes.Add("danger");
                 AutomationProperties.SetName(revoke, Texts.T("plugins.revokeGrant") + ": " + origin);
                 revoke.Click += async (_, _) => await ChangeRuleGrantAsync(filter, grant.Scope, FilterDataAccess.None);
@@ -260,6 +263,7 @@ public partial class RulesPage
         board.TextChanged += (_, _) => { target.Board = board.Text ?? string.Empty; Status(); }; Status();
         WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 8 };
         Button allow = new() { Content = Texts.T("plugins.grantRequired") };
+        CommandBindings.ShowIconBeforeText(allow, "check");
         allow.Click += async (_, _) => await ChangeRuleGrantAsync(filter, Scope(), filter.Filter.RequiredAccess);
         actions.Children.Add(allow); panel.Children.Add(actions);
     }

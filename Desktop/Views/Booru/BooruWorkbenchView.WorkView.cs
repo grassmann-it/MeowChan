@@ -79,7 +79,7 @@ internal sealed partial class BooruWorkbenchView
             && WorkViewPolicy.Resolve(storage.Id, _workView, _catalogUsageRevealed) == Presence.Overflow)
         {
             entries.Add(new(storage.OverflowOrder, null, () => Texts.T("budgets.booruCatalog"), RevealCatalogUsage,
-                () => WorkViewElement.GetStateVisible(_storageHost)));
+                () => WorkViewElement.GetStateVisible(_storageHost), "info"));
         }
         return entries.OrderBy(entry => entry.Order).ToArray();
     }

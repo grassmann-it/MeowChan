@@ -114,8 +114,8 @@ public sealed class IconMaskCatalogGuardTests
     }
 
     [Fact]
-    public void ThePageThatCrashedUsesTheMaskThatNowExists() =>
-        Assert.Contains("NamedIcon(\"chevron-down\", 12)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs")), StringComparison.Ordinal);
+    public void TheStampDropdownUsesTheGuardedChevronMask() =>
+        Assert.Contains("NamedIcon(\"chevron-down\", 12)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Stamp.cs")), StringComparison.Ordinal);
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
