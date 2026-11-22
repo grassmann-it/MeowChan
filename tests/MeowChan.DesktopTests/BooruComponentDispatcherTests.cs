@@ -59,6 +59,7 @@ public sealed class BooruComponentDispatcherTests
         var shortcutsBefore = ShortcutService.Current;
         var shortcutSectionBefore = ShortcutService.CurrentSection;
         long shortcutRevisionBefore = ShortcutService.Revision;
+        var numberingBefore = MainPageOrder.Numbering;
         bool queuedCallbackRan = false;
         int ownShortcutRefreshes = 0;
         int ownLanguageChanges = 0;
@@ -69,6 +70,7 @@ public sealed class BooruComponentDispatcherTests
         {
             Assert.Empty(refreshers);
             ShortcutService.Observe(shortcut);
+            Assert.True(MainPageOrder.SetNumbering(numberingBefore.Reverse().ToArray()));
             ShortcutService.Publish(new());
             Assert.Equal(1, ownShortcutRefreshes);
             Assert.Equal(shortcutRevisionBefore + 1, ShortcutService.Revision);
@@ -90,6 +92,7 @@ public sealed class BooruComponentDispatcherTests
         Assert.Same(shortcutsBefore, ShortcutService.Current);
         Assert.Same(shortcutSectionBefore, ShortcutService.CurrentSection);
         Assert.Equal(shortcutRevisionBefore, ShortcutService.Revision);
+        Assert.Equal(numberingBefore, MainPageOrder.Numbering);
         Assert.Equal(languageBefore, Texts.Language);
         Assert.Equal(1, ownLanguageChanges); // Restore must not invoke ended test subscribers.
         GC.KeepAlive(shortcut);

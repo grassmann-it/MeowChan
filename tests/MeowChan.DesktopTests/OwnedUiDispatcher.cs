@@ -65,6 +65,7 @@ internal sealed class ShortcutTestState : IDisposable
     private readonly EffectiveShortcutBindings _snapshot = ShortcutService.Current;
     private readonly ShortcutBindingsSection _section = ShortcutService.CurrentSection;
     private readonly long _revision = ShortcutService.Revision;
+    private readonly IReadOnlyList<string> _numbering = MainPageOrder.Numbering;
     private readonly WeakReference<Action>[] _refreshers = Refreshers.ToArray();
 
     internal ShortcutTestState()
@@ -75,6 +76,7 @@ internal sealed class ShortcutTestState : IDisposable
 
     public void Dispose()
     {
+        MainPageOrder.SetNumbering(_numbering);
         Refreshers.Clear();
         Refreshers.AddRange(_refreshers);
         PruneCounter.SetValue(null, _pruneCounter);

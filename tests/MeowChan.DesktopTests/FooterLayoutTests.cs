@@ -367,6 +367,7 @@ public sealed class FooterLayoutTests
         [Fact]
         public void ChangingTheNumberingReachesTheBuiltBindingsAndTheDefaultComesBack()
         {
+            MainPageOrder.SetNumbering(MainPageOrder.DefaultNumbering);
             Assert.Equal(1, MainPageOrder.Digit("navigation.downloads"));
             EffectiveShortcutBindings before = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
             Assert.Equal("Ctrl+8 / Ctrl+Shift+S", before.Display("navigation.status"));
