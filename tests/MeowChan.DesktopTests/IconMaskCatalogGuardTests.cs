@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
 
@@ -114,8 +115,13 @@ public sealed class IconMaskCatalogGuardTests
     }
 
     [Fact]
-    public void ThePageThatCrashedUsesTheMaskThatNowExists() =>
-        Assert.Contains("NamedIcon(\"chevron-down\", 12)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs")), StringComparison.Ordinal);
+    public void TheTaggingSelectionMoreButtonUsesARegisteredChevron()
+    {
+        string selection = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs"));
+        Assert.Contains("Children = { _selMoreText, WorkspaceIcons.Create(WorkspaceIcons.ChevronDown) }", selection, StringComparison.Ordinal);
+        Assert.Contains(WorkspaceIcons.ChevronDown, WorkspaceIcons.Keys);
+        Assert.NotEmpty(WorkspaceIcons.DataOf(WorkspaceIcons.ChevronDown));
+    }
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));
