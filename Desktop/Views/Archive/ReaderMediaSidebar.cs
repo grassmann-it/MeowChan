@@ -274,7 +274,8 @@ internal sealed class ReaderMediaSidebar : Border
     // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
     private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", Height = HeaderLineHeight,
-        RowDefinitions = new RowDefinitions("*,Auto"), ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        RowDefinitions = new RowDefinitions("*,Auto"), ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8,
+        Margin = new Thickness(0, HeaderTopInset, 0, 0) };
     private const double StackedHeaderWidth = 360;
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
@@ -334,8 +335,8 @@ internal sealed class ReaderMediaSidebar : Border
     internal Control Card => _card;
     /// <summary>The header line above the card (post, file, size and its buttons).</summary>
     internal Control HeaderRow => _header;
-    /// <summary>The space between the header line and the card (a host that lifts the header out of its own row needs it).</summary>
-    internal const double HeaderGap = 8;
+    /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
+    internal const double HeaderTopInset = 8;
     /// <summary>The height of the header line when a host fixes it (the Media page's panel and the reader's sidebar: the 32 dip line of Workspace.Size.Control rows).</summary>
     internal const double HeaderLineHeight = 32;
     /// <summary>Fits the reader's file metadata and actions to the available width.</summary>
@@ -487,7 +488,7 @@ internal sealed class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = HeaderGap };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
         layout.Children.Add(header);
         layout.Children.Add(_live);
         Grid.SetRow(_card, 1); layout.Children.Add(_card);

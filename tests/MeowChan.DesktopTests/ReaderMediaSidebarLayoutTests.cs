@@ -192,8 +192,8 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.Equal(0, sidebar.Padding.Bottom);
                     Assert.True(double.IsNaN(sidebar.HeaderHeight));
                     Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
-                    Assert.Equal(8, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
-                    Assert.Equal(sidebar.Bounds.Height - 8 - sidebar.HeaderRow.Bounds.Height - ReaderMediaSidebar.HeaderGap, sidebar.Card.Bounds.Height);
+                    Assert.Equal(16, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
+                    Assert.Equal(sidebar.Bounds.Height - 16 - sidebar.HeaderRow.Bounds.Height, sidebar.Card.Bounds.Height);
                     Assert.Equal(sidebar.Bounds.Height, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
                     double chrome = sidebar.Bounds.Height - sidebar.Frame.Bounds.Height;
                     chromeHeight ??= chrome;
@@ -255,7 +255,8 @@ public sealed class ReaderMediaSidebarLayoutTests
             view.Arrange(new Rect(0, 0, width, height));
             Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, view.HeaderRow.Bounds.Height);
             Assert.Equal(height, view.Bounds.Height);
-            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, view.Card.Bounds.Height);
+            Assert.Equal(view.Padding.Top + 8, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
+            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - ReaderMediaSidebar.HeaderLineHeight - 8, view.Card.Bounds.Height);
         }
         Layout(); // The Media page panel reserves the same line in the empty state.
         Grid headerRow = Assert.IsType<Grid>(view.HeaderRow);

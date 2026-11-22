@@ -63,6 +63,21 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
         Assert.Null(CommandCatalog.ScopeHint("not-a-command"));
     }
 
+    [Theory]
+    [InlineData("session.pause")]
+    [InlineData("navigation.diagnostics")]
+    [InlineData("navigation.plugins")]
+    [InlineData("reader.sidebar.toggle")]
+    [InlineData("media.panel.toggle")]
+    [InlineData("gallery.tools-toggle")]
+    public void CommandTooltipsOmitTheCommonScopeAndKeepSpecificAvailability(string id)
+    {
+        Texts.SetLanguage("en");
+        string headline = CommandBindings.TooltipHeadline(id);
+        Assert.Equal(headline, CommandBindings.Tooltip(id));
+        Assert.Equal(headline + "\nNot available here", CommandBindings.Tooltip(id, "Not available here"));
+    }
+
     [Fact]
     public void ScopeEntriesLocalizeTooltipSuffixes()
     {

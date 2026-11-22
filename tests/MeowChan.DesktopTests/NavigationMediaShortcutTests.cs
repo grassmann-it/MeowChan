@@ -140,16 +140,31 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     }
 
     [Fact]
-    public void EveryFooterPageButtonTooltipShowsItsShortcut()
+    public void EveryFooterButtonHasItsOwnLocalizedDescriptionAndEffectiveShortcut()
     {
         OwnedUiDispatcher.Run(() =>
         {
-            SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
-            foreach (string page in Pages)
+            SetBindings(EffectiveShortcutBindings.Build());
+            foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
             {
-                Button footer = new();
-                CommandBindings.Apply(footer, page);
-                Assert.Contains(CommandCatalog.ShortcutDisplay(page)!, Assert.IsType<string>(ToolTip.GetTip(footer)));
+                Texts.SetLanguage(language);
+                HashSet<string> descriptions = new(StringComparer.Ordinal);
+                foreach (string page in MainPageOrder.CommandIds.Append("navigation.settings"))
+                {
+                    Button footer = new();
+                    CommandBindings.Apply(footer, page);
+                    string tip = Assert.IsType<string>(ToolTip.GetTip(footer));
+                    string[] lines = tip.Split('\n');
+                    Assert.Equal(2, lines.Length);
+                    Assert.Equal(CommandCatalog.Label(page) + " · " + ShortcutService.Current.Display(page), lines[0]);
+                    string key = "command." + page + ".tip";
+                    Assert.Equal(Texts.T(key), lines[1]);
+                    Assert.NotEqual(key, lines[1]);
+                    Assert.InRange(lines[1].Length, 1, 60);
+                    Assert.True(descriptions.Add(lines[1]), "Duplicate footer description in " + language + ": " + lines[1]);
+                    Assert.DoesNotContain(Texts.T("command.scope.navigation.generic"), tip, StringComparison.Ordinal);
+                    if (language != "en") Assert.NotEqual(BuiltInCatalog.English[key], lines[1]);
+                }
             }
         });
     }

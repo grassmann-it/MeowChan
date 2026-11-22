@@ -89,7 +89,8 @@ public sealed class MediaPagePanelLayoutTests
                 Assert.Equal(0, panel.Margin.Bottom);
                 Assert.False(page.IsPanelHeaderLifted);
                 Assert.Equal(32, panel.HeaderRow.Bounds.Height);
-                Assert.Equal(0, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(40, panel.Card.TranslatePoint(default, panel)!.Value.Y);
                 Assert.True(panel.Card.Bounds.Height > 0);
                 Assert.Equal(panel.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y + panel.Card.Bounds.Height);
             }

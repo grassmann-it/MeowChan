@@ -260,7 +260,7 @@ public static class CommandBindings
     public static void Refresh(NativeMenuItem item) => (item.Command as DelegateCommand)?.RaiseCanExecuteChanged();
 
     /// <summary>
-    /// The tooltip of a command: line 1 is "Label · shortcut" (the label alone without a key), line 2 the hint where it applies and the
+    /// The tooltip of a command: line 1 is "Label · shortcut" (the label alone without a key), line 2 the page description or specific scope and the
     /// reason it is unavailable, joined by " · " (HB1: no more row of four middle dots). The tooltip style wraps a line that is still too
     /// long at 360 dip; a command without a hint or reason has one line. The shortcut names every effective gesture; <paramref name="keyContext"/> is the execution context
     /// of the control that shows the tip, for a command that runs in several (a default that gave way there is not named).
@@ -271,7 +271,10 @@ public static class CommandBindings
         string? shortcut = CommandCatalog.ShortcutTooltipDisplay(id, keyContext);
         string headline = shortcut is null ? label : label + " · " + shortcut;
         List<string> notes = [];
-        if (CommandCatalog.ScopeHint(id) is string scope) notes.Add(scope);
+        if (MainPageOrder.Contains(id) || id == "navigation.settings")
+            notes.Add(Localization.Texts.T("command." + id + ".tip"));
+        else if (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id) is string scope)
+            notes.Add(scope);
         if (CommandCatalog.DialogHint(id) is string dialog) notes.Add(dialog);
         if (!string.IsNullOrWhiteSpace(unavailableReason)) notes.Add(unavailableReason);
         return notes.Count == 0 ? headline : headline + "\n" + string.Join(" · ", notes);

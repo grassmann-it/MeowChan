@@ -106,11 +106,20 @@ internal static partial class MediaPageChecks
             double panelTop = TopOf(panel), hostTop = TopOf(panelHost);
             Require(Math.Abs(panelTop - hostTop) <= 1 && Math.Abs(panel.Bounds.Bottom - panelHost.Bounds.Height) <= 1,
                 "The media sidebar divider must reach both host edges.");
-            Require(!page.IsPanelHeaderLifted && Math.Abs(TopOf(panel.HeaderRow) - panelTop) <= 1
+            Require(!page.IsPanelHeaderLifted && Math.Abs(TopOf(panel.HeaderRow) - panelTop - 8) <= 1
                     && Math.Abs(panel.HeaderRow.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight) <= 1,
-                "The title/actions line must stay at the top inside the full-height sidebar.");
+                "The title/actions line must be inset inside the full-height sidebar.");
+            Require(Math.Abs(TopOf(panel.Card) - panelTop - 40) <= 1,
+                "Insetting the Media header moved the top of the viewer.");
             Require(Math.Abs(TopOf(panel.Card) + panel.Card.Bounds.Height - (hostTop + panelHost.Bounds.Height)) <= 1,
                 "The media card must consume the host height below the title line.");
+            page.SetBooruMode(true, save: false);
+            TextBlock tagsTitle = C<TextBlock>(page.TagSidebar, "MediaTagSidebarTitle");
+            double CentreY(Control control) => TopOf(control) + control.Bounds.Height / 2;
+            await PanelUntilAsync(() => tagsTitle.IsEffectivelyVisible && tagsTitle.Bounds.Height > 0
+                    && Math.Abs(CentreY(tagsTitle) - CentreY(panel.HeaderRow)) <= 2,
+                () => $"Tags and Media header centres: {CentreY(tagsTitle)} and {CentreY(panel.HeaderRow)}, tags visible: {tagsTitle.IsEffectivelyVisible}.");
+            page.SetBooruMode(false, save: false);
 
             // A fit change refreshes the current medium without announcing it again.
             TextBlock live = panel.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "ReaderMediaSidebarLive");
