@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using Xunit;
 
 namespace MeowChan.DesktopTests;
@@ -29,6 +30,8 @@ public sealed class MediaToolbarLabelsTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         MediaPage page = new(_ => throw new InvalidOperationException("This test does not read the media library."));
         Window window = new() { Width = 950, Height = 700, Content = page };
+        // The toolbar's layout is independent of transitions and their process-wide animation clock.
+        window.Classes.Add(MotionPolicy.OffClass);
         try
         {
             window.Show();
@@ -57,8 +60,8 @@ public sealed class MediaToolbarLabelsTests
         }
         finally
         {
-            window.Close();
-            page.EndLifetime();
+            try { window.Close(); }
+            finally { page.EndLifetime(); }
         }
     });
 

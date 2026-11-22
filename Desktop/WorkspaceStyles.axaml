@@ -695,6 +695,11 @@
         <x:Double x:Key="Workspace.Size.InputProminent">36</x:Double>
         <x:Double x:Key="Workspace.Size.Chip">24</x:Double>
         <x:Double x:Key="Workspace.Size.ChipCompact">18</x:Double>
+        <!-- Media labels stay readable against the same badge disc in every theme. -->
+        <Color x:Key="Workspace.MediaLabel.red">#E5484D</Color>
+        <Color x:Key="Workspace.MediaLabel.yellow">#F5C400</Color>
+        <Color x:Key="Workspace.MediaLabel.green">#30A46C</Color>
+        <Color x:Key="Workspace.MediaLabel.blue">#3E8EF7</Color>
         <!-- Tag pill (tag panel suggestions and assigned tags, reader tag bar, tile tags; UX review 15.11.): 28 high, a full pill (radius 14 =
              half the height), 12 dip in from the edge (8 where a key hint leads), the key hint a 16 dip rounded square and 6 dip from the label. -->
         <x:Double x:Key="Workspace.Size.TagPill">28</x:Double>

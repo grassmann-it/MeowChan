@@ -1,14 +1,17 @@
+using System.Reflection;
 using System.Xml.Linq;
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Headless;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
+using MeowChan.Desktop.Updates;
 
 namespace MeowChan.DesktopTests;
 
-// The media page's focus mode as a real full-screen grid, and the visible label of the order box. The controls need Avalonia's platform, which
-// this test host does not start, so what they do (title, subtitle and counts hidden, the footer gone, the header floating behind a hover
-// strip, the label next to the order box) is driven in the media-page smoke (FocusModeAsync). Here: the setting (default, round trip, copies),
-// its row on the Reading and media page, its texts in every language, and the source contracts that pin what the shell hides and when it
-// gives the chrome back.
+// Focus mode settings, localizations and layout. The headless window exercises the floating header's pointer and activation route.
 [Collection("Localization")]
 public sealed class MediaFocusFullscreenTests : IDisposable
 {
@@ -181,24 +184,55 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     }
 
     [Fact]
-    public void TheHeaderFloatsOverThePageBehindAHoverStripSoTheWindowControlsStayReachable()
+    public void TheHeaderFloatsOverThePageBehindAHoverStripSoTheWindowControlsStayReachable() => OwnedUiDispatcher.Run(() =>
     {
-        string chrome = Source(Chrome), markup = Source("Desktop/Shell/MainWindow.axaml");
-        Assert.Contains("WorkspaceRoot.RowDefinitions[0].Height = floating ? new GridLength(0) : WorkspaceMetrics.TitleBarRow;", chrome);
-        Assert.Contains("Grid.SetRowSpan(frame, floating ? 2 : 1);", chrome);
-        Assert.Contains("frame.VerticalAlignment = floating ? VerticalAlignment.Top : VerticalAlignment.Stretch;", chrome);
-        Assert.Contains("frame.Height = floating ? WorkspaceMetrics.TitleBarHeight : double.NaN;", chrome);
-        Assert.Contains("frame.IsVisible = !_galleryImmersive && (!floating || _mediaFocusHeaderRevealed);", chrome);
-        Assert.Contains("strip.PointerEntered += (_, _) => { if (TransientHover.WindowUsable(strip)) RevealMediaFocusHeader(true); };", chrome);
-        Assert.Contains("new TransientHover(this, over =>", chrome);
-        Assert.Contains("if (!IsActive || !IsVisible || WindowState == WindowState.Minimized) RevealMediaFocusHeader(false);", chrome);
-        // The strip is a thin hit target at the top edge, over the page, below the modal overlays, and hidden until it is needed.
-        Assert.Contains("x:Name=\"MediaFocusHeaderStrip\" Grid.RowSpan=\"2\" Height=\"6\" VerticalAlignment=\"Top\" IsVisible=\"False\" ZIndex=\"119\"", markup);
-        Assert.Contains("Background=\"Transparent\"", markup[markup.IndexOf("MediaFocusHeaderStrip", StringComparison.Ordinal)..]);
-        // It does not go away under a pointer, an open menu or the keyboard focus.
-        Assert.Contains("WorkspaceTitleBarFrame.IsPointerOver || WorkspaceMenuItem.IsSubMenuOpen", chrome);
-        Assert.Contains("WorkspaceTitleBarFrame.IsKeyboardFocusWithin", chrome);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using Profile profile = new();
+        new Config { DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1 }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(Exercise());
+
+        async Task<bool> Exercise()
+        {
+            await using DesktopSessionHost session = new(profile.Path, Array.Empty<MeowChan.Interfaces.IImageBoard>(),
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            MainWindow window = new(session) { Width = 1000, Height = 700, Classes = { MotionPolicy.OffClass } };
+            const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                // Model the focus-mode notification on Media without waiting for the session startup gate.
+                typeof(MainWindow).GetField("_selectedPage", privateInstance)!.SetValue(window, MainWindow.WorkspacePage.Media);
+                typeof(MainWindow).GetField("_mediaFocusActive", privateInstance)!.SetValue(window, true);
+                typeof(MainWindow).GetMethod("UpdateMediaFocusChrome", privateInstance)!.Invoke(window, null);
+                Dispatcher.UIThread.RunJobs();
+                Border strip = window.FindControl<Border>("MediaFocusHeaderStrip")!;
+                Border frame = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
+                Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
+                Assert.True(window.IsActive && window.MediaFocusHeaderHidden);
+                Assert.True(strip.IsVisible);
+                Assert.Equal(6, strip.Bounds.Height);
+                Assert.Equal(new GridLength(0), root.RowDefinitions[0].Height);
+                Assert.False(frame.IsVisible);
+
+                Point edge = strip.TranslatePoint(new Point(strip.Bounds.Width / 2, strip.Bounds.Height / 2), window)!.Value;
+                window.MouseMove(edge);
+                Assert.True(window.MediaFocusHeaderRevealed);
+                Assert.True(frame.IsVisible);
+                Assert.False(strip.IsVisible);
+                Assert.Equal(2, Grid.GetRowSpan(frame));
+                Assert.Equal(WorkspaceMetrics.TitleBarHeight, frame.Height);
+
+                window.PlatformImpl.Deactivated?.Invoke();
+                Assert.False(window.IsActive);
+                Assert.False(window.MediaFocusHeaderRevealed);
+                Assert.False(frame.IsVisible);
+                Assert.True(strip.IsVisible);
+            }
+            finally { await (Task)typeof(MainWindow).GetMethod("CloseApplicationAsync", privateInstance)!.Invoke(window, null)!; }
+            return true;
+        }
+    });
 
     [Fact]
     public void LeavingTheModeThePageOrTheSettingGivesTheChromeBackAndTheGalleryKeepsItsOwnFullscreenRule()

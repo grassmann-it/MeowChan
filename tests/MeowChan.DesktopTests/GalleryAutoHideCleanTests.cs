@@ -1,9 +1,10 @@
 using System.Diagnostics;
 using System.Reflection;
-using System.Runtime.CompilerServices;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Threading;
+using MeowChan.Desktop.Motion;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Gallery;
@@ -40,30 +41,34 @@ public sealed class GalleryAutoHideCleanTests
 
     private sealed class Harness
     {
-        internal readonly GalleryViewer Viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
-        internal readonly Button Back = new() { Name = "GalleryClose" };
-        internal readonly ToggleButton Badge = GalleryViewer.CreateFavoriteIndicator("GalleryFavoriteIndicator");
-        internal readonly ToggleButton NativeBadge = GalleryViewer.CreateFavoriteIndicator("GalleryNativeFavoriteIndicator");
+        internal GalleryViewer Viewer { get; }
+        internal Button Back => (Button)Get("_close")!;
+        internal ToggleButton Badge => (ToggleButton)Get("_favoriteIndicator")!;
+        internal ToggleButton NativeBadge => (ToggleButton)Get("_nativeFavoriteIndicator")!;
         internal readonly List<(GalleryAssetKey Key, bool Selected)> Sets = new();
 
-        internal Harness(bool autoHidden = true)
+        internal Harness(GalleryViewer viewer, bool autoHidden)
         {
-            Set("_close", Back);
-            Set("_favoriteIndicator", Badge);
-            Set("_nativeFavoriteIndicator", NativeBadge);
-            Set("_favorite", new ToggleButton());
-            Set("_visualRoot", new Grid());
-            Set("_nativeVideoOverlay", new Grid());
-            Set("_playbackPreferences", new GalleryPlaybackPreferences());
-            Set("_interactionTimer", new Avalonia.Threading.DispatcherTimer());
-            Set("_controlsIdleHideMs", Config.ControlsIdleHideMsDefault);
-            Set("_interactionAvailable", true);
+            Viewer = viewer;
             Set("_entry", Entry());
             Set("_overlayHidden", autoHidden);
             Viewer.FavoriteSetRequested += (entry, selected) => Sets.Add((entry.Key, selected));
-            Invoke("InitializeFavoriteIndicators");
-            Set("_favoriteKnown", true);
+            Viewer.SetFavorite(false);
             Invoke("UpdateCornerChrome");
+        }
+
+        internal void WithActiveHost(Action<Window> test)
+        {
+            Window host = new() { Width = 800, Height = 600, Content = Viewer, Classes = { MotionPolicy.OffClass } };
+            try
+            {
+                host.Show();
+                host.PlatformImpl!.Activated?.Invoke();
+                Dispatcher.UIThread.RunJobs();
+                Assert.True(host.IsActive);
+                test(host);
+            }
+            finally { host.Close(); }
         }
 
         internal void Set(string field, object? value) => typeof(GalleryViewer).GetField(field, Fields)!.SetValue(Viewer, value);
@@ -87,34 +92,41 @@ public sealed class GalleryAutoHideCleanTests
         internal KeyEventArgs Key(Key key) => new() { RoutedEvent = InputElement.KeyDownEvent, Key = key, Source = Viewer };
     }
 
-    private static GalleryEntry Entry()
+    private static GalleryEntry Entry(string assetId = "a")
     {
-        var entry = (GalleryEntry)RuntimeHelpers.GetUninitializedObject(typeof(GalleryEntry));
-        typeof(GalleryEntry).GetField("<Key>k__BackingField", Fields)!
-            .SetValue(entry, new GalleryAssetKey(new("fixture", "g", "42"), "dir", "a"));
-        typeof(GalleryEntry).GetField("<Asset>k__BackingField", Fields)!.SetValue(entry,
-            new MediaAssetReference("a", "m", "original", "a.png", "/x/a.png", 1, new string('a', 64), "", "a.png", true));
-        return entry;
+        MediaAssetReference asset = new(assetId, "m", "original", "a.png", "/x/a.png", 1, new string('a', 64), "", "a.png", true);
+        MediaAssetSnapshot manifest = new("dir", MediaManifestStatus.Available, 1, "fixture", [asset]);
+        return new(new(new("fixture", "g", "42"), "dir", assetId), manifest, asset, null, null, false, false);
     }
 
-    [Fact]
-    public void AutoHiddenControlsLeaveNothingOnThePicture()
+    private static void WithGallery(Action<Harness> test, bool autoHidden = true) => BooruComponentDispatcher.Run(() =>
     {
-        var h = new Harness();
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruComponentDispatcher.Wait(Exercise());
+
+        async Task<bool> Exercise()
+        {
+            await using GalleryViewer viewer = new();
+            test(new Harness(viewer, autoHidden));
+            return true;
+        }
+    });
+
+    [Fact]
+    public void AutoHiddenControlsLeaveNothingOnThePicture() => WithGallery(h =>
+    {
         h.AssertCornerHidden(back: false, badge: false);
-    }
+    });
 
     [Fact]
-    public void ShownControlsKeepTheWayBackAndTheBadge()
+    public void ShownControlsKeepTheWayBackAndTheBadge() => WithGallery(h =>
     {
-        var h = new Harness(autoHidden: false);
         h.AssertCornerHidden(back: true, badge: true);
-    }
+    }, autoHidden: false);
 
     [Fact]
-    public void MouseMotionBringsThePairBackAndTheIdleDelayHidesItAgain()
+    public void MouseMotionBringsThePairBackAndTheIdleDelayHidesItAgain() => WithGallery(h =>
     {
-        var h = new Harness();
         h.Set("_lastCornerMotion", Stopwatch.GetTimestamp());
         h.Invoke("UpdateCornerChrome");
         h.AssertCornerHidden(back: true, badge: true);
@@ -122,12 +134,11 @@ public sealed class GalleryAutoHideCleanTests
         h.Age("_lastCornerMotion");
         h.Invoke("UpdateCornerChrome");
         h.AssertCornerHidden(back: false, badge: false);
-    }
+    });
 
     [Fact]
-    public void ADisabledDelayFollowsTheSettingNotAConstant()
+    public void ADisabledDelayFollowsTheSettingNotAConstant() => WithGallery(h =>
     {
-        var h = new Harness();
         h.Set("_controlsIdleHideMs", Config.ControlsIdleHideMsMinimum);
         h.Set("_lastCornerMotion", Stopwatch.GetTimestamp() - Stopwatch.Frequency); // 1 s ago: past the 500 ms minimum, inside the 2 s default
         h.Invoke("UpdateCornerChrome");
@@ -135,12 +146,11 @@ public sealed class GalleryAutoHideCleanTests
         h.Set("_controlsIdleHideMs", Config.ControlsIdleHideMsDefault);
         h.Invoke("UpdateCornerChrome");
         h.AssertCornerHidden(back: true, badge: true);
-    }
+    });
 
     [Fact]
-    public void AFavouriteChangeShowsTheBadgeAloneThenHidesItAgain()
+    public void AFavouriteChangeShowsTheBadgeAloneThenHidesItAgain() => WithGallery(h =>
     {
-        var h = new Harness();
         h.Viewer.SetFavorite(false); // the first known state of a medium never flashes
         h.AssertCornerHidden(back: false, badge: false);
         h.Viewer.SetFavorite(true);
@@ -149,28 +159,29 @@ public sealed class GalleryAutoHideCleanTests
         h.Age("_lastFavoriteFlash");
         h.Invoke("UpdateCornerChrome");
         h.AssertCornerHidden(back: false, badge: false);
-    }
+    });
 
     [Fact]
     public void FMAndUWorkWithTheChromeHiddenAndFlashTheBadge()
     {
         foreach (Key key in new[] { Key.F, Key.M, Key.U })
         {
-            var h = new Harness();
-            h.Set("_favoriteSelected", key == Key.U);
-            var e = h.Key(key);
-            if (key == Key.F) h.Viewer.RouteFavoriteToggleKey(e);
-            else h.Invoke("RequestFavorite", key == Key.M);
-            Assert.Single(h.Sets);
-            Assert.Equal(key != Key.U, h.Sets[0].Selected);
-            h.AssertCornerHidden(back: false, badge: true);
+            WithGallery(h =>
+            {
+                h.Set("_favoriteSelected", key == Key.U);
+                var e = h.Key(key);
+                if (key == Key.F) h.Viewer.RouteFavoriteToggleKey(e);
+                else h.Invoke("RequestFavorite", key == Key.M);
+                Assert.Single(h.Sets);
+                Assert.Equal(key != Key.U, h.Sets[0].Selected);
+                h.AssertCornerHidden(back: false, badge: true);
+            });
         }
     }
 
     [Fact]
-    public void FPressedTwiceWithNoFocusActsTwiceWhenTheKeyUpArrivesAnywhere()
+    public void FPressedTwiceWithNoFocusActsTwiceWhenTheKeyUpArrivesAnywhere() => WithGallery(h =>
     {
-        var h = new Harness();
         h.Viewer.RouteFavoriteToggleKey(h.Key(Key.F));
         Assert.True(h.Viewer.FavoriteGestureLatched);
         // The held key repeats: swallowed.
@@ -183,22 +194,37 @@ public sealed class GalleryAutoHideCleanTests
         Assert.False(h.Viewer.FavoriteGestureLatched);
         h.Viewer.RouteFavoriteToggleKey(h.Key(Key.F));
         Assert.Equal(2, h.Sets.Count);
-    }
+    });
 
     [Fact]
-    public void ALostActivationOrANewMediumClearsTheHeldKeyLatch()
+    public void ALostActivationOrANewMediumClearsTheHeldKeyLatch() => WithGallery(h =>
     {
-        var h = new Harness();
-        h.Viewer.RouteFavoriteToggleKey(h.Key(Key.F));
-        Assert.True(h.Viewer.FavoriteGestureLatched);
-        h.Invoke("OnHostWindowDeactivated", null!, EventArgs.Empty);
-        Assert.False(h.Viewer.FavoriteGestureLatched);
-    }
+        h.WithActiveHost(host =>
+        {
+            h.Viewer.RouteFavoriteToggleKey(h.Key(Key.F));
+            Assert.True(h.Viewer.FavoriteGestureLatched);
+
+            host.PlatformImpl!.Deactivated?.Invoke();
+            Assert.False(host.IsActive);
+            Assert.False(h.Viewer.FavoriteGestureLatched);
+
+            host.PlatformImpl.Activated?.Invoke();
+            h.Viewer.RouteFavoriteToggleKey(h.Key(Key.F));
+            Assert.True(h.Viewer.FavoriteGestureLatched);
+            BooruComponentDispatcher.Wait(ShowNextMedium());
+            Assert.False(h.Viewer.FavoriteGestureLatched);
+        });
+
+        async Task<bool> ShowNextMedium()
+        {
+            await h.Viewer.ShowAsync(Entry("next"), CancellationToken.None);
+            return true;
+        }
+    });
 
     [Fact]
-    public void TheSidePanelDoesNotBlockUnfocusedGalleryKeysButHelpAndTheQuestionDo()
+    public void TheSidePanelDoesNotBlockUnfocusedGalleryKeysButHelpAndTheQuestionDo() => WithGallery(h =>
     {
-        var h = new Harness();
         h.Set("_contextOpen", true);
         Assert.True(h.Viewer.IsOverlayOpen);
         Assert.False(h.Viewer.BlocksUnfocusedHostKeys);
@@ -208,7 +234,7 @@ public sealed class GalleryAutoHideCleanTests
         h.Set("_helpOpen", false);
         h.Set("_favoriteConfirmKey", new GalleryAssetKey(new("fixture", "g", "42"), "dir", "a"));
         Assert.True(h.Viewer.BlocksUnfocusedHostKeys);
-    }
+    });
 
     [Theory]
     [InlineData(true, true, false, false, false, false, false, true)]   // active, usable gallery: any mouse motion reveals
@@ -275,24 +301,32 @@ public sealed class GalleryAutoHideCleanTests
     }
 
     [Fact]
-    public void TheEdgeHintsTakeNoClicksWhileTheyAreNotDrawn()
+    public void TheEdgeHintsTakeNoClicksWhileTheyAreNotDrawn() => WithGallery(h => h.WithActiveHost(_ =>
     {
-        var h = new Harness();
-        Button controls = GalleryViewer.CreateEdgeIndicator(false), post = GalleryViewer.CreateEdgeIndicator(true);
-        h.Set("_controlsEdgeIndicator", controls);
-        h.Set("_postEdgeIndicator", post);
+        Button controls = (Button)h.Get("_controlsEdgeIndicator")!;
+        Button post = (Button)h.Get("_postEdgeIndicator")!;
+        h.Viewer.ConfigurePlayback(new GalleryPlaybackPreferences(OverlayPostContext: true));
+        h.Set("_overlayHidden", true);
         h.Set("_lastIndicatorMotion", null);
-        h.Invoke("UpdateEdgeIndicatorArtwork");
+        h.Invoke("UpdateEdgeIndicators");
+        Dispatcher.UIThread.RunJobs();
+        Assert.True(controls.IsVisible && post.IsVisible);
         Assert.False(controls.IsHitTestVisible);
         Assert.False(post.IsHitTestVisible);
-        Assert.True(controls.Focusable && post.Focusable); // the keyboard stop stays; the focus draws it
+        Assert.True(controls.Focusable && post.Focusable);
+
+        // Exercise the artwork's movement window without racing its wall-clock expiry.
         h.Set("_lastIndicatorMotion", Stopwatch.GetTimestamp());
         h.Invoke("UpdateEdgeIndicatorArtwork");
-        Assert.True(controls.IsHitTestVisible && post.IsHitTestVisible);
-        h.Set("_lastIndicatorMotion", null);
-        h.Set("_pointerOnControlsIndicator", true); // a pointer resting on the handle keeps its pending click on it
-        h.Invoke("UpdateEdgeIndicatorArtwork");
+        Assert.True(controls.IsHitTestVisible);
+        Assert.True(post.IsHitTestVisible);
+
+        h.Invoke("OnIndicatorExpiry", h.Viewer, EventArgs.Empty);
+        Assert.False(controls.IsHitTestVisible);
+        Assert.False(post.IsHitTestVisible);
+        Assert.True(controls.Focus(NavigationMethod.Tab));
+        Assert.True(controls.IsKeyboardFocusWithin);
         Assert.True(controls.IsHitTestVisible);
         Assert.False(post.IsHitTestVisible);
-    }
+    }));
 }
