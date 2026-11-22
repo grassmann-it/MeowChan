@@ -81,6 +81,9 @@ public sealed class BooruSourceProfileTests
     public static TheoryData<string, Func<BooruSourceProfile, BooruSourceProfile>> InvalidProfiles() => new()
     {
         { "invalid_endpoint", p => p with { Endpoints = [p.Endpoints[0]] } },
+        { "invalid_endpoint", p => p with { Endpoints = [p.Endpoints[0] with {
+            Parameters = p.Endpoints[0].Parameters.Where(parameter => parameter.Kind != BooruParameterKind.Limit).ToArray()
+        }, p.Endpoints[1]] } },
         { "invalid_endpoint", p => p with { Endpoints = [p.Endpoints[0], p.Endpoints[0], p.Endpoints[1]] } },
         { "invalid_template", p => p with { Endpoints = [p.Endpoints[0] with { PathTemplate = "/posts/{post}.json" }, p.Endpoints[1]] } },
         { "invalid_template", p => p with { Endpoints = [p.Endpoints[0] with { PathTemplate = "/a/../index.php" }, p.Endpoints[1]] } },

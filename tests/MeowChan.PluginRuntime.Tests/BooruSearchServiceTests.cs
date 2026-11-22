@@ -13,12 +13,13 @@ public sealed class BooruSearchServiceTests
     public async Task InvalidDanbooruQueryIsAConstantRefusalWithoutWorkerOrHttp()
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)); }));
+        using Handler handler = new((request, _) =>
+        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DanbooruSource()]);
         BooruHostServices services = new(new Inner(), http);
         BooruSearchService search = new(services);
-        FakeWorker worker = new();
+        await using FakeWorker worker = new();
 
         BooruSearchFailure result = Assert.IsType<BooruSearchFailure>(await search.SearchAsync(worker, "danbooru", "cat dog third", 1));
         Assert.Equal(BooruSearchService.InvalidQueryCode, result.Failure.Code);
@@ -30,11 +31,12 @@ public sealed class BooruSearchServiceTests
     [Fact]
     public async Task ValidDanbooruQueryUsesProviderQueryFixedLimitAndHostJobResource()
     {
-        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using Handler handler = new((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DanbooruSource()]);
         BooruHostServices services = new(new Inner(), http);
         BooruSearchService search = new(services);
-        FakeWorker worker = new((request, operation, _) =>
+        await using FakeWorker worker = new((request, operation, _) =>
         {
             Assert.Equal("cat rating:g", request.Query);
             Assert.Equal(20, request.Limit);
@@ -52,11 +54,12 @@ public sealed class BooruSearchServiceTests
     [Fact]
     public async Task SourcesWithoutPostSearchAndInvalidPostIdsAreRefusedBeforeWorker()
     {
-        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using Handler handler = new((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DanbooruSource(), ChanSource()]);
         BooruHostServices services = new(new Inner(), http);
         BooruSearchService search = new(services);
-        FakeWorker worker = new();
+        await using FakeWorker worker = new();
 
         BooruSearchFailure sourceFailure = Assert.IsType<BooruSearchFailure>(await search.SearchAsync(worker, "chan", "cat", 1));
         Assert.Equal("capability", sourceFailure.Failure.Code);
@@ -70,13 +73,14 @@ public sealed class BooruSearchServiceTests
     public async Task JobIsClosedAfterWorkerReturnsAndLateHttpIsRejected()
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("ok") }); }));
+        using Handler handler = new((request, _) =>
+        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = new StringContent("ok") }); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DanbooruSource()]);
         BooruHostServices services = new(new Inner(), http);
         BooruSearchService search = new(services);
         PluginOperationContext? operation = null;
-        FakeWorker worker = new((request, current, _) =>
+        await using FakeWorker worker = new((request, current, _) =>
         {
             operation = current;
             return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [], true)));
@@ -93,10 +97,11 @@ public sealed class BooruSearchServiceTests
     [Fact]
     public async Task CursorSearchSendsTheCursorOnPageOneAndAcceptsTheNextCursor()
     {
-        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using Handler handler = new((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DecimalDanbooruSource()]);
         BooruSearchService search = new(new BooruHostServices(new Inner(), http));
-        FakeWorker worker = new((request, _, _) =>
+        await using FakeWorker worker = new((request, _, _) =>
         {
             Assert.Equal("cat", request.Query);
             Assert.Equal(1, request.Page);
@@ -113,10 +118,11 @@ public sealed class BooruSearchServiceTests
     [Fact]
     public async Task CursorPagesThatDoNotMoveBelowTheCursorAreRefused()
     {
-        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using Handler handler = new((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DecimalDanbooruSource()]);
         BooruSearchService search = new(new BooruHostServices(new Inner(), http));
-        FakeWorker worker = new((request, _, _) => Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(
+        await using FakeWorker worker = new((request, _, _) => Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(
             new(request.SourceId, request.Query, 1, [new BooruPost(new("danbooru", "1000"), BooruFieldPresence.None)], true))));
         BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await search.SearchBeforeAsync(worker, "danbooru", "cat", "1000"));
         Assert.Equal("cursor_not_advanced", failure.Failure.Code);
@@ -132,11 +138,12 @@ public sealed class BooruSearchServiceTests
     public async Task InvalidCursorsAreRefusedBeforeWorkerOrHttp(string cursor)
     {
         int sends = 0;
-        using HttpClient transport = new(new Handler((request, _) =>
-        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)); }));
+        using Handler handler = new((request, _) =>
+        { ++sends; return Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)); });
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DecimalDanbooruSource()]);
         BooruSearchService search = new(new BooruHostServices(new Inner(), http));
-        FakeWorker worker = new();
+        await using FakeWorker worker = new();
         BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await search.SearchBeforeAsync(worker, "danbooru", "cat", cursor));
         Assert.Equal(BooruSearchService.InvalidCursorCode, failure.Failure.Code);
         Assert.Equal(BooruSearchService.InvalidCursorMessage, failure.Failure.Message);
@@ -147,10 +154,11 @@ public sealed class BooruSearchServiceTests
     [Fact]
     public async Task ASourceWithoutDecimalOrderIsNeverSentACursor()
     {
-        using HttpClient transport = new(new Handler((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK))));
+        using Handler handler = new((request, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)));
+        using HttpClient transport = new(handler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new MeowChan.Http.RequestPolicyState(), [DanbooruSource()]);
         BooruSearchService search = new(new BooruHostServices(new Inner(), http));
-        FakeWorker worker = new();
+        await using FakeWorker worker = new();
         Assert.Equal(BooruSearchService.InvalidCursorCode,
             Assert.IsType<BooruSearchFailure>(await search.SearchBeforeAsync(worker, "danbooru", "cat", "1000")).Failure.Code);
         Assert.Equal(0, worker.SearchCalls);
@@ -168,7 +176,7 @@ public sealed class BooruSearchServiceTests
         TaskCompletionSource<BooruPostResult> postResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
         CancellationToken received = default;
         PluginOperationContext? operation = null;
-        FakeWorker worker = new((_, op, token) => { operation = op; received = token; return searchResult.Task; },
+        await using FakeWorker worker = new((_, op, token) => { operation = op; received = token; return searchResult.Task; },
             (_, op, token) => { operation = op; received = token; return postResult.Task; });
         Task pending = postRead
             ? rig.Search.ReadPostAsync(worker, new("danbooru", "1"))
@@ -199,7 +207,7 @@ public sealed class BooruSearchServiceTests
         using FacadeRig rig = new();
         using BooruSearchScope scope = rig.Search.OpenScope();
         rig.Clock.Advance(BooruJob.MaximumLifetime);
-        FakeWorker worker = new();
+        await using FakeWorker worker = new();
         BooruSearchResult result = cursor
             ? await rig.Search.SearchBeforeAsync(worker, "danbooru", "cat", "1000", scope)
             : await rig.Search.SearchAsync(worker, "danbooru", "cat", 1, scope);
@@ -214,7 +222,7 @@ public sealed class BooruSearchServiceTests
         using FacadeRig rig = new();
         using BooruSearchScope scope = rig.Search.OpenScope();
         TaskCompletionSource<BooruSearchResult> completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        FakeWorker worker = new((_, _, _) => completion.Task);
+        await using FakeWorker worker = new((_, _, _) => completion.Task);
         Task<BooruSearchResult> pending = rig.Search.SearchAsync(worker, "danbooru", "cat", 1, scope);
         scope.Dispose();
         Assert.Equal("booru-job", Assert.IsType<BooruSearchFailure>(await pending.WaitAsync(Bound)).Failure.Code);
@@ -230,7 +238,7 @@ public sealed class BooruSearchServiceTests
         using CancellationTokenSource caller = new();
         TaskCompletionSource<BooruSearchResult> searchResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource<BooruPostResult> postResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        FakeWorker worker = new((_, _, _) => searchResult.Task, (_, _, _) => postResult.Task);
+        await using FakeWorker worker = new((_, _, _) => searchResult.Task, (_, _, _) => postResult.Task);
         Task pending = postRead
             ? rig.Search.ReadPostAsync(worker, new("danbooru", "1"), caller.Token)
             : rig.Search.SearchAsync(worker, "danbooru", "cat", 1, caller.Token);
@@ -248,7 +256,7 @@ public sealed class BooruSearchServiceTests
         using FacadeRig rig = new();
         using CancellationTokenSource caller = new();
         void EndBoth() { rig.Clock.Advance(BooruJob.MaximumLifetime); caller.Cancel(); }
-        FakeWorker worker = new((_, _, _) =>
+        await using FakeWorker worker = new((_, _, _) =>
         {
             EndBoth();
             return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new("danbooru", "cat", 1, [], true)));
@@ -269,7 +277,7 @@ public sealed class BooruSearchServiceTests
         using FacadeRig rig = new();
         using BooruSearchScope scope = rig.Search.OpenScope();
         using CancellationTokenSource caller = new();
-        FakeWorker worker = new((_, _, _) =>
+        await using FakeWorker worker = new((_, _, _) =>
         {
             scope.Dispose();
             caller.Cancel();
@@ -286,10 +294,10 @@ public sealed class BooruSearchServiceTests
         using FacadeRig rig = new(rateLimited: true);
         TaskCompletionSource<BooruSearchResult> searchResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource<BooruPostResult> postResult = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        FakeWorker worker = new(async (_, operation, _) =>
+        await using FakeWorker worker = new(async (_, operation, _) =>
         {
             Assert.IsType<HostHttpDeferred>(await rig.Services.SendHttpAsync(
-                new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts.json")), operation, default));
+                new("danbooru", HostHttpMethod.Get, new("https://danbooru.test/posts.json?tags=cat&page=1&limit=20")), operation, default));
             return await searchResult.Task; // deliberately ignores the cancelled job token
         }, async (_, operation, _) =>
         {
@@ -324,19 +332,21 @@ public sealed class BooruSearchServiceTests
         internal readonly BooruSearchService Search;
         internal int Sends;
         private readonly HttpClient _transport;
+        private readonly Handler _handler;
         private readonly BooruHostHttp _http;
         internal FacadeRig(bool rateLimited = false)
         {
-            _transport = new(new Handler((_, _) =>
+            _handler = new((_, _) =>
             {
                 ++Sends;
                 return Task.FromResult(new HttpResponseMessage(rateLimited ? HttpStatusCode.TooManyRequests : HttpStatusCode.OK));
-            }));
+            });
+            _transport = new(_handler, disposeHandler: false);
             _http = new(_transport, new MeowChan.Http.RequestPolicyState(Clock), [DecimalDanbooruSource()]);
             Services = new(new Inner(), _http);
             Search = new(Services);
         }
-        public void Dispose() { _http.Dispose(); _transport.Dispose(); }
+        public void Dispose() { _http.Dispose(); _transport.Dispose(); _handler.Dispose(); }
     }
 
     private const string BooruJobResourcePrefix = "booru-job:";

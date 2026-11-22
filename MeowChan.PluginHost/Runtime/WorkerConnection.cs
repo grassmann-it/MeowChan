@@ -1,3 +1,4 @@
+using MeowChan.PluginHost.Sources.Booru;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using MeowChan.PluginHost.Contracts;
@@ -274,6 +275,22 @@ internal sealed class WorkerConnection : IAsyncDisposable
                     SourceDescription source = Description.Sources.SingleOrDefault(item => item.SourceId == http.SourceId)
                         ?? throw new InvalidDataException("The worker requested HTTP for an undeclared source.");
                     SdkValidation.ThrowIfInvalid(SdkValidation.ValidateHttpRequest(http, source));
+                    if (IsBooruOperation(parent.Envelope.Operation))
+                    {
+                        if (!source.Capabilities.HasFlag(SourceCapabilities.PostSearch)
+                            || BooruEndpointPolicy.Bind(http, source, parent.Request!) is not HostHttpRequest bound)
+                        {
+                            await ServiceReplyAsync<HostHttpResult>(request, BooruEndpointPolicy.OperationDenied(), parent.Token).ConfigureAwait(false);
+                            break;
+                        }
+                        http = bound;
+                    }
+                    else if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+                    {
+                        await ServiceReplyAsync<HostHttpResult>(request, BooruEndpointPolicy.OperationDenied(), parent.Token).ConfigureAwait(false);
+                        break;
+                    }
+
                     // Restore only the host-owned correlated operation, never worker-supplied identity.
                     HostHttpResult result;
                     using (Http.PluginHostHttp.MetadataHistory.Resume(parent.Context))
@@ -296,10 +313,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
             }
         }
         catch (OperationCanceledException) when (parent.Token.IsCancellationRequested) { }
-        catch (Exception exception)
+        catch (Exception)
         {
-            string message = exception.Message[..Math.Min(exception.Message.Length, 2048)];
-            try { await _codec.WriteAsync(request with { Direction = "error", Payload = WireJson.Element(new WireFailure("host-service", message)) }, _lifetime.Token).ConfigureAwait(false); }
+            try { await _codec.WriteAsync(request with { Direction = "error", Payload = WireJson.Element(new WireFailure("host-service", "The host rejected the service request.")) }, _lifetime.Token).ConfigureAwait(false); }
             catch (Exception) when (_lifetime.IsCancellationRequested) { }
         }
     }

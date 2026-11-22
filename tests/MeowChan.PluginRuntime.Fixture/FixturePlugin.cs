@@ -27,7 +27,7 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
                 return Snapshot(request, System.Diagnostics.Process.Start(child)!.Id.ToString());
             case "memory": GC.KeepAlive(new byte[1024 * 1024 * 1024]); break;
             case "crash": Environment.Exit(71); break;
-            case "hang": await Task.Delay(Timeout.InfiniteTimeSpan); break;
+            case "hang": await Task.Delay(Timeout.InfiniteTimeSpan, CancellationToken.None); break;
             case "cancel": await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken); break;
             case "stdout": Console.WriteLine("plugin wrote stdout"); break;
             case "logs": for (int i = 0; i < 2000; i++) context.Log.Write(PluginLogLevel.Information, new string('x', 2048)); break;
@@ -54,12 +54,13 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
     }
     public Task<BooruSearchResult> SearchPostsAsync(BooruSearchRequest request, PluginCallContext context, CancellationToken cancellationToken = default)
     {
-        const string burst = "http-burst:";
+        const string burst = "http-burst-";
         if (request.Query.StartsWith(burst, StringComparison.Ordinal)
             && int.TryParse(request.Query[burst.Length..], System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int count))
             return HttpBurstAsync(request, count, context, cancellationToken);
         switch (request.Query)
         {
+            case "binding-check": return CheckBooruHttpBindingAsync(request, context, cancellationToken);
             case "foreign": return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [BooruPost(new("other", "1"))], true)));
             case "empty": return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [], true)));
             case "deferred": return Task.FromResult<BooruSearchResult>(new BooruSearchDeferred(request.SourceId, DateTimeOffset.UtcNow.AddMinutes(1), "provider_cooldown", 429));
@@ -67,6 +68,29 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
         BooruPost[] posts = Enumerable.Range(1, 2).Select(index => BooruPost(new(request.SourceId, (request.Page * 100 + index).ToString()))).Take(request.Limit).ToArray();
         return Task.FromResult<BooruSearchResult>(new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, posts, request.Page >= 2)));
     }
+    private static async Task<BooruSearchResult> CheckBooruHttpBindingAsync(BooruSearchRequest request, PluginCallContext context,
+        CancellationToken cancellationToken)
+    {
+        HostHttpRequest[] mismatched =
+        [
+            new("fixture", HostHttpMethod.Get, new("https://fixture.test/api")),
+            new(request.SourceId, HostHttpMethod.Get, new("https://booru.fixture.test/posts/42.json")),
+            new(request.SourceId, HostHttpMethod.Get, new("https://booru.fixture.test/posts.json?tags=other&page=1&limit=20")),
+            new(request.SourceId, HostHttpMethod.Get, new("https://booru.fixture.test/posts.json?tags=binding-check&page=2&limit=20")),
+            new(request.SourceId, HostHttpMethod.Get, new("https://booru.fixture.test/posts.json?tags=binding-check&page=1&limit=10")),
+            new(request.SourceId, HostHttpMethod.Get, new("https://booru.fixture.test/posts.json?tags=binding-check&page=1"))
+        ];
+        foreach (HostHttpRequest candidate in mismatched)
+            if (await context.Http.SendAsync(candidate, cancellationToken) is not HostHttpFailure { Failure.Code: "http-request" })
+                return new BooruSearchFailure(request.SourceId, new("fixture", "An HTTP request escaped the operation binding."));
+
+        HostHttpResult accepted = await context.Http.SendAsync(new(request.SourceId, HostHttpMethod.Get,
+            new("https://booru.fixture.test/posts.json?limit=20&page=1&tags=binding-check")), cancellationToken);
+        return accepted is HostHttpResponse { StatusCode: 200 }
+            ? new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [], true))
+            : new BooruSearchFailure(request.SourceId, new("fixture", "The authorized HTTP request was refused."));
+    }
+
     // Sends `count` sequential host HTTP requests inside one typed booru operation. The
     // first non-200 result ends the burst and reports how many requests completed.
     private static async Task<BooruSearchResult> HttpBurstAsync(BooruSearchRequest request, int count, PluginCallContext context, CancellationToken cancellationToken)
@@ -74,7 +98,7 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
         for (int index = 0; index < count; index++)
         {
             HostHttpResult result = await context.Http.SendAsync(new(request.SourceId, HostHttpMethod.Get,
-                new("https://booru.fixture.test/posts.json?limit=1")), cancellationToken);
+                new(FormattableString.Invariant($"https://booru.fixture.test/posts.json?tags={Uri.EscapeDataString(request.Query)}&page={request.Page}&limit={request.Limit}"))), cancellationToken);
             string? code = result switch
             {
                 HostHttpResponse { StatusCode: 200 } => null,

@@ -18,7 +18,7 @@ internal sealed record TaggerJobItem(string MediaSha256, long Length, TaggerMedi
 internal sealed record TaggerJob(TaggerRegistration Tagger, IReadOnlyList<TaggerJobItem> Items, SettingsSnapshot TaggerSettings,
     bool Rerun = false);
 
-internal enum TaggerJobStatus { Completed, Cancelled, ConsentRequired, ModelUnavailable }
+internal enum TaggerJobStatus { Completed, Cancelled, ConsentRequired, ModelUnavailable, TimedOut, StoreFailed }
 
 internal sealed record TaggerJobProgress(int Total, int Completed, int Failed, int Skipped);
 
@@ -43,10 +43,12 @@ internal sealed class NoInstalledTaggerModels : ITaggerModelCatalog
 /// Runs one tagger over media in batches: checks consent and models first, skips media already tagged by the same
 /// tagger and model revision, applies the size and type limits, validates every request and result against the SDK
 /// contract and stores each accepted batch as pending suggestions before the next batch starts. Cancellation keeps
-/// finished batches; a later job resumes. A failed, timed-out or invalid batch stores nothing and the job goes on.
+/// finished batches; a later job resumes. Failures and invalid results count against the current batch. A deadline or lost grant ends the job.
 /// </summary>
-internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStore store, ITaggerModelCatalog models)
+internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStore store, ITaggerModelCatalog models,
+    TimeProvider? timeProvider = null)
 {
+    private readonly TimeProvider _clock = timeProvider ?? TimeProvider.System;
     internal async Task<TaggerJobResult> RunAsync(TaggerJob job, IProgress<TaggerJobProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -54,11 +56,13 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
         TaggerRegistration registration = job.Tagger;
         TaggerDescription tagger = registration.Tagger;
         int total = job.Items.Count;
-        if (!registry.MayRun(registration)) return new(TaggerJobStatus.ConsentRequired, total, 0, 0, 0, 0, 0, 0);
+        TaggerGrant? grant = registry.GrantFor(registration);
+        if (grant is null) return new(TaggerJobStatus.ConsentRequired, total, 0, 0, 0, 0, 0, 0);
         if (tagger.Models.Any(model => !models.IsInstalled(model))) return new(TaggerJobStatus.ModelUnavailable, total, 0, 0, 0, 0, 0, 0);
 
         TagSuggestionSettings settings = store.Settings;
         TagSuggestionSnapshot snapshot = store.Load();
+        if (!snapshot.CanWrite) return new(TaggerJobStatus.StoreFailed, total, 0, 0, 0, 0, 0, 0);
         List<TaggerJobItem> work = new();
         int skipped = 0, excluded = 0;
         foreach (TaggerJobItem item in job.Items)
@@ -74,22 +78,57 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
         for (int start = 0; start < work.Count; start += batchSize)
         {
             if (cancellationToken.IsCancellationRequested) return Result(TaggerJobStatus.Cancelled);
+            if (grant.Token.IsCancellationRequested) return Result(TaggerJobStatus.ConsentRequired);
             TaggerJobItem[] batch = work.Skip(start).Take(batchSize).ToArray();
-            BatchOutcome outcome = await RunBatchAsync(registration, batch, job.TaggerSettings, settings,
-                value => Report(value), cancellationToken).ConfigureAwait(false);
-            if (outcome.Cancelled) return Result(TaggerJobStatus.Cancelled);
-            if (outcome.Runs is null) { failed += batch.Length; rejected += outcome.Invalid ? 1 : 0; }
-            else
+            long started = _clock.GetTimestamp();
+            using CancellationTokenSource deadline = new(settings.BatchTimeout, _clock);
+            using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(
+                cancellationToken, deadline.Token, grant.Token);
+            try
             {
-                store.CommitRuns(outcome.Runs, cancellationToken);
-                foreach (TagSuggestionRunInput run in outcome.Runs)
+                BatchOutcome outcome = await RunBatchAsync(registration, grant, batch, job.TaggerSettings, settings,
+                    value => Report(value), lifetime.Token).ConfigureAwait(false);
+                EnsureCurrent();
+                if (outcome.Runs is null)
                 {
-                    if (run.Outcome == TagSuggestionStore.TaggedOutcome) { tagged++; suggestions += run.Candidates.Count; }
-                    else failed++;
+                    failed += batch.Length;
+                    rejected += outcome.Invalid ? 1 : 0;
                 }
+                else
+                {
+                    store.CommitRuns(outcome.Runs, EnsureCurrent, lifetime.Token);
+                    foreach (TagSuggestionRunInput run in outcome.Runs)
+                    {
+                        if (run.Outcome == TagSuggestionStore.TaggedOutcome) { tagged++; suggestions += run.Candidates.Count; }
+                        else failed++;
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (lifetime.IsCancellationRequested || grant.Token.IsCancellationRequested
+                || cancellationToken.IsCancellationRequested || Expired())
+            {
+                if (cancellationToken.IsCancellationRequested) return Result(TaggerJobStatus.Cancelled);
+                if (grant.Token.IsCancellationRequested) return Result(TaggerJobStatus.ConsentRequired);
+                failed += batch.Length;
+                return Result(TaggerJobStatus.TimedOut);
+            }
+            catch (Exception error) when (error is TagSuggestionStoreException or IOException or UnauthorizedAccessException or OverflowException)
+            {
+                failed += batch.Length;
+                return Result(TaggerJobStatus.StoreFailed);
             }
             completed += batch.Length;
             Report();
+
+            bool Expired() => _clock.GetElapsedTime(started) >= settings.BatchTimeout;
+
+            void EnsureCurrent()
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                grant.Token.ThrowIfCancellationRequested();
+                lifetime.Token.ThrowIfCancellationRequested();
+                if (Expired()) throw new OperationCanceledException("The tagger batch deadline expired.");
+            }
         }
         return Result(TaggerJobStatus.Completed);
 
@@ -98,9 +137,9 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
         TaggerJobResult Result(TaggerJobStatus status) => new(status, total, tagged, skipped, excluded, failed, rejected, suggestions);
     }
 
-    private sealed record BatchOutcome(IReadOnlyList<TagSuggestionRunInput>? Runs, bool Cancelled = false, bool Invalid = false);
+    private sealed record BatchOutcome(IReadOnlyList<TagSuggestionRunInput>? Runs, bool Invalid = false);
 
-    private static async Task<BatchOutcome> RunBatchAsync(TaggerRegistration registration, TaggerJobItem[] batch,
+    private static async Task<BatchOutcome> RunBatchAsync(TaggerRegistration registration, TaggerGrant grant, TaggerJobItem[] batch,
         SettingsSnapshot taggerSettings, TagSuggestionSettings settings, Action<int> report,
         CancellationToken cancellationToken)
     {
@@ -119,31 +158,37 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
             settings.MaximumSuggestionsPerItem, taggerSettings, registration.Binding.Configuration.Revision);
         SdkValidation.ThrowIfInvalid(SdkValidation.ValidateTaggerRequest(request, tagger));
 
-        using BatchAssetReader reader = new(byToken);
-        IHostHttp http = registration.NeedsNetwork ? new TaggerHttp(tagger.NetworkHosts, registration.Binding.ConsentedHttp) : TaggerHttp.Offline;
-        PluginCallContext context = new(registration.Binding.Configuration, http, reader, registration.Binding.Resources, registration.Binding.Log);
-        using CancellationTokenSource timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(settings.BatchTimeout);
+        using BatchServicesLifetime services = new(cancellationToken);
+        BatchAssetReader reader = new(byToken, settings, grant, services.Token);
+        IHostHttp http = new TaggerHttp(registration, grant, settings.BatchHttpRequests, services.Token);
+        BatchResources resources = new(registration.Binding.Resources, grant, services.Token);
+        PluginCallContext context = new(registration.Binding.Configuration, http, reader, resources, QuietLog.Instance);
+        BatchProgress progress = new(batch.Length, report, grant, services.Token);
+        Task<TaggerBatchResult> invocation = Task.Run(() =>
+        {
+            grant.Token.ThrowIfCancellationRequested();
+            return registration.Invoke(request, context, progress, services.Token);
+        }, cancellationToken);
         TaggerBatchResult result;
         try
         {
-            result = await registration.Invoke(request, context, new BatchProgress(batch.Length, report), timeout.Token).ConfigureAwait(false);
+            result = await invocation.WaitAsync(cancellationToken).ConfigureAwait(false);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            return new BatchOutcome(null, Cancelled: true);
+            ObserveLateFailure(invocation);
+            throw;
         }
         catch (Exception error) when (error is not OutOfMemoryException)
         {
-            // Timeout, worker or plugin failure: a technical omission, never an empty result.
-            registration.Binding.Log.Write(PluginLogLevel.Warning, "A tagger batch failed: " + error.GetType().Name + ".");
+            registration.Binding.Log.Write(PluginLogLevel.Warning, "A tagger batch failed.");
             return new BatchOutcome(null);
         }
         finally
         {
-            reader.Close();
+            services.Close();
         }
-        if (cancellationToken.IsCancellationRequested) return new BatchOutcome(null, Cancelled: true);
+        cancellationToken.ThrowIfCancellationRequested();
         if (SdkValidation.ValidateTaggerResult(request, result, tagger).Count != 0) return new BatchOutcome(null, Invalid: true);
 
         TagSuggestionProvenance provenance = new(registration.PluginId, tagger.Key, registration.PluginVersion,
@@ -183,36 +228,139 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
         return item.Length > 0 && item.Length <= ceiling;
     }
 
-    /// <summary>Forwards in-batch progress synchronously and bounded; a tagger cannot report more items than the batch holds.</summary>
-    private sealed class BatchProgress(int count, Action<int> report) : IProgress<TaggerBatchProgress>
+    internal static void ObserveLateFailure(Task task) =>
+        _ = task.ContinueWith(static completed => _ = completed.Exception, CancellationToken.None,
+            TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+
+    private sealed class QuietLog : IPluginLog
     {
-        public void Report(TaggerBatchProgress value)
+        internal static QuietLog Instance { get; } = new();
+
+        public void Write(PluginLogLevel level, string message) { }
+    }
+
+    // Cancellation callbacks from the invoker cannot block the runner's own deadline.
+    private sealed class BatchServicesLifetime : IDisposable
+    {
+        private readonly CancellationTokenSource _services = new();
+        private readonly CancellationTokenRegistration _relay;
+        private Task? _shutdown;
+
+        internal BatchServicesLifetime(CancellationToken lifetime)
         {
-            if (value is null) return;
-            report(Math.Clamp(value.CompletedItems, 0, count));
+            Token = _services.Token;
+            _relay = lifetime.UnsafeRegister(static state => ((BatchServicesLifetime)state!).Close(), this);
+        }
+
+        internal CancellationToken Token { get; }
+
+        internal void Close()
+        {
+            lock (_services) _shutdown ??= _services.CancelAsync();
+        }
+
+        public void Dispose()
+        {
+            _relay.Dispose();
+            Close();
+            ObserveLateFailure(DisposeSourceAsync());
+        }
+
+        private async Task DisposeSourceAsync()
+        {
+            using (_services)
+                await _shutdown!.ConfigureAwait(false);
         }
     }
 
-    /// <summary>Serves only this batch's tokens, in SDK-bounded chunks, and only until the batch ends.</summary>
-    private sealed class BatchAssetReader(IReadOnlyDictionary<string, TaggerJobItem> items) : IImageAssetReader, IDisposable
+    private sealed class BatchResources(IPluginResources inner, TaggerGrant grant, CancellationToken lifetime) : IPluginResources
     {
-        private volatile bool _closed;
+        public string? ResolvePath(string logicalName)
+        {
+            if (!IsLive()) return null;
+            string? path = inner.ResolvePath(logicalName);
+            return IsLive() ? path : null;
+        }
 
-        internal void Close() => _closed = true;
+        private bool IsLive() => !lifetime.IsCancellationRequested && !grant.Token.IsCancellationRequested;
+    }
 
-        public void Dispose() => Close();
+    private sealed class BatchProgress(int count, Action<int> report, TaggerGrant grant, CancellationToken lifetime) : IProgress<TaggerBatchProgress>
+    {
+        private readonly object _gate = new();
+        private int _last;
+
+        public void Report(TaggerBatchProgress value)
+        {
+            if (value is null) return;
+            lock (_gate)
+            {
+                int completed = Math.Clamp(value.CompletedItems, 0, count);
+                if (lifetime.IsCancellationRequested || grant.Token.IsCancellationRequested || completed <= _last) return;
+                _last = completed;
+                report(completed);
+            }
+        }
+    }
+
+    /// <summary>Serves current batch tokens using host-verified readers and a shared admission budget.</summary>
+    private sealed class BatchAssetReader(IReadOnlyDictionary<string, TaggerJobItem> items,
+        TagSuggestionSettings settings, TaggerGrant grant, CancellationToken lifetime) : IImageAssetReader
+    {
+        private readonly object _gate = new();
+        private int _reads, _active;
+        private long _bytes;
 
         public async Task<ImageAssetChunk> ReadImageAsync(string assetToken, long offset, int count, CancellationToken cancellationToken = default)
         {
-            if (_closed || assetToken is null || !items.TryGetValue(assetToken, out TaggerJobItem? item))
+            if (lifetime.IsCancellationRequested || grant.Token.IsCancellationRequested || assetToken is null || !items.TryGetValue(assetToken, out TaggerJobItem? item))
                 throw new InvalidOperationException("The asset is not part of the current tagger batch.");
-            // Image reads keep the SDK image budget; larger media (video) use the same chunk bound with the tagger ceiling.
             if (offset < 0 || offset > item.Length || count <= 0 || count > SdkLimits.MaximumImageChunkBytes)
                 throw new ArgumentOutOfRangeException(nameof(count), "The read is outside the asset or the chunk limit.");
             int length = (int)Math.Min(count, item.Length - offset);
-            byte[] bytes = length == 0 ? Array.Empty<byte>() : await item.Read(offset, length, cancellationToken).ConfigureAwait(false);
+            using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(lifetime, grant.Token, cancellationToken);
+            Reserve(length, linked.Token);
+            Task<byte[]> read = ReadReservedAsync(item, offset, length, linked.Token);
+            byte[] bytes;
+            try
+            {
+                bytes = await read.WaitAsync(linked.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                ObserveLateFailure(read);
+                throw;
+            }
             if (bytes.Length != length) throw new InvalidDataException("The media source returned a different number of bytes.");
+            grant.Token.ThrowIfCancellationRequested();
+            linked.Token.ThrowIfCancellationRequested();
             return new ImageAssetChunk(offset, bytes, offset + length >= item.Length);
+        }
+
+        private void Reserve(int length, CancellationToken cancellationToken)
+        {
+            lock (_gate)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (_reads >= settings.BatchReadCount || length > settings.BatchReadBytes - _bytes || _active >= settings.ConcurrentReads)
+                    throw new InvalidOperationException("The tagger asset read budget is exhausted.");
+                _reads++;
+                _bytes += length;
+                _active++;
+            }
+        }
+
+        private async Task<byte[]> ReadReservedAsync(TaggerJobItem item, long offset, int length, CancellationToken cancellationToken)
+        {
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                return length == 0 ? [] : await item.Read(offset, length, cancellationToken).ConfigureAwait(false);
+            }
+            finally
+            {
+                lock (_gate) _active--;
+            }
         }
     }
 }

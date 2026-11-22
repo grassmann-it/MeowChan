@@ -37,11 +37,24 @@ public sealed class BooruHostServices : IPluginHostServices
             return Task.FromResult<HostHttpResult>(Failure("booru-source", "The booru source is not declared by this host."));
 
         if (!source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
-            return _inner.SendHttpAsync(request, operation, cancellationToken);
+            return operation.ResourceId.StartsWith(BooruJob.ResourcePrefix, StringComparison.Ordinal)
+                ? Task.FromResult<HostHttpResult>(BooruEndpointPolicy.OperationDenied())
+                : _inner.SendHttpAsync(request, operation, cancellationToken);
 
         if (!_jobs.TryGet(operation.ResourceId, out BooruJob? job) || job is null)
             return Task.FromResult<HostHttpResult>(Failure("booru-job", "The booru job is not live."));
-        return _booruHttp.SendAsync(request, source, job, cancellationToken);
+        if (operation.BooruCall is not BooruCallBinding active)
+            return _booruHttp.SendAsync(request, source, job, cancellationToken);
+        if (active.Lifetime.IsCancellationRequested || BooruEndpointPolicy.Bind(request, source, active.Request) is not HostHttpRequest bound)
+            return Task.FromResult<HostHttpResult>(BooruEndpointPolicy.OperationDenied());
+        return SendBoundAsync(bound, source, job, active, cancellationToken);
+    }
+
+    private async Task<HostHttpResult> SendBoundAsync(HostHttpRequest request, SourceDescription source, BooruJob job,
+        BooruCallBinding active, CancellationToken cancellationToken)
+    {
+        using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(active.Lifetime, cancellationToken);
+        return await _booruHttp.SendAsync(request, source, job, lifetime.Token).ConfigureAwait(false);
     }
 
     /// <summary>The enforced post-search profile of a declared source; null when it has none.</summary>

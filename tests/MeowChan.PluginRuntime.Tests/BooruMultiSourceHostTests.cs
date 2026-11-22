@@ -28,6 +28,8 @@ public sealed class BooruMultiSourceHostTests
     [InlineData("https://danbooru.test/posts.json?tags=", false)]
     [InlineData("https://danbooru.test/posts.json?page=6", false)]
     [InlineData("https://danbooru.test/posts.json?page=0", false)]
+    [InlineData("https://danbooru.test/posts.json?page=01", false)]
+    [InlineData("https://danbooru.test/posts.json?limit=05", false)]
     [InlineData("https://danbooru.test/posts.json?page=b0123", false)]
     [InlineData("https://danbooru.test/posts.json?page=b1234567890123456789", false)]
     [InlineData("https://danbooru.test/posts.json?page=%62123", true)] // Uri unescapes unreserved %62 to b, as before
@@ -69,8 +71,9 @@ public sealed class BooruMultiSourceHostTests
 
     [Theory]
     [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&tags=cat&pid=0&limit=20", true)]
-    [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&tags=cat%20-dog%20rating%3Aexplicit&pid=4", true)]
-    [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&tags=cat%20id%3A%3C123", true)]
+    [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&tags=cat%20-dog%20rating%3Aexplicit&pid=4&limit=20", true)]
+    [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&tags=cat&pid=4", false)]
+    [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&tags=cat%20id%3A%3C123&limit=20", true)]
     [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&id=42", true)]
     [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&json=1&tags=cat&api_key=k&user_id=1", false)]
     [InlineData("https://engine.test/index.php?page=dapi&s=post&q=index&tags=cat", false)]

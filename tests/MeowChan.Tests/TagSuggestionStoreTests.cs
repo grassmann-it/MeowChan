@@ -119,9 +119,48 @@ public sealed class TagSuggestionStoreTests : IDisposable
         TagSuggestionStore store = Store();
         store.CommitRuns([Run(MediaA, R1, ("cat", 0.9), ("dog", 0.8))]);
         TagSuggestionSnapshot snapshot = store.CommitRuns([Run(MediaA, R1, ("cat", 0.7))]);
-        TagSuggestion only = Assert.Single(snapshot.Suggestions);
+        TagSuggestion only = Assert.Single(snapshot.PendingFor(MediaA, 0.05));
         Assert.Equal(("cat", 0.7, TagSuggestionState.Pending), (only.Name, only.Confidence, only.State));
         Assert.Single(snapshot.Runs);
+        Assert.Equal(2, snapshot.Events.Count);
+        Assert.All(snapshot.Events, value => Assert.Equal(TagSuggestionState.Superseded, value.To));
+        Assert.All(snapshot.Events, value => Assert.True(value.SuggestionId < only.Id));
+        Assert.Equal(only.Id, Assert.Single(Store().Load().PendingFor(MediaA, 0.05)).Id);
+    }
+
+    [Fact]
+    public void RepeatedWritesReuseOneStagingFileAndDoNotCreateSnapshots()
+    {
+        TagSuggestionStore store = Store();
+        string stage = Path.Combine(_directory.FullName, "." + TagSuggestionStore.FileName + ".tmp");
+        File.WriteAllText(stage, "abandoned staging data");
+        TagSuggestionSnapshot pending = store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]);
+        long id = Assert.Single(pending.Suggestions).Id;
+        TagSuggestionSnapshot decided = store.Decide([id], TagSuggestionState.Rejected, pending.Revision);
+        store.Decide([id], TagSuggestionState.Pending, decided.Revision);
+
+        Assert.False(File.Exists(stage));
+        Assert.DoesNotContain(Directory.EnumerateFiles(_directory.FullName),
+            path => Path.GetFileName(path).StartsWith(TagSuggestionStore.FileName + ".", StringComparison.Ordinal));
+        Assert.Equal(TagSuggestionState.Pending, Assert.Single(Store().Load().Suggestions).State);
+    }
+
+    [Fact]
+    public void LostCommitAuthorityLeavesThePrimaryAndDeletesTheStage()
+    {
+        TagSuggestionStore store = Store();
+        store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]);
+        string primary = File.ReadAllText(store.FilePath);
+        string stage = Path.Combine(_directory.FullName, "." + TagSuggestionStore.FileName + ".tmp");
+
+        Assert.Throws<OperationCanceledException>(() => store.CommitRuns([Run(MediaB, R1, ("dog", 0.8))], () =>
+        {
+            Assert.True(File.Exists(stage));
+            throw new OperationCanceledException();
+        }, CancellationToken.None));
+
+        Assert.Equal(primary, File.ReadAllText(store.FilePath));
+        Assert.False(File.Exists(stage));
     }
 
     [Fact]

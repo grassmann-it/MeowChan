@@ -66,23 +66,28 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
   (`ConsentRequired`, `ModelUnavailable` without calling the tagger), resume
   skips media already tagged by this tagger and model revision (`Rerun` is an
   explicit user action), type/size limits exclude media before anything is
-  sent, batches of `min(BatchSize setting, tagger ceiling)`, per-batch timeout,
-  request and result validated against the SDK, each accepted batch committed
-  before the next starts. Cancellation keeps finished batches; a failed,
-  timed-out or invalid batch stores nothing and the job continues.
-- The asset reader serves only the current batch's random tokens, in chunks of
-  at most 64 KiB, and stops at batch end. No path or archive identity reaches the
-  tagger.
+  sent, batches of `min(BatchSize setting, tagger ceiling)` and SDK validation
+  on both sides of the invocation. A host deadline stops waiting for the
+  invoker and closes the batch services. The commit checks the same lifetime
+  before atomic replacement. Finished batches survive cancellation. Invalid
+  batches count as failed. A timeout, loss of consent or store failure ends the job.
+- The asset reader serves the current batch's random tokens in SDK chunks up to
+  64 KiB. It reserves cumulative bytes, reads and concurrent reads before
+  calling the host media reader, including reads at EOF. A read that finishes
+  after the batch closes cannot return bytes to the invoker. Progress advances
+  through at most one report per completed item.
 
 ## 4. Security and consent rules
 
 1. Offline first: a tagger without `NetworkHosts` gets an `IHostHttp` that
    refuses every request (`tagger_network_denied`).
-2. A tagger with `NetworkHosts` (exact hosts, `Metadata` purpose, HTTPS only)
-   is not runnable until the user consented to exactly that plugin version and
-   host list (`TaggerRegistry.GrantNetworkConsent`); a new version or host list
-   needs new consent; revoke is immediate. Even with consent only the declared
-   hosts reach the host HTTP service.
+2. A network grant covers one active registration, the host-verified execution
+   revision and the snapshotted HTTPS origins. The service checks that grant
+   revision and batch lifetime for every call. Revoking, re-granting or
+   unregistering cancels the old grant and its active calls. Only declared
+   origins on the standard HTTPS port are eligible. The service validates
+   request headers and enforces the batch HTTP request count. Its host-supplied
+   transport must disable redirects and own the network time and byte budgets.
 3. No bundled models and no downloads by taggers: required models must be
    installed (`ITaggerModelCatalog`; the default reports none). Download, hash
    pinning, licence and size display belong to the marketplace `model-pack`
@@ -94,8 +99,11 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
 
 ## 5. Persistence (`libmeowchan/Tags/TagSuggestionStore.cs`, internal, `tag-suggestions.json`)
 
-- Format `meowchan-tag-suggestions`, version 1, own revision; atomic write
-  (temporary file + replace) under the profile lease and store-writer admission.
+- Format `meowchan-tag-suggestions`, version 1, with its own revision. A writer
+  uses one fixed sibling staging file under the profile lease and store-writer
+  admission. The primary is the commit record. Each file is bounded by the
+  configured size during normal writes. Run commits leave a configurable share
+  of the limit available for review writes.
 - Suggestions are bound to content (SHA-256 + length) and provenance (plugin,
   tagger, plugin version, model id, model revision, model hash), never to an
   archive occurrence: accepting applies the tag to the occurrence the user is
@@ -103,9 +111,10 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
 - States: `Pending → Accepted | Rejected`, undo back to `Pending`; `Superseded`
   when a newer model revision of the same tagger ran. Every transition is an
   append-only review event (sequence, id, from, to, time).
-- Merge rules per medium and tagger: pending of the same revision are replaced,
-  pending of an older revision are superseded, a tag the user accepted or
-  rejected for these bytes is not proposed again, regardless of tagger.
+- Reruns supersede the previous pending suggestions for the medium and tagger,
+  including same-revision reruns. Superseded rows and events keep their
+  identities. A decision to accept or reject the same tag for these bytes
+  suppresses further proposals across taggers.
 - Run records (medium, provenance, outcome, count, time) make jobs idempotent;
   only `Tagged` counts as done, other outcomes are retried.
 - Raw scores are stored; the threshold only filters the view
@@ -122,11 +131,33 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
 | Suggestions kept per medium | 64 | 1 | 512 |
 | Batch time limit (s) | 120 | 10 | 3600 |
 | Suggestion file size (MiB) | 32 | 4 | 256 |
+| Share reserved for review writes (%) | 10 | 5 | 50 |
+| Cumulative read budget per batch (MiB) | 256 | 1 | 1024 |
+| Cumulative reads per batch | 8192 | 1 | 65536 |
+| Concurrent reads per batch | 4 | 1 | 16 |
+| HTTP requests per batch | 16 | 1 | 128 |
 
 They are domain settings only and **not wired to the desktop settings page**
 yet (no visible effect until a tagger can run). The wiring belongs to the
 tagging-page package and must then follow the settings checklist: EN/DE texts,
 10 packs, KnownMissingKeys, audit counter, Reset/Transfer/Validate/Clone/CopyFrom.
+
+### Remaining hardening
+
+- AP10 owns the production Worker route, enforced worker termination and restart,
+  IPC budgets and binding reads to verified asset handles. The current runner's
+  in-process invoker is a trusted seam for tests and the reference tagger. A
+  non-cooperative invocation may continue after the host returns its timeout.
+- Use a host-owned, redirect-disabled metadata transport when networking is
+  wired into AP10. Target address restrictions and host-verified model
+  selection, provenance and revision ordering remain open.
+- Keep legacy `.corrupt-*` copies until a migration can identify and handle them.
+  Full store recovery and history validation, output bounds during
+  serialization, a per-medium index and platform crash-durability tests belong
+  with the store and review design. The review reserve is finite.
+- Keep the settings in the domain until an executable tagger is wired to the
+  desktop. That integration supplies EN/DE and the ten bundled packs together
+  with the localization audit updates.
 
 ## 7. Connection to the tagging page (next package, not implemented)
 

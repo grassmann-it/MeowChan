@@ -15,19 +15,30 @@ internal static class AtomicJsonFile
     public static void WriteAllText(string filePath, string contents, bool backupCurrentFile, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
+        Write(filePath, Encoding.UTF8.GetBytes(contents.Replace("\r\n", "\n", StringComparison.Ordinal)),
+            backupCurrentFile, useFixedStage: false, checkAuthority: null, cancellationToken);
+    }
+
+    // The caller serializes writers across processes. One fixed staging file bounds crash residue
+    // and is safe to discard before a retried write because the primary is the commit record.
+    internal static void ReplaceUnderLease(string filePath, byte[] bytes, Action? checkAuthority, CancellationToken cancellationToken)
+        => Write(filePath, bytes, backupCurrentFile: false, useFixedStage: true, checkAuthority, cancellationToken);
+
+    private static void Write(string filePath, byte[] bytes, bool backupCurrentFile, bool useFixedStage,
+        Action? checkAuthority, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         string directory = Path.GetDirectoryName(filePath)
             ?? throw new ArgumentException("An absolute destination path is required.", nameof(filePath));
         Directory.CreateDirectory(directory);
         if (IsReparsePoint(filePath) && !CanAtomicallyReplaceSymbolicLink)
             throw new IOException("Atomic replacement of a symbolic-link destination is not supported on this platform.");
-        string temporaryPath = Path.Combine(directory, $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
+        string name = Path.GetFileName(filePath);
+        string temporaryPath = Path.Combine(directory, useFixedStage ? $".{name}.tmp" : $".{name}.{Guid.NewGuid():N}.tmp");
+        if (useFixedStage) File.Delete(temporaryPath);
 
         try
         {
-            // Persist JSON with a platform-independent newline so byte-stable files remain
-            // interchangeable between Windows and Unix writers. Escaped JSON string newlines
-            // are backslash sequences, not affected by this normalization.
-            byte[] bytes = Encoding.UTF8.GetBytes(contents.Replace("\r\n", "\n", StringComparison.Ordinal));
             using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 stream.Write(bytes);
@@ -42,7 +53,13 @@ internal static class AtomicJsonFile
             // through to a platform-specific create/move error (and never exposes
             // that error's private path).
             bool destinationExists = File.Exists(filePath) || IsReparsePoint(filePath);
-            if (!destinationExists)
+            if (useFixedStage)
+            {
+                if (IsReparsePoint(filePath)) throw new IOException("The profile store needs a regular destination.");
+                checkAuthority?.Invoke();
+                File.Move(temporaryPath, filePath, overwrite: destinationExists);
+            }
+            else if (!destinationExists)
             {
                 File.Move(temporaryPath, filePath);
             }

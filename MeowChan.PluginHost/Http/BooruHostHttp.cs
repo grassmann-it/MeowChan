@@ -250,9 +250,8 @@ public sealed class BooruHostHttp : IDisposable
     /// <summary>Clears only the in-memory provider fence for one declared source. Pacing remains intact.</summary>
     internal bool ResetCooldown(string sourceId)
     {
-        CooldownReset? reset = BeginCooldownReset(sourceId);
-        if (reset is null) return false;
-        using (reset) return reset.Commit();
+        using CooldownReset? reset = BeginCooldownReset(sourceId);
+        return reset?.Commit() ?? false;
     }
 
     internal TimeSpan GetMaximumCooldown()
@@ -286,7 +285,7 @@ public sealed class BooruHostHttp : IDisposable
                 // Decide on redirects, cooldowns and retries before any body byte is read.
                 // A 304 answers the plugin's own conditional request: it is not a redirect and
                 // carries no body. An unconditional 304 stays a terminal 3xx like any other.
-                if (status == 304 && IsConditional(request))
+                if (status == 304 && PluginRequestHeaders.IsConditional(request))
                     return new HostHttpResponse(status, request.Url, ReadHeaders(response), [],
                         new SourceValidators(response.Headers.ETag?.ToString(), response.Content.Headers.LastModified));
                 if (status is >= 300 and <= 399)
@@ -413,13 +412,7 @@ public sealed class BooruHostHttp : IDisposable
         message.Headers.AcceptEncoding.Clear();
         message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("identity"));
         message.Options.Set(MeteringHandler.SourceKey, request.SourceId);
-        if (request.Headers is not null)
-            foreach ((string name, string value) in request.Headers)
-                message.Headers.TryAddWithoutValidation(name, value);
-        if (request.Validators?.EntityTag is string etag)
-            message.Headers.TryAddWithoutValidation("If-None-Match", etag);
-        if (request.Validators?.LastModified is DateTimeOffset modified)
-            message.Headers.IfModifiedSince = modified;
+        PluginRequestHeaders.Apply(message, request);
         return await _transport.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
     }
 
@@ -500,9 +493,6 @@ public sealed class BooruHostHttp : IDisposable
     /// <summary>Per-source spacing between two request starts: the profile's value, never below the host floor.</summary>
     private TimeSpan SpacingOf(SourceDescription source) =>
         BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);
-
-    private static bool IsConditional(HostHttpRequest request) =>
-        request.Validators?.EntityTag is not null || request.Validators?.LastModified is not null;
 
     private bool HasForbiddenTransportDefaults() =>
         _transport.DefaultRequestHeaders.Authorization is not null
@@ -642,7 +632,7 @@ public sealed class BooruHostHttp : IDisposable
 
     public void Dispose()
     {
-        foreach (SourceState state in _states.Values) state.SendGate.Dispose();
+        foreach (SourceState state in _states.Values) state.Dispose();
         if (_disposeTransport) _transport.Dispose();
     }
 
@@ -685,7 +675,7 @@ public sealed class BooruHostHttp : IDisposable
 
     private readonly record struct RetryAfterValue(TimeSpan? Delta, DateTimeOffset? Date);
 
-    internal sealed class SourceState
+    internal sealed class SourceState : IDisposable
     {
         internal readonly SemaphoreSlim SendGate = new(1, 1);
         internal readonly object Gate = new();
@@ -694,6 +684,8 @@ public sealed class BooruHostHttp : IDisposable
         internal long CooldownVersion;
         internal bool Resetting;
         internal TaskCompletionSource? ResetCompleted;
+
+        public void Dispose() => SendGate.Dispose();
     }
 
     private sealed class AttemptWindow : IDisposable

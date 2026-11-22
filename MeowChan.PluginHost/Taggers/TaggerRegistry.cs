@@ -8,17 +8,45 @@ internal delegate Task<TaggerBatchResult> TaggerInvoker(TaggerBatchRequest reque
 
 /// <summary>Services the host binds to every call of one plugin's taggers. Network access is not among them: see <see cref="TaggerRegistry"/>.</summary>
 internal sealed record TaggerHostBinding(PluginConfiguration Configuration, IPluginResources Resources, IPluginLog Log,
-    IHostHttp? ConsentedHttp = null);
+    // Network capability comes from a host-bound transport (manual admission, no automatic redirects).
+    IHostHttp? ConsentedHttp = null, string? ExecutionRevision = null);
 
 /// <summary>A validated tagger of a registered plugin.</summary>
 internal sealed record TaggerRegistration(string PluginId, string PluginVersion, TaggerDescription Tagger,
     TaggerHostBinding Binding, TaggerInvoker Invoke)
 {
-    internal bool NeedsNetwork => Tagger.NetworkHosts.Count > 0;
+    // Snapshot the declarations so grants cannot change when a caller retains the original list.
+    internal IReadOnlyList<HttpHostDeclaration> NetworkHosts { get; } = Array.AsReadOnly(Tagger.NetworkHosts
+        .Select(host => new HttpHostDeclaration(new Uri("https://" + host.Host).IdnHost, HttpHostPurpose.Metadata)).ToArray());
 
-    /// <summary>What a consent covers: plugin version plus the exact, ordered host list. A new version or host list needs new consent.</summary>
-    internal string NetworkConsentScope => PluginVersion + "\n" + string.Join("\n",
-        Tagger.NetworkHosts.Select(host => host.Host.ToLowerInvariant()).Order(StringComparer.Ordinal));
+    internal bool NeedsNetwork => NetworkHosts.Count > 0;
+}
+
+internal sealed class TaggerGrant : IDisposable
+{
+    private readonly CancellationTokenSource _revoked = new();
+
+    internal TaggerGrant(TaggerRegistration registration)
+    {
+        Registration = registration;
+        Token = _revoked.Token;
+    }
+
+    private TaggerRegistration Registration { get; }
+
+    internal bool Permits(TaggerRegistration registration) =>
+        ReferenceEquals(registration, Registration) && !Token.IsCancellationRequested;
+
+    // This instance and its token are one grant revision, even across re-granting the same registration.
+    internal CancellationToken Token { get; }
+
+    public void Dispose() => _ = RevokeAsync();
+
+    private async Task RevokeAsync()
+    {
+        using (_revoked)
+            await _revoked.CancelAsync().ConfigureAwait(false);
+    }
 }
 
 internal enum TaggerRegistrationError { None, InvalidDescription, NoTaggers, DuplicatePlugin }
@@ -32,15 +60,14 @@ internal sealed class TaggerRegistrationException(TaggerRegistrationError error,
 
 /// <summary>
 /// Registers taggers of validated plugin descriptions and holds the user's network consent. Offline is the default:
-/// a tagger that declares no host never gets network access, and one that declares hosts is not runnable until the
-/// user consented to exactly that plugin version and host list. Consent is session state here; persisting it is an
-/// open decision (docs/development/tagger-contract-1.2.0.md). Thread-safe.
+/// a tagger with network capability needs a grant for this registration and verified execution revision.
+/// Consent is session state. Thread-safe.
 /// </summary>
 internal sealed class TaggerRegistry
 {
     private readonly object _sync = new();
     private readonly Dictionary<string, TaggerRegistration[]> _plugins = new(StringComparer.Ordinal);
-    private readonly Dictionary<string, string> _consent = new(StringComparer.Ordinal);
+    private readonly Dictionary<TaggerRegistration, TaggerGrant?> _grants = new(ReferenceEqualityComparer.Instance);
 
     internal IReadOnlyList<TaggerRegistration> Registrations
     {
@@ -63,6 +90,8 @@ internal sealed class TaggerRegistry
         {
             if (_plugins.ContainsKey(description.PluginId)) throw new TaggerRegistrationException(TaggerRegistrationError.DuplicatePlugin);
             _plugins.Add(description.PluginId, registrations);
+            foreach (TaggerRegistration registration in registrations)
+                _grants.Add(registration, registration.NeedsNetwork ? null : new TaggerGrant(registration));
         }
         return registrations;
     }
@@ -72,9 +101,10 @@ internal sealed class TaggerRegistry
     {
         lock (_sync)
         {
-            foreach (string key in _consent.Keys.Where(key => key.StartsWith(pluginId + "\n", StringComparison.Ordinal)).ToArray())
-                _consent.Remove(key);
-            return _plugins.Remove(pluginId);
+            if (!_plugins.Remove(pluginId, out TaggerRegistration[]? registrations)) return false;
+            foreach (TaggerRegistration registration in registrations)
+                if (_grants.Remove(registration, out TaggerGrant? grant)) grant?.Dispose();
+            return true;
         }
     }
 
@@ -85,45 +115,36 @@ internal sealed class TaggerRegistry
                 ? values.FirstOrDefault(value => value.Tagger.Key == taggerKey) : null;
     }
 
-    /// <summary>Records the user's consent for the registration's current version and host list. Only the UI calls this, after showing the hosts.</summary>
+    /// <summary>Records consent for the active revision and its snapshotted HTTPS origins.</summary>
     internal void GrantNetworkConsent(TaggerRegistration registration)
     {
         ArgumentNullException.ThrowIfNull(registration);
-        if (!registration.NeedsNetwork) return;
-        lock (_sync) _consent[ConsentKey(registration)] = registration.NetworkConsentScope;
+        if (!registration.NeedsNetwork || string.IsNullOrWhiteSpace(registration.Binding.ExecutionRevision)
+            || registration.Binding.ConsentedHttp is null) return;
+        lock (_sync)
+        {
+            if (!_grants.TryGetValue(registration, out TaggerGrant? previous)) return;
+            previous?.Dispose();
+            _grants[registration] = new TaggerGrant(registration);
+        }
     }
 
     internal void RevokeNetworkConsent(TaggerRegistration registration)
     {
         ArgumentNullException.ThrowIfNull(registration);
-        lock (_sync) _consent.Remove(ConsentKey(registration));
-    }
-
-    /// <summary>True for an offline tagger, or when the stored consent covers exactly the current version and hosts.</summary>
-    internal bool MayRun(TaggerRegistration registration)
-    {
-        ArgumentNullException.ThrowIfNull(registration);
-        if (!registration.NeedsNetwork) return true;
+        if (!registration.NeedsNetwork) return;
         lock (_sync)
-            return _consent.TryGetValue(ConsentKey(registration), out string? scope) && scope == registration.NetworkConsentScope;
+        {
+            if (!_grants.TryGetValue(registration, out TaggerGrant? previous)) return;
+            previous?.Dispose();
+            _grants[registration] = null;
+        }
     }
 
-    private static string ConsentKey(TaggerRegistration registration) => registration.PluginId + "\n" + registration.Tagger.Key;
-}
-
-/// <summary>Network access of a tagger call: none for offline taggers, and only the declared hosts after consent.</summary>
-internal sealed class TaggerHttp(IReadOnlyList<HttpHostDeclaration> hosts, IHostHttp? inner) : IHostHttp
-{
-    internal static TaggerHttp Offline { get; } = new(Array.Empty<HttpHostDeclaration>(), null);
-
-    public Task<HostHttpResult> SendAsync(HostHttpRequest request, CancellationToken cancellationToken = default)
+    internal TaggerGrant? GrantFor(TaggerRegistration registration)
     {
-        ArgumentNullException.ThrowIfNull(request);
-        bool declared = request.Url is { IsAbsoluteUri: true, Scheme: "https" }
-            && hosts.Any(host => string.Equals(host.Host, request.Url.Host, StringComparison.OrdinalIgnoreCase));
-        if (inner is null || !declared)
-            return Task.FromResult<HostHttpResult>(new HostHttpFailure(new FailureDetail("tagger_network_denied",
-                "This tagger has no network access to this destination.")));
-        return inner.SendAsync(request, cancellationToken);
+        lock (_sync) return _grants.GetValueOrDefault(registration);
     }
+
+    internal bool MayRun(TaggerRegistration registration) => GrantFor(registration) is not null;
 }
