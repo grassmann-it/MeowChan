@@ -4668,6 +4668,7 @@
     "command.tagging.clear": "Esvaziar fila…",
     "tagging.page.title": "Marcação com tags",
     "tagging.page.progress": "Pendentes: {0} · Concluídas: {1} · Puladas: {2}",
+    "tagging.page.progress.count": "{0} de {1}",
     "tagging.page.progress.done": "{0} de {1} concluídas",
     "tagging.page.filter.untagged": "Sem tags",
     "tagging.page.tags.unknown": "desconhecido",

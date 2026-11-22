@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Commands;
 
@@ -65,9 +66,47 @@ internal sealed class TwoWayToggle : StackPanel
         Describe(_second, second, secondHint, secondIcon);
     }
 
+    internal void SetLabeledIconItems(string firstIcon, string first, string firstHint, string secondIcon, string second, string secondHint)
+    {
+        DescribeLabeledIcon(_first, firstIcon, first, firstHint);
+        DescribeLabeledIcon(_second, secondIcon, second, secondHint);
+    }
+
+    internal void SetLabelsVisible(bool visible)
+    {
+        if (_first.Content is StackPanel first) first.Children[1].IsVisible = visible;
+        if (_second.Content is StackPanel second) second.Children[1].IsVisible = visible;
+    }
+
     private static void ShowIcon(ToggleButton button)
     {
-        if (button.Tag is string icon && button.Content is not Control) button.Content = CommandBindings.NamedIcon(icon);
+        if (button.Tag is not string icon) return;
+        if (button.Content is StackPanel { Children: [ContentControl slot, _] })
+            slot.Content ??= CommandBindings.NamedIcon(icon);
+        else if (button.Content is not Control) button.Content = CommandBindings.NamedIcon(icon);
+    }
+
+    private static void DescribeLabeledIcon(ToggleButton button, string icon, string text, string hint)
+    {
+        if (button.Content is not StackPanel content)
+        {
+            content = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                [!SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+                Children =
+                {
+                    new ContentControl { VerticalAlignment = VerticalAlignment.Center, Focusable = false },
+                    new TextBlock { VerticalAlignment = VerticalAlignment.Center }
+                }
+            };
+            AutomationProperties.SetAccessibilityView(content, AccessibilityView.Raw);
+            button.Content = content;
+        }
+        button.Tag = icon;
+        ((TextBlock)content.Children[1]).Text = text;
+        if (button.IsAttachedToVisualTree()) ShowIcon(button);
+        DescribeAccessibility(button, text, hint);
     }
 
     private static void Describe(ToggleButton button, string text, string? hint, string? icon = null)
@@ -75,6 +114,11 @@ internal sealed class TwoWayToggle : StackPanel
         button.Tag = icon;
         button.Content = icon == null ? text : null;
         if (icon != null && button.IsAttachedToVisualTree()) ShowIcon(button);
+        DescribeAccessibility(button, text, hint);
+    }
+
+    private static void DescribeAccessibility(ToggleButton button, string text, string? hint)
+    {
         AutomationProperties.SetName(button, text);
         ToolTip.SetTip(button, hint);
         AutomationProperties.SetHelpText(button, hint ?? string.Empty);

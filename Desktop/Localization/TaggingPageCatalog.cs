@@ -24,6 +24,7 @@ internal static class TaggingPageCatalog
         ("command.tagging.clear", "Clear queue…", "Warteschlange leeren…"),
         ("tagging.page.title", "Tagging", "Taggen"),
         ("tagging.page.progress", "Open: {0} · Finished: {1} · Skipped: {2}", "Offen: {0} · Erledigt: {1} · Übersprungen: {2}"),
+        ("tagging.page.progress.count", "{0} of {1}", "{0} von {1}"),
         ("tagging.page.progress.done", "{0} of {1} done", "{0} von {1} erledigt"),
         ("tagging.page.filter.untagged", "Without tags", "Ohne Tags"),
         ("tagging.page.tags.unknown", "unknown", "unbekannt"),

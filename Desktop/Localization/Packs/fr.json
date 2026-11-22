@@ -4662,6 +4662,7 @@
     "command.tagging.clear": "Vider la file…",
     "tagging.page.title": "Étiquetage",
     "tagging.page.progress": "À faire : {0} · Terminées : {1} · Ignorées : {2}",
+    "tagging.page.progress.count": "{0} sur {1}",
     "tagging.page.progress.done": "{0} sur {1} terminées",
     "tagging.page.filter.untagged": "Sans étiquettes",
     "tagging.page.tags.unknown": "inconnu",

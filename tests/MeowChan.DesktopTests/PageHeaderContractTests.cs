@@ -216,15 +216,14 @@ public sealed class PageHeaderContractTests
         Assert.Contains("ArchivePageHeader.IsVisible = !(_showReader && narrow);", code);
     }
 
-    // The Media and Tagging pages build their head in code: the title and subtitle are one vertical workspace-page-header stack over the
-    // page's own rows, never a "*,Auto" grid with actions beside the title, so there is nothing a long action row could push out.
+    // The Media and Tagging pages build their heads in code. Tagging wraps whole action groups beside the title.
     [Theory]
     [InlineData("Desktop/Views/Media/MediaPage.cs", "StackPanel header = new() { Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8), Classes = { \"workspace-page-header\" } };")]
-    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "StackPanel heading = new() { Name = \"TaggingHeading\", Classes = { \"workspace-page-header\" },\n            [!StackPanel.SpacingProperty] = new DynamicResourceExtension(\"Workspace.Space.8\"), Children = { _title } };")]
-    public void TheMediaAndTaggingTitlesStandInAVerticalHeaderStackWithoutActionsBesideThem(string file, string stack)
+    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "_queueActionRow.Children.Add(_title);")]
+    public void TheMediaAndTaggingTitlesUseLayoutsThatCanFitOrWrapTheirContents(string file, string layout)
     {
         string code = File.ReadAllText(Root(file)).Replace("\r\n", "\n", StringComparison.Ordinal);
-        Assert.Contains(stack, code);
+        Assert.Contains(layout, code);
         Assert.DoesNotContain("PageHeader.SetRole", code);
     }
 

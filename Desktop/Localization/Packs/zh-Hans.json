@@ -4579,6 +4579,7 @@
     "command.tagging.clear": "清空队列…",
     "tagging.page.title": "打标签",
     "tagging.page.progress": "待处理：{0} · 已完成：{1} · 已跳过：{2}",
+    "tagging.page.progress.count": "{0}／{1}",
     "tagging.page.progress.done": "已完成 {0}/{1}",
     "tagging.page.filter.untagged": "无标签",
     "tagging.page.tags.unknown": "未知",

@@ -4705,6 +4705,7 @@
     "command.tagging.clear": "Wyczyść kolejkę…",
     "tagging.page.title": "Tagowanie",
     "tagging.page.progress": "Otwarte: {0} · Zakończone: {1} · Pominięte: {2}",
+    "tagging.page.progress.count": "{0} z {1}",
     "tagging.page.progress.done": "{0} z {1} zakończonych",
     "tagging.page.filter.untagged": "Bez tagów",
     "tagging.page.tags.unknown": "nieznane",

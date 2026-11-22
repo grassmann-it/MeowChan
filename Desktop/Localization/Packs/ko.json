@@ -4579,6 +4579,7 @@
     "command.tagging.clear": "대기열 비우기…",
     "tagging.page.title": "태그 지정",
     "tagging.page.progress": "미처리: {0} · 완료: {1} · 건너뜀: {2}",
+    "tagging.page.progress.count": "{1}개 중 {0}개",
     "tagging.page.progress.done": "{1}개 중 {0}개 완료",
     "tagging.page.filter.untagged": "태그 없음",
     "tagging.page.tags.unknown": "알 수 없음",

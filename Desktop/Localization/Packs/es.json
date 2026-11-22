@@ -4662,6 +4662,7 @@
     "command.tagging.clear": "Vaciar la cola…",
     "tagging.page.title": "Etiquetado",
     "tagging.page.progress": "Pendientes: {0} · Terminadas: {1} · Omitidas: {2}",
+    "tagging.page.progress.count": "{0} de {1}",
     "tagging.page.progress.done": "{0} de {1} terminadas",
     "tagging.page.filter.untagged": "Sin etiquetas",
     "tagging.page.tags.unknown": "desconocido",

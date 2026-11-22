@@ -127,7 +127,7 @@ public sealed partial class TaggingPage
 
     private void LocalizeView()
     {
-        _viewToggle.SetIconItems("list", Texts.T("tagging.page.view.list"), Texts.T("tagging.page.view.list.hint"),
+        _viewToggle.SetLabeledIconItems("list", Texts.T("tagging.page.view.list"), Texts.T("tagging.page.view.list.hint"),
             "grid", Texts.T("tagging.page.view.grid"), Texts.T("tagging.page.view.grid.hint"));
         AutomationProperties.SetName(_viewToggle, Texts.T("tagging.page.view"));
         AutomationProperties.SetName(_grid, Texts.T("tagging.page.listName"));

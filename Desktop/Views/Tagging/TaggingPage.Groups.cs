@@ -22,7 +22,7 @@ public sealed partial class TaggingPage
 {
     private readonly StackPanel _groupPanel = new() { Name = "TaggingGroupPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _groupLabel = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly ComboBox _group = new() { Name = "TaggingGroup", MinWidth = 170 };
+    private readonly ComboBox _group = new() { Name = "TaggingGroup", Width = 168 };
     // One icon square after the group box opens "New group", "Rename" and "Delete" (instead of a second "+" and two long flat labels
     // on the bar); the menu opens on this button itself, also when the group panel stands in the second toolbar row.
     private readonly Button _groupManage = new() { Name = "TaggingGroupManage", VerticalAlignment = VerticalAlignment.Center };
@@ -58,7 +58,12 @@ public sealed partial class TaggingPage
     // The combo box builds its selection box while ItemsSource is being swapped, and then the item is null for a moment:
     // the template must tolerate that (an exception here aborted Render and left the queue table empty).
     internal static FuncDataTemplate<TaggingGroupChoice> GroupChoiceTemplate() =>
-        new((choice, _) => new TextBlock { Text = choice?.Label, TextTrimming = TextTrimming.CharacterEllipsis });
+        new((choice, _) =>
+        {
+            TextBlock label = new() { Text = choice?.Label, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
+            ToolTip.SetTip(label, choice?.Label);
+            return label;
+        });
 
     private void InitializeGroups()
     {
@@ -70,7 +75,7 @@ public sealed partial class TaggingPage
             _ungroupedSelected = choice.Ungrouped;
             _queueWork.SelectGroup(_selectedGroupId, _ungroupedSelected);
             Render();
-            RefreshWorkView();
+            RenderStamp();
         };
         _groupManage.Classes.Add("bar-button"); // outlined like the group box beside it, also inside the toolbar
         _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent());

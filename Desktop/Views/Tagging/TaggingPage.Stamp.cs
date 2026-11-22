@@ -23,29 +23,20 @@ namespace MeowChan;
 // The size limit is the stamp size setting (TagStampSize, PT7).
 public sealed partial class TaggingPage
 {
-    private readonly Grid _stampPanel = new() { Name = "TaggingStamp", ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-        [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.12") };
-    // The block's head: a quiet disclosure (turning arrow, title with the number of stamp tags) and, right after it, the help of the
-    // block; the body separates the current stamp from the add-tags field and its explanatory hint.
+    private readonly StackPanel _stampPanel = new() { Name = "TaggingStamp",
+        [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8") };
     private readonly ToggleButton _stampToggle = new() { Name = "TaggingStampToggle", Classes = { "disclosure" }, HorizontalAlignment = HorizontalAlignment.Left,
         VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _stampHeading = new() { Name = "TaggingStampHeading", [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Body"),
-        FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center };
+        FontWeight = FontWeight.SemiBold, VerticalAlignment = VerticalAlignment.Center, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly ContentControl _stampArrow = new() { VerticalAlignment = VerticalAlignment.Center, Focusable = false, RenderTransformOrigin = new RelativePoint(0.5, 0.5, RelativeUnit.Relative) };
     private readonly HelpButton _stampHelp = new() { Name = "TaggingStampHelp", HelpKey = "help.taggingStamp" };
-    private readonly Grid _stampBody = new() { Name = "TaggingStampBody", ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-        [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"), VerticalAlignment = VerticalAlignment.Center };
+    private readonly TaggingControlRow _stampEditor = new() { Name = "TaggingStampEditor",
+        [!TaggingControlRow.GroupSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8") };
     private readonly WrapPanel _stampChips = new() { Name = "TaggingStampChips",
         [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
         [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), VerticalAlignment = VerticalAlignment.Center };
-    // U06: an empty stamp stands as one quiet line beside the add field (trimmed, the full sentence as its tooltip), not as a wrapped block.
-    private readonly TrimTipTextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, AlwaysTip = true,
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Stretch };
-    // TQ4: while the block is closed the head still shows what the stamp holds, as read-only chips (the closed block used to say only "(2)").
-    private readonly WrapPanel _stampSummary = new() { Name = "TaggingStampSummary", VerticalAlignment = VerticalAlignment.Center,
-        [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
-        [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.4"), IsVisible = false };
-    private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", Width = 240, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", MinWidth = 160, MaxWidth = 240, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _stampAdd = new() { Name = "TaggingStampAdd", VerticalAlignment = VerticalAlignment.Center };
     private TaggingStampBlockState _stampBlock = TaggingStampBlockState.Auto;
     private int _stampCapacity = QuickTagOptions.DefaultStampSize;
@@ -75,41 +66,27 @@ public sealed partial class TaggingPage
     private void OnSharedStampChanged() { if (!_queueWork.Ended) RenderStamp(); }
 
     internal WrapPanel StampChips => _stampChips;
-    internal WrapPanel StampSummaryChips => _stampSummary;
     internal TextBox StampInput => _stampInput;
 
-    private Control BuildStamp()
+    private StackPanel BuildStamp()
     {
         WorkViewElement.SetId(_stampPanel, "tagging.stamp");
-        _stampToggle.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _stampArrow, _stampHeading } };
-        // The help stands directly after the title it explains, not at the far edge of the page.
-        Grid head = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
-        head.Children.Add(_stampToggle);
+        _stampToggle.Content = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, Children = { _stampArrow, _stampHeading } };
+        Grid.SetColumn(_stampHeading, 1);
+        Grid head = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Children = { _stampToggle, _stampHelp } };
         Grid.SetColumn(_stampHelp, 1);
-        head.Children.Add(_stampHelp);
-        Grid.SetColumn(_stampSummary, 2);
-        head.Children.Add(_stampSummary);
-        _stampBody.Children.Add(_stampChips);
-        Grid addTags = new() { Name = "TaggingStampAddTags", ColumnDefinitions = new ColumnDefinitions("240,Auto,*"),
-            [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8") };
-        addTags.Children.Add(_stampInput);
-        Grid.SetColumn(_stampAdd, 1);
-        addTags.Children.Add(_stampAdd);
-        Grid.SetColumn(_stampEmpty, 2);
-        addTags.Children.Add(_stampEmpty);
-        Grid.SetColumn(addTags, 1);
-        _stampBody.Children.Add(addTags);
-        _stampPanel.Children.Add(head);
-        Grid.SetColumn(_stampBody, 1);
-        _stampPanel.Children.Add(_stampBody);
+        _stampEditor.Children.Add(_stampInput);
+        _stampEditor.Children.Add(_stampAdd);
+        TaggingControlRow row = new() { Name = "TaggingStampRow", Children = { head, _stampEditor } };
+        _stampPanel.Children.Add(row);
+        _stampPanel.Children.Add(_stampChips);
         return _stampPanel;
     }
 
     /// <summary>True while the stamp block is open.</summary>
-    internal bool StampOpen => _stampBody.IsVisible;
+    internal bool StampOpen => _stampEditor.IsVisible;
     internal ToggleButton StampToggle => _stampToggle;
     internal HelpButton StampHelp => _stampHelp;
-    internal TextBlock StampEmptyText => _stampEmpty;
     internal TaggingStampBlockState StampBlockState => _stampBlock;
     /// <summary>The person chose the block open or closed: the shell saves it for the profile.</summary>
     internal Action<TaggingStampBlockState>? SaveStampBlock { get; set; }
@@ -123,14 +100,20 @@ public sealed partial class TaggingPage
 
     private void ShowStampBlock()
     {
-        bool open = TaggingStampBlocks.IsOpen(_stampBlock, WorkViewDensity.Compact(_workView));
-        _stampBody.IsVisible = open;
+        bool open = _stampBlock == TaggingStampBlockState.Open;
+        IReadOnlyList<string> names = _queueWork.StampNames;
+        _stampEditor.IsVisible = open;
+        _stampChips.IsVisible = open && names.Count > 0;
         _stampToggle.IsChecked = open;
-        _stampSummary.IsVisible = !open && _queueWork.StampNames.Count > 0;
         _stampArrow.RenderTransform = open ? new RotateTransform(90) : null;
         if (_stampArrow.Content == null) _stampArrow.Content = CommandBindings.IconFromKey("chevron-right", 14);
-        AutomationProperties.SetName(_stampToggle, StampTitle());
-        ToolTip.SetTip(_stampToggle, Texts.T(open ? "tagging.page.stamp.collapse" : "tagging.page.stamp.expand"));
+        string title = StampTitle();
+        string hint = Texts.T(open ? "tagging.page.stamp.collapse" : "tagging.page.stamp.expand");
+        string? summary = !open && names.Count > 0 ? string.Join(Texts.Culture.TextInfo.ListSeparator + " ", names) : null;
+        _stampHeading.Text = title;
+        AutomationProperties.SetName(_stampToggle, title);
+        AutomationProperties.SetHelpText(_stampToggle, summary ?? hint);
+        ToolTip.SetTip(_stampToggle, summary == null ? title + "\n" + hint : title + "\n" + hint + "\n" + summary);
     }
 
     private string StampTitle() => _queueWork.ActiveGroup is { } group
@@ -157,7 +140,6 @@ public sealed partial class TaggingPage
 
     private void LocalizeStamp()
     {
-        _stampEmpty.Text = Texts.T("tagging.page.stamp.empty");
         _stampHelp.Refresh();
         _stampInput.PlaceholderText = Texts.T("tags.input.several");
         AutomationProperties.SetName(_stampInput, Texts.T("tagging.page.stamp.input"));
@@ -169,22 +151,15 @@ public sealed partial class TaggingPage
         _stampChips.Children.Clear();
         IReadOnlyList<string> names = _queueWork.StampNames;
         foreach (string name in names) _stampChips.Children.Add(StampChip(name));
-        _stampChips.IsVisible = names.Count > 0;
-        _stampSummary.Children.Clear();
-        foreach (string name in names)
-        {
-            Border chip = WorkspaceChips.MarkReadOnly(WorkspaceChips.CreateBadge("TaggingStampSummaryChip", name));
-            chip.VerticalAlignment = VerticalAlignment.Center;
-            _stampSummary.Children.Add(chip);
-        }
-        _stampEmpty.IsVisible = names.Count == 0;
-        _stampHeading.Text = StampTitle();
+        string? emptyHint = names.Count == 0 ? Texts.T("tagging.page.stamp.empty") : null;
+        ToolTip.SetTip(_stampInput, emptyHint);
+        AutomationProperties.SetHelpText(_stampInput, emptyHint);
         ShowStampBlock();
         _stampInput.IsEnabled = CanChange;
         _stampAdd.IsEnabled = CanChange;
     }
 
-    private Control StampChip(string name)
+    private StackPanel StampChip(string name)
     {
         // Dead-affordance audit: the name is a static fact (a read-only badge); the cross beside it is what removes it. It used to be a pressable
         // pill with its hit test switched off, which looked like a button and did nothing.

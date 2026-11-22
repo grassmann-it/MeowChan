@@ -4579,6 +4579,7 @@
     "command.tagging.clear": "キューを空にする…",
     "tagging.page.title": "タグ付け",
     "tagging.page.progress": "未処理: {0} · 完了: {1} · スキップ: {2}",
+    "tagging.page.progress.count": "{1} 件中 {0} 件",
     "tagging.page.progress.done": "{1} 件中 {0} 件完了",
     "tagging.page.filter.untagged": "タグなし",
     "tagging.page.tags.unknown": "不明",
