@@ -455,8 +455,15 @@ public sealed class GalleryTagPanelTests : IDisposable
         Assert.Equal(GalleryTagPanelCommands.RouteOf(QuickTagCommands.CommitNext), Route(Key.Enter, primary));
         Assert.Equal(GalleryTagPanelCommands.RouteOf(QuickTagCommands.ThreadSection), Route(Key.T, primary));
         Assert.Equal(GalleryTagPanelCommands.RouteOf(QuickTagCommands.Undo), Route(Key.Z, primary));
+        // Option+digit belongs to text input on macOS while the tag field has focus.
         for (int number = 1; number <= 9; number++)
-            Assert.Equal(GalleryTagPanelCommands.RouteOf(QuickTagCommands.Suggestion(number)), Route(Key.D0 + number, choose));
+        {
+            Key key = Key.D0 + number;
+            QuickTagKeyRoute? suggestion = GalleryTagPanelCommands.RouteOf(QuickTagCommands.Suggestion(number));
+            Assert.Equal(suggestion, Route(key, choose, QuickTagFocus.Suggestions));
+            Assert.Equal(platform == ShortcutPlatform.MacOS ? QuickTagKeyRoute.None : suggestion,
+                Route(key, choose, QuickTagFocus.Field));
+        }
         // Tag names stay typeable: a bare digit in the field is text, and Page Down in an open list belongs to the list.
         Assert.Equal(QuickTagKeyRoute.None, Route(Key.D3, KeyModifiers.None));
         Assert.Equal(QuickTagKeyRoute.None, QuickTagKeys.Route(Key.PageDown, KeyModifiers.None, QuickTagFocus.Field, listOpen: true, true, true, platform));
