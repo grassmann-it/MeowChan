@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Input;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using System.ComponentModel;
 using MeowChan.Persistence;
 using MeowChan.Desktop;
@@ -49,6 +50,7 @@ internal static class DownloadSearchChecks
                 "Normal success or waiting media were projected as an error.");
             tabs.SelectedIndex = 0;
             await Program.WaitUntilAsync(() => window.VisibleThreads.Contains(rows[^1]));
+            CheckRowFocus(window, grid, complete, waiting);
             grid.SelectedItems.Clear();
             grid.SelectedItems.Add(rows[0]); grid.SelectedItems.Add(rows[1]);
             window.FocusDownloadSearch();
@@ -186,6 +188,7 @@ internal static class DownloadSearchChecks
                         Require(window.FindControl<Button>("DownloadSearchButton")!.IsEffectivelyVisible
                             && window.FindControl<Button>("DetailsToggleButton")!.IsEffectivelyVisible,
                             "Header resizing hid a primary action.");
+                        CheckHeaderAlignment(tabs, toolbar, window);
                         if (more.IsVisible)
                         {
                             var command = columns.Command;
@@ -237,6 +240,66 @@ internal static class DownloadSearchChecks
             await PresentationChecks.SwitchModeAsync(window, "Advanced");
             window.Width = 1380; window.Height = 850;
             await synthetic.DisposeAsync();
+        }
+    }
+
+    private static void CheckRowFocus(MainWindow window, DataGrid grid, ThreadRow first, ThreadRow second)
+    {
+        grid.SelectedItem = first;
+        grid.ScrollIntoView(first, null);
+        Require(grid.Focus(NavigationMethod.Tab), "The Downloads table did not take keyboard focus.");
+        window.UpdateLayout();
+
+        DataGridRow Row(ThreadRow item) => grid.GetVisualDescendants().OfType<DataGridRow>()
+            .Single(row => ReferenceEquals(row.DataContext, item));
+        Border RowBackground(DataGridRow row) => row.GetVisualDescendants().OfType<Border>()
+            .Single(border => border.Name == "BackgroundBorder");
+        void AssertRowFocus(DataGridRow row)
+        {
+            DataGridCell cell = row.GetVisualDescendants().OfType<DataGridCell>()
+                .Single(cell => cell.Classes.Contains(":current"));
+            foreach (string part in new[] { "CurrencyVisual", "FocusVisual" })
+                Require(cell.GetVisualDescendants().OfType<Control>().Single(control => control.Name == part).Opacity == 0,
+                    $"The current Downloads cell still draws {part}.");
+            Require(RowBackground(row).BorderThickness == new Thickness(3, 1, 1, 1),
+                "The focused Downloads row lacks a border.");
+        }
+
+        AssertRowFocus(Row(first));
+        DataGridColumn currentColumn = grid.CurrentColumn;
+        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
+        Require(grid.CurrentColumn != currentColumn && ReferenceEquals(grid.SelectedItem, first),
+            "Right Arrow did not move the current cell within the row.");
+        AssertRowFocus(Row(first));
+        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down });
+        Require(ReferenceEquals(grid.SelectedItem, second), "Down Arrow did not move the selection to the next row.");
+        AssertRowFocus(Row(second));
+        window.FindControl<TextBox>("UrlInput")!.Focus(NavigationMethod.Tab);
+        Require(RowBackground(Row(second)).BorderThickness == new Thickness(3, 0, 0, 0),
+            "Moving focus out of the table did not leave the normal row selection.");
+    }
+
+    private static void CheckHeaderAlignment(TabControl tabs, ActionToolBar toolbar, Window window)
+    {
+        static double Centre(Control control, Window owner) =>
+            control.TranslatePoint(new Point(0, control.Bounds.Height / 2), owner)!.Value.Y;
+
+        TabItem firstTab = tabs.Items.OfType<TabItem>().First();
+        Border header = window.FindControl<Border>("DownloadsListHeader")!;
+        var controls = tabs.Items.OfType<TabItem>().Cast<Control>()
+            .Concat(toolbar.DirectHost!.Children.OfType<Button>().Where(button => button.IsEffectivelyVisible))
+            .Concat(toolbar.More is { IsEffectivelyVisible: true } more ? [more] : Array.Empty<Control>());
+        foreach (Control control in controls)
+        {
+            Point? right = control.TranslatePoint(new Point(control.Bounds.Width, 0), header);
+            Require(right is { } edge && edge.X <= header.Bounds.Width - header.Padding.Right + 1,
+                $"The Downloads header control {control.Name} is clipped or outside the header.");
+            Require(Math.Abs(Centre(firstTab, window) - Centre(control, window)) <= 1,
+                $"The Downloads header control {control.Name} is vertically misaligned ({Centre(control, window)} vs {Centre(firstTab, window)}).");
+            Require(Math.Abs(firstTab.Bounds.Height - control.Bounds.Height) <= 1,
+                $"The Downloads header control {control.Name} has a different height from the tabs ({control.Bounds.Height} vs {firstTab.Bounds.Height}).");
+            if (control is Button { Content: StackPanel label })
+                Require(label.Spacing == 8, $"The icon and label in {control.Name} are too close.");
         }
     }
 
