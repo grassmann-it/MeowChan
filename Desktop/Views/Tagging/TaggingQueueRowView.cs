@@ -32,30 +32,39 @@ internal sealed class TaggingQueueRowView : Grid
     /// source (2*, at most <see cref="SourceMaxWidth"/>) · group · tags · state. A fresh set per call (a definition belongs to one grid).
     /// Both grids use these same widths and the same <see cref="ColumnGap"/>, so a scroll bar that narrows the rows moves nothing apart.
     /// </summary>
-    internal static ColumnDefinitions BuildColumns(bool showPreview, bool compact = false) => new()
+    internal static ColumnDefinitions BuildColumns(bool showPreview, bool compact = false, bool showKind = true, bool showGroup = true)
     {
-        // A grid puts its gap on both sides of a 0 wide column: without the preview the number column is one gap shorter and its cell
-        // reaches into that gap (NumberMargin), so the type column still stands one ColumnGap after the number.
-        new ColumnDefinition(showPreview ? NumberWidth : NumberWidth - ColumnGap, GridUnitType.Pixel),
-        new ColumnDefinition(showPreview ? 56 : 0, GridUnitType.Pixel),
-        new ColumnDefinition(64, GridUnitType.Pixel),
-        new ColumnDefinition(3, GridUnitType.Star) { MinWidth = compact ? CompactFileMinWidth : FileMinWidth },
-        new ColumnDefinition(2, GridUnitType.Star)
+        // A grid puts its gap on both sides of a 0 wide column: the column in front of a hidden run gives up one gap per hidden column, and the
+        // cells of that column (NumberMargin, TagsMargin) reach into the gaps, so the next visible column still stands one ColumnGap after it.
+        double number = NumberWidth - (showPreview ? 0 : ColumnGap) - (!showPreview && !showKind ? ColumnGap : 0);
+        double preview = showPreview ? PreviewColumnWidth - (showKind ? 0 : ColumnGap) : 0;
+        double tags = (compact ? 56 : 72) - (showGroup ? 0 : ColumnGap);
+        return new ColumnDefinitions
         {
-            MinWidth = compact ? CompactSourceMinWidth : SourceMinWidth,
-            MaxWidth = compact ? CompactSourceMaxWidth : SourceMaxWidth
-        },
-        new ColumnDefinition(compact ? 96 : 132, GridUnitType.Pixel),
-        new ColumnDefinition(compact ? 56 : 72, GridUnitType.Pixel),
-        new ColumnDefinition(compact ? 104 : 128, GridUnitType.Pixel)
-    };
+            new ColumnDefinition(number, GridUnitType.Pixel),
+            new ColumnDefinition(preview, GridUnitType.Pixel),
+            new ColumnDefinition(showKind ? 64 : 0, GridUnitType.Pixel),
+            new ColumnDefinition(3, GridUnitType.Star) { MinWidth = compact ? CompactFileMinWidth : FileMinWidth },
+            new ColumnDefinition(2, GridUnitType.Star)
+            {
+                MinWidth = compact ? CompactSourceMinWidth : SourceMinWidth,
+                MaxWidth = compact ? CompactSourceMaxWidth : SourceMaxWidth
+            },
+            new ColumnDefinition(showGroup ? (compact ? 96 : 132) : 0, GridUnitType.Pixel),
+            new ColumnDefinition(tags, GridUnitType.Pixel),
+            new ColumnDefinition(compact ? 104 : 128, GridUnitType.Pixel)
+        };
+    }
+
+    /// <summary>The width of the preview column (the picture is <see cref="PreviewSize"/> wide inside it).</summary>
+    internal const double PreviewColumnWidth = 64;
 
     /// <summary>Returns the minimum width needed to keep all eight columns in the table, including their seven gaps.</summary>
     internal static double MinimumTableWidth(bool showPreview, bool compact)
     {
         double file = compact ? CompactFileMinWidth : FileMinWidth;
         double source = compact ? CompactSourceMinWidth : SourceMinWidth;
-        double fixedColumns = (showPreview ? NumberWidth : NumberWidth - ColumnGap) + (showPreview ? 56 : 0) + 64 + file + source
+        double fixedColumns = (showPreview ? NumberWidth : NumberWidth - ColumnGap) + (showPreview ? PreviewColumnWidth : 0) + 64 + file + source
             + (compact ? 96 : 132) + (compact ? 56 : 72) + (compact ? 104 : 128);
         return fixedColumns + ColumnGap * 7;
     }
@@ -70,12 +79,16 @@ internal sealed class TaggingQueueRowView : Grid
     private const double NumberWidth = 48;
 
     /// <summary>The margin of the number cell (header and rows): it reaches into the gap that the hidden preview column would double.</summary>
-    internal static Thickness NumberMargin(bool showPreview) => new(0, 0, showPreview ? 0 : -ColumnGap, 0);
+    internal static Thickness NumberMargin(bool showPreview, bool showKind = true) =>
+        new(0, 0, (showPreview ? 0 : -ColumnGap) + (!showPreview && !showKind ? -ColumnGap : 0), 0);
+
+    /// <summary>The margin of the tags cell (header and rows): it reaches into the gap that the hidden group column would double.</summary>
+    internal static Thickness TagsMargin(bool showGroup) => new(showGroup ? 0 : -ColumnGap, 0, 0, 0);
 
     internal const double RowHeight = WorkspaceMetrics.NormalRowHeight;
     internal const double CompactHeight = WorkspaceMetrics.CompactRowHeight;
     /// <summary>The preview's edge in the normal and in the compact density (inside the row's own padding).</summary>
-    internal const double PreviewSize = 40, CompactPreviewSize = 24;
+    internal const double PreviewSize = 48, CompactPreviewSize = 24;
 
     private readonly Func<TagQueueItem, int?>? _tagCount;
     private readonly TextBlock _number = Cell(TextAlignment.Right);
@@ -92,12 +105,12 @@ internal sealed class TaggingQueueRowView : Grid
     private string? _shownIcon;
 
     internal TaggingQueueRowView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, bool compact = false,
-        bool showPreview = true, bool compactTable = false)
+        bool showPreview = true, bool compactTable = false, bool showKind = true, bool showGroup = true)
     {
         _tagCount = tagCount;
-        ColumnDefinitions = BuildColumns(showPreview, compactTable);
+        ColumnDefinitions = BuildColumns(showPreview, compactTable, showKind, showGroup);
         ColumnSpacing = ColumnGap;
-        MinHeight = compact ? CompactHeight : RowHeight;
+        MinHeight = compact ? CompactHeight : Math.Max(RowHeight, PreviewSize + 8);
         double size = compact ? CompactPreviewSize : PreviewSize;
         _preview = new TaggingThumbnail(showText: false) { Source = thumbnails, Width = size, Height = size, IsVisible = showPreview, HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center };
@@ -105,7 +118,10 @@ internal sealed class TaggingQueueRowView : Grid
         StackPanel number = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right, Children = { _next, _number } };
         AutomationProperties.SetAccessibilityView(_next, AccessibilityView.Raw);
         AutomationProperties.SetAccessibilityView(_stateIcon, AccessibilityView.Raw);
-        number.Margin = NumberMargin(showPreview);
+        number.Margin = NumberMargin(showPreview, showKind);
+        _kind.IsVisible = showKind;
+        _group.IsVisible = showGroup;
+        _tags.Margin = TagsMargin(showGroup);
         Children.Add(number);
         Add(_preview, 1); Add(_kind, 2); Add(_name, 3); Add(_source, 4); Add(_group, 5); Add(_tags, 6);
         Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center, Children = { _stateIcon, _state } }, 7);
@@ -148,7 +164,9 @@ internal sealed class TaggingQueueRowView : Grid
         _name.Text = row?.Name;
         _source.Text = row?.SourceText;
         _group.Text = row?.GroupText;
-        _tags.Text = row == null ? null : _tagCount?.Invoke(row.Item) is { } count ? count.ToString("N0", Localization.Texts.Culture) : "–";
+        // TQ5: a known zero reads "0", an unknown count (tags unavailable, or a medium that cannot carry tags) reads "–" (the row's help text says "unknown", AccessibleDetails).
+        int? tagCount = row == null ? null : _tagCount?.Invoke(row.Item);
+        _tags.Text = row == null ? null : tagCount is { } count ? count.ToString("N0", Localization.Texts.Culture) : "–";
         string? icon = row?.StateIcon;
         if (icon != _shownIcon) { _shownIcon = icon; _stateIcon.Content = icon == null ? null : CommandBindings.IconFromKey(icon, 14); }
         _state.Text = row?.StateText;

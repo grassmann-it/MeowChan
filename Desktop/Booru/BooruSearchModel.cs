@@ -52,7 +52,7 @@ internal sealed record BooruSearchView(
 /// <see cref="SubmitAsync"/>, <see cref="GoToPageAsync"/> or <see cref="LoadOriginalAsync"/>; editing the
 /// field, switching the mode, language changes and cooldown expiry never send anything.
 /// </summary>
-internal sealed class BooruSearchModel : IDisposable
+internal sealed partial class BooruSearchModel : IDisposable
 {
     internal const int MaximumPage = BooruHostHttp.MaximumSearchPage;
     internal const int PageSize = BooruHostHttp.MaximumSearchLimit;

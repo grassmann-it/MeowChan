@@ -11,7 +11,7 @@ public static partial class WorkViewPolicy
     /// <summary>
     /// The reader toolbar's one keep-visible order (OverflowOrder, lower stays on the bar longer). The toolbar has
     /// PrioritizedOverflow, so this list, not the visual order of the bar, decides what a narrow window moves into "More"
-    /// first: the tail of this list. RL1 (15.11.): gallery, read, find, tags, export, settings (the gear that replaced "View"),
+    /// first: the tail of this list. RL1 (15.11.): gallery, read, media sidebar, thread list, find, tags, export, settings (the gear that replaced "View"),
     /// thread; the rarely used history return goes before full screen, which ends the list: it is the first to move under More
     /// when the bar runs out of room (review 15.11.: an action only overflows when it does not fit; a forced "More" with free room
     /// beside it hid actions). The post-capture switch is no bar item any more: it is an entry of the Thread menu (R2).
@@ -22,8 +22,8 @@ public static partial class WorkViewPolicy
     // A method, not a static field: partial files have no defined field initialization order.
     private static string[] ReaderKeepVisible() =>
     [
-        "reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
-        "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"
+        "reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.thread-list", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
+        "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back", "reader.toolbar.fullscreen"
     ];
 
     private static int ReaderOrder(string id) => 10 * (System.Array.IndexOf(ReaderKeepVisible(), id) + 1);
@@ -50,15 +50,18 @@ public static partial class WorkViewPolicy
         // The media sidebar toggle is a direct reader affordance in every work view; it must
         // participate in the same overflow/work-view contract as the neighboring tools.
         ReaderTool("reader.toolbar.media-sidebar", Direct, Direct, Direct, null),
+        // The thread list switch (21.11.): shown only beside a wide enough list (embedded reader), so it never competes for room in a narrow window;
+        // next to the media sidebar switch it is a direct reader affordance in every view and may move under More when the bar runs out.
+        ReaderTool("reader.toolbar.thread-list", Direct, Direct, Direct, "archive.thread-list.toggle"),
         ReaderTool("reader.toolbar.find", Overflow, Direct, Direct, "reader.find"),
         ReaderTool("reader.toolbar.tags", Overflow, Direct, Direct, "thread.tags"),
         ReaderTool("reader.toolbar.export", Overflow, Direct, Direct, "export.open-html-dialog"),
+        // R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link, watch);
+        // a menu button, so Barebones moves it under More, where it opens the same menu. F16 (21.11.): Thread stands before the gear.
+        ReaderTool("reader.toolbar.thread", Overflow, Direct, Direct, null),
         // RL1: the gear "Settings" is the former View menu and the quick settings popover in one (a popover, not a menu); under More
         // it opens the same popover, anchored at More.
         ReaderTool("reader.toolbar.settings", Overflow, Direct, Direct, null),
-        // R2: the thread's downloader-side actions (capture, check now, retry media, media rules, details, folder, source, link, watch);
-        // a menu button, so Barebones moves it under More, where it opens the same menu.
-        ReaderTool("reader.toolbar.thread", Overflow, Direct, Direct, null),
         // Shown only with a history (state); as a navigation it stays on the bar in every view while it fits.
         ReaderTool("reader.toolbar.history-back", Direct, Direct, Direct, "reader.history-back"),
         // Review 15.11. (Tom): with room to spare, nothing hides under More. Full screen stands at the end of the bar while it fits and

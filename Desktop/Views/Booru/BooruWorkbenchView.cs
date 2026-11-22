@@ -300,7 +300,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         _searchTab.Content = BuildSearchTab();
         _watchersTab.Content = BuildWatchersTab();
-        _tabs.ItemsSource = new[] { _searchTab, _watchersTab };
+        _tabs.ItemsSource = CreateTabItems();
         return _tabs;
     }
 
@@ -351,6 +351,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border") };
         StackPanel searchActions = new() { Name = "BooruSearchActions", Orientation = Orientation.Horizontal, Spacing = 8,
             VerticalAlignment = VerticalAlignment.Center, Children = { _submit, actionDivider, _createWatcher, _cancel } };
+        AddSearchTabActions(searchActions);
         Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8 };
         inputRow.Children.Add(_mode);
         Grid.SetColumn(_input, 1); inputRow.Children.Add(_input);
@@ -379,10 +380,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(_queryLine);
         tab.Children.Add(_queryHint);
         tab.Children.Add(_noticeHost);
+        tab.Children.Add(BuildBulkStatus());
         tab.Children.Add(_statusHost);
-        tab.Children.Add(_pager);
         tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
         tab.Children.Add(_results);
+        tab.Children.Add(BuildBottomBar()); // result line and pager under the list
         tab.Children.Add(_pageLimit);
         return tab;
     }
@@ -480,6 +482,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             RenderChrome(watchers);
             RenderSearch(search, force);
             RenderWatchers(watchers, force);
+            RenderSearchTabs(search);
             RefreshWorkViewPresentation();
         }
         finally { _applying = false; }

@@ -23,6 +23,8 @@ internal static class ReaderViewCatalog
         ("reader.view.saveFailed", "Could not save the view setting: {0}", "Die Ansichtseinstellung konnte nicht gespeichert werden: {0}"),
         ("command.reader.post-filters", "Post filters…", "Postfilter…"),
         ("command.reader.sidebar.toggle", "Media sidebar", "Medienleiste"),
+        ("archive.threadList.hide", "Hide the thread list", "Threadliste ausblenden"),
+        ("archive.threadList.show", "Show the thread list", "Threadliste einblenden"),
         ("command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts"),
         ("command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts"),
         ("reader.sidebar.title", "Post media", "Medien des Posts"),

@@ -184,6 +184,8 @@ public partial class MainWindow
         _archivePage.OpenFavoritesGallery = OpenFavoritesGalleryAsync;
         _archivePage.ArchiveLayoutPreference = _config.ArchiveThreadLayout;
         _archivePage.ArchiveSplitPreference = _config.ArchiveSplitWidth;
+        _archivePage.ArchiveThreadListHiddenPreference = _config.ArchiveThreadListHidden;
+        _archivePage.SaveThreadListHiddenAsync = hidden => _session.SaveViewPreferencesAsync(current => current.ArchiveThreadListHidden = hidden);
         _archivePage.SaveViewPreferencesAsync = (layout, split) =>
         {
             string mode = _config.WorkspaceMode;

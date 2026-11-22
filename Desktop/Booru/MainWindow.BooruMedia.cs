@@ -29,6 +29,7 @@ public partial class MainWindow
         view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);
         view.IsPostSavedInMedia = IsSavedBooruPost;
         view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
+        view.SearchTabsLimit = () => _session.Config.BooruSearchTabs;
     }
 
     // E1: the result view (list or tiles) and the tile size are view preferences of the profile, restored when the page is built and saved when
