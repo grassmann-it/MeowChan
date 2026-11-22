@@ -8,6 +8,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -95,6 +96,7 @@ internal static partial class MediaPageChecks
             Control row = page.ToolbarRow;
             Control header = row.GetVisualAncestors().OfType<StackPanel>().First(panel => panel.Classes.Contains("workspace-page-header"));
             Control search = C<Control>(page, "MediaNameFilter"), filters = C<Control>(page, "MediaFilters"), direction = C<Control>(page, "MediaSortDirection");
+            Control tags = C<Control>(page, "MediaBooruMode"), media = C<Control>(page, "MediaPanelToggle"), more = C<Control>(page, "MediaMore");
             Panel order = C<Panel>(page, "MediaToolbarSort");
             Button[] buttons = new[] { "MediaSelectionQueue", "MediaSelectionTag", "MediaSelectionGallery", "MediaSelectionExport", "MediaSelectionClear" }.Select(name => C<Button>(page, name)).ToArray();
             double X(Control control, Visual to) => control.TranslatePoint(default, to)!.Value.X;
@@ -231,6 +233,12 @@ internal static partial class MediaPageChecks
                         failures.Add("(b) " + info.Code + " row " + F(bounds.Row) + " (" + bounds.Level + "): filters to order gap " + F(bounds.Gap) + " < " + MediaToolbarLayoutGroupGap);
                     if (bounds.SortRight > bounds.Row + 0.5)
                         failures.Add("(b) " + info.Code + " row " + F(bounds.Row) + " (" + bounds.Level + "): the order runs out of the row at " + F(bounds.SortRight));
+                    if (!tags.IsEffectivelyVisible || !media.IsEffectivelyVisible || !more.IsEffectivelyVisible
+                        || tags.Parent is not SidebarToggleGroup group || !ReferenceEquals(media.Parent, group)
+                        || Math.Abs(X(media, row) - X(tags, row) - tags.Bounds.Width) > 1
+                        || Math.Abs(X(more, row) - X(media, row) - media.Bounds.Width - ActionToolBarPanel.ItemGap) > 1
+                        || X(more, row) + more.Bounds.Width > bounds.Row + 0.5)
+                        failures.Add(info.Code + " row " + F(bounds.Row) + ": Tag list and Media sidebar must stay joined at the right, directly before More.");
                 }
             }
             Texts.SetLanguage("en");

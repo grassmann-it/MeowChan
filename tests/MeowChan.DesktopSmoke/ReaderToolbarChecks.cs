@@ -78,7 +78,7 @@ internal static class ReaderToolbarChecks
                 "The detached reader shows an embedded-only action.");
             CheckSeparators(bar, Named(page, "ArchiveOpenGallery"), () => "detached Reader at 1380");
             await Program.WaitUntilAsync(() => page.MediaSidebar is { IsEffectivelyVisible: true } sidebar
-                && sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 7 and <= 9 },
+                && sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 15 and <= 17 },
                 () => "The detached reader's media header is missing its top inset.");
             await CaptureThemesAsync(window, "smoke-reader-toolbar-detached-1380-advanced");
         }
