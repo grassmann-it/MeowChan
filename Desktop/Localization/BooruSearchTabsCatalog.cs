@@ -28,5 +28,6 @@ internal static class BooruSearchTabsCatalog
         ("booru.bulk.endEnd", "The source reported no further results after these.", "Die Quelle meldete nach diesen keine weiteren Ergebnisse."),
         ("booru.bulk.endBlocked", "The source stopped answering (pause, rate limit, offline or an error); the rest was not listed. Try again later.", "Die Quelle antwortete nicht mehr (Pause, Ratenlimit, offline oder Fehler); der Rest wurde nicht aufgelistet. Versuche es später erneut."),
         ("booru.bulk.endCanceled", "Stopped by you; the rest was not listed. What was queued stays queued.", "Von dir beendet; der Rest wurde nicht aufgelistet. Was eingereiht wurde, bleibt in der Warteschlange."),
+        ("booru.bulk.otherTab", "Collecting results for “{0}”. Open its search tab to stop collecting.", "Ergebnisse für „{0}“ werden gesammelt. Öffne zum Beenden den zugehörigen Such-Tab."),
     };
 }

@@ -61,8 +61,8 @@ internal sealed record BooruPostView
         return new BooruPostView(post)
         {
             PostUrl = post.PostUrl,
-            PreviewUrl = preview?.Url,
-            SampleUrl = sample?.Url,
+            PreviewUrl = DisplayUrl(preview, original?.Url),
+            SampleUrl = DisplayUrl(sample, original?.Url),
             Rating = fields.HasFlag(BooruFieldPresence.Rating) ? post.Rating : BooruRating.Unknown,
             RawRating = fields.HasFlag(BooruFieldPresence.Rating) ? post.RawRating : null,
             Score = fields.HasFlag(BooruFieldPresence.Score) ? post.Score : null,
@@ -76,6 +76,9 @@ internal sealed record BooruPostView
             IsBanned = post.IsBanned
         };
     }
+
+    private static Uri? DisplayUrl(BooruMediaVariant? variant, Uri? original) =>
+        variant?.Url is { } url && url != original ? url : null;
 }
 
 /// <summary>Where a "Load original" request comes from; the queue adapter keeps the provenance.</summary>

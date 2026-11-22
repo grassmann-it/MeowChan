@@ -5343,6 +5343,7 @@
     "booru.bulk.stop": "Zatrzymaj zbieranie",
     "booru.bulk.hint": "Pobiera istniejące wyniki wyświetlonego wyszukiwania i kolejkuje każdy oryginał, do limitu stron źródła (strony {0}, postów na stronę {1}). Obserwator bierze tylko nowe posty.",
     "booru.bulk.needsSearch": "Najpierw uruchom wyszukiwanie po tagach; pobierane są wyniki wyświetlonego wyszukiwania.",
+    "booru.bulk.otherTab": "Trwa zbieranie wyników dla „{0}”. Aby je zatrzymać, otwórz odpowiednią kartę wyszukiwania.",
     "booru.bulk.running": "Zbieranie wyników „{0}”: odczytane strony {1} z co najwyżej {2}, znalezione posty {3}, w kolejce {4}.",
     "booru.bulk.result": "Wszystko z „{0}”: znalezione posty {1}, odczytane strony {2} z co najwyżej {3}. W kolejce {4}, już w kolejce {5}, już zapisane {6}, bez oferowanego oryginału {7}, nieudane {8}.",
     "booru.bulk.endLimit": "Osiągnięto limit stron źródła; wyszukiwanie może mieć więcej wyników, których nie da się wylistować.",
@@ -5362,6 +5363,14 @@
     "settings.limits.booruGallerySampleMiB": "Galeria Danbooru: największy obraz (MiB)",
     "settings.limits.booruGallerySampleMiB.hint": "Największy pomniejszony obraz, który galeria wczytuje do wyświetlenia. Większy nie jest wczytywany i zostaje podgląd. Oryginał nigdy nie jest wczytywany do wyświetlenia.",
     "settings.limits.booruGalleryCacheMiB": "Galeria Danbooru: pamięć obrazów (MiB)",
-    "settings.limits.booruGalleryCacheMiB.hint": "Ile MiB wczytanych obrazów galerii pozostaje w pamięci, aby cofanie ich nie wczytywało ponownie. Nic nie jest zapisywane na dysku."
+    "settings.limits.booruGalleryCacheMiB.hint": "Ile MiB wczytanych obrazów galerii pozostaje w pamięci, aby cofanie ich nie wczytywało ponownie. Nic nie jest zapisywane na dysku.",
+    "booru.gallery.sample.pixelLimit": "Większa wersja przekracza limit {0:N0} pikseli. Podgląd pozostaje widoczny.",
+    "booru.gallery.sample.timeout": "Większa wersja nie dotarła w ciągu {0} s. Podgląd pozostaje widoczny.",
+    "settings.limits.booruGalleryMaximumPixels": "Galeria Danbooru: limit pikseli obrazu",
+    "settings.limits.booruGalleryMaximumPixels.hint": "Maksymalna łączna liczba pikseli pomniejszonego obrazu przed dekodowaniem.",
+    "settings.limits.booruGalleryMaximumWidth": "Galeria Danbooru: szerokość zdekodowanego obrazu (px)",
+    "settings.limits.booruGalleryMaximumWidth.hint": "Galeria zmniejsza szersze pomniejszone obrazy do tej szerokości.",
+    "settings.limits.booruGalleryTimeoutSeconds": "Galeria Danbooru: limit czasu odpowiedzi (s)",
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "Czas oczekiwania galerii na pomniejszony obraz ze źródła."
   }
 }

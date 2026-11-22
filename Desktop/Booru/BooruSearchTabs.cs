@@ -59,7 +59,7 @@ internal sealed class BooruSearchTabs
         Store();
         _slots.Add(slot);
         _activeId = slot.Id;
-        _search.Restore(copy);
+        _search.Restore(copy, _activeId);
         Changed?.Invoke();
         return slot.Id;
     }
@@ -71,7 +71,7 @@ internal sealed class BooruSearchTabs
         if (target is null) return false;
         Store();
         _activeId = id;
-        _search.Restore(target.Snapshot);
+        _search.Restore(target.Snapshot, _activeId);
         Changed?.Invoke();
         return true;
     }
@@ -82,13 +82,13 @@ internal sealed class BooruSearchTabs
         int index = _slots.FindIndex(slot => slot.Id == id);
         if (id == PrimaryId || index < 0) return false;
         bool wasActive = id == _activeId;
-        if (wasActive) _search.Cancel();
+        _search.CancelBulk(id);
         _slots.RemoveAt(index);
         if (wasActive)
         {
             Slot next = _slots[Math.Max(0, index - 1)];
             _activeId = next.Id;
-            _search.Restore(next.Snapshot);
+            _search.Restore(next.Snapshot, _activeId);
         }
         Changed?.Invoke();
         return true;

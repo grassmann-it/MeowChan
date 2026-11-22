@@ -5300,6 +5300,7 @@
     "booru.bulk.stop": "Parar a coleta",
     "booru.bulk.hint": "Busca os resultados existentes da pesquisa mostrada e enfileira cada original, até o limite de páginas da fonte (páginas {0}, posts por página {1}). O monitor só pega posts novos.",
     "booru.bulk.needsSearch": "Faça primeiro uma pesquisa por tags; são buscados os resultados da pesquisa mostrada.",
+    "booru.bulk.otherTab": "Coletando resultados para “{0}”. Abra a aba de pesquisa correspondente para parar a coleta.",
     "booru.bulk.running": "Coletando resultados de “{0}”: páginas lidas {1} de no máximo {2}, posts encontrados {3}, na fila {4}.",
     "booru.bulk.result": "Tudo de “{0}”: posts encontrados {1}, páginas lidas {2} de no máximo {3}. Na fila {4}, já na fila {5}, já salvos {6}, sem original oferecido {7}, com falha {8}.",
     "booru.bulk.endLimit": "O limite de páginas da fonte foi atingido; a pesquisa pode ter mais resultados que não podem ser listados.",
@@ -5319,6 +5320,14 @@
     "settings.limits.booruGallerySampleMiB": "Galeria do Danbooru: maior imagem (MiB)",
     "settings.limits.booruGallerySampleMiB.hint": "Maior imagem reduzida que a galeria carrega para exibição. Uma maior não é carregada e a pré-visualização permanece. O original nunca é carregado para exibição.",
     "settings.limits.booruGalleryCacheMiB": "Galeria do Danbooru: memória de imagens (MiB)",
-    "settings.limits.booruGalleryCacheMiB.hint": "Quantos MiB de imagens carregadas da galeria ficam na memória para que voltar não as carregue de novo. Nada é salvo no disco."
+    "settings.limits.booruGalleryCacheMiB.hint": "Quantos MiB de imagens carregadas da galeria ficam na memória para que voltar não as carregue de novo. Nada é salvo no disco.",
+    "booru.gallery.sample.pixelLimit": "A versão maior excede o limite de {0:N0} pixels. A pré-visualização permanece.",
+    "booru.gallery.sample.timeout": "A versão maior não chegou em {0} s. A pré-visualização permanece.",
+    "settings.limits.booruGalleryMaximumPixels": "Galeria do Danbooru: limite de pixels da imagem",
+    "settings.limits.booruGalleryMaximumPixels.hint": "Número máximo total de pixels de uma imagem reduzida antes da decodificação.",
+    "settings.limits.booruGalleryMaximumWidth": "Galeria do Danbooru: largura da imagem decodificada (px)",
+    "settings.limits.booruGalleryMaximumWidth.hint": "A galeria ajusta as imagens reduzidas mais largas a esta largura.",
+    "settings.limits.booruGalleryTimeoutSeconds": "Galeria do Danbooru: tempo limite de resposta (s)",
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "Tempo que a galeria aguarda por uma imagem reduzida da fonte."
   }
 }

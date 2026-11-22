@@ -261,6 +261,7 @@ namespace MeowChan
             LoadStatisticsDraft(config);
             LoadReaderDraft(config);
             LoadTagQueueDraft(config);
+            LoadBooruGalleryDraft(config);
             LoadTaggingDraft(config);
             LoadViewerDraft(config);
             LoadExportFilenameTemplateDraft(config);
@@ -807,6 +808,7 @@ namespace MeowChan
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
             LoadTagQueueDraft(_config);
+            LoadBooruGalleryDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
             LoadExportFilenameTemplateDraft(_config);
@@ -934,6 +936,7 @@ namespace MeowChan
                 RaiseStatisticsTextsChanged();
                 RaiseReaderTextsChanged();
                 RaiseTagQueueTextsChanged();
+                RaiseBooruGalleryTextsChanged();
                 RaiseViewerTextsChanged();
                 RaiseExportFilenameTemplateTextsChanged();
                 RaiseQuickTagTextsChanged();
@@ -1244,6 +1247,7 @@ namespace MeowChan
                 ApplyStatisticsDraft(candidate, _config);
                 ApplyReaderDraft(candidate);
                 ApplyTagQueueDraft(candidate);
+                ApplyBooruGalleryDraft(candidate);
                 ApplyViewerDraft(candidate);
                 ApplyExportFilenameTemplateDraft(candidate);
                 ApplyQuickTagDraft(candidate);
@@ -1327,6 +1331,7 @@ namespace MeowChan
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
             LoadTagQueueDraft(_config);
+            LoadBooruGalleryDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
             LoadExportFilenameTemplateDraft(_config);

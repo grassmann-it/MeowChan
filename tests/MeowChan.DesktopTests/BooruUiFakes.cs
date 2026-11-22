@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using MeowChan.Desktop.Booru;
 using MeowChan.PluginSdk;
+using MeowChan.PluginHost.Http;
 using SkiaSharp;
 
 namespace MeowChan.Tests.Shared;
@@ -158,10 +159,12 @@ internal sealed class FakeBooruPreviewPort : IBooruPreviewPort, IBooruSamplePort
     private int _requests;
     internal Func<BooruPostView, byte[]?>? OnPreview { get; set; }
     internal int Requests => Volatile.Read(ref _requests);
+    internal Func<BooruPostView, CancellationToken, Task<byte[]?>>? OnPreviewAsync { get; set; }
 
     public Task<byte[]?> LoadPreviewAsync(BooruPostView post, CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref _requests);
+        if (OnPreviewAsync is { } preview) return preview(post, cancellationToken);
         int seed = int.TryParse(post.PostId, out int parsed) ? parsed : 0;
         return Task.FromResult(OnPreview is null ? BooruUiFixtures.Png(seed) : OnPreview(post));
     }
@@ -172,10 +175,14 @@ internal sealed class FakeBooruPreviewPort : IBooruPreviewPort, IBooruSamplePort
     internal IReadOnlyList<string> SampleRequests { get { lock (_sampleRequests) return _sampleRequests.ToArray(); } }
     internal List<(int MaximumBytes, long CacheBytes)> SampleLimits { get; } = new();
 
-    public Task<byte[]?> LoadSampleAsync(BooruPostView post, int maximumBytes, long cacheBytes, CancellationToken cancellationToken)
+    internal Func<TimeSpan, BooruSampleResult>? SampleResult { get; set; }
+
+    public async Task<BooruSampleResult> LoadSampleAsync(BooruPostView post, int maximumBytes, long cacheBytes, TimeSpan responseTimeout,
+        CancellationToken cancellationToken)
     {
         lock (_sampleRequests) { _sampleRequests.Add(post.PostId); SampleLimits.Add((maximumBytes, cacheBytes)); }
-        return OnSample is null ? Task.FromResult<byte[]?>(null) : OnSample(post, cancellationToken);
+        if (SampleResult is { } result) return result(responseTimeout);
+        return OnSample is null ? default : new(await OnSample(post, cancellationToken));
     }
 }
 

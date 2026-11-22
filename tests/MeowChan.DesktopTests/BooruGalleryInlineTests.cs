@@ -4,18 +4,21 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
+using MeowChan.PluginHost.Http;
+using SkiaSharp;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
 /// <summary>
 /// F13a and F13 stage 1: the inline Danbooru gallery (third result view), the cursor of the list and the grid, and the progressive loading of
-/// the open post's sample. Fixtures only: fake ports, no provider request, no window.
+/// the open post's sample. The window tests use the scoped headless platform and fake provider ports.
 /// </summary>
 [Collection("Localization")]
 public sealed class BooruGalleryInlineTests
@@ -79,7 +82,9 @@ public sealed class BooruGalleryInlineTests
     public void TheGalleryShowsThePreviewAtOnceThenTheSampleAndLeavingAPostCancelsItsSample() => OnDispatcher(async () =>
     {
         {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
             BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+            using WindowScope window = new(view);
             using (model) using (view)
             {
                 bool secondCanceled = false;
@@ -158,7 +163,9 @@ public sealed class BooruGalleryInlineTests
     public void ASampleThatCannotBeLoadedLeavesThePreviewAndSaysWhy() => OnDispatcher(async () =>
     {
         {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
             BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+            using WindowScope window = new(view);
             using (model) using (view)
             {
                 harness.Previews.OnSample = (_, _) => Task.FromResult<byte[]?>(null); // refused by the limit or not delivered
@@ -173,6 +180,224 @@ public sealed class BooruGalleryInlineTests
             }
         }
     });
+
+    [Fact]
+    public void TheProjectionDiscardsOnlyDisplayUrisEqualToTheOriginal()
+    {
+        Uri original = new("https://cdn.donmai.us/original/a.jpg");
+        Uri alias = new("https://CDN.DONMAI.US:443/original/a.jpg");
+        Uri distinct = new("https://cdn.donmai.us/original/A.jpg");
+        var post = BooruUiFixtures.Post("9").Post;
+        BooruPostView projected = BooruPostView.From(post with
+        {
+            Media = [new(BooruMediaRole.Original, original), new(BooruMediaRole.Preview, alias), new(BooruMediaRole.Sample, alias)]
+        });
+        Assert.Null(projected.PreviewUrl);
+        Assert.Null(projected.SampleUrl);
+        Assert.Equal(original, projected.Original!.Url);
+        Assert.Equal(distinct, BooruPostView.From(post with
+        {
+            Media = [new(BooruMediaRole.Original, original), new(BooruMediaRole.Sample, distinct)]
+        }).SampleUrl);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ViewerClosesSafelyWhenItsSearchHasNoRows(bool openBlankTab) => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope window = new(view))
+        {
+            await SearchAsync(harness, model, view);
+            Assert.True(view.OpenGallery("102"));
+            Assert.True(view.OpenResultViewer("102"));
+            var popup = Assert.IsType<BooruResultViewerWindow>(typeof(BooruWorkbenchView).GetField("_resultViewer", Private)!.GetValue(view));
+            if (openBlankTab) view.SearchTabs.Add(copyCurrent: false);
+            else
+            {
+                harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true)));
+                await BooruTestSupport.SearchAsync(model.Search, "dog");
+            }
+            await BooruTestSupport.WaitAsync(() => !popup.IsVisible && view.Gallery.CurrentPostId is null, "the empty gallery and closed popup");
+            Assert.Empty(model.Search.View.Rows);
+        }
+    });
+
+    [Fact]
+    public void WatchersCancelDelayedSamplesAndAHiddenShellPageCancelsAnActiveSample() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        Border shellHost = new() { Child = view };
+        using (model)
+        using (view)
+        using (WindowScope window = new(shellHost))
+        {
+            TaskCompletionSource canceled = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            harness.Previews.OnSample = async (_, token) =>
+            {
+                try { await Task.Delay(Timeout.InfiniteTimeSpan, token); }
+                finally { canceled.TrySetResult(); }
+                return null;
+            };
+            await SearchAsync(harness, model, view);
+            TabControl tabs = ControlField<TabControl>(view, "_tabs");
+            view.Gallery.SampleDelay = TimeSpan.FromMilliseconds(150);
+            Assert.True(view.OpenGallery("101"));
+            await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Loading, "the pending sample delay");
+            tabs.SelectedItem = ControlField<TabItem>(view, "_watchersTab");
+            await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Deferred, "the canceled sample delay");
+            await Task.Delay(200);
+            Assert.Empty(harness.Previews.SampleRequests);
+
+            view.Gallery.SampleDelay = TimeSpan.Zero;
+            tabs.SelectedItem = ControlField<TabItem>(view, "_searchTab");
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 1, "a sample after returning to Search");
+            shellHost.IsVisible = false;
+            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            shellHost.IsVisible = true;
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 2, "a sample after returning to the shell page");
+            Assert.Equal(new[] { "101", "101" }, harness.Previews.SampleRequests);
+        }
+    });
+
+    [Fact]
+    public void RestoringTabsInGalleryUsesTheSnapshotAndDoesNotRequestASample() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope window = new(view))
+        {
+            await SearchAsync(harness, model, view);
+            Assert.True(view.OpenGallery("101"));
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 1, "the initial gallery sample");
+            int previews = harness.Previews.Requests;
+            int searches = harness.Search.Requests;
+            int tab = view.SearchTabs.Add(copyCurrent: true);
+            await BooruTestSupport.WaitAsync(() => view.Gallery.CurrentPostId == "101", "the copied gallery");
+            view.SearchTabs.Select(BooruSearchTabs.PrimaryId);
+            view.SearchTabs.Select(tab);
+            await BooruTestSupport.WaitAsync(() => view.Gallery.CurrentPostId == "101", "the restored gallery");
+            Assert.Equal(BooruGalleryPicture.Preview, view.Gallery.Picture);
+            Assert.Single(harness.Previews.SampleRequests);
+            Assert.Equal(previews, harness.Previews.Requests);
+            Assert.Equal(searches, harness.Search.Requests);
+        }
+    });
+
+    [Fact]
+    public void DownloadAllCanBeStoppedOnlyInTheTabThatStartedItEvenForTheSameQuery() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        {
+            await SearchAsync(harness, model, view);
+            harness.Search.OnSearch = async (_, _, token) =>
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                throw new InvalidOperationException();
+            };
+            Button button = ControlField<Button>(view, "_downloadAll");
+            Border status = ControlField<Border>(view, "_bulkHost");
+            Task bulk = model.Search.DownloadAllAsync();
+            await BooruTestSupport.WaitAsync(() => status.IsVisible && button.IsEnabled, "the original tab's cancel button");
+            view.SearchTabs.Add(copyCurrent: true);
+            await BooruTestSupport.WaitAsync(() => !status.IsVisible && !button.IsEnabled, "the copy's disabled download button");
+            Assert.Equal(Texts.T("booru.bulk.button"), button.Content);
+            model.Search.CancelBulk();
+            Assert.False(bulk.IsCompleted);
+
+            view.SearchTabs.Select(BooruSearchTabs.PrimaryId);
+            await BooruTestSupport.WaitAsync(() => status.IsVisible && button.IsEnabled, "the restored cancel button");
+            Assert.Equal(Texts.T("booru.bulk.stop"), button.Content);
+            model.Search.CancelBulk();
+            await bulk.WaitAsync(TimeSpan.FromSeconds(5));
+            Assert.Equal(BooruBulkEnd.Canceled, model.Search.Bulk.End);
+        }
+    });
+
+    [Fact]
+    public void TheGalleryKeepsItsPreviewAndReportsThePixelLimitAndResponseDeadline() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope window = new(view))
+        {
+            using SKBitmap bitmap = new(1024, 1024);
+            using SKImage image = SKImage.FromBitmap(bitmap);
+            using SKData png = image.Encode(SKEncodedImageFormat.Png, 100);
+            byte[] bytes = png.ToArray();
+            view.Gallery.Decoder = null;
+            view.GalleryMaximumPixels = () => 1_000_000;
+            view.GalleryMaximumWidth = () => 300;
+            view.GalleryTimeoutSeconds = () => 3;
+            harness.Previews.SampleResult = timeout =>
+            {
+                Assert.Equal(TimeSpan.FromSeconds(3), timeout);
+                return new(bytes);
+            };
+
+            await SearchAsync(harness, model, view);
+            view.OpenGallery("101");
+            await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.PixelLimit, "the pixel limit");
+            Assert.Equal(BooruGalleryPicture.Preview, view.Gallery.Picture);
+            Assert.Contains(Texts.T("booru.gallery.sample.pixelLimit", 1_000_000), view.Gallery.StatusText);
+
+            view.GalleryMaximumPixels = () => 2_000_000;
+            view.OpenGallery("102");
+            await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Shown, "the accepted sample");
+            Assert.Equal(300, Assert.IsAssignableFrom<Avalonia.Media.IImage>(ControlField<Image>(view.Gallery, "_image").Source).Size.Width);
+
+            harness.Previews.SampleResult = _ => new BooruSampleResult(null, TimedOut: true);
+            view.OpenGallery("101");
+            await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.TimedOut, "the response timeout");
+            Assert.Equal(BooruGalleryPicture.Preview, view.Gallery.Picture);
+            Assert.Contains(Texts.T("booru.gallery.sample.timeout", 3), view.Gallery.StatusText);
+        }
+    });
+
+    [Fact]
+    public void TheGallerySelectionUsesTheLocalizedSpaceKeyName() => OnDispatcher(async () =>
+    {
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        {
+            await SearchAsync(harness, model, view);
+            Texts.SetLanguage("de");
+            Assert.True(view.OpenGallery("101"));
+            Assert.EndsWith(" · Leertaste", Assert.IsType<string>(view.Gallery.SelectBox.Content));
+            Texts.SetLanguage("ja");
+            view.OpenGallery("102");
+            Assert.EndsWith(" · " + Texts.Own("key.space"), Assert.IsType<string>(view.Gallery.SelectBox.Content));
+        }
+    });
+
+    private static T ControlField<T>(Control owner, string name) where T : Control =>
+        Assert.IsType<T>(owner.GetType().GetField(name, Private)!.GetValue(owner));
+
+    private sealed class WindowScope : IDisposable
+    {
+        private readonly Window _window;
+
+        internal WindowScope(Control content)
+        {
+            _window = new Window { Content = content, Width = 1100, Height = 800 };
+            _window.Show();
+            Dispatcher.UIThread.RunJobs();
+        }
+
+        public void Dispose() => _window.Close();
+    }
 
     [Fact]
     public void SpaceMarksTheFocusedHitAndTheCursorFollowsFocusAndIsDrawnOnEveryView() => OnDispatcher(async () =>
@@ -261,36 +486,25 @@ public sealed class BooruGalleryInlineTests
         return Cards(view);
     }
 
-    private static void OnDispatcher(Func<Task> test)
+    private static void OnDispatcher(Func<Task> test) => BooruComponentDispatcher.Run(() =>
     {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previousDispatcher = primary.GetValue(null);
         SynchronizationContext? previousContext = SynchronizationContext.Current;
-        string language = Texts.Language;
-        Dispatcher owner = Dispatcher.CurrentDispatcher;
+        Dispatcher owner = Dispatcher.UIThread;
         try
         {
-            primary.SetValue(null, owner);
             SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
-            Texts.Initialize();
-            Texts.SetLanguage("en");
             Task pending = test();
             DateTime deadline = DateTime.UtcNow.AddSeconds(10);
             while (!pending.IsCompleted)
             {
                 owner.RunJobs();
-                if (DateTime.UtcNow >= deadline) throw new TimeoutException("Booru tile test dispatcher did not finish.");
+                if (DateTime.UtcNow >= deadline) throw new TimeoutException("The Booru gallery test dispatcher did not finish.");
                 if (!pending.IsCompleted) Thread.Sleep(1);
             }
             pending.GetAwaiter().GetResult();
         }
-        finally
-        {
-            Texts.SetLanguage(language);
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-            primary.SetValue(null, previousDispatcher);
-        }
-    }
+        finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
+    });
 
     private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
     {

@@ -58,7 +58,7 @@ namespace MeowChan
     internal enum SettingsLoadProblem { None, RecoveredFromBackup, DefaultsInUse }
     internal enum ProfileOrigin { Unbound, ConfirmedNew, ExistingValid, BackupRecovery, ExistingMissingSettings, Damaged, Unsupported }
 
-    public class Config : IJsonOnDeserializing, IJsonOnDeserialized
+    public partial class Config : IJsonOnDeserializing, IJsonOnDeserialized
     {
         private string? _profileDirectory;
         private ProfileLease? _writeLease;
@@ -1699,6 +1699,7 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruGallerySampleMiB), "BooruGallerySampleMiB is outside its supported range (" + BooruGallerySampleMiBMinimum + " to " + BooruGallerySampleMiBMaximum + ").");
             if (BooruGalleryCacheMiB is < BooruGalleryCacheMiBMinimum or > BooruGalleryCacheMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruGalleryCacheMiB), "BooruGalleryCacheMiB is outside its supported range (" + BooruGalleryCacheMiBMinimum + " to " + BooruGalleryCacheMiBMaximum + ").");
+            ValidateBooruGalleryLimits();
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
@@ -1964,6 +1965,9 @@ namespace MeowChan
                 BooruSearchTabs = BooruSearchTabs,
                 BooruGallerySampleMiB = BooruGallerySampleMiB,
                 BooruGalleryCacheMiB = BooruGalleryCacheMiB,
+                BooruGalleryMaximumPixels = BooruGalleryMaximumPixels,
+                BooruGalleryMaximumWidth = BooruGalleryMaximumWidth,
+                BooruGalleryTimeoutSeconds = BooruGalleryTimeoutSeconds,
                 MediaPanelMinimumPageWidth = MediaPanelMinimumPageWidth,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
@@ -2243,6 +2247,7 @@ namespace MeowChan
             BooruSearchTabs = source.BooruSearchTabs;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
+            CopyBooruGalleryLimitsFrom(source);
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
@@ -2476,6 +2481,7 @@ namespace MeowChan
             BooruSearchTabs = source.BooruSearchTabs;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
+            CopyBooruGalleryLimitsFrom(source);
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;

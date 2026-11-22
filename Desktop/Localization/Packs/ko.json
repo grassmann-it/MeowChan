@@ -5192,6 +5192,7 @@
     "booru.bulk.stop": "수집 중지",
     "booru.bulk.hint": "표시된 검색의 기존 결과를 가져와 각 원본을 대기열에 넣습니다. 출처의 페이지 한도({0}페이지 × {1}개)까지입니다. 감시는 새 게시물만 가져옵니다.",
     "booru.bulk.needsSearch": "먼저 태그 검색을 실행하세요. 표시된 검색의 결과를 가져옵니다.",
+    "booru.bulk.otherTab": "“{0}”의 결과를 수집하고 있습니다. 중지하려면 해당 검색 탭을 여세요.",
     "booru.bulk.running": "“{0}” 결과 수집 중: 읽은 페이지 {1}(최대 {2}), 찾은 게시물 {3}, 대기열 {4}.",
     "booru.bulk.result": "“{0}”의 모든 결과: 찾은 게시물 {1}, {2}페이지(최대 {3}페이지). 대기열 {4}, 이미 대기열에 있음 {5}, 이미 저장됨 {6}, 원본 없음 {7}, 실패 {8}.",
     "booru.bulk.endLimit": "출처의 페이지 한도에 도달했습니다. 검색에는 나열할 수 없는 결과가 더 있을 수 있습니다.",
@@ -5211,6 +5212,14 @@
     "settings.limits.booruGallerySampleMiB": "Danbooru 갤러리: 가장 큰 이미지 (MiB)",
     "settings.limits.booruGallerySampleMiB.hint": "갤러리가 표시용으로 불러오는 가장 큰 축소 이미지입니다. 이보다 큰 이미지는 불러오지 않고 미리보기가 유지됩니다. 원본은 표시용으로 절대 불러오지 않습니다.",
     "settings.limits.booruGalleryCacheMiB": "Danbooru 갤러리: 이미지 메모리 (MiB)",
-    "settings.limits.booruGalleryCacheMiB.hint": "뒤로 넘길 때 다시 불러오지 않도록 메모리에 보관하는 갤러리 이미지의 용량(MiB)입니다. 디스크에는 아무것도 저장되지 않습니다."
+    "settings.limits.booruGalleryCacheMiB.hint": "뒤로 넘길 때 다시 불러오지 않도록 메모리에 보관하는 갤러리 이미지의 용량(MiB)입니다. 디스크에는 아무것도 저장되지 않습니다.",
+    "booru.gallery.sample.pixelLimit": "더 큰 버전이 {0:N0}픽셀 제한을 초과합니다. 미리보기가 그대로 유지됩니다.",
+    "booru.gallery.sample.timeout": "더 큰 버전을 {0}초 안에 받지 못했습니다. 미리보기가 그대로 유지됩니다.",
+    "settings.limits.booruGalleryMaximumPixels": "Danbooru 갤러리: 이미지 픽셀 수 제한",
+    "settings.limits.booruGalleryMaximumPixels.hint": "디코딩 전 축소 이미지에 허용되는 최대 전체 픽셀 수입니다.",
+    "settings.limits.booruGalleryMaximumWidth": "Danbooru 갤러리: 디코딩된 이미지 너비(px)",
+    "settings.limits.booruGalleryMaximumWidth.hint": "이보다 넓은 축소 이미지는 갤러리에서 이 너비로 줄입니다.",
+    "settings.limits.booruGalleryTimeoutSeconds": "Danbooru 갤러리: 응답 제한 시간(초)",
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "갤러리가 소스에서 축소 이미지를 받을 때까지 기다리는 시간입니다."
   }
 }

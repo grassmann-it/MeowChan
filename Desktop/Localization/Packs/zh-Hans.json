@@ -5192,6 +5192,7 @@
     "booru.bulk.stop": "停止收集",
     "booru.bulk.hint": "获取当前搜索的现有结果，并把每个原图加入队列，最多到来源的页数上限（{0} 页，每页 {1} 个帖子）。监视只获取新帖子。",
     "booru.bulk.needsSearch": "请先执行标签搜索；获取的是当前显示的搜索结果。",
+    "booru.bulk.otherTab": "正在收集“{0}”的结果。打开对应的搜索标签页即可停止收集。",
     "booru.bulk.running": "正在收集“{0}”的结果：已读页数 {1}（最多 {2}），找到帖子 {3}，已入队 {4}。",
     "booru.bulk.result": "“{0}”的全部：找到帖子 {1}，共 {2} 页（最多 {3} 页）。已入队 {4}，已在队列 {5}，已保存 {6}，无原图 {7}，失败 {8}。",
     "booru.bulk.endLimit": "已达到来源的页数上限；该搜索可能还有无法列出的结果。",
@@ -5211,6 +5212,14 @@
     "settings.limits.booruGallerySampleMiB": "Danbooru 图库：最大图片（MiB）",
     "settings.limits.booruGallerySampleMiB.hint": "图库为显示而加载的最大缩小版图片。更大的不会加载，保留预览。绝不会为显示而加载原图。",
     "settings.limits.booruGalleryCacheMiB": "Danbooru 图库：图片内存（MiB）",
-    "settings.limits.booruGalleryCacheMiB.hint": "图库已加载的图片在内存中保留多少 MiB，这样往回翻页时无需再次加载。不会在磁盘上保存任何内容。"
+    "settings.limits.booruGalleryCacheMiB.hint": "图库已加载的图片在内存中保留多少 MiB，这样往回翻页时无需再次加载。不会在磁盘上保存任何内容。",
+    "booru.gallery.sample.pixelLimit": "更大的版本超过 {0:N0} 像素的上限，继续显示预览。",
+    "booru.gallery.sample.timeout": "未能在 {0} 秒内收到更大的版本，继续显示预览。",
+    "settings.limits.booruGalleryMaximumPixels": "Danbooru 图库：图像总像素上限",
+    "settings.limits.booruGalleryMaximumPixels.hint": "缩小版图像在解码前允许的最大总像素数。",
+    "settings.limits.booruGalleryMaximumWidth": "Danbooru 图库：解码图像宽度（像素）",
+    "settings.limits.booruGalleryMaximumWidth.hint": "图库会将超过此宽度的缩小版图像缩放至该宽度。",
+    "settings.limits.booruGalleryTimeoutSeconds": "Danbooru 图库：响应超时（秒）",
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "图库等待来源返回缩小版图像的最长时间。"
   }
 }

@@ -1662,6 +1662,42 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruGalleryMaximumPixelsFieldLabel" Text="{Binding BooruGalleryMaximumPixelsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruGalleryMaximumPixelsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruGalleryMaximumPixelsInput" Value="{Binding BooruGalleryMaximumPixels, Mode=TwoWay}" Minimum="{Binding BooruGalleryMaximumPixelsMinimum}" Maximum="{Binding BooruGalleryMaximumPixelsMaximum}" Increment="1000000" AutomationProperties.LabeledBy="{Binding ElementName=BooruGalleryMaximumPixelsFieldLabel}" AutomationProperties.Name="{Binding BooruGalleryMaximumPixelsLabel}" AutomationProperties.HelpText="{Binding BooruGalleryMaximumPixelsHelp}" />
+                                <TextBlock x:Name="BooruGalleryMaximumPixelsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruGalleryMaximumWidthFieldLabel" Text="{Binding BooruGalleryMaximumWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruGalleryMaximumWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruGalleryMaximumWidthInput" Value="{Binding BooruGalleryMaximumWidth, Mode=TwoWay}" Minimum="{Binding BooruGalleryMaximumWidthMinimum}" Maximum="{Binding BooruGalleryMaximumWidthMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruGalleryMaximumWidthFieldLabel}" AutomationProperties.Name="{Binding BooruGalleryMaximumWidthLabel}" AutomationProperties.HelpText="{Binding BooruGalleryMaximumWidthHelp}" />
+                                <TextBlock x:Name="BooruGalleryMaximumWidthInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruGalleryTimeoutSecondsFieldLabel" Text="{Binding BooruGalleryTimeoutSecondsLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruGalleryTimeoutSecondsHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruGalleryTimeoutSecondsInput" Value="{Binding BooruGalleryTimeoutSeconds, Mode=TwoWay}" Minimum="{Binding BooruGalleryTimeoutSecondsMinimum}" Maximum="{Binding BooruGalleryTimeoutSecondsMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruGalleryTimeoutSecondsFieldLabel}" AutomationProperties.Name="{Binding BooruGalleryTimeoutSecondsLabel}" AutomationProperties.HelpText="{Binding BooruGalleryTimeoutSecondsHelp}" />
+                                <TextBlock x:Name="BooruGalleryTimeoutSecondsInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <TextBlock x:Name="MediaTagListWidthFieldLabel" Text="{Binding MediaTagListWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding MediaTagListWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>

@@ -179,6 +179,7 @@ public partial class SettingsEditor
         NotifyStatisticsHelpChanged();
         NotifyReaderHelpChanged();
         NotifyTagQueueHelpChanged();
+        NotifyBooruGalleryHelpChanged();
         NotifyViewerHelpChanged();
         NotifyQuickTagHelpChanged();
         NotifyLimitsHelpChanged();
@@ -301,6 +302,7 @@ public partial class SettingsEditor
         foreach (var field in StatisticsNumericFields()) yield return field;
         foreach (var field in ReaderNumericFields()) yield return field;
         foreach (var field in TagQueueNumericFields()) yield return field;
+        foreach (var field in BooruGalleryNumericFields()) yield return field;
         foreach (var field in ViewerNumericFields()) yield return field;
         foreach (var field in HeaderTaglineNumericFields()) yield return field;
         foreach (var field in QuickTagNumericFields()) yield return field;

@@ -8,6 +8,8 @@ namespace MeowChan;
 // names, tooltips, shortcuts and the stage rules of MediaToolbarLayout stay as they are.
 public sealed partial class MediaPage
 {
+    private readonly MediaToolbarLabels.SidebarContent _tagsLabelContent = new();
+    private readonly MediaToolbarLabels.SidebarContent _mediaLabelContent = new();
     private double _labelRowWidth;
     private bool _filterLabelShown = true, _sidebarLabelsShown;
     private string? _labelsKey;
@@ -37,7 +39,7 @@ public sealed partial class MediaPage
         string key = (_sidebarLabelsShown ? "1" : "0") + _layout.PanelSide + _layout.TagListSide;
         if (!force && key == _labelsKey) return;
         _labelsKey = key;
-        MediaToolbarLabels.Apply(_booruMode, _sidebarLabelsShown, Texts.T("media.toolbar.tagsLabel"), _layout.TagListSide == MediaTagListSide.Right);
-        MediaToolbarLabels.Apply(_panelToggle, _sidebarLabelsShown, Texts.T("media.toolbar.mediaLabel"), _layout.PanelSide == MediaPanelSide.Right);
+        _tagsLabelContent.Apply(_booruMode, _sidebarLabelsShown, Texts.T("media.toolbar.tagsLabel"), _layout.TagListSide == MediaTagListSide.Right);
+        _mediaLabelContent.Apply(_panelToggle, _sidebarLabelsShown, Texts.T("media.toolbar.mediaLabel"), _layout.PanelSide == MediaPanelSide.Right);
     }
 }

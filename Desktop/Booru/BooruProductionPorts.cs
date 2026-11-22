@@ -533,22 +533,23 @@ internal sealed class BooruHostPreviewPort : IBooruPreviewPort, IBooruSamplePort
     }
 
     /// <summary>The sample of <paramref name="post"/> through the same gate and host rules as the preview; null when it has none or it was refused.</summary>
-    public async Task<byte[]?> LoadSampleAsync(BooruPostView post, int maximumBytes, long cacheBytes, CancellationToken cancellationToken)
+    public async Task<BooruSampleResult> LoadSampleAsync(BooruPostView post, int maximumBytes, long cacheBytes, TimeSpan responseTimeout,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (post is null || post.SampleUrl is null || !string.Equals(post.SourceId, _sourceId, StringComparison.Ordinal))
-            return null;
+            return default;
         using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
-        if (operation == null) return null;
+        if (operation == null) return default;
         try
         {
-            if (!operation.TryStart(() => _http().LoadSampleAsync(post.SampleUrl, maximumBytes, cacheBytes, operation.Token), out Task<byte[]?> pending))
-                return null;
-            byte[]? bytes = await pending.ConfigureAwait(false);
-            return operation.IsCurrent ? bytes : null;
+            if (!operation.TryStart(() => _http().LoadSampleAsync(post.SampleUrl, maximumBytes, cacheBytes, responseTimeout,
+                operation.Token), out Task<BooruSampleResult> pending)) return default;
+            BooruSampleResult result = await pending.ConfigureAwait(false);
+            return operation.IsCurrent ? result : default;
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && !operation.IsCurrent)
-        { return null; }
+        { return default; }
     }
 }
 

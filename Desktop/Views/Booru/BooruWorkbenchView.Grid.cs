@@ -189,7 +189,11 @@ internal sealed partial class BooruWorkbenchView
         if (focused is null && focus && _resultView == BooruResultView.Gallery && _cursorPostId is { } leaving) focused = "BooruResult:" + leaving;
         _resultView = view;
         Render(force: true);
-        if (save) SaveResultView?.Invoke(view);
+        if (save)
+        {
+            SaveResultView?.Invoke(view);
+            if (view == BooruResultView.Gallery) ShowInGallery(_model.Search.View, requestSample: true);
+        }
         if (focused is not null) FocusHit(focused["BooruResult:".Length..]);
         else if (view == BooruResultView.Gallery && _results.IsKeyboardFocusWithin) FocusGalleryStage();
     }
