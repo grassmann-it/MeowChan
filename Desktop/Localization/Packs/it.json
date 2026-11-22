@@ -4673,6 +4673,7 @@
     "command.tagging.clear": "Svuota la coda…",
     "tagging.page.title": "Tagging",
     "tagging.page.progress": "Da fare: {0} · Completate: {1} · Saltate: {2}",
+    "tagging.page.progress.count": "{0} di {1}",
     "tagging.page.progress.done": "{0} di {1} completate",
     "tagging.page.filter.untagged": "Senza tag",
     "tagging.page.tags.unknown": "sconosciuto",

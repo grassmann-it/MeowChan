@@ -4709,6 +4709,7 @@
     "command.tagging.clear": "Vyprázdnit frontu…",
     "tagging.page.title": "Štítkování",
     "tagging.page.progress": "Otevřené: {0} · Hotové: {1} · Přeskočené: {2}",
+    "tagging.page.progress.count": "{0} z {1}",
     "tagging.page.progress.done": "{0} z {1} hotovo",
     "tagging.page.filter.untagged": "Bez štítků",
     "tagging.page.tags.unknown": "neznámé",

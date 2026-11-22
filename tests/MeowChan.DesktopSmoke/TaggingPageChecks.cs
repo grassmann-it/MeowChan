@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.VisualTree;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -56,7 +57,7 @@ internal static class TaggingPageChecks
                 && page.Rows.Count == 3, () => "page " + window.SelectedPage + ", rows " + window.TaggingPage?.Rows.Count);
             TaggingPage tagging = window.TaggingPage!;
             await SettleAsync(window);
-            Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress", 3, 0, 0), "Progress: " + tagging.ProgressText.Text);
+            CheckProgress(tagging, open: 3, finished: 0);
             await Program.WaitUntilAsync(() => tagging.StartButton.IsEffectivelyEnabled
                 && Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) == Texts.T("command.tagging.start"),
                 () => "start enabled=" + tagging.StartButton.IsEffectivelyEnabled + ", name='"
@@ -200,6 +201,10 @@ internal static class TaggingPageChecks
 
             // Stamp (wave3 glue e224cd02): Enter in the field adds the name to the window's shared stamp, which is saved in the settings
             // (Config.TagStamp) and shown by the page; the stamp field of tag-queue.json stays unused.
+            Require(!tagging.StampOpen, "The stamp editor did not start collapsed.");
+            ToggleStamp(tagging.StampToggle);
+            await SettleAsync(window);
+            Require(tagging.StampOpen, "The stamp disclosure did not open the editor.");
             tagging.StampInput.Text = "surface";
             tagging.StampInput.Focus();
             Press(tagging.StampInput, Key.Enter);
@@ -208,11 +213,14 @@ internal static class TaggingPageChecks
                 () => "stamp " + string.Join(",", window.QuickTagStampSet.ToNames()) + ", saved " + string.Join(",", window.SessionHost.Config.TagStamp)
                     + ", chips " + tagging.StampChips.Children.Count + ", input '" + tagging.StampInput.Text + "' enabled " + tagging.StampInput.IsEnabled + ", status " + tagging.StatusText.Text);
             Require(window.SessionHost.GetTagQueue()!.Stamp.Count == 0, "The stamp must not be written into tag-queue.json any more.");
+            ToggleStamp(tagging.StampToggle);
+            await SettleAsync(window);
+            Require(!tagging.StampOpen, "The stamp disclosure did not close the editor.");
 
             // Mark one finished, filter by state, then the work views.
             SelectOnly(tagging, tagging.Rows[0]);
             await tagging.ExecuteRowCommandAsync("tagging.mark-done");
-            Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress", 1, 1, 0), "Progress after a decision: " + tagging.ProgressText.Text);
+            CheckProgress(tagging, open: 1, finished: 1);
             tagging.Filter = TaggingQueueFilter.Skipped;
             await SettleAsync(window);
             Require(tagging.Rows.Count == 0, "The Skipped filter still lists entries.");
@@ -227,11 +235,14 @@ internal static class TaggingPageChecks
             await SetThemeAsync(window, "Dark");
             await FooterNavigationChecks.PersistLanguageAsync(window, "de");
             await ReopenAsync(window, tagging);
-            Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress", 1, 1, 0), "German progress: " + tagging.ProgressText.Text);
+            CheckProgress(tagging, open: 1, finished: 1);
             Program.CaptureWindow(window, "smoke-tagging-page-dark-de.png");
+            await CheckHeaderWidthAsync(window, tagging);
             await SetThemeAsync(window, "Light");
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
             await ReopenAsync(window, tagging);
+            CheckSegments(tagging, labelsVisible: true);
+            Program.CaptureWindow(window, "smoke-tagging-page-wide-en.png");
 
             // Start: PT1's walk; the synthetic entries have no saved files, so the gallery does not open.
             await tagging.StartAsync(null);
@@ -253,6 +264,63 @@ internal static class TaggingPageChecks
         {
             await PresentationChecks.SwitchModeAsync(window, mode);
             await FooterNavigationChecks.PersistLanguageAsync(window, language);
+        }
+    }
+
+    private static void CheckProgress(TaggingPage tagging, int open, int finished)
+    {
+        Require(tagging.ProgressText.Text == Texts.T("tagging.page.progress.count", finished, open + finished), "Progress: " + tagging.ProgressText.Text);
+        Require(Equals(ToolTip.GetTip(tagging.ProgressText), Texts.T("tagging.page.progress", open, finished, 0)), "Missing progress breakdown.");
+    }
+
+    private static async Task CheckHeaderWidthAsync(MainWindow window, TaggingPage tagging)
+    {
+        TaggingViewMode mode = tagging.ViewMode;
+        CheckSegments(tagging, labelsVisible: true);
+        ProgressBar bar = tagging.GetVisualDescendants().OfType<ProgressBar>().Single(control => control.Name == "TaggingProgressBar");
+        Require(Math.Abs(bar.Bounds.Width - TaggingPage.MiniBarWidth) <= 1, "The theme widened the compact progress bar.");
+        double originalWidth = window.Width;
+        double originalMaxWidth = tagging.MaxWidth;
+        try
+        {
+            window.Width = window.MinWidth;
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - window.MinWidth) <= 1);
+            await SettleAsync(window);
+            CheckSegments(tagging, labelsVisible: false);
+            Program.CaptureWindow(window, "smoke-tagging-page-narrow-de.png");
+
+            tagging.MaxWidth = 560;
+            await SettleAsync(window);
+            CheckSegments(tagging, labelsVisible: false);
+            Require(tagging.ViewToggle.TranslatePoint(default, tagging.ListControls) is { } offset
+                && Math.Abs(tagging.ListControls.Bounds.Width - (offset.X + tagging.ViewToggle.Bounds.Width)) <= 1,
+                "The wrapped view switch is not aligned with the right edge.");
+            Require(tagging.ViewMode == mode && Config.LoadConfig().TaggingPageView == mode.ToString(), "Resizing changed the saved view.");
+            Console.WriteLine($"SMOKE tagging header: icon-only at {tagging.ListControls.Bounds.Width} DIP of toolbar space.");
+        }
+        finally
+        {
+            tagging.MaxWidth = originalMaxWidth;
+            window.Width = originalWidth;
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - originalWidth) <= 1);
+            await SettleAsync(window);
+        }
+        CheckSegments(tagging, labelsVisible: true);
+        Console.WriteLine($"SMOKE tagging header: labelled at {tagging.ListControls.Bounds.Width} DIP of toolbar space.");
+    }
+
+    private static void CheckSegments(TaggingPage tagging, bool labelsVisible)
+    {
+        CheckSegment(tagging.ViewToggle.First, "tagging.page.view.list");
+        CheckSegment(tagging.ViewToggle.Second, "tagging.page.view.grid");
+
+        void CheckSegment(ToggleButton segment, string key)
+        {
+            string name = Texts.T(key);
+            Require(segment.IsEffectivelyVisible && AutomationProperties.GetName(segment) == name
+                && Equals(ToolTip.GetTip(segment), Texts.T(key + ".hint")), "Missing view segment semantics for " + name);
+            Require(segment.Content is StackPanel visual && visual.Children.OfType<TextBlock>().Single() is { } label
+                && label.Text == name && label.IsEffectivelyVisible == labelsVisible, "Wrong label presentation for " + name);
         }
     }
 
@@ -447,6 +515,13 @@ internal static class TaggingPageChecks
 
     private static void Press(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
         target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+
+    private static void ToggleStamp(ToggleButton toggle)
+    {
+        toggle.Focus();
+        Press(toggle, Key.Space);
+        toggle.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space });
+    }
 
     private static async Task SetThemeAsync(MainWindow window, string theme)
     {

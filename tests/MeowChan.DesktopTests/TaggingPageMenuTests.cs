@@ -221,11 +221,8 @@ public sealed class TaggingPageMenuTests : IDisposable
         Assert.Equal("Closed", copy.TaggingStampBlock);
         Assert.Equal("List", new Config { TaggingPageView = "??" }.TaggingPageView);
         Assert.Equal("Auto", new Config().TaggingStampBlock);
-        // Never chosen: open, except in the compact work view; a choice wins over the view.
-        Assert.True(TaggingStampBlocks.IsOpen(TaggingStampBlockState.Auto, compactView: false));
-        Assert.False(TaggingStampBlocks.IsOpen(TaggingStampBlockState.Auto, compactView: true));
-        Assert.True(TaggingStampBlocks.IsOpen(TaggingStampBlockState.Open, compactView: true));
-        Assert.False(TaggingStampBlocks.IsOpen(TaggingStampBlockState.Closed, compactView: false));
+        Assert.Equal(TaggingStampBlockState.Auto, TaggingStampBlocks.Parse("??"));
+        Assert.Equal(TaggingStampBlockState.Open, TaggingStampBlocks.Parse(" open "));
     }
 
     [Fact]

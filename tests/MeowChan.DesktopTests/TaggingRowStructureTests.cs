@@ -51,22 +51,20 @@ public sealed class TaggingRowStructureTests
         Assert.Equal(2, root.RowDefinitions.Count);
         Assert.Equal(2, root.Children.Count);
         StackPanel sections = Find<StackPanel>(page, "TaggingSections");
-        Assert.Equal(new[] { "TaggingHeading", "TaggingError", "TaggingQueueControls", "TaggingStamp" }, sections.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingQueueControls", "TaggingError", "TaggingStamp" }, sections.Children.Select(c => c.Name));
         StackPanel queue = Find<StackPanel>(page, "TaggingQueueControls");
         Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingStatus", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
         TaggingControlRow actions = Find<TaggingControlRow>(page, "TaggingQueueActionRow");
-        Assert.Equal(new[] { "TaggingActions" }, actions.Children.Select(c => c.Name));
-        // TQ2: the progress stands beside Start, in the same line of the same group.
-        Assert.Equal(new[] { "TaggingStart", "TaggingProgress" }, Find<StackPanel>(page, "TaggingStartLine").Children.Select(c => c.Name));
-        Assert.Equal(new[] { "TaggingProgressText", "TaggingProgressMeter" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
-        Assert.Equal(new[] { "TaggingProgressBar", "TaggingPercent" }, Find<WrapPanel>(page, "TaggingProgressMeter").Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingTitle", "TaggingStart", "TaggingProgress", "TaggingActions" }, actions.Children.Select(c => c.Name));
+        Assert.Same(page.Actions, actions.TrailingChild);
+        Assert.Equal(new[] { "TaggingProgressMeter", "TaggingLastShown" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, Find<WrapPanel>(page, "TaggingProgressMeter").Children.Select(c => c.Name));
         Assert.Contains(page.ProgressText, ((ILogical)actions).GetLogicalDescendants());
         Assert.Contains(Find<ProgressBar>(page, "TaggingProgressBar"), ((ILogical)actions).GetLogicalDescendants());
-        Assert.Contains(Find<TextBlock>(page, "TaggingPercent"), ((ILogical)actions).GetLogicalDescendants());
-        Assert.Same(Find<StackPanel>(page, "TaggingStartLine").Parent, page.LastShownContext.Parent);
+        Assert.Equal(1, page.LastShownContext.MaxLines);
         Assert.IsType<TextBlock>(page.LastShownContext); // One continue entry point, not a second link.
-        Assert.Equal(new[] { "TaggingStartContext", "TaggingAdd", "TaggingClearDone", "TaggingClear", "TaggingHelp" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
-        Assert.DoesNotContain(((ILogical)page).GetLogicalDescendants().OfType<Control>(), c => c.Name is "TaggingKeysHint" or "TaggingSecondaryToolbar");
+        Assert.Equal(new[] { "TaggingAdd", "TaggingHelp", "TaggingClearDone", "TaggingClear" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
+        Assert.DoesNotContain(((ILogical)page).GetLogicalDescendants().OfType<Control>(), c => c.Name is "TaggingKeysHint" or "TaggingBrowseHint" or "TaggingSecondaryToolbar");
         Grid listArea = Find<Grid>(page, "TaggingListArea");
         Assert.Equal(new[] { "TaggingListControls", "TaggingSelectionBar", "TaggingListSurface" }, listArea.Children.Select(c => c.Name));
         Assert.Equal(new[] { 0, 1, 2 }, listArea.Children.Select(Grid.GetRow));
@@ -214,6 +212,31 @@ public sealed class TaggingRowStructureTests
         Layout(row, 580);
         Assert.Equal(0, presentation.Bounds.Y); // measured total is now 572.
         Assert.Equal(new Control[] { first, second, presentation }, row.Children);
+    });
+
+    [Fact]
+    public void TheTrailingTaggingControlsCompactBeforeWrappingAndRestoreLabelsWithSpareRoom() => BooruComponentDispatcher.Run(() =>
+    {
+        Border filter = new() { Width = 300, Height = 32 };
+        Border views = new() { Width = 200, Height = 24 };
+        TaggingControlRow row = new() { TrailingChild = views, Children = { filter, views } };
+        row.SetTrailingCompact = compact => views.Width = compact ? 80 : 200;
+
+        Layout(row, 516);
+        Assert.Equal(200, views.Bounds.Width);
+        Assert.Equal(4, views.Bounds.Y);
+        Layout(row, 515);
+        Assert.Equal(80, views.Bounds.Width);
+        Assert.Equal(4, views.Bounds.Y);
+        Layout(row, 531);
+        Assert.Equal(80, views.Bounds.Width);
+        Layout(row, 532);
+        Assert.Equal(200, views.Bounds.Width);
+        Layout(row, 395);
+        Assert.Equal(80, views.Bounds.Width);
+        Assert.Equal(40, views.Bounds.Y);
+        Assert.Equal(395, views.Bounds.Right);
+        Assert.Same(row, views.Parent);
     });
 
     [Fact]

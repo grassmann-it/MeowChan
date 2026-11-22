@@ -173,11 +173,11 @@ public sealed class NarrowContentLayoutTests
                 StackPanel progress = Assert.IsType<StackPanel>(controls.Single(control => control.Name == "TaggingProgress"));
                 WrapPanel meter = Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingProgressMeter"));
                 Assert.Equal(Orientation.Vertical, progress.Orientation);
-                Assert.Equal(new Control[] { page.ProgressText, meter }, progress.Children);
+                Assert.Equal(new Control[] { meter, page.LastShownContext }, progress.Children);
                 Assert.Equal(Avalonia.Media.TextWrapping.Wrap, page.ProgressText.TextWrapping);
-                Assert.Equal(new[] { "TaggingProgressBar", "TaggingPercent" }, meter.Children.Select(control => control.Name));
+                Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, meter.Children.Select(control => control.Name));
                 Assert.Equal(8, meter.ItemSpacing);
-                Assert.Equal(2, meter.LineSpacing);
+                Assert.Equal(4, meter.LineSpacing);
                 meter.Children[1].Width = 60;
                 meter.Children[1].Height = 20;
                 Layout(meter, TaggingPage.MiniBarWidth + 20);

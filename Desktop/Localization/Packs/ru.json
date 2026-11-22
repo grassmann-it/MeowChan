@@ -4687,6 +4687,7 @@
     "command.tagging.clear": "Очистить очередь…",
     "tagging.page.title": "Разметка тегами",
     "tagging.page.progress": "Открыто: {0} · Выполнено: {1} · Пропущено: {2}",
+    "tagging.page.progress.count": "{0} из {1}",
     "tagging.page.progress.done": "{0} из {1} выполнено",
     "tagging.page.filter.untagged": "Без тегов",
     "tagging.page.tags.unknown": "неизвестно",
