@@ -225,7 +225,11 @@ internal sealed partial class BooruWorkbenchView
     internal void ShowWatcherQuery(string query)
     {
         if (_closed) return;
-        ShowQuery(query);
+        if (OpensNewSearchTab)
+        {
+            if (!TryShowQueryInNewTab(query)) return;
+        }
+        else ShowQuery(query);
         // The search tab may not be laid out yet when the tab changes: focus and caret are settled once it is.
         Dispatcher.UIThread.Post(() =>
         {

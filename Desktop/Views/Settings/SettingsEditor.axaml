@@ -1099,6 +1099,17 @@
                             <ToggleSwitch x:Name="MediaFocusHidesHeaderInput" IsChecked="{Binding MediaFocusHidesHeader, Mode=TwoWay}" AutomationProperties.Name="{Binding MediaFocusHidesHeaderLabel}" AutomationProperties.HelpText="{Binding MediaFocusHidesHeaderHint}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=MediaFocusHidesHeaderFieldLabel}" />
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruNewSearchTargetFieldLabel" Text="{Binding BooruNewSearchTargetLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruNewSearchTargetHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <ComboBox x:Name="BooruNewSearchTargetInput" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Stretch" ItemsSource="{Binding BooruSearchTargetChoices}" SelectedItem="{Binding SelectedBooruNewSearchTarget, Mode=TwoWay}" AutomationProperties.LabeledBy="{Binding ElementName=BooruNewSearchTargetFieldLabel}" AutomationProperties.Name="{Binding BooruNewSearchTargetLabel}" AutomationProperties.HelpText="{Binding BooruNewSearchTargetHint}">
+                                <ComboBox.ItemTemplate><DataTemplate x:DataType="local:SettingsChoice"><TextBlock Text="{Binding Label}" /></DataTemplate></ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
                     <TextBlock x:Name="SettingsTaggingHeading" Text="{Binding TaggingGroupLabel}" Classes="workspace-field-label settings-subheading" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">

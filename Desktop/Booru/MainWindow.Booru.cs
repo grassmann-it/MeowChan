@@ -44,25 +44,26 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>
-    /// Puts a checked tag query into the hosted Danbooru page's search field (opening the page like the menu entry does) and
-    /// returns true, or returns false when the page cannot be reached. It only fills the field: nothing is requested until
-    /// the user presses Search there.
-    /// </summary>
-    internal bool UseAsBooruSearch(string query)
+    internal bool UseAsBooruSearch(string query) => OpenBooruSearchDraft(query).Opened;
+
+    private (bool Opened, int? Limit) OpenBooruSearchDraft(string query)
     {
-        if (!CanOpenBooru) return false;
-        if (!NavigateWorkspace(WorkspacePage.Booru)) return false;
-        if (_booruPage is not { } page) return false;
-        page.ShowQuery(query);
-        // Handoffs only prefill the real page draft. The workbench owns the Search action;
-        // no provider request is scheduled by this route.
+        if (!CanOpenBooru || !NavigateWorkspace(WorkspacePage.Booru) || _booruPage is not { } page)
+            return default;
+        return OpenBooruSearchDraft(page, query);
+    }
+
+    // Source tags and addresses hand over an editable query. The user submits it from the workbench.
+    private (bool Opened, int? Limit) OpenBooruSearchDraft(BooruPage page, string query)
+    {
+        if (!page.View.TryShowQueryInNewTab(query)) return (false, page.View.SearchTabs.Limit);
         Dispatcher.UIThread.Post(() =>
         {
-            if (!_isClosing && _selectedPage == WorkspacePage.Booru && ReferenceEquals(_booruPage, page))
+            if (CanOpenBooru && _selectedPage == WorkspacePage.Booru && ReferenceEquals(_booruPage, page)
+                && ReferenceEquals(_session.BooruServices, page.Services))
                 page.View.FocusSearchInput();
         });
-        return true;
+        return (true, null);
     }
 
     // Uses the shell's ordinary notification path, so the user's "information notifications" setting applies.

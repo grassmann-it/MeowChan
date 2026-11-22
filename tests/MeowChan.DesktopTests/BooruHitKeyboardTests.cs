@@ -287,7 +287,7 @@ public sealed class BooruHitKeyboardTests
         Border card = (Border)Field<StackPanel>(view, "_watchers").Children[0];
         SearchBox input = Field<SearchBox>(view, "_input");
         TabControl tabs = Field<TabControl>(view, "_tabs");
-        tabs.SelectedItem = Field<TabItem>(view, "_watchersTab");
+        view.ShowWatchers();
         int requests = harness.ProviderRequests;
 
         // A button or the selectable query keeps its own double click.
@@ -304,7 +304,8 @@ public sealed class BooruHitKeyboardTests
         TappedEventArgs onCard = DoubleTap(card, card);
         Raise(card, onCard);
         Assert.True(onCard.Handled);
-        Assert.Same(Field<TabItem>(view, "_searchTab"), tabs.SelectedItem);
+        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", input.Text);
         Assert.Equal("cat blue_eyes", model.Search.View.Input);
         // Settled once the tab is laid out: the caret sits behind the query, nothing is selected.
@@ -450,12 +451,13 @@ public sealed class BooruHitKeyboardTests
         Assert.Equal(BooruHitKey.None, BooruHitKeys.Route(Press(Avalonia.Input.Key.Enter, check), first));
 
         TabControl tabs = Field<TabControl>(view, "_tabs");
-        tabs.SelectedItem = Field<TabItem>(view, "_watchersTab");
+        view.ShowWatchers();
         int requests = harness.ProviderRequests;
         KeyEventArgs enter = Press(Avalonia.Input.Key.Enter, first);
         Raise(first, enter);
         Assert.True(enter.Handled);
-        Assert.Same(Field<TabItem>(view, "_searchTab"), tabs.SelectedItem);
+        Assert.NotEqual(BooruSearchTabs.PrimaryId, view.SearchTabs.ActiveId);
+        Assert.Equal(view.SearchTabs.ActiveId, Assert.IsType<TabItem>(tabs.SelectedItem).Tag);
         Assert.Equal("cat blue_eyes", Field<SearchBox>(view, "_input").Text);
         Assert.Equal(requests, harness.ProviderRequests);
         Assert.Equal(0, harness.Watchers.Checks);

@@ -32,7 +32,7 @@ internal sealed class BooruMediaDetailsDialog : Window
     private readonly Func<Uri, Task> _open;
     private readonly Func<Uri, Task> _copy;
     private readonly Func<string, Task> _copyText;
-    private readonly Func<string, bool>? _useAsSearch;
+    private readonly Func<string, (bool Opened, int? Limit)>? _useAsSearch;
     private readonly Func<bool>? _isSearchAvailable;
     private readonly List<ListBox> _tagLists = new();
     private readonly TextBlock _tagStatus = new() { Name = "BooruSourceTagStatus", TextWrapping = TextWrapping.Wrap, MinHeight = 0 };
@@ -44,12 +44,12 @@ internal sealed class BooruMediaDetailsDialog : Window
     /// <param name="details">The catalog's data for the post, or null when the catalog cannot be read right now.</param>
     /// <param name="open">Opens the post page in the browser; injected so tests never start a browser.</param>
     /// <param name="copyText">Puts source tags (or a search query) on the clipboard.</param>
-    /// <param name="useAsSearch">Puts a checked query into the Danbooru window's search field and returns true. It is
-    /// never called when <paramref name="isSearchAvailable"/> reports that the originating Booru composition is gone.</param>
+    /// <param name="useAsSearch">Opens a checked query in a new Danbooru search tab or reports why it could not open.
+    /// The live gate still has to admit the originating Booru composition.</param>
     /// <param name="isSearchAvailable">A live presentation/lifetime gate. It is evaluated while the source-tag action is
     /// built and again immediately before the handoff, so a hidden, unavailable or replaced Booru cannot receive a stale query.</param>
     internal BooruMediaDetailsDialog(string postId, IReadOnlyList<string> fileLines, BooruMediaDetails? details,
-        Func<Uri, Task> open, Func<Uri, Task> copy, Func<string, Task> copyText, Func<string, bool>? useAsSearch,
+        Func<Uri, Task> open, Func<Uri, Task> copy, Func<string, Task> copyText, Func<string, (bool Opened, int? Limit)>? useAsSearch,
         Func<bool>? isSearchAvailable = null)
     {
         _open = open ?? throw new ArgumentNullException(nameof(open));
@@ -100,11 +100,11 @@ internal sealed class BooruMediaDetailsDialog : Window
     /// live gate belongs to the host because only it knows whether the profile/plugin composition
     /// that opened this dialog still owns the target page.
     /// </summary>
-    internal static bool IsSearchActionAvailable(Func<bool>? availability, Func<string, bool>? handoff) =>
+    internal static bool IsSearchActionAvailable(Func<bool>? availability, Func<string, (bool Opened, int? Limit)>? handoff) =>
         handoff != null && (availability?.Invoke() ?? true);
 
-    internal static bool TryUseAsSearch(Func<bool>? availability, Func<string, bool>? handoff, string query) =>
-        IsSearchActionAvailable(availability, handoff) && handoff!(query);
+    internal static (bool Opened, int? Limit) TryUseAsSearch(Func<bool>? availability, Func<string, (bool Opened, int? Limit)>? handoff, string query) =>
+        IsSearchActionAvailable(availability, handoff) ? handoff!(query) : default;
 
     private bool IsSearchActionAvailable() => IsSearchActionAvailable(_isSearchAvailable, _useAsSearch);
 
@@ -320,7 +320,7 @@ internal sealed class BooruMediaDetailsDialog : Window
         }
     }
 
-    // The marked tags become the Danbooru window's search field. Nothing is requested: the user still presses Search there.
+    // The marked tags become an editable draft in a new Danbooru search tab.
     private async void UseSelectionAsSearch()
     {
         BooruTagSearchPlan plan = BooruSourceTagSearch.Plan(SelectedTagNames());
@@ -341,7 +341,13 @@ internal sealed class BooruMediaDetailsDialog : Window
             RemoveUnavailableSearchAction();
             return;
         }
-        if (TryUseAsSearch(_isSearchAvailable, _useAsSearch, query)) { Close(); return; }
+        (bool opened, int? limit) = TryUseAsSearch(_isSearchAvailable, _useAsSearch, query);
+        if (opened) { Close(); return; }
+        if (limit is { } count)
+        {
+            _tagStatus.Text = Texts.T("booru.tabs.limit", count);
+            return;
+        }
         // A host handoff that became stale while it was being resolved is not allowed to fall
         // through to the old copy fallback. Copying remains available through the explicit copy
         // actions above, but this button is no longer a Booru search action.

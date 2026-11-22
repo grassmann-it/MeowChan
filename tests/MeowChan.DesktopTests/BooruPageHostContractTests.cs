@@ -57,9 +57,12 @@ public sealed class BooruPageHostContractTests
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
         Assert.Equal(BooruWorkbenchView.TabsName, tabs.Name);
         TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        Assert.Equal(3, segments.Length); // Search, Watchers and the "+" button that opens a search tab; the search tabs follow Watchers
-        Control search = Assert.IsAssignableFrom<Control>(segments[0].Content);
-        Control watchers = Assert.IsAssignableFrom<Control>(segments[1].Content);
+        Assert.Equal(2, segments.Length);
+        Control search = Assert.IsAssignableFrom<Control>(Assert.Single(segments, tab => tab.Tag is BooruSearchTabs.PrimaryId).Content);
+        page.View.ShowWatchers();
+        TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
+        Assert.Equal(BooruWorkbenchView.WatchersTabName, watchersTab.Name);
+        Control watchers = Assert.IsAssignableFrom<Control>(watchersTab.Content);
         string?[] names = search.GetVisualDescendants().Concat(watchers.GetVisualDescendants())
             .Concat(page.View.Footer.GetVisualDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
         // Actual content, not aliases to a replacement/placeholder. Dynamic result and watcher
@@ -95,7 +98,7 @@ public sealed class BooruPageHostContractTests
         using BooruPage page = new(ports.Services);
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
         TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        tabs.SelectedItem = segments[1];
+        page.View.ShowWatchers();
         page.ShowQuery("cat");
         Assert.Same(segments[0], tabs.SelectedItem);
         Assert.Equal(BooruInputMode.Tags, page.Model.Search.View.Mode);
@@ -261,9 +264,7 @@ public sealed class BooruPageHostContractTests
         };
         using BooruPage page = new(ports.Services);
         await page.ActivateAsync();
-        TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
-        TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        tabs.SelectedItem = segments[1];
+        page.View.ShowWatchers();
         page.Model.Watchers.RequestRemoval("w1");
         Assert.True(Assert.Single(page.Model.Watchers.View.Rows).ConfirmingRemoval);
         KeyEventArgs modified = Escape(KeyModifiers.Shift);

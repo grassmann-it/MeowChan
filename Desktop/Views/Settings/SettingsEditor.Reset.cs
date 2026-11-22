@@ -230,6 +230,7 @@ public partial class SettingsEditor
         ShowShortcutHelp = defaults.ShowShortcutHelp;
 
         LoadReaderDraft(defaults);
+        LoadBooruSearchDraft(defaults);
         GalleryPlaybackPreferences playback = GalleryPlaybackPreferences.FromConfig(defaults);
         SelectedGalleryPlaybackMode = Choice(GalleryPlaybackModeChoices, playback.Mode.ToString());
         GallerySlideshowSeconds = playback.ImageSeconds;

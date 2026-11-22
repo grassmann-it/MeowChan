@@ -115,7 +115,7 @@ public sealed class EffectiveShortcutBindings
     private static long _nextVersion;
     /// <summary>Revision of the default table. Raise it, and list the command in
     /// <see cref="DefaultChangedInRevision"/>, whenever a default gesture is added to or changed on a command.</summary>
-    public const int DefaultsRevision = 24;
+    public const int DefaultsRevision = 25;
     /// <summary>Command ids that existed in an earlier build and were removed on purpose (the previous/next media-panel keys).
     /// A saved binding for one is dead data, not a typo: <see cref="Build"/> skips it without an issue and the next save drops it
     /// (<see cref="ShortcutBindingsSection.WithoutRetired"/>). A truly unknown id is still reported and kept. The defaults revision does not change.</summary>
@@ -129,6 +129,7 @@ public sealed class EffectiveShortcutBindings
     /// saved binding can date from any earlier revision (including frozen "add another shortcut" lists).</summary>
     private static readonly IReadOnlyDictionary<string, int> DefaultChangedInRevision = new Dictionary<string, int>(StringComparer.Ordinal)
     {
+        ["booru.search.submit"] = 25, ["booru.search.alternate"] = 25,
         // Revision 24 (Lightroom rating keys): 1 to 5 rate and 0 removes the rating (Shift+1 to Shift+5 and Shift+0 stay as the second key); Fit gains Primary+0
         // while the bare 0 and 1 of Fit and 1:1 are given up (NumPad0 and NumPad1 stay). The rating ids are listed below since revision 9: a saved binding of another
         // command on a digit wins over the new default.
@@ -512,6 +513,10 @@ public sealed class EffectiveShortcutBindings
         }
         catch (Exception ex) when (ex is FormatException or ArgumentException or IndexOutOfRangeException) { return ShortcutIssueReason.FromException(ex); }
     }
+    private static bool IsBooruSearchInputGesture(KeyGesture gesture) =>
+        gesture.Key == Key.Enter || gesture.Key is >= Key.F1 and <= Key.F24
+        || (gesture.KeyModifiers & (KeyModifiers.Control | KeyModifiers.Meta)) != 0;
+
     public static EffectiveShortcutBindings Build(ShortcutBindingsSection? section = null, ShortcutPlatform? platform = null)
     {
         var os = platform ?? CurrentPlatform;
@@ -548,6 +553,9 @@ public sealed class EffectiveShortcutBindings
                     {
                         var gesture = new ShortcutGesture(g.GetProperty("Key").GetString()!, Array.AsReadOnly(g.GetProperty("Modifiers").EnumerateArray().Select(m => m.GetString()!).ToArray()), g.TryGetProperty("Symbol", out var symbol) ? symbol.GetString() : null);
                         if (InvalidIssueReason(gesture, os) is { } reason) throw reason.ToException();
+                        if (entry.Name is "booru.search.submit" or "booru.search.alternate"
+                            && !IsBooruSearchInputGesture(gesture.Resolve(os)))
+                            throw new ShortcutIssueReason("booruTextInput", "Use Enter, a function key or a Ctrl/Cmd shortcut in the Booru search field.").ToException();
                         gestures.Add(gesture);
                     }
                     values[entry.Name] = gestures.AsReadOnly();

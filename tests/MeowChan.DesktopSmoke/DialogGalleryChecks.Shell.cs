@@ -289,7 +289,7 @@ internal static partial class DialogGalleryChecks
                 new(BooruFindingKind.Search, null, "cat", seen.AddDays(-1), BooruMediaWatcherStatus.NotWatcher, null)],
             seen, seen.AddDays(2));
         BooruMediaDetailsDialog dialog = new("12345", ["first.png", "240 KiB", "SHA-256: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"],
-            details, _ => Task.CompletedTask, _ => Task.CompletedTask, _ => Task.CompletedTask, _ => true);
+            details, _ => Task.CompletedTask, _ => Task.CompletedTask, _ => Task.CompletedTask, _ => (true, null));
         Task shown = dialog.ShowDialog(owner);
         try
         {

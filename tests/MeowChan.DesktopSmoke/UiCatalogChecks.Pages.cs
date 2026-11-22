@@ -318,13 +318,13 @@ internal static partial class UiCatalogChecks
         await PageAsync(w, "page-booru", "Booru page, Search tab with synthetic results", reenter: async () => { await EnterBooruAsync(w); await booru.MaterializeAsync(); });
         await StepAsync("page-booru-watchers", async () =>
         {
-            await booru.SelectTabAsync(1);
+            await booru.SelectTabAsync(watchers: true);
             try
             {
                 await Settle(w, 400);
                 UiCatalog.Record(w, "page-booru-watchers", Standard, "Booru page, Watchers tab with three synthetic watchers");
             }
-            finally { await booru.SelectTabAsync(0); }
+            finally { await booru.SelectTabAsync(watchers: false); }
         });
     }
 

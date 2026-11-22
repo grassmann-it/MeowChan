@@ -1362,7 +1362,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("BooruPageHost.Content = page;", host, StringComparison.Ordinal);
         string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
         Assert.Contains("_config.ShowBooruTools", booru, StringComparison.Ordinal);
-        Assert.Contains("page.ShowQuery(query)", booru, StringComparison.Ordinal);
+        Assert.Contains("page.View.TryShowQueryInNewTab(query)", booru, StringComparison.Ordinal);
         Assert.DoesNotContain("SearchAsync(", booru, StringComparison.Ordinal);
         string navigation = Read("Desktop/Shell/MainWindow.Navigation.cs");
         Assert.Contains("id != \"navigation.booru\" || CanOpenBooru", navigation, StringComparison.Ordinal);

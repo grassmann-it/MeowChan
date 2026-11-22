@@ -249,7 +249,7 @@ public sealed class BooruGalleryInlineTests
             view.Gallery.SampleDelay = TimeSpan.FromMilliseconds(150);
             Assert.True(view.OpenGallery("101"));
             await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Loading, "the pending sample delay");
-            tabs.SelectedItem = ControlField<TabItem>(view, "_watchersTab");
+            view.ShowWatchers();
             await BooruTestSupport.WaitAsync(() => view.Gallery.SampleState == BooruGallerySampleState.Deferred, "the canceled sample delay");
             await Task.Delay(200);
             Assert.Empty(harness.Previews.SampleRequests);

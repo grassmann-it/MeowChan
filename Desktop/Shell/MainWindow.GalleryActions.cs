@@ -10,7 +10,6 @@ using Avalonia.Input;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
-using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Feedback;
@@ -366,21 +365,12 @@ public partial class MainWindow
     private bool IsBooruSearchAvailable(BooruWorkbenchServices openedServices) =>
         !_isClosing && CanOpenBooru && ReferenceEquals(_session.BooruServices, openedServices);
 
-    private bool UseAsBooruSearchForDialog(string query, BooruWorkbenchServices openedServices)
+    private (bool Opened, int? Limit) UseAsBooruSearchForDialog(string query, BooruWorkbenchServices openedServices)
     {
-        if (!IsBooruSearchAvailable(openedServices) || !NavigateWorkspace(WorkspacePage.Booru)) return false;
+        if (!IsBooruSearchAvailable(openedServices) || !NavigateWorkspace(WorkspacePage.Booru)) return default;
         if (!IsBooruSearchAvailable(openedServices) || _booruPage is not { } page
-            || !ReferenceEquals(page.Services, openedServices)) return false;
+            || !ReferenceEquals(page.Services, openedServices)) return default;
 
-        // This is the same unsent-draft handoff as the main Booru entry, but it is bound to the
-        // captured page identity. No search or other provider request is started here.
-        page.ShowQuery(query);
-        Dispatcher.UIThread.Post(() =>
-        {
-            if (IsBooruSearchAvailable(openedServices) && _selectedPage == WorkspacePage.Booru
-                && ReferenceEquals(_booruPage, page))
-                page.View.FocusSearchInput();
-        });
-        return true;
+        return OpenBooruSearchDraft(page, query);
     }
 }

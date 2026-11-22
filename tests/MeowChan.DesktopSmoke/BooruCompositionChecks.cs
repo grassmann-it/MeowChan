@@ -187,7 +187,10 @@ internal static class BooruCompositionChecks
             Find<TextBox>(page, BooruWorkbenchView.InputName).Text = "cat_ears";
             await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text == "Query sent to Danbooru: cat_ears",
                 () => "query line: " + Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text);
+            int previousSearchTab = page.View.SearchTabs.ActiveId;
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
+            Require(page.View.SearchTabs.ActiveId != previousSearchTab && page.View.SearchTabs.ExtraCount == 1,
+                "The default Search action did not activate a new tab.");
             await Program.WaitUntilAsync(() => Cards(page).Count == 4 && Previews(page) == 4,
                 () => $"results: cards={Cards(page).Count} previews={Previews(page)} status={BooruText.SearchStatus(page.Model.Search.View, false)}");
             Require(stub.Requests.Count(url => url.StartsWith("https://danbooru.donmai.us/", StringComparison.Ordinal)) == 1
@@ -232,7 +235,8 @@ internal static class BooruCompositionChecks
             await Program.WaitUntilAsync(() => Text(page).Contains("Watcher created for"), () => "created notice missing");
             Require(host.BooruComposition.Originals.ActiveCount == 1, "Creating the watcher queued existing posts.");
             TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-            tabs.SelectedIndex = 1;
+            object? searchTab = tabs.SelectedItem;
+            Click(Find<Button>(page, BooruWorkbenchView.OpenWatchersName));
             await Program.WaitUntilAsync(() => WatcherCards(page).Count == 1, () => "watcher card missing");
             string watcherId = host.BooruComposition.WatcherHost.Scheduler.GetSnapshot().Watchers.Single().WatcherId;
             // The scheduler's own first check sets the baseline (from now); then one explicit check.
@@ -247,7 +251,7 @@ internal static class BooruCompositionChecks
             Application.Current.RequestedThemeVariant = ThemeVariant.Dark;
             await Program.WaitUntilAsync(() => shell.ActualThemeVariant == ThemeVariant.Dark, () => "dark theme not applied");
             Capture(shell, shots, "composition-watchers-dark");
-            tabs.SelectedIndex = 0;
+            tabs.SelectedItem = searchTab;
             await Program.WaitUntilAsync(() => Cards(page).Count == 4 && Previews(page) == 4, () => "dark results not shown");
             Capture(shell, shots, "composition-results-dark");
 
@@ -256,10 +260,13 @@ internal static class BooruCompositionChecks
             await Program.WaitUntilAsync(() => shell.ActualThemeVariant == ThemeVariant.Light, () => "light theme not restored for Add-line capture");
             int before = stub.Requests.Count;
             TextBox urlInput = shell.FindControl<TextBox>("UrlInput")!;
-            // A Safebooru search address: the existing hosted page gets the query with the visible rating:g term; nothing is requested.
+            int resultsTab = page.View.SearchTabs.ActiveId;
+            // A Safebooru search address opens an editable query with the visible rating:g term.
             await SubmitAddLineAsync(shell, "https://safebooru.donmai.us/posts?tags=cat_ears&page=2");
             await Program.WaitUntilAsync(() => Find<TextBox>(page, BooruWorkbenchView.InputName).Text == "cat_ears rating:g",
                 () => "search field: " + Find<TextBox>(page, BooruWorkbenchView.InputName).Text);
+            Require(page.View.SearchTabs.ActiveId != resultsTab && page.View.SearchTabs.ViewOf(resultsTab)?.Rows.Length == 4,
+                "The address failed to open a new tab while preserving the previous results.");
             Require(stub.Requests.Count == before && urlInput.Text == string.Empty && shell.SelectedPage == MainWindow.WorkspacePage.Booru && shell.BooruPageForTests is not null,
                 "A search address requested something, kept its text or opened another page.");
             // A Danbooru address with an unencoded comma list stays one entry; the query is shown exactly as written.

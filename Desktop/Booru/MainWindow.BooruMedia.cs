@@ -29,6 +29,7 @@ public partial class MainWindow
         view.ShowInMedia = postId => ShowBooruPostInMediaAsync(view, postId);
         view.IsPostSavedInMedia = IsSavedBooruPost;
         view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
+        view.NewSearchTarget = () => _session.Config.BooruNewSearchTarget;
         view.SearchTabsLimit = () => _session.Config.BooruSearchTabs;
         view.GallerySampleMiB = () => _session.Config.BooruGallerySampleMiB;
         view.GalleryCacheMiB = () => _session.Config.BooruGalleryCacheMiB;

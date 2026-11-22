@@ -163,7 +163,9 @@ internal static class ReviewFixtureScenes
             if (_media == 0) await w.BooruPageForTests!.ActivateAsync();
             else await booru.MaterializeAsync();
             // Search workspace versus the watch/rule workbench tab, both actual retained controls.
-            w.BooruPageForTests!.GetVisualDescendants().OfType<TabControl>().First(t => t.Name == BooruWorkbenchView.TabsName).SelectedIndex = surface == "booru" ? 0 : 1;
+            BooruWorkbenchView view = w.BooruPageForTests!.View;
+            if (surface == "booru") view.CloseWatchers();
+            else view.ShowWatchers();
             return;
         }
         var page = surface switch
