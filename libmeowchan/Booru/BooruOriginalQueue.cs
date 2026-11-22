@@ -370,7 +370,7 @@ internal sealed class BooruOriginalQueue
 
     private BooruMediaKey KeyFor(string postId) => BooruMediaKey.Original(new BooruPostKey(_sourceId, _instanceId, postId));
 
-    private bool Owns(BooruPostKey identity) => identity.SourceId == _sourceId && identity.InstanceId == _instanceId;
+    internal bool Owns(BooruPostKey identity) => identity.SourceId == _sourceId && identity.InstanceId == _instanceId;
 
     /// <summary>The claim and finding an explicit request stores in the same write as its intent.</summary>
     private sealed record Observation(BooruPostClaim Post, BooruFindingKind Kind, string? WatcherId, string? Query,

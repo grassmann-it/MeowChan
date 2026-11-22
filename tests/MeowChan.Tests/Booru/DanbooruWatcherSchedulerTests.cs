@@ -81,6 +81,52 @@ public sealed class DanbooruWatcherSchedulerTests
     }
 
     [Fact]
+    public async Task SameQueryAndPostIdAreIndependentAcrossWatcherSourcesAfterReload()
+    {
+        const string secondSource = "test-source";
+        using TempDirectory directory = new();
+        await using SchedulerProfile profile = new(directory.Path);
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch legacy = new(clock);
+        FakeDanbooruSearch second = new(clock)
+        {
+            ClaimFactory = id => new BooruPostClaim(secondSource, id.ToString(), BooruPostClaimPresence.None)
+        };
+        CountingAdmission legacyQueue = new();
+        CountingAdmission secondQueue = new();
+        await using DanbooruWatcherScheduler first = new(profile.Catalog, legacy, legacyQueue, clock, Options());
+        await using DanbooruWatcherScheduler other = new(profile.Catalog, second, secondQueue, clock, Options(), sourceId: secondSource);
+        first.Load();
+        other.Load();
+
+        string legacyId = first.AddWatcher("cat").Watcher!.WatcherId;
+        string secondId = other.AddWatcher("cat").Watcher!.WatcherId;
+        legacy.Publish("cat", 41);
+        second.Publish("cat", 40);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await first.RunNextAsync())!.Kind);
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await other.RunNextAsync())!.Kind);
+
+        await first.StopAsync();
+        await other.StopAsync();
+        await using DanbooruWatcherScheduler reloadedFirst = new(profile.Catalog, legacy, legacyQueue, clock, Options());
+        await using DanbooruWatcherScheduler reloadedOther = new(profile.Catalog, second, secondQueue, clock, Options(), sourceId: secondSource);
+        reloadedFirst.Load();
+        reloadedOther.Load();
+        Assert.Equal(legacyId, Assert.Single(reloadedFirst.GetSnapshot().Watchers).WatcherId);
+        Assert.Equal(secondId, Assert.Single(reloadedOther.GetSnapshot().Watchers).WatcherId);
+        legacy.Publish("cat", 42);
+        second.Publish("cat", 42);
+        clock.Advance(Interval);
+
+        Assert.Equal(1, (await reloadedFirst.RunNextAsync())!.Queued);
+        Assert.Equal(1, (await reloadedOther.RunNextAsync())!.Queued);
+        Assert.Equal(1, legacyQueue.PerPost["42"]);
+        Assert.Equal(1, secondQueue.PerPost["42"]);
+        Assert.Equal(BooruCatalogSnapshot.ScopedIdentitySchemaVersion, profile.Catalog.Read().SchemaVersion);
+        Assert.All(profile.Catalog.Read().Watchers, watcher => Assert.Equal("42", watcher.HighWaterMark));
+    }
+
+    [Fact]
     public async Task MoreNewPostsThanOneCheckReadsIsVisiblePartialProgressAndContinuesBelowTheCursor()
     {
         using TempDirectory directory = new();

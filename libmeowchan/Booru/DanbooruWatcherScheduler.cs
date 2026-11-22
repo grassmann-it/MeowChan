@@ -77,6 +77,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
     private CancellationTokenSource? _lifetime;
     private Task _loop = Task.CompletedTask;
     private bool _loaded;
+    private readonly string _sourceId;
     private bool _stopping;
     private bool _sessionPaused;
     private string? _fault;
@@ -86,8 +87,10 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
 
     internal DanbooruWatcherScheduler(BooruCatalogStore catalog, IDanbooruWatcherSearchPort search,
         IDanbooruWatcherAdmissionPort admission, TimeProvider? timeProvider = null,
-        DanbooruWatcherSchedulerOptions? options = null, BooruProducerLifecycle? lifecycle = null)
+        DanbooruWatcherSchedulerOptions? options = null, BooruProducerLifecycle? lifecycle = null,
+        string sourceId = DanbooruWatcher.ProviderId)
     {
+        _sourceId = sourceId;
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _admission = admission ?? throw new ArgumentNullException(nameof(admission));
@@ -159,12 +162,13 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             List<DanbooruWatcher> restored = new();
             foreach (BooruWatcherRecord record in snapshot.Watchers)
             {
+                if (record.SourceId != _sourceId) continue;
                 if (record.State == nameof(DanbooruWatcherState.Removed))
                 {
                     _removed.Add(record.WatcherId);
                     continue;
                 }
-                try { restored.Add(DanbooruWatcherRecordMapper.FromRecord(record)); }
+                try { restored.Add(DanbooruWatcherRecordMapper.FromRecord(record, _sourceId)); }
                 catch (InvalidDataException)
                 {
                     _fault = "watcher_record_invalid";
@@ -263,6 +267,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
             if (!DanbooruWatcher.TryCreate(id, query, _time.GetUtcNow(), out DanbooruWatcher? watcher, out _)
                 || watcher is null)
                 return new(false, "invalid_query", null);
+            watcher = watcher with { SourceId = _sourceId };
             DanbooruWatcher? existing = _watchers.Values.FirstOrDefault(item => item.CanonicalQuery == watcher.CanonicalQuery);
             if (existing != null) return new(false, "watcher_exists", StatusLocked(existing, _time.GetUtcNow()));
             if (!TryPersistLocked(watcher, out DanbooruWatcher? stored, use?.Admission)) return new(false, "persist_failed", null);
@@ -861,7 +866,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                 {
                     case DanbooruWatcherSearchSnapshot snapshot:
                         if (snapshot.Posts is null || snapshot.Posts.Any(post => post is null
-                                || post.SourceId != DanbooruWatcher.ProviderId))
+                                || post.SourceId != _sourceId || post.Identity.InstanceId != BooruPostKey.DefaultInstance))
                         {
                             CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "foreign_post", now).Watcher, running);
                             return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "foreign_post", manual);
@@ -871,7 +876,7 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                             CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "page_binding_mismatch", now).Watcher, running);
                             return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "page_binding_mismatch", manual);
                         }
-                        DanbooruSearchPageObservation observation = new(DanbooruWatcher.ProviderId, snapshot.Query,
+                        DanbooruSearchPageObservation observation = new(_sourceId, snapshot.Query,
                             page, snapshot.Posts.Select(post => post.PostId).ToArray(), snapshot.IsEnd);
                         applied = DanbooruWatcher.ApplyPage(current, observation, now);
                         if (!applied.Accepted)
