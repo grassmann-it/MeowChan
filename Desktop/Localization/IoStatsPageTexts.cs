@@ -73,6 +73,7 @@ internal static class IoStatsPageTexts
         ("stats.reset.confirm", "Reset now", "Jetzt zurücksetzen"),
         ("stats.reset.cancel", "Cancel", "Abbrechen"),
         ("stats.reset.done", "Statistics reset.", "Statistik zurückgesetzt."),
+        ("stats.reset.failed", "Could not delete all saved statistics. Try resetting again.", "Die gespeicherte Statistik konnte nicht vollständig gelöscht werden. Versuche es erneut."),
         ("stats.notice", "Saved statistics: {0}", "Gespeicherte Statistik: {0}"),
         ("stats.persistError", "The statistics could not be saved: {0}", "Die Statistik konnte nicht gespeichert werden: {0}"),
         ("stats.footnote", "Network counts the response data MeowChan receives, without headers or encryption. Upload counts the request payload MeowChan has completely written to the connection, without headers or encryption; the number of requests is shown as well. Disk counts only the media files MeowChan itself writes or reads back, not thumbnails, previews, archive or index files. Daily totals stay on this computer.", "Netzwerk zählt die Antwortdaten, die MeowChan empfängt, ohne Kopfzeilen und Verschlüsselung. Upload zählt die Nutzdaten der Anfragen, die MeowChan vollständig auf die Verbindung geschrieben hat, ohne Kopfzeilen und Verschlüsselung; zusätzlich wird die Zahl der Anfragen gezeigt. Datenträger zählt nur die Mediendateien, die MeowChan selbst schreibt oder zurückliest, keine Vorschaubilder, Vorschauen, Archiv- oder Indexdateien. Die Tageswerte bleiben auf diesem Rechner."),

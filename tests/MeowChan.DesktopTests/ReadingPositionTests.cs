@@ -64,17 +64,24 @@ public sealed class ReadingPositionTests
             await host.StartAsync();
             long oldGeneration = host.ReadingPositionGeneration;
             await host.RememberReadingPositionAsync(First, oldGeneration);
+            File.Copy(Path.Combine(directory.Path, "reading-history.json"), Path.Combine(directory.Path, "reading-history.json.corrupt"));
             SemaphoreSlim commands = (SemaphoreSlim)typeof(DesktopSessionHost).GetField("_commands", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
             await commands.WaitAsync();
-            Task queued = host.RememberReadingPositionAsync(Second, oldGeneration);
-            Config draft = host.Config.Clone(); draft.RememberReadingPosition = false;
-            Task clear = disable ? host.ApplySettingsAsync(draft) : host.ForgetReadingPositionAsync();
-            Assert.NotEqual(oldGeneration, host.ReadingPositionGeneration);
-            commands.Release();
+            Task queued;
+            Task clear;
+            try
+            {
+                queued = host.RememberReadingPositionAsync(Second, oldGeneration);
+                Config draft = host.Config.Clone(); draft.RememberReadingPosition = false;
+                clear = disable ? host.ApplySettingsAsync(draft) : host.ForgetReadingPositionAsync();
+                Assert.Equal(!disable, oldGeneration != host.ReadingPositionGeneration);
+            }
+            finally { commands.Release(); }
             await Task.WhenAll(queued, clear);
+            Assert.NotEqual(oldGeneration, host.ReadingPositionGeneration);
             await host.RememberReadingPositionAsync(Second, oldGeneration);
             Assert.Null(await host.ReadReadingPositionAsync());
-            Assert.False(File.Exists(Path.Combine(directory.Path, "reading-position.json")));
+            Assert.Empty(Directory.GetFiles(directory.Path, "reading-*"));
         }
         await using DesktopSessionHost restarted = Host(directory.Path);
         await restarted.StartAsync();
@@ -85,6 +92,62 @@ public sealed class ReadingPositionTests
             await restarted.RememberReadingPositionAsync(Second, restarted.ReadingPositionGeneration);
             Assert.Equal(Second, await restarted.ReadReadingPositionAsync());
         }
+    }
+
+    [Fact]
+    public async Task RejectedOptOutCommitPreservesBothReadingFilesByteForByte()
+    {
+        using TempDirectory directory = new();
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false }.SaveConfig(directory.Path);
+        await using DesktopSessionHost host = Host(directory.Path);
+        await host.StartAsync();
+        long generation = host.ReadingPositionGeneration;
+        await host.RememberReadingPositionAsync(First, generation);
+        string position = Path.Combine(directory.Path, "reading-position.json");
+        string history = Path.Combine(directory.Path, "reading-history.json");
+        byte[] originalPosition = File.ReadAllBytes(position);
+        byte[] originalHistory = File.ReadAllBytes(history);
+        File.WriteAllText(Path.Combine(directory.Path, "settings.json.bak"), """{"SchemaVersion":2}""");
+        Config draft = host.Config.Clone();
+        draft.RememberReadingPosition = false;
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() => host.ApplySettingsAsync(draft));
+
+        Assert.True(host.Config.RememberReadingPosition);
+        Assert.True(Config.LoadConfig(directory.Path).RememberReadingPosition);
+        Assert.Equal(generation, host.ReadingPositionGeneration);
+        Assert.Equal(originalPosition, File.ReadAllBytes(position));
+        Assert.Equal(originalHistory, File.ReadAllBytes(history));
+    }
+
+    [Fact]
+    public async Task OptOutCommitsAndCanRetryACleanupFailureAfterRestart()
+    {
+        using TempDirectory directory = new();
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false }.SaveConfig(directory.Path);
+        string history = Path.Combine(directory.Path, "reading-history.json");
+        string corrupt = history + ".corrupt";
+        await using (DesktopSessionHost host = Host(directory.Path))
+        {
+            await host.StartAsync();
+            await host.RememberReadingPositionAsync(First, host.ReadingPositionGeneration);
+            Directory.CreateDirectory(corrupt);
+            Config draft = host.Config.Clone();
+            draft.RememberReadingPosition = false;
+
+            Assert.False(await host.ApplySettingsAsync(draft));
+            Assert.False(host.Config.RememberReadingPosition);
+            Assert.False(Config.LoadConfig(directory.Path).RememberReadingPosition);
+            Assert.False(File.Exists(history));
+            Assert.False(File.Exists(Path.Combine(directory.Path, "reading-position.json")));
+        }
+        Directory.Delete(corrupt);
+        File.WriteAllText(corrupt, "retained history");
+        await using DesktopSessionHost restarted = Host(directory.Path);
+        await restarted.StartAsync();
+        Assert.False(restarted.Config.RememberReadingPosition);
+        Assert.True(await restarted.ApplySettingsAsync(restarted.Config.Clone()));
+        Assert.Empty(Directory.GetFiles(directory.Path, "reading-*"));
     }
 
     [Fact]

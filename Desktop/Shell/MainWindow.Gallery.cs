@@ -99,7 +99,7 @@ public partial class MainWindow
     }
 
     internal async Task OpenMediaGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Control? origin = null,
-        Func<bool>? stillRequested = null, ThreadMediaPositions? threadMedia = null)
+        Func<bool>? stillRequested = null, ThreadMediaPositions? threadMedia = null, ThreadGalleryPositions? threadPositions = null)
     {
         stillRequested ??= _archivePage?.GallerySelectionGuard ?? ArchiveGalleryHandoffGuard();
         if (stillRequested?.Invoke() == false) return;
@@ -107,7 +107,7 @@ public partial class MainWindow
         _galleryAllVersions = true;
         // StartGalleryAsync rechecks this after retiring native media, alongside its own request revision.
         await StartGalleryAsync(Array.Empty<ResourceId>(), origin, entries, start, stillRequested: stillRequested,
-            threadPositions: threadMedia == null ? null : ThreadGalleryPositions.Create(threadMedia, entries, capturedOrder: false));
+            threadPositions: threadPositions ?? (threadMedia == null ? null : ThreadGalleryPositions.Create(threadMedia, entries, capturedOrder: false)));
     }
 
     private async Task OpenFavoritesGalleryAsync(IReadOnlyList<GalleryEntry> entries, GalleryEntryKey start, Action completed)

@@ -12,6 +12,8 @@ namespace MeowChan.Desktop;
 internal sealed record LocalReadingPosition(string Source, string Board, string Thread, string PostId,
     double Top, string? SelectedPostId, string? Title = null)
 {
+    internal const string FileName = "reading-position.json";
+
     /// <summary>The longest title snapshot kept (characters).</summary>
     internal const int TitleMaximumLength = 200;
 

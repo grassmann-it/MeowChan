@@ -2702,12 +2702,28 @@ namespace MeowChan
             MediaFocusHidesHeader = source.MediaFocusHidesHeader;
         }
 
-        // Compatibility settings host uses its existing isolated config owner.
         internal void ForgetReadingPositionFile()
         {
             string directory = _profileDirectory ?? GetConfigDirectory();
-            try { File.Delete(Path.Combine(directory, "reading-history.json")); }
-            finally { File.Delete(Path.Combine(directory, "reading-position.json")); }
+            string history = Path.Combine(directory, LocalReadingHistory.FileName);
+            // Try every copy even when one of the deletes fails.
+            try { File.Delete(history + LocalReadingHistory.CorruptSuffix); }
+            finally
+            {
+                try { File.Delete(history); }
+                finally { File.Delete(Path.Combine(directory, LocalReadingPosition.FileName)); }
+            }
+        }
+
+        internal bool TryCleanUpReadingPositionAfterOptOut()
+        {
+            if (RememberReadingPosition) return true;
+            try { ForgetReadingPositionFile(); return true; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                Log.Warning(error, "Could not remove all saved reading files after opting out.");
+                return false;
+            }
         }
 
         public void SaveConfig() => SaveConfig(_profileDirectory ?? GetConfigDirectory());

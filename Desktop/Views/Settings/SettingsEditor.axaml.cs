@@ -1277,8 +1277,9 @@ namespace MeowChan
                 if (DestinationNeedsCheck(candidate) && !await CheckDestinationAsync(candidate.DownloadPath, candidate.MinimumFreeSpaceGiB))
                     return;
                 if (_isClosed || !IsAvailable) return;
-                if (_applySettings == null && !candidate.RememberReadingPosition) await Task.Run(candidate.ForgetReadingPositionFile);
                 await ShortcutBindingsCommit.PersistAsync(candidate, _applySettings);
+                bool readingFilesCleanedUp = _applySettings != null || candidate.RememberReadingPosition
+                    || await Task.Run(candidate.TryCleanUpReadingPositionAfterOptOut);
 
                 if (_applySettings == null)
                     _config.CopyFrom(candidate);
@@ -1291,6 +1292,7 @@ namespace MeowChan
                 {
                     CancelChangesAfterSave(savedShortcuts);
                     SetStatusMessage(ShortcutsEditor.IsDirty ? "settings.unsaved" : "settings.saved");
+                    if (!readingFilesCleanedUp) SetErrorMessage("resume.optOutCleanupFailed");
                     IsBusy = false;
                     Saved?.Invoke(this, EventArgs.Empty);
                 }

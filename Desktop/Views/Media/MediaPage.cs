@@ -647,6 +647,7 @@ public sealed partial class MediaPage : UserControl
             : MediaLibrarySelection.Restore(SelectedTiles.Select(MediaLibraryTileKey.Of).ToArray(), result.Tiles);
         _tiles = result.Tiles;
         _shown = result.Shown;
+        _mediaViewRanks = null;
         PresentPositions = result.PresentPositions;
         _shownMissing = result.ShownMissing;
         _unfiltered = result.Unfiltered;

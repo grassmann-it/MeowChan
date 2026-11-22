@@ -5,6 +5,7 @@ using System.Xml.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Platform;
 using MeowChan.Desktop;
@@ -62,6 +63,45 @@ public sealed class SettingsResetCoverageTests : IDisposable
             defaults.EndLifetime();
         }
     });
+
+    [Fact]
+    public void CompatibilityEditorKeepsReadingDataUntilTheSettingsCommitSucceeds()
+    {
+        using TempDirectory profile = new();
+        new Config { RememberReadingPosition = true, SaveUrlsOnExit = false }.SaveConfig(profile.Path);
+        Config config = Config.LoadConfig(profile.Path);
+        string backup = Path.Combine(profile.Path, "settings.json.bak");
+        string[] readingPaths = ["reading-position.json", "reading-history.json", "reading-history.json.corrupt"];
+        foreach (string file in readingPaths) File.WriteAllText(Path.Combine(profile.Path, file), file);
+        File.WriteAllText(backup, """{"SchemaVersion":2}""");
+
+        WithEditors(config, (editor, _) =>
+        {
+            editor.IsAvailable = true;
+            editor.RememberReadingPosition = false;
+            Button save = editor.FindControl<Button>("SaveSettingsButton")!;
+            save.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
+            Assert.True(editor.HasError);
+            Assert.True(config.RememberReadingPosition);
+            Assert.All(readingPaths, file => Assert.Equal(file, File.ReadAllText(Path.Combine(profile.Path, file))));
+
+            File.Delete(backup);
+            save.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
+            Assert.False(editor.HasError, editor.ErrorMessage);
+            Assert.False(config.RememberReadingPosition);
+            Assert.False(Config.LoadConfig(profile.Path).RememberReadingPosition);
+            Assert.Empty(Directory.GetFiles(profile.Path, "reading-*"));
+        });
+    }
+
+    private static async Task<bool> WaitForSaveAsync(SettingsEditor editor)
+    {
+        using CancellationTokenSource timeout = new(TimeSpan.FromSeconds(5));
+        while (editor.IsBusy) await Task.Delay(1, timeout.Token);
+        return true;
+    }
 
     // ---- the control tree ------------------------------------------------------------------------------------------------
 

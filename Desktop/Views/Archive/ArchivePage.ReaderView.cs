@@ -221,7 +221,7 @@ public partial class ArchivePage
 
     /// <summary>For explicit jumps (quote, find, gallery "Show in thread", bookmark, reading position): a post the view
     /// hides, or shows as a placeholder, is shown with a "Shown although this view hides it" line.</summary>
-    internal async Task RevealPostAsync(string postId)
+    internal async Task RevealPostAsync(string postId, Func<bool>? stillRequested = null)
     {
         ArgumentNullException.ThrowIfNull(postId);
         if (_projectionReady is { } pending)
@@ -230,7 +230,7 @@ public partial class ArchivePage
             await pending.Task;
             if (_ended || _thread?.Summary.Id != thread) return;
         }
-        if (_ended || IsFilenameSearchOpen) return;
+        if (_ended || IsFilenameSearchOpen || stillRequested?.Invoke() == false) return;
         RevealPostNow(postId);
     }
 

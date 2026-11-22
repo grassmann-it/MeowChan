@@ -51,6 +51,55 @@ public sealed class ThreadMediaCountTests
         Assert.Null(ThreadGalleryPositions.Create(new ThreadMediaPositions([]), [loose]));
     }
 
+    [Theory]
+    [InlineData(false, false, 150)]
+    [InlineData(true, false, 150)]
+    [InlineData(false, true, 149)]
+    [InlineData(true, true, 150)]
+    public void MediaGalleryWindowsKeepTheFullViewRanks(bool reversed, bool missing, int middleRank)
+    {
+        CapturedPost[] posts = Enumerable.Range(100, 300).Select(n => Post(n.ToString(), new CapturedAttachment(0, "m" + n))).ToArray();
+        ArchiveThreadSummary summary = new(ThreadId, "https://offline.invalid/100", "Captured media", "/captured-media",
+            ThreadSourceState.Active, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, posts.Length, 1);
+        ArchivedThreadView view = new(summary, posts);
+        IEnumerable<MediaLibraryEntry> indexed = MediaLibraryIndexBuilder.EntriesOf(view, [])
+            .Select(entry => entry with { Presence = missing && entry.PostId == "176" ? MediaLibraryPresence.Missing : MediaLibraryPresence.Present });
+        IReadOnlyList<MediaLibraryEntry> shown = MediaLibraryView.Select(indexed, MediaLibrarySort.ByThread,
+            includeMissing: true, direction: reversed ? MediaLibrarySortDirection.Reversed : MediaLibrarySortDirection.Default);
+        int[] present = MediaLibraryView.PresentIndex(shown);
+        Dictionary<string, GalleryEntry> saved = posts.ToDictionary(post => post.PostId, post => SavedEntry(post, post.Attachments![0]));
+        IReadOnlyDictionary<int, int> ranks = ThreadGalleryPositions.RankMediaView(view.MediaPositions, shown);
+        foreach ((int tile, int rank) in new[] { (0, 1), (149, middleRank), (299, missing ? 299 : 300) })
+        {
+            (IReadOnlyList<MediaLibraryEntry> window, int start) = MediaLibraryView.GalleryWindow(shown, present, tile);
+            Assert.Equal(200, window.Count);
+            Assert.Equal(shown[tile], window[start]);
+            GalleryEntry[] resolved = window.Select(entry => saved[entry.PostId!]).ToArray();
+            ThreadGalleryPositions positions = ThreadGalleryPositions.ForMediaView(view.MediaPositions, ranks, window, resolved, [])!;
+            int slot = view.MediaPositions.NumberOf(shown[tile].PostId, shown[tile].Position)!.Value;
+            Assert.Equal(rank, ranks[slot]);
+            Assert.Equal((300, missing ? 1 : 0, rank), (positions.Count, positions.Unavailable, positions.NumberAt(start)));
+        }
+    }
+
+    [Fact]
+    public void GalleryAvailabilityAccountsForGroupedOccurrencesAndAnEntryLostDuringResolution()
+    {
+        CapturedPost[] posts = [Post("100", new CapturedAttachment(0, "a")), Post("101", new CapturedAttachment(0, "b")),
+            Post("102", new CapturedAttachment(0, "c"))];
+        ArchiveThreadSummary summary = new(ThreadId, "https://offline.invalid/100", "Captured media", "/captured-media",
+            ThreadSourceState.Active, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, posts.Length, 1);
+        ArchivedThreadView view = new(summary, posts);
+        MediaLibraryEntry[] present = MediaLibraryIndexBuilder.EntriesOf(view, [])
+            .Select(entry => entry with { Presence = MediaLibraryPresence.Present })
+            .OrderBy(entry => entry.PostId, StringComparer.Ordinal).ToArray();
+        MediaLibraryEntry[] shown = [present[0], present[2]];
+        ThreadGalleryPositions positions = ThreadGalleryPositions.ForMediaView(view.MediaPositions,
+            ThreadGalleryPositions.RankMediaView(view.MediaPositions, shown), shown, [SavedEntry(posts[2], posts[2].Attachments![0])],
+            [present[0], present[1]])!;
+        Assert.Equal((3, 1, 2), (positions.Count, positions.Unavailable, positions.NumberAt(0)));
+    }
+
     [Fact]
     public async Task ArchiveAndMediaPageShowCapturedCountBeforeAnyFilesAreIndexed()
     {

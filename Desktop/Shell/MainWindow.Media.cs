@@ -186,6 +186,7 @@ public partial class MainWindow
             || start < 0 || start >= window.Count) return;
         MediaLibraryEntry chosen = window[start];
         IReadOnlyList<MediaLibraryEntry> shown = page.ShownEntries;
+        IReadOnlyList<MediaLibraryTile> tiles = page.Tiles;
         MediaLibrarySort sort = page.Sort;
         MediaLibraryFilter filter = page.CurrentFilter();
         bool presentationCurrent = true;
@@ -211,13 +212,13 @@ public partial class MainWindow
                 ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "media.gallery");
                 return;
             }
-            ThreadMediaPositions? threadMedia = useThreadCount ? await page.ThreadMediaForGalleryAsync(window) : null;
+            ThreadGalleryPositions? threadPositions = useThreadCount ? await page.ThreadPositionsForGalleryAsync(shown, tiles, window, entries) : null;
             if (!Current()) return;
             // The grid is the origin: closing the gallery returns focus to the selected tile, not to the page shell.
             // A still pending second restore of an earlier "Back to media" must not move selection and focus under the gallery.
             page.EndPendingReturn();
             if (!Current()) return;
-            await OpenMediaGalleryAsync(entries, first.EntryKey, page.Grid, stillRequested: Current, threadMedia: threadMedia);
+            await OpenMediaGalleryAsync(entries, first.EntryKey, page.Grid, stillRequested: Current, threadPositions: threadPositions);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
