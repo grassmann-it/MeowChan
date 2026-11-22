@@ -119,7 +119,6 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         _toolbar.OpenPost = () => { if (_currentId is { } id) OpenPostRequested?.Invoke(id); };
         _toolbar.OpenWindow = () => { if (_currentId is { } id) OpenWindowRequested?.Invoke(id); };
         _toolbar.Close = () => LeaveRequested?.Invoke();
-        _toolbar.Fullscreen = () => FullscreenRequested?.Invoke();
         SetDock(BooruGalleryDock.Right, _tags);
 
         Grid middle = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8 };
@@ -178,7 +177,6 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     internal Action<string>? Moved { get; set; }
     /// <summary>The person asked to leave the gallery (Escape).</summary>
     internal Action? LeaveRequested { get; set; }
-    internal Action? FullscreenRequested { get; set; }
 
     /// <summary>Puts <paramref name="content"/> (null: nothing) into a dock around the stage. An empty dock takes no room.</summary>
     internal void SetDock(BooruGalleryDock dock, Control? content)

@@ -9,7 +9,6 @@ using Avalonia.Controls;
 using Avalonia.Data;
 using Avalonia.Input;
 using Avalonia.Interactivity;
-using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -34,25 +33,23 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
     private readonly HashSet<string> _selected;
     private readonly Action _selectionChanged;
     private readonly GalleryViewer _viewer = new();
-    private readonly CheckBox _select = new() { Name = "BooruViewerSelect" };
-    private readonly Button _download = new() { Name = "BooruViewerDownload" };
-    private readonly Button _previous = new() { Name = "BooruViewerPrevious" };
-    private readonly Button _next = new() { Name = "BooruViewerNext" };
-    private readonly Button _close = new() { Name = "BooruViewerClose" };
-    private readonly TextBlock _caption = new() { Name = "BooruViewerCaption", TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _status = new() { Name = "BooruViewerStatus", TextWrapping = TextWrapping.Wrap };
+    private readonly BooruGalleryToolbar _toolbar = new("BooruViewer", popout: true);
+    private readonly BooruGalleryTags _tags = new();
+    private readonly TextBlock _caption = new() { Name = "BooruViewerCaption", Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private int _index;
     private byte[]? _shownBytes;
+    private GalleryEntry? _shownEntry;
     private BooruPreviewState? _shownPreview;
     private string? _shownId;
     private bool _ended;
 
+    internal (Size Size, PixelPoint Position)? NormalBounds { get; private set; }
     internal string CurrentPostId => _ids[_index];
     internal Task Cleanup { get; private set; } = Task.CompletedTask;
     private BooruResultRowView? Row => _search.View.Rows.FirstOrDefault(row => row.Post.PostId == CurrentPostId);
 
     internal BooruResultViewerWindow(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged,
-        BooruPreviewDecoder? decoder = null)
+        BooruPreviewDecoder? decoder = null, Action<string>? openPost = null)
     {
         _search = search;
         _ids = search.View.Rows.Select(row => row.Post.PostId).ToArray();
@@ -69,7 +66,8 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
             token.ThrowIfCancellationRequested();
             // Capture this entry's immutable preview on the dispatcher, never query mutable rows
             // from a worker. Gallery owns cancellation, UI adoption and stale-bitmap disposal.
-            byte[] bytes = _search.View.Rows.First(row => row.Post.PostId == entry.Asset.AssetId).PreviewBytes!;
+            if (!ReferenceEquals(_shownEntry, entry) || _shownBytes is not { } bytes)
+                throw new InvalidOperationException("The current Booru preview is unavailable.");
             return decoder.DecodeAsync(bytes, request, token);
         };
         // This host supplies its own Booru chrome, rather than changing shared gallery behavior.
@@ -80,37 +78,42 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         _viewer.CloseRequested += Close;
         _viewer.MoveRequested += Move;
 
-        _close.Click += (_, _) => Close();
-        _previous.Click += (_, _) => Move(-1);
-        _next.Click += (_, _) => Move(1);
-        _select.Click += (_, _) => ToggleSelection();
-        _download.Click += async (_, _) => await DownloadAsync();
-        // Ordered bar: navigation | selection and download | (space) | close at the far right. Icon buttons carry
-        // tooltip and automation name; keys are unchanged.
-        WorkspaceIcons.MakeSquare(_previous, WorkspaceIcons.ChevronLeft, string.Empty);
-        WorkspaceIcons.MakeSquare(_next, WorkspaceIcons.ChevronLeft, string.Empty);
-        if (_next.Content is Control nextIcon) { nextIcon.RenderTransformOrigin = RelativePoint.Center; nextIcon.RenderTransform = new ScaleTransform(-1, 1); }
-        WorkspaceIcons.MakeSquare(_download, WorkspaceIcons.ArrowDown, string.Empty);
-        WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, string.Empty);
-        Border divider = new() { Name = "BooruViewerDivider", Width = 1, Margin = new Thickness(4, 2),
-            [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border") };
-        StackPanel actions = new() { Name = "BooruViewerBar", Orientation = Orientation.Horizontal, Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Center, Children = { _previous, _next, divider, _select, _download } };
-        Grid toolbar = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(12), ColumnSpacing = 8 };
-        toolbar.Children.Add(actions);
-        Grid.SetColumn(_close, 1); toolbar.Children.Add(_close);
-        StackPanel footer = new() { Spacing = 4, Margin = new Thickness(12), Children = { _caption, _status } };
-        Grid root = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
-        root.Children.Add(toolbar);
-        root.Children.Add(_viewer); Grid.SetRow(_viewer, 1);
-        root.Children.Add(footer); Grid.SetRow(footer, 2);
+        _toolbar.Move = Move;
+        _toolbar.MoveToBoundary = last => MoveTo(last ? _ids.Length - 1 : 0);
+        _toolbar.ToggleSelection = ToggleSelection;
+        _toolbar.Load = () => OpenActions.Start(DownloadAsync, "booru.viewer.download");
+        _toolbar.OpenPost = () =>
+        {
+            if (Row is { } row && BooruPostLinks.TryCanonical(row.Post, out string url)) openPost?.Invoke(url);
+        };
+        _toolbar.Close = Close;
+
+        Grid stage = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Children = { _viewer, _tags } };
+        Grid.SetColumn(_tags, 1);
+        Grid root = new()
+        {
+            RowDefinitions = new RowDefinitions("Auto,*,Auto"), RowSpacing = 8, Margin = new Thickness(12),
+            Children = { _toolbar, stage, _caption }
+        };
+        Grid.SetRow(stage, 1);
+        Grid.SetRow(_caption, 2);
         DialogWindow.Frame(this, root, modal: false);
-        AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_caption, AutomationLiveSetting.Polite);
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
-        Opened += (_, _) => { _viewer.ApplyTemplate(); SuppressGalleryChrome(); Refresh(); _viewer.Focus(); };
+        PositionChanged += (_, _) => CaptureNormalBounds();
+        Resized += (_, _) => CaptureNormalBounds();
+        Closing += (_, _) => CaptureNormalBounds();
+        Opened += (_, _) =>
+        {
+            _viewer.ApplyTemplate();
+            SuppressGalleryChrome();
+            CaptureNormalBounds();
+            Refresh();
+            _viewer.Focus();
+        };
         _search.Changed += OnChanged;
         Texts.Changed += OnLanguageChanged;
+        ShortcutService.Changed += OnChanged;
         Closed += (_, _) => OpenActions.Start(() => DisposeAsync().AsTask(), "booru.viewer.dispose");
     }
 
@@ -121,6 +124,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
             _ended = true;
             _search.Changed -= OnChanged;
             Texts.Changed -= OnLanguageChanged;
+            ShortcutService.Changed -= OnChanged;
             Cleanup = _viewer.DisposeAsync().AsTask();
         }
         return new(Cleanup);
@@ -130,18 +134,45 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
     {
         // A UserControl has no visual descendants before its template is applied. Install the
         // presentation overrides on template admission, not while constructing an unattached host.
-        foreach (Control control in _viewer.GetGalleryVisualDescendants().OfType<Control>().Where(control =>
-            control.Name is "GalleryDock" or "GalleryOverlayControls" or "GalleryOverlayInfo" or "GalleryClose"
-                or "GalleryFavoriteIndicator" or "GalleryNativeFavoriteIndicator" or "GalleryControlsEdgeIndicator" or "GalleryPostEdgeIndicator"))
-            control.SetValue(IsVisibleProperty, false, BindingPriority.Animation);
+        foreach (Control control in _viewer.GetGalleryVisualDescendants().OfType<Control>())
+        {
+            if (control is Grid { Name: "GalleryViewport" } viewport)
+                viewport[!BackgroundProperty] = new DynamicResourceExtension(BooruGalleryPanel.StageBackground);
+            if (control.Name is "GalleryDock" or "GalleryOverlayControls" or "GalleryOverlayInfo" or "GalleryClose"
+                or "GalleryFavoriteIndicator" or "GalleryNativeFavoriteIndicator" or "GalleryControlsEdgeIndicator" or "GalleryPostEdgeIndicator")
+                control.SetValue(IsVisibleProperty, false, BindingPriority.Animation);
+        }
     }
 
     private void OnChanged() => Dispatcher.UIThread.Post(() => { if (!_ended) Refresh(); });
     private void OnLanguageChanged(object? sender, EventArgs e) => OnChanged();
 
-    private void Move(int delta)
+    internal void RestoreNormalBounds(Window owner, (Size Size, PixelPoint Position) bounds)
     {
-        _index = Math.Clamp(_index + delta, 0, _ids.Length - 1);
+        var screen = owner.Screens.ScreenFromPoint(bounds.Position) ?? owner.Screens.ScreenFromWindow(owner);
+        if (screen is null) return;
+        WindowStartupFit fit = DialogFit.Compute(bounds.Size, null, new Size(MinWidth, MinHeight),
+            screen.WorkingArea, screen.Scaling, bounds.Position);
+        WindowStartupLocation = WindowStartupLocation.Manual;
+        MinWidth = fit.Minimum.Width;
+        MinHeight = fit.Minimum.Height;
+        Width = fit.Client.Width;
+        Height = fit.Client.Height;
+        Position = fit.Position;
+    }
+
+    private void CaptureNormalBounds()
+    {
+        if (IsVisible && WindowState == WindowState.Normal && ClientSize.Width > 0 && ClientSize.Height > 0)
+            NormalBounds = (ClientSize, Position);
+    }
+
+    private void Move(int delta) => MoveTo(Math.Clamp(_index + delta, 0, _ids.Length - 1));
+
+    private void MoveTo(int index)
+    {
+        if (_index == index) return;
+        _index = index;
         Refresh();
     }
 
@@ -165,18 +196,11 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || ShortcutService.IsCapturing) return;
-        if (e.KeyModifiers == KeyModifiers.None && e.Key == Key.Escape) { e.Handled = true; Close(); return; }
-        if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Left or Key.Right)
-        { e.Handled = true; Move(e.Key == Key.Left ? -1 : 1); return; }
-        // Native Tab/Space/Enter activation of toolbar controls stays accessible. On the picture,
-        // Space and Enter mark this image, not playback or an implicit download.
-        if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter
-            && !ItemActivation.IsOwnedByInteractivePart(e.Source, _viewer))
-        { e.Handled = true; ToggleSelection(); return; }
-        if (e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter) return;
+        _toolbar.RouteKey(e, _viewer);
+        if (e.Handled || e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter) return;
         using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
-        if (CommandBindings.Matches(e, "media.export-original"))
-        { e.Handled = true; OpenActions.Start(DownloadAsync, "booru.viewer.download"); return; }
+        // Let the read-only tags keep the platform's copy and text-selection gestures.
+        if (e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(_tags)) return;
         // Permit only image-view commands through to the composed viewer; local-media commands,
         // slideshow, rating and tagging do not apply to a result that has not been downloaded.
         if (e.Key == Key.Tab || new[] { "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.rotate" }
@@ -189,42 +213,25 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.PostId)) || Row is not { } row)
         { Close(); return; }
         Title = Texts.T("booru.ui.post.title", CurrentPostId);
-        _caption.Text = $"{Title} · {_index + 1}/{_ids.Length} · {Texts.T("booru.mediaRole.Preview")} · {Texts.T("booru.ui.post.rating", BooruText.Rating(row.Post.Rating))}";
-        WorkspaceIcons.MakeSquare(_previous, WorkspaceIcons.ChevronLeft, Texts.T("gallery.viewer1"), Texts.T("gallery.viewer1") + " · ←");
-        WorkspaceIcons.MakeSquare(_next, WorkspaceIcons.ChevronLeft, Texts.T("gallery.viewer2"), Texts.T("gallery.viewer2") + " · →");
-        WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, Texts.T("action.close"), Texts.T("action.close") + " · Esc");
-        _previous.IsEnabled = _index > 0;
-        _next.IsEnabled = _index < _ids.Length - 1;
-        _select.Content = Texts.T("media.tile.selected") + " · Space / Enter";
-        _select.IsChecked = _selected.Contains(CurrentPostId);
-        string action = row.CanRetry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
-        string actionName = row.CanRetry ? $"{action}: {Title}" : Texts.T("booru.ui.loadFor", CurrentPostId);
-        string loadLabel = action + " · " + CommandCatalog.ShortcutDisplay("media.export-original");
-        _download.IsEnabled = row.CanLoad || row.CanRetry;
-        string? previewNote = row.Preview switch
-        {
-            BooruPreviewState.Loading => Texts.T("booru.ui.post.previewLoading"),
-            BooruPreviewState.None => Texts.T("booru.ui.post.noPreview"),
-            BooruPreviewState.Ready => null,
-            _ => Texts.T("booru.ui.post.previewUnavailable")
-        };
-        _status.Text = (previewNote is null ? string.Empty : previewNote + " · ")
-            + (BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned));
-        WorkspaceIcons.MakeSquare(_download, WorkspaceIcons.ArrowDown, actionName,
-            loadLabel + Environment.NewLine + _status.Text);
-        ToolTip.SetShowOnDisabled(_download, true);
+        _toolbar.Present(row, _index, _ids.Length, _selected.Contains(CurrentPostId));
+        _tags.Present(row.Post);
+        BooruGalleryPicture picture = row.Preview == BooruPreviewState.Ready ? BooruGalleryPicture.Preview : BooruGalleryPicture.None;
+        _caption.Text = BooruGalleryStatus.Line(row, picture, BooruGallerySampleState.Deferred, 0);
+        if (!_toolbar.Previous.IsEnabled && _toolbar.Previous.IsFocused || !_toolbar.Next.IsEnabled && _toolbar.Next.IsFocused)
+            _viewer.Focus();
         if (_shownId == CurrentPostId && _shownPreview == row.Preview && ReferenceEquals(_shownBytes, row.PreviewBytes)) return;
         _shownPreview = row.Preview;
         _shownId = CurrentPostId;
         _shownBytes = row.PreviewBytes;
         if (row.Preview != BooruPreviewState.Ready || row.PreviewBytes is not { Length: > 0 and <= 8388608 })
         {
+            _shownEntry = null;
             OpenActions.Start(() => _viewer.SetEmpty(Texts.T(row.Preview == BooruPreviewState.Loading ? "booru.ui.post.previewLoading"
                 : row.Preview == BooruPreviewState.None ? "booru.ui.post.noPreview" : "booru.ui.post.previewUnavailable"), false),
                 "booru.viewer.empty");
             return;
         }
-        GalleryEntry entry = CreatePreviewEntry(row);
+        GalleryEntry entry = _shownEntry = CreatePreviewEntry(row);
         OpenActions.Start(() => _viewer.ShowAsync(entry, CancellationToken.None), "booru.viewer.show");
     }
 

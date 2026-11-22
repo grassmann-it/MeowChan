@@ -24,6 +24,7 @@ internal sealed class BooruGalleryToolbar : Border
     private readonly TextBlock _selectionKey = new();
     private GalleryToolbarActionContent? _downloadContent;
     private string _downloadLabel = string.Empty;
+    private WindowState _beforeFullscreen;
 
     internal BooruGalleryToolbar(string prefix, bool popout = false)
     {
@@ -54,7 +55,7 @@ internal sealed class BooruGalleryToolbar : Border
         _openPost.Click += (_, _) => OpenPost?.Invoke();
         _openWindow.Click += (_, _) => OpenWindow?.Invoke();
         _close.Click += (_, _) => Close?.Invoke();
-        _fullscreen.Click += (_, _) => Fullscreen?.Invoke();
+        _fullscreen.Click += (_, _) => ToggleFullscreen();
         ToolTip.SetShowOnDisabled(Previous, true);
         ToolTip.SetShowOnDisabled(Next, true);
         ToolTip.SetShowOnDisabled(Download, true);
@@ -77,7 +78,6 @@ internal sealed class BooruGalleryToolbar : Border
     internal Action? OpenPost { get; set; }
     internal Action? OpenWindow { get; set; }
     internal Action? Close { get; set; }
-    internal Action? Fullscreen { get; set; }
 
     private static StackPanel Group(params Control[] controls)
     {
@@ -123,7 +123,7 @@ internal sealed class BooruGalleryToolbar : Border
         _openPost.IsVisible = BooruPostLinks.TryCanonical(row.Post, out string url);
         IconButtons.Apply(_openPost, "external-link", Texts.T("booru.ui.post.openFor", row.Post.PostId));
         if (_openPost.IsVisible) ToolTip.SetTip(_openPost, Texts.T("booru.ui.post.openTip", url));
-        IconButtons.Apply(_openWindow, "maximize", Texts.T("booru.gallery.openWindow"));
+        IconButtons.Apply(_openWindow, "copy", Texts.T("booru.gallery.openWindow"));
     }
 
     private static void PresentCommand(Button button, string id)
@@ -141,6 +141,20 @@ internal sealed class BooruGalleryToolbar : Border
         if (Download.IsEnabled) Load?.Invoke();
     }
 
+    private void ToggleFullscreen()
+    {
+        if (TopLevel.GetTopLevel(this) is MainWindow shell) shell.ToggleFullscreen();
+        else if (TopLevel.GetTopLevel(this) is Window window)
+        {
+            if (window.WindowState == WindowState.FullScreen) window.WindowState = _beforeFullscreen;
+            else
+            {
+                _beforeFullscreen = window.WindowState;
+                window.WindowState = WindowState.FullScreen;
+            }
+        }
+    }
+
     internal void RouteKey(KeyEventArgs e, Control stage)
     {
         if (e.Handled || ShortcutService.IsCapturing || e.Source is Visual source
@@ -154,7 +168,7 @@ internal sealed class BooruGalleryToolbar : Border
         else if (bindings.Matches(e, "gallery.next")) Browse(1);
         // Escape is fixed navigation in the shell and is kept out of the editable shortcuts.
         else if (plain && e.Key == Key.Escape || bindings.Matches(e, "gallery.close")) Close?.Invoke();
-        else if (CommandBindings.Matches(e, "window.fullscreen")) Fullscreen?.Invoke();
+        else if (CommandBindings.Matches(e, "window.fullscreen")) ToggleFullscreen();
         else if (CommandBindings.Matches(e, "media.export-original")) DownloadOriginal();
         else if (plain && e.Key is Key.Up or Key.Down) Browse(e.Key == Key.Up ? -1 : 1);
         else if (plain && e.Key is Key.Home or Key.End)

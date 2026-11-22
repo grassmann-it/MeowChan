@@ -69,29 +69,12 @@ internal sealed partial class BooruWorkbenchView
         };
         _gallery.OpenWindowRequested = postId => OpenResultViewer(postId);
         _gallery.LeaveRequested = LeaveGallery;
-        _gallery.FullscreenRequested = ToggleGalleryFullscreen;
         AddHandler(KeyDownEvent, (_, e) =>
         {
             if (_resultView == BooruResultView.Gallery && IsSearchItem(_tabs.SelectedItem))
                 _gallery.RouteKey(e);
         }, RoutingStrategies.Tunnel);
         SizeChanged += (_, _) => UpdateGalleryStageHeight();
-    }
-
-    private WindowState _beforeFullscreen;
-
-    private void ToggleGalleryFullscreen()
-    {
-        if (TopLevel.GetTopLevel(this) is MainWindow shell) shell.ToggleFullscreen();
-        else if (TopLevel.GetTopLevel(this) is Window window)
-        {
-            if (window.WindowState == WindowState.FullScreen) window.WindowState = _beforeFullscreen;
-            else
-            {
-                _beforeFullscreen = window.WindowState;
-                window.WindowState = WindowState.FullScreen;
-            }
-        }
     }
 
     private void UpdateGalleryScroll()
