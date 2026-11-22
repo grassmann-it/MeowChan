@@ -68,8 +68,8 @@ internal sealed record TagQueueItem(ResourceId Thread, string Directory, string 
     /// <summary>
     /// The media index entry this item stands for, as the gallery resolver expects it: a present entry with the identity fields.
     /// The thread title, revision and capture times are not part of the queue; the resolver does not read them. The attachment revision
-    /// key (file version 3) is what makes the entry's bound media tag target known; an older entry has none until
-    /// <see cref="TagQueueKeyResolver"/> finds it in the media index.
+    /// key identifies the bound media tag target. Version 2 omits it on disk. <see cref="TagQueueKeyResolver"/>
+    /// resolves it from the index when the item has no in-memory key.
     /// </summary>
     internal MediaLibraryEntry ToLibraryEntry() => new(Thread, string.Empty, 0, AddedAtUtc, null, PostId, null, null, Position, AttachmentRevisionKey,
         Directory, AssetId, Sha256, Length, MediaId, Variant, Name.Length == 0 ? null : Name, Kind, MediaLibraryPresence.Present,
