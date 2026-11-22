@@ -14,7 +14,7 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
             ["cs"] = (5432, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
             ["es"] = (5384, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
             ["fr"] = (5384, 120, "7b5f781094edcf29e359eeb3a7c733241c4161be7e0a5ad3df54f954ca68d8f1"),
-            ["it"] = (5390, 128, "f93b0af50e3347ddbf8a6e1b9f7b1b30f640987d7d9f99cc47911421f0e64f98"),
+            ["it"] = (5390, 129, "eb687b3d54ee0fda9a4292201f275dfe0013253dcee6af3104892abe9f6a4d7b"),
             ["ja"] = (5282, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
             ["ko"] = (5282, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
             ["pl"] = (5433, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
