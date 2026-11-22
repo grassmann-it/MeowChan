@@ -6,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -55,6 +56,15 @@ public sealed class GalleryFooterInteractionTests
         Tick(viewer, age: true);
         Assert.True(footer.IsVisible);
 
+        // Paint an invalidated scene with the pointer still on the anchor. It cannot start another tip.
+        ToolTip.SetIsOpen(button, false);
+        button.InvalidateVisual();
+        host.UpdateLayout();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+        Assert.False(ToolTip.GetIsOpen(button));
+        Assert.Equal(1, openings);
+
         host.MouseMove(new Point(200, 160));
         Assert.False(ToolTip.GetIsOpen(button));
         Tick(viewer);
@@ -88,8 +98,10 @@ public sealed class GalleryFooterInteractionTests
         Assert.False(footer.IsVisible);
     });
 
-    [Fact]
-    public void CapturedPressHoldsUntilCaptureIsLostEvenWhenReleaseIsOutsideTheGallery() => WithGallery((viewer, host, footer) =>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CapturedPressHoldsUntilCaptureIsLostEvenWhenReleaseIsOutsideTheGallery(bool cancelCapture) => WithGallery((viewer, host, footer) =>
     {
         Button button = viewer.OverflowButton;
         Point center = Center(button, host);
@@ -97,11 +109,13 @@ public sealed class GalleryFooterInteractionTests
         host.MouseDown(center, MouseButton.Left);
         IPointer pointer = (IPointer)Field("_lastPointer").GetValue(viewer)!;
         Assert.NotNull(pointer.Captured);
-        host.MouseMove(new Point(200, 160), Avalonia.Input.RawInputModifiers.LeftMouseButton);
+        Point outsideGallery = new(200, 16);
+        host.MouseMove(outsideGallery, RawInputModifiers.LeftMouseButton);
         Tick(viewer, age: true);
         Assert.True(footer.IsVisible);
 
-        pointer.Capture(null);
+        if (cancelCapture) pointer.Capture(null);
+        else host.MouseUp(outsideGallery, MouseButton.Left);
         Assert.Empty((HashSet<IPointer>)Field("_pressedPointers").GetValue(viewer)!);
         Assert.True(viewer.Focus(NavigationMethod.Tab));
         Tick(viewer);
@@ -132,23 +146,17 @@ public sealed class GalleryFooterInteractionTests
         Assert.False(string.IsNullOrWhiteSpace(name));
         Assert.NotNull(tip);
 
-        host.Width = 760;
-        Dispatcher.UIThread.RunJobs();
-        host.UpdateLayout();
+        BooruReviewTestPlatform.Resize(host, 760);
         Assert.Same(content, context.Content);
         Assert.False(content.ShowLabel);
         Assert.Equal(name, AutomationProperties.GetName(context));
         Assert.Equal(tip, ToolTip.GetTip(context));
 
         // With enough room for some labels, a long label farther along the row must not suppress Info.
-        host.Width = 2000;
-        Dispatcher.UIThread.RunJobs();
-        host.UpdateLayout();
+        BooruReviewTestPlatform.Resize(host, 2000);
         Assert.Equal(info, Label(context));
 
-        host.Width = 2304;
-        Dispatcher.UIThread.RunJobs();
-        host.UpdateLayout();
+        BooruReviewTestPlatform.Resize(host, 2304);
         Assert.Same(content, context.Content);
         Assert.Equal(info, Label(context));
         Control navigation = toolbar.Children[1];
@@ -171,7 +179,11 @@ public sealed class GalleryFooterInteractionTests
             viewer.ApplyWorkView(WorkView.Advanced);
             viewer.ConfigurePlayback(new GalleryPlaybackPreferences(Mode: GalleryPlaybackMode.Slideshow, OverlayControls: true, AutoHideControls: true));
             viewer.SetPosition("10 of 333", true, true);
-            Window host = new() { Width = 2304, Height = 680, Content = viewer, Classes = { MotionPolicy.OffClass } };
+            Grid content = new() { RowDefinitions = new RowDefinitions("32,*") };
+            content.Children.Add(new Border { Background = Brushes.Transparent });
+            content.Children.Add(viewer);
+            Grid.SetRow(viewer, 1);
+            Window host = new() { Width = 2304, Height = 680, Content = content, Classes = { MotionPolicy.OffClass } };
             try
             {
                 host.Show();

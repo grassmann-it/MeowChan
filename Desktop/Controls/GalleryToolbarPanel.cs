@@ -1,6 +1,7 @@
 using System;
 using System.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.LogicalTree;
@@ -21,8 +22,8 @@ internal sealed class GalleryToolbarPanel : GeometricCenterPanel
         var labels = right.GetLogicalDescendants().OfType<Button>()
             .Where(button => button.IsEffectivelyVisible).Select(button => button.Content)
             .OfType<GalleryToolbarActionContent>().ToArray();
-        // Recover the same icon-only width from either presentation. Pagination keeps the centre and an 8 DIP gap on
-        // both sides. Spend the remaining room in toolbar order, with 8 DIP spare before revealing a new label.
+        // Recover the icon-only width from either presentation. Keep pagination centred with an 8 DIP gap on each
+        // side, then use the same budget on every measure so the result is independent of previous window sizes.
         double sideRoom = (availableSize.Width - Children[1].DesiredSize.Width) / 2 - RegionGap;
         double iconWidth = right.DesiredSize.Width - labels.Where(label => label.ShowLabel).Sum(label => label.LabelWidth);
         double labelRoom = sideRoom >= Children[0].DesiredSize.Width ? sideRoom - iconWidth : 0;
@@ -30,7 +31,7 @@ internal sealed class GalleryToolbarPanel : GeometricCenterPanel
         bool changed = false;
         foreach (var label in labels)
         {
-            bool show = labelRoom >= label.LabelWidth + (label.ShowLabel ? 0 : RegionGap);
+            bool show = labelRoom >= label.LabelWidth;
             if (show) labelRoom -= label.LabelWidth;
             if (label.ShowLabel == show) continue;
             label.ShowLabel = show;
@@ -52,6 +53,7 @@ internal sealed class GalleryToolbarActionContent : Panel
     {
         IsHitTestVisible = false;
         _label.Text = text;
+        AutomationProperties.SetAccessibilityView(_label, AccessibilityView.Raw);
         Children.Add(icon);
         Children.Add(_label);
     }

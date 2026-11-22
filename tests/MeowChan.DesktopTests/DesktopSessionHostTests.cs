@@ -12,6 +12,7 @@ using MeowChan.Storage;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class DesktopSessionHostTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
@@ -136,7 +137,10 @@ public sealed class DesktopSessionHostTests
     [InlineData(null, 29)]
     [InlineData(47, 47)]
     [InlineData(0, 0)]
-    public async Task SettingsDraftMergesNewerGalleryVolumeUnlessVolumeWasEdited(int? editedVolume, int expectedVolume)
+    public void SettingsDraftMergesNewerGalleryVolumeUnlessVolumeWasEdited(int? editedVolume, int expectedVolume) =>
+        BooruComponentDispatcher.Run(() => BooruComponentDispatcher.Wait(ExerciseGalleryVolumeAsync(editedVolume, expectedVolume)));
+
+    private static async Task ExerciseGalleryVolumeAsync(int? editedVolume, int expectedVolume)
     {
         using TempDirectory directory = new();
         new Config { VideoVolume = 70 }.SaveConfig(directory.Path);

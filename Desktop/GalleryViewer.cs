@@ -523,7 +523,6 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _nativeVideoOverlay.ContextRequested += OnMediaContextRequested;
         SizeChanged += (_, _) =>
         {
-            _chrome.MaxWidth = Math.Max(0, Bounds.Width - 16);
             UpdateBackLabel();
             UpdateToolbarDensity();
             LayoutContext();

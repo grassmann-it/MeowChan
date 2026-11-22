@@ -38,7 +38,8 @@ public sealed class CurationConsistencyTests
     public void TheGalleryFavouriteToggleDrawsAnUntintedStarThatFollowsItsForeground()
     {
         string source = File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(SourcePath())!, "../..", "Desktop/GalleryViewer.cs")));
-        Assert.Contains("FavoriteStar.Create(_favoriteSelected, size, tinted: false)", source);
+        Assert.Contains("content.Icon = FavoriteStar.Create(_favoriteSelected, tinted: false);", source);
+        Assert.Contains("Border icon = favorite ? FavoriteStar.Create(_favoriteSelected, tinted: false)", source);
         OwnedUiDispatcher.Run(() =>
         {
             Border marked = FavoriteStar.Create(true, 16, tinted: false);

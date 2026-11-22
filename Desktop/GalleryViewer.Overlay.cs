@@ -342,6 +342,8 @@ internal sealed partial class GalleryViewer
             surface.AddHandler(DoubleTappedEvent, OnOverlayTap, RoutingStrategies.Tunnel, handledEventsToo: true);
         }
         InitializeEdgeIndicators();
+        TransientPopupPolicy.GuardFooterToolTips(_overlayFooter);
+        TransientPopupPolicy.GuardFooterToolTips(_dockStack);
         _overlayFooter.ZIndex = 10;
         _contextPanel.ZIndex = 20;
         _helpPanel.ZIndex = 30;
@@ -808,7 +810,10 @@ internal sealed partial class GalleryViewer
         if (_terminalRetirement || _viewerInteractionStopped) return;
         MarkVisibleImageReady();
         bool active = IsGalleryWindowActive;
-        if (!active) _pressedPointers.Clear();
+        // Capture can move through an overlay popup whose visual route bypasses the gallery.
+        // Reconcile those presses here as well as on routed release/capture loss.
+        if (active) _pressedPointers.RemoveWhere(pointer => pointer.Captured == null);
+        else _pressedPointers.Clear();
         bool popup = HasGalleryPopup || HasGalleryDialog || _helpOpen;
         bool footerPopup = popup || HasAnchoredGalleryPopup(includeToolTips: true) || _video?.IsVolumePopupOpen == true;
         if (!footerPopup && (!active || !HasCurrentGalleryPointer && !_keyboardInteraction)) ReleaseTransientOverlays();
@@ -837,7 +842,7 @@ internal sealed partial class GalleryViewer
         var activity = new GalleryOverlayActivity(OverlayControlsEffective, _playbackPreferences.AutoHideControls,
             // The tagging mode holds the controls: its decision strip is never auto-hidden (PT3).
             _interactionAvailable, active, controlHasFocus, captured, footerPopup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText || _tagging != null,
-            Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator || FilmstripHolds
+            Hovered: _overlayFooter.IsPointerOver || _controlsHot || _pointerInControls || _pointerOnControlsIndicator || FilmstripHolds
                 || _close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver);
         if (!_overlayHidden && activity.CanHideAfterHold(Stopwatch.GetTimestamp(), _controlsIdleHideMs,
             ref _lastOverlayActivity, ref _overlayActivityHeld))
