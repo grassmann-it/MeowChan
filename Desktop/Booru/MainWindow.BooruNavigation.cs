@@ -17,6 +17,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private BooruPage? _booruPage;
+    private BooruSearchTabStore? _booruTabStore;
     private readonly BooruUnavailableNavigation _booruUnavailableNavigation = new();
     private bool _booruFallbackRestoreContinuation;
     private bool _booruFallbackRestoreSettled;
@@ -38,9 +39,16 @@ public partial class MainWindow
         // The sdk-mismatch repair route (MainWindow.BooruRepair): review, confirm, restart.
         AttachBooruRepair(page, services);
         page.ApplyWorkView(ConfiguredWorkView, viewChanged: true);
+        page.RestoreSearchTabs(_booruTabStore ??= _session.CreateBooruSearchTabStore(), _session.Config);
         _booruPage = page;
         BooruPageHost.Content = page;
         return true;
+    }
+
+    private Task FlushBooruSearchTabsAsync()
+    {
+        _booruPage?.FlushSearchTabs();
+        return _booruTabStore?.PendingSave ?? Task.CompletedTask;
     }
 
     private void DisposeBooruPage()

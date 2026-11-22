@@ -19,6 +19,7 @@ namespace MeowChan.Desktop.Booru;
 internal sealed class BooruPage : UserControl, IDisposable
 {
     private readonly BooruWorkbenchView _view;
+    private BooruTabPersistence? _tabPersistence;
     private bool _disposed;
 
     internal BooruPage(BooruWorkbenchServices services)
@@ -46,6 +47,11 @@ internal sealed class BooruPage : UserControl, IDisposable
     /// <summary>The actual hosted view, for the existing gallery/media callback wiring.</summary>
     internal BooruWorkbenchView View => _view;
     internal BooruWorkbenchModel Model => _view.Model;
+
+    internal void RestoreSearchTabs(BooruSearchTabStore store, Config config) =>
+        _tabPersistence = new BooruTabPersistence(_view, store, config);
+
+    internal void FlushSearchTabs() => _tabPersistence?.Dispose();
 
     /// <summary>
     /// Explicit first-show hook. Delegates the view's once-only local watcher-list initialization;
@@ -120,6 +126,7 @@ internal sealed class BooruPage : UserControl, IDisposable
         if (_disposed) return;
         _disposed = true;
         KeyDown -= OnKeyDown;
+        _tabPersistence?.Dispose();
         _view.Dispose();
     }
 }

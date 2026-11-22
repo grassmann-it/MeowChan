@@ -64,6 +64,14 @@ internal sealed partial class BooruWorkbenchView
 
     internal BooruSearchTabs SearchTabs => _searchTabs ?? throw new InvalidOperationException("The search tabs are built with the body.");
 
+    internal void RestoreSearchTabs(BooruTabSnapshot snapshot)
+    {
+        _selectNewTab = true;
+        try { SearchTabs.Restore(snapshot); }
+        finally { _selectNewTab = false; }
+        Render(force: true);
+    }
+
     /// <summary>Start with the permanent search and the button for adding searches.</summary>
     private TabItem[] CreateTabItems()
     {
