@@ -147,9 +147,46 @@ public sealed class PageHeaderContractTests
         Layout(header, 1400);
         Assert.False(header.IsStacked);
         Assert.Equal(0, Grid.GetRow(actions));
-        Assert.Equal(1, Grid.GetColumn(actions));
+        Assert.True(Grid.GetColumn(actions) > Grid.GetColumn(title));
         Assert.Equal(default(Thickness), actions.Margin);
         Assert.Equal(HorizontalAlignment.Right, actions.HorizontalAlignment);
+    }
+
+    [Theory]
+    [InlineData(424, true)]
+    [InlineData(1100, false)]
+    public void HelpStaysOnTheRightAndOnlyActionsWrap(double width, bool stacked)
+    {
+        WrapPanel actions = Actions(5);
+        Border help = Box(32);
+        PageHeader.SetRole(help, PageHeaderRole.Help);
+        PageHeader header = Header(Title(), actions, help);
+
+        Layout(header, width);
+
+        Assert.Equal(stacked, header.IsStacked);
+        Assert.Equal(width, help.Bounds.Right, 1);
+        Assert.Equal(32, help.Bounds.Height, 1);
+        Assert.True(actions.Bounds.Right <= help.Bounds.Left - 8 + 0.5);
+        Assert.Equal(stacked, actions.Bounds.Height > 32);
+        Assert.Equal(actions.Bounds.Y + actions.Children[^1].Bounds.Bottom, help.Bounds.Bottom, 1);
+    }
+
+    [Fact]
+    public void HelpKeepsTheRightEdgeWhenTheActionsAreHidden()
+    {
+        StackPanel title = Title();
+        WrapPanel actions = Actions();
+        actions.IsVisible = false;
+        Border help = Box(32);
+        PageHeader.SetRole(help, PageHeaderRole.Help);
+        PageHeader header = Header(title, actions, help);
+
+        Layout(header, 616);
+
+        Assert.False(header.IsStacked);
+        Assert.Equal(616, help.Bounds.Right, 1);
+        Assert.Equal(616 - 32 - PageHeader.DefaultSpacing, title.Bounds.Width, 1);
     }
 
     [Fact]
@@ -161,7 +198,6 @@ public sealed class PageHeaderContractTests
         PageHeader header = Header(title, actions);
         Layout(header, 616);
         Assert.False(header.IsStacked);
-        Assert.Equal(0d, header.ColumnSpacing); // no gap before the empty end column
         Assert.Equal(616, title.Bounds.Width, 1);
     }
 

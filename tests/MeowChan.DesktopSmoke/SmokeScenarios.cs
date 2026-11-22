@@ -275,6 +275,7 @@ internal static partial class SmokeScenarios
         Root("normal-settings-page", "MEOWCHAN_NORMAL_SETTINGS_PAGE_ONLY"),
         Root("normal-diagnostics", "MEOWCHAN_NORMAL_DIAGNOSTICS_ONLY"),
         Root("sources-page", "MEOWCHAN_SOURCES_PAGE_ONLY"),
+        Root("page-header-help", "MEOWCHAN_PAGE_HEADER_HELP_ONLY", "Sources, Plugins and Booru: visual-tree order, right-edge Help and Tab/Shift+Tab at wide and minimum widths in EN/DE"),
         Root("pause-controls", "MEOWCHAN_PAUSE_CONTROLS_ONLY"),
         Root("rules-page", "MEOWCHAN_RULES_PAGE_ONLY"),
         Root("settings-core", "MEOWCHAN_SETTINGS_CORE_ONLY"),

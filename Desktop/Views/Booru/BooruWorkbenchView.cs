@@ -292,55 +292,17 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildHeader()
     {
-        StackPanel details = new() { Spacing = 4, Children = { _title } };
+        StackPanel details = new() { Spacing = 4, VerticalAlignment = VerticalAlignment.Bottom, Children = { _title } };
         _searchHelp.Source = () => BuildSearchHelp(_model.Search.View);
         CommandBindings.EnsureIconBeforeText(_openWatchers, "eye");
         _openWatchers.Click += (_, _) => ShowWatchers();
-        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, Children = { _openWatchers, _more, _searchHelp } };
-        HeaderRow heading = new(details, actions);
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, VerticalAlignment = VerticalAlignment.Top, Children = { _openWatchers, _more } };
+        PageHeader.SetRole(actions, PageHeaderRole.Actions);
+        PageHeader.SetRole(_searchHelp, PageHeaderRole.Help);
+        PageHeader heading = new() { Spacing = 8, Children = { details, actions, _searchHelp } };
         _tabLimitHost.Child = _tabLimitText;
         AutomationProperties.SetLiveSetting(_tabLimitText, AutomationLiveSetting.Polite);
         return new StackPanel { Spacing = 4, Children = { heading, _tabLimitHost } };
-    }
-
-    private sealed class HeaderRow : Panel
-    {
-        private const double Gap = 8;
-        private readonly Control _details;
-        private readonly Control _actions;
-        private bool _stacked;
-
-        internal HeaderRow(Control details, Control actions)
-        {
-            _details = details;
-            _actions = actions;
-            Children.AddRange([details, actions]);
-        }
-
-        protected override Size MeasureOverride(Size availableSize)
-        {
-            _details.Measure(Avalonia.Size.Infinity);
-            _actions.Measure(Avalonia.Size.Infinity);
-            _stacked = availableSize.Width < _details.DesiredSize.Width + Gap + _actions.DesiredSize.Width;
-            if (_stacked) _actions.Measure(availableSize);
-            double detailsWidth = _stacked ? availableSize.Width : availableSize.Width - Gap - _actions.DesiredSize.Width;
-            _details.Measure(new Size(Math.Max(0, detailsWidth), availableSize.Height));
-            return _stacked
-                ? new Size(Math.Max(_details.DesiredSize.Width, _actions.DesiredSize.Width),
-                    _details.DesiredSize.Height + Gap + _actions.DesiredSize.Height)
-                : new Size(_details.DesiredSize.Width + Gap + _actions.DesiredSize.Width,
-                    Math.Max(_details.DesiredSize.Height, _actions.DesiredSize.Height));
-        }
-
-        protected override Size ArrangeOverride(Size finalSize)
-        {
-            Size actionSize = _actions.DesiredSize;
-            double detailsWidth = _stacked ? finalSize.Width : finalSize.Width - Gap - actionSize.Width;
-            double detailsY = _stacked ? 0 : finalSize.Height - _details.DesiredSize.Height;
-            _details.Arrange(new Rect(0, detailsY, Math.Max(0, detailsWidth), _details.DesiredSize.Height));
-            _actions.Arrange(new Rect(new Point(finalSize.Width - actionSize.Width, finalSize.Height - actionSize.Height), actionSize));
-            return finalSize;
-        }
     }
 
     private Control BuildBody()

@@ -320,6 +320,10 @@ internal static partial class SmokeScenarios
         ["sources-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SourcesChecks.RunAsync(mainWindow)),
         ["pause-controls"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PauseChecks.RunAsync(mainWindow)),
         ["rules-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesPageChecks.RunAsync(mainWindow)),
+        ["page-header-help"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PageHeaderHelpChecks.RunAsync(mainWindow))
+        {
+            Configure = config => config.WorkspaceMode = "Barebones"
+        },
         ["settings-core"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsChecks.RunAsync(mainWindow)),
         ["page-refresh"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {
