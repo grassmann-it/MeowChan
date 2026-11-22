@@ -12,11 +12,8 @@ Preparation for [MeowChan 1.1.1](releases/v1.1.1.md). The source notes cover `v1
 ## Gates
 
 - [ ] Run the combined local filter below once on the final candidate. Record the SHA, SDK version, test totals and log. The preparation run passed 849 tests with SDK 10.0.112 from the local `global.json` override. CI uses the committed pin, 10.0.111.
-- [ ] Run **one full** [Desktop and library validation workflow](../.github/workflows/dotnet-desktop.yml) for the final SHA when it is available to Actions. Use `platform=all` and `scenario=all`. Choose one mode:
-  - `mode=validate` for the full sweep with the current tooling. Verify all required Windows, Linux and macOS lanes, offline aggregate gates and applicable packaging jobs.
-  - `mode=stable-candidate` for the full sweep and stable package admission once the AP04 target supports 1.1.1. This mode also requires same-run AP04 PASS, candidate inventory, source bindings, checksums and the release-candidate gate. See the [prior release checklist](releases/RELEASE-CHECKLIST-1.1.0-2026-11-16.md#2-required-final-github-actions-run).
-- [ ] Inspect the validation-gate JSON and executed test reports for failures or skips of required checks.
-- [ ] For the chosen mode, keep the run ID and attempt, tested SHA, gate reports, test results and applicable artifact checksums together. Earlier runs and focused retries are diagnostic evidence only.
+- [ ] Once everything intended for the dogfood build is merged, push the candidate and start **one full** [Desktop and library validation workflow](../.github/workflows/dotnet-desktop.yml) in the background with `platform=all` and `scenario=all`, mode `validate`. Tom dogfoods while it runs. The run does **not block** the release (Tom's decision on 22 November, as for 1.1.0, where validation mostly found fragile tests). A red job holds the release only when it shows a real functional failure; a flaky or load-dependent test, or a platform quirk of a test, is recorded and fixed afterwards. `mode=stable-candidate` stays out of scope until the AP04 target supports 1.1.1.
+- [ ] Inspect the red jobs of that run once: classify each as functional failure or fragile test, and record the run ID, the tested SHA and the classification. Earlier runs and focused retries are diagnostic evidence only.
 - [ ] Tom signs off Windows and macOS on the same candidate SHA and records any differences by OS, architecture, display scale and package.
 - [ ] Tom dogfoods that candidate with a copy of a representative 1.1.0 profile. Use the usual download → Reader → gallery → tag → resume flow and a Booru search across restarts. Record the profile origin, observed results, regressions and disposition before sign-off.
 
@@ -30,7 +27,7 @@ dotnet test tests/MeowChan.Tests --filter "FullyQualifiedName~Release|FullyQuali
 - [ ] Check Downloads tabs and toolbar alignment, keyboard focus across cells, and the row context menu in wide and narrow windows.
 - [ ] Check the Reader and Media sidebar switches with mouse and keyboard in wide and narrow windows. Open and close Find and Tags, follow a later-line link or post reference, then return from the gallery and check attachment previews and scroll position.
 - [ ] In Booru, open and duplicate a search tab, try both search destinations, close Watchers, switch List/Grid/Gallery and navigate to both ends of a result page. Restart and verify search and result restoration. Try one original download and inspect the outcome.
-- [ ] Check the Tagging header, progress and collapsed stamp, selection actions, **Without tags** and resume after restart. If available, use a copy of a dogfood v3 queue to check v2 writeback on the first edit.
+- [ ] Check the Tagging page: the header with the primary Continue action and progress, the collapsed stamp summary with its popover editor, the two-action selection bar with its More menu, the compact filter row, **Without tags** and resume after restart. If available, use a copy of a dogfood v3 queue to check v2 writeback on the first edit.
 - [ ] Check the gallery footer with mouse and keyboard. Hover the transport and navigation controls, leave them idle until they hide, and bring them back. Check that tooltips do not block clicks while viewing images and playing local video.
 - [ ] Keep screenshots from both OSes of the Downloads row focus, Reader/Media toolbar switches, Booru tabs and gallery, Tagging header and visible gallery footer. Record motion and restart behavior separately in the acceptance notes.
 
