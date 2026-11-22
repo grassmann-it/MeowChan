@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
@@ -52,6 +53,150 @@ internal static partial class BooruWorkbenchChecks
             "The gallery toolbar actions lack their visual hierarchy or tooltips.");
         Capture(owner, shots, "gallery-toolbar-light");
         page.View.SetResultView(BooruResultView.List, save: false);
+    }
+
+    private static async Task CheckLiveGalleryAsync(MainWindow owner)
+    {
+        BooruUiHarness h = new();
+        h.Serve(pages: 3, perPage: 4);
+        using BooruPage page = new(h.Services);
+        page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
+        Window window = new() { Width = 1120, Height = 792, Content = page, ShowInTaskbar = false };
+        try
+        {
+            window.Show(owner);
+            await SettleAsync(window);
+            using MediaNativeInput native = new(window);
+            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
+            TabItem original = (TabItem)tabs.SelectedItem!;
+            Button add = Find<Button>(page, BooruWorkbenchView.NewSearchTabName);
+            BooruGalleryPanel gallery = page.View.Gallery;
+            var toggle = page.View.ViewToggle;
+            input.Text = "cat rating:general";
+            await Program.WaitUntilAsync(() => Find<Button>(page, BooruWorkbenchView.SubmitName).IsEnabled);
+            Button help = Find<Button>(page, BooruWorkbenchView.SearchHelpName);
+            await native.ClickAsync(help);
+            await Program.WaitUntilAsync(() => help.Flyout?.IsOpen == true);
+            Require(AutomationProperties.GetHelpText(help)?.Contains("Draft: cat rating:general") == true,
+                "The compact help does not include the unsent draft.");
+            await native.KeyAsync(MediaNativeInput.Escape);
+            await Program.WaitUntilAsync(() => help.Flyout?.IsOpen == false);
+            await native.ClickAsync(Find<Button>(page, BooruWorkbenchView.SubmitName));
+            await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 4);
+
+            IInputElement? FocusedControl() => window.FocusManager?.GetFocusedElement();
+            Task Picture(string id, bool focused = true) => Program.WaitUntilAsync(
+                () => gallery.CurrentPostId == id && (!focused || gallery.Stage.IsFocused),
+                () => $"Expected gallery post {id}, got {gallery.CurrentPostId}. Focus: {Describe(FocusedControl())}.");
+            Task GridFocus(string id) => Program.WaitUntilAsync(
+                () => page.View.ResultView == BooruResultView.Grid && FocusedControl() is Border card && card.Name == "BooruResult:" + id,
+                () => $"Expected grid focus on {id}. Focus: {Describe(FocusedControl())}.");
+
+            await native.ClickAsync(toggle.Second);
+            await native.ClickAsync(toggle.Third);
+            await Picture("101");
+            await native.KeyAsync(MediaNativeInput.Right);
+            await Picture("102");
+            await native.ClickAsync(gallery.NextButton);
+            await Picture("103");
+            await native.KeyAsync(MediaNativeInput.Right);
+            await Picture("104");
+            await native.KeyAsync(MediaNativeInput.Escape);
+            await GridFocus("104");
+
+            await native.KeyAsync(MediaNativeInput.Home);
+            await GridFocus("101");
+            await native.KeyAsync(MediaNativeInput.Enter);
+            await Picture("101");
+            for (int i = 0; i < 3; i++) await native.KeyAsync(MediaNativeInput.Right);
+            await Picture("104");
+            await native.KeyAsync(MediaNativeInput.Escape);
+            await GridFocus("104");
+            await native.KeyAsync(MediaNativeInput.Enter);
+            await Picture("104");
+
+            Button nextPage = Find<Button>(page, BooruWorkbenchView.NextName);
+            var serve = h.Search.OnSearch!;
+            TaskCompletionSource pageReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            h.Search.OnSearch = async (query, number, cancellationToken) =>
+            {
+                if (number == 2) await pageReady.Task.WaitAsync(cancellationToken);
+                return await serve(query, number, cancellationToken);
+            };
+            nextPage.BringIntoView();
+            await native.ClickAsync(nextPage);
+            await Program.WaitUntilAsync(() => page.Model.Search.View.IsBusy);
+            pageReady.SetResult();
+            await Picture("201");
+            await native.KeyAsync(MediaNativeInput.Right);
+            await Picture("202");
+            await native.KeyAsync(MediaNativeInput.Space);
+            Require(gallery.SelectBox.IsChecked == true, "Space did not mark page 2's second hit.");
+            await native.ClickAsync(add);
+            await Program.WaitUntilAsync(() => input.IsFocused && gallery.CurrentPostId is null);
+            await native.ClickAsync(original);
+            await Picture("202", focused: false);
+            Require(gallery.SelectBox.IsChecked == true, "A visit to an empty tab lost the original mark.");
+
+            await native.ClickAsync(Find<Button>(page, BooruWorkbenchView.OpenInNewTabName));
+            await Picture("202", focused: false);
+            Require(gallery.SelectBox.IsChecked == false && page.Model.Search.View.Page == 2, "The duplicate did not take the page and cursor with an independent selection.");
+            gallery.NextButton.Focus(NavigationMethod.Tab);
+            await native.KeyAsync(MediaNativeInput.Space);
+            await Picture("203", focused: false);
+            Require(gallery.NextButton.IsFocused, "Keyboard activation of the gallery toolbar took focus from the button.");
+            await native.ClickAsync(original);
+            await Picture("202", focused: false);
+            Require(gallery.SelectBox.IsChecked == true, "Moving in the duplicate changed the original tab.");
+
+            window.Width = 760;
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - 760) <= 1);
+            await SettleAsync(window);
+            Rect mode = SearchLayoutBounds(toggle, window);
+            Rect stage = SearchLayoutBounds(gallery.Stage, window);
+            ScrollViewer results = Find<ScrollViewer>(page, "BooruResultScroll");
+            Require(stage.Height > gallery.Stage.MinHeight && Math.Abs(results.Extent.Height - results.Viewport.Height) <= 1,
+                $"At 760 × 792 DIP the stage and pager did not fill the available viewport: stage={stage}, viewport={results.Viewport}, extent={results.Extent}.");
+            Console.WriteLine($"SMOKE booru gallery stage at 760 × 792 DIP: {stage.Height:F0} DIP.");
+            window.Height = 520;
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Height - 520) <= 1);
+            await SettleAsync(window);
+            nextPage.BringIntoView();
+            await SettleAsync(window);
+            Rect shortMode = SearchLayoutBounds(toggle, window);
+            Rect pager = SearchLayoutBounds(nextPage, window);
+            Rect viewport = SearchLayoutBounds(results, window);
+            Require(results.Offset.Y > 0 && mode == shortMode && shortMode.Bottom <= viewport.Top && pager.Bottom <= viewport.Bottom + 1,
+                $"The short window cannot show the view switch and pager together: mode={shortMode}, viewport={viewport}, pager={pager}.");
+
+            for (int i = 0; i < 4; i++)
+            {
+                await native.ClickAsync(add);
+                await Program.WaitUntilAsync(() => input.IsFocused && string.IsNullOrEmpty(input.Text));
+                input.Text = $"ordinary_subject_with_a_long_name_{i} another_subject_label";
+                await SettleAsync(window);
+            }
+            TabItem active = (TabItem)tabs.SelectedItem!;
+            Button close = active.GetVisualDescendants().OfType<Button>().Single(button => button.Classes.Contains("booru-tab-close"));
+            ScrollViewer strip = Find<ScrollViewer>(page, "BooruTabStrip");
+            window.Width = 1440;
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - 1440) <= 1 && strip.Offset.X == 0);
+            window.Width = 760;
+            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - 760) <= 1);
+            await SettleAsync(window);
+            double stripLeft = SearchLayoutBounds(strip, window).Left;
+            Rect closeBounds = SearchLayoutBounds(close, window);
+            Require(strip.Offset.X > 0 && closeBounds.Left >= stripLeft
+                && closeBounds.Right <= stripLeft + strip.Viewport.Width + 1
+                && SearchLayoutBounds(add, window).Right <= window.ClientSize.Width,
+                "The active tab's close button or the add button was clipped at 760 DIP.");
+            await native.ClickAsync(close);
+            await Program.WaitUntilAsync(() => !ReferenceEquals(tabs.SelectedItem, active));
+            Require(h.Search.Requests == 2 && h.Queue.Loads.Count == 0, "Gallery navigation or tab actions started unexpected provider work.");
+            Console.WriteLine("SMOKE booru live gallery: native focus, return, paging, tab position and marks, and chrome at 760 DIP.");
+        }
+        finally { window.Close(); }
     }
 
     internal static async Task CaptureForDialogGalleryAsync(MainWindow owner)

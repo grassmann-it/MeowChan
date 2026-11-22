@@ -101,6 +101,7 @@ internal static partial class BooruWorkbenchChecks
             // This state walkthrough deliberately reuses a single search tab.
             page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
             await CheckSearchRowResizeAsync(owner, h, shots);
+            await CheckLiveGalleryAsync(owner);
             await CheckTabStripAsync(owner, page, shots);
             await CheckInvalidInputAsync(page, input);
             input.Text = "cat blue_eyes";
