@@ -830,6 +830,7 @@
     "archive.tilePreviewUnavailable": "Pro tento typ souboru není náhled.",
     "archive.previewLoadFailed": "Náhled se nepodařilo načíst.",
     "archive.previewLoadFailedDetail": "Náhled se nepodařilo načíst. Uložený soubor se nezměnil. Podrobnosti: {0}",
+    "archive.previewMediaReadFailed": "Uložená média se nepodařilo ověřit.",
     "archive.invalidImage": "Uložený soubor se nepodařilo dekódovat jako obrázek.",
     "archive.tooLarge": "Tento obrázek je pro vestavěný náhled příliš velký.",
     "archive.deletedAttachment": "Příloha u zdroje odstraněna",

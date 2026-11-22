@@ -1161,6 +1161,7 @@
     "archive.tilePreviewUnavailable": "此文件类型没有预览。",
     "archive.previewLoadFailed": "无法加载预览。",
     "archive.previewLoadFailedDetail": "无法加载预览。已保存的文件未更改。详情：{0}",
+    "archive.previewMediaReadFailed": "无法检查已保存的媒体。",
     "archive.invalidImage": "无法将已保存的文件解码为图片。",
     "archive.tooLarge": "此图片太大，内置预览无法显示。",
     "archive.deletedAttachment": "附件已在来源处移除",

@@ -1161,6 +1161,7 @@
     "archive.tilePreviewUnavailable": "このファイル形式のプレビューはありません。",
     "archive.previewLoadFailed": "プレビューを読み込めませんでした。",
     "archive.previewLoadFailedDetail": "プレビューを読み込めませんでした。保存済みファイルは変更されていません。詳細: {0}",
+    "archive.previewMediaReadFailed": "保存済みメディアを確認できませんでした。",
     "archive.invalidImage": "保存済みファイルを画像としてデコードできませんでした。",
     "archive.tooLarge": "この画像は組み込みプレビューには大きすぎます。",
     "archive.deletedAttachment": "ソースで添付が削除されました",

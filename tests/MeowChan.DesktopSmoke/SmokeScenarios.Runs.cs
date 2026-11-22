@@ -81,6 +81,7 @@ internal static partial class SmokeScenarios
             Seed = ReaderPostStarChecks.SeedAsync,
             Configure = config => { config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
         },
+        ["reader-preview-return"] = new(SmokeStage.Ready, mainWindow => ReaderPreviewChecks.RunAsync(mainWindow, returnOnly: true)),
         ["tag-autocomplete-commit"] = new(SmokeStage.Ready, mainWindow => TagAutocompleteCommitChecks.RunAsync(mainWindow)),
         ["quick-tag-native-typing"] = new(SmokeStage.Ready, mainWindow => QuickTagNativeTypingChecks.RunAsync(mainWindow))
         {

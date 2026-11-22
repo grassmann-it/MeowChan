@@ -115,7 +115,7 @@ internal static class VideoPosterCache
     // Kept independent of Avalonia initialization so native decoder/cache acceptance can run without any display.
     internal static async Task<byte[]?> GetPngAsync(MediaAssetSnapshot manifest, MediaAssetReference asset,
         string cacheDirectory, CancellationToken token, VerifiedFileMemo? verifiedFiles = null,
-        VideoPosterCacheTestSeam? testSeam = null)
+        VideoPosterCacheTestSeam? testSeam = null, bool useFailureBackoff = true)
     {
         token.ThrowIfCancellationRequested();
         if (manifest.FindById(asset.AssetId) != asset) return null;
@@ -126,8 +126,9 @@ internal static class VideoPosterCache
         string path = Path.Combine(directory, asset.Sha256.ToLowerInvariant() + ".png");
         // A failure belongs to one saved file: another occurrence of the same bytes may still verify and decode.
         string failureKey = path + "|" + Path.GetFullPath(asset.Path);
-        lock (FailuresLock)
-            if (Failures.TryGetValue(failureKey, out DateTime retryAt) && retryAt > DateTime.UtcNow) return null;
+        if (useFailureBackoff)
+            lock (FailuresLock)
+                if (Failures.TryGetValue(failureKey, out DateTime retryAt) && retryAt > DateTime.UtcNow) return null;
         // A burst beyond the working slots waits (caller token only, outside the watchdog below) instead of returning an untracked
         // missing poster; only a full bounded queue refuses, without a negative cache entry, so a later request can still succeed.
         VideoPosterAdmission admission = testSeam?.Admission ?? Admission;
@@ -249,10 +250,13 @@ internal static class VideoPosterCache
                 Log.Warning(exception, "Could not generate the local video poster; the video remains available without a poster.");
                 // A terminal placeholder stays stable during this view. A later request can retry;
                 // cancellation never records a negative result and failed generations publish no PNG.
-                lock (FailuresLock)
+                if (useFailureBackoff && !token.IsCancellationRequested)
                 {
-                    if (Failures.Count >= 256) Failures.Remove(Failures.MinBy(pair => pair.Value).Key);
-                    Failures[failureKey] = DateTime.UtcNow.AddSeconds(30);
+                    lock (FailuresLock)
+                    {
+                        if (Failures.Count >= 256) Failures.Remove(Failures.MinBy(pair => pair.Value).Key);
+                        Failures[failureKey] = DateTime.UtcNow.AddSeconds(30);
+                    }
                 }
                 return null;
             }

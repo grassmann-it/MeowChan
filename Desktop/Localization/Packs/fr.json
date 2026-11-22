@@ -1272,6 +1272,7 @@
     "archive.tilePreviewUnavailable": "Aucun aperçu pour ce type de fichier.",
     "archive.previewLoadFailed": "Impossible de charger l’aperçu.",
     "archive.previewLoadFailedDetail": "L’aperçu n’a pas pu être chargé. Le fichier enregistré est inchangé. Détails : {0}",
+    "archive.previewMediaReadFailed": "Les médias enregistrés n’ont pas pu être vérifiés.",
     "archive.invalidImage": "Impossible de décoder le fichier enregistré comme image.",
     "archive.tooLarge": "Cette image est trop grande pour l’aperçu intégré.",
     "archive.deletedAttachment": "Pièce jointe retirée de la source",
