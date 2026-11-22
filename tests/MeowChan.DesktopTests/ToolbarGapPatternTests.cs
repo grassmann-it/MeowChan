@@ -177,13 +177,14 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TheTaggingSelectionBarStaysOutlinedAndTheQueueActionsShareOneGroup()
+    public void TaggingActionsKeepTheirOutlinesAndShareThePageToolbar() => TaggingLayoutRhythmTests.WithPage(page =>
     {
-        Assert.Contains("button.Classes.Add(\"bar-button\");", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs")));
-        string commands = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Commands.cs"));
-        Assert.Contains("new Control[] { _add, _help, _clearDone, _clear }", commands);
+        Assert.All(new[] { page.SelectionTagButton, page.SelectionDoneButton, page.SelectionMoreButton, page.SelectionClearButton },
+            button => Assert.Contains("bar-button", button.Classes));
+        Assert.Equal(new Control[] { page.AddButton, page.HelpButton, page.ClearDoneButton, page.ClearButton },
+            page.Actions.Items.Cast<Control>());
         Assert.DoesNotContain("Margin = new Thickness(16", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
-    }
+    });
 
     // ---- UX-LEDGER-01: primary actions left, layout/secondary actions right, one gap token, no empty "…" -------------------------------
 

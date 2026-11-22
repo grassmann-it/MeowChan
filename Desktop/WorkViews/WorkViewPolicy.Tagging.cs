@@ -25,19 +25,13 @@ public static partial class WorkViewPolicy
         new("tagging.help", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 50),
         // TG1: "List | Grid" sits next to the filter; Barebones moves it under More (the saved view stays what it was).
         new("tagging.view-toggle", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 40),
-        // TG1: the selection bar above the list or grid, shown while something is selected. The count, the way to tag and the cross
-        // are the selection itself in every view; stamping, setting a state and removing thin out like the toolbar.
+        // The same actions are reachable at the same place in all three work views.
         Same("tagging.selection-bar", WorkViewPage.Tagging, WorkViewKind.Element, Required),
         Same("tagging.selection.status", WorkViewPage.Tagging, WorkViewKind.Element, Required),
         Same("tagging.selection.tag", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         Same("tagging.selection.done", WorkViewPage.Tagging, WorkViewKind.Action, Required),
-        Same("tagging.selection.skipped", WorkViewPage.Tagging, WorkViewKind.Action, Required),
-        new("tagging.selection.continue", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, OverflowOrder: 30),
+        Same("tagging.selection.more", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         Same("tagging.selection.clear", WorkViewPage.Tagging, WorkViewKind.Action, Required),
-        new("tagging.selection.stamp", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tags.quick.stamp-apply", OverflowOrder: 10),
-        new("tagging.selection.state", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Direct, OverflowOrder: 20),
-        new("tagging.selection.group", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, OverflowOrder: 40),
-        new("tagging.selection.remove", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.remove", OverflowOrder: 50),
         new("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.add", OverflowOrder: 10),
         new("tagging.toolbar.clear-done", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear-done", OverflowOrder: 20),
         new("tagging.toolbar.clear", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear", OverflowOrder: 30),

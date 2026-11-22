@@ -25,13 +25,8 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_selectionBar, "tagging.selection-bar");
         WorkViewElement.SetId(_selectionText, "tagging.selection.status");
         WorkViewElement.SetId(_selTag, "tagging.selection.tag");
-        WorkViewElement.SetId(_selStamp, "tagging.selection.stamp");
         WorkViewElement.SetId(_selDone, "tagging.selection.done");
-        WorkViewElement.SetId(_selSkipped, "tagging.selection.skipped");
-        WorkViewElement.SetId(_selState, "tagging.selection.state");
-        WorkViewElement.SetId(_selContinue, "tagging.selection.continue");
-        WorkViewElement.SetId(_selGroup, "tagging.selection.group");
-        WorkViewElement.SetId(_selRemove, "tagging.selection.remove");
+        WorkViewElement.SetId(_selMore, "tagging.selection.more");
         WorkViewElement.SetId(_selClear, "tagging.selection.clear");
         WorkViewElement.SetId(_add, "tagging.toolbar.add");
         WorkViewElement.SetId(_clearDone, "tagging.toolbar.clear-done");
@@ -51,7 +46,6 @@ public sealed partial class TaggingPage
         if (_queueWork.Ended) return;
         WorkViewPresenter.ApplyToolBar(_actions, _workView);
         WorkViewPresenter.ApplyToolBar(_listPresentation, _workView);
-        WorkViewPresenter.ApplyToolBar(_selectionActions, _workView);
         ApplyToolbarIcons();
         ApplyDensity();
         _actions.RefreshOverflowLabel();

@@ -71,14 +71,6 @@ public sealed class TaggingSurfaceAuditTests : IDisposable
     });
 
     [Fact]
-    public void TheSelectionBarsGroupButtonDoesNotWaitForTheFirstGroupBecauseItsMenuStartsWithNewGroup()
-    {
-        string selection = File.ReadAllText(Path.Combine(Root(), "Desktop/Views/Tagging/TaggingPage.Selection.cs"));
-        Assert.Contains("_selGroup.IsEnabled = count > 0 && CanChange;", selection);
-        Assert.DoesNotContain("Groups.Count > 0", selection.Split('\n').Single(line => line.Contains("_selGroup.IsEnabled")));
-    }
-
-    [Fact]
     public void BothDoubleClicksReachTheExplainingPathInsteadOfBeingGatedOnTheCommandsAvailability()
     {
         foreach (string file in new[] { "Desktop/Views/Tagging/TaggingPage.Commands.cs", "Desktop/Views/Tagging/TaggingPage.Grid.cs" })

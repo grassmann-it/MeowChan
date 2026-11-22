@@ -36,6 +36,24 @@ public sealed class TaggingPageMenuTests : IDisposable
     private static TaggingCommandState State(string id, TaggingCommandContext context) => TaggingRowCommands.Evaluate(id, context);
 
     [Fact]
+    public void SelectionMenuHasTheSharedStateRulesAndOnlyItsLastSectionIsDestructive()
+    {
+        TagQueueSnapshot queue = Queue(Item(1), Item(2, TagQueueState.Skipped));
+        var context = Context(queue, [0, 1], All with { StampHasTags = false });
+        ContextMenuModel menu = TaggingQueueMenu.ComposeSelection(context, _ => () => { }).ToModel();
+        Assert.Equal(new[] { TaggingCommands.ApplyStamp, TaggingCommands.MarkSkipped, TaggingCommands.MarkOpen }, menu.Sections[0].Select(entry => entry.Id));
+        Assert.Equal(new[] { TaggingCommands.ContinueHere, TaggingCommands.GroupMenu }, menu.Sections[1].Select(entry => entry.Id));
+        Assert.Equal(TaggingCommands.Remove, Assert.Single(menu.Sections[2]).Id);
+        Assert.Equal(TaggingCommands.Remove, Assert.Single(menu.Entries.Where(entry => entry.Dangerous)).Id);
+        Assert.Equal(Texts.T("tagging.menu.reason.stampEmpty"), menu.Sections[0][0].Reason);
+        Assert.True(menu.Sections[0][1].Available);
+        Assert.True(menu.Sections[0][2].Available);
+        Assert.True(menu.Sections[1][0].Available);
+        Assert.True(menu.Sections[1][1].Available);
+        Assert.Equal(TaggingCommands.GroupNew, menu.Sections[1][1].Children![0][0].Id);
+    }
+
+    [Fact]
     public void TheMenuListsEveryCommandInTheSpecifiedOrderAndSectionsStayShort()
     {
         TagQueueSnapshot queue = Queue(Item(1), Item(2), Item(3));

@@ -55,7 +55,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
         Background = Brushes.Transparent };
     private readonly Border _columnHeaderSurface = new() { Name = "TaggingColumnHeaderSurface", Classes = { "workspace-table-header" } };
-    private readonly ListBox _list = new() { Name = "TaggingList", Classes = { "tagging-table" }, SelectionMode = SelectionMode.Multiple };
+    private readonly ListBox _list = new TaggingResultList() { Name = "TaggingList", Classes = { "tagging-table" }, SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
     // Empty-state actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
@@ -373,18 +373,23 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         else _filter.Focus();
     }
 
-    // Returning the keyboard to the content after a command or a closed menu: the list keeps a place to stand (the next open row).
-    internal void FocusContent()
+    // A focus fallback has no effect on the result selection.
+    internal void FocusContent(TagQueueKey? preferred = null)
     {
         if (_queueWork.Ended || !IsEffectivelyVisible) return;
-        if (_rows.Count > 0 && ActiveList.IsEffectivelyVisible)
+        if (_rows.Count == 0 || !ActiveList.IsEffectivelyVisible)
         {
-            if (ActiveList.SelectedIndex < 0)
-                ActiveList.SelectedIndex = Math.Max(0, _rows.ToList().FindIndex(row => row.Next));
-            (ActiveList.ContainerFromIndex(Math.Max(0, ActiveList.SelectedIndex)) as Control ?? ActiveList).Focus();
+            _filter.Focus();
+            return;
         }
-        else if (_start.IsEffectivelyEnabled) _start.Focus();
+        TaggingQueueRow row = _rows.FirstOrDefault(result => result.Key == preferred)
+            ?? Lead ?? _rows.FirstOrDefault(result => result.Next) ?? _rows[0];
+        ActiveList.ScrollIntoView(row);
+        (ActiveList.ContainerFromItem(row) ?? ActiveList).Focus();
     }
+
+    private TagQueueKey? FocusedResultKey() =>
+        ResultItem(TopLevel.GetTopLevel(ActiveList)?.FocusManager?.GetFocusedElement())?.DataContext is TaggingQueueRow row ? row.Key : null;
 
     // The queue changed (loaded, refreshed or written): the list, the progress, the stamp and the view placement follow it.
     private void Show()
@@ -401,6 +406,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private void Render(TagQueueKey[]? carry = null, TagQueueKey? carryLead = null)
     {
         TagQueueSnapshot queue = _queueWork.Queue;
+        bool hadResultFocus = ActiveList.IsKeyboardFocusWithin;
+        bool hadSelectionFocus = _selectionBar.IsKeyboardFocusWithin || OpenSelectionMenu != null;
+        TagQueueKey? focused = FocusedResultKey();
         TagQueueKey[] selected = carry ?? SelectedKeys();
         TagQueueKey? lead = carry != null ? carryLead : Lead?.Key;
         _rendering = true;
@@ -462,6 +470,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         // Error visibility is work-view gated, so refresh it after the text has been replaced.
         RefreshWorkView();
         UpdateSelectionBar();
+        if (hadResultFocus || hadSelectionFocus && SelectedCount == 0) FocusContent(focused);
     }
 
     private TagQueueKey[] SelectedKeys() => ActiveList.SelectedItems?.OfType<TaggingQueueRow>().Select(row => row.Key).ToArray() ?? Array.Empty<TagQueueKey>();
@@ -579,8 +588,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _tagDialog?.Dispose();
         _tagDialog = null;
         EndColumns();
-        _stateMenuHost?.Dispose();
-        _groupMenuHost?.Dispose();
+        _selectionMenuHost?.Dispose();
         _groupManageHost?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();

@@ -20,7 +20,7 @@ namespace MeowChan.DesktopTests;
 [Collection("Gallery viewer construction")]
 public sealed class TaggingLayoutRhythmTests
 {
-    private static void WithPage(Action<TaggingPage> test) => BooruComponentDispatcher.Run(() =>
+    internal static void WithPage(Action<TaggingPage> test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();
         AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
@@ -73,7 +73,7 @@ public sealed class TaggingLayoutRhythmTests
     });
     private static readonly BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 
-    private static void RenderSnapshot(TaggingPage page, TagQueueSnapshot snapshot, TaggingQueueFilter filter = TaggingQueueFilter.All,
+    internal static void RenderSnapshot(TaggingPage page, TagQueueSnapshot snapshot, TaggingQueueFilter filter = TaggingQueueFilter.All,
         string? group = null, bool ungrouped = false, bool loading = false, Exception? error = null)
     {
         // Feed immutable queue states into the actual presenter, not a parallel role model.
@@ -88,7 +88,7 @@ public sealed class TaggingLayoutRhythmTests
         typeof(TaggingPage).GetMethod("Show", Private)!.Invoke(page, null);
     }
 
-    private static TagQueueItem Item(TagQueueState state = TagQueueState.Open) =>
+    internal static TagQueueItem Item(TagQueueState state = TagQueueState.Open) =>
         new(new ResourceId("4chan", "g", "123"), "/media/123", "asset-1", new string('a', 64), 101, "media-1", "original",
             "p1", null, null, null, false, null, "file.png", SavedMediaKind.Image, state, DateTimeOffset.UnixEpoch);
 

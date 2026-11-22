@@ -8,6 +8,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
@@ -148,25 +149,16 @@ internal static class TaggingPageChecks
             await SettleAsync(window);
             Require(tagging.SelectionText.Text == "2 selected" && (string?)tagging.SelectionTagButton.Content == "Tag together…",
                 "Selection bar for two entries: '" + tagging.SelectionText.Text + "' / " + tagging.SelectionTagButton.Content);
-            MeowChan.Desktop.Controls.ContextMenuModel stateMenu = tagging.StateMenuModel() ?? throw new InvalidOperationException("No state menu for a selection.");
-            Require(stateMenu.Entries.Select(item => item.Label).SequenceEqual(new[]
+            var selectionMenu = tagging.SelectionMenuModel() ?? throw new InvalidOperationException("No actions menu for a selection.");
+            Require(selectionMenu.Entries.Select(entry => entry.Id).SequenceEqual(new[]
             {
-                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-done"),
-                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-open"),
-                MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-skipped")
-            }),
-                "State menu: " + string.Join(" | ", stateMenu.Entries.Select(item => item.Label)));
-            // "Set state" (tagging.selection.state) sits on the bar in Advanced only; Barebones and Simple keep it under More, so the menu has no
-            // button to open under there. Open it in Advanced and return to the work view the run started in.
-            if (mode != "Advanced")
-            {
-                await PresentationChecks.SwitchModeAsync(window, "Advanced");
-                await SettleAsync(window);
-            }
-            tagging.ShowStateMenu();
+                TaggingCommands.ApplyStamp, TaggingCommands.MarkSkipped, TaggingCommands.MarkOpen,
+                TaggingCommands.ContinueHere, TaggingCommands.GroupMenu, TaggingCommands.Remove
+            }), "The selection menu has unexpected entries.");
+            tagging.ShowSelectionMenu();
             await SettleAsync(window);
-            Require(tagging.OpenStateMenu is { IsOpen: true }, "The state menu did not open under its button.");
-            tagging.OpenStateMenu!.Close();
+            Require(tagging.OpenSelectionMenu is { IsOpen: true }, "The selection menu did not open under More.");
+            tagging.OpenSelectionMenu!.Close();
             await SettleAsync(window);
             if (mode != "Advanced")
             {
@@ -214,6 +206,7 @@ internal static class TaggingPageChecks
             Require(tagging.List.IsVisible && !tagging.TileGrid.IsVisible, "Back to the list failed.");
             await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "List", () => "saved view " + Config.LoadConfig().TaggingPageView);
 
+            await CheckResultKeysAsync(window, tagging);
             await CheckStampAsync(window, tagging);
 
             // Mark one finished, filter by state, then the work views.
@@ -263,6 +256,72 @@ internal static class TaggingPageChecks
         {
             await PresentationChecks.SwitchModeAsync(window, mode);
             await FooterNavigationChecks.PersistLanguageAsync(window, language);
+        }
+    }
+
+    private static async Task CheckResultKeysAsync(MainWindow window, TaggingPage tagging)
+    {
+        var original = ShortcutService.CurrentSection;
+        TagQueueKey[] keys = tagging.Rows.Select(row => row.Key).ToArray();
+        try
+        {
+            foreach (TaggingViewMode view in Enum.GetValues<TaggingViewMode>())
+            {
+                tagging.SetViewMode(view, save: false);
+                tagging.ClearSelection();
+                await SettleAsync(window);
+                Control first = tagging.ShownList.ContainerFromIndex(0)!;
+                first.Focus();
+                Press(first, Key.Space);
+                PressSpace(first);
+                Require(tagging.SelectedCount == 1 && first.IsFocused, "Repeating Space changed the selection more than once.");
+                await SettleAsync(window);
+                Control second = tagging.ShownList.ContainerFromIndex(1)!;
+                Require(second.Focus() && second.IsFocused, "The second result did not take focus in " + view);
+                PressSpace(second, KeyModifiers.Meta);
+                Require(tagging.SelectedCount == 1 && tagging.ShownList.Selection.IsSelected(0) && second.IsFocused,
+                    "A system Space chord changed which row was selected or moved its focus.");
+                PressSpace(second);
+                Require(tagging.SelectedCount == 2 && second.IsFocused,
+                    $"Space did not extend the selection in {view}: count {tagging.SelectedCount}, focused {second.IsFocused}.");
+                PressSpace(second);
+                Require(tagging.SelectedCount == 1 && second.IsFocused, "Space did not preserve the other row and focus.");
+                Press(second, Key.D);
+                await Program.WaitUntilAsync(() => !tagging.IsBusy && tagging.Queue.Items[0].State == TagQueueState.Done);
+                await SettleAsync(window);
+                Control active = tagging.ShownList.ContainerFromIndex(0)!;
+                active.Focus();
+                Press(active, Key.S);
+                await Program.WaitUntilAsync(() => !tagging.IsBusy && tagging.Queue.Items[0].State == TagQueueState.Skipped);
+                tagging.SelectionMoreButton.Focus();
+                Press(tagging.SelectionMoreButton, Key.Escape);
+                Require(tagging.SelectedCount == 0 && tagging.ShownList.IsKeyboardFocusWithin, "Esc in the selection bar did not return to results.");
+                await window.SessionHost.SetTagQueueStatesAsync(keys.Select(key => KeyValuePair.Create(key, TagQueueState.Open)).ToArray());
+                tagging.Refresh();
+            }
+
+            tagging.SetViewMode(TaggingViewMode.List, save: false);
+            tagging.ShownList.SelectedIndex = 0;
+            await SettleAsync(window);
+            Control row = tagging.ShownList.ContainerFromIndex(0)!;
+            row.Focus();
+            ShortcutService.Publish(original.Set(TaggingCommands.MarkDone, [ShortcutGesture.Parse("Space")]));
+            Require(ToolTip.GetTip(tagging.SelectionDoneButton) is string tip && tip.Contains("Space", StringComparison.Ordinal),
+                "A live rebinding did not refresh the decision hint.");
+            PressSpace(row);
+            await Program.WaitUntilAsync(() => !tagging.IsBusy && tagging.Queue.Items[0].State == TagQueueState.Done);
+            Require(tagging.SelectedCount == 1, "Row Space overrode a rebound selection command.");
+            tagging.Filter = TaggingQueueFilter.Open;
+            await SettleAsync(window);
+            Require(tagging.SelectedCount == 0 && tagging.ShownList.IsKeyboardFocusWithin, "Filtering away the focused row lost result focus.");
+            tagging.Filter = TaggingQueueFilter.All;
+            Require(tagging.SelectedCount == 0, "Resetting the filter restored a discarded selection.");
+        }
+        finally
+        {
+            ShortcutService.Publish(original);
+            await window.SessionHost.SetTagQueueStatesAsync(keys.Select(key => KeyValuePair.Create(key, TagQueueState.Open)).ToArray());
+            tagging.Refresh();
         }
     }
 

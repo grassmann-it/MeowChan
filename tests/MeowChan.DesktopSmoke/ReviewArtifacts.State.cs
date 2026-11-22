@@ -74,7 +74,7 @@ internal static partial class ReviewArtifacts
         if (Program.OwningMainWindow(window)?.TaggingPage is { } tagging)
         {
             if (tagging.OpenListMenu is { IsOpen: true } list) roots.Add(list);
-            if (tagging.OpenStateMenu is { IsOpen: true } state) roots.Add(state);
+            if (tagging.OpenSelectionMenu is { IsOpen: true } state) roots.Add(state);
         }
         foreach (Control c in window.GetVisualDescendants().OfType<Control>())
         {
