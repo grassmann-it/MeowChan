@@ -358,8 +358,6 @@
                         <TextBlock x:Name="ArchiveReaderStatus" wv:WorkViewElement.Id="reader.status.capture" Classes="workspace-meta" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" />
                         <!-- R3: following live is "Show new posts automatically" in the settings popover (section Thread); this line only says whether it is on. -->
                         <TextBlock x:Name="ReaderLiveState" wv:WorkViewElement.Id="reader.status.follow-live" Classes="workspace-meta" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,16,0" AutomationProperties.LiveSetting="Polite" />
-                        <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center" Margin="0,0,12,0" />
-                        <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts" IsVisible="False" Click="OnShowReaderUpdates" />
                     </WrapPanel>
                 </StackPanel>
                 <Border x:Name="ArchiveReaderContent" Grid.Row="1" Classes="workspace-section-flush">
@@ -367,8 +365,19 @@
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
                             <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
-                                <Grid RowDefinitions="*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
-                                    <Grid>
+                                <Grid RowDefinitions="Auto,*,Auto">
+                                    <Border x:Name="ReaderNewPostsBar" IsVisible="False" Margin="8,4"
+                                            Background="{DynamicResource Workspace.Card}"
+                                            CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="8,4">
+                                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                            <Button x:Name="ReaderShowNewPosts" wv:WorkViewElement.Id="reader.status.show-new-posts"
+                                                    Classes="subtle" IsVisible="False" VerticalAlignment="Center" Click="OnShowReaderUpdates" />
+                                            <TextBlock x:Name="ReaderNewPostsNotice" wv:WorkViewElement.Id="reader.status.new-posts"
+                                                       Grid.Column="1" IsVisible="False" TextWrapping="Wrap" VerticalAlignment="Center"
+                                                       AutomationProperties.LiveSetting="Polite" />
+                                        </Grid>
+                                    </Border>
+                                    <Grid Grid.Row="1" Margin="0,0,0,8">
                                         <!-- Reader post cards (study 2026-11-13, variant A): each post is a card with a
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
@@ -645,7 +654,7 @@
                                             </Border>
                                         </Border>
                                     </Grid>
-                                    <Grid x:Name="ArchivePostNavigation" Grid.Row="1" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                    <Grid x:Name="ArchivePostNavigation" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="{StaticResource Workspace.Space.8}">
                                         <Button x:Name="PreviousPostsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousPosts" />
                                         <TextBlock x:Name="ArchivePostPage" Grid.Column="1" Classes="muted tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
                                         <Button x:Name="NextPostsButton" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextPosts" />

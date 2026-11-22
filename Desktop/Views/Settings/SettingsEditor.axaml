@@ -1119,6 +1119,30 @@
                             <ToggleSwitch x:Name="RestoreBooruSearchTabsInput" IsChecked="{Binding RestoreBooruSearchTabs, Mode=TwoWay}" Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center" OnContent="{x:Null}" OffContent="{x:Null}" AutomationProperties.LabeledBy="{Binding ElementName=RestoreBooruSearchTabsFieldLabel}" AutomationProperties.Name="{Binding RestoreBooruSearchTabsLabel}" AutomationProperties.HelpText="{Binding RestoreBooruSearchTabsHint}" />
                         </Grid>
                     </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruSearchPagesFieldLabel" Text="{Binding BooruSearchPagesLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruSearchPagesHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruSearchPagesInput" Value="{Binding BooruSearchPages, Mode=TwoWay}" Minimum="{Binding BooruSearchPagesMinimum}" Maximum="{Binding BooruSearchPagesMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruSearchPagesFieldLabel}" AutomationProperties.Name="{Binding BooruSearchPagesLabel}" AutomationProperties.HelpText="{Binding BooruSearchPagesHelp}" />
+                                <TextBlock x:Name="BooruSearchPagesInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruSearchPostsPerPageFieldLabel" Text="{Binding BooruSearchPostsPerPageLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruSearchPostsPerPageHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruSearchPostsPerPageInput" Value="{Binding BooruSearchPostsPerPage, Mode=TwoWay}" Minimum="{Binding BooruSearchPostsPerPageMinimum}" Maximum="{Binding BooruSearchPostsPerPageMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruSearchPostsPerPageFieldLabel}" AutomationProperties.Name="{Binding BooruSearchPostsPerPageLabel}" AutomationProperties.HelpText="{Binding BooruSearchPostsPerPageHelp}" />
+                                <TextBlock x:Name="BooruSearchPostsPerPageInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
                     <TextBlock x:Name="SettingsTaggingHeading" Text="{Binding TaggingGroupLabel}" Classes="workspace-field-label settings-subheading" FontWeight="SemiBold" TextWrapping="Wrap" />
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">

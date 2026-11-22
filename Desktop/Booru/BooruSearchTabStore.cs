@@ -37,7 +37,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
 
     private sealed record SavedFile(int Version, string ProviderId, int ActiveIndex, SavedTab?[] Tabs);
     private sealed record SavedTab(BooruInputMode Mode, string Input, string? Query, string? PostId,
-        int Page, bool IsEnd, bool Empty, JsonElement[] Rows);
+        int Page, bool IsEnd, bool Empty, JsonElement[] Rows,
+        int MaximumPage = Config.BooruSearchPagesDefault, int PostsPerPage = Config.BooruSearchPostsPerPageDefault);
     private sealed record SavedRow(BooruPost Post, byte[]? Preview);
 
     private readonly string _path = Path.Combine(lease.ProfileDirectory, FileName);
@@ -158,14 +159,17 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
         }
         string input = view.Input.Length <= MaximumDraftLength ? view.Input : view.Input[..MaximumDraftLength];
         return new SavedTab(view.Mode, input, view.ExecutedQuery, view.ExecutedPostId,
-            view.Page, view.IsEnd, view.Status == BooruSearchStatus.Empty, rows.ToArray());
+            view.Page, view.IsEnd, view.Status == BooruSearchStatus.Empty, rows.ToArray(),
+            view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
     }
 
     private static BooruSearchView RestoreTab(SavedTab tab, BooruSearchView current, int resultLimit, SourceDescription? source)
     {
         if (!Enum.IsDefined(tab.Mode) || tab.Input is null || tab.Input.Length > MaximumDraftLength
-            || tab.Page is < 1 or > BooruSearchModel.MaximumPage
-            || tab.Rows is not { Length: <= BooruSearchModel.PageSize }
+            || tab.MaximumPage is < Config.BooruSearchPagesMinimum or > Config.BooruSearchPagesMaximum
+            || tab.PostsPerPage is < Config.BooruSearchPostsPerPageMinimum or > Config.BooruSearchPostsPerPageMaximum
+            || tab.Page < 1 || tab.Page > tab.MaximumPage
+            || tab.Rows is null || tab.Rows.Length > tab.PostsPerPage
             || tab.Query is not null && BooruInput.Parse(BooruInputMode.Tags, tab.Query).Canonical != tab.Query
             || tab.PostId is not null && (tab.Query is not null || tab.Page != 1 || tab.Rows.Length > 1
                 || !DanbooruPostReference.IsValidPostId(tab.PostId))
@@ -197,6 +201,7 @@ internal sealed class BooruSearchTabStore(ProfileLease lease)
         return new BooruSearchView(current.ProviderId, current.ProviderName, tab.Mode, tab.Input,
             BooruInput.Parse(tab.Mode, tab.Input), status, tab.Query, tab.PostId, tab.Page, tab.IsEnd,
             rows.MoveToImmutable(), null, null, null, NeedsLoad: status == BooruSearchStatus.Idle
-                && (!string.IsNullOrWhiteSpace(tab.Input) || tab.Query is not null || tab.PostId is not null));
+                && (!string.IsNullOrWhiteSpace(tab.Input) || tab.Query is not null || tab.PostId is not null))
+        { PagerLimits = new(tab.MaximumPage, tab.PostsPerPage) };
     }
 }

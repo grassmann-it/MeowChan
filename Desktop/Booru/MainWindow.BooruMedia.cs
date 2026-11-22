@@ -31,6 +31,7 @@ public partial class MainWindow
         view.ResultTagsShown = () => _session.Config.BooruResultTagsShown;
         view.NewSearchTarget = () => _session.Config.BooruNewSearchTarget;
         view.SearchTabsLimit = () => _session.Config.BooruSearchTabs;
+        view.Model.Search.ReadPagerLimits = () => new(_session.Config.BooruSearchPages, _session.Config.BooruSearchPostsPerPage);
         view.GallerySampleMiB = () => _session.Config.BooruGallerySampleMiB;
         view.GalleryCacheMiB = () => _session.Config.BooruGalleryCacheMiB;
         view.GalleryMaximumPixels = () => _session.Config.BooruGalleryMaximumPixels;

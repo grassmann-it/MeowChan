@@ -39,7 +39,7 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     [Theory, InlineData(336.0), InlineData(280.0), InlineData(160.0)]
     public void TheFiveStarCellsAreEqualTouchAndFillTheRowBesideTheRemoveButton(double width)
     {
-        GalleryDecisionRow row = new("DesignRow");
+        GalleryDecisionRow row = new("DesignRow", compact: true);
         row.Show(View(3));
         Grid bar = Assert.IsType<Grid>(row.RatingGroup);
         Assert.Equal(7, bar.ColumnDefinitions.Count);
@@ -64,6 +64,34 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.Equal(0, row.StarButtons[0].Bounds.Left, 3);
         Assert.InRange(row.ClearButton.Bounds.Right, bar.Bounds.Width - 1, bar.Bounds.Width + 1);
     }
+
+    [Theory]
+    [InlineData(240)]
+    [InlineData(400)]
+    public void PopoverStarsUseTheFullWidthAndHaveFortyDipTargets(int width) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        GalleryDecisionRow row = new("PopoverRow") { Width = width };
+        row.Show(View(3));
+        Window window = new() { Width = 440, Height = 240, Content = row };
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Assert.Equal(width, row.RatingGroup.Bounds.Width);
+            Assert.All(row.StarButtons, star =>
+            {
+                Assert.True(star.Bounds.Width >= 40);
+                Assert.True(star.Bounds.Height >= 40);
+                Assert.InRange(Math.Abs(star.Bounds.Width - row.StarButtons[0].Bounds.Width), 0, 1);
+            });
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
 
     [Fact]
     public void TheStarsHaveTheirOwnClassTheStyleGivesTheSizesAndTheRemoveButtonStaysTheSquare()

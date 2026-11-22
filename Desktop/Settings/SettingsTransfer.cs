@@ -226,6 +226,8 @@ public static class SettingsTransfer
             BooruNewSearchTarget = source.BooruNewSearchTarget,
             BooruSearchTabs = source.BooruSearchTabs,
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs,
+            BooruSearchPages = source.BooruSearchPages,
+            BooruSearchPostsPerPage = source.BooruSearchPostsPerPage,
             BooruSavedTabs = source.BooruSavedTabs,
             BooruSavedResultsPerTab = source.BooruSavedResultsPerTab,
             BooruGallerySampleMiB = source.BooruGallerySampleMiB,

@@ -75,7 +75,7 @@ internal static class GalleryMediaTagChecks
             // and the Tags segment brings the panel back for the same medium.
             Require(viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags && viewer.SidePanel.TagsButton.IsChecked == true
                 && !viewer.TagSurface!.CloseButton.IsVisible, "The tag panel is not the Tags segment of the side panel.");
-            // UX-LEDGER-14: the existing live counter belongs beside Post/Tags, not beside the title in the surface below.
+            // The live counter sits centered above both segments.
             double panelWidth = viewer.PanelWidth;
             foreach (string counterLanguage in new[] { "en", "de" })
             {
@@ -94,14 +94,10 @@ internal static class GalleryMediaTagChecks
                         "The moved counter lost localization or polite announcements.");
                     var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
                     var segment = (Control)viewer.SidePanel.PostButton.Parent!;
-                    var closeOrigin = viewer.SidePanel.CloseButton.TranslatePoint(default, viewer.SidePanel)!.Value;
-                    double center = (segment.Bounds.Right + closeOrigin.X) / 2;
+                    double center = viewer.SidePanel.Bounds.Width / 2;
                     double centerDelta = Math.Abs(origin.X + counter.Bounds.Width / 2 - center);
-                    bool sameRow = Grid.GetRow((Control)counter.Parent!) == Grid.GetRow(segment);
-                    bool verticalPlacement = Math.Abs(origin.Y + counter.Bounds.Height / 2 - segment.Bounds.Center.Y) <= 1;
-                    bool horizontalClearance = origin.X >= segment.Bounds.Right + 7 && origin.X + counter.Bounds.Width <= closeOrigin.X - 7;
-                    Require(sameRow && verticalPlacement && horizontalClearance && centerDelta <= 1,
-                        $"The counter is not centered between the header actions (delta {centerDelta}, counter {origin}/{counter.Bounds.Size}).");
+                    Require(origin.Y + counter.Bounds.Height <= segment.Bounds.Top && centerDelta <= 1,
+                        $"The counter is not centered above the header actions (delta {centerDelta}, counter {origin}/{counter.Bounds.Size}).");
                     Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, centerDelta={centerDelta:F3}, counter={origin}/{counter.Bounds.Size}");
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }

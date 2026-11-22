@@ -78,7 +78,7 @@ public sealed class BooruQuickWinTests
         using DanbooruTestBinding binding = new(stub);
         await using DesktopSessionHost host = await BooruCompositionHostTests.StartAsync(profile.Path, stub, () => binding.Binding, paused: true);
         BooruWorkbenchServices services = host.BooruServices!;
-        BooruResultPage page = (await services.Search.SearchAsync("cat_ears", 1, CancellationToken.None).WaitAsync(Deadline)).Value!;
+        BooruResultPage page = (await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline)).Value!;
 
         Assert.Equal(BooruLoadStatus.Queued,
             (await services.Queue.LoadOriginalAsync(page.Posts[0], BooruLoadOrigin.Search, "cat_ears", CancellationToken.None).WaitAsync(Deadline)).Status);
@@ -88,6 +88,50 @@ public sealed class BooruQuickWinTests
         BooruCatalogSnapshot catalog = host.BooruComposition!.Catalog.Read();
         Assert.Equal("cat_ears", Assert.Single(Assert.Single(catalog.Posts, post => post.PostId == "4003").Findings).Query);
         Assert.Null(Assert.Single(Assert.Single(catalog.Posts, post => post.PostId == "4002").Findings).Query);
+        Assert.Empty(stub.Violations);
+    }
+
+    [Fact]
+    public async Task PagerLimitsReachTheProviderAndStayWithTheSearchAndItsTabCopy()
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        stub.Add(new(7003));
+        stub.Add(new(7002));
+        stub.Add(new(7001));
+        stub.Publish("cat_ears", 7003, 7002, 7001);
+        using DanbooruTestBinding binding = new(stub);
+        await using DesktopSessionHost host = await BooruCompositionHostTests.StartAsync(profile.Path, stub,
+            () => binding.Binding, paused: true);
+        using BooruWorkbenchModel model = new(host.BooruServices!);
+        BooruSearchModel search = model.Search;
+        BooruPagerLimits configured = new(2, 1);
+        search.ReadPagerLimits = () => configured;
+        BooruSearchTabs tabs = new(search);
+        search.SetInput("cat_ears");
+        await search.SubmitAsync().WaitAsync(Deadline);
+        Assert.Equal("7003", Assert.Single(search.View.Rows).Post.PostId);
+        Assert.True(search.View.HasNextPage);
+
+        configured = new(1, 2);
+        tabs.Add(copyCurrent: true);
+        await search.GoToPageAsync(2).WaitAsync(Deadline);
+        Assert.Equal("7002", Assert.Single(search.View.Rows).Post.PostId);
+        Assert.True(search.View.PageLimitReached);
+        Assert.False(search.View.HasNextPage);
+        await search.GoToPageAsync(3).WaitAsync(Deadline);
+        await search.DownloadAllAsync().WaitAsync(Deadline);
+        Assert.Equal(BooruBulkEnd.PageLimit, search.Bulk.End);
+        Assert.Equal(2, search.Bulk.PagesRead);
+        Assert.Equal(2, search.Bulk.Found);
+        Assert.Equal(new BooruPagerLimits(2, 1), search.Bulk.PagerLimits);
+
+        await search.SubmitAsync().WaitAsync(Deadline);
+        Assert.Equal(2, search.View.Rows.Length);
+        Assert.True(search.View.PageLimitReached);
+        Assert.Equal(new[] { "?tags=cat_ears&page=1&limit=1", "?tags=cat_ears&page=2&limit=1",
+            "?tags=cat_ears&page=1&limit=1", "?tags=cat_ears&page=2&limit=1", "?tags=cat_ears&page=1&limit=2" },
+            stub.Requests.Select(url => new Uri(url)).Where(uri => uri.AbsolutePath == "/posts.json").Select(uri => uri.Query));
         Assert.Empty(stub.Violations);
     }
 

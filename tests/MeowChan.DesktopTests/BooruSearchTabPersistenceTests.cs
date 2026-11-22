@@ -43,6 +43,7 @@ public sealed class BooruSearchTabPersistenceTests
             search.SetInput("https://danbooru.donmai.us/posts/42");
             BooruComponentDispatcher.Wait(search.SubmitAsync());
             int active = tabs.Add(copyCurrent: false);
+            search.ReadPagerLimits = () => new(3, 2);
             search.SetInput("  cat  ");
             BooruComponentDispatcher.Wait(search.SubmitAsync());
             BooruComponentDispatcher.Wait(search.GoToPageAsync(2));
@@ -79,6 +80,7 @@ public sealed class BooruSearchTabPersistenceTests
         Assert.Equal("edited_draft", activeView.Input);
         Assert.Equal("cat", activeView.ExecutedQuery);
         Assert.Equal(2, activeView.Page);
+        Assert.Equal(new BooruPagerLimits(3, 2), activeView.PagerLimits);
         Assert.True(activeView.HasPreviousPage);
         Assert.True(activeView.HasNextPage);
         BooruResultRowView row = Assert.Single(activeView.Rows);
@@ -131,6 +133,27 @@ public sealed class BooruSearchTabPersistenceTests
         Assert.Equal("safe_draft", Assert.Single(loaded.Tabs)!.Input);
         Assert.Equal(contents, await File.ReadAllTextAsync(path + ".bad"));
         Assert.Empty(Directory.GetFiles(profile.Path, ".*.tmp"));
+    }
+
+    [Fact]
+    public async Task OldSnapshotsRetainTheOriginalPagerLimits()
+    {
+        using TempDirectory profile = new();
+        using ProfileLease lease = ProfileLease.Acquire(profile.Path);
+        lease.Admission.CompleteStartup();
+        string path = Path.Combine(profile.Path, BooruSearchTabStore.FileName);
+        await File.WriteAllTextAsync(path, """
+            {"version":1,"providerId":"danbooru","activeIndex":0,"tabs":[{
+              "mode":0,"input":"cat","query":"cat","postId":null,"page":5,"isEnd":false,"empty":false,"rows":[]
+            }]}
+            """);
+        using BooruWorkbenchModel model = new(new BooruUiHarness().Services);
+        BooruSearchTabStore store = new(lease);
+        BooruTabSnapshot loaded = Assert.IsType<BooruTabSnapshot>(store.Load(model.Search.View, 2, 20, Source));
+        BooruSearchView tab = Assert.IsType<BooruSearchView>(Assert.Single(loaded.Tabs));
+        Assert.Equal(5, tab.Page);
+        Assert.Equal(new BooruPagerLimits(5, 20), tab.PagerLimits);
+        Assert.True(tab.CanRetry);
     }
 
     [Fact]

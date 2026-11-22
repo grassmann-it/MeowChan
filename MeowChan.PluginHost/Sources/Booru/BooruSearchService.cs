@@ -58,17 +58,21 @@ public sealed class BooruSearchService
     public BooruSearchScope OpenScope() => new(_services.OpenJob(), _services);
 
     /// <summary>One validated page in its own one-page scope.</summary>
-    public async Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
+    public Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
         string userQuery, int page, CancellationToken cancellationToken = default)
+        => SearchAsync(worker, sourceId, userQuery, page, SearchLimit, cancellationToken);
+
+    internal async Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
+        string userQuery, int page, int limit, CancellationToken cancellationToken)
     {
         using BooruSearchScope scope = OpenScope();
-        return await SearchAsync(worker, sourceId, userQuery, page, scope, cancellationToken).ConfigureAwait(false);
+        return await SearchCoreAsync(worker, sourceId, userQuery, page, limit, null, scope, cancellationToken).ConfigureAwait(false);
     }
 
     /// <summary>One validated page inside a caller-owned scope; the page shares the scope's send and time budget.</summary>
     public Task<BooruSearchResult> SearchAsync(IPluginWorkerClient worker, string sourceId,
         string userQuery, int page, BooruSearchScope scope, CancellationToken cancellationToken = default)
-        => SearchCoreAsync(worker, sourceId, userQuery, page, null, scope, cancellationToken);
+        => SearchCoreAsync(worker, sourceId, userQuery, page, SearchLimit, null, scope, cancellationToken);
 
     /// <summary>
     /// One page of the posts below <paramref name="beforePostId"/> (a post id this source returned), newest
@@ -90,17 +94,19 @@ public sealed class BooruSearchService
     {
         if (beforePostId is null)
             return Task.FromResult<BooruSearchResult>(new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage)));
-        return SearchCoreAsync(worker, sourceId, userQuery, 1, beforePostId, scope, cancellationToken);
+        return SearchCoreAsync(worker, sourceId, userQuery, 1, SearchLimit, beforePostId, scope, cancellationToken);
     }
 
     private async Task<BooruSearchResult> SearchCoreAsync(IPluginWorkerClient worker, string sourceId,
-        string userQuery, int page, string? beforePostId, BooruSearchScope scope, CancellationToken cancellationToken)
+        string userQuery, int page, int limit, string? beforePostId, BooruSearchScope scope, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(scope);
         if (!TryGetSource(sourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruSearchFailure(sourceId, sourceFailure!);
         if (page is < 1 or > BooruHostHttp.MaximumSearchPage)
             return new BooruSearchFailure(sourceId, new FailureDetail("invalid_page", "The booru page must be between 1 and 5."));
+        if (limit is < 1 or > SearchLimit)
+            return new BooruSearchFailure(sourceId, new FailureDetail("invalid_limit", "The booru page size is not accepted."));
         if (beforePostId is not null && (source!.PostOrder != PostOrderKind.DecimalPostId
                 || !IsValidPostId(new BooruPostId(sourceId, beforePostId), source)))
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
@@ -116,7 +122,7 @@ public sealed class BooruSearchService
             providerQuery = parsed.ProviderQuery;
         }
 
-        BooruSearchRequest request = new(sourceId, providerQuery, page, SearchLimit, beforePostId);
+        BooruSearchRequest request = new(sourceId, providerQuery, page, limit, beforePostId);
         IReadOnlyList<ValidationIssue> requestIssues = SdkValidation.ValidateBooruSearchRequest(request, source!);
         if (requestIssues.Count > 0)
             return new BooruSearchFailure(sourceId, PublicFailure(requestIssues[0]));
