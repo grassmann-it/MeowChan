@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -44,17 +45,17 @@ public sealed class ReaderSidebarAlignmentTests
                 Assert.Equal(1, Grid.GetColumn(splitter));
                 sidebar.ShowEmpty();
                 Layout(root, new Size(1440, 720));
-                Assert.Contains(sidebar.HeaderRow.GetVisualDescendants().OfType<TextBlock>(),
-                    title => title.IsVisible && title.Classes.Contains("section-title") && title.Text == Texts.T("reader.sidebar.compact"));
+                Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
+                Assert.DoesNotContain(sidebar.HeaderRow.GetVisualDescendants().OfType<TextBlock>(), text => text.IsVisible);
                 double emptyHeight = sidebar.HeaderRow.Bounds.Height;
-                Assert.True(emptyHeight >= ReaderMediaSidebar.HeaderLineHeight);
+                Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
 
                 string file = new string('W', 250) + ".png";
                 sidebar.Describe("No. 123", file, "100 MiB", true, "Copy post reference");
                 Layout(root, new Size(1440, 720));
                 double headerHeight = sidebar.HeaderRow.Bounds.Height;
                 double frameHeight = sidebar.Frame.Bounds.Height;
-                Assert.InRange(headerHeight, emptyHeight + 1, emptyHeight + 2 * ReaderMediaSidebar.HeaderLineHeight);
+                Assert.InRange(headerHeight, emptyHeight, emptyHeight + ReaderMediaSidebar.HeaderLineHeight);
                 TextBlock metadata = Assert.Single(sidebar.HeaderRow.GetVisualDescendants().OfType<TextBlock>(),
                     text => text.Name == "ReaderMediaSidebarHeader");
                 Assert.Equal(sidebar.HeaderLine, ToolTip.GetTip(metadata));

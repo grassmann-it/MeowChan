@@ -137,7 +137,7 @@ public sealed class ToolbarGapPatternTests
             Assert.Equal(Colors.Transparent, ColorOf(Presenter(plain).Background));
             Assert.Equal(Colors.Transparent, ColorOf(Presenter(toggle).Background));
             Assert.Equal(Colors.Transparent, ColorOf(split.Background));
-            Assert.Equal(Token("Workspace.ControlBorder"), ColorOf(toolbarToggle.BorderBrush));
+            Assert.Equal(Token("Workspace.Accent"), ColorOf(Presenter(toolbarToggle).BorderBrush));
             Assert.Equal(Token("Workspace.ToolbarToggleSurface"), ColorOf(Presenter(toolbarToggle).Background));
             Assert.True(segment.CornerRadius.TopLeft > 0);
             Assert.Equal(0, segment.CornerRadius.TopRight);

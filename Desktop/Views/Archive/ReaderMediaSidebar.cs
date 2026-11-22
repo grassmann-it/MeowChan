@@ -132,8 +132,7 @@ internal static class ReaderMediaSidebarRules
     internal static bool CanStep(int index, int count, int delta) => count > 1 && Step(index, count, delta) != ClampIndex(index, count);
 
     /// <summary>
-    /// The sidebar's one header line: "No. 75 · 1745622964284451.mp4 · 880 KiB". Parts that are not known are left out; with none of them the
-    /// line is empty and the view shows the plain title.
+    /// The sidebar's file metadata line: "No. 75 · 1745622964284451.mp4 · 880 KiB". Parts that are unknown are left out.
     /// </summary>
     internal static string HeaderText(string postLine, string fileName, string detail) =>
         string.Join(" · ", new[] { postLine, fileName, detail }.Where(part => !string.IsNullOrWhiteSpace(part)));
@@ -245,8 +244,6 @@ internal sealed class ReaderMediaSidebar : Border
 {
     // The media facts; the reader wraps them when the post column needs more room.
     private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _sectionTitle = new() { Classes = { "section-title" }, IsVisible = false,
-        Margin = new Thickness(0, 0, 0, 4) };
     private readonly Grid _headerText = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"),
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly StackPanel _headerActions = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
@@ -281,7 +278,10 @@ internal sealed class ReaderMediaSidebar : Border
     private const double StackedHeaderWidth = 360;
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
-    private readonly ArchiveFavoriteButton _favorite = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly ArchiveFavoriteButton _favorite = new()
+    {
+        Height = HeaderLineHeight, Padding = new Thickness(8, 4), VerticalAlignment = VerticalAlignment.Center
+    };
     // R11: the thumbnail strip of a post with several files: a single tab stop, ← → move, the counter beside it.
     private readonly ListBox _strip = new()
     {
@@ -298,10 +298,10 @@ internal sealed class ReaderMediaSidebar : Border
     private bool _stripSyncing;
     private Bitmap? _bitmap;
     private Action<Bitmap>? _release;
-    private bool _hover;
+    private bool _hover, _readerHeader;
 
     // The texts and the toggle command of the host: the reader's sidebar says "post", the Media page's panel says "medium" (same view, other words).
-    /// <summary>The key of the region name and of the header line while nothing is known (the host sets it before it shows the view).</summary>
+    /// <summary>The key of the accessible region name and the Media page panel's empty header.</summary>
     internal string TitleKey { get; set; } = "reader.sidebar.title";
     /// <summary>The key of the text shown while nothing is selected.</summary>
     internal string EmptyKey { get; set; } = "reader.sidebar.empty";
@@ -338,11 +338,11 @@ internal sealed class ReaderMediaSidebar : Border
     internal const double HeaderGap = 8;
     /// <summary>The height of the header line when a host fixes it (the Media page's panel and the reader's sidebar: the 32 dip line of Workspace.Size.Control rows).</summary>
     internal const double HeaderLineHeight = 32;
-    /// <summary>Shows the reader's persistent section title and allows its metadata to wrap.</summary>
-    internal void ShowReaderHeader()
+    /// <summary>Fits the reader's file metadata and actions to the available width.</summary>
+    internal void ConfigureReaderHeader()
     {
-        _sectionTitle.IsVisible = true;
-        _header.Height = double.NaN;
+        _readerHeader = true;
+        HeaderHeight = double.NaN;
         _header.MinHeight = HeaderLineHeight;
         _header.RowDefinitions[0].Height = GridLength.Auto;
         _headerText.HorizontalAlignment = HorizontalAlignment.Stretch;
@@ -350,7 +350,6 @@ internal sealed class ReaderMediaSidebar : Border
         // Keep long file names from displacing the media. The tooltip still shows the full metadata.
         _title.MaxLines = 2;
         _postLink.VerticalAlignment = VerticalAlignment.Top;
-        Grid.SetRow(_headerText, 1);
         FitHeader(_header.Bounds.Width);
         _header.SizeChanged += (_, e) => { if (e.WidthChanged) FitHeader(e.NewSize.Width); };
         RefreshHeader();
@@ -360,7 +359,7 @@ internal sealed class ReaderMediaSidebar : Border
     {
         bool stacked = width > 0 && width < StackedHeaderWidth;
         Grid.SetColumnSpan(_headerText, stacked ? 2 : 1);
-        Grid.SetRow(_headerActions, stacked ? 0 : 1);
+        Grid.SetRow(_headerText, stacked ? 1 : 0);
     }
 
     /// <summary>A fixed height for the header line (NaN: its content's), so a host can centre it on a line of its own.</summary>
@@ -446,7 +445,6 @@ internal sealed class ReaderMediaSidebar : Border
         Grid.SetColumn(_title, 1);
         _headerText.Children.Add(_title);
         header.Children.Add(_headerText);
-        header.Children.Add(_sectionTitle);
         _headerActions.Children.Add(_threadPosition);
         _headerActions.Children.Add(_favorite);
         _headerActions.Children.Add(Open);
@@ -514,7 +512,6 @@ internal sealed class ReaderMediaSidebar : Border
     internal void Localize()
     {
         string title = Texts.T(TitleKey);
-        _sectionTitle.Text = Texts.T("reader.sidebar.compact");
         AutomationProperties.SetName(this, title);
         RefreshHeader();
         string stripName = Texts.T("reader.sidebar.strip");
@@ -617,8 +614,8 @@ internal sealed class ReaderMediaSidebar : Border
             ToolTip.SetTip(_title, text);
             return;
         }
-        _title.IsVisible = text.Length > 0 || !_sectionTitle.IsVisible;
-        _title.Text = text.Length > 0 ? text : Texts.T(TitleKey);
+        _title.Text = text.Length > 0 || _readerHeader ? text : Texts.T(TitleKey);
+        _title.IsVisible = _title.Text.Length > 0;
         ToolTip.SetTip(_title, _title.Text);
     }
 

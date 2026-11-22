@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Xml.Linq;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -77,7 +78,7 @@ public sealed class ReaderWorkViewTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.Initialize();
         ReaderMediaSidebar sidebar = new();
-        sidebar.ShowReaderHeader();
+        sidebar.ConfigureReaderHeader();
         sidebar.Describe("No. 22486939", "wide-example-file-1234567890.jpg", "500 KiB · 2001×3000",
             canOpen: true, postLinkTip: "Copy post reference", threadPosition: "3 of 37");
         sidebar.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
@@ -89,12 +90,14 @@ public sealed class ReaderWorkViewTests
             Control header = sidebar.HeaderRow;
             Control number = header.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarPostLink");
             TextBlock details = header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarHeader");
-            TextBlock title = header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Classes.Contains("section-title"));
             TextBlock counter = header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarThreadPosition");
             Point At(Control item) => item.TranslatePoint(default, header)!.Value;
 
-            Assert.Equal(Texts.T("reader.sidebar.compact"), title.Text);
+            Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
+            Assert.DoesNotContain(header.GetVisualDescendants().OfType<TextBlock>(), text => text.Classes.Contains("section-title"));
+            Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, header.Bounds.Height);
             Assert.Equal(0, At(number).X);
+            Assert.InRange(Math.Abs(At(details).Y + details.Bounds.Height / 2 - At(counter).Y - counter.Bounds.Height / 2), 0, 1);
             Assert.True(At(counter).X > At(details).X);
             Assert.True(At(sidebar.Open).X > At(sidebar.FavoriteButton).X);
             double singleLineHeight = details.Bounds.Height;
@@ -103,6 +106,7 @@ public sealed class ReaderWorkViewTests
             Assert.Equal(0, At(number).X);
             Assert.True(At(details).Y > At(sidebar.Open).Y);
             Assert.True(details.Bounds.Height > singleLineHeight);
+            Assert.InRange(header.Bounds.Height, ReaderMediaSidebar.HeaderLineHeight, 2 * ReaderMediaSidebar.HeaderLineHeight + 8);
             Assert.True(At(sidebar.Open).X + sidebar.Open.Bounds.Width <= header.Bounds.Width);
             Assert.Contains("2001×3000", details.Text);
         }
