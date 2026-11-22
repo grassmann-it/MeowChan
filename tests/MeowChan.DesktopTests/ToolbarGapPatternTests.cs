@@ -156,6 +156,20 @@ public sealed class ToolbarGapPatternTests
             Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(plain).Foreground));
             plain.IsEnabled = true;
 
+            toolbarToggle.IsEnabled = false;
+            Assert.Equal(0.75, toolbarToggle.Opacity);
+            Assert.Equal(Colors.Transparent, ColorOf(Presenter(toolbarToggle).Background));
+            Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(toolbarToggle).Foreground));
+
+            var segmentState = (IPseudoClasses)segment.Classes;
+            segmentState.Set(":pressed", true);
+            Assert.Equal(Colors.Magenta, ColorOf(Presenter(segment).Background));
+            segment.IsEnabled = false;
+            Assert.Equal(Colors.Transparent, ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(segment).Foreground));
+            segment.IsChecked = true;
+            Assert.Equal(Token("Workspace.AccentSurface"), ColorOf(Presenter(segment).Background));
+
             ToolBar.SetOverflowMode(plain, OverflowMode.Always);
             ToolBar.SetOverflowMode(outlined, OverflowMode.Always);
             window.UpdateLayout();

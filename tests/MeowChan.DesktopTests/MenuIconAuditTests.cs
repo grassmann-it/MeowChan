@@ -120,20 +120,24 @@ public sealed class MenuIconAuditTests : IDisposable
         TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { item }, TagQueueLoadState.Ready);
         TaggingQueueRow[] rows = TaggingQueueView.Rows(queue, TaggingQueueFilter.All).ToArray();
         TaggingCommandContext context = new(queue, TaggingQueueFilter.All, rows, rows[0], new(true, true, true, true, true, true, true, true, true));
-        ContextMenuEntry group = TaggingQueueMenu.Compose(context, _ => () => { }).ToModel().Entries.Single(entry => entry.Id == TaggingCommands.GroupMenu);
-        Assert.Equal("New group…", group.Children!.SelectMany(section => section).Single(entry => entry.Id == TaggingCommands.GroupNew).Label);
-        // The selection bar's group menu is built in TaggingPage.Groups.cs; the dialog title and the button name keep the plain key.
+        foreach (ContextMenuBuilder menu in new[] { TaggingQueueMenu.Compose(context, _ => () => { }),
+                     TaggingQueueMenu.ComposeSelection(context, _ => () => { }) })
+        {
+            ContextMenuEntry group = Assert.Single(menu.ToModel().Entries, entry => entry.Id == TaggingCommands.GroupMenu);
+            ContextMenuEntry create = Assert.Single(group.Children!.SelectMany(section => section), entry => entry.Id == TaggingCommands.GroupNew);
+            Assert.Equal("New group…", create.Label);
+            Assert.Equal(TaggingCommands.GroupNewIcon, create.Icon);
+        }
+        // The dialog title keeps the plain label, and Manage groups uses the menu label.
         string groups = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Groups.cs"));
-        Assert.Contains("menu.Item(TaggingCommands.GroupNew, Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
         Assert.Contains("GroupNameDialog.ShowAsync(this, Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
-        // The "Manage groups" menu names its first entry the same way (it used to show the plain dialog title).
         Assert.Contains(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.newMenu\")", groups, StringComparison.Ordinal);
         Assert.DoesNotContain(".Item(\"tagging.group.new\", Texts.T(\"tagging.page.group.new\")", groups, StringComparison.Ordinal);
-        // No group action is dropped as a bare task: every one runs through RunGroupAction, which says a failure in the status line.
-        Assert.DoesNotContain("_ = CreateGroupDialogAsync()", groups, StringComparison.Ordinal);
-        Assert.DoesNotContain("_ = RenameGroupDialogAsync()", groups, StringComparison.Ordinal);
-        Assert.DoesNotContain("_ = DeleteGroupAsync()", groups, StringComparison.Ordinal);
-        Assert.Equal(4, System.Text.RegularExpressions.Regex.Matches(groups, @"_ = RunGroupAction\(").Count);
+        foreach (string action in new[] { "CreateGroupDialogAsync", "RenameGroupDialogAsync", "DeleteGroupAsync" })
+        {
+            Assert.DoesNotContain($"_ = {action}()", groups, StringComparison.Ordinal);
+            Assert.Contains($"_ = RunGroupAction({action})", groups, StringComparison.Ordinal);
+        }
         Assert.Contains("ShowStatus(TagQueueActions.DescribeFailure(error))", groups, StringComparison.Ordinal);
     }
 

@@ -167,7 +167,7 @@ internal static class BooruUiCatalog
         ("booru.ui.watcher.duplicate", "A watcher for “{0}” already exists.", "Eine Suchbeobachtung für „{0}“ existiert bereits."),
         ("booru.ui.watcher.createNeedsTags", "A single post cannot be watched. Switch to tag search with valid tags to create a watcher.", "Ein einzelner Post kann nicht beobachtet werden. Zur Tag-Suche mit gültigen Tags wechseln, um eine Suchbeobachtung anzulegen."),
         ("booru.ui.watcher.createInvalidTags", "Enter valid tags to create a watcher.", "Gib gültige Tags ein, um eine Suchbeobachtung anzulegen."),
-        ("booru.ui.watcher.creating", "Creating watcher…", "Suchbeobachtung wird angelegt …"),
+        ("booru.ui.watcher.creating", "Creating watcher…", "Suchbeobachtung wird angelegt…"),
         ("booru.ui.watcher.createFailed", "The watcher could not be created ({0}).", "Die Suchbeobachtung konnte nicht angelegt werden ({0})."),
 
         ("booru.ui.watchers.intro", "A watcher checks one Danbooru search for new posts and adds their originals to the normal download queue. It starts from the moment you create it.", "Eine Suchbeobachtung prüft eine Danbooru-Suche auf neue Posts und legt deren Originale in die normale Downloadwarteschlange. Sie beginnt ab dem Moment des Anlegens."),

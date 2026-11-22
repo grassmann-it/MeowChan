@@ -417,6 +417,7 @@ internal static class TaggingPageChecks
         TaggingViewMode mode = tagging.ViewMode;
         QuickTagStamp? originalStamp = tagging.Stamp;
         ProgressBar bar = ProgressTrack(tagging);
+        Exception? checkFailure = null;
         try
         {
             // Match the empty stamp in the width-growth reference, so both widths can use the same detail.
@@ -471,12 +472,20 @@ internal static class TaggingPageChecks
                 && ToolTip.GetTip(tagging.FilterBox) is string tip && tip.Contains(count, StringComparison.Ordinal),
                 "Compact Show lost its localized zero-result count.");
         }
+        catch (Exception error)
+        {
+            checkFailure = error;
+            throw;
+        }
         finally
         {
-            tagging.Stamp = originalStamp;
-            tagging.Filter = TaggingQueueFilter.All;
-            tagging.MaxWidth = originalMaxWidth;
-            await ResizeAsync(window, originalWidth);
+            await SmokeCleanup.RunAsync(checkFailure, async () =>
+            {
+                tagging.Stamp = originalStamp;
+                tagging.Filter = TaggingQueueFilter.All;
+                tagging.MaxWidth = originalMaxWidth;
+                await ResizeAsync(window, originalWidth);
+            }, error => Console.Error.WriteLine("SMOKE tagging header cleanup failed: " + error));
         }
         CheckSegments(tagging, labelsVisible: true);
     }

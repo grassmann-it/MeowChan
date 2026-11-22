@@ -212,6 +212,9 @@ internal sealed class ThemePalette
 
     private static Color ToolbarToggleSurface(Color surface)
     {
+        // Keep invalid input available to the preview's contrast gate, which reports the seed that must be opaque.
+        if (surface.A != byte.MaxValue) return surface;
+
         // White has a relative luminance of 1. Convert the contrast target to a luminance limit for the fill.
         const double maximumLuminance = (1 + 0.05) / 4.6 - 0.05;
         if (ContrastRules.Luminance(Hex(surface)) <= maximumLuminance) return surface;
