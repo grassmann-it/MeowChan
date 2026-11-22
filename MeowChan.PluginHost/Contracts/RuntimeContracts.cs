@@ -1,10 +1,26 @@
+using System.Runtime.CompilerServices;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Contracts;
 
 /// <summary>Caller-owned resource lifetime; cancellation invalidates outstanding responses.</summary>
 public sealed record PluginOperationContext(string ResourceId, long Generation,
-    string? RuleRevision = null, string? GrantRevision = null);
+    string? RuleRevision = null, string? GrantRevision = null)
+{
+    // Host-only state keyed by identity. Equality still describes the caller's resource and revisions.
+    private static readonly ConditionalWeakTable<PluginOperationContext, BooruCallBinding> BooruCalls = new();
+
+    internal BooruCallBinding? BooruCall => BooruCalls.TryGetValue(this, out BooruCallBinding? call) ? call : null;
+
+    internal PluginOperationContext BindBooruCall(object request, CancellationToken lifetime)
+    {
+        PluginOperationContext scoped = this with { };
+        BooruCalls.Add(scoped, new BooruCallBinding(request, lifetime));
+        return scoped;
+    }
+}
+
+internal sealed record BooruCallBinding(object Request, CancellationToken Lifetime);
 
 public sealed record PluginWorkerIdentity(string InstanceId, string ExecutionRevision, string ConfigurationRevision);
 public sealed record PluginWorkerLaunch(string ExecutablePath, IReadOnlyList<string> Arguments, string WorkingDirectory);

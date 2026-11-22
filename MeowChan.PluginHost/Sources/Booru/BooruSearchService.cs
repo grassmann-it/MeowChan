@@ -127,11 +127,15 @@ public sealed class BooruSearchService
         BooruJob job = scope.Job; // throws if the scope was disposed
         cancellationToken.ThrowIfCancellationRequested();
         if (JobFailure(job) is FailureDetail ended) return new BooruSearchFailure(sourceId, ended);
+        if (!scope.TryBegin(request))
+            return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
+        BooruSearchPage? acceptedPage = null;
         try
         {
             lifetime.Token.ThrowIfCancellationRequested();
-            Task<BooruSearchResult> workerCall = worker.SearchBooruPostsAsync(request, job.Operation, lifetime.Token);
+            Task<BooruSearchResult> workerCall = worker.SearchBooruPostsAsync(request,
+                job.Operation.BindBooruCall(request, lifetime.Token), lifetime.Token);
             TrackWorkerCall(workerCall);
             BooruSearchResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -139,7 +143,9 @@ public sealed class BooruSearchService
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruSearchResult(request, result, source!);
             cancellationToken.ThrowIfCancellationRequested();
             if (SearchJobEnd(job, sourceId) is BooruSearchResult validationEnd) return validationEnd;
-            return resultIssues.Count == 0 ? result : new BooruSearchFailure(sourceId, PublicFailure(resultIssues[0]));
+            if (resultIssues.Count != 0) return new BooruSearchFailure(sourceId, PublicFailure(resultIssues[0]));
+            acceptedPage = (result as BooruSearchSnapshot)?.Page;
+            return result;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -166,6 +172,11 @@ public sealed class BooruSearchService
         {
             cancellationToken.ThrowIfCancellationRequested();
             return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, new FailureDetail("capability", exception.Message));
+        }
+        finally
+        {
+            try { await lifetime.CancelAsync().ConfigureAwait(false); }
+            finally { scope.End(acceptedPage); }
         }
     }
 
@@ -195,7 +206,7 @@ public sealed class BooruSearchService
         {
             cancellationToken.ThrowIfCancellationRequested();
             lifetime.Token.ThrowIfCancellationRequested();
-            Task<BooruPostResult> workerCall = worker.ReadBooruPostAsync(request, job.Operation, lifetime.Token);
+            Task<BooruPostResult> workerCall = worker.ReadBooruPostAsync(request, job.Operation.BindBooruCall(request, lifetime.Token), lifetime.Token);
             TrackWorkerCall(workerCall);
             BooruPostResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -345,6 +356,11 @@ public sealed class BooruSearchScope : IDisposable
 {
     private readonly BooruHostServices _services;
     private BooruJob? _job;
+    private readonly object _gate = new();
+    private (string Source, string Query)? _search;
+    private string? _nextCursor;
+    private bool _inFlight;
+    private bool _hasPage;
 
     internal BooruSearchScope(BooruJob job, BooruHostServices services)
     {
@@ -353,6 +369,34 @@ public sealed class BooruSearchScope : IDisposable
     }
 
     internal BooruJob Job => _job ?? throw new ObjectDisposedException(nameof(BooruSearchScope));
+
+    internal bool TryBegin(BooruSearchRequest request)
+    {
+        lock (_gate)
+        {
+            var search = (request.SourceId, request.Query);
+            // The first cursor can be restored by the host from persisted watcher state.
+            if (_inFlight || _search is not null && _search != search
+                || _hasPage && request.BeforePostId is not null && request.BeforePostId != _nextCursor)
+                return false;
+            _search = search;
+            _inFlight = true;
+            return true;
+        }
+    }
+
+    internal void End(BooruSearchPage? page)
+    {
+        lock (_gate)
+        {
+            if (page is not null)
+            {
+                _hasPage = true;
+                _nextCursor = page.NextBeforePostId;
+            }
+            _inFlight = false;
+        }
+    }
 
     public void Dispose()
     {

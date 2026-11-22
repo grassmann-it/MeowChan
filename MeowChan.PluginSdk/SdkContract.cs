@@ -22,6 +22,9 @@ public static class SdkLimits
     public const long MaximumImageBytes = 32L * 1024 * 1024;
     public const long MaximumDecodedPixels = 16L * 1024 * 1024;
     public const int MaximumIdentifierLength = 256;
+
+    /// <summary>Maximum decimal digits in a booru post ID or before-ID cursor.</summary>
+    public const int MaximumBooruPostIdDigits = 18;
     public const int MaximumDiagnosticLength = 2048;
     public const int MaximumTextLength = 1024 * 1024;
     public const int MaximumCollectionCount = 100000;

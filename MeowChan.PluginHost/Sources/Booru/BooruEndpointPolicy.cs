@@ -19,7 +19,7 @@ internal static class BooruEndpointPolicy
     internal const int MaximumQueryUtf8Bytes = 1024;
     internal const int MaximumTermUtf8Bytes = 256;
     /// <summary>Danbooru post ids fit a signed 64-bit integer: at most 18 canonical decimal digits are accepted.</summary>
-    internal const int MaximumPostIdDigits = 18;
+    internal const int MaximumPostIdDigits = SdkLimits.MaximumBooruPostIdDigits;
 
     /// <summary>The host-owned Danbooru profile: exactly the endpoints and parameters accepted before profiles existed.</summary>
     internal static readonly BooruSourceProfile Danbooru = new(
@@ -81,6 +81,84 @@ internal static class BooruEndpointPolicy
         return true;
     }
 
+    internal static string? SourceOf(object? operation) => operation switch
+    {
+        BooruSearchRequest search => search.SourceId,
+        BooruPostRequest post => post.Post.SourceId,
+        _ => null
+    };
+
+    // The worker's URL must describe the same operation. Send only the URI constructed
+    // from the host's request and source profile, even if the worker orders the fields differently.
+    internal static HostHttpRequest? Bind(HostHttpRequest request, SourceDescription source, object operation)
+    {
+        if (request.Method != HostHttpMethod.Get || request.SourceId != SourceOf(operation)
+            || request.SourceId != source.SourceId || Resolve(source) is not BooruSourceProfile profile
+            || !IsAllowed(request.Url, source, profile))
+            return null;
+
+        BooruSearchRequest? search = operation as BooruSearchRequest;
+        BooruPostRequest? post = operation as BooruPostRequest;
+        string? before = search?.BeforePostId;
+        BooruEndpoint endpoint = profile.Endpoints.Single(value =>
+            value.Kind == (search is not null ? BooruEndpointKind.Search : BooruEndpointKind.Post));
+        if (search is not null && (!TryNormalizeQuery(source.SourceId, profile, search.Query, out string normalized)
+                || normalized != search.Query
+                || search.Page > 1 && !endpoint.Parameters.Any(value => IsPageParameter(value.Kind))
+                || before is not null && (source.PostOrder != PostOrderKind.DecimalPostId
+                    || !IsCanonicalPostId(before) || profile.Query.BeforeCursorPrefix is null
+                        && !endpoint.Parameters.Any(value => value.Kind == BooruParameterKind.PageOrBeforeCursor))))
+            return null;
+        if (post is not null && !IsCanonicalPostId(post.Post.PostId)) return null;
+
+        string path = post is null ? endpoint.PathTemplate
+            : endpoint.PathTemplate.Replace("{post}", post.Post.PostId, StringComparison.Ordinal);
+        List<string> parameters = [];
+        foreach (BooruQueryParameter parameter in endpoint.Parameters)
+        {
+            string value = parameter.Kind switch
+            {
+                BooruParameterKind.Fixed => parameter.FixedValue!,
+                BooruParameterKind.TagQuery => before is not null && profile.Query.BeforeCursorPrefix is string prefix
+                    ? search!.Query + " " + prefix + before : search!.Query,
+                BooruParameterKind.PageNumber => search!.Page.ToString(CultureInfo.InvariantCulture),
+                BooruParameterKind.PageIndex => (search!.Page - 1).ToString(CultureInfo.InvariantCulture),
+                BooruParameterKind.PageOrBeforeCursor => before is null ? search!.Page.ToString(CultureInfo.InvariantCulture) : "b" + before,
+                BooruParameterKind.Limit => search!.Limit.ToString(CultureInfo.InvariantCulture),
+                BooruParameterKind.PostId => post!.Post.PostId,
+                _ => throw new InvalidOperationException("An undeclared booru parameter was selected.")
+            };
+            parameters.Add(parameter.Name + "=" + Uri.EscapeDataString(value));
+        }
+
+        // BaseUri selects the metadata origin. A source with a separate website may
+        // use its sole metadata host as the canonical API origin.
+        string[] metadataHosts = source.HttpHosts.Where(host => host.Purpose.HasFlag(HttpHostPurpose.Metadata))
+            .Select(host => host.Host).ToArray();
+        string? host = metadataHosts.FirstOrDefault(value => value.Equals(source.BaseUri.IdnHost, StringComparison.OrdinalIgnoreCase))
+            ?? (metadataHosts.Length == 1 ? metadataHosts[0] : null);
+        if (host is null || !Uri.TryCreate("https://" + host + path
+                + (parameters.Count == 0 ? "" : "?" + string.Join("&", parameters)), UriKind.Absolute, out Uri? canonical)
+            || !IsAllowed(canonical, source, profile)
+            || !request.Url.IdnHost.Equals(canonical.IdnHost, StringComparison.OrdinalIgnoreCase)
+            || request.Url.AbsolutePath != canonical.AbsolutePath
+            || !EquivalentQuery(request.Url.Query, canonical.Query))
+            return null;
+        return request with { Url = canonical };
+    }
+
+    internal static HostHttpFailure OperationDenied() =>
+        new(new FailureDetail("http-request", "The HTTP request does not match the active booru operation."));
+
+    private static bool IsPageParameter(BooruParameterKind kind) => kind is BooruParameterKind.PageNumber
+        or BooruParameterKind.PageIndex or BooruParameterKind.PageOrBeforeCursor;
+
+    private static bool EquivalentQuery(string submitted, string expected) =>
+        submitted.Split('&').Select(Decode).Order(StringComparer.Ordinal)
+            .SequenceEqual(expected.Split('&').Select(Decode).Order(StringComparer.Ordinal), StringComparer.Ordinal);
+
+    private static string Decode(string parameter) => Uri.UnescapeDataString(parameter.TrimStart('?'));
+
     /// <summary>Whether <paramref name="uri"/> is one of the profile's endpoints with only declared, valid parameters.</summary>
     internal static bool IsAllowed(Uri uri, SourceDescription source, BooruSourceProfile? profile)
     {
@@ -124,7 +202,9 @@ internal static class BooruEndpointPolicy
                 if (parameter is null || !IsValidValue(parameter, raw, value, sourceId, profile)) return false;
             }
         }
-        return endpoint.Parameters.All(parameter => !parameter.Required || names.Contains(parameter.Name));
+        return endpoint.Parameters.All(parameter => (!parameter.Required && (IsDanbooru(sourceId)
+            || parameter.Kind is not (BooruParameterKind.Fixed or BooruParameterKind.TagQuery or BooruParameterKind.Limit or BooruParameterKind.PostId)))
+            || names.Contains(parameter.Name));
     }
 
     private static bool IsValidValue(BooruQueryParameter parameter, string raw, string value, string sourceId, BooruSourceProfile profile)
@@ -155,8 +235,13 @@ internal static class BooruEndpointPolicy
         }
     }
 
-    private static bool TryInteger(string value, out int number) =>
-        int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out number);
+    private static bool TryInteger(string value, out int number)
+    {
+        number = 0;
+        return value.Length > 0 && (value.Length == 1 || value[0] != '0')
+            && value.AsSpan().IndexOfAnyExceptInRange('0', '9') < 0
+            && int.TryParse(value, NumberStyles.None, CultureInfo.InvariantCulture, out number);
+    }
 
     /// <summary>Exactly <c>b</c> followed by a canonical post id (1 to 18 digits, no leading zero).</summary>
     private static bool IsBeforeIdPage(string raw) =>

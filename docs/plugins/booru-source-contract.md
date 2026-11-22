@@ -54,9 +54,22 @@ prefix), and not both.
   narrowing shortcut); consent review is unchanged.
 - **Danbooru keeps its host-owned profile.** For the source id `danbooru` the host
   always enforces its built-in profile (`BooruEndpointPolicy.Danbooru`) and its
-  own `DanbooruTagQuery` syntax; a declared Danbooru profile is ignored. This keeps
-  1.1.x behaviour byte-for-byte and needs no change of the Danbooru plugin
-  declaration (and therefore no re-review for users).
+  own `DanbooruTagQuery` syntax. The official adapter already submits the full
+  search shape, so its declaration and existing consent continue to apply.
+- The worker's HTTP service is bound to its active typed search or post call.
+  The host reconstructs the URI from the source, endpoint, query, page or
+  cursor, limit and post ID. The canonical origin is the metadata host of
+  `BaseUri`, or the sole declared metadata host when it serves a separate API.
+  A worker must submit the corresponding GET and cannot use a sibling or
+  ordinary metadata route during the call. Same-scope continuation uses the
+  last validated cursor for that source and normalized query. The host may
+  supply the initial cursor when a watcher resumes from persisted state.
+- Search profiles declare a limit. Requests carry the declared mode and
+  target parameters, and numeric values use canonical ASCII decimal. The
+  lower-level Danbooru transport retains its legacy allowlist for host callers.
+- The host supplies HTTP authority from the checked URI and applies conditional
+  ETags through the typed header collection. Malformed or duplicate inputs
+  are rejected before transport.
 
 ## Host implementation (this branch)
 
@@ -74,6 +87,13 @@ prefix), and not both.
   instance (one job registry, one transport; pacing and cooldown per source).
   Only Danbooru has the desktop composition (catalog, watcher, pages); `Booru`
   still returns the Danbooru binding.
+
+### Remaining transport hardening
+
+The Desktop transport already disables automatic redirects. Constraining DNS
+and destination IPs at connection time, enforcing transport ownership across
+custom clients, sanitizing general Worker logs and aligning retry pacing with
+per-provider spacing remain separate changes.
 
 ## Not in this step (follow-up P2b)
 

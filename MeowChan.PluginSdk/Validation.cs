@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 
 namespace MeowChan.PluginSdk;
 
@@ -801,8 +802,8 @@ public static partial class SdkValidation
                         case BooruParameterKind.PostId: ids++; break;
                     }
                 }, 16);
-                if (endpoint.Kind == BooruEndpointKind.Search && (tags != 1 || pages > 1 || limits > 1 || ids != 0))
-                    Add(itemPath + ".parameters", "invalid_endpoint", "A search endpoint has one tag query, at most one page and one limit parameter and no post id.");
+                if (endpoint.Kind == BooruEndpointKind.Search && (tags != 1 || pages > 1 || limits != 1 || ids != 0))
+                    Add(itemPath + ".parameters", "invalid_endpoint", "A search endpoint requires a tag query and a limit, with at most one page parameter and no post id.");
                 if (endpoint.Kind == BooruEndpointKind.Post && (tags != 0 || pages != 0 || limits != 0 || ids + placeholders != 1))
                     Add(itemPath + ".parameters", "invalid_endpoint", "A post endpoint names its post id exactly once and has no query, page or limit parameter.");
             }, 8);
@@ -1100,13 +1101,13 @@ public static partial class SdkValidation
         // A cursor is a post id the host received from the same source; it is never echoed in an issue.
         private void BooruCursor(string cursor, string path)
         {
-            if (!CanonicalDecimal(cursor) || cursor.Length > SdkLimits.MaximumIdentifierLength)
+            if (!CanonicalDecimal(cursor))
                 Add(path, "invalid_cursor", "A cursor is a positive decimal post id without leading zeros.");
         }
 
         // Positive decimal without leading zeros; such ids compare by length, then ordinally.
         private static bool CanonicalDecimal([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value)
-            => !string.IsNullOrEmpty(value) && value[0] is >= '1' and <= '9' && value.All(char.IsAsciiDigit);
+            => value is { Length: > 0 and <= SdkLimits.MaximumBooruPostIdDigits } && value[0] is >= '1' and <= '9' && value.All(char.IsAsciiDigit);
 
         private static int CompareDecimal(string left, string right)
             => left.Length != right.Length ? left.Length.CompareTo(right.Length) : string.CompareOrdinal(left, right);
@@ -1306,6 +1307,9 @@ public static partial class SdkValidation
         {
             if (validators is null) { if (required) Add(path, "missing_validator", "Unchanged requires validator/revision identity."); return; }
             Text(validators.EntityTag, path + ".entityTag", 4096);
+            if (validators.EntityTag is string tag && (tag.Any(char.IsControl)
+                || !EntityTagHeaderValue.TryParse(tag, out EntityTagHeaderValue? parsed) || parsed.Tag == "*"))
+                Add(path + ".entityTag", "invalid_header", "An ETag must be a single strong or weak entity tag.");
             Text(validators.Revision, path + ".revision", SdkLimits.MaximumIdentifierLength);
             if (required && validators.EntityTag is null && validators.LastModified is null && validators.Revision is null)
                 Add(path, "missing_validator", "Unchanged requires validator/revision identity.");
@@ -1347,6 +1351,10 @@ public static partial class SdkValidation
             AllowedHttpUri(request.Url, source, path + ".url");
             Headers(request.Headers, path + ".headers", requestHeaders: true);
             Validators(request.Validators, path + ".validators");
+            if (request.Headers is not null && request.Headers.Keys.Any(name =>
+                (request.Validators?.EntityTag is not null && name.Equals("If-None-Match", StringComparison.OrdinalIgnoreCase))
+                || (request.Validators?.LastModified is not null && name.Equals("If-Modified-Since", StringComparison.OrdinalIgnoreCase))))
+                Add(path + ".headers", "duplicate_validator", "Provide each conditional validator through one input only.");
         }
 
         internal void AllowedHttpUri(Uri? uri, SourceDescription? source, string path)
@@ -1368,7 +1376,15 @@ public static partial class SdkValidation
             {
                 if (!names.Add(name)) Add(path, "duplicate_header", "HTTP header names are case-insensitive.");
                 if (string.IsNullOrWhiteSpace(name) || name.Length > 128 || name.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '-')) Add(path, "invalid_header", "Invalid HTTP header name.");
-                if (value is null || value.Length > 8192 || value.Contains('\r') || value.Contains('\n')) Add(path + "." + name, "invalid_header", "Invalid or oversized HTTP header value.");
+                if (value is null || value.Length > 8192 || value.Any(char.IsControl))
+                    Add(path + "." + name, "invalid_header", "Invalid or oversized HTTP header value.");
+                else if (requestHeaders && name.Equals("If-None-Match", StringComparison.OrdinalIgnoreCase))
+                {
+                    using HttpRequestMessage message = new();
+                    HttpHeaderValueCollection<EntityTagHeaderValue> tags = message.Headers.IfNoneMatch;
+                    if (!tags.TryParseAdd(value) || tags.Count == 0 || tags.Count > 1 && tags.Contains(EntityTagHeaderValue.Any))
+                        Add(path + "." + name, "invalid_header", "If-None-Match requires entity tags or a wildcard.");
+                }
                 if (requestHeaders && !name.Equals("Accept", StringComparison.OrdinalIgnoreCase)
                     && !name.Equals("If-None-Match", StringComparison.OrdinalIgnoreCase)
                     && !name.Equals("If-Modified-Since", StringComparison.OrdinalIgnoreCase))

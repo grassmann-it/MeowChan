@@ -23,7 +23,8 @@ public enum HttpHostPurpose { None = 0, Metadata = 1, OriginalMedia = 2, Preview
 /// DecimalPostId by arbitrary-length decimal post identity.
 /// For a PostSearch source, StableOrdinal promises nothing: post ids stay opaque, a host tells new posts
 /// only by set membership and never sends a search cursor. DecimalPostId declares that every booru post
-/// id is a positive decimal without leading zeros, that a larger id was assigned later by the provider,
+/// id is a positive decimal of up to <see cref="SdkLimits.MaximumBooruPostIdDigits"/> digits without leading zeros,
+/// that a larger id was assigned later by the provider,
 /// that every search page lists strictly descending ids, and that the source serves
 /// <see cref="BooruSearchRequest.BeforePostId"/> cursors. It does not promise dense ids, creation-time
 /// order, that an older id never starts matching a query later, or that a page is full.

@@ -104,7 +104,7 @@ public sealed class BooruCheckScopeTests
 
         // The newest page and then cursor pages below it, more than the five numbered pages: one check, one id.
         string?[] cursors = [null, "9000", "8000", "7000", "6000", "5000", "4000"];
-        IDanbooruWatcherSearchSession check = core.OpenCheck();
+        using IDanbooruWatcherSearchSession check = core.OpenCheck();
         foreach (string? cursor in cursors)
         {
             DanbooruWatcherSearchSnapshot page = Assert.IsType<DanbooruWatcherSearchSnapshot>(await check.SearchAsync("cat", cursor, default));
@@ -130,9 +130,26 @@ public sealed class BooruCheckScopeTests
     }
 
     [Fact]
-    public async Task WatcherPortSessionMapsTheSharedBudgetExhaustionToATransientDeferral()
+    public async Task ContinuationRequiresTheOriginalSearchAndTheIssuedCursor()
     {
         using Rig rig = new();
+        using BooruSearchScope scope = rig.Search.OpenScope();
+        Assert.IsType<BooruSearchSnapshot>(await rig.Search.SearchAsync(rig.Worker, "danbooru", "cat", 1, scope));
+        rig.Clock.Advance(TimeSpan.FromSeconds(1));
+
+        Assert.Equal(BooruSearchService.InvalidCursorCode, Assert.IsType<BooruSearchFailure>(
+            await rig.Search.SearchBeforeAsync(rig.Worker, "danbooru", "dog", "9000", scope)).Failure.Code);
+        Assert.Equal(BooruSearchService.InvalidCursorCode, Assert.IsType<BooruSearchFailure>(
+            await rig.Search.SearchBeforeAsync(rig.Worker, "danbooru", "cat", "8000", scope)).Failure.Code);
+        Assert.Equal(1, rig.Sends);
+        Assert.IsType<BooruSearchSnapshot>(await rig.Search.SearchBeforeAsync(rig.Worker, "danbooru", "cat", "9000", scope));
+        Assert.Equal(2, rig.Sends);
+    }
+
+    [Fact]
+    public async Task WatcherPortSessionMapsTheSharedBudgetExhaustionToATransientDeferral()
+    {
+        using Rig rig = new(cursorStart: 9999, cursorStep: 1);
         BooruWatcherSearchPort port = new(rig.Search, rig.Services, _ => Task.FromResult<IPluginWorkerClient?>(rig.Worker), rig.Clock);
         using IDanbooruWatcherSearchSession check = ((IDanbooruWatcherSearchPort)port).OpenCheck();
         for (int index = 0; index < BooruHostHttp.MaximumSendsPerJob; ++index)
@@ -142,7 +159,7 @@ public sealed class BooruCheckScopeTests
             rig.Clock.Advance(TimeSpan.FromSeconds(1));
         }
         DanbooruWatcherSearchDeferred deferred = Assert.IsType<DanbooruWatcherSearchDeferred>(
-            await check.SearchAsync("cat", "42", default));
+            await check.SearchAsync("cat", "9980", default));
         Assert.Equal("booru-budget", deferred.ReasonCode);
         Assert.Equal(BooruHostHttp.MaximumSendsPerJob, rig.Sends);
     }
@@ -154,16 +171,18 @@ public sealed class BooruCheckScopeTests
     private sealed class Rig : IDisposable
     {
         private readonly HttpClient _transport;
+        private readonly Handler _handler;
         private readonly BooruHostHttp _http;
         private int _sends;
 
-        internal Rig()
+        internal Rig(int cursorStart = 9000, int cursorStep = 1000)
         {
-            _transport = new HttpClient(new Handler(this), disposeHandler: true);
+            _handler = new Handler(this);
+            _transport = new HttpClient(_handler, disposeHandler: false);
             _http = new BooruHostHttp(_transport, new RequestPolicyState(Clock), [DanbooruSource()]);
             Services = new BooruHostServices(new NoInner(), _http);
             Search = new BooruSearchService(Services);
-            Worker = new RecordingWorker(Services);
+            Worker = new RecordingWorker(Services, cursorStart, cursorStep);
         }
 
         internal BooruWatcherSchedulerHostTests.PumpClock Clock { get; } = new(new DateTimeOffset(2026, 11, 12, 12, 0, 0, TimeSpan.Zero));
@@ -175,7 +194,8 @@ public sealed class BooruCheckScopeTests
         /// <summary>The raw <c>page</c> value of every request that reached the transport, in order.</summary>
         internal string[] Pages { get { lock (_pages) return _pages.ToArray(); } }
 
-        public void Dispose() { _http.Dispose(); _transport.Dispose(); }
+        public void Dispose() { _http.Dispose(); _transport.Dispose();
+            _handler.Dispose(); }
 
         private sealed class Handler(Rig owner) : HttpMessageHandler
         {
@@ -194,7 +214,7 @@ public sealed class BooruCheckScopeTests
     }
 
     /// <summary>One host GET per page (like the Danbooru plugin); records the operation of every call.</summary>
-    private sealed class RecordingWorker(BooruHostServices services) : IPluginWorkerClient
+    private sealed class RecordingWorker(BooruHostServices services, int cursorStart, int cursorStep) : IPluginWorkerClient
     {
         private readonly List<PluginOperationContext> _operations = new();
         internal IReadOnlyList<PluginOperationContext> Operations { get { lock (_operations) return _operations.ToArray(); } }
@@ -217,7 +237,11 @@ public sealed class BooruCheckScopeTests
                 case HostHttpFailure failure:
                     return new BooruSearchFailure(request.SourceId, failure.Failure);
             }
-            return new BooruSearchSnapshot(new BooruSearchPage(request.SourceId, request.Query, request.Page, [], true));
+            var culture = System.Globalization.CultureInfo.InvariantCulture;
+            int next = request.BeforePostId is null ? cursorStart : int.Parse(request.BeforePostId, culture) - cursorStep;
+            string id = next.ToString(culture);
+            return new BooruSearchSnapshot(new BooruSearchPage(request.SourceId, request.Query, request.Page,
+                [new BooruPost(new BooruPostId(request.SourceId, id), BooruFieldPresence.None)], false, id));
         }
 
         public Task<BooruPostResult> ReadBooruPostAsync(BooruPostRequest request, PluginOperationContext operation, CancellationToken cancellationToken = default) => throw new NotSupportedException();

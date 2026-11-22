@@ -61,6 +61,8 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<TagSug
         Array.Empty<TagSuggestionReviewEvent>(), TagSuggestionStoreState.Ready);
 
     internal bool CanWrite => State == TagSuggestionStoreState.Ready;
+    internal long NextId { get; init; } = 1;
+    internal long NextSequence { get; init; } = 1;
 
     /// <summary>Whether this exact tagger and model revision already tagged these bytes (resume skips it).</summary>
     internal bool HasCompletedRun(string mediaSha256, TagSuggestionProvenance provenance)
@@ -150,6 +152,10 @@ internal sealed class TagSuggestionStore
     /// these bytes is not proposed again. A run is a merge, so it needs no expected revision.
     /// </summary>
     internal TagSuggestionSnapshot CommitRuns(IReadOnlyList<TagSuggestionRunInput> runs, CancellationToken token = default)
+        => CommitRuns(runs, checkAuthority: null, token);
+
+    internal TagSuggestionSnapshot CommitRuns(IReadOnlyList<TagSuggestionRunInput> runs, Action? checkAuthority,
+        CancellationToken token)
     {
         ArgumentNullException.ThrowIfNull(runs);
         foreach (TagSuggestionRunInput run in runs) ValidateRun(run);
@@ -161,7 +167,7 @@ internal sealed class TagSuggestionStore
             DateTimeOffset now = _clock();
             Document document = Document.From(disk);
             foreach (TagSuggestionRunInput run in runs) Merge(document, run, now);
-            return Write(disk, document, token);
+            return Write(disk, document, forReview: false, checkAuthority, token);
         });
     }
 
@@ -192,7 +198,7 @@ internal sealed class TagSuggestionStore
                 document.Suggestions[index] = current with { State = target, DecidedAt = target == TagSuggestionState.Pending ? null : now };
                 document.AddEvent(id, current.State, target, now);
             }
-            return Write(disk, document, token);
+            return Write(disk, document, forReview: true, checkAuthority: null, token);
         });
     }
 
@@ -219,7 +225,6 @@ internal sealed class TagSuggestionStore
             TagSuggestion value = document.Suggestions[index];
             if (value.State != TagSuggestionState.Pending || value.Provenance.TaggerIdentity != provenance.TaggerIdentity
                 || !string.Equals(value.MediaSha256, run.MediaSha256, StringComparison.Ordinal)) continue;
-            if (value.Provenance.RunKey == provenance.RunKey) { document.Suggestions.RemoveAt(index--); continue; }
             document.Suggestions[index] = value with { State = TagSuggestionState.Superseded, DecidedAt = now };
             document.AddEvent(value.Id, TagSuggestionState.Pending, TagSuggestionState.Superseded, now);
         }
@@ -230,21 +235,28 @@ internal sealed class TagSuggestionStore
             bool pending = document.Suggestions.Any(value => value.State == TagSuggestionState.Pending
                 && value.SameTag(run.MediaSha256, candidate.Name, candidate.Category, candidate.StartMilliseconds, candidate.EndMilliseconds));
             if (decided || pending) continue;
-            document.Suggestions.Add(new TagSuggestion(document.NextId++, run.MediaSha256, run.MediaLength, candidate.Name,
+            long id = document.NextId;
+            document.NextId = checked(id + 1);
+            document.Suggestions.Add(new TagSuggestion(id, run.MediaSha256, run.MediaLength, candidate.Name,
                 candidate.Category, candidate.Confidence, candidate.StartMilliseconds, candidate.EndMilliseconds, provenance,
                 TagSuggestionState.Pending, now));
         }
     }
 
-    private TagSuggestionSnapshot Write(TagSuggestionSnapshot disk, Document document, CancellationToken token)
+    private TagSuggestionSnapshot Write(TagSuggestionSnapshot disk, Document document, bool forReview,
+        Action? checkAuthority, CancellationToken token)
     {
         document.Revision = checked(disk.Revision + 1);
-        string json = JsonSerializer.Serialize(document, JsonOptions);
-        long bytes = Encoding.UTF8.GetByteCount(json);
+        token.ThrowIfCancellationRequested();
+        byte[] json = JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions);
+        TagSuggestionSettings settings = Settings;
+        long limit = settings.StoreLimitBytes;
+        if (!forReview) limit -= limit * settings.ReviewReservePercent / 100;
         long before = File.Exists(_path) ? new FileInfo(_path).Length : 0;
-        // Only growth is refused: with the limit lowered below the current size, decisions still work.
-        if (bytes > Settings.StoreLimitBytes && bytes > before) throw new TagSuggestionStoreException(TagSuggestionStoreError.LimitReached);
-        AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: false, token);
+        // Preserve the ability to reduce an existing file after its configured limit has been lowered.
+        if (json.LongLength > MaximumBytes || (json.LongLength > limit && json.LongLength > before))
+            throw new TagSuggestionStoreException(TagSuggestionStoreError.LimitReached);
+        AtomicJsonFile.ReplaceUnderLease(_path, json, checkAuthority, token);
         return _current = document.ToSnapshot();
     }
 
@@ -253,9 +265,13 @@ internal sealed class TagSuggestionStore
         try
         {
             if (!File.Exists(_path)) return _current = TagSuggestionSnapshot.Empty;
-            FileInfo info = new FileInfo(_path);
-            if (info.Length > MaximumBytes) return _current = Failed("The tag suggestion file exceeds its read ceiling.");
-            Document? document = JsonSerializer.Deserialize<Document>(File.ReadAllBytes(_path), JsonOptions);
+            using FileStream file = File.OpenRead(_path);
+            long length = file.Length;
+            if (length > MaximumBytes) return _current = Failed("The tag suggestion file exceeds its read ceiling.");
+            byte[] bytes = new byte[(int)length];
+            file.ReadExactly(bytes);
+            if (file.ReadByte() != -1) return _current = Failed("The tag suggestion file changed during reading.");
+            Document? document = JsonSerializer.Deserialize<Document>(bytes, JsonOptions);
             if (document is null || document.Format != Format) return _current = Failed("The tag suggestion file has an unknown format.");
             if (document.Version != FormatVersion)
                 return _current = Failed("The tag suggestion file was written by a newer version.", TagSuggestionStoreState.Unsupported);
@@ -324,15 +340,19 @@ internal sealed class TagSuggestionStore
         internal static Document From(TagSuggestionSnapshot snapshot) => new()
         {
             Revision = snapshot.Revision,
-            NextId = snapshot.Suggestions.Count == 0 ? 1 : snapshot.Suggestions.Max(value => value.Id) + 1,
-            NextSequence = snapshot.Events.Count == 0 ? 1 : snapshot.Events.Max(value => value.Sequence) + 1,
+            NextId = snapshot.NextId,
+            NextSequence = snapshot.NextSequence,
             Suggestions = snapshot.Suggestions.ToList(),
             Runs = snapshot.Runs.ToList(),
             Events = snapshot.Events.ToList()
         };
 
         internal void AddEvent(long id, TagSuggestionState from, TagSuggestionState to, DateTimeOffset at)
-            => Events.Add(new TagSuggestionReviewEvent(NextSequence++, id, from, to, at));
+        {
+            long sequence = NextSequence;
+            NextSequence = checked(sequence + 1);
+            Events.Add(new TagSuggestionReviewEvent(sequence, id, from, to, at));
+        }
 
         internal void Check()
         {
@@ -342,9 +362,17 @@ internal sealed class TagSuggestionStore
                 || Runs.Any(value => value is null || value.Provenance is null || !IsSha256(value.MediaSha256))
                 || Events.Any(value => value is null))
                 throw new InvalidDataException("The tag suggestion file is inconsistent.");
+
+            // Old writers could reset NextId after deleting a superseded pending suggestion.
+            // The greatest identifier in surviving records or review events is still occupied.
+            long lastId = Math.Max(Suggestions.Select(value => value.Id).DefaultIfEmpty().Max(),
+                Events.Select(value => value.SuggestionId).DefaultIfEmpty().Max());
+            long lastSequence = Events.Select(value => value.Sequence).DefaultIfEmpty().Max();
+            NextId = Math.Max(NextId, checked(lastId + 1));
+            NextSequence = Math.Max(NextSequence, checked(lastSequence + 1));
         }
 
         internal TagSuggestionSnapshot ToSnapshot() => new(Revision, Suggestions.ToArray(), Runs.ToArray(), Events.ToArray(),
-            TagSuggestionStoreState.Ready);
+            TagSuggestionStoreState.Ready) { NextId = NextId, NextSequence = NextSequence };
     }
 }

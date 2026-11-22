@@ -213,6 +213,7 @@ MeowChan.PluginSdk.TaggerTimeRange.EndMilliseconds.init -> void
 MeowChan.PluginSdk.TaggerTimeRange.StartMilliseconds.get -> long
 MeowChan.PluginSdk.TaggerTimeRange.StartMilliseconds.init -> void
 MeowChan.PluginSdk.TaggerTimeRange.TaggerTimeRange(long StartMilliseconds, long EndMilliseconds) -> void
+const MeowChan.PluginSdk.SdkLimits.MaximumBooruPostIdDigits = 18 -> int
 const MeowChan.PluginSdk.TaggerContract.Version = "1.0.0" -> string!
 const MeowChan.PluginSdk.TaggerLimits.MaximumBatchItems = 64 -> int
 const MeowChan.PluginSdk.TaggerLimits.MaximumInputBytes = 268435456 -> long

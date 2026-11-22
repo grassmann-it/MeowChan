@@ -421,9 +421,9 @@ public sealed class BooruContractTests
     }
 
     [Fact]
-    public void CursorLengthBoundariesFollowTheIdentifierLimit()
+    public void CursorLengthBoundariesFollowTheBooruPostIdLimit()
     {
-        string longest = "1" + new string('0', SdkLimits.MaximumIdentifierLength - 1);
+        string longest = "1" + new string('0', SdkLimits.MaximumBooruPostIdDigits - 1);
         Assert.Empty(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = "1" }, Decimal()));
         Assert.Empty(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = longest }, Decimal()));
         Assert.Contains(SdkValidation.ValidateBooruSearchRequest(Request with { BeforePostId = longest + "0" }, Decimal()),
@@ -477,7 +477,7 @@ public sealed class BooruContractTests
     {
         Assert.Empty(SdkValidation.ValidateDescription(Plugin(Decimal())));
         Assert.Empty(Validate(CursorPage(false, "9", FullPost("1000"), FullPost("999"), FullPost("10"), FullPost("9")), source: Decimal()));
-        Assert.Empty(Validate(CursorPage(true, null, FullPost("100000000000000000000000000002"), FullPost("100000000000000000000000000001")), source: Decimal()));
+        Assert.Empty(Validate(CursorPage(true, null, FullPost("100000000000000002"), FullPost("100000000000000001")), source: Decimal()));
         Assert.Contains(Validate(CursorPage(true, null, FullPost("9"), FullPost("10")), source: Decimal()), issue => issue.Code == "invalid_order" && issue.Path == "result.page.posts[1].id.postId");
         Assert.Contains(Validate(CursorPage(true, null, FullPost("5"), FullPost("5")), source: Decimal()), issue => issue.Code == "invalid_order");
         // StableOrdinal (the default) promises no order: ascending or opaque ids stay valid.
@@ -490,6 +490,7 @@ public sealed class BooruContractTests
     [InlineData("-1")]
     [InlineData("1a")]
     [InlineData("１")]
+    [InlineData("1234567890123456789")]
     public void DecimalOrderedSourcesUseCanonicalPositiveDecimalIds(string postId)
     {
         Assert.Contains(Validate(CursorPage(true, null, FullPost(postId)), source: Decimal()), issue => issue.Code == "invalid_order");
