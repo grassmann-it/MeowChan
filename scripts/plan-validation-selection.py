@@ -25,7 +25,7 @@ vstest = balance.native
 offline = importlib.import_module('run-dotnet-shards')
 
 ROOT = Path(__file__).resolve().parents[1]
-RULES_VERSION = 2
+RULES_VERSION = 3
 INVENTORY_VERSION = 1
 DEFAULT_PERCENT = 10
 DISCOVERY_BUDGET = 35 * 60
@@ -339,6 +339,21 @@ PACKAGE_INPUTS = {
     'scripts/package-plugins.py': ('library-package', (LINUX,)),
     'packaging/homebrew/': ('homebrew-macos', (MACOS[0],)),
 }
+# Test inputs read directly from the repository and thus invisible to the MSBuild graph.
+DOCUMENT_CHECKS = {
+    'docs/development/booru-test-matrix.md': 'tests/test_plugin_packaging.py',
+    'docs/plugins/README.md': 'tests/test_plugin_documentation.py',
+    'docs/plugins/using-plugins.md': 'tests/test_plugin_documentation.py',
+    'plugins/Official/README.md': 'tests/test_plugin_documentation.py',
+    'docs/releases/public-plugin-inventory.md': 'tests/test_public_package_inventory.py',
+    'docs/releases/v1.1.0-api-review.md': 'tests/test_core_startup_docs.py',
+    'libmeowchan/README.md': 'tests/test_core_startup_docs.py',
+    'docs/releases/v1.1.0.md': 'tests/test_ap04_run.py',
+}
+DESKTOP_DOCUMENT_INPUTS = {
+    'README.md', 'CHANGELOG.md', 'docs/Help.md', 'docs/releases/v1.1.0.md',
+    'docs/user-guide/danbooru.md', 'docs/user-guide/settings-export-and-limits.md',
+}
 GALLERY = re.compile(r'Desktop/GalleryVideoPlayer[^/]*\.cs')
 PLAYBACK = ('gallery-playback-features', 'video-lifecycle', *balance.scenes.GIF)
 
@@ -432,7 +447,13 @@ class Requirements:
         if path == 'scripts/run-desktop-smoke.py':
             self.check('validate:smoke_runner_contract', path)
             return
-        if path in ('README.md', 'CHANGELOG.md') or path.startswith('docs/development/') and path.endswith('.md'):
+        if path in DOCUMENT_CHECKS or path in DESKTOP_DOCUMENT_INPUTS:
+            if path in DOCUMENT_CHECKS:
+                self.check(f'python:{DOCUMENT_CHECKS[path]}', path)
+            if path in DESKTOP_DOCUMENT_INPUTS:
+                self.tests[DESKTOP, LINUX].add(path)
+            return
+        if path.startswith('docs/development/') and path.endswith('.md'):
             return
         require(consumers or path.startswith(MEDIA_INPUTS), f'unknown_productive_path:{path}')
         for project in sorted(owners - set(PROJECTS) - {SMOKE}):

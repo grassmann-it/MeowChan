@@ -188,6 +188,20 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual([f'central_path:{path}'], report['fallback_reasons'])
         self.assertEqual([f'dotnet-test:{planner.ANALYZER}'], [row['id'] for row in report['required']['checks']])
 
+    def test_documentation_contracts_are_required_without_sampling(self):
+        matrix = 'docs/development/booru-test-matrix.md'
+        plugin_guide = 'docs/plugins/using-plugins.md'
+        readme = 'README.md'
+        for path in (matrix, plugin_guide, readme, 'docs/development/meeting-notes.md'):
+            self.write(path, '# Documentation\n')
+        report = self.plan(self.push(self.commit('documentation changes')), percent=0)
+        self.assertEqual('selected', report['scope'], report['fallback_reasons'])
+        self.assertCountEqual([
+            dict(id='python:tests/test_plugin_packaging.py', platform=planner.LINUX, reasons=[matrix]),
+            dict(id='python:tests/test_plugin_documentation.py', platform=planner.LINUX, reasons=[plugin_guide]),
+        ], report['required']['checks'])
+        self.assertEqual([readme], self.required(report, planner.DESKTOP)['reasons'])
+
     def test_unassigned_test_project_invalidates_complete_inventory_claim(self):
         path = 'tests/NewTests/NewTests.csproj'
         self.write(path, '<Project><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>')
