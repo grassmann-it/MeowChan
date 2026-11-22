@@ -57,6 +57,28 @@ internal sealed class BuiltInTaglineProvider : ITaglineProvider
         new("noai", new Version(1, 0, 0), TaglineTone.Playful),
         new("whatbooru", new Version(1, 0, 0), TaglineTone.Playful),
         new("features", new Version(1, 0, 0), TaglineTone.Playful),
+        // 1.1.1 additions: more self-deprecating and UX lines (1.0.0 for the same reason), goals, and the release quips of 1.1.1.
+        new("settingsforsettings", new Version(1, 0, 0), TaglineTone.Playful),
+        new("tooltipflicker", new Version(1, 0, 0), TaglineTone.Playful),
+        new("bugfeature", new Version(1, 0, 0), TaglineTone.Playful),
+        new("greenhere", new Version(1, 0, 0), TaglineTone.Playful),
+        new("toolbar14", new Version(1, 0, 0), TaglineTone.Playful),
+        new("pixelsbyhand", new Version(1, 0, 0), TaglineTone.Playful),
+        new("scopecreep", new Version(1, 0, 0), TaglineTone.Playful),
+        new("bugshide", new Version(1, 0, 0), TaglineTone.Playful),
+        new("tidytoolbars", new Version(1, 0, 0), TaglineTone.Plain),
+        new("keyboardfirst", new Version(1, 0, 0), TaglineTone.Plain),
+        new("galleryreader", new Version(1, 0, 0), TaglineTone.Plain),
+        new("evenspacing", new Version(1, 0, 0), TaglineTone.Playful),
+        new("lightdark", new Version(1, 0, 0), TaglineTone.Plain),
+        new("fewerclicks", new Version(1, 0, 0), TaglineTone.Plain),
+        new("boorutabs", new Version(1, 1, 1), TaglineTone.Playful),
+        new("downloadall", new Version(1, 1, 1), TaglineTone.Playful),
+        new("threadswitch", new Version(1, 1, 1), TaglineTone.Playful),
+        new("tagquickfix", new Version(1, 1, 1), TaglineTone.Playful),
+        new("taglinesfeature", new Version(1, 1, 1), TaglineTone.Playful),
+        new("yourarchive", new Version(1, 0, 0), TaglineTone.Plain),
+        new("sortnothoard", new Version(1, 0, 0), TaglineTone.Plain),
     ];
 
     private readonly Func<string, string?> _lookup;

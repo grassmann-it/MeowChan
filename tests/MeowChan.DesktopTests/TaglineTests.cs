@@ -273,11 +273,11 @@ public sealed class TaglineTests : IDisposable
     }
 
     [Fact]
-    public void TheCatalogShipsBetweenEightAndTwentyQuipsAndTheReleaseOnesAreThere()
+    public void TheCatalogShipsBetweenEightAndSixtyQuipsAndTheReleaseOnesAreThere()
     {
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        Assert.InRange(pool.Count, 8, 20);
+        Assert.InRange(pool.Count, 8, 60);
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);
