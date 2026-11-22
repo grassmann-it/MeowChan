@@ -47,7 +47,7 @@ internal sealed class MediaSourceTagIndex
         Dictionary<string, string[]> byPost = new(catalog.Posts.Count, StringComparer.Ordinal);
         foreach (BooruPostRecord record in catalog.Posts)
         {
-            if (record.SourceId != BooruMediaIdentity.Source || byPost.ContainsKey(record.PostId)) continue;
+            if (!record.Identity.IsLegacyDanbooru || byPost.ContainsKey(record.PostId)) continue;
             byPost[record.PostId] = record.Post.Tags.Select(tag => tag.Name?.Trim() ?? string.Empty).Where(MediaFilterTerm.IsSourceTagName)
                 .Select(name => name.ToLowerInvariant()).Distinct(StringComparer.Ordinal).ToArray();
         }

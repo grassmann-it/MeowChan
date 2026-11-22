@@ -112,6 +112,28 @@ public sealed class MediaPageTermFilterTests : IDisposable
     }
 
     [Fact]
+    public void SourceTagFiltersUseOnlyTheDefaultDanbooruInstanceInEitherOrder()
+    {
+        static BooruPostRecord Post(string? instance, string name) => new(BooruMediaIdentity.Source, "42",
+            new BooruPostClaim(BooruMediaIdentity.Source, "42", BooruPostClaimPresence.Tags,
+                Tags: [new(name, BooruPostClaimTagCategory.General)], InstanceId: instance),
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, InstanceId: instance);
+
+        BooruPostRecord legacy = Post(null, "default_tag");
+        BooruPostRecord other = Post("test-instance", "foreign_tag");
+        MediaLibraryEntry medium = Entry(1, "42");
+        MediaPageTermFilter legacyFilter = MediaPageTermFilter.From([MediaFilterTerm.SourceTag("default_tag")])!;
+        MediaPageTermFilter otherFilter = MediaPageTermFilter.From([MediaFilterTerm.SourceTag("foreign_tag")])!;
+        foreach (BooruPostRecord[] posts in new[] { new[] { legacy, other }, new[] { other, legacy } })
+        {
+            BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.ScopedIdentitySchemaVersion, posts, []);
+            MediaSourceTagIndex index = MediaSourceTagIndex.From(catalog);
+            Assert.Equal([medium], legacyFilter.Apply([medium], null, index));
+            Assert.Empty(otherFilter.Apply([medium], null, index));
+        }
+    }
+
+    [Fact]
     public void EveryLanguageHasTheChipsTheRefusalsAndQueryNamesOfTheNewFields()
     {
         foreach (string code in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
