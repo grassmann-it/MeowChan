@@ -27,6 +27,7 @@ internal static class ReaderSettingsCatalog
         ("settings.gallery.maxZoom", "Maximum zoom (%)", "Höchster Zoom (%)"),
         ("settings.gallery.maxZoom.hint", "How far a picture or video can be enlarged, as a percentage of its size. Fit is not affected.", "Wie weit sich ein Bild oder Video vergrößern lässt, in Prozent seiner Größe. Einpassen bleibt unberührt."),
         ("settings.limits.postFilterRules", "Post filter rules", "Postfilter-Regeln"),
+        ("settings.limits.postFilterRules.active", "Active rules: {0}.", "Aktive Regeln: {0}."),
         ("settings.limits.postFilterRules.hint", "Lowering the limit preserves existing rules and only stops growth. The fixed file ceiling is 32 MiB.", "Eine niedrigere Grenze erhält vorhandene Regeln und stoppt nur das Wachstum. Die feste Obergrenze der Datei beträgt 32 MiB."),
         ("settings.limits.hiddenPosts", "Individually hidden posts", "Einzeln ausgeblendete Posts"),
         ("settings.limits.hiddenPosts.hint", "Lowering the limit preserves existing hidden posts and only stops growth.", "Eine niedrigere Grenze erhält bereits ausgeblendete Posts und stoppt nur das Wachstum."),

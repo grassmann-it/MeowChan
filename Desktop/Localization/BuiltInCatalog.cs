@@ -118,6 +118,7 @@ internal static class BuiltInCatalog
         ("diagnostics.observed.code", "Diagnostic code: {0}", "Diagnosecode: {0}"),
         ("diagnostics.clearFilters", "Reset filters", "Filter zurücksetzen"),
         ("diagnostics.filterCount", "Entries: {0} / {1} · selected: {2}", "Einträge: {0} / {1} · ausgewählt: {2}"),
+        ("diagnostics.retryableTargets", "Retry targets: {0}", "Erneut anstoßbare Ziele: {0}"),
         ("diagnostics.overview", "Overview of the current entries", "Überblick über die aktuellen Einträge"),
         ("diagnostics.retryScopeCount", "Number of retry targets shown in the table: {0}. The count on the Status tab covers every current entry, including waiting ones and entries without a retry action, so it can be higher.", "Anzahl der Wiederholungsziele in der Tabelle: {0}. Die Zahl auf dem Status-Tab zählt alle aktuellen Einträge, auch wartende und solche ohne Wiederholungsaktion, und kann daher höher sein."),
         ("diagnostics.noMatch", "No entries match the filters.", "Keine Einträge entsprechen den Filtern."),

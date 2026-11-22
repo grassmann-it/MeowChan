@@ -879,6 +879,15 @@ starts the export; in the SHA-256 search, Enter in the hash field starts the sea
 as soon as the button is available. These shortcuts never bypass a disabled action or confirm a destructive operation
 without its required acknowledgement.
 
+### Action glossary / Begriffe für Aktionen
+
+| English / Deutsch | Effect / Wirkung |
+| --- | --- |
+| **Remove / Entfernen** | Takes an entry out of the current list, such as a watch or a favorite. Saved files stay in place. / Nimmt etwa eine Beobachtung oder einen Favoriten aus der aktuellen Liste. Gespeicherte Dateien bleiben erhalten. |
+| **Delete / Löschen** | Permanently deletes the data named in the confirmation, such as saved media. / Löscht die in der Bestätigung genannten Daten dauerhaft, etwa gespeicherte Medien. |
+| **Apply / Übernehmen** | Makes the displayed choice take effect, such as saving the colors shown in the color dialog. / Setzt die angezeigte Auswahl in Kraft, etwa indem die Farben aus dem Farbdialog gespeichert werden. |
+| **Undo / Rückgängig** | Reverses the change named by the action, such as the latest tagging decision in the current pass. / Nimmt die bezeichnete Änderung zurück, etwa die letzte Tagging-Entscheidung im aktuellen Durchgang. |
+
 ### Back and Close
 
 Back and **Back to …** for pages and overlays stand at the far left of their

@@ -6,7 +6,11 @@
 
 MeowChan keeps saved Chan media local. You can view and navigate it in Archive and Gallery and mark individual media as favorites. Threads can also be marked as thread favorites. A favorites-related Archive overview can search existing favorites by current thread, selected threads, filtered results, or the whole archive; check them locally; view them; remove them; and export the displayed originals. Local viewing and checking alone does not start a download.
 
-There is still no Booru search or collection workspace, universal collection browser, or import/apply flow. The Archive header additionally provides the captured-filename metadata search described below.
+## Searching Danbooru
+
+Open **More → Booru** in the main navigation, enter tags, and choose **Search**. You can also open it from **Media → More → Open Booru**. The Danbooru plugin must be enabled and available under **Plugins → All plugins**. If Booru is hidden, turn on **Show Booru actions** under **Settings → Interface → Footer**.
+
+Search returns public Danbooru posts. You can preview the results and explicitly queue selected originals. See [Danbooru search and watchers](../Help.md#danbooru-search-and-watchers) for the controls and local download workflow.
 
 ## Searching saved filenames in Archive
 
@@ -38,18 +42,17 @@ The favorites overview resolves the chosen scope through saved local manifests. 
 
 ## Inspecting and applying a transfer package
 
-In the Archive header, open **Inspect transfer package…**, then use **Choose transfer package…** in the dialog to select an existing local ZIP file. MeowChan validates it with the production package reader and shows a bounded inventory: threads, posts, unique payloads, byte size, and the status of contained originals, previews, and retained bindings. A public single-thread `chan-v4` package can then be planned as New or Merge and explicitly applied.
+In the Archive header, open **Import archive…**, then use **Choose archive…** in the dialog to select an existing local ZIP file. MeowChan validates it with the production package reader and shows a bounded inventory: threads, posts, unique payloads, byte size, and the status of contained originals, previews, and retained bindings. A supported package can then be explicitly imported using the displayed plan.
 
 The Apply path is deliberately bounded:
 
 - Inspection is read-only. Apply is a separate explicit user action against the displayed generation.
-- Only the public single-thread `chan-v4` path is currently supported. An existing or 404 thread is supplemented additively; originals, favorites, ratings, and notes are not silently replaced.
-- Private transfer metadata, multi-thread Apply, rootless packages, and stale or unclear plans remain blocked until their consent, batch, and recovery contracts are accepted.
+- Merging supplements existing threads and reports media conflicts. The importer rejects unsupported packages and stale plans.
 - No source provider or network is used.
 - Inspection writes a temporary staging copy in its own work directory, then attempts to remove its staging files and directories. Inspection and finalization wait for that cleanup, which can block completion. Retained temporary data or an uncertain cleanup state is reported.
 - Apply reconciles receipts and recovery states. Cancellation or a lost response is not misreported as a guaranteed non-apply; retrying the same operation is idempotent.
 
-This surface also does not create a transfer package. There is no user-facing choice between full and curated transfer, no manual non-favorite selection for a transfer package, and no favorite-based transfer export yet. Internal archive and curated package producers are technical core components without a complete export dialog; the existing original-file export from the favorites overview is separate.
+**Export archive…** in the Archive header creates transfer packages for selected threads or the whole archive. Choose **Metadata only**, **Originals**, or **Everything** for the media scope. The original-file export from the favorites overview is a separate action.
 
 ## Video volume, mute, and repeat
 
@@ -81,7 +84,7 @@ Source limits, bandwidth, media verification, and disk capacity still apply. Dow
 
 ## Languages
 
-English and German remain the supported built-ins. **Español (Untested)**, **Français (Untested)**, and **Русский (Untested)** are bundled as selectable previews; no separate pack download or profile installation is required. Merely loading them does not change a saved language choice.
+English and German are built in. Ten [bundled language previews](../../Desktop/Localization/Packs/README.md) can be selected in Settings without a separate download.
 
 “Untested” means no qualified linguistic review or native UI acceptance. Missing or deliberately untranslated surfaces fall back to English, and some helpers plus native controls can remain English. This is not Windows, macOS, or other platform proof.
 
@@ -99,15 +102,10 @@ The startup preview is deliberately inert:
 
 There is no preview after a first start, crash, or other unclean exit without a suitable cache. This is not a latency guarantee and does not replace restoration.
 
-## Not offered in this preview
+## Other local collection tools
 
-The broader collection direction is still work in progress. The following are **not** exposed user features:
+- **SHA-256:** With a saved thread that has one media inventory, select the **SHA-256** search scope in Archive or Reader and enter an exact hash. It searches recorded hashes in that inventory.
+- **Own tags:** Add tags to threads or media and filter the Media page by your own tags. See [own tags](../Help.md#own-tags-and-the-shared-media-menu) for the local tagging tools.
+- **Local files:** Choose **Import files…** to [import your own files](../Help.md#importing-your-own-files) into the media library.
 
-- **SHA-256 search:** The separate dialog and operation core exist as technical components and check an exact 64-character ASCII-hex SHA-256 in exactly one captured inventory. They do not open or rehash files. Archive surface, start button, and a productive hash host are not wired yet, so no usable hash search is offered here.
-- **Booru:** no Booru site search, source admission, collection intake, or Booru library is offered. A bounded internal Danbooru query grammar exists; it is not a control, reads no private tags, and is not a provider, API, or network adapter.
-- **Private tags:** bounded internal tag models exist, but there is no tag UI, persistent private tag collection, tag search, or tag transfer. Token chips in Rules are rule components, not private tags.
-- **Curated export:** the internal selection and projection core is not exposed. There is no user-facing “favorites plus small previews” exporter and no private-metadata round trip.
-- **Native import and 404 merge:** internal preparation and comparison work exists, but there is no user import or app flow that imports a package and supplementally merges existing or 404 threads.
-- **Foreign collections:** no Grabber, Hydrus, gallery-dl, or other foreign-collection compatibility is claimed.
-
-Existing HTML and original-file exports remain separate output features. They are not a complete application round trip, profile backup, transfer-package creator, or import promise.
+A favorites-only transfer package and third-party collection import are outside the current preview.

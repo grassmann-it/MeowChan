@@ -47,9 +47,10 @@
                             <TextBlock Tag="diagnostics.includeWaiting" Classes="localized" TextWrapping="NoWrap" />
                         </CheckBox>
                         <Button x:Name="DiagnosticClearFilters" IsEnabled="False" Click="OnClearDiagnosticFilters" />
+                        <controls:HelpButton x:Name="DiagnosticCountsHelpButton" HelpKey="help.diagnosticCounts" />
                     </WrapPanel>
                 </Expander>
-                <!-- Only while a filter is set or rows are selected: "a / b entries · c selected". -->
+                <!-- Row counts and actionable targets describe the same filtered scope. -->
                 <TextBlock x:Name="DiagnosticFilterSummary" wv:WorkViewElement.Id="diagnostics.filter-summary" Grid.Row="1" Classes="workspace-help" TextWrapping="Wrap"
                            IsVisible="False" AutomationProperties.LiveSetting="Polite" />
                 <Grid x:Name="DiagnosticSplit" Grid.Row="2" ColumnDefinitions="*,0" RowDefinitions="Auto,Auto" RowSpacing="{StaticResource Workspace.Space.12}">
@@ -73,8 +74,13 @@
                     <Border x:Name="DiagnosticDetailPane" wv:WorkViewElement.Id="diagnostics.details" Grid.Row="1" Classes="workspace-section">
                         <StackPanel Classes="workspace-section-header">
                             <TextBlock x:Name="DiagnosticSelectionHint" Classes="workspace-help" TextWrapping="Wrap" TextAlignment="Center" HorizontalAlignment="Center" AutomationProperties.LiveSetting="Polite" />
-                            <TextBlock x:Name="DiagnosticOverviewTitle" Classes="section-title" TextWrapping="Wrap" />
-                            <TextBlock x:Name="DiagnosticOverview" Classes="workspace-meta" TextWrapping="Wrap" />
+                            <Expander x:Name="DiagnosticOverviewSection" IsExpanded="True"
+                                      HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                                <Expander.Header>
+                                    <TextBlock Tag="diagnostics.overview" Classes="localized section-title" TextWrapping="Wrap" />
+                                </Expander.Header>
+                                <TextBlock x:Name="DiagnosticOverview" Classes="workspace-meta" TextWrapping="Wrap" />
+                            </Expander>
                             <TextBlock x:Name="DiagnosticSelectionTitle" Classes="section-title" TextWrapping="Wrap" IsVisible="False" />
                             <TextBlock x:Name="DiagnosticSelectionContext" Classes="workspace-meta" TextWrapping="Wrap" IsVisible="False" />
                             <TextBox x:Name="DiagnosticDetails" IsReadOnly="True" TextWrapping="Wrap" MinHeight="50" MaxHeight="110" />
