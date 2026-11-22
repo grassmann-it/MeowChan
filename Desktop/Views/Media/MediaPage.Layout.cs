@@ -34,7 +34,7 @@ public sealed partial class MediaPage
     /// <summary>The width of the drag handle between the tag list and the grid.</summary>
     internal const double HandleWidth = 6;
 
-    private readonly Button _layoutButton = new() { Name = "MediaLayout", Classes = { "toolbar-toggle" } };
+    private readonly Button _layoutButton = new() { Name = "MediaLayout" };
     private readonly Flyout _layoutFlyout = new() { Placement = PlacementMode.BottomEdgeAlignedRight };
     private LayoutMenuPanel _layoutPanel = null!;
     private bool _layoutMenuHadFocus, _layoutMenuKeyboard;
@@ -99,14 +99,9 @@ public sealed partial class MediaPage
             _layoutPanel.Refresh(); // the rows show the layout as it is at this moment
         };
         // The keyboard continues in the menu: the first usable row.
-        _layoutFlyout.Opened += (_, _) =>
-        {
-            _layoutButton.Classes.Add("menu-open");
-            Dispatcher.UIThread.Post(() => _layoutPanel.FocusFirst(), DispatcherPriority.Loaded);
-        };
+        _layoutFlyout.Opened += (_, _) => Dispatcher.UIThread.Post(() => _layoutPanel.FocusFirst(), DispatcherPriority.Loaded);
         _layoutFlyout.Closed += (_, _) =>
         {
-            _layoutButton.Classes.Remove("menu-open");
             if (!_layoutMenuHadFocus || _lifetime.IsCancellationRequested || !_layoutButton.IsEffectivelyVisible) return;
             _layoutMenuHadFocus = false;
             // The focus returns to the button the menu came from.

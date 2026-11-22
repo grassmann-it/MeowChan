@@ -190,7 +190,8 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.Equal(0, sidebar.TranslatePoint(default, host)!.Value.Y);
                     Assert.Equal(0, sidebar.Padding.Top);
                     Assert.Equal(0, sidebar.Padding.Bottom);
-                    Assert.True(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight);
+                    Assert.True(double.IsNaN(sidebar.HeaderHeight));
+                    Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
                     Assert.Equal(8, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
                     Assert.Equal(sidebar.Bounds.Height - 8 - sidebar.HeaderRow.Bounds.Height - ReaderMediaSidebar.HeaderGap, sidebar.Card.Bounds.Height);
                     Assert.Equal(sidebar.Bounds.Height, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
@@ -256,7 +257,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal(height, view.Bounds.Height);
             Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, view.Card.Bounds.Height);
         }
-        Layout(); // Empty state reserves exactly the same title row.
+        Layout(); // The Media page panel reserves the same line in the empty state.
         Grid headerRow = Assert.IsType<Grid>(view.HeaderRow);
         // ActualWidth includes the gap after the first grid column.
         double titleWidth = headerRow.ColumnDefinitions[0].ActualWidth - headerRow.ColumnSpacing;

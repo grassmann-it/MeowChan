@@ -1,6 +1,7 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Automation;
 using MeowChan.Gallery;
@@ -92,7 +93,11 @@ public sealed partial class MediaPage
         {
             control.VerticalAlignment = VerticalAlignment.Center;
             // Buttons match the 32 dip combo box beside them (Workspace.Size.Input) instead of sitting 1 dip inside its edges at 30 (G3).
-            if (control is Button) control.MinHeight = 32;
+            if (control is Button button)
+            {
+                button.MinHeight = 32;
+                if (button is not ToggleButton) button.Classes.Add("bar-flat");
+            }
             (control == _filters ? query : control == _shuffle || control == _sort || control == _sortDirection ? order : right).Children.Add(control);
         }
         _nameFilter.VerticalAlignment = VerticalAlignment.Center;

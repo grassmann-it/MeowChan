@@ -36,7 +36,7 @@ public sealed partial class MediaPage
         VerticalAlignment = VerticalAlignment.Center, IsVisible = false, Flyout = new OverflowMenuFlyout { Placement = PlacementMode.BottomEdgeAlignedRight }
     };
     // The fields of the filter surface that a view may hold back, opened by this toggle until the view changes (R13: nothing is saved).
-    private readonly ToggleButton _moreFilters = new() { Name = "MediaMoreFilters", IsVisible = false, Classes = { "toolbar-toggle" } };
+    private readonly ToggleButton _moreFilters = new() { Name = "MediaMoreFilters", IsVisible = false, Classes = { "bar-flat", "toolbar-toggle" } };
 
     /// <summary>The view this page last applied (Advanced until the shell applies the window's view).</summary>
     internal WorkView CurrentWorkView => _workView;
