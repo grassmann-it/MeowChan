@@ -17,6 +17,7 @@ using MeowChan.PluginHost.Installation;
 using MeowChan.PluginHost.Runtime;
 using MeowChan.PluginHost.Sources;
 using MeowChan.PluginHost.Filters;
+using MeowChan.PluginHost.Taggers;
 using MeowChan.Persistence;
 using MeowChan.Archive;
 using MeowChan.PluginSdk;
@@ -60,6 +61,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
     internal IPluginCompilationService CompilationService { get; }
     internal IPluginInstallationInventory Inventory { get; }
     internal PluginWorkerManager Runtime { get; }
+    internal LocalTaggerModelStore LocalTaggerModels { get; }
     internal string PluginDirectory { get; }
     /// <summary>The own on/off switch of each site of an engine-family chan plugin (the plugin stays the master switch).</summary>
     internal ChanSiteSwitches SiteSwitches { get; }
@@ -77,6 +79,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
         string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
+        LocalTaggerModels = new(profileLease);
         SiteSwitches = new ChanSiteSwitches(profileDirectory, logger);
         _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
         _savedSourcePermissions = config.SourceMediaIntegrityPermissions.Values.Where(permission => permission.AllowProviderSizeMd5Mismatch).ToArray();

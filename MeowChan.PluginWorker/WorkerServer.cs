@@ -35,10 +35,10 @@ internal sealed class WorkerServer
                     if (envelope.Operation != "hello" || envelope.Direction != "request")
                         throw new InvalidDataException("Handshake required.");
                     HelloRequest hello = WireJson.Read<HelloRequest>(envelope.Payload);
-                    if (hello.RequiredOperations.Any(operation => !ProtocolVersion.Operations.Contains(operation)))
+                    if (hello.RequiredOperations.Any(operation => !ProtocolVersion.SupportedOperations.Contains(operation)))
                         throw new InvalidDataException("Unsupported mandatory operation.");
                     _identity = envelope;
-                    await ReplyAsync(envelope, new HelloResponse(ProtocolVersion.Operations)).ConfigureAwait(false);
+                    await ReplyAsync(envelope, new HelloResponse(ProtocolVersion.SupportedOperations)).ConfigureAwait(false);
                     continue;
                 }
                 CheckIdentity(envelope);
@@ -110,7 +110,8 @@ internal sealed class WorkerServer
                 if (initialize.ValidateConfiguration) SdkValidation.ThrowIfInvalid(SdkValidation.ValidateConfiguration(_description, initialize.Configuration));
                 if ((_description.Sources.Any(source => !source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) && _plugin is not ISourcePlugin)
                     || (_description.Sources.Any(source => source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) && _plugin is not IBooruSourcePlugin)
-                    || (_description.Filters.Count > 0 && _plugin is not IImageFilterPlugin))
+                    || (_description.Filters.Count > 0 && _plugin is not IImageFilterPlugin)
+                    || (_description.TaggersOrEmpty().Count > 0 && _plugin is not ITaggerPlugin))
                     throw new InvalidDataException("Description capabilities do not match implemented interfaces.");
                 _configuration = initialize.Configuration;
                 _resources = initialize.ResourcePaths;
@@ -159,6 +160,18 @@ internal sealed class WorkerServer
                     ImageFilterResult result = await ((IImageFilterPlugin)_plugin).EvaluateAsync(WireJson.Read<ImageFilterRequest>(envelope.Payload), context, token).ConfigureAwait(false);
                     token.ThrowIfCancellationRequested();
                     await ReplyAsync(envelope, result).ConfigureAwait(false);
+                    break;
+                case ProtocolVersion.TaggerBatch:
+                    TaggerBatchRequest batch = WireJson.Read<TaggerBatchRequest>(envelope.Payload);
+                    TaggerDescription tagger = _description!.TaggersOrEmpty().SingleOrDefault(value => value.Key == batch.TaggerKey)
+                        ?? throw new InvalidDataException("Request identifies an undeclared tagger.");
+                    if (tagger.NetworkHosts.Count != 0 || batch.ConfigurationRevision != envelope.ConfigurationRevision)
+                        throw new InvalidDataException("The local tagger call requires an offline tagger and the active configuration.");
+                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateTaggerRequest(batch, tagger));
+                    TaggerBatchResult tagged = await ((ITaggerPlugin)_plugin).TagAsync(batch, context, null, token).ConfigureAwait(false);
+                    token.ThrowIfCancellationRequested();
+                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateTaggerResult(batch, tagged, tagger));
+                    await ReplyAsync(envelope, tagged).ConfigureAwait(false);
                     break;
                 case "settings":
                     IReadOnlyList<FieldValidationError> errors = _plugin is IPluginSettingsValidator validator

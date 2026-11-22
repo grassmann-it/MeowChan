@@ -10,6 +10,17 @@ public sealed record PluginOperationContext(string ResourceId, long Generation,
     // Host-only state keyed by identity. Equality still describes the caller's resource and revisions.
     private static readonly ConditionalWeakTable<PluginOperationContext, BooruCallBinding> BooruCalls = new();
 
+    private static readonly ConditionalWeakTable<PluginOperationContext, IImageAssetReader> TaggerCalls = new();
+
+    internal IImageAssetReader? TaggerImages => TaggerCalls.TryGetValue(this, out IImageAssetReader? reader) ? reader : null;
+
+    internal static PluginOperationContext ForTaggerBatch(string batchId, IImageAssetReader reader)
+    {
+        PluginOperationContext operation = new(batchId, 0);
+        TaggerCalls.Add(operation, reader);
+        return operation;
+    }
+
     internal BooruCallBinding? BooruCall => BooruCalls.TryGetValue(this, out BooruCallBinding? call) ? call : null;
 
     internal PluginOperationContext BindBooruCall(object request, CancellationToken lifetime)

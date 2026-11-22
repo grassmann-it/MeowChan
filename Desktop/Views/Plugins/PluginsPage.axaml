@@ -19,6 +19,7 @@
             <ComboBox x:Name="PluginCategory" MinWidth="160" SelectionChanged="OnCategoryChanged" />
           </StackPanel>
           <Button x:Name="PluginsAdd" wv:WorkViewElement.Id="plugins.header.add" Click="OnAddClick" />
+          <Button x:Name="PluginsLocalTagger" Click="OnLocalTaggerClick" IsVisible="False" />
           <Button x:Name="PluginsRefresh" wv:WorkViewElement.Id="plugins.header.refresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" wv:WorkViewElement.Id="plugins.header.folder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" wv:WorkViewElement.Id="plugins.header.review-repairs" Click="OnReviewBundledRepairsClick" />

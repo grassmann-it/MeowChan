@@ -30,6 +30,7 @@ internal sealed class WorkerConnection : IAsyncDisposable
     private long _observedTemporaryBytes;
     private readonly BoundedLog _log;
     private readonly IDisposable _processLease;
+    private bool _supportsTagger;
     private Exception? _failure;
     private Task _failureCancellation = Task.CompletedTask;
     private int _disposed;
@@ -105,6 +106,7 @@ internal sealed class WorkerConnection : IAsyncDisposable
             connection._processTree.ConfirmGroup();
             if (hello.Operations == null || hello.Operations.Length > 32 || ProtocolVersion.Operations.Any(operation => !hello.Operations.Contains(operation)))
                 throw new PluginWorkerException("protocol", "Worker does not implement the required operations.");
+            connection._supportsTagger = hello.Operations.Contains(ProtocolVersion.TaggerBatch);
             span = PerformanceDiagnostics.Measure("plugin.worker.describe", asset: artifact.ExecutionRevision);
             PluginDescription description = await connection.InvokeAsync<InitializeRequest, PluginDescription>("describe",
                 new(Path.GetFullPath(artifact.AssemblyPath), resources, configuration, !describeOnly), null, options.HandshakeTimeout, token).ConfigureAwait(false);
@@ -146,6 +148,8 @@ internal sealed class WorkerConnection : IAsyncDisposable
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_failure != null) throw new PluginWorkerException("worker-exit", "Plugin worker is unavailable.", _failure);
+        if (operation == ProtocolVersion.TaggerBatch && !_supportsTagger)
+            throw new PluginWorkerException("capability", "The worker does not support local tagging.");
         string id = Guid.NewGuid().ToString("N");
         WireEnvelope envelope = new(ProtocolVersion.Major, "request", operation, id, Identity.InstanceId,
             Identity.ExecutionRevision, Identity.ConfigurationRevision, context?.ResourceId, context?.Generation,
@@ -274,6 +278,8 @@ internal sealed class WorkerConnection : IAsyncDisposable
             switch (request.Operation)
             {
                 case "http":
+                    if (parent.Envelope.Operation == ProtocolVersion.TaggerBatch)
+                        throw new InvalidDataException("Local tagger batches do not have host HTTP access.");
                     HostHttpRequest http = WireJson.Read<HostHttpRequest>(request.Payload);
                     SourceDescription source = Description.Sources.SingleOrDefault(item => item.SourceId == http.SourceId)
                         ?? throw new InvalidDataException("The worker requested HTTP for an undeclared source.");
@@ -302,13 +308,21 @@ internal sealed class WorkerConnection : IAsyncDisposable
                     await ServiceReplyAsync<HostHttpResult>(request, result, parent.Token).ConfigureAwait(false);
                     break;
                 case "image":
-                    if (parent.Request is not ImageFilterRequest filter) throw new InvalidDataException("Image access requires a filter request.");
                     ImageReadRequest image = WireJson.Read<ImageReadRequest>(request.Payload);
-                    if (image.AssetToken != filter.AssetToken) throw new InvalidDataException("Image token does not belong to this filter request.");
-                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateImageRead(image.AssetToken, image.Offset, image.Count, filter.OriginalSize));
-                    ImageAssetChunk chunk = await _services.ReadImageAsync(image.AssetToken, image.Offset, image.Count, parent.Context, parent.Token).ConfigureAwait(false);
-                    if (chunk.Offset != image.Offset || chunk.Bytes.Length > image.Count || chunk.Offset + chunk.Bytes.Length > filter.OriginalSize
-                        || chunk.IsEnd != (chunk.Offset + chunk.Bytes.Length == filter.OriginalSize))
+                    long length = parent.Request switch
+                    {
+                        ImageFilterRequest filter when image.AssetToken == filter.AssetToken => filter.OriginalSize,
+                        TaggerBatchRequest batch when parent.Envelope.Operation == ProtocolVersion.TaggerBatch =>
+                            batch.Items.FirstOrDefault(item => item.AssetToken == image.AssetToken)?.Length
+                            ?? throw new InvalidDataException("Image token does not belong to this tagger batch."),
+                        _ => throw new InvalidDataException("Image access requires a matching token in the current request.")
+                    };
+                    SdkValidation.ThrowIfInvalid(SdkValidation.ValidateImageRead(image.AssetToken, image.Offset, image.Count, length));
+                    ImageAssetChunk chunk = parent.Context.TaggerImages is { } reader
+                        ? await reader.ReadImageAsync(image.AssetToken, image.Offset, image.Count, parent.Token).ConfigureAwait(false)
+                        : await _services.ReadImageAsync(image.AssetToken, image.Offset, image.Count, parent.Context, parent.Token).ConfigureAwait(false);
+                    if (chunk.Offset != image.Offset || chunk.Bytes.Length > image.Count || chunk.Offset + chunk.Bytes.Length > length
+                        || chunk.IsEnd != (chunk.Offset + chunk.Bytes.Length == length))
                         throw new InvalidDataException("Invalid image service chunk.");
                     await ServiceReplyAsync(request, chunk, parent.Token).ConfigureAwait(false);
                     break;
