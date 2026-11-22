@@ -261,7 +261,7 @@ internal static class CommandLabelCatalog
     // CommandLabelLocalizationTests treats Entries as a CommandDefinition contract.
     internal static readonly (string Key, string English, string German)[] ScopeEntries =
     {
-        ("command.scope.gallery-open.reader", "Large reader post area · current thread", "Post-Bereich im großen Reader · aktuell gelesener Thread"),
+        ("command.scope.gallery-open.reader", "Reader post area · current thread", "Post-Bereich im Reader · aktuell gelesener Thread"),
         ("command.scope.export-open-html.reader", "Current reader thread · outside inputs and dialogs", "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen"),
         ("command.scope.reader.expand", "In the thread list: Enter", "In der Threadliste: Enter"),
         ("command.scope.reader.find", "With the focus in the reader", "Mit Fokus im Reader"),
