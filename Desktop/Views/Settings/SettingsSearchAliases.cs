@@ -97,6 +97,7 @@ internal static class SettingsSearchAliases
         ["FooterLayoutSection"] = "footer navigation bar buttons pages order reorder show hide visible taskbar fußleiste fusszeile navigationsleiste knöpfe seiten reihenfolge ausblenden einblenden sichtbar",
         ["ShowBooruActions"] = "booru danbooru actions tools page show hide footer master aktionen anzeigen ausblenden fußleiste",
         ["HeaderTagline"] = "tagline slogan quip fortune motto header title bar spruch kopfleiste titelleiste kopfzeile",
+        ["HeaderTaglineIntervalMinutes"] = "tagline slogan quip interval rotate rotation minutes change spruch intervall wechsel wechseln minuten",
         ["HeaderTaglineFixedId"] = "tagline slogan quip fortune motto fixed spruch fest",
         ["StatsHeaderGraph"] = "statistics graph network disk traffic statistik diagramm netz platte",
         ["StatsPersist"] = "statistics history save verlauf speichern statistik",

@@ -246,6 +246,7 @@ public sealed class SettingsResetCoverageTests : IDisposable
         ("FolderSourceBackgroundHashingInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
         ("HeaderTaglineInput", SettingsEditor.SettingsResetScope.Interface),
         ("HeaderTaglineFixedIdInput", SettingsEditor.SettingsResetScope.Interface),
+        ("HeaderTaglineIntervalMinutesInput", SettingsEditor.SettingsResetScope.Interface),
         ("StatsHeaderMonitorInput", SettingsEditor.SettingsResetScope.Interface),
     ];
 

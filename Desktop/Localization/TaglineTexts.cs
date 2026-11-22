@@ -26,6 +26,11 @@ internal static class TaglineTexts
         ("shell.tagline.quip.reader", "reads like a book, works offline", "liest sich wie ein Buch, funktioniert offline"),
         ("shell.tagline.quip.units", "now with proper KiB, MiB and GiB", "jetzt mit richtigen KiB, MiB und GiB"),
         ("shell.tagline.quip.tray", "quietly working away in the tray", "arbeitet leise im Infobereich vor sich hin"),
+        ("shell.tagline.quip.jdownloader", "almost as bloated as JDownloader", "fast so aufgebläht wie JDownloader"),
+        ("shell.tagline.quip.worksonmine", "works on my machine", "läuft auf meinem Rechner"),
+        ("shell.tagline.quip.noai", "wanted to bundle AI tagging, but the download would explode", "wollte KI-Tagging mitliefern, aber der Download würde explodieren"),
+        ("shell.tagline.quip.whatbooru", "what even is a booru?", "was ist eigentlich ein Booru?"),
+        ("shell.tagline.quip.features", "80% more features, 20% more bugs", "80 % mehr Funktionen, 20 % mehr Bugs"),
         ("shell.tagline.menuAnother", "Another tagline", "Andere Tagline"),
         ("shell.tagline.menuHide", "Hide tagline", "Tagline ausblenden"),
         ("settings.headerTagline.label", "Header tagline", "Tagline in der Kopfleiste"),
@@ -34,7 +39,10 @@ internal static class TaglineTexts
         ("settings.headerTagline.fixed", "Always the same", "Immer dieselbe"),
         ("settings.headerTagline.daily", "New every day", "Täglich neu"),
         ("settings.headerTagline.perStart", "New at every start", "Bei jedem Start neu"),
+        ("settings.headerTagline.interval", "New every N minutes", "Neu alle N Minuten"),
         ("settings.headerTagline.fixedLabel", "Tagline for “Always the same”", "Tagline für „Immer dieselbe“"),
-        ("settings.headerTagline.fixedHint", "Only used with “Always the same”.", "Wird nur bei „Immer dieselbe“ verwendet.")
+        ("settings.headerTagline.fixedHint", "Only used with “Always the same”.", "Wird nur bei „Immer dieselbe“ verwendet."),
+        ("settings.headerTagline.intervalLabel", "Minutes between changes", "Minuten zwischen den Wechseln"),
+        ("settings.headerTagline.intervalHint", "Only used with “New every N minutes”: the line changes while MeowChan runs. Default {0}, from {1} to {2}.", "Wird nur bei „Neu alle N Minuten“ verwendet: die Zeile wechselt, solange MeowChan läuft. Standard {0}, von {1} bis {2}.")
     ];
 }

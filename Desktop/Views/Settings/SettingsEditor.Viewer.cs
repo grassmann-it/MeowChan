@@ -189,7 +189,7 @@ public partial class SettingsEditor
         nameof(GallerySlideshowVideoSecondsHelp), nameof(GallerySlideshowVideoRepeatsHelp), nameof(ControlsIdleHideMsHelp),
         nameof(GalleryFilmstripHeightHelp), nameof(GalleryFilmstripPreloadHelp), nameof(GalleryVideoSeekStepSecondsHelp),
         nameof(MediaBadgeCollapseBelowHelp), nameof(MediaBadgeHideBelowHelp), nameof(MediaBadgeMaxPerCornerHelp), nameof(GalleryStatusDwellMsHelp),
-        nameof(GalleryFilmstripTileGapHelp), nameof(GalleryPostTagChipLimitHelp)
+        nameof(GalleryFilmstripTileGapHelp), nameof(GalleryPostTagChipLimitHelp), nameof(HeaderTaglineIntervalMinutesHelp)
     };
 
     private static readonly string[] ViewerTextProperties =
@@ -284,6 +284,8 @@ public partial class SettingsEditor
     private void LoadViewerDraft(Config config, bool layoutReset = false)
     {
         GalleryLayoutResetPending = layoutReset;
+        // The minutes of the header tagline load with the page (start, discard, after a save); the Interface reset sets them itself, so the viewer reset leaves them.
+        if (!layoutReset) LoadHeaderTaglineIntervalDraft(config.HeaderTaglineIntervalMinutes);
         ControlsIdleHideMs = config.ControlsIdleHideMs;
         ResetNumber(ControlsIdleHideMsInput, config.ControlsIdleHideMs);
         RefreshReaderNavigationModeChoices(config.ReaderNavigationMode);
@@ -328,6 +330,7 @@ public partial class SettingsEditor
         candidate.SettingsBaselineGalleryFilmstrip = _initialGalleryFilmstrip;
         candidate.MediaFocusHidesHeader = MediaFocusHidesHeader;
         candidate.GalleryLayoutResetRequested = GalleryLayoutResetPending;
+        candidate.HeaderTaglineIntervalMinutes = HeaderTaglineIntervalForSave();
         candidate.GalleryFilmstripHeight = GetInteger(GalleryFilmstripHeight, GalleryFilmstripHeightLabel, Config.GalleryFilmstripHeightMinimum, Config.GalleryFilmstripHeightMaximum);
         candidate.GalleryFilmstripTileGap = GetInteger(GalleryFilmstripTileGap, GalleryFilmstripTileGapLabel, Config.GalleryFilmstripTileGapMinimum, Config.GalleryFilmstripTileGapMaximum);
         candidate.GalleryStatusDwellMs = GetInteger(GalleryStatusDwellMs, GalleryStatusDwellMsLabel, Config.GalleryStatusDwellMsMinimum, Config.GalleryStatusDwellMsMaximum);
