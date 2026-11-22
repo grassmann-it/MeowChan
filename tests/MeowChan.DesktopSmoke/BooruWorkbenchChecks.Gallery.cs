@@ -1,3 +1,5 @@
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using MeowChan.Desktop.Booru;
 using MeowChan.PluginSdk;
@@ -10,6 +12,36 @@ namespace MeowChan.DesktopSmoke;
 // scheduler or network). Captures the idle page and one result page, then ends the page's lifetime through the service boundary.
 internal static partial class BooruWorkbenchChecks
 {
+    private static async Task CheckGalleryToolbarAsync(MainWindow owner, BooruPage page, string shots)
+    {
+        Click(Find<Button>(page, "BooruView:101"));
+        BooruGalleryPanel gallery = page.View.Gallery;
+        TextBlock position = Find<TextBlock>(gallery, "BooruGalleryPosition");
+        Require(position.Text == "1 of 3" && !gallery.PreviousButton.IsEnabled, "The gallery must start at the first result.");
+        Click(gallery.NextButton);
+        await SettleAsync(owner);
+        Require(position.Text == "2 of 3" && gallery.CurrentPostId == "102", "Gallery navigation did not update the counter.");
+
+        Button openPost = Find<Button>(gallery, "BooruGalleryOpenPost");
+        Button openWindow = Find<Button>(gallery, "BooruGalleryOpenWindow");
+        Rect previous = SearchLayoutBounds(gallery.PreviousButton, owner), count = SearchLayoutBounds(position, owner);
+        Rect next = SearchLayoutBounds(gallery.NextButton, owner), selection = SearchLayoutBounds(gallery.SelectBox, owner);
+        Rect download = SearchLayoutBounds(gallery.DownloadButton, owner), post = SearchLayoutBounds(openPost, owner);
+        Rect window = SearchLayoutBounds(openWindow, owner), bar = SearchLayoutBounds(Find<Grid>(gallery, "BooruGalleryBar"), owner);
+        Require(previous.Size == new Size(32, 32) && next.Size == previous.Size && post.Size == previous.Size && window.Size == previous.Size
+            && Math.Abs(download.Height - previous.Height) <= 1 && Math.Abs(selection.Center.Y - previous.Center.Y) <= 1
+            && Math.Abs(count.Left - previous.Right - 4) <= 1 && Math.Abs(next.Left - count.Right - 4) <= 1
+            && Math.Abs(selection.Left - next.Right - 8) <= 1 && Math.Abs(download.Left - selection.Right - 8) <= 1
+            && Math.Abs(post.Left - download.Right - 4) <= 1 && Math.Abs(window.Right - bar.Right) <= 1,
+            $"Gallery toolbar groups are misaligned: previous={previous}, count={count}, next={next}, selection={selection}, download={download}, post={post}, window={window}, bar={bar}");
+        Require(gallery.DownloadButton.Classes.Contains("primary") && openPost.Classes.Contains("icon-only") && openWindow.Classes.Contains("icon-only")
+            && AutomationProperties.GetName(openWindow) == "Open in new window" && ToolTip.GetTip(openWindow) as string == "Open in new window"
+            && (ToolTip.GetTip(openPost) as string)?.Contains("/posts/102", StringComparison.Ordinal) == true,
+            "The gallery toolbar actions lack their visual hierarchy or tooltips.");
+        Capture(owner, shots, "gallery-toolbar-light");
+        page.View.SetResultView(BooruResultView.List, save: false);
+    }
+
     internal static async Task CaptureForDialogGalleryAsync(MainWindow owner)
     {
         BooruWorkbenchServices? overrideBefore = (BooruWorkbenchServices?)ServicesOverride.GetValue(owner.SessionHost);

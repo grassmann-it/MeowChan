@@ -191,6 +191,7 @@ internal static partial class BooruWorkbenchChecks
             Require(h.Search.Searches[1] == ("cat blue_eyes", 2), "Next page asked for another query/page.");
             Click(Find<Button>(page, BooruWorkbenchView.PreviousName));
             await Program.WaitUntilAsync(() => Text(page).Contains("Post #101"), () => "page 1 not shown again");
+            await CheckGalleryToolbarAsync(owner, page, shots);
 
             // ---- load original: one explicit handover ----------------------------------------------------------------
             Click(Find<Button>(page, BooruWorkbenchView.LoadPrefix + "101"));
