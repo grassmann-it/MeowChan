@@ -13,6 +13,7 @@ using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -727,7 +728,6 @@ public partial class ArchivePage
         _sidebarIndex = ReaderMediaSidebarRules.ClampIndex(_sidebarIndex, count);
         ArchiveAttachmentRow row = post.Attachments[_sidebarIndex];
         CapturedAttachmentText file = CapturedAttachmentText.Of(row);
-        // The position of the medium in its post is the strip's and the announcement's; the header line names the post, the file and its size.
         string postLine = post.NumberLabel;
         string size = file.Size is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
         // Tom (16.11.2026): the medium already shown (a rebuilt page, a refreshed thread, a larger frame, the sidebar back from the other host) keeps
@@ -735,12 +735,18 @@ public partial class ArchivePage
         string mediumKey = SidebarMediumKey(post, row);
         (double Width, double Height) target = MediaSidebarTarget(sidebar);
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(mediumKey, target);
-        sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel);
+        ThreadMediaPositions? media = _thread?.MediaPositions;
+        int? number = media?.NumberOf(post.Id, row.Attachment.Position);
+        string? position = media != null && number is int at ? Texts.T("reader.sidebar.position", at, media.Count) : null;
+        sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel, position);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
         UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);
-        ScheduleSidebarAnnouncement(ReaderMediaSidebarRules.RegionText(post.Id, _sidebarIndex, count, file));
+        string announcement = ReaderMediaSidebarRules.RegionText(post.Id, _sidebarIndex, count, file);
+        if (media != null && number is int current)
+            announcement += " · " + Texts.T("tags.quick.gallery.position", current, media.Count);
+        ScheduleSidebarAnnouncement(announcement);
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _sidebarLoading = loading;
         if (ticket.UpToDate)

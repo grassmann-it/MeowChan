@@ -4447,6 +4447,8 @@
     "reader.sidebar.title": "Médias du message",
     "reader.sidebar.close": "Fermer le panneau des médias",
     "reader.sidebar.open": "Ouvrir dans la galerie",
+    "thread.media.total": "Pièces jointes du fil : {0}",
+    "thread.media.unavailable": "Indisponibles ici : {0}",
     "reader.sidebar.position": "{0} sur {1}",
     "reader.sidebar.empty": "Sélectionnez un message pour voir ici ses médias.",
     "reader.sidebar.noMedia": "Le N° {0} n’a aucun média",

@@ -344,7 +344,7 @@ public sealed partial class MediaPage
         // Never substitute the first file for an unavailable focused medium.
         if (start < 0) { ShowSelectionNote(MediaMenuReasons.NotSaved); return; }
         _ = PausePanelVideo();
-        await OpenGallery(entries, start);
+        await (OpenSelectionGallery ?? OpenGallery)(entries, start);
     }
 
     /// <summary>Exports the originals of the selection: one per tile, never one per duplicate.</summary>

@@ -4489,6 +4489,8 @@
     "reader.sidebar.title": "Média příspěvku",
     "reader.sidebar.close": "Zavřít panel médií",
     "reader.sidebar.open": "Otevřít v galerii",
+    "thread.media.total": "Přílohy vlákna: {0}",
+    "thread.media.unavailable": "Zde nedostupné: {0}",
     "reader.sidebar.position": "{0} z {1}",
     "reader.sidebar.empty": "Vyberte příspěvek a jeho média se zobrazí zde.",
     "reader.sidebar.noMedia": "Č. {0} nemá žádná média",

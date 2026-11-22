@@ -66,6 +66,12 @@ public partial class ArchivePage
     internal string MediaReturnLabel => _mediaReturnLabelKey is { } key
         ? MeowChan.Desktop.Localization.Texts.T(key) : MeowChan.Desktop.Commands.CommandCatalog.Label("media.return");
     private void OnMediaReturnClick(object? sender, RoutedEventArgs e) => MediaReturn?.Invoke();
+
+    internal ThreadMediaPositions? ThreadMediaForGallery(IReadOnlyList<GalleryEntry> entries) =>
+        !_archiveFavoritesOnly && _mediaRatingFilter == 0 && _thread is { } thread
+            && entries.Count == _shownMedia.Count && entries.All(entry => entry.Key.Thread == thread.Summary.Id)
+            ? thread.MediaPositions : null;
+
     private static GalleryEntry[] BuildVisibleGalleryEntries(ArchivedThreadView thread,
         ArchiveAssetRow[] assets, ArchiveAssetRow[] visible)
     {

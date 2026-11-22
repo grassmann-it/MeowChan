@@ -31,6 +31,8 @@ internal static class ReaderViewCatalog
         ("reader.sidebar.close", "Close media sidebar", "Medienleiste schließen"),
         ("reader.sidebar.open", "Open in gallery", "In der Galerie öffnen"),
         ("reader.sidebar.position", "{0} of {1}", "{0} von {1}"),
+        ("thread.media.total", "Thread attachments: {0}", "Thread-Anhänge: {0}"),
+        ("thread.media.unavailable", "Unavailable here: {0}", "Hier nicht verfügbar: {0}"),
         ("reader.sidebar.empty", "Select a post to see its media here.", "Einen Post markieren, um seine Medien hier zu sehen."),
         ("reader.sidebar.noMedia", "No. {0} has no media", "Nr. {0} hat keine Medien"),
         ("reader.sidebar.threadNoMedia", "This thread has no media", "Dieser Thread hat keine Medien"),

@@ -919,6 +919,9 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     internal void SetPosition(string label, bool previous, bool next)
     {
         _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next;
+        ToolTip.SetTip(_compactPosition, ThreadPositions is { Unavailable: > 0 } media
+            ? Texts.T("thread.media.unavailable", media.Unavailable) : null);
+        RefreshPanelCounter();
         UpdateSlideshowAvailability(next);
     }
     internal void SetScope(string message) => _scope.Text = message;

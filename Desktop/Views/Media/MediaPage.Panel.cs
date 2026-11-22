@@ -336,8 +336,12 @@ public sealed partial class MediaPage
         OfferPanelVideo(row);
         // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
         if (!same)
-            ScheduleAnnouncement(Texts.T("media.panel.region", row.Index + 1, _tiles.Count,
+        {
+            int? threadNumber = ThreadMediaNumberOf(entry);
+            ScheduleAnnouncement(Texts.T("media.panel.region", threadNumber ?? row.Index + 1,
+                threadNumber.HasValue ? _threadMedia!.Count : _tiles.Count,
                 ReaderMediaSidebarRules.FileText(new CapturedAttachmentText(row.Name, entry.Length))));
+        }
         if (ticket.UpToDate)
         {
             // Nothing to decode: only the gallery's fit limit may have changed (the picture's largest size); the pixel line comes from the shown picture.
@@ -363,7 +367,8 @@ public sealed partial class MediaPage
         MediaLibraryEntry entry = row.Entry;
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
             : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
-        panel.Describe(postLine, row.Name, PanelDetail(), OpenGallery != null && entry.Presence == MediaLibraryPresence.Present);
+        panel.Describe(postLine, row.Name, PanelDetail(), OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
+            threadPosition: ThreadPositionOf(entry));
         // The star reads the panel's row when it is asked, so a new presentation (own state changed) needs no new wiring.
         panel.ConfigureFavorite(PanelFavoriteAvailable, () => _panelRow?.State?.Favorite == MediaLibraryFlag.Yes,
             () => _panelRow is { } current ? ToggleTileFavoriteAsync(current.Entry) : Task.CompletedTask);

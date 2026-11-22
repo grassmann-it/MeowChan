@@ -4490,6 +4490,8 @@
     "reader.sidebar.title": "Media postu",
     "reader.sidebar.close": "Zamknij panel boczny mediów",
     "reader.sidebar.open": "Otwórz w galerii",
+    "thread.media.total": "Załączniki wątku: {0}",
+    "thread.media.unavailable": "Tutaj niedostępne: {0}",
     "reader.sidebar.position": "{0} z {1}",
     "reader.sidebar.empty": "Zaznacz post, aby zobaczyć tutaj jego media.",
     "reader.sidebar.noMedia": "Nr {0} nie ma mediów",

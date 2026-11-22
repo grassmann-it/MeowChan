@@ -4447,6 +4447,8 @@
     "reader.sidebar.title": "Medios de la publicación",
     "reader.sidebar.close": "Cerrar la barra lateral de medios",
     "reader.sidebar.open": "Abrir en la galería",
+    "thread.media.total": "Adjuntos del hilo: {0}",
+    "thread.media.unavailable": "No disponibles aquí: {0}",
     "reader.sidebar.position": "{0} de {1}",
     "reader.sidebar.empty": "Seleccione una publicación para ver aquí sus medios.",
     "reader.sidebar.noMedia": "El N.º {0} no tiene medios",
