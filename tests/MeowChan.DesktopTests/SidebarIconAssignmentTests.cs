@@ -33,7 +33,7 @@ public sealed class SidebarIconAssignmentTests
     {
         Assert.DoesNotContain(CommandCatalog.All, command => command.Icon == "sidebar");
         string[] owners = CommandCatalog.All.Where(command => command.Icon is "panel-left" or "panel-right").Select(command => command.Id).Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(new[] { "media.panel.toggle", "reader.sidebar.toggle" }, owners);
+        Assert.Equal(new[] { "archive.thread-list.toggle", "media.panel.toggle", "reader.sidebar.toggle" }, owners);
     }
 
     [Theory]
