@@ -13,8 +13,10 @@
   on the whole row as you move between cells.
 - Restore Reader previews when returning to an archived thread and retry failed
   attachment previews in place. Fix links and post references on later lines.
-- Put Start or Continue and progress together in the Tagging header. Keep the
-  selection actions contextual and put queue cleanup under **More**.
+- Put Start or Continue, progress and a stamp editor in the Tagging header.
+  Show a result count beside the filters. With a selection, keep editing tags
+  and marking entries as finished within reach and put additional actions
+  under **More**. Space toggles the focused entry in the list or grid.
 - Keep the gallery footer open while its controls are in use, restore auto-hide when
   idle, and stop tooltips from intercepting the pointer.
 - Tag counts in the tagging queue use the media index. **Without tags** includes only media

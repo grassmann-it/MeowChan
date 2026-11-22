@@ -797,6 +797,11 @@ public partial class MainWindow
             if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
+            if (_selectedPage == WorkspacePage.Tagging && _taggingPage is { StampOpen: true } tagging)
+            {
+                e.Handled = tagging.DismissStampByEscape();
+                return;
+            }
             if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
                 (_archivePage?.TryDismissOverlay(e.Source) ?? false))
             { e.Handled = true; return; }

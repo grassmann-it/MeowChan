@@ -80,10 +80,14 @@ public static class CommandBindings
     private sealed record ButtonContent(string Id, int Size, bool WithLabel, Control Root, TextBlock? Label);
 
     public static MenuItem CreateMenuItem(string id, Action execute, Func<bool>? canExecute = null,
-        Func<string?>? unavailableReason = null, Func<string>? label = null, bool showShortcut = true)
+        Func<string?>? unavailableReason = null, Func<string>? label = null, bool showShortcut = true) =>
+        CreateMenuItem(id, execute, canExecute, unavailableReason, label, showShortcut, null);
+
+    internal static MenuItem CreateMenuItem(string id, Action execute, Func<bool>? canExecute,
+        Func<string?>? unavailableReason, Func<string>? label, bool showShortcut, string? keyContext)
     {
         var item = new MenuItem { Command = new DelegateCommand(execute, canExecute) };
-        Apply(item, id, unavailableReason, label, showShortcut);
+        Apply(item, id, unavailableReason, label, showShortcut, keyContext);
         item.IsEnabled = canExecute?.Invoke() ?? true;
         return item;
     }
@@ -108,17 +112,24 @@ public static class CommandBindings
     /// <param name="showShortcut">False for a menu whose surface does not run the command's default gesture (the reader's
     /// "Thread" menu offers commands whose shortcuts act in the lists): no gesture column and no shortcut in the tip.</param>
     public static void Apply(MenuItem item, string id, Func<string?>? unavailableReason = null, Func<string>? label = null,
-        bool showShortcut = true)
+        bool showShortcut = true) =>
+        Apply(item, id, unavailableReason, label, showShortcut, null);
+
+    private static void Apply(MenuItem item, string id, Func<string?>? unavailableReason, Func<string>? label,
+        bool showShortcut, string? keyContext)
     {
         Track(item, id);
-        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut));
+        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut, keyContext));
         var definition = CommandCatalog.Get(id);
         string visibleLabel = label?.Invoke() ?? CommandCatalog.Label(id);
         item.Header = visibleLabel;
         item.Icon = Icon(id);
-        item.InputGesture = showShortcut ? Gesture(definition) : null;
+        EffectiveShortcutBindings bindings = ShortcutService.Current;
+        item.InputGesture = showShortcut
+            ? bindings.For(definition.Id).FirstOrDefault(gesture => keyContext == null || ShortcutHelp.ActsHere(id, gesture, keyContext, bindings))?.Resolve(bindings.Platform)
+            : null;
         string? reason = unavailableReason?.Invoke();
-        var tip = showShortcut ? Tooltip(id, reason, visibleLabel)
+        var tip = showShortcut ? Tooltip(id, reason, visibleLabel, keyContext)
             : string.IsNullOrWhiteSpace(reason) ? visibleLabel : visibleLabel + " · " + reason;
         ToolTip.SetTip(item, tip);
         // A disabled entry explains itself: the reason is part of its tip and help text, so it must show while disabled.
@@ -168,14 +179,19 @@ public static class CommandBindings
     }
 
     /// <summary>Uses a context-specific visible label while retaining the catalog icon and shortcut.</summary>
-    public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16)
+    public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16) =>
+        ApplyLabeled(button, id, visibleLabel, null, iconSize);
+
+    internal static void ApplyLabeled(Button button, string id, string visibleLabel, Func<string, string>? describe,
+        int iconSize = 16, string? keyContext = null)
     {
         Track(button, id);
-        Observe(button, () => ApplyLabeled(button, id, visibleLabel, iconSize));
+        Observe(button, () => ApplyLabeled(button, id, visibleLabel, describe, iconSize, keyContext));
         button.Classes.Set("command-icon", true);
         ApplyButtonContent(button, id, iconSize, visibleLabel);
-        string tip = CommandCatalog.ShortcutTooltipDisplay(id) is string shortcut
+        string tip = CommandCatalog.ShortcutTooltipDisplay(id, keyContext) is string shortcut
             ? visibleLabel + " · " + shortcut : visibleLabel;
+        tip = describe?.Invoke(tip) ?? tip;
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, visibleLabel);
         AutomationProperties.SetHelpText(button, tip);

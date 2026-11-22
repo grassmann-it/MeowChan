@@ -15,6 +15,13 @@ public sealed partial class TaggingPage
 {
     private TaggingEmptyKind _emptyKind;
 
+    private Button? PrimaryEmptyAction => _emptyKind switch
+    {
+        TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone => _emptyMedia,
+        TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty => _emptyShowAll,
+        _ => null
+    };
+
     internal TaggingEmptyKind EmptyKind => _emptyKind;
     internal Button EmptyMediaButton => _emptyMedia;
     internal Button EmptyReopenButton => _emptyReopen;
@@ -81,8 +88,8 @@ public sealed partial class TaggingPage
         _emptyShowAll.IsVisible = _emptyKind is TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty;
         // Empty-state recommendations own the accent; GroupEmpty recommends returning to the queue to assign entries.
         _start.Classes.Set("primary", _emptyKind == TaggingEmptyKind.None);
-        _emptyMedia.Classes.Set("primary", _emptyKind is TaggingEmptyKind.QueueEmpty or TaggingEmptyKind.AllDone);
-        _emptyShowAll.Classes.Set("primary", _emptyKind is TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty);
+        _emptyMedia.Classes.Set("primary", PrimaryEmptyAction == _emptyMedia);
+        _emptyShowAll.Classes.Set("primary", PrimaryEmptyAction == _emptyShowAll);
         bool canChange = CanChange;
         _emptyDeleteGroup.IsEnabled = canChange && _selectedGroupId != null;
         string deleteTip = Texts.T("tagging.page.empty.group.delete");

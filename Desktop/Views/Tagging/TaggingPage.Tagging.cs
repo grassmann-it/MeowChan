@@ -72,7 +72,9 @@ public sealed partial class TaggingPage
         QuickTagPopoverOptions options = TagPopoverOptions?.Invoke(context) ?? QuickTagPopoverOptions.Defaults(context);
         options = options with { Stamp = _queueWork.StampForActiveScope() };
         QuickTagSession? quick = null;
-        string label = together ? Texts.T("media.selection.count", tiles.Count) : taggable[0].Name;
+        int selectedCount = SelectedCount;
+        string label = tiles.Count < selectedCount ? Texts.T("tagging.page.selection.editable", tiles.Count, selectedCount)
+            : together ? Texts.T("media.selection.count", tiles.Count) : taggable[0].Name;
         _tagBusy = true;
         UpdateActions();
         QuickTagPopoverCloseReason reason = QuickTagPopoverCloseReason.Stale;

@@ -28,6 +28,23 @@ internal static class ClipboardChecks
         AvaloniaLocator.CurrentMutable.Bind<IClipboard>().ToConstant(_clipboard);
     }
 
+    internal static async Task<bool> PasteFixtureTextAsync(TextBox input, string text)
+    {
+        if (_clipboard is not { } clipboard) return false;
+        if (!ReferenceEquals(TopLevel.GetTopLevel(input)?.Clipboard, clipboard))
+            throw new InvalidOperationException("Paste fixture is not isolated from the native desktop clipboard.");
+        var previous = clipboard.Read;
+        clipboard.Read = () => Task.FromResult<IAsyncDataTransfer?>(TextData(text));
+        try
+        {
+            int reads = clipboard.ReadCount;
+            input.RaiseEvent(new RoutedEventArgs(TextBox.PastingFromClipboardEvent));
+            await WaitUntilAsync(() => clipboard.ReadCount > reads);
+        }
+        finally { clipboard.Read = previous; }
+        return true;
+    }
+
     internal static async Task<bool> CheckIsolatedCopyAsync(Window window, Func<Task> copy,
         IReadOnlyList<string> requiredValues, IReadOnlyList<string> forbiddenValues, string? exactText = null)
     {

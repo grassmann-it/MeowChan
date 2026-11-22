@@ -69,7 +69,7 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Equal(new TaggingQueueCounts(1, 1, 1), TaggingQueueView.Counts(queue, group.Id));
         Assert.Equal("Open: 1 · Finished: 1 · Skipped: 1", TaggingQueueView.ProgressText(queue, group.Id, false));
         Assert.Equal("Continue tagging (no. 2)", TaggingQueueView.StartLabel(queue, group.Id, false));
-        Assert.Equal(new[] { "All entries", "Without group", "Review" }, TaggingQueueView.GroupChoices(queue).Select(choice => choice.Label));
+        Assert.Equal(new[] { "All groups", "Without group", "Review" }, TaggingQueueView.GroupChoices(queue).Select(choice => choice.Label));
         Assert.Equal(new[] { 3, 5 }, TaggingQueueView.Rows(queue, TaggingQueueFilter.All, null, null, true).Select(row => row.Number));
     }
 
@@ -145,7 +145,7 @@ public sealed class TaggingPageTests : IDisposable
         box.SelectedItem = second[2];
         box.ItemsSource = TaggingQueueView.GroupChoices(TagQueueSnapshot.Empty);
         box.SelectedItem = ((IReadOnlyList<TaggingGroupChoice>)box.ItemsSource)[0];
-        Assert.Equal("All entries", ((TaggingGroupChoice)box.SelectedItem!).Label);
+        Assert.Equal("All groups", ((TaggingGroupChoice)box.SelectedItem!).Label);
     }
 
     [Fact]
