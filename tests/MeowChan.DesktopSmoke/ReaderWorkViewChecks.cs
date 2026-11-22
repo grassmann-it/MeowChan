@@ -8,7 +8,7 @@ namespace MeowChan.DesktopSmoke;
 /// <summary>
 /// WV3: what the reader bars put under "More" follows WorkViewPolicy.Reader. Items the view reduces (Overflow) are under
 /// More; Required items never are; what the width moves is always the tail of ReaderToolbarKeepVisibleOrder (the bar has
-/// PrioritizedOverflow), so HTML export outlasts full screen, View, history and post capture.
+/// PrioritizedOverflow), so HTML export outlasts Thread, Settings and the history return.
 /// </summary>
 internal static class ReaderWorkViewChecks
 {

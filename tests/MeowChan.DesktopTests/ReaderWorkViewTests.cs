@@ -155,8 +155,7 @@ public sealed class ReaderWorkViewTests
             ("reader.toolbar.tags", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.settings", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.toolbar.export", Presence.Overflow, Presence.Direct, Presence.Direct),
-            // Review 15.11.: full screen ends the bar and overflows only when it does not fit; Barebones keeps it under More.
-            ("reader.toolbar.fullscreen", Presence.Overflow, Presence.Direct, Presence.Direct),
+            ("reader.toolbar.fullscreen", Presence.Required, Presence.Required, Presence.Required),
             ("reader.toolbar.thread", Presence.Overflow, Presence.Direct, Presence.Direct),
             ("reader.media.sort", Presence.Direct, Presence.Direct, Presence.Direct),
             ("reader.media.layout-tiles", Presence.Overflow, Presence.Direct, Presence.Direct),
@@ -188,7 +187,7 @@ public sealed class ReaderWorkViewTests
     }
 
     // The single declarative keep-visible order (owner 14.11., RL1 15.11.): OverflowOrder follows it; a narrow window moves the tail first:
-    // full screen (the first to move when the room ends), the rarely used history return, Thread, the settings gear, export, tags, find, read, gallery.
+    // the rarely used history return, Thread, the settings gear, export, tags, find, read, gallery.
     // Required items are not in it (never move). The post-capture switch left the bar for the Thread menu (R2), so no "capture" tool exists.
     [Fact]
     public void ToolbarKeepVisibleOrderIsTheOverflowOrderAndEndsWithTheRarelyUsedActions()
@@ -202,11 +201,11 @@ public sealed class ReaderWorkViewTests
         Assert.All(tools, entry => Assert.True(entry.OverflowOrder > 0, entry.Id));
         int Rank(string id) => order.ToList().IndexOf(id);
         Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags"], order.Take(4));
-        Assert.Equal(["reader.toolbar.export", "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], order.Skip(4));
-        foreach (string later in new[] { "reader.toolbar.fullscreen", "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back" })
+        Assert.Equal(["reader.toolbar.export", "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back"], order.Skip(4));
+        foreach (string later in new[] { "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back" })
             Assert.True(Rank("reader.toolbar.export") < Rank(later), later);
         Assert.True(Rank("reader.toolbar.thread") < Rank("reader.toolbar.settings"));
-        Assert.Equal("reader.toolbar.fullscreen", order[^1]);
+        Assert.DoesNotContain("reader.toolbar.fullscreen", order);
         Assert.DoesNotContain("reader.toolbar.view", order);
         Assert.DoesNotContain("reader.toolbar.capture", order);
         // Required tool rows never take part in the width race.
@@ -215,7 +214,7 @@ public sealed class ReaderWorkViewTests
     }
 
     // The width race in Advanced with the bar's visual order and the policy priorities: whenever the room ends before the tail,
-    // export stays and full screen, history, Thread and settings go first (full screen ends the order, so it moves first). The pixel check at 1520 and 1280 is in the work-views
+    // export stays and history, settings and Thread go first. The pixel check at 1520 and 1280 is in the work-views
     // reader smoke; these widths are the English labels measured roughly (icon 16 + gap 5 + text + padding + 8 margin).
     // The way out (close, "Back to …") left the bar for the header row's end slot (Tom's rule 14.11.), so it no longer races.
     private static readonly (string Name, string Id, double Width)[] AdvancedBar =
@@ -246,12 +245,11 @@ public sealed class ReaderWorkViewTests
         string[] moved = MovedAt(available);
         Assert.DoesNotContain("ExportArchiveButton", moved);
         Assert.NotEmpty(moved); // the room really ends before the tail
-        Assert.All(moved, name => Assert.Contains(name, new[] { "ArchiveReaderFullscreen", "ReaderSettingsOpen", "ReaderThreadOpen", "ArchiveHistoryBack" }));
-        Assert.Contains("ArchiveReaderFullscreen", moved);
+        Assert.All(moved, name => Assert.Contains(name, new[] { "ReaderSettingsOpen", "ReaderThreadOpen", "ArchiveHistoryBack" }));
+        Assert.Contains("ArchiveHistoryBack", moved);
     }
 
-    // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar, full screen included: with room to
-    // spare nothing is forced under More (review 15.11.; RL1 had put full screen there in every view, a "More" with a single action).
+    // With the way out in the header row, the wide Advanced reader (1520) keeps every tool on the bar.
     [Fact]
     public void TheWideAdvancedBarKeepsEveryToolOnceTheWayOutLeftIt()
     {
@@ -268,7 +266,7 @@ public sealed class ReaderWorkViewTests
             if (entry.CommandId != null) Assert.Equal(entry.CommandId, CommandCatalog.Get(entry.CommandId).Id);
         }
         // The default-bound tools that Barebones moves under More (their shortcut runs via the WV0 reduced-control route).
-        Assert.Equal(["reader.find", "thread.tags", "export.open-html-dialog", "window.fullscreen"],
+        Assert.Equal(["reader.find", "thread.tags", "export.open-html-dialog"],
             ReaderRows().Where(entry => entry.Barebones == Presence.Overflow && entry.CommandId != null
                 && entry.Id.StartsWith("reader.toolbar.", StringComparison.Ordinal) && CommandCatalog.Get(entry.CommandId).DefaultGestures.Count > 0)
                 .OrderBy(entry => entry.OverflowOrder).Select(entry => entry.CommandId!));

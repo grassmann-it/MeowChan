@@ -644,13 +644,18 @@ public sealed class ActionToolBarPanel : StackPanel
             bool overflow = !omitted && _overflow.Contains(item);
             Panel destination = omitted ? owner.OmittedHost : overflow ? popup : this;
             int index = omitted ? omittedIndex++ : overflow ? popupIndex++ : directIndex++;
-            // Only a real change of place re-parents; an unchanged arrangement touches no collection.
-            if (!destination.Children.Contains(item))
+            int currentIndex = destination.Children.IndexOf(item);
+            if (currentIndex < 0)
             {
                 owner.Moving(item, overflow || omitted);
                 Children.Remove(item); popup.Children.Remove(item); owner.OmittedHost.Children.Remove(item);
                 destination.Children.Insert(Math.Min(index, destination.Children.Count), item);
                 MarkReduced(item, overflow || omitted);
+            }
+            else if (currentIndex != index)
+            {
+                // Rehosting can restore controls out of item order. Put retained controls in their projected slots too.
+                destination.Children.Move(currentIndex, index);
             }
         }
         // One horizontal row with the bar's own gaps (the measure counted the same ones): the item gap between neighbours, the group gap

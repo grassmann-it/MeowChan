@@ -10,8 +10,8 @@ using Ursa.Controls;
 namespace MeowChan.DesktopTests;
 
 /// <summary>
-/// RL1 (15.11.2026): the reader toolbar in groups with Read as the eye, "View" and the quick settings as one gear popover, full screen
-/// under More. The page needs an Avalonia application, so the contract is checked on the catalog, the XAML, the policy, the popover's
+/// The reader toolbar groups Read, the settings gear, Full screen and the sidebar switches. The page needs an Avalonia
+/// application, so the contract is checked on the catalog, the XAML, the policy, the popover's
 /// layout and the pure rules; the look and the behaviour (separators, the dot, the popover rows) are the reader-toolbar smokes.
 /// </summary>
 [Collection("Localization")]
@@ -149,23 +149,21 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     // ---- work views ---------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheGearIsTheViewsOldRowAndFullScreenEndsTheOrderAndOverflowsOnlyWhenItDoesNotFit()
+    public void TheGearIsTheViewsOldRowAndFullScreenStaysOnTheToolbar()
     {
         Assert.Throws<KeyNotFoundException>(() => WorkViewPolicy.Get("reader.toolbar.view"));
         WorkViewEntry gear = WorkViewPolicy.Get("reader.toolbar.settings");
         Assert.Equal((Presence.Overflow, Presence.Direct, Presence.Direct), (gear.Barebones, gear.Simple, gear.Advanced));
         Assert.Null(gear.CommandId);
         WorkViewEntry full = WorkViewPolicy.Get("reader.toolbar.fullscreen");
-        // Review 15.11.: on the bar while it fits (Simple, Advanced), the first to move under More; Barebones keeps it under More.
-        Assert.Equal((Presence.Overflow, Presence.Direct, Presence.Direct), (full.Barebones, full.Simple, full.Advanced));
+        Assert.Equal((Presence.Required, Presence.Required, Presence.Required), (full.Barebones, full.Simple, full.Advanced));
         Assert.Equal("window.fullscreen", full.CommandId);
-        Assert.Equal("reader.toolbar.fullscreen", WorkViewPolicy.ReaderToolbarKeepVisibleOrder[^1]);
         foreach (WorkView view in WorkViewSetting.All)
-            Assert.Equal(view == WorkView.Barebones ? OverflowMode.Always : OverflowMode.AsNeeded,
+            Assert.Equal(OverflowMode.Never,
                 WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("reader.toolbar.fullscreen", view)));
         // The order a narrow window moves things under More, from the end (owner 14.11., the gear in View's place).
         Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
-            "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
+            "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
         // Every bar item of the XAML has its row (the id registry is checked against the page by the work-view tests).
         string[] ids = ToolbarItems().Where(item => item.Name.LocalName != "SidebarToggleGroup").Select(item => item.Attributes().Single(attribute => attribute.Name.LocalName == "WorkViewElement.Id").Value).ToArray();
         Assert.Contains("reader.toolbar.settings", ids);
