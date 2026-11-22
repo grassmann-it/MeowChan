@@ -1406,7 +1406,6 @@
          A minimum (not a fixed height) and vertical padding allow larger fonts and translated labels to grow. Media-control states retain theme tokens. -->
     <Style Selector="ToggleButton.rating-favorite">
         <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /><Setter Property="Padding" Value="11,7" />
-        <Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
     </Style>

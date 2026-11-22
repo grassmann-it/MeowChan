@@ -95,15 +95,13 @@ internal static class GalleryMediaTagChecks
                     var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
                     var segment = (Control)viewer.SidePanel.PostButton.Parent!;
                     var closeOrigin = viewer.SidePanel.CloseButton.TranslatePoint(default, viewer.SidePanel)!.Value;
-                    double centerDelta = 0; // kept in the metrics line; the counter now sits beside the tabs, not centred
-                    Control counterSlot = (Control)counter.Parent!;
-                    bool ownRow = Grid.GetRow(counterSlot) > Grid.GetRow(segment);
-                    bool verticalPlacement = ownRow
-                        ? origin.Y >= segment.Bounds.Bottom - 1
-                        : Math.Abs(origin.Y + counter.Bounds.Height / 2 - (segment.Bounds.Y + segment.Bounds.Height / 2)) <= 1;
-                    bool horizontalClearance = ownRow || origin.X >= segment.Bounds.Right - 1 && origin.X + counter.Bounds.Width <= closeOrigin.X + 1;
-                    Require(!ownRow && verticalPlacement && horizontalClearance,
-                        $"The counter is not beside the tabs or overlaps header actions (delta {centerDelta}, ownRow {ownRow}, counter {origin}/{counter.Bounds.Size}).");
+                    double center = (segment.Bounds.Right + closeOrigin.X) / 2;
+                    double centerDelta = Math.Abs(origin.X + counter.Bounds.Width / 2 - center);
+                    bool sameRow = Grid.GetRow((Control)counter.Parent!) == Grid.GetRow(segment);
+                    bool verticalPlacement = Math.Abs(origin.Y + counter.Bounds.Height / 2 - segment.Bounds.Center.Y) <= 1;
+                    bool horizontalClearance = origin.X >= segment.Bounds.Right + 7 && origin.X + counter.Bounds.Width <= closeOrigin.X - 7;
+                    Require(sameRow && verticalPlacement && horizontalClearance && centerDelta <= 1,
+                        $"The counter is not centered between the header actions (delta {centerDelta}, counter {origin}/{counter.Bounds.Size}).");
                     Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, centerDelta={centerDelta:F3}, counter={origin}/{counter.Bounds.Size}");
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }
@@ -114,6 +112,11 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Post);
             Require(viewer.CaptureState().ContextOpen && viewer.SidePanel.PostButton.IsChecked == true, "The Post segment did not take the side panel over.");
             Require(viewer.SidePanel.HeaderCounter == null, "The released tag surface left a stale counter in the header.");
+            window.UpdateLayout();
+            var where = viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<SelectableTextBlock>().Single(line => line.Name == "GalleryPostWhere");
+            Require(where.TextAlignment == Avalonia.Media.TextAlignment.Center, "The Post metadata is not centered.");
+            CheckDecisionAlignment(viewer.PostDecisionRow!);
+            Program.CaptureWindow(window, "smoke-gallery-post-header.png");
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
@@ -149,15 +152,7 @@ internal static class GalleryMediaTagChecks
             MeowChan.Desktop.Controls.GalleryDecisionRow decisions = viewer.DecisionRow ?? throw new InvalidOperationException("The tag panel has no favorite and rating row.");
             Require(decisions.StarButtons.Count == 5 && decisions.FavoriteButton.IsEffectivelyVisible && decisions.View is { Available: true, Rating: null },
                 "The row does not show an unrated medium: " + decisions.Summary.Text);
-            Grid decisionLine = (Grid)decisions.Children[1];
-            Point favoriteOrigin = decisions.FavoriteButton.TranslatePoint(default, decisionLine)!.Value;
-            Point summaryOrigin = decisions.Summary.TranslatePoint(default, decisionLine)!.Value;
-            Require(Math.Abs(favoriteOrigin.Y + decisions.FavoriteButton.Bounds.Height / 2 - summaryOrigin.Y - decisions.Summary.Bounds.Height / 2) <= 0.5,
-                "Favorite and the rating caption do not share one aligned row.");
-            Require(Math.Abs(summaryOrigin.X - favoriteOrigin.X - decisions.FavoriteButton.Bounds.Width - 8) <= 0.5,
-                "Favorite and the rating caption do not keep the row gap.");
-            Require(favoriteOrigin.X <= 0.5 && summaryOrigin.X + decisions.Summary.Bounds.Width >= decisionLine.Bounds.Width - 0.5,
-                "Favorite does not stretch or the rating caption is not right aligned.");
+            CheckDecisionAlignment(decisions);
             marking.FocusField();
             await UntilAsync(() => marking.Input.IsKeyboardFocusWithin);
             marking.Input.Dismiss();
@@ -319,6 +314,15 @@ internal static class GalleryMediaTagChecks
 
         void Press(Key key, KeyModifiers modifiers = KeyModifiers.None) =>
             editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+    }
+
+    private static void CheckDecisionAlignment(GalleryDecisionRow row)
+    {
+        double center = row.Bounds.Width / 2;
+        foreach (Control control in new[] { row.RatingGroup, row.FavoriteButton, row.Summary })
+            Require(control.Bounds.Width > 0 && Math.Abs(control.Bounds.Center.X - center) <= 1,
+                $"{control.Name} is not centered in the rating section.");
+        Require(row.Summary.TextAlignment == Avalonia.Media.TextAlignment.Center, "The rating caption text is not centered.");
     }
 
     // Same dialog through the real archive menu and MainWindow wiring, without

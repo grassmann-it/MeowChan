@@ -214,6 +214,7 @@ public sealed class ReaderMediaSidebarLayoutTests
     });
 
     [Theory]
+    [InlineData(8, 512, 240, 720)]
     [InlineData(8, 512, 360, 720)]
     [InlineData(512, 8, 360, 720)]
     [InlineData(64, 64, 500, 900)]
@@ -233,6 +234,10 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, view.Card.Bounds.Height);
         }
         Layout(); // Empty state reserves exactly the same title row.
+        Grid headerRow = Assert.IsType<Grid>(view.HeaderRow);
+        // ActualWidth includes the gap after the first grid column.
+        double titleWidth = headerRow.ColumnDefinitions[0].ActualWidth - headerRow.ColumnSpacing;
+        Assert.InRange(Math.Abs(headerRow.Children[0].Bounds.Center.X - titleWidth / 2), 0, 0.5);
         Rect header = view.HeaderRow.Bounds;
         Rect card = view.Card.Bounds;
         view.Describe("No. 123", new string('x', 500) + ".png", "100 MiB · 50000×100", true, "Copy post reference");
