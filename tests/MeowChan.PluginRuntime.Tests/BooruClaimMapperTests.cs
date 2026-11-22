@@ -107,4 +107,18 @@ public sealed class BooruClaimMapperTests
             new BooruPostId("danbooru", "1"), BooruFieldPresence.None,
             PostUrl: new Uri("https://danbooru.donmai.us/posts/2"))));
     }
+
+    [Fact]
+    public void UsesTheHostBindingForAScopedClaim()
+    {
+        BooruPost post = new(new BooruPostId("test-source", "42"), BooruFieldPresence.None,
+            PostUrl: new Uri("https://example.test/post/42"));
+        BooruPostClaim primary = BooruClaimMapper.Map(post, "test-source", "public");
+        BooruPostClaim separate = BooruClaimMapper.Map(post, "test-source", "another");
+        Assert.Equal(("test-source", "public", "42"),
+            (primary.Identity.SourceId, primary.Identity.InstanceId, primary.Identity.PostId));
+        Assert.NotEqual(primary.Identity, separate.Identity);
+        Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(post, "another-source", "public"));
+    }
+
 }

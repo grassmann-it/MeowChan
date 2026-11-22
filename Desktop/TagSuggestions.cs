@@ -118,7 +118,7 @@ internal sealed class TagSuggestionIndex
         Dictionary<string, int> posts = new(StringComparer.Ordinal);
         foreach (BooruPostRecord record in catalog.Posts)
         {
-            if (record.SourceId != BooruMediaIdentity.Source) continue;
+            if (!record.Identity.IsLegacyDanbooru) continue;
             foreach (string tag in record.Post.Tags.Select(item => item.Name).Distinct(StringComparer.Ordinal))
                 posts[tag] = posts.GetValueOrDefault(tag) + 1;
         }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Booru;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -94,7 +96,7 @@ internal sealed partial class BooruSearchModel
     {
         BooruBulkView state = new(BooruBulkPhase.Running, query) { TabId = tabId };
         BooruBulkEnd end = BooruBulkEnd.None;
-        HashSet<string> seen = new(StringComparer.Ordinal);
+        HashSet<BooruPostKey> seen = new();
         for (int page = 1; page <= MaximumPage && end == BooruBulkEnd.None; page++)
         {
             BooruCallResult<BooruResultPage> result;
@@ -105,7 +107,8 @@ internal sealed partial class BooruSearchModel
                 result = BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, "exception");
             }
             if (result.Status != BooruCallStatus.Ok || result.Value is not { } value || value.Page != page
-                || !string.Equals(value.Query, query, StringComparison.Ordinal) || value.Posts.Length > PageSize)
+                || !string.Equals(value.Query, query, StringComparison.Ordinal) || value.Posts.Length > PageSize
+                || value.Posts.Any(post => !IsBound(post.SourceId, post.Identity.InstanceId)))
             {
                 end = BooruBulkEnd.Blocked;
                 break;
@@ -113,7 +116,7 @@ internal sealed partial class BooruSearchModel
             state = state with { PagesRead = page };
             foreach (BooruPostView post in value.Posts)
             {
-                if (!seen.Add(post.PostId)) continue;
+                if (!seen.Add(post.Identity)) continue;
                 state = state with { Found = state.Found + 1 };
                 if (post.OriginalAccess != BooruOriginalAccess.Available)
                 {

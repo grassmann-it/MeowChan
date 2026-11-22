@@ -9,7 +9,7 @@ namespace MeowChan.Booru;
 /// <summary>
 /// Hands watcher findings to the existing B4 path (<see cref="BooruOriginalQueue"/>), so a watcher never
 /// owns a second queue. B4 provides the dedupe: one runtime owner and one queue job per
-/// (danbooru, ProviderPostId, original), idempotent findings, catalog link only after verified commit.
+/// (danbooru, default instance, ProviderPostId, primary medium, original), idempotent findings, catalog link only after verified commit.
 /// <para>
 /// One watcher-specific rule is added here: a post whose original the user explicitly cancelled is not
 /// re-queued because another (or the same, replayed) watcher finds it again. The claim and the watcher
@@ -35,7 +35,8 @@ internal sealed class DanbooruWatcherQueueAdmission : IDanbooruWatcherAdmissionP
     {
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
-        BooruPostRecord? existing = _catalog.TryGetPost(post.SourceId, post.PostId);
+        if (!post.Identity.IsLegacyDanbooru) return DanbooruWatcherAdmissionResult.NotAdmitted;
+        BooruPostRecord? existing = _catalog.TryGetPost(post.Identity);
         if (existing is { OriginalIntent: BooruOriginalIntent.Cancelled })
         {
             // Claim and watcher finding in one write; the stored cancellation is left as it is. This is the

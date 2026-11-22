@@ -5330,7 +5330,7 @@
     "booru.tabs.post": "Post #{0}",
     "booru.tabs.limit": "Il limite di schede di ricerca ({0}) è stato raggiunto. Chiudi prima una scheda o aumenta il limite nelle impostazioni.",
     "settings.limits.booruSearchTabs": "Danbooru: numero massimo di schede di ricerca",
-    "settings.limits.booruSearchTabs.hint": "Numero massimo di schede di ricerca aggiuntive in Danbooru. Le schede restano aperte per la sessione corrente.",
+    "settings.limits.booruSearchTabs.hint": "Numero massimo di schede di ricerca aggiuntive in Danbooru. Le ricerche inviate si possono riaprire dopo il riavvio.",
     "booru.bulk.button": "Scarica tutto di questa ricerca",
     "booru.bulk.stop": "Interrompi la raccolta",
     "booru.bulk.hint": "Recupera i risultati esistenti della ricerca mostrata e mette in coda ogni originale, fino al limite di pagine della fonte (pagine {0}, post per pagina {1}). L’osservatore prende solo i post nuovi.",

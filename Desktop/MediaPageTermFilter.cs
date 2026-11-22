@@ -13,7 +13,7 @@ internal static class TagQueueKeys
     /// <summary>The queue key of the occurrence, or null when it has no saved asset to be queued.</summary>
     internal static TagQueueKey? Of(MediaLibraryEntry entry) =>
         entry.Directory is { } directory && entry.AssetId is { } asset
-            ? new TagQueueKey(entry.Thread, directory, asset, entry.PostId, entry.Position, entry.ImportItemId, entry.BooruPostId)
+            ? TagQueueKey.From(entry.Thread, directory, asset, entry.PostId, entry.Position, entry.ImportItemId, entry.BooruPostId)
             : null;
 
     /// <summary>The keys of every entry of a queue snapshot (all states: a finished entry is still in the queue until it is removed).</summary>

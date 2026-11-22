@@ -56,7 +56,9 @@ public sealed record BooruQueryRules(int MaximumTagTerms, IReadOnlyList<string> 
 /// Declarative post-search profile of one source (SDK 1.1.0, additive): the only metadata endpoints and query
 /// parameters the host sends for it, its tag syntax, which tag categories and ratings the provider reports, its
 /// paging limits, its access mode and the minimum spacing between two request starts. The host narrows every
-/// value further by its own limits; the profile never widens the declared hosts.
+/// value further by its own limits; the profile never widens the declared hosts. The host binds a source
+/// description to an instance when mapping its results into local identity. Endpoint paths and media URLs
+/// can change without changing that binding.
 /// </summary>
 public sealed record BooruSourceProfile(IReadOnlyList<BooruEndpoint> Endpoints, BooruQueryRules Query,
     IReadOnlyList<BooruTagCategory> TagCategories, IReadOnlyList<BooruRating> Ratings,

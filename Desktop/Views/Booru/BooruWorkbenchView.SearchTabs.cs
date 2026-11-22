@@ -57,6 +57,25 @@ internal sealed partial class BooruWorkbenchView
     private TabItem? _lastRealTab;
     private bool _syncingTabs;
     private bool _selectNewTab;
+    private BooruSearchTabState? _lastSavedTabTargets;
+    private Func<BooruSearchTabState, bool>? _saveTabTargets;
+
+    internal void ConfigureSearchTabTargets(BooruSearchTabState? saved, Func<BooruSearchTabState, bool> save)
+    {
+        if (saved != null) SearchTabs.RestoreTargets(saved);
+        _lastSavedTabTargets = SearchTabs.CaptureTargets();
+        _saveTabTargets = save;
+        SearchTabs.Changed += SaveSearchTabTargets;
+    }
+
+    private void SaveSearchTabTargets()
+    {
+        if (_saveTabTargets == null) return;
+        BooruSearchTabState current = SearchTabs.CaptureTargets();
+        if (_lastSavedTabTargets is { } saved && saved.ActiveIndex == current.ActiveIndex && saved.Tabs.SequenceEqual(current.Tabs))
+            return;
+        if (_saveTabTargets(current)) _lastSavedTabTargets = current;
+    }
 
     /// <summary>The setting that limits the extra search tabs (read at each use); the default without a host.</summary>
     internal Func<int>? SearchTabsLimit { get; set; }
@@ -171,7 +190,9 @@ internal sealed partial class BooruWorkbenchView
             search.SetInput(draft.Input);
         }
         else ClearTabLimitNotice();
-        await search.SubmitAsync();
+        Task submission = search.SubmitAsync();
+        SaveSearchTabTargets();
+        await submission;
     }
 
     private void RenderSearchActions(BooruSearchView view)
@@ -395,6 +416,7 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Tab titles, the buttons next to "Create watcher" and the bulk status; called with every render.</summary>
     private void RenderSearchTabs(BooruSearchView view)
     {
+        SaveSearchTabTargets();
         if (_searchTabs is not { } tabs) return;
         RenderBottomStatus(view);
         RenderViewToggleLabels();

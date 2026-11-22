@@ -6,7 +6,7 @@ namespace MeowChan.Desktop.Booru;
 /// <summary>
 /// The extra tabs next to the permanent search. Slot 0 is the permanent Search tab (it cannot be closed and does not count
 /// against the limit); every other slot is one opened search. The tabs share the one <see cref="BooruSearchModel"/>: leaving a tab stores
-/// the model's immutable view in it, entering a tab puts that view back (never sending a request). Tabs live for the session only.
+/// the model's immutable view in it, entering a tab puts that view back (never sending a request). Submitted targets can be restored from the profile.
 /// </summary>
 internal sealed class BooruSearchTabs
 {
@@ -92,6 +92,35 @@ internal sealed class BooruSearchTabs
         }
         Changed?.Invoke();
         return true;
+    }
+
+    internal BooruSearchTabState CaptureTargets()
+    {
+        BooruSearchTabTarget?[] targets = new BooruSearchTabTarget?[_slots.Count];
+        int activeIndex = 0;
+        for (int index = 0; index < _slots.Count; index++)
+        {
+            int id = _slots[index].Id;
+            if (id == _activeId) activeIndex = index;
+            if (ViewOf(id) is { } view && (view.ExecutedPostIdentity != null || view.ExecutedQuery != null))
+                targets[index] = new(view.ProviderId, view.InstanceId, view.ExecutedPostIdentity?.PostId, view.ExecutedQuery, view.Page);
+        }
+        return new(activeIndex, targets);
+    }
+
+    internal void RestoreTargets(BooruSearchTabState state)
+    {
+        int count = Math.Min(state.Tabs.Length, Limit + 1);
+        _slots.Clear();
+        for (int index = 0; index < count; index++)
+        {
+            BooruSearchTabTarget? target = state.Tabs[index];
+            _slots.Add(new Slot(index) { Snapshot = target is null ? null : _search.ViewFromTarget(target) });
+        }
+        _nextId = count;
+        _activeId = Math.Min(state.ActiveIndex, count - 1);
+        _search.Restore(_slots[_activeId].Snapshot, _activeId);
+        Changed?.Invoke();
     }
 
     /// <summary>The text of a tab: its search, else its post, else what is typed, else "new search" (the caller localizes the last two).</summary>

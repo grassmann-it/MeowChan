@@ -11,10 +11,15 @@ namespace MeowChan.PluginHost.Sources.Booru;
 /// </summary>
 internal static class BooruClaimMapper
 {
-    internal static BooruPostClaim Map(BooruPost post)
+    internal static BooruPostClaim Map(BooruPost post, string sourceId = DanbooruPostReference.ProviderId,
+        string instanceId = BooruPostKey.DefaultInstance)
     {
         ArgumentNullException.ThrowIfNull(post);
-        ValidatePost(post);
+        if (post.Id is null || post.Id.SourceId != sourceId)
+            throw Invalid("The post does not belong to the bound Booru source.");
+        BooruPostKey identity = new(sourceId, instanceId, post.Id.PostId);
+        if (!identity.IsValid) throw Invalid("The Booru post identity is invalid.");
+        ValidatePost(post, identity);
 
         BooruFieldPresence fields = post.Fields;
         return new BooruPostClaim(
@@ -31,18 +36,12 @@ internal static class BooruClaimMapper
             Has(fields, BooruFieldPresence.Media) ? MapMedia(post.Media) : Array.Empty<BooruPostClaimMedia>(),
             Has(fields, BooruFieldPresence.SourceClaim) ? post.SourceClaim : null,
             Has(fields, BooruFieldPresence.IsDeleted) && post.IsDeleted,
-            Has(fields, BooruFieldPresence.IsBanned) && post.IsBanned);
+            Has(fields, BooruFieldPresence.IsBanned) && post.IsBanned,
+            instanceId == BooruPostKey.DefaultInstance ? null : instanceId);
     }
 
-    private static void ValidatePost(BooruPost post)
+    private static void ValidatePost(BooruPost post, BooruPostKey identity)
     {
-        if (post.Id is null)
-            throw Invalid("Post identity is required.");
-        if (!string.Equals(post.Id.SourceId, DanbooruPostReference.ProviderId, StringComparison.Ordinal))
-            throw Invalid("Only Danbooru posts can be mapped to the current core catalog.");
-        if (!DanbooruPostReference.IsValidPostId(post.Id.PostId))
-            throw Invalid("The Danbooru post identity is invalid.");
-
         BooruFieldPresence fields = post.Fields;
         if ((fields & ~BooruFieldPresence.All) != 0)
             throw Invalid("The booru post contains unknown field-presence flags.");
@@ -64,10 +63,9 @@ internal static class BooruClaimMapper
             if (!post.PostUrl.IsAbsoluteUri || post.PostUrl.Scheme != Uri.UriSchemeHttps
                 || post.PostUrl.UserInfo.Length != 0 || !post.PostUrl.IsDefaultPort
                 || post.PostUrl.Fragment.Length != 0
-                || !DanbooruPostReference.TryParse(post.PostUrl.AbsoluteUri,
-                    out DanbooruPostReference? reference, out _)
-                || reference is null || reference.PostId != post.Id.PostId)
-                throw Invalid("The booru post URL is not a matching canonical Danbooru post URL.");
+                || identity.IsLegacyDanbooru && (!DanbooruPostReference.TryParse(post.PostUrl.AbsoluteUri,
+                    out DanbooruPostReference? reference, out _) || reference is null || reference.PostId != identity.PostId))
+                throw Invalid("The booru post URL is invalid for the bound source.");
         }
 
         _ = MapRating(post.Rating);

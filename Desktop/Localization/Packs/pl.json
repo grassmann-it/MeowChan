@@ -5373,7 +5373,7 @@
     "booru.tabs.post": "Post #{0}",
     "booru.tabs.limit": "Osiągnięto limit kart wyszukiwania ({0}). Najpierw zamknij kartę lub zwiększ limit w ustawieniach.",
     "settings.limits.booruSearchTabs": "Danbooru: maksymalna liczba kart wyszukiwania",
-    "settings.limits.booruSearchTabs.hint": "Maksymalna liczba dodatkowych kart wyszukiwania w Danbooru. Karty pozostają otwarte w bieżącej sesji.",
+    "settings.limits.booruSearchTabs.hint": "Maksymalna liczba dodatkowych kart wyszukiwania w Danbooru. Wysłane wyszukiwania można ponownie otworzyć po uruchomieniu aplikacji.",
     "booru.bulk.button": "Pobierz wszystko z tego wyszukiwania",
     "booru.bulk.stop": "Zatrzymaj zbieranie",
     "booru.bulk.hint": "Pobiera istniejące wyniki wyświetlonego wyszukiwania i kolejkuje każdy oryginał, do limitu stron źródła (strony {0}, postów na stronę {1}). Obserwator bierze tylko nowe posty.",

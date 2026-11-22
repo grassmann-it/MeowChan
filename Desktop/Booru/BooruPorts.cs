@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Booru;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -46,6 +47,7 @@ internal interface IBooruSearchPort
 {
     string ProviderId { get; }
     string ProviderName { get; }
+    string InstanceId => BooruPostKey.DefaultInstance;
 
     /// <summary>One bounded search page for an already canonical query. Page is 1-based, at most 5.</summary>
     Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken);
