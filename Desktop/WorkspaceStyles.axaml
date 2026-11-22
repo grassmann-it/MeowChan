@@ -1932,8 +1932,8 @@
         <Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ToggleButton.toolbar-toggle.segment:not(:disabled):not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter,
-                     ToggleButton.toolbar-toggle.filter-toggle:not(:disabled):not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ToggleButton.toolbar-toggle.segment:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle.filter-toggle:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -1947,6 +1947,21 @@
     </Style>
     <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
         <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="Opacity" Value="0.75" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:disabled:not(:in-overflow):not(.segment):not(.filter-toggle) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:disabled:not(:checked) /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle.filter-toggle:disabled:not(:checked) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <Style Selector="ToggleButton.segment-single">
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
