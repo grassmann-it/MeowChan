@@ -11,18 +11,19 @@ internal enum HeaderTaglineStage { None, Quip, Full }
 /// </summary>
 internal static class HeaderTaglineFit
 {
-    /// <summary>A form must be at least this much narrower than the column (dip): rounding in layout must never tip a fitting text into an ellipsis.</summary>
+    /// <summary>Minimum clearance in DIP at the trailing clip edge.</summary>
     internal const double Tolerance = 1;
 
-    /// <summary>Full when <c>fullWidth &lt;= available - 1</c>, else Quip when <c>quipWidth &lt;= available - 1</c>, else None. An unusable column (zero, negative, NaN, infinite: not laid out yet) shows nothing.</summary>
-    internal static HeaderTaglineStage Choose(double available, double fullWidth, double quipWidth)
+    /// <summary>Pick the longest fitting form with at least one physical pixel to spare for layout and rasterization.</summary>
+    internal static HeaderTaglineStage Choose(double available, double fullWidth, double quipWidth, double scale = 1)
     {
         if (!double.IsFinite(available) || available <= 0) return HeaderTaglineStage.None;
-        if (Fits(fullWidth, available)) return HeaderTaglineStage.Full;
-        if (Fits(quipWidth, available)) return HeaderTaglineStage.Quip;
+        double limit = available - Math.Max(Tolerance, 1 / scale);
+        if (Fits(fullWidth, limit)) return HeaderTaglineStage.Full;
+        if (Fits(quipWidth, limit)) return HeaderTaglineStage.Quip;
         return HeaderTaglineStage.None;
     }
 
     // An unmeasured form (zero, NaN, infinite) is not one that fits.
-    private static bool Fits(double width, double available) => double.IsFinite(width) && width > 0 && width <= available - Tolerance;
+    private static bool Fits(double width, double limit) => double.IsFinite(width) && width > 0 && width <= limit;
 }

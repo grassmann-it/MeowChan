@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -45,6 +46,8 @@ public partial class MainWindow
         if (_taglineStarted) return;
         _taglineStarted = true;
         WorkspaceTaglineHost.SizeChanged += OnTaglineHostSizeChanged;
+        WorkspaceSubtitle.PropertyChanged += OnTaglineTypographyChanged;
+        ScalingChanged += OnTaglineScalingChanged;
         BuildTaglineMenu();
         ChooseHeaderTagline(atStart: true);
         UpdateHeaderTagline();
@@ -55,6 +58,8 @@ public partial class MainWindow
     {
         if (!_taglineStarted) return;
         WorkspaceTaglineHost.SizeChanged -= OnTaglineHostSizeChanged;
+        WorkspaceSubtitle.PropertyChanged -= OnTaglineTypographyChanged;
+        ScalingChanged -= OnTaglineScalingChanged;
         StopTaglineRotation();
         _taglineStarted = false;
     }
@@ -63,6 +68,17 @@ public partial class MainWindow
     private void OnTaglineHostSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         if (e.WidthChanged) UpdateHeaderTagline();
+    }
+
+    private void OnTaglineScalingChanged(object? sender, EventArgs e) => UpdateHeaderTagline();
+
+    private void OnTaglineTypographyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property == TextBlock.FontFamilyProperty || e.Property == TextBlock.FontSizeProperty
+            || e.Property == TextBlock.FontStyleProperty || e.Property == TextBlock.FontWeightProperty
+            || e.Property == TextBlock.FontStretchProperty || e.Property == TextBlock.FontFeaturesProperty
+            || e.Property == TextBlock.LetterSpacingProperty || e.Property == FlowDirectionProperty)
+            UpdateHeaderTagline();
     }
 
     /// <summary>Applies a changed "Header tagline" setting (called after settings are applied); an unchanged setting keeps the quip on screen.</summary>
@@ -162,13 +178,20 @@ public partial class MainWindow
         if (!_taglineStarted) return;
         HeaderTaglineStage stage = HeaderTaglineStage.None;
         string full = string.Empty, quipForm = string.Empty;
+        double leftInset = 0;
         if (_tagline != null)
         {
             full = Texts.T("shell.tagline.lead") + TaglineSeparator + _tagline.Text;
             quipForm = "— " + _tagline.Text;
             double available = WorkspaceTaglineHost.Bounds.Width;
             if (available > 0)
-                stage = HeaderTaglineFit.Choose(available, _taglineMeasurer.Width(full, WorkspaceSubtitle), _taglineMeasurer.Width(quipForm, WorkspaceSubtitle));
+            {
+                double scale = RenderScaling;
+                var fullFootprint = _taglineMeasurer.Measure(full, WorkspaceSubtitle, scale);
+                var quipFootprint = _taglineMeasurer.Measure(quipForm, WorkspaceSubtitle, scale);
+                stage = HeaderTaglineFit.Choose(available, fullFootprint.Width, quipFootprint.Width, scale);
+                leftInset = stage == HeaderTaglineStage.Full ? fullFootprint.LeftInset : quipFootprint.LeftInset;
+            }
         }
         TaglineStage = stage;
         if (stage == HeaderTaglineStage.None)
@@ -178,6 +201,7 @@ public partial class MainWindow
             return;
         }
         string shown = stage == HeaderTaglineStage.Full ? full : quipForm;
+        WorkspaceSubtitle.Padding = new Thickness(leftInset, 0, 0, 0);
         if (WorkspaceSubtitle.Text != shown) WorkspaceSubtitle.Text = shown;
         AutomationProperties.SetName(WorkspaceSubtitle, shown);
         // The whole sentence is on screen in the Full form; the short form carries it as a tooltip.

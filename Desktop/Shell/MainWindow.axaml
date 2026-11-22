@@ -36,8 +36,10 @@
                     <!-- The tagline's star column. Its width, reported by SizeChanged, decides which form of the tagline the text block shows
                          (MainWindow.Tagline.cs); the text block carries no localization tag because the form is set from code. -->
                     <Panel x:Name="WorkspaceTaglineHost" Grid.Column="1" ClipToBounds="True">
+                        <!-- The column clips at its own edge. The italic ink may extend beyond the text block's advance width. -->
                         <TextBlock x:Name="WorkspaceSubtitle" Classes="muted" FontSize="{StaticResource Workspace.Text.Meta}"
-                                   HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextTrimming="CharacterEllipsis" IsVisible="False" />
+                                   HorizontalAlignment="Left" VerticalAlignment="Center" FontStyle="Italic" TextAlignment="Left"
+                                   TextWrapping="NoWrap" TextTrimming="None" ClipToBounds="False" IsVisible="False" />
                     </Panel>
                     <StackPanel x:Name="WorkspaceHeaderTools" Grid.Column="2" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.8}" VerticalAlignment="Center">
                         <!-- A button, so keyboard and screen reader reach it: the name is the current values and a click opens the
