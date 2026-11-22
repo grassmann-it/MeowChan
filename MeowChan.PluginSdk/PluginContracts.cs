@@ -37,6 +37,19 @@ public interface IImageFilterPlugin : IPlugin
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Tagger contract (<see cref="TaggerContract.Version"/>): proposes tags for a batch of media. A tagger reads bytes
+/// only through the bound asset reader, never downloads models or other data, and returns suggestions only; the host
+/// validates the result against the request and keeps the suggestions in a review state. Cancellation stops the
+/// batch; a tagger may report the remaining items as <see cref="TaggerItemOutcome.Cancelled"/> or throw
+/// <see cref="OperationCanceledException"/>.
+/// </summary>
+public interface ITaggerPlugin : IPlugin
+{
+    Task<TaggerBatchResult> TagAsync(TaggerBatchRequest request, PluginCallContext context,
+        IProgress<TaggerBatchProgress>? progress = null, CancellationToken cancellationToken = default);
+}
+
 /// <summary>Optional domain validation in addition to the host's simple schema checks.</summary>
 public interface IPluginSettingsValidator : IPlugin
 {

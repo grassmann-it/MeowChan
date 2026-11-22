@@ -51,6 +51,13 @@ public sealed record PluginDescription(string PluginId, string Name, string Plug
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public PluginDeclarationStatus DeclarationStatus { get; init; }
+
+    /// <summary>
+    /// Taggers of this plugin (tagger contract <see cref="TaggerContract.Version"/>). Null and empty both mean none;
+    /// null is omitted from JSON, so descriptions without taggers keep their released wire shape.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<TaggerDescription>? Taggers { get; init; }
 }
 
 public sealed record SourceDescription(string SourceId, string Name, Uri BaseUri,

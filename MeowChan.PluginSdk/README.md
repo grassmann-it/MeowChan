@@ -139,6 +139,23 @@ filter implementation, settings/grants, optional hosting and validation. It link
 the maintained Lainchan, Kohlchan and ImageDimensionsFilter source files rather
 than duplicate documentation examples.
 
+## Taggers (tagger contract 1.0.0, preview)
+
+`ITaggerPlugin` proposes tags for a batch of media; it never writes tags. The
+tagger contract has its own version (`TaggerContract.Version`, exactly
+`1.0.0`) and a plugin with taggers declares SDK `1.1.0`. Taggers are declared in
+the init-only `PluginDescription.Taggers` (omitted from JSON when null), with
+media kinds, MIME types, required models and settings of scope `Tagger`. Models
+are installed data packs: a tagger never bundles or downloads one. A tagger is
+offline unless it declares exact `Metadata` network hosts, and the host runs
+such a tagger only after the user consented to that version and host list.
+Bytes are read only through `context.Images` with the batch's asset tokens.
+Results return raw confidences (between the requested floor and 1), optional
+time ranges for video/animation and the model provenance; the host validates
+them with `SdkValidation.ValidateTaggerResult` and keeps them as suggestions in
+a review state. The host does not yet run tagger plugins through the worker;
+see `docs/development/tagger-contract-1.2.0.md`.
+
 ## Security
 
 Credentials belong to the host. A plugin must not declare API keys, tokens,
