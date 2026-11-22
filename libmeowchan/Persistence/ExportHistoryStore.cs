@@ -28,7 +28,7 @@ public sealed class ExportHistoryStore
     }
 
     public IReadOnlyList<ExportHistoryEntry> List(ResourceId thread) => _lease.RunExclusive(() =>
-        (IReadOnlyList<ExportHistoryEntry>)Read().Entries.Where(entry => entry.Thread == thread)
+        (IReadOnlyList<ExportHistoryEntry>)Read(_lease.StoreLimits.ExportHistory).Entries.Where(entry => entry.Thread == thread)
             .OrderByDescending(entry => entry.ExportedAt).ToArray());
 
     public async Task<IReadOnlyList<(ExportHistoryEntry Entry, ArchiveExportInspection? Inspection)>> ListVerifiedAsync(
@@ -77,25 +77,27 @@ public sealed class ExportHistoryStore
         }
     }
 
-    private Index Read()
+    private Index Read(ExportHistoryLimits limits)
     {
-        if (!File.Exists(_path)) return new Index(1, new List<ExportHistoryEntry>());
-        FileInfo info = new(_path);
-        if (info.Length > 4_000_000 || info.LinkTarget != null) throw new InvalidDataException("Export history index is invalid.");
+        string? json = limits.ReadText(_path);
+        if (json == null) return new Index(1, new List<ExportHistoryEntry>());
         Index? index;
-        try { index = JsonSerializer.Deserialize<Index>(File.ReadAllText(_path)); }
+        try { index = JsonSerializer.Deserialize<Index>(json); }
         catch (JsonException ex) { throw new InvalidDataException("Export history JSON is invalid.", ex); }
-        if (index == null || index.Version != 1 || index.Entries == null || index.Entries.Count > 20_000)
+        if (index == null || index.Version != 1 || index.Entries == null)
             throw new InvalidDataException("Export history index version or entries are invalid.");
+        limits.CheckCount(index.Entries.Count);
         return index;
     }
 
     private void Commit(ExportHistoryEntry entry, CancellationToken token)
     {
-        Index index = Read();
+        token.ThrowIfCancellationRequested();
+        ExportHistoryLimits limits = _lease.StoreLimits.ExportHistory;
+        Index index = Read(limits);
         index.Entries.RemoveAll(previous => previous.Destination == entry.Destination ||
             (previous.ExportId == entry.ExportId && previous.Generation <= entry.Generation));
         index.Entries.Add(entry);
-        AtomicJsonFile.WriteAllText(_path, JsonSerializer.Serialize(index), backupCurrentFile: true, token);
+        limits.Write(_path, index, index.Entries.Count, token);
     }
 }

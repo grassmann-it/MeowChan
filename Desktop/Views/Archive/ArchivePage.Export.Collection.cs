@@ -108,7 +108,7 @@ public partial class ArchivePage
         catch (Exception exception)
         {
             if (Current())
-                ExportError(ArchiveExportStatusText.Localized("export.historyError", exception.Message));
+                ExportError(HistoryError(exception.Message));
         }
     }
     private async Task StartCollectionExportAsync()
@@ -154,10 +154,10 @@ public partial class ArchivePage
                 {
                     ArchiveCollectionExportOperationResult recorded = await Task.Run(() => CollectionExportHistory.RecordPublishedAsync(result));
                     if (!Current()) return;
-                    if (!recorded.HistoryRecorded) ExportError(ArchiveExportStatusText.Localized("export.historyError", recorded.HistoryError));
+                    if (!recorded.HistoryRecorded) ExportError(HistoryError(recorded.HistoryError, writing: true));
                     else await ReloadCollectionExportHistoryAsync(request, cancellation);
                 }
-                catch (Exception exception) { if (Current()) ExportError(ArchiveExportStatusText.Localized("export.historyError", exception.Message)); }
+                catch (Exception exception) { if (Current()) ExportError(HistoryError(exception.Message, writing: true)); }
             }
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested)

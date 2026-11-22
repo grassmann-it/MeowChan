@@ -17,14 +17,36 @@ public static class ArchiveExportLegacy
     public static async Task<ArchiveExportInspection> AssociateAsync(ArchiveReader reader, ResourceId thread,
         string directory, CancellationToken token = default)
     {
+        string destination = ValidateDestination(reader, directory, token);
+        using ArchiveExportTargetLease targetLease = ArchiveExportTargetLease.Acquire(destination);
+        await WriteMarkerAsync(reader, thread, destination, token).ConfigureAwait(false);
+        // The marker has been committed. Finish returning its inspection even if cancellation arrives now.
+        return await ArchiveExportMetadataFile.InspectAsync(destination, thread, CancellationToken.None).ConfigureAwait(false);
+    }
+
+    internal static async Task AdoptAsync(ArchiveReader reader, ResourceId thread,
+        string directory, CancellationToken token)
+    {
+        string destination = ValidateDestination(reader, directory, token);
+        using ArchiveExportTargetLease targetLease = ArchiveExportTargetLease.Acquire(destination);
+        await WriteMarkerAsync(reader, thread, destination, token).ConfigureAwait(false);
+    }
+
+    private static string ValidateDestination(ArchiveReader reader, string directory, CancellationToken token)
+    {
         ArgumentNullException.ThrowIfNull(reader);
+        token.ThrowIfCancellationRequested();
         string destination = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory));
         string profile = Path.GetDirectoryName(reader.DatabasePath)!;
         if (ArchiveHtmlExporter.IsSameOrAncestor(destination, profile) ||
             ArchiveHtmlExporter.IsSameOrAncestor(profile, destination))
             throw new InvalidDataException("A legacy export cannot be associated inside or over its source profile.");
+        return destination;
+    }
+
+    private static async Task WriteMarkerAsync(ArchiveReader reader, ResourceId thread, string destination, CancellationToken token)
+    {
         string parent = Path.GetDirectoryName(destination)!;
-        using ArchiveExportTargetLease targetLease = ArchiveExportTargetLease.Acquire(destination);
         ArchiveExportReplacement.Recover(destination);
         if (!FindCandidates(parent, thread, token).Any(candidate => candidate.Directory == destination && candidate.SourceHeaderMatches))
             throw new InvalidDataException("This legacy folder does not establish the selected thread identity.");
@@ -37,7 +59,6 @@ public static class ArchiveExportLegacy
             throw new InvalidDataException("A legacy export cannot be associated over source media.");
         await ArchiveExportMetadataFile.CreateAsync(destination, view, new ArchiveHtmlExportOptions(true),
             Guid.NewGuid(), 1, token, adoptedLegacy: true).ConfigureAwait(false);
-        return await ArchiveExportMetadataFile.InspectAsync(destination, thread, token).ConfigureAwait(false);
     }
 
     /// <summary>Bounded hints only. A legacy folder has no safe update identity and remains create-only.</summary>

@@ -2082,6 +2082,42 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="ExportHistorySizeMiBFieldLabel" Text="{Binding ExportHistorySizeMiBLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ExportHistorySizeMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="ExportHistorySizeMiBInput" Value="{Binding ExportHistorySizeMiB, Mode=TwoWay}" Minimum="{Binding ExportHistorySizeMiBMinimum}" Maximum="{Binding ExportHistorySizeMiBMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ExportHistorySizeMiBFieldLabel}" AutomationProperties.Name="{Binding ExportHistorySizeMiBLabel}" AutomationProperties.HelpText="{Binding ExportHistorySizeMiBHelp}" />
+                            <TextBlock x:Name="ExportHistorySizeMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="ExportHistoryEntryLimitFieldLabel" Text="{Binding ExportHistoryEntryLimitLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ExportHistoryEntryLimitHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="ExportHistoryEntryLimitInput" Value="{Binding ExportHistoryEntryLimit, Mode=TwoWay}" Minimum="{Binding ExportHistoryEntryLimitMinimum}" Maximum="{Binding ExportHistoryEntryLimitMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=ExportHistoryEntryLimitFieldLabel}" AutomationProperties.Name="{Binding ExportHistoryEntryLimitLabel}" AutomationProperties.HelpText="{Binding ExportHistoryEntryLimitHelp}" />
+                            <TextBlock x:Name="ExportHistoryEntryLimitInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BoardAdmissionSizeMiBFieldLabel" Text="{Binding BoardAdmissionSizeMiBLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BoardAdmissionSizeMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                            <desktop:SettingsNumberInput x:Name="BoardAdmissionSizeMiBInput" Value="{Binding BoardAdmissionSizeMiB, Mode=TwoWay}" Minimum="{Binding BoardAdmissionSizeMiBMinimum}" Maximum="{Binding BoardAdmissionSizeMiBMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BoardAdmissionSizeMiBFieldLabel}" AutomationProperties.Name="{Binding BoardAdmissionSizeMiBLabel}" AutomationProperties.HelpText="{Binding BoardAdmissionSizeMiBHelp}" />
+                            <TextBlock x:Name="BoardAdmissionSizeMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                        </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <TextBlock x:Name="SlashTagSuggestionCountFieldLabel" Text="{Binding SlashTagSuggestionCountLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding SlashTagSuggestionCountHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>

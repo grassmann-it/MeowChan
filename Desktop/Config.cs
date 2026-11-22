@@ -216,6 +216,18 @@ namespace MeowChan
         internal const int UrlTextExportLimitMiBDefault = Desktop.UrlTextExportFileWriter.DefaultLimitMiB;
         internal const int UrlTextExportLimitMiBMinimum = Desktop.UrlTextExportFileWriter.MinimumLimitMiB;
         internal const int UrlTextExportLimitMiBMaximum = Desktop.UrlTextExportFileWriter.MaximumLimitMiB;
+        public int ExportHistorySizeMiB { get; set; } = ExportHistorySizeMiBDefault;
+        internal const int ExportHistorySizeMiBDefault = Persistence.ExportHistoryLimits.DefaultSizeMiB;
+        internal const int ExportHistorySizeMiBMinimum = Persistence.ExportHistoryLimits.MinimumSizeMiB;
+        internal const int ExportHistorySizeMiBMaximum = Persistence.ExportHistoryLimits.MaximumSizeMiB;
+        public int ExportHistoryEntryLimit { get; set; } = ExportHistoryEntryLimitDefault;
+        internal const int ExportHistoryEntryLimitDefault = Persistence.ExportHistoryLimits.DefaultEntries;
+        internal const int ExportHistoryEntryLimitMinimum = Persistence.ExportHistoryLimits.MinimumEntries;
+        internal const int ExportHistoryEntryLimitMaximum = Persistence.ExportHistoryLimits.MaximumEntries;
+        public int BoardAdmissionSizeMiB { get; set; } = BoardAdmissionSizeMiBDefault;
+        internal const int BoardAdmissionSizeMiBDefault = Admission.BoardAdmissionStore.DefaultSizeMiB;
+        internal const int BoardAdmissionSizeMiBMinimum = Admission.BoardAdmissionStore.MinimumSizeMiB;
+        internal const int BoardAdmissionSizeMiBMaximum = Admission.BoardAdmissionStore.MaximumSizeMiB;
         /// <summary>Most slash-marker suggestions offered, without changing the text/token scan ceilings.</summary>
         public int SlashTagSuggestionCount { get; set; } = SlashTagSuggestionCountDefault;
         internal const int SlashTagSuggestionCountDefault = Tags.SlashTagSuggestions.DefaultSuggestionCount;
@@ -1034,6 +1046,9 @@ namespace MeowChan
             VideoScrubCacheLimitMiB = Math.Clamp(VideoScrubCacheLimitMiB, VideoScrubCacheLimitMiBMinimum, VideoScrubCacheLimitMiBMaximum);
             ArchiveTagFilterTagsPerList = Math.Clamp(ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListMinimum, ArchiveTagFilterTagsPerListMaximum);
             UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
+            ExportHistorySizeMiB = Math.Clamp(ExportHistorySizeMiB, ExportHistorySizeMiBMinimum, ExportHistorySizeMiBMaximum);
+            ExportHistoryEntryLimit = Math.Clamp(ExportHistoryEntryLimit, ExportHistoryEntryLimitMinimum, ExportHistoryEntryLimitMaximum);
+            BoardAdmissionSizeMiB = Math.Clamp(BoardAdmissionSizeMiB, BoardAdmissionSizeMiBMinimum, BoardAdmissionSizeMiBMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
             GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
             // A hand-edited file or a newer version with another range must not make the whole profile invalid (Validate throws): clamp like the seek step.
@@ -1659,6 +1674,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ArchiveTagFilterTagsPerList), "ArchiveTagFilterTagsPerList is outside its supported range (" + ArchiveTagFilterTagsPerListMinimum + " to " + ArchiveTagFilterTagsPerListMaximum + ").");
             if (UrlTextExportLimitMiB is < UrlTextExportLimitMiBMinimum or > UrlTextExportLimitMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(UrlTextExportLimitMiB), "UrlTextExportLimitMiB is outside its supported range (" + UrlTextExportLimitMiBMinimum + " to " + UrlTextExportLimitMiBMaximum + ").");
+            if (ExportHistorySizeMiB is < ExportHistorySizeMiBMinimum or > ExportHistorySizeMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ExportHistorySizeMiB), "ExportHistorySizeMiB is outside its supported range (" + ExportHistorySizeMiBMinimum + " to " + ExportHistorySizeMiBMaximum + ").");
+            if (ExportHistoryEntryLimit is < ExportHistoryEntryLimitMinimum or > ExportHistoryEntryLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ExportHistoryEntryLimit), "ExportHistoryEntryLimit is outside its supported range (" + ExportHistoryEntryLimitMinimum + " to " + ExportHistoryEntryLimitMaximum + ").");
+            if (BoardAdmissionSizeMiB is < BoardAdmissionSizeMiBMinimum or > BoardAdmissionSizeMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardAdmissionSizeMiB), "BoardAdmissionSizeMiB is outside its supported range (" + BoardAdmissionSizeMiBMinimum + " to " + BoardAdmissionSizeMiBMaximum + ").");
             if (SlashTagSuggestionCount is < SlashTagSuggestionCountMinimum or > SlashTagSuggestionCountMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SlashTagSuggestionCount), "SlashTagSuggestionCount is outside its supported range (" + SlashTagSuggestionCountMinimum + " to " + SlashTagSuggestionCountMaximum + ").");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
@@ -1944,6 +1965,9 @@ namespace MeowChan
                 BooruRetryAfterCooldownHours = BooruRetryAfterCooldownHours,
                 ArchiveTagFilterTagsPerList = ArchiveTagFilterTagsPerList,
                 UrlTextExportLimitMiB = UrlTextExportLimitMiB,
+                ExportHistorySizeMiB = ExportHistorySizeMiB,
+                ExportHistoryEntryLimit = ExportHistoryEntryLimit,
+                BoardAdmissionSizeMiB = BoardAdmissionSizeMiB,
                 SlashTagSuggestionCount = SlashTagSuggestionCount,
                 ShrinkWindowForBarebones = ShrinkWindowForBarebones,
                 PrivateTagLimit = PrivateTagLimit,
@@ -2226,6 +2250,9 @@ namespace MeowChan
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
             UrlTextExportLimitMiB = source.UrlTextExportLimitMiB;
+            ExportHistorySizeMiB = source.ExportHistorySizeMiB;
+            ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
+            BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
@@ -2460,6 +2487,9 @@ namespace MeowChan
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
             UrlTextExportLimitMiB = source.UrlTextExportLimitMiB;
+            ExportHistorySizeMiB = source.ExportHistorySizeMiB;
+            ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
+            BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
