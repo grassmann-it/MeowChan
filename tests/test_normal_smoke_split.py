@@ -92,7 +92,7 @@ class NormalSplitTests(unittest.TestCase):
         self.assertIn("runner.os != 'Linux' && '--allow-native-desktop'", region)
         self.assertIn("inputs.scenario == 'selection' && '--selection-only'", region)
         self.assertIn("runner.os == 'macOS' && '300' || '180'", region)
-        self.assertIn('--shard {0} --workers {1}', region)
+        self.assertIn('--scenes "$GUI_CI_SCENES"', region)
         self.assertNotIn("python - <<'PY'", region)
 
     def test_exact_tail_coverage_without_overlapping_suites(self):

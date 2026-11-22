@@ -474,6 +474,23 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         self.assertTrue(audio[1].endswith("with-private-null-audio.py"))
         self.assertEqual(["--", "env"], audio[4:6])
 
+    def test_required_registry_smokes_reject_skips_and_duplicate_results(self):
+        required = self.args + ["--registry", "--require-passed", "--only"]
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY):
+            self.assertEqual(1, runner.main(required + ["native-ime"]))
+        report = json.loads((self.output / "registry.json").read_text())
+        self.assertEqual(1, report["counts"]["skipped"])
+        duplicate_output = self.output / "duplicates"
+        args = ["--assembly", str(self.assembly), "--output", str(duplicate_output),
+                "--registry", "--require-passed", "--only", "normal"]
+        passed = mock.Mock(returncode=0, stdout="", stderr="", no_pass=False)
+        with mock.patch.object(runner.sys, "platform", "linux"), \
+                mock.patch.object(runner, "registry_entries", return_value=self.REGISTRY[:1] * 2), \
+                mock.patch.object(runner.subprocess, "run", return_value=passed), \
+                mock.patch.object(runner, "child_result", return_value={"child_passed": True}):
+            self.assertEqual(1, runner.main(args))
+
     def test_registry_runs_every_entry_records_skips_and_retries_only_the_window_manager_flake(self):
         fake = self.child_runner(mock.Mock(returncode=1, stdout="RuntimeError: The isolated window manager exited during startup", stderr=""),
                                  mock.Mock(returncode=0, stdout="", stderr=""),

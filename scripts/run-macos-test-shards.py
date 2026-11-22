@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Eight native macOS workers; complete discovery, exact filters and TRX coverage.
+"""Native macOS workers with complete discovery, exact filters and TRX coverage.
 
 Partition whole classes, never display names or theory arguments. xUnit's deferred
 (non-serializable) theories retain their discovery testId for all runtime rows;
@@ -25,6 +25,7 @@ SPEC = importlib.util.spec_from_file_location('mac_watchdog', Path(__file__).wit
 watchdog = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(watchdog)
 SHARD_COUNT = 8
+MAX_WORKERS = 12
 PLATFORMS = ('macos-15', 'macos-15-intel')
 ARCHITECTURES = {'macos-15': 'arm64', 'macos-15-intel': 'x86_64'}
 SCHEMA = 1
@@ -125,10 +126,10 @@ def timing_profile():
     return profile
 
 
-def plan_digest(shape):
+def plan_digest(shape, shard_count=SHARD_COUNT):
     # Bind the immutable profile AND algorithm, not machine-local timings. The
     # final gate recomputes this and assignments from the same checked-out source.
-    return digest(dict(inventory=shape, timing_profile=timing_profile()))
+    return digest(dict(shard_count=shard_count, inventory=shape, timing_profile=timing_profile()))
 
 
 def class_weights(cases, profile):
@@ -147,21 +148,27 @@ def class_weights(cases, profile):
     return weights
 
 
+def balance(weights, initial_loads):
+    """Place the longest remaining item on the lightest worker."""
+    loads = list(initial_loads)
+    bins = [[] for _ in loads]
+    for name in sorted(weights, key=lambda name: (-weights[name], name)):
+        shard = min(range(len(loads)), key=lambda index: (loads[index], index))
+        bins[shard].append(name)
+        loads[shard] += weights[name]
+    return bins, loads
+
+
 def partition(cases, profile=None, shard_count=SHARD_COUNT):
     """Deterministic measured-runtime LPT; whole classes remain atomic."""
+    require(type(shard_count) is int and 1 <= shard_count <= MAX_WORKERS, 'Invalid shard count')
     weights = class_weights(cases, timing_profile() if profile is None else profile)
     methods = defaultdict(set)
     for case in cases:
         methods[case['method'].rsplit('.', 1)[0]].add(case['method'])
-    require(type(shard_count) is int and shard_count > 0, 'Invalid shard count')
-    bins = [[] for _ in range(shard_count)]
-    loads = [0] * shard_count
-    for name in sorted(weights, key=lambda name: (-weights[name], name)):
-        shard = min(range(shard_count), key=lambda index: (loads[index], index))
-        bins[shard].extend(methods[name])
-        loads[shard] += weights[name]
+    bins, _ = balance(weights, [0] * shard_count)
     require(all(bins), 'Inventory cannot populate all eight shards' if shard_count == 8 else 'Inventory cannot populate all shards')
-    return [sorted(methods) for methods in bins]
+    return [sorted(method for name in names for method in methods[name]) for names in bins]
 
 
 def write_settings(path, methods):
@@ -223,7 +230,7 @@ def trx_coverage(results, inventory, assigned):
                 methods=sorted(set(case['method'] for case in expected.values())))
 
 
-def run_suite(name, project, output, shard, budget):
+def run_suite(name, project, output, shard, budget, shard_count=SHARD_COUNT):
     started = time.monotonic()
     report = dict(name=name, budget_seconds=budget, passed=False)
     try:
@@ -238,8 +245,8 @@ def run_suite(name, project, output, shard, budget):
                                         discovery / 'discovery-inventory.json')
         report['inventory'] = inventory
         report['inventory_sha256'] = digest(inventory)
-        report['plan_sha256'] = plan_digest(inventory_shape(inventory))
-        report['assigned'] = assigned = partition(inventory)[shard - 1]
+        report['plan_sha256'] = plan_digest(inventory_shape(inventory), shard_count)
+        report['assigned'] = assigned = partition(inventory, shard_count=shard_count)[shard - 1]
         settings = output / 'shard.runsettings'
         write_settings(settings, assigned)
         remaining = budget - (time.monotonic() - started)
@@ -257,8 +264,9 @@ def run_suite(name, project, output, shard, budget):
     return report
 
 
-def run_worker(shard, platform, source, output, candidate=False):
-    require(1 <= shard <= SHARD_COUNT and platform in PLATFORMS, 'Invalid shard/platform')
+def run_worker(shard, platform, source, output, candidate=False, shard_count=SHARD_COUNT):
+    require(SHARD_COUNT <= shard_count <= MAX_WORKERS and 1 <= shard <= shard_count and platform in PLATFORMS,
+            'Invalid shard/count/platform')
     require(sys.platform == 'darwin' and host_platform.machine() == ARCHITECTURES[platform],
             'Worker must run on the requested native macOS architecture')
     require(re.fullmatch('[0-9a-f]{40}', source), 'Expected full source commit')
@@ -269,10 +277,10 @@ def run_worker(shard, platform, source, output, candidate=False):
     output.mkdir(parents=True, exist_ok=False)
     budgets = ((watchdog.CANDIDATE_CORE_TIMEOUT, watchdog.CANDIDATE_DESKTOP_TIMEOUT) if candidate else
                (watchdog.STANDARD_CORE_TIMEOUT, watchdog.STANDARD_DESKTOP_TIMEOUT))
-    manifest = dict(schema=SCHEMA, shard=shard, shard_count=SHARD_COUNT, platform=platform,
+    manifest = dict(schema=SCHEMA, shard=shard, shard_count=shard_count, platform=platform,
                     source=source, architecture=host_platform.machine(), candidate=candidate, suites=[], passed=False)
     for (name, project), budget in zip(watchdog.PROJECTS, budgets):
-        result = run_suite(name, project, output / name, shard, budget)
+        result = run_suite(name, project, output / name, shard, budget, shard_count)
         manifest['suites'].append(result)
         write_json(output / 'manifest.json', manifest)
         print(json.dumps({key: value for key, value in result.items() if key not in ('inventory', 'assigned')}), flush=True)
@@ -282,11 +290,12 @@ def run_worker(shard, platform, source, output, candidate=False):
     return manifest['passed']
 
 
-def aggregate(root, platforms, source):
+def aggregate(root, platforms, source, shard_count=SHARD_COUNT, candidate=None):
     """Recheck the actual TRX, not worker booleans; require the complete matrix."""
     require(re.fullmatch('[0-9a-f]{40}', source), 'Expected full source commit')
     require(platforms and len(platforms) == len(set(platforms)) and set(platforms) <= set(PLATFORMS),
             'Invalid aggregate platforms')
+    require(SHARD_COUNT <= shard_count <= MAX_WORKERS, 'Invalid shard count')
     manifests = {}
     for path in root.rglob('manifest.json'):
         manifest = json.loads(path.read_text())
@@ -294,17 +303,18 @@ def aggregate(root, platforms, source):
         require(type(manifest['shard']) is int and type(manifest['candidate']) is bool, 'Invalid worker metadata')
         require(manifest['architecture'] == ARCHITECTURES.get(manifest['platform']), 'Wrong native architecture')
         require(key not in manifests, f'Duplicate worker: {key}')
-        require(manifest['schema'] == SCHEMA and manifest['shard_count'] == SHARD_COUNT, 'Wrong manifest version/count')
+        require(manifest['schema'] == SCHEMA and manifest['shard_count'] == shard_count, 'Wrong manifest version/count')
+        require(candidate is None or manifest['candidate'] is candidate, 'Wrong timeout profile')
         require(manifest['source'] == source, 'Wrong source commit')
         require(manifest['passed'] is True, f'Failed worker: {key}')
         manifests[key] = (manifest, path.parent)
-    expected = {(platform, shard) for platform in platforms for shard in range(1, SHARD_COUNT + 1)}
+    expected = {(platform, shard) for platform in platforms for shard in range(1, shard_count + 1)}
     require(set(manifests) == expected, f'Missing/extra workers: {sorted(expected ^ set(manifests))}')
     checks = []
     for platform in platforms:
         canonical, observed = {}, defaultdict(list)
         profiles = set()
-        for shard in range(1, SHARD_COUNT + 1):
+        for shard in range(1, shard_count + 1):
             manifest, directory = manifests[(platform, shard)]
             profiles.add(manifest['candidate'])
             suites = manifest['suites']
@@ -323,8 +333,8 @@ def aggregate(root, platforms, source):
                 if name not in canonical:
                     canonical[name] = inventory_shape(inventory)
                 require(inventory_shape(inventory) == canonical[name], f'Workers disagree on native inventory: {platform}/{name}')
-                require(suite['plan_sha256'] == plan_digest(canonical[name]), 'Plan digest mismatch')
-                assigned = partition(inventory)[shard - 1]
+                require(suite['plan_sha256'] == plan_digest(canonical[name], shard_count), 'Plan digest mismatch')
+                assigned = partition(inventory, shard_count=shard_count)[shard - 1]
                 require(suite['assigned'] == assigned, 'Wrong shard assignment')
                 coverage = trx_coverage(directory / name / 'run/results', inventory, assigned)
                 require(suite['coverage'] == coverage, 'Worker coverage report differs from TRX')
@@ -334,15 +344,16 @@ def aggregate(root, platforms, source):
             require(Counter(observed[name]) == Counter({method['method']: 1 for method in shape}),
                     f'Missing/duplicate method coverage: {platform}/{name}')
             checks.append(dict(platform=platform, suite=name, methods=len(set(observed[name])),
-                               discovered_cases=sum(m['concrete'] + m['deferred'] for m in shape), plan_sha256=plan_digest(shape)))
-    return dict(passed=True, source=source, shard_count=SHARD_COUNT, platforms=platforms, coverage=checks)
+                               discovered_cases=sum(m['concrete'] + m['deferred'] for m in shape),
+                               plan_sha256=plan_digest(shape, shard_count)))
+    return dict(passed=True, source=source, shard_count=shard_count, platforms=platforms, coverage=checks)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='action', required=True)
     run = sub.add_parser('run')
-    run.add_argument('--shard', type=int, required=True, choices=range(1, SHARD_COUNT + 1))
+    run.add_argument('--shard', type=int, required=True)
     run.add_argument('--platform', choices=PLATFORMS, required=True)
     run.add_argument('--source', required=True)
     run.add_argument('--candidate-validation', action='store_true')
@@ -352,11 +363,15 @@ def main():
     gate.add_argument('--platform', choices=PLATFORMS, action='append', required=True)
     gate.add_argument('--source', required=True)
     gate.add_argument('--report', type=Path, required=True)
+    gate.add_argument('--candidate-validation', action=argparse.BooleanOptionalAction)
+    for command in (run, gate):
+        command.add_argument('--shard-count', type=int, default=SHARD_COUNT)
     args = parser.parse_args()
     try:
         if args.action == 'run':
-            return int(not run_worker(args.shard, args.platform, args.source, args.output, args.candidate_validation))
-        result = aggregate(args.input, args.platform, args.source)
+            return int(not run_worker(args.shard, args.platform, args.source, args.output,
+                                      args.candidate_validation, args.shard_count))
+        result = aggregate(args.input, args.platform, args.source, args.shard_count, args.candidate_validation)
     except Exception as exc:
         result = dict(passed=False, error=str(exc))
     if args.action == 'aggregate':

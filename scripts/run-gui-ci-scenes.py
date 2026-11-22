@@ -25,6 +25,21 @@ GALLERY_ERRORS = ['gallery-errors-retirement-clip', 'gallery-errors-layout-roots
                   'gallery-errors-notifications', 'gallery-errors-failure-reader-return']
 
 
+def full_scene_inventory():
+    return NORMAL + MODES + READER + GIF + GALLERY_ERRORS
+
+
+def validate_scene_assignment(entries, assigned):
+    inventory = full_scene_inventory()
+    registry_counts = {}
+    for entry in entries:
+        registry_counts[entry['id']] = registry_counts.get(entry['id'], 0) + 1
+    if any(registry_counts.get(name) != 1 for name in inventory):
+        raise ValueError('Required GUI registry inventory is missing or duplicated')
+    if not assigned or len(assigned) != len(set(assigned)) or not set(assigned) <= set(inventory):
+        raise ValueError('Empty, duplicate or unknown GUI assignment')
+
+
 def reader_baseline(entries):
     present = {e['id'] for e in entries}
     if not set(READER).issubset(present):
@@ -177,10 +192,13 @@ def main():
     parser.add_argument('--timeout', required=True, type=int)
     parser.add_argument('--shard', type=int)
     parser.add_argument('--workers', type=int, choices=[4, 8], default=8)
+    parser.add_argument('--scenes', help='Exact comma-separated scene assignment from the Validate plan')
     parser.add_argument('--selection-only', action='store_true')
     parser.add_argument('--allow-native-desktop', action='store_true')
     args = parser.parse_args()
-    required = ['selection'] if args.selection_only else NORMAL + MODES + READER + GIF + GALLERY_ERRORS
+    if args.scenes is not None and (args.shard is not None or args.selection_only):
+        parser.error('--scenes is exclusive with --shard and --selection-only')
+    required = ['selection'] if args.selection_only else full_scene_inventory()
     args.output.mkdir(parents=True, exist_ok=True)
     manifest = args.output / 'scene-shard.json'
     if manifest.exists():
@@ -197,6 +215,9 @@ def main():
         baseline = reader_baseline(entries)
         required = ['selection'] if args.selection_only else NORMAL + MODES + baseline + GIF + GALLERY_ERRORS
         inventory = list(required)
+        if args.scenes is not None:
+            required = args.scenes.split(',')
+            validate_scene_assignment(entries, required)
         if args.shard is not None:
             plan_spec = importlib.util.spec_from_file_location('gui_plan', Path(__file__).with_name('gui-ci-plan.py'))
             plan = importlib.util.module_from_spec(plan_spec)
