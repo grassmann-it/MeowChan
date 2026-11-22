@@ -56,11 +56,11 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(Token(sections, "Workspace.Space.12"), sections.Margin.Left);
         Assert.Equal(Token(sections, "Workspace.Space.12"), sections.Margin.Right);
         Assert.Equal(Token(queue, "Workspace.Space.8"), queue.Spacing);
-        Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingStatus", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
         StackPanel heading = Find<StackPanel>(page, "TaggingHeading");
         Assert.Equal(Token(sections, "Workspace.Space.8"), heading.Spacing);
         Assert.Equal(Avalonia.Layout.Orientation.Vertical, heading.Orientation);
-        Assert.Equal(new[] { "TaggingTitle", "TaggingSubtitle" }, heading.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingTitle" }, heading.Children.Select(c => c.Name));
         StackPanel error = Assert.IsType<StackPanel>(page.ErrorPanel.Child);
         Assert.Equal(Token(error, "Workspace.Space.8"), error.Spacing);
         Grid stamp = Find<Grid>(page, "TaggingStamp");

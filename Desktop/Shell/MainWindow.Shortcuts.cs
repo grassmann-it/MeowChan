@@ -11,6 +11,7 @@ namespace MeowChan;
 public partial class MainWindow
 {
     // Feature registrations are installed after both this router and their page/owner exist.
+    private readonly System.Collections.Generic.List<IDisposable> _archiveCommandRegistrations = new(); // released with the window (MainWindow.Disposal)
     private CommandRouter? _shortcutRouter;
     private void InitializeShortcutRouting()
     {
@@ -62,6 +63,10 @@ public partial class MainWindow
             _shortcutRouter.Register(new CommandRegistration("archive.filters-toggle", archive,
                 () => ArchiveActive() && !_largeReaderOpen, () => !archive.IsReaderDialogOpen,
                 archive.ToggleFilterSurfaceByShortcut, Priority: 100, AllowInTextInput: true));
+            // The reader toolbar's thread list switch has no default gesture; a gesture the user gives it runs here.
+            _archiveCommandRegistrations.Add(_shortcutRouter.Register(new CommandRegistration("archive.thread-list.toggle", archive,
+                () => ArchiveActive() && !_largeReaderOpen, () => !archive.IsReaderDialogOpen && archive.CanToggleThreadList,
+                archive.ToggleThreadListByShortcut, Priority: 100)));
         }
         // Following live and showing the new posts belong to the open thread, in the embedded and in the large reader.
         if (_archivePage is { } live && live.FindControl<Control>("ArchiveReaderPane") is { } readerPane)

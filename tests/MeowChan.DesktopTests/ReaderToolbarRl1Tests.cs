@@ -37,22 +37,25 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     public void TheBarStandsInItsGroupsInTheOrderOfTheSpec()
     {
         XElement[] items = ToolbarItems();
-        string[] visible = items.Select(Name).Where(name => name is not ("ReaderUnreadReturn" or "ReaderSkipUnavailableGroupMember" or "ArchiveHistoryBack" or "ArchiveReaderFullscreen")).ToArray();
-        // Thread mark | Read, Gallery, Find | Tags, Export | Settings, Thread | Media sidebar icon (right edge) (the states and the way back sit behind the star, and last).
-        Assert.Equal(["ArchiveCurrentThreadFavorite", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderFindOpen", "ReaderTagsOpen", "ExportArchiveButton",
-            "ReaderSettingsOpen", "ReaderThreadOpen", "ReaderMediaSidebarToggle"], visible);
         string[] all = items.Select(Name).ToArray();
+        // Review 21.11. + F16: Star | Large reader, Gallery, Find | Tags, Export | Thread, Settings | [History back] | [Thread list], Full screen, Media sidebar (icon only, last).
+        Assert.Equal(["ArchiveCurrentThreadFavorite", "ReaderUnreadReturn", "ReaderSkipUnavailableGroupMember", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderFindOpen",
+            "ReaderTagsOpen", "ExportArchiveButton", "ReaderThreadOpen", "ReaderSettingsOpen", "ArchiveHistoryBack", "ArchiveThreadListToggle", "ArchiveReaderFullscreen",
+            "ReaderMediaSidebarToggle"], all);
         // The returns of a state stay right behind the star, in its group, so a state never sits between two tools.
-        Assert.Equal(["ArchiveCurrentThreadFavorite", "ReaderUnreadReturn", "ReaderSkipUnavailableGroupMember"], all.Take(3));
         Assert.All(items.Take(3), item => Assert.Equal(0, Group(item)));
         Dictionary<string, int> groups = items.ToDictionary(Name, Group);
         Assert.Equal(1, groups["ArchiveReadPosts"]); Assert.Equal(1, groups["ArchiveOpenGallery"]); Assert.Equal(1, groups["ReaderFindOpen"]);
-        Assert.Equal(2, groups["ReaderTagsOpen"]); Assert.Equal(2, groups["ExportArchiveButton"]); 
-        Assert.Equal(3, groups["ReaderSettingsOpen"]); Assert.Equal(3, groups["ReaderThreadOpen"]); Assert.Equal(4, groups["ReaderMediaSidebarToggle"]);
-        // Four lines between the five groups of the default bar; the history return and full screen are a fifth group at the end.
-        Assert.Equal(4, GroupsOf(visible, groups).Zip(GroupsOf(visible, groups).Skip(1)).Count(pair => pair.First != pair.Second));
-        Assert.Equal(["ArchiveHistoryBack", "ArchiveReaderFullscreen"], all.TakeLast(2));
-        Assert.All(items.TakeLast(2), item => Assert.Equal(4, Group(item)));
+        Assert.Equal(2, groups["ReaderTagsOpen"]); Assert.Equal(2, groups["ExportArchiveButton"]);
+        Assert.Equal(3, groups["ReaderSettingsOpen"]); Assert.Equal(3, groups["ReaderThreadOpen"]);
+        Assert.Equal(4, groups["ArchiveHistoryBack"]);
+        Assert.Equal(5, groups["ArchiveThreadListToggle"]); Assert.Equal(5, groups["ArchiveReaderFullscreen"]); Assert.Equal(5, groups["ReaderMediaSidebarToggle"]);
+        // Five lines between the six groups when every item is shown; the default bar (no history return) has four.
+        Assert.Equal(5, GroupsOf(all, groups).Zip(GroupsOf(all, groups).Skip(1)).Count(pair => pair.First != pair.Second));
+        string[] shown = all.Where(name => name is not ("ReaderUnreadReturn" or "ReaderSkipUnavailableGroupMember" or "ArchiveHistoryBack")).ToArray();
+        Assert.Equal(4, GroupsOf(shown, groups).Zip(GroupsOf(shown, groups).Skip(1)).Count(pair => pair.First != pair.Second));
+        // The media sidebar switch ends the bar behind Full screen; the thread list switch stands left of Full screen.
+        Assert.Equal(["ArchiveThreadListToggle", "ArchiveReaderFullscreen", "ReaderMediaSidebarToggle"], all.TakeLast(3));
     }
 
     private static int[] GroupsOf(string[] names, Dictionary<string, int> groups) => names.Select(name => groups[name]).ToArray();
@@ -168,8 +171,8 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
             Assert.Equal(view == WorkView.Barebones ? OverflowMode.Always : OverflowMode.AsNeeded,
                 WorkViewPresenter.ToolBarMode(WorkViewPolicy.Resolve("reader.toolbar.fullscreen", view)));
         // The order a narrow window moves things under More, from the end (owner 14.11., the gear in View's place).
-        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
-            "reader.toolbar.settings", "reader.toolbar.thread", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
+        Assert.Equal(["reader.toolbar.gallery", "reader.toolbar.read", "reader.toolbar.media-sidebar", "reader.toolbar.thread-list", "reader.toolbar.find", "reader.toolbar.tags", "reader.toolbar.export",
+            "reader.toolbar.thread", "reader.toolbar.settings", "reader.toolbar.history-back", "reader.toolbar.fullscreen"], WorkViewPolicy.ReaderToolbarKeepVisibleOrder);
         // Every bar item of the XAML has its row (the id registry is checked against the page by the work-view tests).
         string[] ids = ToolbarItems().Select(item => item.Attributes().Single(attribute => attribute.Name.LocalName == "WorkViewElement.Id").Value).ToArray();
         Assert.Contains("reader.toolbar.settings", ids);

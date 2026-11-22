@@ -41,6 +41,10 @@ public sealed partial class TaggingPage
     // U06: an empty stamp stands as one quiet line beside the add field (trimmed, the full sentence as its tooltip), not as a wrapped block.
     private readonly TrimTipTextBlock _stampEmpty = new() { Name = "TaggingStampEmpty", Classes = { "workspace-help" }, AlwaysTip = true,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Stretch };
+    // TQ4: while the block is closed the head still shows what the stamp holds, as read-only chips (the closed block used to say only "(2)").
+    private readonly WrapPanel _stampSummary = new() { Name = "TaggingStampSummary", VerticalAlignment = VerticalAlignment.Center,
+        [!WrapPanel.ItemSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+        [!WrapPanel.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.4"), IsVisible = false };
     private readonly TextBox _stampInput = new() { Name = "TaggingStampInput", Width = 240, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _stampAdd = new() { Name = "TaggingStampAdd", VerticalAlignment = VerticalAlignment.Center };
     private TaggingStampBlockState _stampBlock = TaggingStampBlockState.Auto;
@@ -71,6 +75,7 @@ public sealed partial class TaggingPage
     private void OnSharedStampChanged() { if (!_queueWork.Ended) RenderStamp(); }
 
     internal WrapPanel StampChips => _stampChips;
+    internal WrapPanel StampSummaryChips => _stampSummary;
     internal TextBox StampInput => _stampInput;
 
     private Control BuildStamp()
@@ -78,10 +83,12 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_stampPanel, "tagging.stamp");
         _stampToggle.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { _stampArrow, _stampHeading } };
         // The help stands directly after the title it explains, not at the far edge of the page.
-        Grid head = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto"), ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
+        Grid head = new() { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8, VerticalAlignment = VerticalAlignment.Center };
         head.Children.Add(_stampToggle);
         Grid.SetColumn(_stampHelp, 1);
         head.Children.Add(_stampHelp);
+        Grid.SetColumn(_stampSummary, 2);
+        head.Children.Add(_stampSummary);
         _stampBody.Children.Add(_stampChips);
         Grid addTags = new() { Name = "TaggingStampAddTags", ColumnDefinitions = new ColumnDefinitions("240,Auto,*"),
             [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8") };
@@ -119,6 +126,7 @@ public sealed partial class TaggingPage
         bool open = TaggingStampBlocks.IsOpen(_stampBlock, WorkViewDensity.Compact(_workView));
         _stampBody.IsVisible = open;
         _stampToggle.IsChecked = open;
+        _stampSummary.IsVisible = !open && _queueWork.StampNames.Count > 0;
         _stampArrow.RenderTransform = open ? new RotateTransform(90) : null;
         if (_stampArrow.Content == null) _stampArrow.Content = CommandBindings.IconFromKey("chevron-right", 14);
         AutomationProperties.SetName(_stampToggle, StampTitle());
@@ -162,6 +170,13 @@ public sealed partial class TaggingPage
         IReadOnlyList<string> names = _queueWork.StampNames;
         foreach (string name in names) _stampChips.Children.Add(StampChip(name));
         _stampChips.IsVisible = names.Count > 0;
+        _stampSummary.Children.Clear();
+        foreach (string name in names)
+        {
+            Border chip = WorkspaceChips.MarkReadOnly(WorkspaceChips.CreateBadge("TaggingStampSummaryChip", name));
+            chip.VerticalAlignment = VerticalAlignment.Center;
+            _stampSummary.Children.Add(chip);
+        }
         _stampEmpty.IsVisible = names.Count == 0;
         _stampHeading.Text = StampTitle();
         ShowStampBlock();

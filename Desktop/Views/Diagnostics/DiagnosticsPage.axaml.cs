@@ -140,7 +140,7 @@ public partial class DiagnosticsPage : UserControl
         // changes its command context or hides the focused details editor.
         bool wide = Bounds.Width >= 1000;
         Grid split = this.FindControl<Grid>("DiagnosticSplit")!;
-        split.ColumnDefinitions[0].Width = new GridLength(wide ? 3 : 1, GridUnitType.Star);
+        split.ColumnDefinitions[0].Width = new GridLength(wide ? 5 : 1, GridUnitType.Star);
         split.ColumnDefinitions[1].Width = wide ? new GridLength(2, GridUnitType.Star) : new GridLength(0);
         split.ColumnSpacing = wide ? 12 : 0;
         split.RowSpacing = wide ? 0 : 12;

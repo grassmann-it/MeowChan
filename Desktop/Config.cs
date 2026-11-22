@@ -309,6 +309,11 @@ namespace MeowChan
         internal const int BooruResultTagsShownDefault = 12;
         internal const int BooruResultTagsShownMinimum = 0;
         internal const int BooruResultTagsShownMaximum = 200;
+        /// <summary>How many extra search tabs the Danbooru page may hold next to "Search" and "Watchers" (the tabs live for the session only).</summary>
+        public int BooruSearchTabs { get; set; } = BooruSearchTabsDefault;
+        internal const int BooruSearchTabsDefault = 8;
+        internal const int BooruSearchTabsMinimum = 1;
+        internal const int BooruSearchTabsMaximum = 32;
         /// <summary>MP5: the width of the media page's tag list in dip, set by dragging its edge (kept in <see cref="MediaLayout"/>, brought into this range when read).</summary>
         internal const int MediaTagListWidthDefault = 256;
         internal const int MediaTagListWidthMinimum = 180;
@@ -1374,6 +1379,11 @@ namespace MeowChan
         /// <summary>The one-time Downloads hint "read it in the Archive" was answered (dismissed, or its action used). Not a setting: no editor shows it.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool ArchiveBridgeHintSeen { get; set; }
+        /// <summary>The Archive's thread list is hidden by its toolbar switch (the reader takes the width). Not a setting: no editor shows it, the
+        /// reader toolbar's "Thread list" switch writes it. Only a window wide enough for list and reader side by side honours it; a narrow window
+        /// keeps its own list-or-reader choice.</summary>
+        [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
+        public bool ArchiveThreadListHidden { get; set; }
         internal const string StatusPageSegmentStatistics = "statistics";
         internal const string StatusPageSegmentDiagnostics = "diagnostics";
         /// <summary>The segment of the Status page that its footer button and menu entry open: the one used last. Not a
@@ -1669,6 +1679,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (BooruResultTagsShown is < BooruResultTagsShownMinimum or > BooruResultTagsShownMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
+            if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
@@ -1929,6 +1941,7 @@ namespace MeowChan
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
+                BooruSearchTabs = BooruSearchTabs,
                 MediaPanelMinimumPageWidth = MediaPanelMinimumPageWidth,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
@@ -2120,6 +2133,7 @@ namespace MeowChan
                 LastExportDirectory = LastExportDirectory,
                 GalleryFrameDirectory = GalleryFrameDirectory,
                 ArchiveBridgeHintSeen = ArchiveBridgeHintSeen,
+                ArchiveThreadListHidden = ArchiveThreadListHidden,
                 StatusPageSegment = StatusPageSegment,
                 LoadWarning = LoadWarning,
                 LoadProblem = LoadProblem,
@@ -2203,6 +2217,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruSearchTabs = source.BooruSearchTabs;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
@@ -2366,6 +2381,7 @@ namespace MeowChan
             LastExportDirectory = source.LastExportDirectory;
             GalleryFrameDirectory = source.GalleryFrameDirectory;
             ArchiveBridgeHintSeen = source.ArchiveBridgeHintSeen;
+            ArchiveThreadListHidden = source.ArchiveThreadListHidden;
             StatusPageSegment = source.StatusPageSegment;
             PluginEditorExecutable = source.PluginEditorExecutable;
             PluginEditorArguments = (string[])source.PluginEditorArguments.Clone();
@@ -2431,6 +2447,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruSearchTabs = source.BooruSearchTabs;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
