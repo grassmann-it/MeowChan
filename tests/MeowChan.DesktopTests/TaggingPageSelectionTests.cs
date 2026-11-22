@@ -19,13 +19,10 @@ public sealed class TaggingPageSelectionTests : IDisposable
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative)));
 
     [Fact]
-    public void TheViewSwitchCanMoveUnderMoreAndTheSelectionActionsAreRequired()
+    public void TheViewSwitchAndSelectionActionsStayOnTheSurface()
     {
-        Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.view-toggle", WorkView.Barebones));
-        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.view-toggle", WorkView.Simple));
-        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("tagging.view-toggle", WorkView.Advanced));
         string workView = Read("Desktop/Views/Tagging/TaggingPage.WorkView.cs");
-        foreach (string id in new[] { "tagging.selection-bar", "tagging.selection.status", "tagging.selection.tag",
+        foreach (string id in new[] { "tagging.view-toggle", "tagging.selection-bar", "tagging.selection.status", "tagging.selection.tag",
             "tagging.selection.done", "tagging.selection.more", "tagging.selection.clear" })
         {
             Assert.Contains($"\"{id}\"", workView);

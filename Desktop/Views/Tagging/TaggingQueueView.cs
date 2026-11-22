@@ -152,13 +152,13 @@ internal static class TaggingQueueView
 
     internal static string ProgressText(TagQueueSnapshot queue) => ProgressText(queue, null, false);
 
-    /// <summary>The count beside the Start button: "12 of 201" (finished or skipped of all shown).</summary>
+    /// <summary>Decisions out of the active queue scope, including entries hidden by the status filter.</summary>
     internal static (string Text, string Description) ProgressCount(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)
     {
         TaggingQueueCounts counts = Counts(queue, groupId, ungrouped, scope);
-        string decided = (counts.Done + counts.Skipped).ToString("N0", Texts.Culture);
-        string total = counts.Count.ToString("N0", Texts.Culture);
-        return (Texts.T("tagging.page.progress.count", decided, total), Texts.T("tagging.page.progress.done", decided, total));
+        int decided = counts.Done + counts.Skipped;
+        return (Texts.Count("tagging.page.progress.results", counts.Count, decided, counts.Count),
+            Texts.T("tagging.page.progress.done", decided.ToString("N0", Texts.Culture), counts.Count.ToString("N0", Texts.Culture)));
     }
 
     internal static string ProgressText(TagQueueSnapshot queue, string? groupId, bool ungrouped, Func<TagQueueItem, bool>? scope = null)

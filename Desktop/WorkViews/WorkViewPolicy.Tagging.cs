@@ -19,12 +19,9 @@ public static partial class WorkViewPolicy
         Same("tagging.stamp", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         Same("tagging.filter", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         Same("tagging.group", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
-        new("tagging.columns", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tagging.preview-column", OverflowOrder: 35),
-        // The shortcut reference lives in Help in every view, not in a separately gated footer row.
-        // TG1: the help button of the page sits at the end of the tool row; Barebones moves it under More.
-        new("tagging.help", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 50),
-        // TG1: "List | Grid" sits next to the filter; Barebones moves it under More (the saved view stays what it was).
-        new("tagging.view-toggle", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 40),
+        Same("tagging.columns", WorkViewPage.Tagging, WorkViewKind.Action, Required, "tagging.preview-column"),
+        Same("tagging.help", WorkViewPage.Tagging, WorkViewKind.Element, Required),
+        Same("tagging.view-toggle", WorkViewPage.Tagging, WorkViewKind.Element, Required),
         // The same actions are reachable at the same place in all three work views.
         Same("tagging.selection-bar", WorkViewPage.Tagging, WorkViewKind.Element, Required),
         Same("tagging.selection.status", WorkViewPage.Tagging, WorkViewKind.Element, Required),
@@ -32,7 +29,7 @@ public static partial class WorkViewPolicy
         Same("tagging.selection.done", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         Same("tagging.selection.more", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         Same("tagging.selection.clear", WorkViewPage.Tagging, WorkViewKind.Action, Required),
-        new("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.add", OverflowOrder: 10),
+        Same("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Required, "tagging.add"),
         new("tagging.toolbar.groups", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Overflow, Overflow, OverflowOrder: 15),
         new("tagging.toolbar.clear-done", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear-done", OverflowOrder: 20),
         new("tagging.toolbar.clear", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear", OverflowOrder: 30),

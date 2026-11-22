@@ -93,45 +93,39 @@ internal sealed class TaggingControlRow : Panel
 }
 
 /// <summary>
-/// Keeps five header groups in reading order, with a flexible walk group and a
-/// flexible gap after the filters on the second line. Measure chooses the detail
-/// and line breaks; arrange only distributes the remaining space.
+/// Measures the walk, tools and view controls in reading order. The walk takes
+/// the spare space on its line and the view controls dock to the right.
 /// </summary>
 internal sealed class TaggingHeader : Panel
 {
     internal const double GroupSpacing = 16;
     internal const double LineSpacing = 8;
-    private const double WideWidth = 1376;
-    private const double RestoreReserve = 8;
 
     [Flags]
-    private enum Compact { None = 0, View = 1, Count = 2, Stamp = 4 }
+    private enum Compact { None = 0, View = 1, Stamp = 2 }
 
-    private readonly Control _walk, _stamp, _presentation, _actions;
-    private readonly Grid _filters;
-    private readonly Control _count;
-    private readonly Action<bool> _setViewCompact, _setCountCompact, _setStampCompact;
+    private readonly Control _walk, _addAndHelp, _stamp, _filters, _more, _presentation;
+    private readonly Action<bool> _setStampCompact, _setViewCompact;
+    private readonly Action<double> _trimStartLabel;
     private readonly List<Line> _lines = new();
     private Compact _compact;
 
     private sealed record Line(Control[] Groups, double Width, double Height, double WalkWidth);
 
-    internal TaggingHeader(Control walk, Control stamp, Grid filters, Control count, Control presentation, Control actions,
-        Action<bool> setViewCompact, Action<bool> setCountCompact, Action<bool> setStampCompact)
+    internal TaggingHeader(Control walk, Control addAndHelp, Control stamp, Control filters, Control more, Control presentation,
+        Action<bool> setStampCompact, Action<bool> setViewCompact, Action<double> trimStartLabel)
     {
         _walk = walk;
+        _addAndHelp = addAndHelp;
         _stamp = stamp;
         _filters = filters;
-        _count = count;
+        _more = more;
         _presentation = presentation;
-        _actions = actions;
-        _setViewCompact = setViewCompact;
-        _setCountCompact = setCountCompact;
         _setStampCompact = setStampCompact;
-        Children.AddRange([walk, stamp, filters, presentation, actions]);
+        _setViewCompact = setViewCompact;
+        _trimStartLabel = trimStartLabel;
+        Children.AddRange([walk, addAndHelp, stamp, filters, more, presentation]);
     }
-
-    internal bool ResultCountCompact => _compact.HasFlag(Compact.Count);
 
     // These content changes happen during the header's own measure. Refresh the path
     // synchronously so the next fit attempt sees the new width through the templates.
@@ -146,22 +140,35 @@ internal sealed class TaggingHeader : Panel
         double width = availableSize.Width;
         _lines.Clear();
 
-        Control[] all = Visible(_walk, _stamp, _filters, _presentation, _actions);
-        if (width >= WideWidth && Fit(all, width, [_setViewCompact, _setCountCompact, _setStampCompact],
-                [Compact.View, Compact.Count, Compact.Stamp], out Compact wide))
+        _trimStartLabel(0);
+        _walk.Measure(Size.Infinity);
+        Control[] tools = Visible(_stamp, _filters, _more, _presentation);
+        Control[] all = [_walk, _addAndHelp, ..tools];
+        bool wide = width >= TaggingHeaderSettings.SingleRowMinWidth;
+        if (wide && Fit(all, width))
         {
-            _compact = wide;
-            AddLines(all, width);
+            AddLine(all, width);
         }
         else
         {
-            Control[] top = Visible(_walk, _stamp);
-            Control[] bottom = Visible(_filters, _presentation, _actions);
-            Fit(top, width, [_setStampCompact], [Compact.Stamp], out Compact upper);
-            Fit(bottom, width, [_setViewCompact, _setCountCompact], [Compact.View, Compact.Count], out Compact lower);
-            _compact = upper | lower;
-            AddLines(top, width);
-            AddLines(bottom, width);
+            if (wide)
+            {
+                _trimStartLabel(0);
+                _walk.Measure(Size.Infinity);
+            }
+            TrimWalk(_walk.DesiredSize.Width - width);
+            _addAndHelp.Measure(Size.Infinity);
+            bool actionsFitAbove = LineWidth([_walk, _addAndHelp]) <= width;
+            Control[] upper = actionsFitAbove ? [_walk, _addAndHelp] : [_walk];
+            Control[] lower = actionsFitAbove ? tools : [_addAndHelp, ..tools];
+            Fit(lower, width);
+
+            // At the fallback width, pack the final line from the right so the
+            // presentation and More stay together. Earlier tools keep their tab order.
+            int split = lower.Length - 1;
+            while (split > 0 && LineWidth(lower.AsSpan(split - 1)) <= width) split--;
+            Wrap([..upper, ..lower.AsSpan(0, split)], width);
+            AddLine(lower.AsSpan(split), width);
         }
 
         double height = 0, usedWidth = 0;
@@ -170,38 +177,52 @@ internal sealed class TaggingHeader : Panel
             height += line.Height;
             usedWidth = Math.Max(usedWidth, line.Width);
         }
-        return new Size(usedWidth, height + LineSpacing * Math.Max(0, _lines.Count - 1));
+        return new Size(usedWidth, height + LineSpacing * (_lines.Count - 1));
     }
 
-    private bool Fit(Control[] groups, double width, Action<bool>[] setters, Compact[] steps, out Compact compact)
+    private bool Fit(Control[] groups, double width)
     {
-        Compact details = Compact.None;
-        for (int i = 0; i < steps.Length; i++)
+        _setViewCompact(false);
+        _setStampCompact(false);
+        Compact previous = _compact;
+        _compact = Compact.None;
+        foreach (Control group in groups) group.Measure(Size.Infinity);
+        if (Fits()) return true;
+
+        _compact |= Compact.View;
+        _setViewCompact(true);
+        _presentation.Measure(Size.Infinity);
+        if (Fits()) return true;
+
+        _compact |= Compact.Stamp;
+        _setStampCompact(true);
+        _stamp.Measure(Size.Infinity);
+        if (Fits()) return true;
+
+        // Preserve the one-row layout in locales with longer resume labels.
+        if (!ReferenceEquals(groups[0], _walk)) return false;
+        TrimWalk(LineWidth(groups) - width);
+        return LineWidth(groups) <= width;
+
+        bool Fits()
         {
-            setters[i](false);
-            details |= steps[i];
+            double reserve = (previous & ~_compact) != Compact.None ? TaggingHeaderSettings.RestoreReserve : 0;
+            // Re-measure from natural width at every stage so compacting a
+            // label gives the dropdowns back any space they can use.
+            _filters.Measure(Size.Infinity);
+            double excess = LineWidth(groups) + reserve - width;
+            if (excess <= 0) return true;
+            double budget = Math.Max(_filters.MinWidth, _filters.DesiredSize.Width - excess);
+            _filters.Measure(new Size(budget, double.PositiveInfinity));
+            return LineWidth(groups) + reserve <= width;
         }
+    }
 
-        compact = Compact.None;
-        for (int i = 0; ; i++)
-        {
-            double reserve = (_compact & details & ~compact) != Compact.None ? RestoreReserve : 0;
-            foreach (Control group in groups) group.Measure(Size.Infinity);
-
-            double measured = LineWidth(groups);
-            if (measured + reserve <= width) return true;
-            if (Array.IndexOf(groups, _filters) >= 0)
-            {
-                double minimum = _filters.MinWidth + (_count.IsVisible ? _count.DesiredSize.Width : 0);
-                double budget = Math.Max(minimum, _filters.DesiredSize.Width - (measured + reserve - width));
-                _filters.Measure(new Size(budget, double.PositiveInfinity));
-                if (LineWidth(groups) + reserve <= width) return true;
-            }
-
-            if (i == steps.Length) return false;
-            compact |= steps[i];
-            setters[i](true);
-        }
+    private void TrimWalk(double excess)
+    {
+        if (excess <= 0) return;
+        _trimStartLabel(excess);
+        _walk.Measure(Size.Infinity);
     }
 
     private static Control[] Visible(params Control[] groups) => Array.FindAll(groups, group => group.IsVisible);
@@ -213,26 +234,30 @@ internal sealed class TaggingHeader : Panel
         return width;
     }
 
-    private void AddLines(ReadOnlySpan<Control> groups, double width)
+    private void Wrap(ReadOnlySpan<Control> groups, double width)
     {
         while (!groups.IsEmpty)
         {
             int count = 1;
             while (count < groups.Length && LineWidth(groups[..(count + 1)]) <= width) count++;
-            ReadOnlySpan<Control> line = groups[..count];
-            double minimum = LineWidth(line);
-            double extra = double.IsFinite(width) ? Math.Max(0, width - minimum) : 0;
-            double walkWidth = 0;
-            if (ReferenceEquals(line[0], _walk))
-            {
-                walkWidth = _walk.DesiredSize.Width;
-                _walk.Measure(new Size(walkWidth + extra, double.PositiveInfinity));
-            }
-            double height = 0;
-            foreach (Control group in line) height = Math.Max(height, group.DesiredSize.Height);
-            _lines.Add(new Line(line.ToArray(), minimum, height, walkWidth));
+            AddLine(groups[..count], width);
             groups = groups[count..];
         }
+    }
+
+    private void AddLine(ReadOnlySpan<Control> groups, double width)
+    {
+        double minimum = LineWidth(groups);
+        double walkWidth = 0;
+        if (ReferenceEquals(groups[0], _walk))
+        {
+            walkWidth = _walk.DesiredSize.Width;
+            double extra = double.IsFinite(width) ? Math.Max(0, width - minimum) : 0;
+            _walk.Measure(new Size(walkWidth + extra, double.PositiveInfinity));
+        }
+        double height = 0;
+        foreach (Control group in groups) height = Math.Max(height, group.DesiredSize.Height);
+        _lines.Add(new Line(groups.ToArray(), minimum, height, walkWidth));
     }
 
     protected override Size ArrangeOverride(Size finalSize)
@@ -242,17 +267,16 @@ internal sealed class TaggingHeader : Panel
         {
             double x = 0;
             double extra = Math.Max(0, finalSize.Width - line.Width);
-            bool hasWalk = ReferenceEquals(line.Groups[0], _walk);
             foreach (Control group in line.Groups)
             {
-                if (!hasWalk && (ReferenceEquals(group, _presentation) || ReferenceEquals(group, _actions)))
+                Size size = group.DesiredSize;
+                double width = size.Width;
+                if (ReferenceEquals(group, _walk))
                 {
-                    x += extra;
+                    width = line.WalkWidth + extra;
                     extra = 0;
                 }
-
-                Size size = group.DesiredSize;
-                double width = ReferenceEquals(group, _walk) ? line.WalkWidth + extra : size.Width;
+                if (ReferenceEquals(group, _presentation)) x += extra;
                 group.Arrange(new Rect(x, y + (line.Height - size.Height) / 2, width, size.Height));
                 x += width + GroupSpacing;
             }

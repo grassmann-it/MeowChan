@@ -40,7 +40,7 @@ public sealed class PluralCountTextTests : IDisposable
         "readerGroups.matchesNarrow", "reader.newPostsCount", "rules.changedScopes", "selection.failed", "sources.count",
         "tags.manage.orphansUnchecked", "tags.dialog.usesName", "tags.dialog.row.all", "tags.dialog.removedMany",
         "tags.suggest.count", "work.missingAndErrors", "work.interventionCount", "booru.ui.status.results",
-        "booru.ui.post.favorites", "queue.ask",
+        "booru.ui.post.favorites", "queue.ask", "tagging.page.progress.results",
         "media.count.media", "media.count.threads", "archive.delete.threads", "archive.delete.files",
         "archive.delete.bytes", "import.done.tags", "export.collectionSelection", "media.filter.count", "media.untagged.hint"
     };
@@ -131,7 +131,7 @@ public sealed class PluralCountTextTests : IDisposable
             ["Desktop/Views/Media/ManualImportSession.cs"] = ["import.limit.files", "import.tags.tooMany"],
             ["Desktop/Views/Archive/ArchivePage.ThreadFind.cs"] = ["readerFind.count"],
             ["Desktop/WorkStatusFormatter.cs"] = ["work.interventionCount"],
-            ["Desktop/Booru/BooruText.cs"] = ["booru.ui.status.results", "booru.ui.post.favorites"],
+            ["Desktop/Booru/BooruText.cs"] = ["booru.ui.status.results", "booru.ui.post.favorites", "booru.ui.tab.watchers"],
             ["Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs"] = ["readerGroups.matches", "readerGroups.matchesNarrow"],
         };
         List<string> offenders = new();
@@ -237,6 +237,23 @@ public sealed class PluralCountTextTests : IDisposable
                 Assert.Contains(count.ToString(CultureInfo.InvariantCulture), text);
             }
         }
+    }
+
+    [Theory]
+    [InlineData("en", 0, 0, "0 of 0 results")]
+    [InlineData("en", 0, 1, "0 of 1 result")]
+    [InlineData("en", 1, 201, "1 of 201 results")]
+    [InlineData("en", 1234, 5678, "1,234 of 5,678 results")]
+    [InlineData("de", 0, 1, "0 von 1 Treffer")]
+    [InlineData("de", 0, 201, "0 von 201 Treffern")]
+    [InlineData("ru", 2, 21, "2 из 21 результата")]
+    [InlineData("ru", 1, 22, "1 из 22 результатов")]
+    [InlineData("ru", 1, 11, "1 из 11 результатов")]
+    [InlineData("ja", 2, 21, "結果 21 件中 2 件")]
+    public void TaggingProgressUsesTheTotalForPluralSelection(string code, int decided, int total, string expected)
+    {
+        Texts.SetLanguage(code);
+        Assert.Equal(expected, Texts.Count("tagging.page.progress.results", total, decided, total));
     }
 
     [Theory]

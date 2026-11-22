@@ -319,7 +319,7 @@ public sealed class TaggingLayoutRhythmTests
             Assert.Same(page.StartButton, Assert.Single(EnabledPrimaries()));
         }
         IEnumerable<Button> EnabledPrimaries() => ((ILogical)page).GetLogicalDescendants().OfType<Button>()
-            .Concat(page.Actions.Items.OfType<Button>()).Distinct()
+            .Concat(page.Header.Children.OfType<ActionToolBar>().SelectMany(toolbar => toolbar.Items).OfType<Button>()).Distinct()
             .Where(b => b.IsEffectivelyVisible && b.IsEnabled && b.Classes.Contains("primary"));
     });
 }

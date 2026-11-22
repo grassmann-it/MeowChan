@@ -45,13 +45,14 @@ public sealed partial class TaggingPage
     private void RefreshWorkView()
     {
         if (_queueWork.Ended) return;
+        WorkViewPresenter.ApplyToolBar(_addAndHelp, _workView);
         WorkViewPresenter.ApplyToolBar(_actions, _workView);
         WorkViewPresenter.ApplyToolBar(_listPresentation, _workView);
         ApplyToolbarIcons();
         ApplyDensity();
         _actions.RefreshOverflowLabel();
         WorkViewGate.Apply(_selectionBar, _workView, stateVisible: SelectedCount > 0);
-        WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0);
+        WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0 || _queueWork.Loaded && _queueWork.ErrorText == null);
         WorkViewGate.Apply(_error, _workView, stateVisible: !string.IsNullOrEmpty(_errorText.Text));
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: _clearConfirm.IsVisible);
         WorkViewGate.Apply(_stampButton, _workView);

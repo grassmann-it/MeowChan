@@ -56,23 +56,24 @@ public sealed class TaggingRowStructureTests
         StackPanel queue = Find<StackPanel>(page, "TaggingQueueControls");
         Assert.Equal(new[] { "TaggingHeader", "TaggingStatus", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
         TaggingHeader header = page.Header;
-        Assert.Equal(new[] { "TaggingWalk", "TaggingStamp", "TaggingResultFilters", "TaggingListPresentation", "TaggingActions" },
+        Assert.Equal(new[] { "TaggingWalk", "TaggingAddAndHelp", "TaggingStamp", "TaggingResultFilters", "TaggingActions", "TaggingListPresentation" },
             header.Children.Select(c => c.Name));
-        Assert.Same(page.Actions, header.Children[^1]);
+        Assert.Same(page.Actions, header.Children[^2]);
         Grid walk = Assert.IsType<Grid>(header.Children[0]);
         Assert.Equal(new[] { "TaggingTitle", "TaggingStart", "TaggingProgress" }, walk.Children.Select(c => c.Name));
         Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, Find<Grid>(page, "TaggingProgress").Children.Select(c => c.Name));
         Assert.Contains(page.ProgressText, ((ILogical)header).GetLogicalDescendants());
-        Assert.Equal(new[] { "TaggingAdd", "TaggingHelp", "TaggingGroupManage", "TaggingClearDone", "TaggingClear" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
+        ActionToolBar quickActions = Assert.IsType<ActionToolBar>(header.Children[1]);
+        Assert.Equal(new Control[] { page.AddButton, page.HelpButton }, quickActions.Items.Cast<Control>());
+        Assert.Equal(new[] { "TaggingGroupManage", "TaggingClearDone", "TaggingClear" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
+        Assert.DoesNotContain(((ILogical)header).GetLogicalDescendants().OfType<Control>(), control => control.Name == "TaggingResultCount");
         Assert.DoesNotContain(((ILogical)page).GetLogicalDescendants().OfType<Control>(), c => c.Name is "TaggingKeysHint" or "TaggingBrowseHint" or "TaggingSecondaryToolbar");
         Grid listArea = Find<Grid>(page, "TaggingListArea");
         Assert.Equal(new[] { "TaggingSelectionBar", "TaggingListSurface" }, listArea.Children.Select(c => c.Name));
         Assert.Equal(new[] { 0, 1 }, listArea.Children.Select(Grid.GetRow));
         Grid filters = Find<Grid>(page, "TaggingResultFilters");
-        Assert.Same(page.ResultCount, filters.Children[1]);
-        Grid boxes = Assert.IsType<Grid>(filters.Children[0]);
-        Assert.Equal(new Control[] { page.GroupBox, page.FilterBox }, boxes.Children);
-        Assert.Equal(8, boxes.ColumnSpacing);
+        Assert.Equal(new Control[] { page.GroupBox, page.FilterBox }, filters.Children);
+        Assert.Equal(8, filters.ColumnSpacing);
         Assert.Equal(OverflowMode.Always, ToolBar.GetOverflowMode(page.GroupManageButton));
         ActionToolBar presentation = Find<ActionToolBar>(page, "TaggingListPresentation");
         Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
@@ -218,41 +219,49 @@ public sealed class TaggingRowStructureTests
     });
 
     [Fact]
-    public void HeaderCompactsOnlyTheAffectedLineAndRestoresLabelsWithEightDipToSpare() => BooruComponentDispatcher.Run(() =>
+    public void HeaderKeepsTheViewControlsRightAndRestoresLabelsWithEightDipToSpare() => BooruComponentDispatcher.Run(() =>
     {
         Border walk = new() { MinWidth = 330, Height = 32 };
-        Border stamp = new() { Height = 32 };
-        Border boxes = new() { Width = 240, Height = 32 };
-        Border count = new() { Width = 80, Height = 24 };
-        Border views = new() { Height = 32 };
         Border actions = new() { Width = 120, Height = 32 };
-        Grid filters = new() { MinWidth = 240, ColumnDefinitions = new ColumnDefinitions("*,Auto"), Children = { boxes, count } };
-        Grid.SetColumn(count, 1);
-        TaggingHeader header = new(walk, stamp, filters, count, views, actions,
-            compact => views.Width = compact ? 80 : 180, compact => count.IsVisible = !compact,
-            compact => stamp.Width = compact ? 100 : 130);
+        Border stamp = new() { Height = 32 };
+        Border filters = new() { Width = 240, MinWidth = 240, Height = 32 };
+        Border more = new() { Width = 32, Height = 32 };
+        Border views = new() { Height = 32 };
+        TaggingHeader header = new(walk, actions, stamp, filters, more, views,
+            compact => stamp.Width = compact ? 100 : 130, compact => views.Width = compact ? 80 : 180, _ => { });
 
         Layout(header, 652);
         Assert.Equal(180, views.Bounds.Width);
-        Assert.Equal(652, actions.Bounds.Right);
+        Assert.Equal(652, views.Bounds.Right);
         Assert.Equal(40, views.Bounds.Top);
-        Assert.Equal(506, walk.Bounds.Width);
-        Layout(header, 651);
+        Assert.Equal(516, walk.Bounds.Width);
+        Assert.Equal(532, actions.Bounds.Left);
+
+        Layout(header, 629);
         Assert.Equal(80, views.Bounds.Width);
-        Assert.True(count.IsVisible);
         Assert.Equal(130, stamp.Bounds.Width);
-        Layout(header, 659);
+        Layout(header, 637);
         Assert.Equal(80, views.Bounds.Width);
-        Layout(header, 660);
+        Layout(header, 638);
         Assert.Equal(180, views.Bounds.Width);
-        Layout(header, 530);
-        Assert.Equal(80, views.Bounds.Width);
-        Assert.False(count.IsVisible);
-        Assert.Equal(130, stamp.Bounds.Width);
-        Layout(header, 475);
+
+        walk.MinWidth = 548;
+        Layout(header, 648);
+        Assert.Equal(40, actions.Bounds.Top);
+        Assert.Equal(actions.Bounds.Top, stamp.Bounds.Top);
+        Assert.Equal(actions.Bounds.Top, views.Bounds.Top);
+        Assert.Equal(648, views.Bounds.Right);
+
+        walk.MinWidth = 330;
+        Layout(header, 416);
         Assert.Equal(100, stamp.Bounds.Width);
-        Assert.Equal(40, views.Bounds.Top);
-        Assert.Same(header, stamp.Parent);
+        Assert.Equal(40, actions.Bounds.Top);
+        Assert.Equal(40, stamp.Bounds.Top);
+        Assert.Equal(80, filters.Bounds.Top);
+        Assert.Equal(filters.Bounds.Top, views.Bounds.Top);
+        Assert.Equal(416, views.Bounds.Right);
+        Assert.True(more.Bounds.Right + TaggingHeader.GroupSpacing <= views.Bounds.Left);
+        Assert.Equal(new Control[] { walk, actions, stamp, filters, more, views }, header.Children);
     });
 
     [Fact]
