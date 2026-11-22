@@ -24,7 +24,7 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
     {
         Texts.SetLanguage("en");
 
-        Assert.Equal("Large reader post area · current thread",
+        Assert.Equal("Reader post area · current thread",
             CommandCatalog.ScopeHint("gallery.open", CommandScope.Reader));
         Assert.Equal("Current reader thread · outside inputs and dialogs",
             CommandCatalog.ScopeHint("export.open-html-dialog", CommandScope.Reader));
@@ -64,11 +64,11 @@ public sealed class CommandScopeGalleryLocalizationTests : IDisposable
     }
 
     [Fact]
-    public void ScopeEntriesPreserveLegacyEnglishGermanTextAndLocalizeTooltipSuffixes()
+    public void ScopeEntriesLocalizeTooltipSuffixes()
     {
         var expected = new (string Key, string English, string German, string Spanish, string French, string Russian)[]
         {
-            ("command.scope.gallery-open.reader", "Large reader post area · current thread", "Post-Bereich im großen Reader · aktuell gelesener Thread", "Área de publicaciones del lector grande · hilo actual", "Zone des messages du grand lecteur · fil actuel", "Область постов в развёрнутой читалке · текущий тред"),
+            ("command.scope.gallery-open.reader", "Reader post area · current thread", "Post-Bereich im Reader · aktuell gelesener Thread", "Área de publicaciones del lector · hilo actual", "Zone des messages du lecteur · fil actuel", "Область постов в читалке · текущий тред"),
             ("command.scope.export-open-html.reader", "Current reader thread · outside inputs and dialogs", "Aktuell gelesener Thread · außerhalb von Eingaben und Dialogen", "Hilo actual del lector · fuera de entradas y diálogos", "Fil actuel du lecteur · hors des champs de saisie et des dialogues", "Текущий тред в читалке · вне полей ввода и диалогов"),
             ("command.scope.reader.expand", "In the thread list: Enter", "In der Threadliste: Enter", "En la lista de hilos: Enter", "Dans la liste des fils : Enter", "В списке тредов: Enter"),
             ("command.scope.reader.find", "With the focus in the reader", "Mit Fokus im Reader", "Con el foco en el lector", "Avec le focus dans le lecteur", "Когда фокус в читалке"),

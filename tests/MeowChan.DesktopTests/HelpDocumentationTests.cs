@@ -840,7 +840,7 @@ public sealed class HelpDocumentationTests
         string cards = Plain(Section(Read(Help), "Reading posts as cards"));
         string display = Plain(Section(Read(Help), "Reader display settings"));
         AssertNumber(display, @"widths default to (?<value>\d+) pixels", ReaderDisplayPreferences.ReaderThumbnailWidthDefault);
-        AssertNumber(display, @"and (?<value>\d+) pixels in the large reader",
+        AssertNumber(display, @"and (?<value>\d+) pixels in the Reader",
             ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderDisplayPreferences.ReaderThumbnailWidthDefault, true));
         AssertNumber(cards, @"longer than (?<value>\d+) UTF-16 code units", ReaderExternalLink.MaxLength);
         Assert.Contains("only for this app session, not after a restart", cards);
