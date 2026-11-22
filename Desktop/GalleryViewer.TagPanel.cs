@@ -79,7 +79,7 @@ internal sealed partial class GalleryViewer
         _sidePanel.HeaderCounter = surface.DetachCounter();
         Grid.SetColumn(surface.Title, 0);
         Grid.SetColumnSpan(surface.Title, surface.Header.ColumnDefinitions.Count);
-        surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Center;
+        surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Left;
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };

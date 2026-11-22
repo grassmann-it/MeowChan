@@ -75,7 +75,7 @@ internal static class GalleryMediaTagChecks
             // and the Tags segment brings the panel back for the same medium.
             Require(viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags && viewer.SidePanel.TagsButton.IsChecked == true
                 && !viewer.TagSurface!.CloseButton.IsVisible, "The tag panel is not the Tags segment of the side panel.");
-            // The live counter sits centered above both segments.
+            // The live counter sits at the left above both segments.
             double panelWidth = viewer.PanelWidth;
             foreach (string counterLanguage in new[] { "en", "de" })
             {
@@ -94,11 +94,11 @@ internal static class GalleryMediaTagChecks
                         "The moved counter lost localization or polite announcements.");
                     var origin = counter.TranslatePoint(default, viewer.SidePanel)!.Value;
                     var segment = (Control)viewer.SidePanel.PostButton.Parent!;
-                    double center = viewer.SidePanel.Bounds.Width / 2;
-                    double centerDelta = Math.Abs(origin.X + counter.Bounds.Width / 2 - center);
-                    Require(origin.Y + counter.Bounds.Height <= segment.Bounds.Top && centerDelta <= 1,
-                        $"The counter is not centered above the header actions (delta {centerDelta}, counter {origin}/{counter.Bounds.Size}).");
-                    Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, centerDelta={centerDelta:F3}, counter={origin}/{counter.Bounds.Size}");
+                    double closeRight = viewer.SidePanel.CloseButton.Bounds.Right;
+                    Require(origin.Y + counter.Bounds.Height <= segment.Bounds.Top && Math.Abs(origin.X) <= 1
+                        && Math.Abs(closeRight - viewer.SidePanel.Bounds.Width) <= 1,
+                        $"The gallery header is misaligned (counter {origin}/{counter.Bounds.Size}, close edge {closeRight}).");
+                    Console.WriteLine($"SMOKE gallery counter metrics: language={counterLanguage}, width={width}, counter={origin}/{counter.Bounds.Size}");
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }
             }
@@ -110,7 +110,7 @@ internal static class GalleryMediaTagChecks
             Require(viewer.SidePanel.HeaderCounter == null, "The released tag surface left a stale counter in the header.");
             window.UpdateLayout();
             var where = viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<SelectableTextBlock>().Single(line => line.Name == "GalleryPostWhere");
-            Require(where.TextAlignment == Avalonia.Media.TextAlignment.Center, "The Post metadata is not centered.");
+            Require(where.TextAlignment == Avalonia.Media.TextAlignment.Left, "The Post metadata is not left-aligned.");
             CheckDecisionAlignment(viewer.PostDecisionRow!);
             Program.CaptureWindow(window, "smoke-gallery-post-header.png");
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

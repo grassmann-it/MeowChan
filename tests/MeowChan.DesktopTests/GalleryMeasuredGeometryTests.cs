@@ -93,13 +93,12 @@ public sealed class GalleryMeasuredGeometryTests
         return new Rect(origin, control.Bounds.Size);
     }
 
-    private static void AssertCenteredAboveControls(Control counter, GallerySidePanel panel)
+    private static void AssertLeftAlignedAboveControls(Control counter, GallerySidePanel panel)
     {
         Rect bounds = BoundsIn(counter, panel);
         Assert.True(counter.IsEffectivelyVisible);
         Assert.True(bounds.Width > 0 && bounds.Height > 0, $"Counter bounds: {bounds}");
-        Assert.InRange(bounds.Center.X, panel.Bounds.Width / 2 - 0.5, panel.Bounds.Width / 2 + 0.5);
-        Assert.InRange(bounds.Left, -0.5, panel.Bounds.Width);
+        Assert.InRange(bounds.Left, -0.5, 0.5);
         Assert.InRange(bounds.Right, 0, panel.Bounds.Width + 0.5);
         foreach (Control control in new[] { panel.PostButton, panel.TagsButton, panel.CloseButton })
         {
@@ -113,12 +112,12 @@ public sealed class GalleryMeasuredGeometryTests
     [InlineData(280)]
     [InlineData(320)]
     [InlineData(480)]
-    public void MediumCounterIsCenteredAcrossThePanelAboveTabsAndClose(double width) => WithSidePanel(width, panel =>
+    public void MediumCounterIsLeftAlignedAboveTabsAndClose(double width) => WithSidePanel(width, panel =>
     {
         TextBlock counter = new() { Text = "Medium 1 of 4" };
         panel.HeaderCounter = counter;
         panel.UpdateLayout();
-        AssertCenteredAboveControls(counter, panel);
+        AssertLeftAlignedAboveControls(counter, panel);
     });
 
     [Theory]
@@ -129,7 +128,7 @@ public sealed class GalleryMeasuredGeometryTests
     [InlineData("pl", 280)]
     [InlineData("fr", 320)]
     [InlineData("es", 248)] // 280 dip minus the panel's two 16-dip insets
-    public void LocalizedShortCounterIsCenteredAboveTheTabsAndKeepsTheirHeight(string language, double width) => WithSidePanel(width, panel =>
+    public void LocalizedShortCounterIsLeftAlignedAboveTheTabsAndKeepsTheirHeight(string language, double width) => WithSidePanel(width, panel =>
     {
         Texts.SetLanguage(language);
         panel.Localize();
@@ -148,7 +147,7 @@ public sealed class GalleryMeasuredGeometryTests
         panel.HeaderCounter = counter;
         panel.UpdateLayout();
 
-        AssertCenteredAboveControls(counter, panel);
+        AssertLeftAlignedAboveControls(counter, panel);
         TextBlock label = Assert.IsType<TextBlock>(counter.Child);
         Assert.Equal(surface.CounterShortText, label.Text);
         Assert.True(label.Bounds.Width > 0 && label.Bounds.Height > 0);
@@ -164,7 +163,7 @@ public sealed class GalleryMeasuredGeometryTests
         panel.HeaderCounter = counter;
         panel.UpdateLayout();
 
-        AssertCenteredAboveControls(counter, panel);
+        AssertLeftAlignedAboveControls(counter, panel);
         Assert.True(BoundsIn(panel.TagsButton, panel).Top >= BoundsIn(panel.PostButton, panel).Bottom);
         Rect close = BoundsIn(panel.CloseButton, panel);
         Assert.Equal(140, close.Right, 0.5);
@@ -173,7 +172,7 @@ public sealed class GalleryMeasuredGeometryTests
         panel.Width = 280;
         panel.UpdateLayout();
 
-        AssertCenteredAboveControls(counter, panel);
+        AssertLeftAlignedAboveControls(counter, panel);
         Assert.Equal(BoundsIn(panel.PostButton, panel).Top, BoundsIn(panel.TagsButton, panel).Top, 0.5);
         Assert.True(BoundsIn(panel.TagsButton, panel).Right < BoundsIn(panel.CloseButton, panel).Left);
     });
