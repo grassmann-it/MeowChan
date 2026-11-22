@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 
 namespace MeowChan.Persistence;
 
@@ -263,6 +264,14 @@ public sealed class ProfileLease : IDisposable
         if (_directoryIdentity is null)
             throw new InvalidDataException("The leased profile directory identity is unavailable.");
         _directoryIdentity.EnsureMatches(ProfileDirectory);
+        return true;
+    });
+
+    internal void EnsureDirectoryIdentity(SafeFileHandle directory) => RunExclusive(() =>
+    {
+        if (_directoryIdentity is null)
+            throw new InvalidDataException("The leased profile directory identity is unavailable.");
+        _directoryIdentity.EnsureMatches(directory);
         return true;
     });
 

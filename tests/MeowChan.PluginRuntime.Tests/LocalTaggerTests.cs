@@ -40,7 +40,8 @@ public sealed class LocalTaggerTests
         LocalTaggerModelStore reloaded = new(restarted);
         LocalTaggerModelPackage? installed = await reloaded.VerifyInstalledAsync(CancellationToken.None);
         Assert.Equal(approvedHash, installed?.ManifestSha256);
-        Assert.Single(Directory.EnumerateDirectories(Path.GetDirectoryName(installed!.DirectoryPath)!));
+        Assert.Single(Directory.EnumerateFiles(Path.GetDirectoryName(installed!.DirectoryPath)!,
+            LocalTaggerModelManifest.WeightsFileName, SearchOption.AllDirectories));
 
         TagSuggestionStore suggestions = new(restarted);
         await using PluginWorkerManager manager = new();
