@@ -414,6 +414,7 @@ internal static class TaggingPageChecks
         Require(Math.Abs(bar.Bounds.Width - TaggingPage.MiniBarWidth) <= 1, "The theme widened the compact progress bar.");
         double originalWidth = window.Width;
         double originalMaxWidth = tagging.MaxWidth;
+        Exception? checkFailure = null;
         try
         {
             window.Width = window.MinWidth;
@@ -431,12 +432,20 @@ internal static class TaggingPageChecks
             Require(tagging.ViewMode == mode && Config.LoadConfig().TaggingPageView == mode.ToString(), "Resizing changed the saved view.");
             Console.WriteLine($"SMOKE tagging header: icon-only at {tagging.ListControls.Bounds.Width} DIP of toolbar space.");
         }
+        catch (Exception error)
+        {
+            checkFailure = error;
+            throw;
+        }
         finally
         {
-            tagging.MaxWidth = originalMaxWidth;
-            window.Width = originalWidth;
-            await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - originalWidth) <= 1);
-            await SettleAsync(window);
+            await SmokeCleanup.RunAsync(checkFailure, async () =>
+            {
+                tagging.MaxWidth = originalMaxWidth;
+                window.Width = originalWidth;
+                await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - originalWidth) <= 1);
+                await SettleAsync(window);
+            }, error => Console.Error.WriteLine("SMOKE tagging header cleanup failed: " + error));
         }
         CheckSegments(tagging, labelsVisible: true);
         Console.WriteLine($"SMOKE tagging header: labelled at {tagging.ListControls.Bounds.Width} DIP of toolbar space.");
