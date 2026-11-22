@@ -16,15 +16,15 @@ public sealed class BooruPresentationActionGateTests
         bool available = true;
         int handoffs = 0;
         Func<bool> gate = () => available;
-        Func<string, bool> handoff = _ => { handoffs++; return true; };
+        Func<string, (bool Opened, int? Limit)> handoff = _ => { handoffs++; return (true, null); };
 
         Assert.True(BooruMediaDetailsDialog.IsSearchActionAvailable(gate, handoff));
-        Assert.True(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "cat"));
+        Assert.True(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "cat").Opened);
         Assert.Equal(1, handoffs);
 
         available = false;
         Assert.False(BooruMediaDetailsDialog.IsSearchActionAvailable(gate, handoff));
-        Assert.False(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "new_composition"));
+        Assert.False(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "new_composition").Opened);
         Assert.Equal(1, handoffs);
     }
 
@@ -35,13 +35,13 @@ public sealed class BooruPresentationActionGateTests
         object currentServices = openedServices;
         int handoffs = 0;
         Func<bool> gate = () => ReferenceEquals(openedServices, currentServices);
-        Func<string, bool> handoff = _ => { handoffs++; return true; };
+        Func<string, (bool Opened, int? Limit)> handoff = _ => { handoffs++; return (true, null); };
 
-        Assert.True(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "cat"));
+        Assert.True(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "cat").Opened);
         currentServices = new object();
 
         Assert.False(BooruMediaDetailsDialog.IsSearchActionAvailable(gate, handoff));
-        Assert.False(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "must_not_reach_new_page"));
+        Assert.False(BooruMediaDetailsDialog.TryUseAsSearch(gate, handoff, "must_not_reach_new_page").Opened);
         Assert.Equal(1, handoffs);
     }
 
@@ -49,7 +49,7 @@ public sealed class BooruPresentationActionGateTests
     public void MissingHostHandoffDoesNotOfferAQueryAction()
     {
         Assert.False(BooruMediaDetailsDialog.IsSearchActionAvailable(() => true, null));
-        Assert.False(BooruMediaDetailsDialog.TryUseAsSearch(() => true, null, "cat"));
+        Assert.False(BooruMediaDetailsDialog.TryUseAsSearch(() => true, null, "cat").Opened);
     }
 
     [Fact]

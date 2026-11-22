@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.VisualTree;
@@ -6,17 +7,19 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
+using MeowChan.Storage;
 using MeowChan.Tags;
 
 namespace MeowChan.DesktopSmoke;
 
 // Root dispatch only: MEOWCHAN_TAGGING_PAGE_ONLY. PT2: the tagging page in the real main window over the real host and tag-queue.json
-// (three synthetic queue entries, no media files): the footer button opens it, progress and start label, Delete and Alt+Down from
+// (three synthetic queue entries without files): the footer button opens it, progress and start label, Delete and Alt+Down from
 // the list, the context menu, the stamp editor, the state filter, the clear question, the three work views and Light/Dark/English/
-// German captures. "Start tagging" uses PT1's walk; with no saved files it only says that nothing is available. Managed input only.
+// German captures. The explicit gallery command uses a separate pair of archived images. Managed input only.
 internal static class TaggingPageChecks
 {
     private static readonly ResourceId Thread = new("4chan", "g", "123");
@@ -243,6 +246,7 @@ internal static class TaggingPageChecks
             await Program.WaitUntilAsync(() => window.SessionHost.GetTagQueue()!.Count == 0 && tagging.Rows.Count == 0);
             Require(!tagging.StartButton.IsEnabled, "Start stays enabled on an empty queue.");
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
+            await CheckGalleryCommandAsync(window, tagging);
             Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE captures.");
         }
         finally
@@ -250,6 +254,81 @@ internal static class TaggingPageChecks
             await PresentationChecks.SwitchModeAsync(window, mode);
             await FooterNavigationChecks.PersistLanguageAsync(window, language);
         }
+    }
+
+    private static async Task CheckGalleryCommandAsync(MainWindow window, TaggingPage tagging)
+    {
+        TimeSpan deadline = TimeSpan.FromSeconds(15);
+        DesktopSessionHost session = window.SessionHost;
+        MediaLibrarySnapshot library = await MediaLibraryIndexBuilder.BuildAsync(session.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync);
+        MediaLibraryEntry a = library.Entries.Single(entry => entry.PostId == "100");
+        MediaLibraryEntry b = library.Entries.Single(entry => entry.PostId == "200");
+        TagQueueItem chosen = TagQueueItem.From(a, DateTimeOffset.UtcNow)!;
+        // An older queue may omit the attachment revision while retaining the exact asset and post.
+        await session.EnqueueTagQueueAsync([chosen with { AttachmentRevisionKey = null }, TagQueueItem.From(b, DateTimeOffset.UtcNow)!]);
+        await ReopenAsync(window, tagging);
+        await Program.WaitUntilAsync(() => tagging.Rows.Count == 2 && !tagging.IsBusy);
+        SelectOnly(tagging, tagging.Rows.Single(row => row.Key == chosen.Key));
+
+        ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+        const BindingFlags PrivateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+        SessionFeedbackStore feedback = (SessionFeedbackStore)typeof(MainWindow).GetField("_feedback", PrivateInstance)!.GetValue(window)!;
+        int Warnings() => feedback.Entries.Where(entry => entry.Operation == "tagging.menu" && entry.Category == FeedbackCategory.Warning
+            && entry.Summary == Texts.T("tagging.page.openGallery.missing")).Sum(entry => entry.Count);
+        Task OpenAsync() => tagging.ExecuteRowCommandAsync(TaggingCommands.OpenGallery).WaitAsync(deadline);
+
+        string file = Path.Combine(a.Directory!, "one.png");
+        string manifest = Path.Combine(a.Directory!, MediaStore.ManifestFileName);
+        foreach (string path in new[] { file, manifest })
+        {
+            int warnings = Warnings();
+            File.Move(path, path + ".held");
+            try
+            {
+                await OpenAsync();
+                Require(!host.IsVisible && Warnings() == warnings + 1, "A missing start entry must warn without opening another medium: " + path);
+            }
+            finally { File.Move(path + ".held", path); }
+        }
+
+        int before = Warnings();
+        TaskCompletionSource entered = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        var openManifest = window.TaggingGalleryOpenManifest;
+        window.TaggingGalleryOpenManifest = async (directory, token) =>
+        {
+            if (directory == a.Directory)
+            {
+                entered.TrySetResult();
+                await release.Task.WaitAsync(token);
+            }
+            return await openManifest(directory, token);
+        };
+        Task opening = OpenAsync();
+        try
+        {
+            await entered.Task.WaitAsync(deadline);
+            Require(!opening.IsCompleted && !host.IsVisible, "The gallery command did not wait at resolution.");
+            SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Downloads);
+            Require(window.SelectedPage == MainWindow.WorkspacePage.Downloads, "Could not leave the original Tagging visit.");
+            await ReopenAsync(window, tagging);
+        }
+        finally
+        {
+            window.TaggingGalleryOpenManifest = openManifest;
+            release.TrySetResult();
+            await opening;
+        }
+        Require(!host.IsVisible && Warnings() == before, "A resolved request from a previous Tagging visit affected the current one.");
+
+        SelectOnly(tagging, tagging.Rows.Single(row => row.Key == chosen.Key));
+        await OpenAsync();
+        Require(host.IsVisible && host.Content is GalleryViewer viewer && viewer.CaptureState().PostId == a.PostId,
+            "A current gallery request must open the selected medium.");
+        await GalleryViewerChecksAccess.WaitForLayoutAsync(window);
+        GalleryViewerChecksAccess.Click((GalleryViewer)host.Content!, "GalleryClose");
+        await window.GalleryCleanupTask.WaitAsync(deadline);
+        Console.WriteLine("SMOKE tagging-page gallery: missing bytes and missing manifest warn, an old visit cannot open, and a current visit opens the chosen medium.");
     }
 
     // UX-LEDGER-08: exercise the real selection model and rendered containers. Source-text checks alone

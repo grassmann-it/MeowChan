@@ -34,7 +34,13 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         viewer.Closed += (_, _) =>
         {
             if (ReferenceEquals(_resultViewer, viewer)) _resultViewer = null;
-            if (!_closed && _attached) FocusHit(viewer.CurrentPostId);
+            if (_closed) return;
+            // The cursor follows the post the popup ended on; the inline gallery (when shown) moves there too.
+            BooruSearchView current = _model.Search.View;
+            if (!current.Rows.Any(row => row.Post.PostId == viewer.CurrentPostId)) return;
+            SetCursor(viewer.CurrentPostId);
+            if (_resultView == BooruResultView.Gallery) ShowInGallery(current);
+            if (_attached && IsEffectivelyVisible && IsSearchItem(_tabs.SelectedItem)) FocusHit(viewer.CurrentPostId);
         };
         viewer.Show(owner);
         return true;
@@ -47,7 +53,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         open.Classes.Add("ghost");
         CommandBindings.ShowIconBeforeText(open, CommandCatalog.Get("gallery.open").Icon);
         AutomationProperties.SetName(open, CommandCatalog.Label("gallery.open") + ": " + Texts.T("booru.ui.post.title", postId));
-        open.Click += (_, _) => OpenResultViewer(postId);
+        open.Click += (_, _) => OpenGallery(postId);
         CheckBox select = new() { Name = "BooruSelect:" + postId, Content = Texts.T("media.tile.selected"), IsChecked = _selectedResults.Contains(postId) };
         AutomationProperties.SetName(select, Texts.T("media.tile.selected") + ": " + Texts.T("booru.ui.post.title", postId));
         select.Click += (_, _) =>

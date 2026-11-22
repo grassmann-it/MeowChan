@@ -926,19 +926,20 @@ internal sealed class DanbooruWatcherScheduler : IAsyncDisposable
                     // storage failure: no Error state, no local backoff; the page replays after the transition.
                     return CancelRun(watcherId, current, started, counters, manual, running);
                 }
-                catch (BooruCatalogPersistenceException)
+                catch (BooruCatalogPersistenceException exception)
                 {
                     // The catalog write failed at the admission boundary. Do not advance past the post: the
                     // stored high-water mark/cursor stays at the last durable page. Automatic checks get the
                     // same local quiet period as other persistence failures; manual Check Now remains allowed.
+                    string code = exception.RefusalPending ? "refusal_pending" : "persist_failed";
                     lock (_sync)
                     {
                         if (!manual)
                             _persistBackoffUntil = Max(_persistBackoffUntil, _time.GetUtcNow() + _options.UnavailableRetry);
                         if (IsCurrentLocked(watcherId, current))
-                            CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, "persist_failed", _time.GetUtcNow()).Watcher, running);
+                            CommitWithoutRequestLocked(DanbooruWatcher.ApplyError(current, code, _time.GetUtcNow()).Watcher, running);
                     }
-                    return Summary(DanbooruWatcherCheckKind.Failed, started, counters, "persist_failed", manual);
+                    return Summary(DanbooruWatcherCheckKind.Failed, started, counters, code, manual);
                 }
                 catch (Exception)
                 {

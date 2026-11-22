@@ -12,12 +12,11 @@ internal sealed partial class DesktopSessionHost
 {
     private long _readingPositionGeneration;
     internal long ReadingPositionGeneration => Interlocked.Read(ref _readingPositionGeneration);
-    private string ReadingPositionPath => Path.Combine(_profileLease.ProfileDirectory, "reading-position.json");
+    private string ReadingPositionPath => Path.Combine(_profileLease.ProfileDirectory, LocalReadingPosition.FileName);
     // The reading history (R5) is written in the same final-write batch as the position: no second write frequency.
-    private string ReadingHistoryPath => Path.Combine(_profileLease.ProfileDirectory, "reading-history.json");
+    private string ReadingHistoryPath => Path.Combine(_profileLease.ProfileDirectory, LocalReadingHistory.FileName);
 
-    // Invalidate synchronously, before joining the existing profile-owner command queue.
-    // A capture already waiting for IO can therefore never resurrect a forgotten anchor.
+    // Explicit forget invalidates on admission; opt-out invalidates after the settings commit.
     private void InvalidateReadingPositionWrites() => Interlocked.Increment(ref _readingPositionGeneration);
 
     internal Task RememberReadingPositionAsync(LocalReadingPosition position, long generation)
@@ -68,19 +67,19 @@ internal sealed partial class DesktopSessionHost
         return Task.CompletedTask;
     }
 
-    // The newest place of this thread goes to the front of the list. A damaged or unreadable list never fails the position write
-    // (the position is the contract); the next write starts a fresh list.
+    // The position is written independently. If reading or preserving the history fails, leave it for the next write.
     private void WriteReadingHistory(LocalReadingPosition position, long generation, LocalReadingHistoryEntry? legacy = null)
     {
         string pending = ReadingHistoryPath + ".pending-" + Guid.NewGuid().ToString("N");
         try
         {
-            LocalReadingHistory? current = null;
+            LocalReadingHistory? current;
             try { current = ReadReadingHistoryFile(); }
-            catch (Exception error) when (error is IOException or UnauthorizedAccessException or JsonException or InvalidDataException)
+            catch (Exception error) when (error is JsonException or InvalidDataException)
             {
-                _logger.Warning(error, "The reading history could not be read; starting a new list.");
-                SetCorruptReadingHistoryAside();
+                File.Move(ReadingHistoryPath, ReadingHistoryPath + LocalReadingHistory.CorruptSuffix, overwrite: true);
+                _logger.Warning(error, "The damaged reading history was set aside; starting a new list.");
+                current = null;
             }
             if (current == null && legacy != null) current = new LocalReadingHistory(new[] { legacy });
             LocalReadingHistory next = LocalReadingHistory.Add(current, position, DateTimeOffset.UtcNow, Config.ReadingHistoryLimit);
@@ -93,7 +92,7 @@ internal sealed partial class DesktopSessionHost
                 File.Move(pending, ReadingHistoryPath, overwrite: true);
         }
         catch (Exception error) when (error is IOException or UnauthorizedAccessException)
-        { _logger.Warning(error, "The reading history could not be written."); }
+        { _logger.Warning(error, "The reading history could not be updated."); }
         finally { try { File.Delete(pending); } catch (Exception) { } }
     }
 
@@ -102,22 +101,18 @@ internal sealed partial class DesktopSessionHost
     {
         try
         {
-            if (new FileInfo(ReadingHistoryPath).Length > LocalReadingHistory.MaximumFileBytes)
+            using FileStream file = File.OpenRead(ReadingHistoryPath);
+            long length = file.Length;
+            if (length > LocalReadingHistory.MaximumFileBytes)
                 throw new InvalidDataException("The saved reading history is too large.");
-            LocalReadingHistory history = LocalReadingHistory.ParseTolerant(File.ReadAllBytes(ReadingHistoryPath), out int dropped);
+            byte[] bytes = new byte[length];
+            file.ReadExactly(bytes);
+            LocalReadingHistory history = LocalReadingHistory.ParseTolerant(bytes, out int dropped);
             if (dropped > 0) _logger.Warning("{Dropped} unreadable or duplicate reading history entries were left out.", dropped);
             return history;
         }
         catch (FileNotFoundException) { return null; }
         catch (DirectoryNotFoundException) { return null; }
-    }
-
-    // A list that cannot be read is kept as <name>.corrupt (one copy, the newest) before the next write starts a new one, so a bad write
-    // or a file of a newer version is never the only copy that is lost.
-    private void SetCorruptReadingHistoryAside()
-    {
-        try { File.Move(ReadingHistoryPath, ReadingHistoryPath + ".corrupt", overwrite: true); }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException) { }
     }
 
     // The place an older version saved (no list yet), as the oldest entry; unreadable or invalid means no entry.
@@ -190,15 +185,8 @@ internal sealed partial class DesktopSessionHost
         return RunInteractiveAsync(nameof(ForgetReadingPositionAsync), "reading", async () =>
         {
             await _commands.WaitAsync().ConfigureAwait(false);
-            try { EnsureReady(); DeleteReadingPositionFile(); }
+            try { EnsureReady(); Config.ForgetReadingPositionFile(); }
             finally { _commands.Release(); }
         }, InvalidateReadingPositionWrites);
-    }
-
-    // Forgetting (and the opt-out) removes the position and the list; one failing delete never keeps the other file alive.
-    private void DeleteReadingPositionFile()
-    {
-        try { File.Delete(ReadingHistoryPath); }
-        finally { File.Delete(ReadingPositionPath); }
     }
 }

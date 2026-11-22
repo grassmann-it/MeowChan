@@ -44,13 +44,14 @@ internal static partial class BooruWorkbenchChecks
             fixture.Services.DescribeTestAsync, fixture.Services.StartTestWorkerAsync, fixture.Services.ProbeAsync);
         PluginSdkMismatchLedger ledger = new();
         TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
+        object? searchTab = tabs.SelectedItem;
         var search = page.View.SearchRepairForTests;
         var watchers = page.View.WatcherRepairForTests;
         try
         {
             Texts.SetLanguage("en");
             Application.Current!.RequestedThemeVariant = ThemeVariant.Light;
-            tabs.SelectedIndex = 0;
+            tabs.SelectedItem = searchTab;
             plugins.Attach(fake);
             owner.BooruRepairProbeForTests = new BooruBuildRepairProbe(RepairPluginId, store, () => RepairOld, ledger);
             h.Search.OnSearch = (_, _, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Of(BooruCallStatus.Failed, BooruText.SdkMismatchCode));
@@ -67,12 +68,12 @@ internal static partial class BooruWorkbenchChecks
                 && AutomationProperties.GetName(search.Review) == Texts.T("plugins.repair.review")
                 && AutomationProperties.GetLiveSetting(search.Text) == AutomationLiveSetting.Assertive,
                 "The mismatch actions are wrong: retry=" + search.Retry.IsVisible + " review=" + search.Review.IsEffectivelyEnabled);
-            tabs.SelectedIndex = 1;
+            Click(Find<Button>(page, BooruWorkbenchView.OpenWatchersName));
             await Program.WaitUntilAsync(() => watchers.Host.IsEffectivelyVisible && watchers.Review.IsEffectivelyVisible,
                 () => "the Watchers tab lacks the repair route");
             Require(watchers.Text.Text == mismatch, "The Watchers tab states another route: " + watchers.Text.Text);
             Capture(owner, shots, "repair-mismatch-watchers-light-en");
-            tabs.SelectedIndex = 0;
+            tabs.SelectedItem = searchTab;
             await CaptureRepairVariantsAsync(owner, page, shots, "repair-mismatch");
 
             // ---- blocked: the reason and the next step, never an empty dialog ---------------------------------------------

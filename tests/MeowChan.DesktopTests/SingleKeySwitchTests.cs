@@ -48,11 +48,14 @@ public sealed class SingleKeySwitchTests
         foreach (var command in CommandCatalog.All)
             Assert.DoesNotContain(off.For(command.Id), EffectiveShortcutBindings.IsSingleCharacterKey);
         foreach (string id in new[] { "favorites.toggle", "favorites.add", "favorites.remove", "video.mute", "gallery.context-toggle", "gallery.show-in-thread",
-            "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out" })
+            "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out" })
         {
             Assert.NotEmpty(on.For(id));
             Assert.Empty(off.For(id));
         }
+        var fit = Assert.Single(off.For("gallery.fit"));
+        Assert.Equal("D0", fit.Key);
+        Assert.Equal("Primary", Assert.Single(fit.Modifiers));
         foreach (string id in new[] { "video.play-pause", "thread.read", "gallery.open", "gallery.previous", "gallery.next", "reader.next-post",
             "watch.check", "navigation.media", "session.pause", "viewer.shortcut-help", "media.select-all", "thread.tags", "window.fullscreen" })
             Assert.NotEmpty(off.For(id));

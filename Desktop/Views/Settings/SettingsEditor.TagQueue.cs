@@ -28,6 +28,10 @@ public partial class SettingsEditor
     public int BooruResultTagsShownMaximum => Config.BooruResultTagsShownMaximum;
     public int BooruSearchTabsMinimum => Config.BooruSearchTabsMinimum;
     public int BooruSearchTabsMaximum => Config.BooruSearchTabsMaximum;
+    public int BooruGallerySampleMiBMinimum => Config.BooruGallerySampleMiBMinimum;
+    public int BooruGallerySampleMiBMaximum => Config.BooruGallerySampleMiBMaximum;
+    public int BooruGalleryCacheMiBMinimum => Config.BooruGalleryCacheMiBMinimum;
+    public int BooruGalleryCacheMiBMaximum => Config.BooruGalleryCacheMiBMaximum;
     public int MediaTagListWidthMinimum => Config.MediaTagListWidthMinimum;
     public int MediaTagListWidthMaximum => Config.MediaTagListWidthMaximum;
     public int MediaPanelWidthMinimum => Config.MediaPanelWidthMinimum;
@@ -92,6 +96,20 @@ public partial class SettingsEditor
     public string BooruSearchTabsHint => Texts.T("settings.limits.booruSearchTabs.hint") + " " + Texts.T("settings.reader.range", Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
     public string BooruSearchTabsHelp => FieldHelp(nameof(BooruSearchTabsInput), BooruSearchTabsHint);
 
+    // Danbooru gallery: largest image (MiB).
+    private decimal? _booruGallerySampleMiB;
+    public decimal? BooruGallerySampleMiB { get => _booruGallerySampleMiB; set => SetField(ref _booruGallerySampleMiB, value, nameof(BooruGallerySampleMiB)); }
+    public string BooruGallerySampleMiBLabel => Texts.T("settings.limits.booruGallerySampleMiB");
+    public string BooruGallerySampleMiBHint => Texts.T("settings.limits.booruGallerySampleMiB.hint") + " " + Texts.T("settings.reader.range", Config.BooruGallerySampleMiBMinimum, Config.BooruGallerySampleMiBMaximum);
+    public string BooruGallerySampleMiBHelp => FieldHelp(nameof(BooruGallerySampleMiBInput), BooruGallerySampleMiBHint);
+
+    // Danbooru gallery: image memory (MiB).
+    private decimal? _booruGalleryCacheMiB;
+    public decimal? BooruGalleryCacheMiB { get => _booruGalleryCacheMiB; set => SetField(ref _booruGalleryCacheMiB, value, nameof(BooruGalleryCacheMiB)); }
+    public string BooruGalleryCacheMiBLabel => Texts.T("settings.limits.booruGalleryCacheMiB");
+    public string BooruGalleryCacheMiBHint => Texts.T("settings.limits.booruGalleryCacheMiB.hint") + " " + Texts.T("settings.reader.range", Config.BooruGalleryCacheMiBMinimum, Config.BooruGalleryCacheMiBMaximum);
+    public string BooruGalleryCacheMiBHelp => FieldHelp(nameof(BooruGalleryCacheMiBInput), BooruGalleryCacheMiBHint);
+
     // MP5: the width (dip) of the tag list. It lives in the saved media layout (MediaLayout), next to the other parts of that layout; this field
     // reads and rewrites only its width, the drag handle on the list's edge sets the same value.
     private decimal? _mediaTagListWidth;
@@ -142,6 +160,10 @@ public partial class SettingsEditor
         ResetNumber(BooruResultTagsShownInput, BooruResultTagsShown.Value);
         BooruSearchTabs = config.BooruSearchTabs;
         ResetNumber(BooruSearchTabsInput, BooruSearchTabs.Value);
+        BooruGallerySampleMiB = config.BooruGallerySampleMiB;
+        ResetNumber(BooruGallerySampleMiBInput, BooruGallerySampleMiB.Value);
+        BooruGalleryCacheMiB = config.BooruGalleryCacheMiB;
+        ResetNumber(BooruGalleryCacheMiBInput, BooruGalleryCacheMiB.Value);
         MediaPageLayout layout = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode);
         MediaTagListWidth = layout.TagListWidth;
         ResetNumber(MediaTagListWidthInput, MediaTagListWidth.Value);
@@ -167,6 +189,8 @@ public partial class SettingsEditor
         candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         candidate.BooruResultTagsShown = GetInteger(BooruResultTagsShown, BooruResultTagsShownLabel, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum);
         candidate.BooruSearchTabs = GetInteger(BooruSearchTabs, BooruSearchTabsLabel, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
+        candidate.BooruGallerySampleMiB = GetInteger(BooruGallerySampleMiB, BooruGallerySampleMiBLabel, Config.BooruGallerySampleMiBMinimum, Config.BooruGallerySampleMiBMaximum);
+        candidate.BooruGalleryCacheMiB = GetInteger(BooruGalleryCacheMiB, BooruGalleryCacheMiBLabel, Config.BooruGalleryCacheMiBMinimum, Config.BooruGalleryCacheMiBMaximum);
         int tagListWidth = GetInteger(MediaTagListWidth, MediaTagListWidthLabel, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
         int panelWidth = GetInteger(MediaPanelWidth, MediaPanelWidthLabel, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum);
         candidate.MediaPanelMinimumPageWidth = GetInteger(MediaPanelMinimumPageWidth, MediaPanelMinimumPageWidthLabel, Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum);
@@ -187,6 +211,8 @@ public partial class SettingsEditor
         yield return (MediaTagListTopInput, MediaTagListTop, MediaTagListTopLabel, string.Empty, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum, true);
         yield return (BooruResultTagsShownInput, BooruResultTagsShown, BooruResultTagsShownLabel, string.Empty, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum, true);
         yield return (BooruSearchTabsInput, BooruSearchTabs, BooruSearchTabsLabel, string.Empty, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum, true);
+        yield return (BooruGallerySampleMiBInput, BooruGallerySampleMiB, BooruGallerySampleMiBLabel, string.Empty, Config.BooruGallerySampleMiBMinimum, Config.BooruGallerySampleMiBMaximum, true);
+        yield return (BooruGalleryCacheMiBInput, BooruGalleryCacheMiB, BooruGalleryCacheMiBLabel, string.Empty, Config.BooruGalleryCacheMiBMinimum, Config.BooruGalleryCacheMiBMaximum, true);
         yield return (MediaTagListWidthInput, MediaTagListWidth, MediaTagListWidthLabel, string.Empty, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum, true);
         yield return (MediaPanelWidthInput, MediaPanelWidth, MediaPanelWidthLabel, string.Empty, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum, true);
         yield return (MediaPanelMinimumPageWidthInput, MediaPanelMinimumPageWidth, MediaPanelMinimumPageWidthLabel, string.Empty, Config.MediaPanelMinimumPageWidthMinimum, Config.MediaPanelMinimumPageWidthMaximum, true);
@@ -207,6 +233,8 @@ public partial class SettingsEditor
         nameof(MediaTagListTopLabel), nameof(MediaTagListTopHint), nameof(MediaTagListTopHelp),
         nameof(BooruResultTagsShownLabel), nameof(BooruResultTagsShownHint), nameof(BooruResultTagsShownHelp),
         nameof(BooruSearchTabsLabel), nameof(BooruSearchTabsHint), nameof(BooruSearchTabsHelp),
+        nameof(BooruGallerySampleMiBLabel), nameof(BooruGallerySampleMiBHint), nameof(BooruGallerySampleMiBHelp),
+        nameof(BooruGalleryCacheMiBLabel), nameof(BooruGalleryCacheMiBHint), nameof(BooruGalleryCacheMiBHelp),
         nameof(MediaTagListWidthLabel), nameof(MediaTagListWidthHint), nameof(MediaTagListWidthHelp),
         nameof(MediaPanelWidthLabel), nameof(MediaPanelWidthHint), nameof(MediaPanelWidthHelp),
         nameof(MediaPanelMinimumPageWidthLabel), nameof(MediaPanelMinimumPageWidthHint), nameof(MediaPanelMinimumPageWidthHelp),
@@ -215,6 +243,6 @@ public partial class SettingsEditor
     {
         nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp),
         nameof(TagQueueGroupLimitHelp), nameof(TagQueueGroupNameLimitHelp), nameof(TagQueueConfirmAboveHelp),
-        nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(BooruSearchTabsHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
+        nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(BooruSearchTabsHelp), nameof(BooruGallerySampleMiBHelp), nameof(BooruGalleryCacheMiBHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
     };
 }

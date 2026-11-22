@@ -46,30 +46,31 @@ class DesktopFourLaneTests(unittest.TestCase):
         self.addCleanup(self.tmp.cleanup)
         self.root = Path(self.tmp.name)
 
-    def matrix(self):
-        for index, lane in enumerate(cells.LANES):
+    def matrix(self, count=4):
+        for index, lane in enumerate(cells.lanes(count)):
             directory = self.root / lane
             # Local IDs may differ; only method/cardinality shape is cross-machine.
             inventory = cells.planner.validate_inventory([dict(case, id=case['id'] + lane) for case in CASES])
-            assigned = cells.planner.partition(inventory, shard_count=4)[index]
+            assigned = cells.planner.partition(inventory, shard_count=count)[index]
             target = directory / 'run/MeowChan.DesktopTests/tests.trx'
             trx(target, [case for case in inventory if case['method'] in assigned])
-            receipt = dict(schema=1, shard_count=4, lane=lane, platform='windows-2022', architecture='x64',
+            receipt = dict(schema=1, shard_count=count, lane=lane, platform='windows-2022', architecture='x64',
                 source=SOURCE, operating_system='Windows', cleanup_grace_seconds=30, passed=True, budget_seconds=1800, inventory=inventory,
                 inventory_sha256=cells.planner.digest(inventory),
-                plan_sha256=cells.plan_digest(cells.planner.inventory_shape(inventory)), assigned=assigned,
+                plan_sha256=cells.plan_digest(cells.planner.inventory_shape(inventory), count), assigned=assigned,
                 discovery=dict(status='passed', exit_code=0, timeout_seconds=60, duration_seconds=2),
                 run=dict(status='passed', exit_code=0, timeout_seconds=1797, duration_seconds=1),
                 coverage=cells.planner.trx_coverage(target.parent, inventory, assigned))
             cells.write_json(directory / 'desktop-manifest.json', receipt)
-            shard_names = [s for s in runner.LANE_SHARDS[lane] if s != 'shard-02']
+            shard_names = [s for s in runner.LANE_SHARDS.get(lane, ()) if s != 'shard-02']
             shards = [dict(status='passed', projects=[dict(project=p, status='passed') for p in runner.SHARDS[s]]) for s in shard_names]
             shards.append(dict(status='passed', projects=[dict(project=cells.PROJECT, status='passed')]))
             cells.write_json(directory / 'aggregate-status.json', dict(lane=lane, coverage_platform='windows-2022',
-                source=SOURCE, aggregate_status='passed', coverage_scope='desktop-four-lane-cell-not-full-proof', lane_execution_budget_seconds=1800, shards=shards))
+                source=SOURCE, aggregate_status='passed', coverage_scope=cells.cell_scope(count),
+                desktop_shard_count=count, lane_execution_budget_seconds=1800, shards=shards))
 
-    def gate(self):
-        return cells.aggregate(self.root, ['windows-2022'], SOURCE)
+    def gate(self, count=4):
+        return cells.aggregate(self.root, ['windows-2022'], SOURCE, count)
 
     def mutate(self, file, callback):
         path = self.root / 'lane-a' / file
@@ -93,8 +94,22 @@ class DesktopFourLaneTests(unittest.TestCase):
     def test_missing_lane_not_full_proof(self):
         self.matrix()
         (self.root / 'lane-d/desktop-manifest.json').unlink()
-        with self.assertRaisesRegex(ValueError, 'four lanes required'):
+        with self.assertRaisesRegex(ValueError, 'Missing/extra Desktop workers'):
             self.gate()
+
+    def test_new_lane_required_without_replaying_other_projects(self):
+        self.matrix(5)
+        self.assertEqual(12, self.gate(5)['coverage'][0]['methods'])
+        receipt = self.root / 'lane-e/aggregate-status.json'
+        status = json.loads(receipt.read_text())
+        status['shards'].append(dict(status='passed', projects=[
+            dict(project=runner.SHARDS['shard-01'][0], status='passed')]))
+        cells.write_json(receipt, status)
+        with self.assertRaisesRegex(ValueError, 'Offline project owners changed'):
+            self.gate(5)
+        receipt.unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing offline lane'):
+            self.gate(5)
 
     def test_wrong_source_arch_count_plan_inventory_and_assignment_fail(self):
         for field, value in [('source', 'b'*40), ('architecture', 'arm64'), ('operating_system', 'Darwin'), ('cleanup_grace_seconds', 31), ('shard_count', 8),

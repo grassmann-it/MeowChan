@@ -63,12 +63,16 @@ def step_gate(steps: dict[str, Any], required: list[str]) -> dict[str, Any]:
     }
 
 
-def needs_gate(needs: dict[str, Any], required: list[str], *, allow_skipped: bool = False) -> dict[str, Any]:
+def needs_gate(needs: dict[str, Any], required: list[str], *, allow_skipped: bool = False,
+               require_success: tuple[str, ...] = ()) -> dict[str, Any]:
+    strict = set(require_success)
+    if not strict <= set(required):
+        raise ValueError('Strict success list contains an unknown job')
     failures: dict[str, str] = {}
     for name in required:
         job = needs.get(name)
         result = job.get("result") if isinstance(job, dict) else None
-        if result != SUCCESS and not (allow_skipped and result == "skipped"):
+        if result != SUCCESS and not (allow_skipped and name not in strict and result == "skipped"):
             failures[name] = str(result or "missing")
     return {
         "passed": not failures,
@@ -145,6 +149,7 @@ def parser() -> argparse.ArgumentParser:
             sub.add_argument("--allow-skipped", action="store_true",
                              help="Workflow-wide rollup only: accept jobs excluded by mode/platform. "
                                   "Required coverage/candidate gates must not use this option.")
+            sub.add_argument("--require-success", default="", help="Jobs that must succeed even with --allow-skipped")
 
     run = subparsers.add_parser("run")
     run.add_argument("--json-file", required=True)
@@ -162,7 +167,8 @@ def main(argv: list[str] | None = None) -> int:
             report = step_gate(payload, split_names(args.required))
         elif args.command == "needs":
             payload = read_json(None, args.json_env, args.json_file)
-            report = needs_gate(payload, split_names(args.required), allow_skipped=args.allow_skipped)
+            report = needs_gate(payload, split_names(args.required), allow_skipped=args.allow_skipped,
+                                require_success=tuple(split_names(args.require_success)))
         else:
             payload = read_json(None, None, args.json_file)
             report = run_gate(payload, args.expected_sha, args.required_job)

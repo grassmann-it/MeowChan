@@ -114,6 +114,65 @@ public sealed partial class BooruOriginalQueueTests
         Assert.Empty(session.Booru.GetPendingOriginals());
     }
 
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task RestartRespectsWhetherTheRefusalWasSaved(bool saveRefusal)
+    {
+        using TempDirectory directory = new();
+        using FakeCdn cdn = new();
+        BooruPostClaim post = Post("504", Bytes(504), cdn);
+        await using (Session session = new(directory.Path, cdn))
+        {
+            await session.Queue.StopAllAsync();
+            session.Booru.OutcomeChanged += outcome =>
+            {
+                if (outcome.State != BooruOriginalDownloadState.Queued) return;
+                session.Catalog.BeforeAdmittedMutationForTests = _ =>
+                {
+                    session.Catalog.BeforeAdmittedMutationForTests = null;
+                    throw new IOException("synthetic refusal write failure");
+                };
+            };
+
+            BooruOriginalAdmission pending = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+            Assert.Equal(BooruOriginalAdmissionStatus.RefusalPending, pending.Status);
+            BooruOriginalDownloadOutcome outcome = await pending.Completion.WaitAsync(TestWait.Timeout);
+            Assert.Equal(BooruOriginalDownloadState.RefusalPending, outcome.State);
+            Assert.Contains("synthetic refusal write failure", outcome.Failure);
+            Assert.Equal(outcome, session.Booru.Snapshot()[post.PostId]);
+            Assert.Equal(BooruOriginalIntent.Requested, Assert.Single(session.Booru.GetPendingOriginals()).OriginalIntent);
+
+            if (saveRefusal)
+            {
+                long writes = session.Catalog.Counters.Writes;
+                BooruOriginalAdmission saved = await session.Booru.RetryAsync(post.PostId);
+                Assert.Equal(BooruOriginalAdmissionStatus.NotAdmitted, saved.Status);
+                Assert.Equal(BooruOriginalDownloadState.NotAdmitted, (await saved.Completion.WaitAsync(TestWait.Timeout)).State);
+                Assert.Equal(writes + 1, session.Catalog.Counters.Writes);
+                Assert.Empty(session.Booru.GetPendingOriginals());
+            }
+            Assert.Equal(0, session.Booru.ActiveCount);
+            Assert.Empty(cdn.Requests);
+        }
+
+        await using Session reopened = new(directory.Path, cdn);
+        Assert.Equal(saveRefusal ? BooruOriginalIntent.NotAdmitted : BooruOriginalIntent.Requested,
+            Assert.Single(reopened.Catalog.Read().Posts).OriginalIntent);
+        IReadOnlyList<BooruOriginalAdmission> recovery = await reopened.Booru.RecoverPendingAsync();
+        if (saveRefusal)
+        {
+            Assert.Empty(recovery);
+            Assert.Empty(cdn.Requests);
+        }
+        else
+        {
+            Assert.Equal(BooruOriginalDownloadState.Linked,
+                (await Assert.Single(recovery).Completion.WaitAsync(TestWait.Timeout)).State);
+            Assert.Single(cdn.Requests);
+        }
+    }
+
     [Fact]
     public async Task ProfileCutAfterWriteAheadRejectsTheOfferButRecoveryKeepsOneIntentAndAsset()
     {
@@ -147,8 +206,8 @@ public sealed partial class BooruOriginalQueueTests
             session.Booru.OutcomeChanged -= cutProfileBeforeOffer;
 
             await cutAtBoundary.Task.WaitAsync(TestWait.Timeout);
-            Assert.Equal(BooruOriginalAdmissionStatus.NotAdmitted, admission.Status);
-            Assert.Equal(BooruOriginalDownloadState.NotAdmitted,
+            Assert.Equal(BooruOriginalAdmissionStatus.RefusalPending, admission.Status);
+            Assert.Equal(BooruOriginalDownloadState.RefusalPending,
                 (await admission.Completion.WaitAsync(TestWait.Timeout)).State);
             Assert.Equal(BooruOriginalIntent.Requested, Assert.Single(session.Catalog.Read().Posts).OriginalIntent);
             Assert.Single(session.Booru.GetPendingOriginals());
@@ -168,6 +227,37 @@ public sealed partial class BooruOriginalQueueTests
         Assert.Single(cdn.Requests);
         Assert.Equal(BooruOriginalIntent.Linked, Assert.Single(restarted.Catalog.Read().Posts).OriginalIntent);
         Assert.Empty(await restarted.Booru.RecoverPendingAsync());
+        Assert.Single(cdn.Requests);
+    }
+
+    [Fact]
+    public async Task RetryFromTheLinkFailureNotificationCanUseTheCommittedOriginalImmediately()
+    {
+        using TempDirectory directory = new();
+        using FakeCdn cdn = new();
+        await using Session session = new(directory.Path, cdn);
+        BooruPostClaim post = Post("505", Bytes(505), cdn);
+        await session.Queue.SetPausedAsync(true);
+        BooruOriginalAdmission first = await session.Booru.AdmitAsync(post, BooruFindingKind.OneShot);
+        session.Booru.LinkingForTests = (_, _) => throw new IOException("link failed");
+
+        TaskCompletionSource<BooruOriginalAdmission> retry = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        session.Booru.OutcomeChanged += outcome =>
+        {
+            if (outcome.State != BooruOriginalDownloadState.LinkFailed) return;
+            session.Booru.LinkingForTests = null;
+            try { retry.TrySetResult(session.Booru.RetryAsync(post.PostId).GetAwaiter().GetResult()); }
+            catch (Exception exception) { retry.TrySetException(exception); }
+        };
+
+        await session.Queue.SetPausedAsync(false);
+        BooruOriginalDownloadOutcome failed = await first.Completion.WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalDownloadState.LinkFailed, failed.State);
+        BooruOriginalAdmission next = await retry.Task.WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalAdmissionStatus.Queued, next.Status);
+        BooruOriginalDownloadOutcome linked = await next.Completion.WaitAsync(TestWait.Timeout);
+        Assert.Equal(BooruOriginalDownloadState.Linked, linked.State);
+        Assert.Equal(failed.AssetId, linked.AssetId);
         Assert.Single(cdn.Requests);
     }
 }

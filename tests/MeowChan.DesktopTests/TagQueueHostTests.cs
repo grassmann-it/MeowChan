@@ -270,16 +270,33 @@ public sealed class TagQueueHostTests
     }
 
     [Fact]
+    public async Task ADogfoodQueueRemainsUntouchedUntilTheHostWritesVersionTwo()
+    {
+        using TempDirectory temp = new();
+        string path = Path.Combine(await ProfileAsync(temp), TagQueueStore.FileName);
+        const string original = """{"Version":3,"Revision":7,"Cursor":0,"Stamp":["cat"],"Groups":[],"Items":[]}""";
+        await File.WriteAllTextAsync(path, original);
+        await using DesktopSessionHost host = await StartAsync(temp.Path);
+        Assert.Equal(new[] { "cat" }, (await host.LoadTagQueueAsync()).Stamp);
+        Assert.Equal(original, await File.ReadAllTextAsync(path));
+        Assert.False(File.Exists(path + ".bak"));
+
+        Assert.Equal(1, (await host.EnqueueTagQueueAsync(Items(1, 1))).Added);
+        Assert.Contains("\"Version\":2", await File.ReadAllTextAsync(path));
+        Assert.Contains("\"Version\":2", await File.ReadAllTextAsync(path + ".bak"));
+    }
+
+    [Fact]
     public async Task AFileOfANewerVersionIsShownEmptyAndEveryAddSaysSoWithoutWriting()
     {
         using TempDirectory temp = new();
         string file = Path.Combine(await ProfileAsync(temp), TagQueueStore.FileName);
-        await File.WriteAllTextAsync(file, "{\"Version\":3}");
+        await File.WriteAllTextAsync(file, "{\"Version\":4}");
         await using DesktopSessionHost host = await StartAsync(temp.Path);
         TagQueueSnapshot snapshot = await host.LoadTagQueueAsync();
         Assert.Equal((TagQueueLoadState.NewerVersion, 0), (snapshot.State, snapshot.Count));
         Assert.Equal(Texts.T("queue.error.newer"), await TagQueueActions.AddAsync(host, Items(1, 1), 0));
-        Assert.Equal("{\"Version\":3}", await File.ReadAllTextAsync(file));
+        Assert.Equal("{\"Version\":4}", await File.ReadAllTextAsync(file));
     }
 
     [Fact]

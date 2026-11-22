@@ -21,6 +21,7 @@ public sealed class BooruHostHttpContractTests
     private sealed class Rig : IDisposable
     {
         internal readonly ManualClock Clock = new();
+        private readonly Handler _handler;
         internal readonly HttpClient Transport;
         internal readonly BooruHostHttp Http;
         internal readonly BooruHostServices Services;
@@ -30,12 +31,13 @@ public sealed class BooruHostHttpContractTests
         internal Rig(Func<int, HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> respond,
             Func<TimeSpan>? maximumCooldownProvider = null)
         {
-            Transport = new HttpClient(new Handler((request, token) =>
+            _handler = new Handler((request, token) =>
             {
                 int n = Interlocked.Increment(ref Sends);
                 lock (Seen) Seen.Add(request);
                 return respond(n, request, token);
-            }));
+            });
+            Transport = new HttpClient(_handler, disposeHandler: false);
             Http = new BooruHostHttp(Transport, new RequestPolicyState(Clock), [Source(), Other(), ChanSource()],
                 maximumCooldownProvider: maximumCooldownProvider);
             Services = new BooruHostServices(new Inner(), Http);
@@ -44,7 +46,7 @@ public sealed class BooruHostHttpContractTests
         internal Task<HostHttpResult> Send(BooruJob job, HostHttpRequest? request = null, CancellationToken token = default) =>
             Services.SendHttpAsync(request ?? Get(), job.Operation, token);
 
-        public void Dispose() { Http.Dispose(); Transport.Dispose(); }
+        public void Dispose() { Http.Dispose(); Transport.Dispose(); _handler.Dispose(); }
     }
 
     [Theory]
@@ -326,37 +328,35 @@ public sealed class BooruHostHttpContractTests
     // ---------- 502/503 retry timing ----------
 
     [Theory]
-    [InlineData(HttpStatusCode.BadGateway)]
-    [InlineData(HttpStatusCode.ServiceUnavailable)]
-    public async Task RetryAfterLongerThanTwoSecondsIsHonoredAndZeroStillWaitsTwoSeconds(HttpStatusCode status)
+    [InlineData(HttpStatusCode.BadGateway, 0)]
+    [InlineData(HttpStatusCode.BadGateway, 10)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, 0)]
+    [InlineData(HttpStatusCode.ServiceUnavailable, 10)]
+    public async Task RetryAfterLongerThanTwoSecondsIsHonoredAndZeroStillWaitsTwoSeconds(HttpStatusCode status,
+        int retryAfterSeconds)
     {
-        foreach ((TimeSpan header, TimeSpan expected) in new[]
+        TimeSpan header = TimeSpan.FromSeconds(retryAfterSeconds);
+        TimeSpan expected = retryAfterSeconds == 0 ? BooruHostHttp.RetryDelay : header;
+        using Rig rig = new((n, _, _) =>
         {
-            (TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10)),
-            (TimeSpan.Zero, BooruHostHttp.RetryDelay),
-        })
+            HttpResponseMessage response = Response(n == 1 ? status : HttpStatusCode.OK, "x");
+            if (n == 1) response.Headers.RetryAfter = new RetryConditionHeaderValue(header);
+            return Task.FromResult(response);
+        });
+        BooruJob job = rig.Services.OpenJob();
+        try
         {
-            using Rig rig = new((n, _, _) =>
-            {
-                HttpResponseMessage response = Response(n == 1 ? status : HttpStatusCode.OK, "x");
-                if (n == 1) response.Headers.RetryAfter = new RetryConditionHeaderValue(header);
-                return Task.FromResult(response);
-            });
-            BooruJob job = rig.Services.OpenJob();
-            try
-            {
-                Task<HostHttpResult> pending = rig.Send(job);
-                await EventuallyAsync(() => rig.Sends == 1);
-                await rig.Clock.WaitForTimerAsync(expected);
-                rig.Clock.Advance(expected - TimeSpan.FromMilliseconds(1));
-                await Task.Delay(20);
-                Assert.Equal(1, rig.Sends);
-                rig.Clock.Advance(TimeSpan.FromMilliseconds(1));
-                Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
-                Assert.Equal(2, rig.Sends);
-            }
-            finally { rig.Services.CloseJob(job); }
+            Task<HostHttpResult> pending = rig.Send(job);
+            await EventuallyAsync(() => rig.Sends == 1);
+            await rig.Clock.WaitForTimerAsync(expected);
+            rig.Clock.Advance(expected - TimeSpan.FromMilliseconds(1));
+            await Task.Delay(20);
+            Assert.Equal(1, rig.Sends);
+            rig.Clock.Advance(TimeSpan.FromMilliseconds(1));
+            Assert.IsType<HostHttpResponse>(await pending.WaitAsync(Bound));
+            Assert.Equal(2, rig.Sends);
         }
+        finally { rig.Services.CloseJob(job); }
     }
 
     [Fact]
@@ -655,8 +655,10 @@ public sealed class BooruHostHttpContractTests
             Assert.Equal(1, rig.Sends);
 
             int before = job.Sends;
-            HostHttpResponse chan = Assert.IsType<HostHttpResponse>(await rig.Send(job,
-                new("chan", HostHttpMethod.Get, new("https://chan.test/a"))));
+            HostHttpRequest ordinary = new("chan", HostHttpMethod.Get, new("https://chan.test/a"));
+            Assert.IsType<HostHttpFailure>(await rig.Send(job, ordinary));
+            HostHttpResponse chan = Assert.IsType<HostHttpResponse>(
+                await rig.Services.SendHttpAsync(ordinary, new("chan-resource", 1), default));
             Assert.Equal("inner", Encoding.UTF8.GetString(chan.Body));
             Assert.Equal(before, job.Sends); // chan traffic never spends the booru job budget
         }
@@ -785,7 +787,7 @@ public sealed class BooruHostHttpContractTests
     [Fact]
     public async Task OversizedDeclaredContentLengthIsRejectedBeforeAnyBodyByte()
     {
-        TrackingContent content = new() { DeclaredLength = BooruHostHttp.MaximumWireBytes + 1 };
+        using TrackingContent content = new() { DeclaredLength = BooruHostHttp.MaximumWireBytes + 1 };
         using Rig rig = new((_, _, _) => Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK) { Content = content }));
         BooruJob job = rig.Services.OpenJob();
         try
@@ -830,14 +832,15 @@ public sealed class BooruHostHttpContractTests
         ManualClock clock = new();
         TrackingContent content = new();
         int sends = 0;
-        using HttpClient transport = new(new Handler((_, token) =>
+        using Handler transportHandler = new((_, token) =>
         {
             ++sends;
             // Model a transport completing successfully despite its cancellation token.
             clock.Advance(BooruHostHttp.ResponseTimeout);
             Assert.True(token.IsCancellationRequested);
             return Task.FromResult(new HttpResponseMessage(status) { Content = content });
-        }));
+        });
+        using HttpClient transport = new(transportHandler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(clock), [Source()]);
         BooruHostServices services = new(new Inner(), http);
         BooruJob job = services.OpenJob();
@@ -898,7 +901,8 @@ public sealed class BooruHostHttpContractTests
     public async Task ChanSourceIsForwardedUntouchedWithoutJobTransportOrBooruPolicy()
     {
         Inner inner = new();
-        using HttpClient transport = new(new Handler((_, _) => throw new InvalidOperationException("booru transport must not see chan traffic")));
+        using Handler transportHandler = new((_, _) => throw new InvalidOperationException("booru transport must not see chan traffic"));
+        using HttpClient transport = new(transportHandler, disposeHandler: false);
         using BooruHostHttp http = new(transport, new RequestPolicyState(), [Source(), ChanSource()]);
         BooruHostServices services = new(inner, http);
         HostHttpRequest request = new("chan", HostHttpMethod.Get, new("https://chan.test/a"),

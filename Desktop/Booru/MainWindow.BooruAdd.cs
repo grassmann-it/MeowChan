@@ -59,9 +59,11 @@ public partial class MainWindow
             return outcome.Status is AdmissionStatus.Added or AdmissionStatus.AlreadyPresent;
         }
         string query = address.PrefilledQuery(out bool addedSafeRating);
-        if (!UseAsBooruSearch(query))
+        (bool opened, int? limit) = OpenBooruSearchDraft(query);
+        if (!opened)
         {
-            _admissionResults.Add(new AdmissionFeedback(address.CanonicalText, AdmissionStatus.Unsupported, Texts.T("booru.ui.add.disabled")));
+            string reason = limit is { } count ? Texts.T("booru.tabs.limit", count) : Texts.T("booru.ui.add.disabled");
+            _admissionResults.Add(new AdmissionFeedback(address.CanonicalText, AdmissionStatus.Unsupported, reason));
             return false;
         }
         _admissionBooruOpened = true;

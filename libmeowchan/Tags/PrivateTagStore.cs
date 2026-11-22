@@ -243,8 +243,12 @@ internal sealed record PrivateTagMergeCommit(PrivateTagCommit Commit, PrivateTag
 internal static class PrivateTagAliasIndex
 {
     /// <summary>The alias with exactly this name key, else the alias whose fold text matches when all such aliases name one tag.</summary>
-    internal static PrivateTagAlias? Find(IReadOnlyList<PrivateTagAlias> aliases, PrivateTagName name)
+    internal static PrivateTagAlias? Find(IReadOnlyList<PrivateTagAlias> aliases, PrivateTagName name) =>
+        Find(aliases, name, out _);
+
+    internal static PrivateTagAlias? Find(IReadOnlyList<PrivateTagAlias> aliases, PrivateTagName name, out bool ambiguous)
     {
+        ambiguous = false;
         if (aliases.Count == 0) return null;
         foreach (PrivateTagAlias alias in aliases)
             if (string.Equals(alias.Name.Key, name.Key, StringComparison.Ordinal)) return alias;
@@ -253,7 +257,11 @@ internal static class PrivateTagAliasIndex
         foreach (PrivateTagAlias alias in aliases)
         {
             if (!string.Equals(TagNameFold.Fold(alias.Name), folded, StringComparison.Ordinal)) continue;
-            if (match != null && match.Tag != alias.Tag) return null;
+            if (match != null && match.Tag != alias.Tag)
+            {
+                ambiguous = true;
+                return null;
+            }
             match ??= alias;
         }
         return match;
@@ -270,7 +278,7 @@ internal enum PrivateTagWritePhase { BeforeBackupCheck, BeforeReplace, AfterRepl
 /// Invalid or newer documents are never overwritten. No transfer, no source tags and no
 /// archive-existence checks live here.
 /// </summary>
-internal sealed class PrivateTagStore
+internal sealed partial class PrivateTagStore
 {
     internal const string FileName = "private-tags.json";
     // Permanent copy of the v1 bytes taken by the first write that upgrades v1 to v2 (the way back to 1.0.2).
@@ -1087,17 +1095,7 @@ internal sealed class PrivateTagStore
             // A newer or damaged backup must never be rotated away by this writer.
             try { CheckBackup(); }
             catch (FileNotFoundException) { }
-            model.Revision++;
-            // The first committed local data upgrades the document to v2, the first alias to v3; a version never goes back
-            // (never silently downgraded). Only a document that was read as v1 from an existing primary has v1 bytes worth keeping.
-            int needed = model.Aliases.Count > 0 || model.Formers.Count > 0 ? AliasVersion : model.HasLocalData ? LocalVersion : BoundOnlyVersion;
-            bool upgradesV1 = needed > BoundOnlyVersion && model.Version == BoundOnlyVersion && bytes.Length > 0;
-            model.Version = Math.Max(model.Version, needed);
-            byte[] next = Serialize(model);
-            // Only growth past the configured limit is refused, so removals still work after the limit was lowered.
-            // The limit never exceeds the read ceiling, so every written document stays readable.
-            if (next.Length > Limits.DocumentLimitBytes && next.Length > bytes.Length)
-                throw new PrivateTagStoreException(PrivateTagStoreError.DocumentLimitReached);
+            byte[] next = PrepareWrite(model, bytes.Length, out bool upgradesV1);
             // The exact v1 bytes are secured before the replace; ".bak" alone would lose them at the next write.
             if (upgradesV1) KeepV1Backup(bytes, token);
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeReplace);
@@ -1108,6 +1106,20 @@ internal sealed class PrivateTagStore
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.AfterReplace);
             return new PrivateTagCommit(true, tag, model.Snapshot(next));
         });
+    }
+
+    private byte[] PrepareWrite(Model model, int priorLength, out bool upgradesV1)
+    {
+        model.Revision++;
+        // The first committed local data upgrades to v2, the first alias to v3. Versions stay sticky.
+        int needed = model.Aliases.Count > 0 || model.Formers.Count > 0 ? AliasVersion : model.HasLocalData ? LocalVersion : BoundOnlyVersion;
+        upgradesV1 = needed > BoundOnlyVersion && model.Version == BoundOnlyVersion && priorLength > 0;
+        model.Version = Math.Max(model.Version, needed);
+        byte[] next = Serialize(model);
+        // Only growth past the configured limit is refused, so removals still work after the limit was lowered.
+        if (next.Length > Limits.DocumentLimitBytes && next.Length > priorLength)
+            throw new PrivateTagStoreException(PrivateTagStoreError.DocumentLimitReached);
+        return next;
     }
 
     /// <summary>
@@ -1250,7 +1262,7 @@ internal sealed class PrivateTagStore
         return bytes;
     }
 
-    private static Model Parse(byte[] bytes)
+    private static Model Parse(ReadOnlySpan<byte> bytes)
     {
         try
         {

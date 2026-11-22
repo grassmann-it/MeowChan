@@ -64,6 +64,13 @@ internal static class ReaderMediaSidebarChecks
                 && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Continue, "Tab does not reach the sidebar.");
             Require(Grid.GetColumn(sidebar) == 0 && Grid.GetColumn(pane) == 2, "The default side is not left.");
             await CheckFullHeightAsync(sidebar, frame);
+            using (MediaNativeInput native = new(window))
+            {
+                await native.MoveAsync(sidebar.Frame);
+                await Program.WaitUntilAsync(() => sidebar.Close.Opacity == 1 && sidebar.Close.IsHitTestVisible);
+                await native.MoveAsync(posts);
+                await Program.WaitUntilAsync(() => sidebar.Close.Opacity == 0 && !sidebar.Close.IsHitTestVisible);
+            }
             // The column takes its width in the next layout pass after the sidebar is shown.
             await Program.WaitUntilAsync(() => Math.Abs(frame.ColumnDefinitions[0].ActualWidth - page.ReaderMedia.SidebarWidth) <= 1,
                 () => "The sidebar does not have its configured width: column " + frame.ColumnDefinitions[0].ActualWidth + " (" + frame.ColumnDefinitions[0].Width

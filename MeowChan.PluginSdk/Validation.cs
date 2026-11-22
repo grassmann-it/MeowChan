@@ -1,4 +1,5 @@
 using System.Net;
+using System.Net.Http.Headers;
 
 namespace MeowChan.PluginSdk;
 
@@ -9,7 +10,7 @@ public sealed record ValidationIssue(string Path, string Code, string Message);
 /// every worker response against its expected request before passing it to host services.
 /// Cross-plugin conflicts are reported separately; ordering never selects a winner.
 /// </summary>
-public static class SdkValidation
+public static partial class SdkValidation
 {
     private const int MaximumAggregateSources = 256;
     private const int MaximumAggregateRoutes = 1024;
@@ -281,6 +282,21 @@ public static class SdkValidation
         return checks.Issues;
     }
 
+    /// <summary>
+    /// Validates only the booru post-search profile of one source (<see cref="SourceDescription.BooruProfile"/>): a
+    /// missing profile, or one on a source without post search, is an issue. Description validation applies the same
+    /// checks to every declared profile.
+    /// </summary>
+    public static IReadOnlyList<ValidationIssue> ValidateBooruProfile(SourceDescription source)
+    {
+        Checks checks = new Checks();
+        if (source?.BooruProfile is null) checks.Add("source.booruProfile", "missing", "A booru profile is required.");
+        else if (!source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+            checks.Add("source.booruProfile", "unexpected_profile", "Only a post-search source declares a booru profile.");
+        else checks.BooruProfileOf(source.BooruProfile, source.PostOrder, "source.booruProfile");
+        return checks.Issues;
+    }
+
     public static IReadOnlyList<ValidationIssue> ValidateHttpRequest(HostHttpRequest request, SourceDescription source)
     {
         Checks checks = new Checks();
@@ -546,7 +562,7 @@ public static class SdkValidation
 
     private static bool IsDotSegment(string value) => Uri.UnescapeDataString(value) is "." or "..";
 
-    private sealed class Checks
+    private sealed partial class Checks
     {
         private readonly List<ValidationIssue> _issues = new List<ValidationIssue>();
         internal IReadOnlyList<ValidationIssue> Issues => _issues.AsReadOnly();
@@ -624,11 +640,12 @@ public static class SdkValidation
             if (SdkContract.IsSupported(description.SdkVersion) && description.SdkVersion != SdkContract.Version
                 && description.Sources?.Any(source => source is not null && source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) == true)
                 Add(path + ".sdkVersion", "incompatible_sdk", $"Post search requires SDK {SdkContract.Version}.");
-            bool hasCapability = description.Sources?.Count > 0 || description.Filters?.Count > 0;
+            Taggers(description, path);
+            bool hasCapability = description.Sources?.Count > 0 || description.Filters?.Count > 0 || description.Taggers?.Count > 0;
             if (!hasCapability && description.DeclarationStatus != PluginDeclarationStatus.Blocked)
-                Add(path, "missing_capability", "A plugin must declare a source or filter capability unless it is explicitly blocked.");
+                Add(path, "missing_capability", "A plugin must declare a source, filter or tagger capability unless it is explicitly blocked.");
             if (description.DeclarationStatus == PluginDeclarationStatus.Blocked && hasCapability)
-                Add(path + ".declarationStatus", "blocked_capability", "A blocked plugin declaration must not expose executable source or filter capabilities.");
+                Add(path + ".declarationStatus", "blocked_capability", "A blocked plugin declaration must not expose executable source, filter or tagger capabilities.");
             HashSet<string> informationKeys = new HashSet<string>(StringComparer.Ordinal);
             List(description.Information, path + ".information", (entry, itemPath) =>
             {
@@ -670,6 +687,11 @@ public static class SdkValidation
                 if (!(source.HttpHosts?.Any(host => host is not null && host.Purpose.HasFlag(HttpHostPurpose.Metadata)) ?? false))
                     Add(path + ".httpHosts", "missing_metadata_host", "Post search requires at least one metadata host.");
             }
+            if (source.BooruProfile is not null)
+            {
+                if (!postSearch) Add(path + ".booruProfile", "unexpected_profile", "Only a post-search source declares a booru profile.");
+                else BooruProfileOf(source.BooruProfile, source.PostOrder, path + ".booruProfile");
+            }
             EnumValue(source.PostOrder, path + ".postOrder");
             EnumValue(source.Maturity, path + ".maturity");
             Schema(source.Settings, path + ".settings", SettingScope.Source);
@@ -698,6 +720,103 @@ public static class SdkValidation
                 if (host.Purpose == HttpHostPurpose.None || (host.Purpose & ~all) != 0) Add(itemPath + ".purpose", "unknown_purpose", "Declare a known host purpose.");
             }, 64);
         }
+
+        // Declarative booru endpoint profile: small, exact and checkable by the host before any request.
+        internal void BooruProfileOf(BooruSourceProfile profile, PostOrderKind order, string path)
+        {
+            EnumValue(profile.Authentication, path + ".authentication");
+            if (profile.MaximumPage is < 1 or > 1000) Add(path + ".maximumPage", "invalid_page", "The maximum page is between 1 and 1000.");
+            if (profile.MaximumLimit is < 1 or > 100) Add(path + ".maximumLimit", "invalid_limit", "The maximum limit is between 1 and 100.");
+            if (profile.MinimumRequestSpacingMilliseconds is < 0 or > 60000)
+                Add(path + ".minimumRequestSpacingMilliseconds", "invalid_spacing", "The request spacing is between 0 and 60000 milliseconds.");
+            HashSet<BooruTagCategory> categories = new();
+            List(profile.TagCategories, path + ".tagCategories", (category, itemPath) =>
+            {
+                EnumValue(category, itemPath);
+                if (!categories.Add(category)) Add(itemPath, "duplicate_value", "A tag category is declared once.");
+            }, 16);
+            HashSet<BooruRating> ratings = new();
+            List(profile.Ratings, path + ".ratings", (rating, itemPath) =>
+            {
+                EnumValue(rating, itemPath);
+                if (!ratings.Add(rating)) Add(itemPath, "duplicate_value", "A rating is declared once.");
+            }, 16);
+
+            bool cursorTerm = false;
+            if (profile.Query is null) Add(path + ".query", "missing", "Query rules are required.");
+            else
+            {
+                if (profile.Query.MaximumTagTerms is < 1 or > 8) Add(path + ".query.maximumTagTerms", "invalid_limit", "Between 1 and 8 tag terms.");
+                HashSet<string> values = new(StringComparer.Ordinal);
+                List(profile.Query.RatingValues, path + ".query.ratingValues", (value, itemPath) =>
+                {
+                    if (!ProfileToken(value, 32, allowDigitsFirst: true)) Add(itemPath, "invalid_value", "A rating value is lower-case ASCII letters, digits or '_'.");
+                    else if (!values.Add(value)) Add(itemPath, "duplicate_value", "A rating value is declared once.");
+                }, 16);
+                if (profile.Query.BeforeCursorPrefix is string prefix)
+                {
+                    cursorTerm = true;
+                    string name = prefix.EndsWith(":<", StringComparison.Ordinal) ? prefix[..^2] : prefix.EndsWith(':') ? prefix[..^1] : string.Empty;
+                    if (!ProfileToken(name, 16, allowDigitsFirst: false) || name.Contains("rating", StringComparison.Ordinal))
+                        Add(path + ".query.beforeCursorPrefix", "invalid_value", "A cursor prefix is a lower-case name followed by ':' or ':<'.");
+                }
+            }
+
+            int search = 0, post = 0;
+            bool cursorParameter = false;
+            List(profile.Endpoints, path + ".endpoints", (endpoint, itemPath) =>
+            {
+                if (endpoint is null) { Add(itemPath, "missing", "Endpoint is required."); return; }
+                EnumValue(endpoint.Kind, itemPath + ".kind");
+                if (endpoint.Kind == BooruEndpointKind.Search) search++;
+                else if (endpoint.Kind == BooruEndpointKind.Post) post++;
+                string? template = endpoint.PathTemplate;
+                int placeholders = template is null ? 0 : Count(template, "{post}");
+                string literal = template?.Replace("{post}", "", StringComparison.Ordinal) ?? string.Empty;
+                if (template is null || !template.StartsWith('/') || template.Length > 256 || template.Contains("//", StringComparison.Ordinal)
+                    || literal.Any(character => !(char.IsAsciiLetterOrDigit(character) || character is '/' or '.' or '_' or '-'))
+                    || template.Split('/').Any(segment => segment is "." or "..")
+                    || placeholders > (endpoint.Kind == BooruEndpointKind.Post ? 1 : 0))
+                    Add(itemPath + ".pathTemplate", "invalid_template", "Use an exact absolute path of letters, digits, '/', '.', '_' or '-'; only a post endpoint names {post} once.");
+                HashSet<string> names = new(StringComparer.Ordinal);
+                int tags = 0, pages = 0, limits = 0, ids = 0;
+                List(endpoint.Parameters, itemPath + ".parameters", (parameter, parameterPath) =>
+                {
+                    if (parameter is null) { Add(parameterPath, "missing", "Parameter is required."); return; }
+                    EnumValue(parameter.Kind, parameterPath + ".kind");
+                    if (!ProfileToken(parameter.Name, 32, allowDigitsFirst: false)) Add(parameterPath + ".name", "invalid_name", "A parameter name is lower-case ASCII letters, digits or '_'.");
+                    else if (!names.Add(parameter.Name)) Add(parameterPath + ".name", "duplicate_name", "A parameter is declared once.");
+                    if (parameter.Kind == BooruParameterKind.Fixed)
+                    {
+                        if (parameter.FixedValue is null || parameter.FixedValue.Length is < 1 or > 64
+                            || parameter.FixedValue.Any(character => !(char.IsAsciiLetterOrDigit(character) || character is '_' or '.' or '-')))
+                            Add(parameterPath + ".fixedValue", "invalid_value", "A fixed value is 1 to 64 ASCII letters, digits, '_', '.' or '-'.");
+                    }
+                    else if (parameter.FixedValue is not null) Add(parameterPath + ".fixedValue", "unexpected_value", "Only a fixed parameter has a value.");
+                    switch (parameter.Kind)
+                    {
+                        case BooruParameterKind.TagQuery: tags++; break;
+                        case BooruParameterKind.PageNumber or BooruParameterKind.PageIndex: pages++; break;
+                        case BooruParameterKind.PageOrBeforeCursor: pages++; cursorParameter = true; break;
+                        case BooruParameterKind.Limit: limits++; break;
+                        case BooruParameterKind.PostId: ids++; break;
+                    }
+                }, 16);
+                if (endpoint.Kind == BooruEndpointKind.Search && (tags != 1 || pages > 1 || limits != 1 || ids != 0))
+                    Add(itemPath + ".parameters", "invalid_endpoint", "A search endpoint requires a tag query and a limit, with at most one page parameter and no post id.");
+                if (endpoint.Kind == BooruEndpointKind.Post && (tags != 0 || pages != 0 || limits != 0 || ids + placeholders != 1))
+                    Add(itemPath + ".parameters", "invalid_endpoint", "A post endpoint names its post id exactly once and has no query, page or limit parameter.");
+            }, 8);
+            if (search != 1 || post != 1) Add(path + ".endpoints", "invalid_endpoint", "Declare exactly one search and one post endpoint.");
+            if (cursorTerm && cursorParameter) Add(path + ".query.beforeCursorPrefix", "ambiguous_cursor", "Declare the cursor either as a query term or as a page parameter.");
+            if (order == PostOrderKind.DecimalPostId && !cursorTerm && !cursorParameter)
+                Add(path, "cursor_unsupported", "A source with decimal post order declares how a before-id cursor is sent.");
+        }
+
+        private static bool ProfileToken(string? value, int maximum, bool allowDigitsFirst)
+            => !string.IsNullOrEmpty(value) && value.Length <= maximum
+                && (allowDigitsFirst || char.IsAsciiLetterLower(value[0]))
+                && value.All(character => char.IsAsciiLetterLower(character) || char.IsAsciiDigit(character) || character == '_');
 
         private void Route(UrlRoute? route, string path)
         {
@@ -982,13 +1101,13 @@ public static class SdkValidation
         // A cursor is a post id the host received from the same source; it is never echoed in an issue.
         private void BooruCursor(string cursor, string path)
         {
-            if (!CanonicalDecimal(cursor) || cursor.Length > SdkLimits.MaximumIdentifierLength)
+            if (!CanonicalDecimal(cursor))
                 Add(path, "invalid_cursor", "A cursor is a positive decimal post id without leading zeros.");
         }
 
         // Positive decimal without leading zeros; such ids compare by length, then ordinally.
         private static bool CanonicalDecimal([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? value)
-            => !string.IsNullOrEmpty(value) && value[0] is >= '1' and <= '9' && value.All(char.IsAsciiDigit);
+            => value is { Length: > 0 and <= SdkLimits.MaximumBooruPostIdDigits } && value[0] is >= '1' and <= '9' && value.All(char.IsAsciiDigit);
 
         private static int CompareDecimal(string left, string right)
             => left.Length != right.Length ? left.Length.CompareTo(right.Length) : string.CompareOrdinal(left, right);
@@ -1188,6 +1307,9 @@ public static class SdkValidation
         {
             if (validators is null) { if (required) Add(path, "missing_validator", "Unchanged requires validator/revision identity."); return; }
             Text(validators.EntityTag, path + ".entityTag", 4096);
+            if (validators.EntityTag is string tag && (tag.Any(char.IsControl)
+                || !EntityTagHeaderValue.TryParse(tag, out EntityTagHeaderValue? parsed) || parsed.Tag == "*"))
+                Add(path + ".entityTag", "invalid_header", "An ETag must be a single strong or weak entity tag.");
             Text(validators.Revision, path + ".revision", SdkLimits.MaximumIdentifierLength);
             if (required && validators.EntityTag is null && validators.LastModified is null && validators.Revision is null)
                 Add(path, "missing_validator", "Unchanged requires validator/revision identity.");
@@ -1229,6 +1351,10 @@ public static class SdkValidation
             AllowedHttpUri(request.Url, source, path + ".url");
             Headers(request.Headers, path + ".headers", requestHeaders: true);
             Validators(request.Validators, path + ".validators");
+            if (request.Headers is not null && request.Headers.Keys.Any(name =>
+                (request.Validators?.EntityTag is not null && name.Equals("If-None-Match", StringComparison.OrdinalIgnoreCase))
+                || (request.Validators?.LastModified is not null && name.Equals("If-Modified-Since", StringComparison.OrdinalIgnoreCase))))
+                Add(path + ".headers", "duplicate_validator", "Provide each conditional validator through one input only.");
         }
 
         internal void AllowedHttpUri(Uri? uri, SourceDescription? source, string path)
@@ -1250,7 +1376,15 @@ public static class SdkValidation
             {
                 if (!names.Add(name)) Add(path, "duplicate_header", "HTTP header names are case-insensitive.");
                 if (string.IsNullOrWhiteSpace(name) || name.Length > 128 || name.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '-')) Add(path, "invalid_header", "Invalid HTTP header name.");
-                if (value is null || value.Length > 8192 || value.Contains('\r') || value.Contains('\n')) Add(path + "." + name, "invalid_header", "Invalid or oversized HTTP header value.");
+                if (value is null || value.Length > 8192 || value.Any(char.IsControl))
+                    Add(path + "." + name, "invalid_header", "Invalid or oversized HTTP header value.");
+                else if (requestHeaders && name.Equals("If-None-Match", StringComparison.OrdinalIgnoreCase))
+                {
+                    using HttpRequestMessage message = new();
+                    HttpHeaderValueCollection<EntityTagHeaderValue> tags = message.Headers.IfNoneMatch;
+                    if (!tags.TryParseAdd(value) || tags.Count == 0 || tags.Count > 1 && tags.Contains(EntityTagHeaderValue.Any))
+                        Add(path + "." + name, "invalid_header", "If-None-Match requires entity tags or a wildcard.");
+                }
                 if (requestHeaders && !name.Equals("Accept", StringComparison.OrdinalIgnoreCase)
                     && !name.Equals("If-None-Match", StringComparison.OrdinalIgnoreCase)
                     && !name.Equals("If-Modified-Since", StringComparison.OrdinalIgnoreCase))

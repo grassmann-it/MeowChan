@@ -105,7 +105,7 @@ internal static class UnifiedSearchChecks
         await SettleAsync(window);
         Program.CaptureWindow(window, $"smoke-unified-search-find-{name}.png");
         C<TextBox>(page, "ReaderFindQuery").Text = "";
-        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderFindOpen").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await SettleAsync(window);
         await ScopesAsync(window, page, name);
     }
@@ -130,12 +130,14 @@ internal static class UnifiedSearchChecks
         archiveTextBox.Focus();
         Press(archiveTextBox, Avalonia.Input.Key.Down, KeyModifiers.Alt); // the field opens its chip menu
         await SettleAsync(window);
-        Require(archiveChip.OpenMenu is { IsOpen: true } menu && menu.Items.OfType<MenuItem>().Where(item => item.Tag is SearchScope).Select(item => item.Tag).SequenceEqual(
-            new object[] { SearchScope.Text, SearchScope.FileName, SearchScope.Sha256 })
+        Require(archiveChip.OpenMenu?.IsOpen == true, "Alt+Down did not open the archive scope menu.");
+        ContextMenu menu = archiveChip.OpenMenu!;
+        Require(menu.Items.OfType<MenuItem>().Select(item => item.Tag).OfType<string>()
+            .Where(id => id.StartsWith("search.scope.", StringComparison.Ordinal)).SequenceEqual(["search.scope.Text", "search.scope.FileName", "search.scope.Sha256"])
             && menu.Items.OfType<MenuItem>().Any(item => item.Name == "ArchiveSearchInThread"), "Scope menu does not list Text, File name, SHA-256 and the carry-over.");
         Program.CaptureWindow(window, $"smoke-unified-search-scope-menu-{theme}.png");
-        MenuItem fileName = archiveChip.OpenMenu!.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, SearchScope.FileName));
-        fileName.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        MenuItem fileName = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Tag, "search.scope.FileName"));
+        SmokeActionClick.Execute(fileName);
         archiveChip.OpenMenu?.Close();
         await SettleAsync(window);
         SearchBox archiveFile = C<SearchBox>(page, "ArchiveFilenameQuery");
@@ -185,11 +187,11 @@ internal static class UnifiedSearchChecks
         await page.MediaHashSearchTask.WaitAsync(Deadline);
         Require(C<StackPanel>(page, "ReaderFindBar").IsVisible && hash.Text == new string('a', 64), "The scoped reader bar lost its draft after the dialog.");
         // Primary+F / Find in saved thread maps the reader bar back to Text.
-        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderFindOpen").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         C<Button>(page, "ReaderFindOpen").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await page.ThreadFindTask.WaitAsync(Deadline);
         Require(readerChip.Scope == SearchScope.Text && C<TextBox>(page, "ReaderFindQuery").IsFocused, "Reader find did not reopen in the Text scope.");
-        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderFindOpen").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
         // Saved searches: one split button whose arrow holds "Save applied search…".
         SplitButton split = C<SplitButton>(page, "ArchiveSavedSearches");
@@ -234,20 +236,24 @@ internal static class UnifiedSearchChecks
         // Reader -> archive: the archive draft "lamp" equals, so it applies; a different one is offered and Keep keeps it.
         readerText.Text = "keyboards";
         archiveText.Text = "desk";
+        page.ToggleThreadList();
+        Require(page.IsThreadListHiddenBySwitch, "Carry fixture did not hide the archive list.");
         Carry(readerChip, "ReaderSearchInArchive").Execute();
         await SettleAsync(window);
-        Require(archiveOffer.IsVisible && archiveOffer.PendingQuery == "keyboards" && archiveText.Text == "desk", "Reader -> archive overwrote a different draft.");
+        Require(archiveOffer.IsEffectivelyVisible && archiveOffer.PendingQuery == "keyboards" && archiveText.Text == "desk", "Reader -> archive overwrote a different draft.");
         ((Button)archiveOffer.GetLogicalDescendants().OfType<Button>().Single(b => b.Name == "SearchCarryKeep")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(!archiveOffer.IsVisible && archiveText.Text == "desk", "Keep current changed the archive draft.");
         archiveText.Text = "";
+        page.ToggleThreadList();
+        Require(page.IsThreadListHiddenBySwitch, "Carry fixture did not hide the archive list.");
         Carry(readerChip, "ReaderSearchInArchive").Execute();
         await SettleAsync(window);
         await WaitAsync(() => !page.IsBusy);
-        Require(archiveText.Text == "keyboards" && archiveChip.Scope == SearchScope.Text && page.AppliedSearchSpec?.Text == "keyboards",
+        Require(archiveText.IsEffectivelyVisible && archiveText.Text == "keyboards" && archiveChip.Scope == SearchScope.Text && page.AppliedSearchSpec?.Text == "keyboards",
             "An empty archive field did not take and apply the reader query.");
         archiveText.Text = "";
         await page.ApplySearchAsync();
-        C<Button>(page, "ReaderToolsClose").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        C<Button>(page, "ReaderFindOpen").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await SettleAsync(window);
         Console.WriteLine($"SMOKE unified search carry-over [{theme}]: archive -> thread (empty takes, different offered, Use it), reader -> archive (Keep current, empty takes and applies) checked.");
     }

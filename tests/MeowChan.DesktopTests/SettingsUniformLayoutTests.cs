@@ -193,7 +193,7 @@ public sealed class SettingsUniformLayoutTests
     public void ConditionalRowsAreMarkedAndIndentedUnderTheirParent()
     {
         XElement[] rows = Markup().Descendants().Where(e => e.Attribute(Desktop + "SettingsConditional.When") != null).ToArray();
-        Assert.Equal(9, rows.Length);
+        Assert.Equal(10, rows.Length);
         foreach (XElement row in rows)
         {
             Assert.Equal("Border", row.Name.LocalName);
@@ -203,6 +203,8 @@ public sealed class SettingsUniformLayoutTests
         }
         // The tagline for "Always the same" is one of them.
         Assert.Contains(rows, r => r.Descendants().Any(d => Name(d) == "HeaderTaglineFixedIdInput"));
+        // So are the minutes between two changes of "New every N minutes".
+        Assert.Contains(rows, r => r.Descendants().Any(d => Name(d) == "HeaderTaglineIntervalMinutesInput"));
         // The two slideshow sub-rows are one level deeper.
         Assert.Equal(2, rows.Count(r => HasClass(r, "settings-conditional-nested")));
         XElement style = Markup().Descendants().Single(e => e.Name.LocalName == "Style" && (string?)e.Attribute("Selector") == "Border.settings-conditional");

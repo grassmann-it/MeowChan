@@ -440,6 +440,36 @@ public sealed class QuickTagPopoverTests : IDisposable
         popover.Close();
     }
 
+    [Theory]
+    [InlineData(ShortcutPlatform.Linux, "J", Avalonia.Input.Key.J, KeyModifiers.None, "j")]
+    [InlineData(ShortcutPlatform.Linux, "Shift+J", Avalonia.Input.Key.J, KeyModifiers.Shift, "J")]
+    [InlineData(ShortcutPlatform.Linux, "OemComma", Avalonia.Input.Key.OemComma, KeyModifiers.None, ",")]
+    [InlineData(ShortcutPlatform.MacOS, "Alt+1", Avalonia.Input.Key.D1, KeyModifiers.Alt, null)]
+    public void SuggestionShortcutLeavesTheTagEditorAloneButWorksOutsideIt(
+        ShortcutPlatform platform, string gesture, Key key, KeyModifiers modifiers, string? symbol)
+    {
+        using Fixture fixture = new();
+        QuickTagSuggestion first = Suggestion(fixture.Store, "alpha");
+        using QuickTagSession session = fixture.Session();
+        QuickTagPopover popover = QuickTagPopover.Create(new Border(), session, "x", new QuickTagPopoverOptions
+        {
+            Suggestions = new DelegateQuickTagSuggestions(_ => new[] { first }),
+            RestoreFocus = false
+        });
+        try
+        {
+            var section = new ShortcutBindingsSection().Set(QuickTagCommands.Suggestion(1), [ShortcutGesture.Parse(gesture)]);
+            var bindings = EffectiveShortcutBindings.Build(section, platform);
+            var press = new KeyEventArgs { Key = key, KeyModifiers = modifiers, KeySymbol = symbol, Source = new TextBox() };
+            Assert.False(QuickTagPopover.TryRouteCommand(popover.Surface!, press, bindings));
+            Assert.Empty(NamesOn(fixture.Store, fixture.Entry));
+            press.Source = popover.Frame;
+            Assert.True(QuickTagPopover.TryRouteCommand(popover.Surface!, press, bindings));
+            Assert.Equal(new[] { "alpha" }, NamesOn(fixture.Store, fixture.Entry));
+        }
+        finally { popover.Close(); }
+    }
+
     [Fact]
     public void TheRankingAdapterIsTheStripIsReleasedWithThePopoverAndTheShellBindsTheSavedLimits()
     {

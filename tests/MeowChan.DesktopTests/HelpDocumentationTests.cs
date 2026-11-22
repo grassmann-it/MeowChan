@@ -262,7 +262,8 @@ public sealed class HelpDocumentationTests
             Assert.Equal("Alt+" + number, CommandCatalog.Get(QuickTagCommands.Suggestion(number)).Shortcut);
         foreach (string phrase in new[]
         {
-            "Ctrl+Shift+T (Command+Shift+T on macOS)", "Alt+1 to Alt+9 (Command+1 to Command+9 on macOS)", "Page Down and Page Up",
+            "Ctrl+Shift+T (Command+Shift+T on macOS)", "Alt+1 through Alt+9 (Option+1 through Option+9 on macOS)", "Page Down and Page Up",
+            "On macOS, Option+number in the tag field goes to text input", "digits and Shift+digits go to text input from the first character",
             "Ctrl+Enter (Command+Enter)", "Ctrl+Z (Command+Z)", "Ctrl+T (Command+T)", "Shift+P switches to the post panel"
         })
             Assert.Contains(phrase, panel, StringComparison.Ordinal);
@@ -363,9 +364,8 @@ public sealed class HelpDocumentationTests
         // Pin the host-to-page-to-gallery chain, not just configuration fields or a plan comment.
         string host = Read("Desktop/Shell/MainWindow.TaggingPage.cs");
         Assert.Contains("return NavigateWorkspace(WorkspacePage.Tagging);", host, StringComparison.Ordinal);
-        Assert.Contains("StartTagging = StartTaggingFromPageAsync", host, StringComparison.Ordinal);
+        Assert.Contains("StartTagging = OpenTagQueueGalleryAsync", host, StringComparison.Ordinal);
         Assert.Contains("Stamp = QuickTagStampSet", host, StringComparison.Ordinal);
-        Assert.Contains("private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync(_taggingPage?.SelectedGroupId, _taggingPage?.UngroupedGroupSelected == true);", host, StringComparison.Ordinal);
         Assert.Contains("_gallery.StartTaggingMode(walk,", Read("Desktop/Shell/MainWindow.TagQueue.cs"), StringComparison.Ordinal);
         string mode = Read("Desktop/GalleryViewer.TaggingMode.cs");
         Assert.Contains("inField && !listOpen && string.IsNullOrEmpty(surface.Input.Text)", mode, StringComparison.Ordinal);
@@ -465,8 +465,6 @@ public sealed class HelpDocumentationTests
     [InlineData("Back and Close", "gallery.return")]
     [InlineData("Back and Close", "command.media.return")]
     [InlineData("Back and Close", "reader.close")]
-    [InlineData("Back and Close", "readerFind.close")]
-    [InlineData("Back and Close", "tags.close")]
     [InlineData("Back and Close", "command.preview.close")]
     [InlineData("Back and Close", "action.hideDetails")]
     public void HelpActionNamesMatchEnglishAndGermanCatalogs(string heading, string key)
@@ -747,7 +745,7 @@ public sealed class HelpDocumentationTests
         (string Xaml, string Name)[] ends =
         [
             (main, "DownloadSearchClose"), (main, "InspectorCloseButton"),
-            (archive, "ReaderToolsClose"), (archive, "ClosePreviewButton")
+            (archive, "ClosePreviewButton")
         ];
         foreach ((string xaml, string name) in ends)
             Assert.Matches("<Button\\s+x:Name=\"" + name + "\"[^>]*controls:HeaderBar\\.IsEnd=\"True\"", xaml);
@@ -843,7 +841,7 @@ public sealed class HelpDocumentationTests
         string cards = Plain(Section(Read(Help), "Reading posts as cards"));
         string display = Plain(Section(Read(Help), "Reader display settings"));
         AssertNumber(display, @"widths default to (?<value>\d+) pixels", ReaderDisplayPreferences.ReaderThumbnailWidthDefault);
-        AssertNumber(display, @"and (?<value>\d+) pixels in the large reader",
+        AssertNumber(display, @"and (?<value>\d+) pixels in the Reader",
             ReaderDisplayPreferences.EffectiveThumbnailWidth(ReaderDisplayPreferences.ReaderThumbnailWidthDefault, true));
         AssertNumber(cards, @"longer than (?<value>\d+) UTF-16 code units", ReaderExternalLink.MaxLength);
         Assert.Contains("only for this app session, not after a restart", cards);
@@ -1364,7 +1362,7 @@ public sealed class HelpDocumentationTests
         Assert.Contains("BooruPageHost.Content = page;", host, StringComparison.Ordinal);
         string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
         Assert.Contains("_config.ShowBooruTools", booru, StringComparison.Ordinal);
-        Assert.Contains("page.ShowQuery(query)", booru, StringComparison.Ordinal);
+        Assert.Contains("page.View.TryShowQueryInNewTab(query)", booru, StringComparison.Ordinal);
         Assert.DoesNotContain("SearchAsync(", booru, StringComparison.Ordinal);
         string navigation = Read("Desktop/Shell/MainWindow.Navigation.cs");
         Assert.Contains("id != \"navigation.booru\" || CanOpenBooru", navigation, StringComparison.Ordinal);

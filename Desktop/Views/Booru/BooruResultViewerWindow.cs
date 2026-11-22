@@ -197,7 +197,9 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         _next.IsEnabled = _index < _ids.Length - 1;
         _select.Content = Texts.T("media.tile.selected") + " · Space / Enter";
         _select.IsChecked = _selected.Contains(CurrentPostId);
-        string loadLabel = Texts.T("booru.ui.load") + " · " + CommandCatalog.ShortcutDisplay("media.export-original");
+        string action = row.CanRetry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
+        string actionName = row.CanRetry ? $"{action}: {Title}" : Texts.T("booru.ui.loadFor", CurrentPostId);
+        string loadLabel = action + " · " + CommandCatalog.ShortcutDisplay("media.export-original");
         _download.IsEnabled = row.CanLoad || row.CanRetry;
         string? previewNote = row.Preview switch
         {
@@ -208,7 +210,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         };
         _status.Text = (previewNote is null ? string.Empty : previewNote + " · ")
             + (BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned));
-        WorkspaceIcons.MakeSquare(_download, WorkspaceIcons.ArrowDown, Texts.T("booru.ui.loadFor", CurrentPostId),
+        WorkspaceIcons.MakeSquare(_download, WorkspaceIcons.ArrowDown, actionName,
             loadLabel + Environment.NewLine + _status.Text);
         ToolTip.SetShowOnDisabled(_download, true);
         if (_shownId == CurrentPostId && _shownPreview == row.Preview && ReferenceEquals(_shownBytes, row.PreviewBytes)) return;

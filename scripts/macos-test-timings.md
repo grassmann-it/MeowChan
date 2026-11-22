@@ -8,7 +8,7 @@ closed. No live machine timing or random theory display text affects assignment.
 
 ## Planner
 
-- Keep each class (including all its methods/theory rows) on one of eight workers.
+- Keep each class (including all its methods/theory rows) on one of the requested native or portable workers.
 - Use the maximum observed summed test duration per class across the sources.
   Store integer milliseconds; tie-break by class name, then shard index.
 - Assign the next heaviest class to the currently lightest worker (LPT).
@@ -17,8 +17,9 @@ closed. No live machine timing or random theory display text affects assignment.
   class mean, whichever is larger. Removed rows do not reduce historical cost.
   Even zero-duration/skipped-only classes have positive weight. Deferred runtime
   rows contribute time but their shared testId counts as one discovery identity.
-- No core classes currently have timings: their uniform fallback preserves the
-  former case-count ordering and assignments. No suite is filtered away.
+- The profile includes measured slower Core classes. Unmeasured classes use
+  the same per-case fallback. See the [Validate CI guide](../docs/development/validate-ci-sharding.md)
+  for the current measurement and worker counts.
 - Coverage still requires the entire discovered inventory, exact method filters,
   every native worker, and the original TRX/timeout/cleanup checks. Timings from
   failed runs are useful observations but never make a failed run acceptable.

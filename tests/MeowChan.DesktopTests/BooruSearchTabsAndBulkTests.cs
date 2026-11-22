@@ -24,21 +24,68 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
     }
 
     [Fact]
-    public async Task SwitchingTabsRestoresEachSearchWithoutAnyRequest()
+    public async Task SwitchingTabsRestoresExistingPreviewsAndDoesNotRestartPendingPreviews()
     {
         BooruSearchTabs tabs = new(_model, () => _limit);
+        _h.Serve(perPage: 2);
+        TaskCompletionSource previewStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Previews.OnPreviewAsync = async (post, token) =>
+        {
+            if (post.PostId == "101") return BooruUiFixtures.Png(1);
+            previewStarted.TrySetResult();
+            await Task.Delay(Timeout.InfiniteTimeSpan, token);
+            return null;
+        };
+
         await BooruTestSupport.SearchAsync(_model, "cat");
-        int requests = _h.ProviderRequests;
-        int second = tabs.Add(copyCurrent: false);
-        Assert.True(second > 0);
-        Assert.Equal(string.Empty, _model.View.Input);
-        await BooruTestSupport.SearchAsync(_model, "dog");
-        requests = _h.ProviderRequests;
+        await previewStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        await BooruTestSupport.WaitAsync(() => _model.View.Rows[0].Preview == BooruPreviewState.Ready, "the first preview");
+        byte[]? ready = _model.View.Rows[0].PreviewBytes;
+        int requests = _h.Search.Requests;
+        int previews = _h.Previews.Requests;
+        int second = tabs.Add(copyCurrent: true);
+        _h.Queue.States["101"] = BooruLocalState.Loaded;
+
         Assert.True(tabs.Select(BooruSearchTabs.PrimaryId));
-        Assert.Equal("cat", _model.View.ExecutedQuery);
         Assert.True(tabs.Select(second));
-        Assert.Equal("dog", _model.View.ExecutedQuery);
-        Assert.Equal(requests, _h.ProviderRequests);
+        await BooruTestSupport.WaitAsync(() => _model.View.Rows[0].Load == BooruRowLoad.AlreadyLoaded, "the restored queue state");
+        Assert.Equal("cat", _model.View.ExecutedQuery);
+        Assert.Same(ready, _model.View.Rows[0].PreviewBytes);
+        Assert.Equal(BooruPreviewState.Unavailable, _model.View.Rows[1].Preview);
+        Assert.Equal(requests, _h.Search.Requests);
+        Assert.Equal(previews, _h.Previews.Requests);
+        Assert.Empty(_h.Previews.SampleRequests);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SearchTokenSurvivesItsUsersAndIsDisposedAfterCancellation(bool disposeModel)
+    {
+        BooruSearchTabs tabs = new(_model);
+        TaskCompletionSource<CancellationToken> started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Search.OnSearch = async (query, page, token) =>
+        {
+            started.SetResult(token);
+            await release.Task;
+            return BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true));
+        };
+        _model.SetInput("cat");
+        Task search = _model.SubmitAsync();
+        CancellationToken token = await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        WaitHandle handle = token.WaitHandle;
+        try
+        {
+            if (disposeModel) _model.Dispose();
+            else tabs.Add(copyCurrent: false);
+            Assert.True(token.IsCancellationRequested);
+            Assert.Same(handle, token.WaitHandle);
+        }
+        finally { release.TrySetResult(); }
+        await search;
+        await BooruTestSupport.WaitAsync(
+            () => Record.Exception(() => { _ = token.WaitHandle; }) is ObjectDisposedException, "retired search token disposal");
     }
 
     [Fact]

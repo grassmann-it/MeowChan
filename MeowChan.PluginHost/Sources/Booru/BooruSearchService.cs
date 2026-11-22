@@ -14,6 +14,7 @@ public sealed class BooruSearchService
     public const string InvalidPostIdMessage = "The booru post id is not accepted.";
     public const string InvalidCursorCode = "invalid_cursor";
     public const string InvalidCursorMessage = "The booru cursor is not accepted.";
+    /// <summary>The page size of a Danbooru search (the host ceiling); another source uses at most its profile's limit.</summary>
     public const int SearchLimit = BooruHostHttp.MaximumSearchLimit;
 
     /// <summary>
@@ -99,24 +100,23 @@ public sealed class BooruSearchService
         ArgumentNullException.ThrowIfNull(scope);
         if (!TryGetSource(sourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruSearchFailure(sourceId, sourceFailure!);
-        if (page is < 1 or > BooruHostHttp.MaximumSearchPage)
-            return new BooruSearchFailure(sourceId, new FailureDetail("invalid_page", "The booru page must be between 1 and 5."));
+        if (!TryGetProfile(sourceId, out BooruSourceProfile? profile, out FailureDetail? profileFailure))
+            return new BooruSearchFailure(sourceId, profileFailure!);
+        int maximumPage = BooruEndpointPolicy.MaximumPage(profile!);
+        if (page < 1 || page > maximumPage)
+            return new BooruSearchFailure(sourceId, new FailureDetail("invalid_page",
+                "The booru page must be between 1 and " + maximumPage.ToString(System.Globalization.CultureInfo.InvariantCulture) + "."));
         if (beforePostId is not null && (source!.PostOrder != PostOrderKind.DecimalPostId
                 || !IsValidPostId(new BooruPostId(sourceId, beforePostId), source)))
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
         if (userQuery is null)
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
 
-        string providerQuery = userQuery;
-        if (string.Equals(sourceId, "danbooru", StringComparison.Ordinal))
-        {
-            if (!DanbooruTagQuery.TryParse(userQuery, out DanbooruTagQuery? parsed, out _)
-                || parsed is null)
-                return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
-            providerQuery = parsed.ProviderQuery;
-        }
+        // Danbooru keeps its own restricted syntax; every other source is checked against its declared rules.
+        if (!BooruEndpointPolicy.TryNormalizeQuery(sourceId, profile!, userQuery, out string providerQuery))
+            return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
 
-        BooruSearchRequest request = new(sourceId, providerQuery, page, SearchLimit, beforePostId);
+        BooruSearchRequest request = new(sourceId, providerQuery, page, PageSize(profile!), beforePostId);
         IReadOnlyList<ValidationIssue> requestIssues = SdkValidation.ValidateBooruSearchRequest(request, source!);
         if (requestIssues.Count > 0)
             return new BooruSearchFailure(sourceId, PublicFailure(requestIssues[0]));
@@ -127,11 +127,15 @@ public sealed class BooruSearchService
         BooruJob job = scope.Job; // throws if the scope was disposed
         cancellationToken.ThrowIfCancellationRequested();
         if (JobFailure(job) is FailureDetail ended) return new BooruSearchFailure(sourceId, ended);
+        if (!scope.TryBegin(request))
+            return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
         using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, job.Token);
+        BooruSearchPage? acceptedPage = null;
         try
         {
             lifetime.Token.ThrowIfCancellationRequested();
-            Task<BooruSearchResult> workerCall = worker.SearchBooruPostsAsync(request, job.Operation, lifetime.Token);
+            Task<BooruSearchResult> workerCall = worker.SearchBooruPostsAsync(request,
+                job.Operation.BindBooruCall(request, lifetime.Token), lifetime.Token);
             TrackWorkerCall(workerCall);
             BooruSearchResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -139,7 +143,9 @@ public sealed class BooruSearchService
             IReadOnlyList<ValidationIssue> resultIssues = SdkValidation.ValidateBooruSearchResult(request, result, source!);
             cancellationToken.ThrowIfCancellationRequested();
             if (SearchJobEnd(job, sourceId) is BooruSearchResult validationEnd) return validationEnd;
-            return resultIssues.Count == 0 ? result : new BooruSearchFailure(sourceId, PublicFailure(resultIssues[0]));
+            if (resultIssues.Count != 0) return new BooruSearchFailure(sourceId, PublicFailure(resultIssues[0]));
+            acceptedPage = (result as BooruSearchSnapshot)?.Page;
+            return result;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -167,6 +173,11 @@ public sealed class BooruSearchService
             cancellationToken.ThrowIfCancellationRequested();
             return SearchJobEnd(job, sourceId) ?? new BooruSearchFailure(sourceId, new FailureDetail("capability", exception.Message));
         }
+        finally
+        {
+            try { await lifetime.CancelAsync().ConfigureAwait(false); }
+            finally { scope.End(acceptedPage); }
+        }
     }
 
     public async Task<BooruPostResult> ReadPostAsync(IPluginWorkerClient worker, BooruPostId post,
@@ -176,6 +187,8 @@ public sealed class BooruSearchService
             return new BooruPostFailure(new BooruPostId(string.Empty, string.Empty), new FailureDetail("invalid_post", InvalidPostIdMessage));
         if (!TryGetSource(post.SourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruPostFailure(post, sourceFailure!);
+        if (!TryGetProfile(post.SourceId, out _, out FailureDetail? profileFailure))
+            return new BooruPostFailure(post, profileFailure!);
         if (!IsValidPostId(post, source!))
             return new BooruPostFailure(post, new FailureDetail(InvalidPostIdCode, InvalidPostIdMessage));
         if (_services.TryGetCooldown(post.SourceId, out DateTimeOffset retryAt))
@@ -193,7 +206,7 @@ public sealed class BooruSearchService
         {
             cancellationToken.ThrowIfCancellationRequested();
             lifetime.Token.ThrowIfCancellationRequested();
-            Task<BooruPostResult> workerCall = worker.ReadBooruPostAsync(request, job.Operation, lifetime.Token);
+            Task<BooruPostResult> workerCall = worker.ReadBooruPostAsync(request, job.Operation.BindBooruCall(request, lifetime.Token), lifetime.Token);
             TrackWorkerCall(workerCall);
             BooruPostResult result = await workerCall.WaitAsync(lifetime.Token).ConfigureAwait(false);
             cancellationToken.ThrowIfCancellationRequested();
@@ -294,10 +307,27 @@ public sealed class BooruSearchService
         return false;
     }
 
+    /// <summary>
+    /// The page size the host requests from a source: the host ceiling, lowered by the source's profile. The watcher
+    /// port reads <see cref="SearchLimit"/> for Danbooru, whose profile keeps the ceiling.
+    /// </summary>
+    internal int PageSize(string sourceId) =>
+        _services.ProfileOf(sourceId) is BooruSourceProfile profile ? PageSize(profile) : SearchLimit;
+
+    private static int PageSize(BooruSourceProfile profile) => BooruEndpointPolicy.MaximumLimit(profile);
+
+    private bool TryGetProfile(string sourceId, out BooruSourceProfile? profile, out FailureDetail? failure)
+    {
+        profile = _services.ProfileOf(sourceId);
+        failure = profile is null ? new FailureDetail("capability", "The source declares no usable booru endpoint profile.") : null;
+        return profile is not null;
+    }
+
     private static bool IsValidPostId(BooruPostId post, SourceDescription source)
     {
-        if (string.Equals(source.SourceId, "danbooru", StringComparison.Ordinal))
-            return post.PostId.Length is > 0 and <= 18 && post.PostId[0] != '0' && post.PostId.All(char.IsAsciiDigit);
+        // Every endpoint profile names post ids as canonical decimals (at most 18 digits), in the path or a parameter.
+        if (BooruEndpointPolicy.IsDanbooru(source.SourceId) || source.PostOrder == PostOrderKind.DecimalPostId)
+            return BooruEndpointPolicy.IsCanonicalPostId(post.PostId);
         return post.PostId.Length is > 0 and <= 256 && post.PostId.All(character => !char.IsControl(character) && !char.IsWhiteSpace(character));
     }
 
@@ -326,6 +356,11 @@ public sealed class BooruSearchScope : IDisposable
 {
     private readonly BooruHostServices _services;
     private BooruJob? _job;
+    private readonly object _gate = new();
+    private (string Source, string Query)? _search;
+    private string? _nextCursor;
+    private bool _inFlight;
+    private bool _hasPage;
 
     internal BooruSearchScope(BooruJob job, BooruHostServices services)
     {
@@ -334,6 +369,34 @@ public sealed class BooruSearchScope : IDisposable
     }
 
     internal BooruJob Job => _job ?? throw new ObjectDisposedException(nameof(BooruSearchScope));
+
+    internal bool TryBegin(BooruSearchRequest request)
+    {
+        lock (_gate)
+        {
+            var search = (request.SourceId, request.Query);
+            // The first cursor can be restored by the host from persisted watcher state.
+            if (_inFlight || _search is not null && _search != search
+                || _hasPage && request.BeforePostId is not null && request.BeforePostId != _nextCursor)
+                return false;
+            _search = search;
+            _inFlight = true;
+            return true;
+        }
+    }
+
+    internal void End(BooruSearchPage? page)
+    {
+        lock (_gate)
+        {
+            if (page is not null)
+            {
+                _hasPage = true;
+                _nextCursor = page.NextBeforePostId;
+            }
+            _inFlight = false;
+        }
+    }
 
     public void Dispose()
     {

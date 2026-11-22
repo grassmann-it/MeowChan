@@ -94,6 +94,8 @@ internal static partial class BooruWorkbenchChecks
                     "The Danbooru shell is larger than the working area: " + owner.Bounds + " on " + screen.WorkingArea);
 
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
+            // This state walkthrough deliberately reuses a single search tab.
+            page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
             TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
             await CheckSearchRowResizeAsync(owner, page, input, h, shots);
             await CheckInvalidInputAsync(page, input);
@@ -227,7 +229,8 @@ internal static partial class BooruWorkbenchChecks
             h.Search.OnSearch = (query, number, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, number, true)));
             input.Text = "nothing_here";
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
-            await Program.WaitUntilAsync(() => Text(page).Contains("No posts found for"), () => "empty state not shown");
+            await Program.WaitUntilAsync(() => Text(page).Contains(Texts.T("booru.ui.status.empty", "nothing_here", 1), StringComparison.Ordinal),
+                () => "empty state not shown: " + BooruText.SearchStatus(page.Model.Search.View, false));
 
             // ---- one-shot by post link --------------------------------------------------------------------------------------
             h.Search.OnPost = null;
@@ -262,7 +265,8 @@ internal static partial class BooruWorkbenchChecks
             Require(h.Queue.Loads.Count == 2, "Creating a watcher downloaded existing posts.");
 
             TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-            tabs.SelectedIndex = 1;
+            object? searchTab = tabs.SelectedItem;
+            Click(Find<Button>(page, BooruWorkbenchView.OpenWatchersName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruWatcher:").Count == 5, () => "watcher cards=" + Cards(page, "BooruWatcher:").Count);
             string watcherText = Text(page);
             foreach (string expected in new[] { "cat blue_eyes", "landscape", "scenery sky", "ruins", "Active", "Paused", "Cooling down", "Error",
@@ -356,7 +360,7 @@ internal static partial class BooruWorkbenchChecks
             Require(h.Watchers.Calls.Count == callsAfter, "The watcher port received a hidden call after the commands.");
 
             // ---- language and theme --------------------------------------------------------------------------------------------
-            tabs.SelectedIndex = 0;
+            tabs.SelectedItem = searchTab;
             foreach (string language in new[] { "de", "es", "fr", "ru", "en" })
             {
                 Texts.SetLanguage(language);
@@ -372,12 +376,12 @@ internal static partial class BooruWorkbenchChecks
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 3 && Previews(page) == 3, () => "dark search not shown");
             Capture(owner, shots, "search-dark");
-            tabs.SelectedIndex = 1;
+            Click(Find<Button>(page, BooruWorkbenchView.OpenWatchersName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruWatcher:").Count == 4, () => "dark watchers not shown");
             Capture(owner, shots, "watchers-dark");
 
             // ---- sdk-mismatch repair route: mismatch → review → confirm → restart notice (BooruWorkbenchChecks.Repair) ---------
-            tabs.SelectedIndex = 0;
+            tabs.SelectedItem = searchTab;
             await CheckRepairRouteAsync(owner, page, h, shots);
 
             // ---- the service-composition boundary ends the page lifetime (navigation does not) ------------------------------
@@ -533,7 +537,7 @@ internal static partial class BooruWorkbenchChecks
         string? text = input.Text;
         int requests = h.ProviderRequests, loads = h.Queue.Loads.Count, watcherCalls = h.Watchers.Calls.Count;
         ComboBox mode = Find<ComboBox>(page, BooruWorkbenchView.ModeName);
-        StackPanel actions = Find<StackPanel>(page, "BooruSearchActions");
+        WrapPanel actions = Find<WrapPanel>(page, "BooruSearchActions");
         Button submit = Find<Button>(page, BooruWorkbenchView.SubmitName);
         Button create = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
         Grid row = input.Parent as Grid ?? throw new InvalidOperationException("Search field has no realized input row.");
@@ -566,11 +570,10 @@ internal static partial class BooruWorkbenchChecks
                         && mode.IsEffectivelyVisible && actions.IsEffectivelyVisible && inputBounds.Width > 0,
                         "Search controls are not realized in the native shell: " + measured);
                     Require(Math.Abs(inputBounds.Left - modeBounds.Right - 8) <= 1
-                        && Math.Abs(actionBounds.Left - inputBounds.Right - 8) <= 1
-                        && Math.Abs(inputBounds.Width - (actionBounds.Left - modeBounds.Right - 16)) <= 1
                         && Math.Abs(modeBounds.Left - rowBounds.Left) <= 1
-                        && Math.Abs(actionBounds.Right - rowBounds.Right) <= 1,
-                        "Search field does not fill the space between mode and actions with two 8-DIP gaps: " + measured);
+                        && Math.Abs(inputBounds.Right - rowBounds.Right) <= 1
+                        && actionBounds.Top >= rowBounds.Bottom,
+                        "The search field does not fill the space beside the mode selector, above the actions: " + measured);
                     Require(rowBounds.Left >= -1 && rowBounds.Right <= owner.ClientSize.Width + 1,
                         "Search row overflows the native viewport: " + measured);
                     foreach (Button action in new[] { submit, create })

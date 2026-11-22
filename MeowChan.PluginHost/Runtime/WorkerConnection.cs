@@ -1,3 +1,4 @@
+using MeowChan.PluginHost.Sources.Booru;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using MeowChan.PluginHost.Contracts;
@@ -62,7 +63,8 @@ internal sealed class WorkerConnection : IAsyncDisposable
 
     public static async Task<WorkerConnection> StartAsync(PluginWorkerLaunch launch, PluginArtifact artifact,
         PluginConfiguration configuration, IPluginHostServices services, PluginWorkerOptions options,
-        IDisposable processLease, CancellationToken token, bool describeOnly = false, Func<long>? temporaryBytes = null, FilterTemporaryBudget? sharedBudget = null, long workspaceQuota = 0)
+        IDisposable processLease, CancellationToken token, bool describeOnly = false, Func<long>? temporaryBytes = null,
+        FilterTemporaryBudget? sharedBudget = null, long workspaceQuota = 0, Action? onProcessStartAttempt = null)
     {
         Process? process = null;
         WorkerConnection? connection = null;
@@ -90,7 +92,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
             start.Environment["DOTNET_GCHeapHardLimit"] = options.HeapLimitBytes.ToString("X");
             start.Environment["DOTNET_EnableDiagnostics"] = "0";
             start.Environment["MEOWCHAN_WORKSPACE_BYTE_QUOTA"] = workspaceQuota.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            token.ThrowIfCancellationRequested();
             span = PerformanceDiagnostics.Measure("plugin.worker.spawn", asset: artifact.ExecutionRevision);
+            onProcessStartAttempt?.Invoke();
             process = Process.Start(start) ?? throw new PluginWorkerException("start", "Worker process could not be started.");
             span.Dispose();
             try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or PlatformNotSupportedException) { }
@@ -274,6 +278,22 @@ internal sealed class WorkerConnection : IAsyncDisposable
                     SourceDescription source = Description.Sources.SingleOrDefault(item => item.SourceId == http.SourceId)
                         ?? throw new InvalidDataException("The worker requested HTTP for an undeclared source.");
                     SdkValidation.ThrowIfInvalid(SdkValidation.ValidateHttpRequest(http, source));
+                    if (IsBooruOperation(parent.Envelope.Operation))
+                    {
+                        if (!source.Capabilities.HasFlag(SourceCapabilities.PostSearch)
+                            || BooruEndpointPolicy.Bind(http, source, parent.Request!) is not HostHttpRequest bound)
+                        {
+                            await ServiceReplyAsync<HostHttpResult>(request, BooruEndpointPolicy.OperationDenied(), parent.Token).ConfigureAwait(false);
+                            break;
+                        }
+                        http = bound;
+                    }
+                    else if (source.Capabilities.HasFlag(SourceCapabilities.PostSearch))
+                    {
+                        await ServiceReplyAsync<HostHttpResult>(request, BooruEndpointPolicy.OperationDenied(), parent.Token).ConfigureAwait(false);
+                        break;
+                    }
+
                     // Restore only the host-owned correlated operation, never worker-supplied identity.
                     HostHttpResult result;
                     using (Http.PluginHostHttp.MetadataHistory.Resume(parent.Context))
@@ -296,10 +316,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
             }
         }
         catch (OperationCanceledException) when (parent.Token.IsCancellationRequested) { }
-        catch (Exception exception)
+        catch (Exception)
         {
-            string message = exception.Message[..Math.Min(exception.Message.Length, 2048)];
-            try { await _codec.WriteAsync(request with { Direction = "error", Payload = WireJson.Element(new WireFailure("host-service", message)) }, _lifetime.Token).ConfigureAwait(false); }
+            try { await _codec.WriteAsync(request with { Direction = "error", Payload = WireJson.Element(new WireFailure("host-service", "The host rejected the service request.")) }, _lifetime.Token).ConfigureAwait(false); }
             catch (Exception) when (_lifetime.IsCancellationRequested) { }
         }
     }

@@ -375,15 +375,16 @@ public partial class MainWindow
         int navigation = _readingResumeNavigationRevision;
         long generation = _session.ReadingPositionGeneration;
         Func<bool> readerUnchanged = ArchivePage.CaptureReadingRequestGuard();
-        bool StillRequested() => !_isClosing && navigation == _readingResumeNavigationRevision
-            && generation == _session.ReadingPositionGeneration && readerUnchanged();
+        bool StillOnVisit() => !_isClosing && navigation == _readingResumeNavigationRevision
+            && generation == _session.ReadingPositionGeneration;
+        bool StillRequested() => StillOnVisit() && readerUnchanged();
         try
         {
             LocalReadingPosition? position = await load(StillRequested);
             if (!StillRequested()) return;
             _readingResumeState = position == null ? ReadingResumeState.Absent : ReadingResumeState.Present;
             if (position == null) ArchivePage.ShowReadingPositionMessage(Texts.T("resume.none"));
-            else await ArchivePage.ResumeReadingPositionAsync(position, StillRequested);
+            else await ArchivePage.ResumeReadingPositionAsync(position, StillOnVisit);
         }
         catch (Exception error)
         {
@@ -397,7 +398,7 @@ public partial class MainWindow
         {
             _readingResumePending = false;
             RefreshReadingResumePresentation();
-            if (ownedFocus && FocusManager?.GetFocusedElement() == null) FocusReadingResumeFallback();
+            if (ownedFocus && StillRequested() && FocusManager?.GetFocusedElement() == null) FocusReadingResumeFallback();
         }
     }
 }

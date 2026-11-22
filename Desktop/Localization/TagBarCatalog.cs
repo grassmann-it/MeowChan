@@ -15,6 +15,8 @@ internal static class TagBarCatalog
         ("tags.addSuggestion", "Add suggested tag {0}", "Vorgeschlagenen Tag {0} hinzufügen"),
         ("tags.input", "Tag name", "Tagname"),
         ("tags.add", "Add tag", "Tag hinzufügen"),
+        ("readerTool.stateOpen", "open", "offen"),
+        ("readerTool.closeHint", "Open. Click again to close (Esc).", "Geöffnet. Erneuter Klick schließt (Esc)."),
         ("tags.close", "Close tags", "Tags schließen"),
         ("tags.rowLabel", "Tags: {0}", "Tags: {0}"),
         ("tags.unavailable", "Own tags could not be loaded. Nothing was changed.", "Eigene Tags konnten nicht geladen werden. Es wurde nichts geändert."),

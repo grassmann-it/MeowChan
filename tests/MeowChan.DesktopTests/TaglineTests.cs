@@ -273,11 +273,11 @@ public sealed class TaglineTests : IDisposable
     }
 
     [Fact]
-    public void TheCatalogShipsBetweenEightAndFifteenQuipsAndTheReleaseOnesAreThere()
+    public void TheCatalogShipsBetweenEightAndSixtyQuipsAndTheReleaseOnesAreThere()
     {
         Texts.SetLanguage("en");
         IReadOnlyList<TaglineEntry> pool = TaglineCatalog.Available();
-        Assert.InRange(pool.Count, 8, 15);
+        Assert.InRange(pool.Count, 8, 60);
         Assert.Contains(pool, entry => entry.Id == TaglineCatalog.DefaultId);
         Assert.Equal("now with 100% more cats", pool.Single(entry => entry.Id == "cats").Text);
         Assert.Equal("now with booru support", pool.Single(entry => entry.Id == "booru").Text);
@@ -305,7 +305,8 @@ public sealed class TaglineTests : IDisposable
     {
         string[] keys = { "shell.tagline.menuAnother", "shell.tagline.menuHide", "settings.headerTagline.label", "settings.headerTagline.hint",
             "settings.headerTagline.off", "settings.headerTagline.fixed", "settings.headerTagline.daily", "settings.headerTagline.perStart",
-            "settings.headerTagline.fixedLabel", "settings.headerTagline.fixedHint" };
+            "settings.headerTagline.fixedLabel", "settings.headerTagline.fixedHint", "settings.headerTagline.interval",
+            "settings.headerTagline.intervalLabel", "settings.headerTagline.intervalHint" };
         foreach (string language in AllLanguages)
         {
             Texts.SetLanguage(language);

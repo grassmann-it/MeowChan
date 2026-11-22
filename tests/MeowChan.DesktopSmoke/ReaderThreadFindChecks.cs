@@ -54,7 +54,7 @@ internal static class ReaderThreadFindChecks
                 Texts.SetLanguage(code); // ordinary catalogs/fallback, never fake packs
                 await JourneyAsync(owner, profile, first, second, code);
                 foreach (bool fullscreen in new[] { false, true })
-                foreach (string source in new[] { "ReaderFindQuery", "ReaderToolsClose" })
+                foreach (string source in new[] { "ReaderFindQuery", "ReaderFindOpen" })
                     await ShellRoutingAsync(owner, code, fullscreen, source);
             }
         }
@@ -134,10 +134,10 @@ internal static class ReaderThreadFindChecks
             query.Text = Needle;
             await UntilAsync(() => !ReferenceEquals(previous, page.ThreadFindTask));
             await page.ThreadFindTask.WaitAsync(Deadline);
-            Click("ReaderToolsClose");
+            Click("ReaderFindOpen");
             Click("ReaderFindOpen");
             Task closing = page.ThreadFindTask;
-            Click("ReaderToolsClose");
+            Click("ReaderFindOpen");
             await closing.WaitAsync(Deadline);
             Closed();
             Click("ReaderFindOpen");
@@ -193,7 +193,7 @@ internal static class ReaderThreadFindChecks
                 query.SelectAll();
                 await InputAsync(Needle);
                 Status(0, 2);
-                Click("ReaderToolsClose");
+                Click("ReaderFindOpen");
                 // SF-06: after a failed search one explicit retry runs with the unchanged query; no automatic retry.
                 int attempts = 0;
                 page.ThreadFindIndexFactory = (_, _, _) => { attempts++; throw new IOException("Synthetic find failure"); };
@@ -213,7 +213,7 @@ internal static class ReaderThreadFindChecks
                 await page.ThreadFindTask.WaitAsync(Deadline);
                 Status(0, 2);
                 Require(!C<Button>("ReaderFindRetry").IsVisible && query.Text == Needle, "Retry kept its button or changed the query.");
-                Click("ReaderToolsClose");
+                Click("ReaderFindOpen");
                 Console.WriteLine($"SMOKE reader-find input-boundary [{language}]: TextInput preserves 511ASCII+emoji513 invalid/no-navigation; selection replacement 513/512; 256 complete emoji512 exact hit. Managed TextInput only, no OS keyboard/clipboard claim.");
 
                 async Task InputAsync(string text)
@@ -361,7 +361,8 @@ internal static class ReaderThreadFindChecks
             await page.MediaLoadTask.WaitAsync(Deadline);
             await OpenFindAsync();
             int unexpectedClicks = 0;
-            Button[] buttons = [C<Button>("ReaderFindPrevious"), C<Button>("ReaderFindNext"), C<Button>("ReaderToolsClose")];
+            Button[] buttons = [C<Button>("ReaderFindPrevious"), C<Button>("ReaderFindNext")];
+            Button toggle = C<Button>("ReaderFindOpen"); // F17: the Find toggle itself closes the bar; its click is expected, unlike the others
             foreach (Button button in buttons) button.Click += CountClick;
             int routedAtShell = 0;
             shell.AddHandler(InputElement.KeyDownEvent, ObserveShell, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -388,9 +389,10 @@ internal static class ReaderThreadFindChecks
                 }
                 Require(unexpectedClicks == 0 && routedAtShell == 19,
                     "Find Enter gestures clicked a button or did not traverse the real Window tunnel.");
-                // SF-03: Enter on the focused Close button closes the bar.
-                await SendAsync(buttons[2], Key.Enter);
-                Require(!C<StackPanel>("ReaderFindBar").IsVisible, "Enter on the focused Close button did not close the find bar.");
+                // SF-03 / F17: Enter on the focused active Find toggle closes the bar.
+                await SendAsync(toggle, Key.Enter);
+                Require(!C<StackPanel>("ReaderFindBar").IsVisible && C<Avalonia.Controls.Primitives.ToggleButton>("ReaderFindOpen").IsChecked != true,
+                    "Enter on the focused Find toggle did not close the find bar.");
                 // SF-05: Primary+F opens thread find from a focused reader control.
                 await SendAsync(C<Button>("ReaderFindOpen"), Key.F,
                     OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
@@ -464,7 +466,8 @@ internal static class ReaderThreadFindChecks
             }
             async Task OpenFindAsync()
             {
-                Click("ReaderFindOpen");
+                // F17: the button toggles, so it is only clicked while the bar is closed.
+                if (!C<StackPanel>("ReaderFindBar").IsVisible) Click("ReaderFindOpen");
                 await page.ThreadFindTask.WaitAsync(Deadline);
                 TextBox query = C<TextBox>("ReaderFindQuery");
                 if (query.Text != Needle)

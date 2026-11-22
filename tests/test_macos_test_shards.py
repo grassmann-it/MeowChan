@@ -263,9 +263,9 @@ class ShardTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             runner.trx_coverage(self.root, cases, [c['method'] for c in cases])
 
-    def matrix(self, platforms=('macos-15',)):
+    def matrix(self, platforms=('macos-15',), count=8):
         cases = runner.validate_inventory(inventory())
-        bins = runner.partition(cases)
+        bins = runner.partition(cases, shard_count=count)
         for platform in platforms:
             for shard, assigned in enumerate(bins, 1):
                 directory = self.root / platform / f'shard-{shard:02}'
@@ -276,9 +276,9 @@ class ShardTests(unittest.TestCase):
                     suites.append(dict(name=name, passed=True, budget_seconds=300 if name == 'core' else 600,
                                        discovery=dict(OK, budget_seconds=60), run=dict(OK, budget_seconds=250),
                                        inventory=cases, inventory_sha256=runner.digest(cases), assigned=assigned,
-                                       plan_sha256=runner.plan_digest(runner.inventory_shape(cases)),
+                                       plan_sha256=runner.plan_digest(runner.inventory_shape(cases), count),
                                        coverage=runner.trx_coverage(target, cases, assigned)))
-                runner.write_json(directory / 'manifest.json', dict(schema=1, shard=shard, shard_count=8,
+                runner.write_json(directory / 'manifest.json', dict(schema=1, shard=shard, shard_count=count,
                     platform=platform, architecture=runner.ARCHITECTURES[platform], source=SOURCE, candidate=False, suites=suites, passed=True))
 
     def test_aggregate_requires_both_suites_and_all_eight_native_workers_per_platform(self):
@@ -289,6 +289,15 @@ class ShardTests(unittest.TestCase):
         (self.root / 'macos-15/shard-08/manifest.json').unlink()
         with self.assertRaises(ValueError):
             runner.aggregate(self.root, list(runner.PLATFORMS), SOURCE)
+
+    def test_ninth_worker_is_required_with_new_shard_count(self):
+        self.matrix(count=9)
+        self.assertTrue(runner.aggregate(self.root, ['macos-15'], SOURCE, 9, candidate=False)['passed'])
+        with self.assertRaisesRegex(ValueError, 'Wrong timeout profile'):
+            runner.aggregate(self.root, ['macos-15'], SOURCE, 9, candidate=True)
+        (self.root / 'macos-15/shard-09/manifest.json').unlink()
+        with self.assertRaisesRegex(ValueError, 'Missing/extra workers'):
+            runner.aggregate(self.root, ['macos-15'], SOURCE, 9)
 
     def test_aggregate_rejects_source_inventory_assignment_status_and_suite_tampering(self):
         mutations = [lambda m: m.update(source='b'*40), lambda m: m.update(passed=False),
@@ -366,7 +375,7 @@ class ShardTests(unittest.TestCase):
         self.assertIn('--settings', invoke.call_args_list[1].args[1])
 
     def test_worker_continues_after_core_failure_and_refuses_stale_result_reuse(self):
-        def run(name, project, directory, shard, budget):
+        def run(name, project, directory, shard, budget, shard_count):
             return dict(name=name, passed=name == 'desktop')
         with mock.patch.object(runner.sys, 'platform', 'darwin'), \
              mock.patch.object(runner.host_platform, 'machine', return_value='arm64'), \
@@ -374,7 +383,8 @@ class ShardTests(unittest.TestCase):
              mock.patch.object(runner, 'run_suite', side_effect=run) as suites:
             self.assertFalse(runner.run_worker(1, 'macos-15', SOURCE, self.root))
             self.assertEqual(['core', 'desktop'], [call.args[0] for call in suites.call_args_list])
-            self.assertEqual([300, 600], [call.args[-1] for call in suites.call_args_list])
+            self.assertEqual([300, 600], [call.args[-2] for call in suites.call_args_list])
+            self.assertEqual([8, 8], [call.args[-1] for call in suites.call_args_list])
             with self.assertRaises(FileExistsError):
                 runner.run_worker(1, 'macos-15', SOURCE, self.root)
         manifest = json.loads((self.root / 'shard-01/manifest.json').read_text())

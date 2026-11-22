@@ -102,7 +102,7 @@ internal static partial class UiCatalogChecks
             await UntilAsync(() => Named<Control>(a, "ReaderFindBar").IsVisible, "the find bar did not open");
             await Settle(w, 250);
             UiCatalog.Record(w, "reader-find-bar", Standard, "Find in thread bar (scope chip, previous/next, close at the right edge)");
-            Click(Named<Button>(a, "ReaderToolsClose"));
+            Click(Named<Button>(a, "ReaderFindOpen"));
             await Settle(w, 150);
         });
         await StepAsync("reader-tag-bar", async () =>
@@ -111,7 +111,7 @@ internal static partial class UiCatalogChecks
             await UntilAsync(() => Named<Control>(a, "ReaderTagBar").IsVisible, "the thread tag bar did not open");
             await Settle(w, 250);
             UiCatalog.Record(w, "reader-tag-bar", Standard, "Thread tag bar");
-            Click(Named<Button>(a, "ReaderToolsClose"));
+            Click(Named<Button>(a, "ReaderTagsOpen"));
             await Settle(w, 150);
         });
         foreach ((string option, string key, string note) in new[]
@@ -318,13 +318,13 @@ internal static partial class UiCatalogChecks
         await PageAsync(w, "page-booru", "Booru page, Search tab with synthetic results", reenter: async () => { await EnterBooruAsync(w); await booru.MaterializeAsync(); });
         await StepAsync("page-booru-watchers", async () =>
         {
-            await booru.SelectTabAsync(1);
+            await booru.SelectTabAsync(watchers: true);
             try
             {
                 await Settle(w, 400);
                 UiCatalog.Record(w, "page-booru-watchers", Standard, "Booru page, Watchers tab with three synthetic watchers");
             }
-            finally { await booru.SelectTabAsync(0); }
+            finally { await booru.SelectTabAsync(watchers: false); }
         });
     }
 

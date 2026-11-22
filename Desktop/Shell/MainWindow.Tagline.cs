@@ -5,6 +5,7 @@ using System.Reflection;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -28,6 +29,9 @@ public partial class MainWindow
     private TaglineEntry? _tagline;
     private string _appliedTaglineMode = string.Empty, _appliedTaglineFixedId = string.Empty;
     private bool _taglineStarted;
+    // The "New every N minutes" mode: one timer of the window, started only in that mode, stopped when the mode changes and at shutdown.
+    private DispatcherTimer? _taglineRotationTimer;
+    private int _appliedTaglineMinutes;
     private MenuItem? _taglineAnotherItem, _taglineHideItem, _taglineSettingsItem;
 
     /// <summary>The form of the tagline currently shown (None while it is hidden or switched off); read by the smokes.</summary>
@@ -44,12 +48,14 @@ public partial class MainWindow
         BuildTaglineMenu();
         ChooseHeaderTagline(atStart: true);
         UpdateHeaderTagline();
+        RefreshTaglineRotation();
     }
 
     private void StopHeaderTagline()
     {
         if (!_taglineStarted) return;
         WorkspaceTaglineHost.SizeChanged -= OnTaglineHostSizeChanged;
+        StopTaglineRotation();
         _taglineStarted = false;
     }
 
@@ -63,8 +69,53 @@ public partial class MainWindow
     private void ApplyHeaderTaglineSetting()
     {
         if (!_taglineStarted) return;
-        if (_config.HeaderTagline == _appliedTaglineMode && (_config.HeaderTagline != TaglinePicker.ModeFixed || _config.HeaderTaglineFixedId == _appliedTaglineFixedId)) return;
+        if (_config.HeaderTagline == _appliedTaglineMode && (_config.HeaderTagline != TaglinePicker.ModeFixed || _config.HeaderTaglineFixedId == _appliedTaglineFixedId))
+        {
+            // The quip stays; only the minutes of the Interval mode may have changed.
+            RefreshTaglineRotation();
+            return;
+        }
         ChooseHeaderTagline(atStart: false);
+        UpdateHeaderTagline();
+        RefreshTaglineRotation();
+    }
+
+    /// <summary>Starts, restarts (changed minutes) or stops the rotation timer to match the setting; any other mode owns no running timer.</summary>
+    private void RefreshTaglineRotation()
+    {
+        if (!_taglineStarted || _isClosing || _config.HeaderTagline != TaglinePicker.ModeInterval)
+        {
+            StopTaglineRotation();
+            return;
+        }
+        int minutes = Math.Clamp(_config.HeaderTaglineIntervalMinutes, Config.HeaderTaglineIntervalMinutesMinimum, Config.HeaderTaglineIntervalMinutesMaximum);
+        if (_taglineRotationTimer is { IsEnabled: true } && minutes == _appliedTaglineMinutes) return;
+        _appliedTaglineMinutes = minutes;
+        if (_taglineRotationTimer == null)
+        {
+            _taglineRotationTimer = new DispatcherTimer();
+            _taglineRotationTimer.Tick += OnTaglineRotationTick;
+        }
+        _taglineRotationTimer.Stop();
+        _taglineRotationTimer.Interval = TimeSpan.FromMinutes(minutes);
+        _taglineRotationTimer.Start();
+    }
+
+    private void StopTaglineRotation()
+    {
+        if (_taglineRotationTimer == null) return;
+        _taglineRotationTimer.Stop();
+        _taglineRotationTimer.Tick -= OnTaglineRotationTick;
+        _taglineRotationTimer = null;
+    }
+
+    // Only for this session, like "Another tagline": the setting and the stored quip stay. A minimised window keeps its quip until it is shown again.
+    private void OnTaglineRotationTick(object? sender, EventArgs e)
+    {
+        if (!_taglineStarted || _config.HeaderTagline != TaglinePicker.ModeInterval || WindowState == WindowState.Minimized) return;
+        TaglineEntry? next = TaglinePicker.PickAnother(_taglinePool, _tagline?.Id, Random.Shared);
+        if (next == null || next.Id == _tagline?.Id) return;
+        _tagline = next;
         UpdateHeaderTagline();
     }
 
@@ -164,6 +215,8 @@ public partial class MainWindow
     {
         _tagline = TaglinePicker.PickAnother(_taglinePool, _tagline?.Id, Random.Shared) ?? _tagline;
         UpdateHeaderTagline();
+        // A fresh quip by hand also gives the rotation a fresh start, so it is not replaced a moment later.
+        if (_taglineRotationTimer is { IsEnabled: true }) { _taglineRotationTimer.Stop(); _taglineRotationTimer.Start(); }
     }
 
     private async void OnTaglineHideClick(object? sender, RoutedEventArgs e)

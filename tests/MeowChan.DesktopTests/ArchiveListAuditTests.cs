@@ -170,7 +170,9 @@ public sealed class ArchiveListAuditTests
     private static readonly HashSet<string> NotWiredByTheShell = new(StringComparer.Ordinal)
     {
         "ExternalLinkLauncher", "CopyPostReference", "GetBoardSuggestionSource", "MediaTagServices", "ReadArchiveMediaInventoryAsync",
-        "ThreadFindIndexFactory", "ShowColumnMenu", "ShowThreadMenu"
+        "ThreadFindIndexFactory", "ShowColumnMenu", "ShowThreadMenu",
+        // Tests substitute the legacy candidate lookup. The export calls ArchiveExportLegacy.FindCandidates when unset.
+        nameof(ArchivePage.FindLegacyExportCandidatesAsync)
     };
 
     [Fact]

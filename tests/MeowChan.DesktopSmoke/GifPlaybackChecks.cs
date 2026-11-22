@@ -291,33 +291,46 @@ internal static partial class GalleryPlaybackFeatureChecks
             await native.KeyAsync(MediaNativeInput.Space);
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "Native Space did not pause GIF.");
             await GifStablePixelsAsync(viewer, "Space-paused");
-            Button gifPlayPause = Find<Button>(viewer, "GalleryGifPlayPause");
-            // The pixel hold intentionally allows the auto-hide timer to fire.
-            // Reveal the actual control through the OS pointer before each native
-            // click rather than relying on a stale retained visual.
-            // macOS can retain the pre-reparenting Avalonia hit cache while the transport is
-            // already visible in its current native root. The OS click still uses the fresh
-            // screen geometry and the state assertion below proves delivery.
+            Border footerControls = Find<Border>(viewer, "GalleryOverlayControls");
+            await MediaInteractionSmokeHelpers.MoveInGalleryAsync(native, viewer, footerControls, .4);
+            await UntilAsync(() => !Visible(footerControls), "GIF controls did not auto-hide before the native reveal.");
+            // Reacquire the toolbar's current presentation after auto-hide.
             bool requireFrameworkHitTest = !OperatingSystem.IsMacOS();
-            await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
-                "GIF play/pause did not become a current target after revealing the gallery transport.", requireFrameworkHitTest);
-            await native.ClickAsync(gifPlayPause, requireHitTest: requireFrameworkHitTest);
+            Task<Button> RevealButtonAsync(string name) =>
+                MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer,
+                    () => MediaInteractionSmokeHelpers.GalleryControl<Button>(viewer, name),
+                    $"GIF control {name} did not become a current native target after reveal.", requireFrameworkHitTest);
+            async Task ClickRevealedAsync(string name) =>
+                await native.ClickButtonAsync(await RevealButtonAsync(name), requireFrameworkHitTest);
+
+            await ClickRevealedAsync("GalleryGifPlayPause");
             await UntilAsync(() => !GifState(viewer).UserPaused && GifState(viewer).IsRunning, "GIF button did not resume.");
             await GifChangingPixelsAsync(viewer, "button-resumed");
-            await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer, gifPlayPause,
-                "GIF play/pause did not remain a current target before the second native click.", requireFrameworkHitTest);
-            await native.ClickAsync(gifPlayPause, requireHitTest: requireFrameworkHitTest);
+            await ClickRevealedAsync("GalleryGifPlayPause");
             await UntilAsync(() => GifState(viewer).UserPaused && !GifState(viewer).IsRunning, "GIF button did not pause.");
             await GifStablePixelsAsync(viewer, "button-paused");
             viewer.FocusGallerySurface(); await native.KeyAsync(MediaNativeInput.Space);
             await GifChangingPixelsAsync(viewer, "Space-resumed");
             GalleryGifPlayback same = GifOwner(viewer);
-            await native.ClickAsync(Find<Button>(viewer, "GalleryActual"));
+
+            await RevealButtonAsync("GalleryMore");
+            // Width-dependent chrome can move 1:1 to More. Choose after revealing
+            // and arranging the real toolbar, while the selected GIF is still live.
+            if (Find<Button>(viewer, "GalleryActual").IsEffectivelyVisible)
+                await ClickRevealedAsync("GalleryActual");
+            else
+            {
+                await ClickRevealedAsync("GalleryMore");
+                await ClickRevealedAsync("GalleryActualMenu");
+            }
+
             Require(viewer.CaptureState().ActualZoom, "GIF lost 1:1 zoom.");
-            // Zoom in is a "⋯" menu row (kept open on use); invoke the real row command without the popup.
-            Find<Button>(viewer, "GalleryPlus").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            if (!viewer.IsOverflowOpen) await ClickRevealedAsync("GalleryMore");
+            await ClickRevealedAsync("GalleryPlus");
             Require(viewer.CaptureState().ManualZoom, "GIF lost manual zoom.");
-            await native.ClickAsync(Find<Button>(viewer, "GalleryFit"));
+            await native.KeyAsync(MediaNativeInput.Escape);
+            await UntilAsync(() => !viewer.IsOverflowOpen, "Native Escape did not close the GIF zoom menu.");
+            await ClickRevealedAsync("GalleryFit");
             Require(!viewer.CaptureState().ManualZoom && ReferenceEquals(same, GifOwner(viewer)), "Fit/zoom replaced or reset the GIF owner.");
             await GifChangingPixelsAsync(viewer, "fit-after-zoom");
             retired = GifOwner(viewer);
@@ -402,7 +415,12 @@ internal static partial class GalleryPlaybackFeatureChecks
         await HoldAsync(TimeSpan.FromMilliseconds(1200), () => Require(!Running(viewer) && moves == 0,
             "Selecting remembered Slideshow autostarted navigation on GIF frame/pass completion."));
         using MediaNativeInput native = new(fixture.Window);
-        sinceStart.Start(); await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
+        bool requireFrameworkHitTest = !OperatingSystem.IsMacOS();
+        Button start = await MediaInteractionSmokeHelpers.WaitForNativeTargetAsync(native, viewer,
+            () => MediaInteractionSmokeHelpers.GalleryControl<Button>(viewer, "GallerySlideshowToggle"),
+            "GIF slideshow start did not become a current native target after reveal.", requireFrameworkHitTest);
+        sinceStart.Start();
+        await native.ClickButtonAsync(start, requireFrameworkHitTest);
         // Count from the moment the click can start the timer, not from a GIF loop.
         await HoldAsync(TimeSpan.FromMilliseconds(550), () => Require(moves == 0, "GIF slideshow used frame/pass duration instead of image duration."));
         await UntilAsync(() => error != null || moves == 1 && transition.IsCompleted, "Explicit GIF slideshow did not advance at image duration.");

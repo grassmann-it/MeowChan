@@ -9,6 +9,7 @@ using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Commands;
@@ -61,6 +62,7 @@ internal static class ReadingPositionChecks
         LocalReadingPosition? captured = await ReadPositionAsync(window);
         Require(captured?.Thread == "1000", "Reader movement captured a different thread.");
         Click(page.FindControl<Button>("ArchiveCloseReader")!);
+        await CheckLateProjectionResumeAsync(window, captured!);
         await CheckSavedHeaderModesAsync(window);
         await CheckSavedHeaderGalleryAsync(window);
         await FooterNavigationChecks.WaitForResumeHitAsync(window);
@@ -160,6 +162,85 @@ internal static class ReadingPositionChecks
         await ReadingPositionAnchorChecks.PrepareRestartAsync(window, profile);
         File.WriteAllText(Path.Combine(profile, "reading-restart-ready"), "second process must explicitly restore the recorded nonzero visible anchor");
         Console.WriteLine("SMOKE reading position: default off, passive preview, explicit local resume, reader movement, forget/refresh and missing-post fallback passed.");
+    }
+
+    private static async Task CheckLateProjectionResumeAsync(MainWindow window, LocalReadingPosition place)
+    {
+        ArchivePage page = window.ArchivePage;
+        ContentControl reader = window.FindControl<ContentControl>("ReaderHost")!;
+        ResourceId other = new("4chan", "g", "1001");
+        foreach (bool switchPage in new[] { true, false })
+        {
+            if (window.SelectedPage != MainWindow.WorkspacePage.Archive)
+                await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Archive);
+            await Program.WaitUntilAsync(() => !page.IsBusy);
+            await page.LoadThreadAsync(other);
+            await page.MediaLoadTask;
+            await FooterNavigationChecks.WaitForResumeHitAsync(window);
+            HeldResumeClassifier classifier = new() { ActiveThread = place.ThreadId };
+            page.RegisterPostClassifier(classifier);
+            // Registering a classifier can still restore the current thread's anchor. Let that finish before starting resume.
+            await page.WaitForReaderViewAsync();
+            Task resume = window.ResumeReadingPlaceAsync(place);
+            try
+            {
+                await Task.WhenAny(classifier.Entered.Task, resume).WaitAsync(TimeSpan.FromSeconds(30));
+                Require(classifier.Entered.Task.IsCompleted, "Resume completed before building the held projection. "
+                    + $"Page: {window.SelectedPage}, thread: {page.CurrentThread?.Summary.Id}, "
+                    + $"message: {page.FindControl<TextBlock>("ArchiveMessage")?.Text}");
+                Require(!reader.IsVisible && !resume.IsCompleted, "Resume did not wait for the held post projection.");
+                Control newView;
+                if (switchPage)
+                {
+                    await SmokeNavigation.GoToAsync(window, MainWindow.WorkspacePage.Status);
+                    newView = window.FindControl<ContentControl>("StatusPageHost")!;
+                }
+                else
+                {
+                    await page.LoadThreadAsync(other);
+                    newView = page;
+                }
+                await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Loaded);
+                Control? FocusInView() => window.FocusManager?.GetFocusedElement() is Control target
+                    && target.GetSelfAndVisualAncestors().Contains(newView) && target.IsEffectivelyVisible ? target : null;
+                if (FocusInView() == null)
+                    _ = newView.GetVisualDescendants().OfType<Control>().FirstOrDefault(control =>
+                        control.Focusable && control.IsEffectivelyEnabled && control.IsEffectivelyVisible && control.Focus());
+                Control focus = FocusInView() ?? throw new InvalidOperationException("Cannot focus the new view before releasing the previous resume.");
+                classifier.Release.TrySetResult();
+                await resume.WaitAsync(TimeSpan.FromSeconds(10));
+
+                Require(!reader.IsVisible, "A resume opened the reader after its original page or thread had been left.");
+                Require(window.SelectedPage == (switchPage ? MainWindow.WorkspacePage.Status : MainWindow.WorkspacePage.Archive)
+                    && page.CurrentThread?.Summary.Id == (switchPage ? place.ThreadId : other),
+                    "A resume changed the newer view's page or thread.");
+                Require(ReferenceEquals(focus, window.FocusManager?.GetFocusedElement()), "A resume moved focus out of the newer view.");
+            }
+            finally
+            {
+                classifier.ActiveThread = null;
+                classifier.Release.TrySetResult();
+                await resume.WaitAsync(TimeSpan.FromSeconds(10));
+            }
+        }
+        await page.LoadThreadAsync(place.ThreadId);
+        await page.WaitForReaderViewAsync();
+        Console.WriteLine("SMOKE reading position: a held projection cannot open or focus the reader after changing page or thread.");
+    }
+
+    private sealed class HeldResumeClassifier : IReaderPostClassifier
+    {
+        internal ResourceId? ActiveThread { get; set; }
+        internal TaskCompletionSource Entered { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Release { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool IsActive(ResourceId thread) => ActiveThread == thread;
+        public bool UsesQuoteGraph => false;
+        public long Revision => 0;
+        public void Classify(ArchivedThreadView thread, ReaderQuoteGraph? graph, ReaderPostVerdict[] verdicts, CancellationToken token)
+        {
+            Entered.TrySetResult();
+            Release.Task.Wait(token);
+        }
     }
 
     private static async Task CheckSavedHeaderModesAsync(MainWindow window)

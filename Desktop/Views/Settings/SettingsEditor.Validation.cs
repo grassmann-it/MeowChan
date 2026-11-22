@@ -179,6 +179,7 @@ public partial class SettingsEditor
         NotifyStatisticsHelpChanged();
         NotifyReaderHelpChanged();
         NotifyTagQueueHelpChanged();
+        NotifyBooruGalleryHelpChanged();
         NotifyViewerHelpChanged();
         NotifyQuickTagHelpChanged();
         NotifyLimitsHelpChanged();
@@ -301,7 +302,9 @@ public partial class SettingsEditor
         foreach (var field in StatisticsNumericFields()) yield return field;
         foreach (var field in ReaderNumericFields()) yield return field;
         foreach (var field in TagQueueNumericFields()) yield return field;
+        foreach (var field in BooruGalleryNumericFields()) yield return field;
         foreach (var field in ViewerNumericFields()) yield return field;
+        foreach (var field in HeaderTaglineNumericFields()) yield return field;
         foreach (var field in QuickTagNumericFields()) yield return field;
         foreach (var field in LimitsNumericFields()) yield return field;
     }
@@ -342,7 +345,7 @@ public partial class SettingsEditor
     {
         foreach (var field in NumericFields())
         {
-            if (!IsStatisticsFieldActive(field.Input)) continue;
+            if (!IsStatisticsFieldActive(field.Input) || (field.Input == HeaderTaglineIntervalMinutesInput && !HeaderTaglineIntervalEnabled)) continue;
             string? key = NumericDraftError(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat,
                 DataValidationErrors.GetHasErrors(field.Input), field.Value, field.Min, field.Max, field.Integer);
             if (key == null) continue;

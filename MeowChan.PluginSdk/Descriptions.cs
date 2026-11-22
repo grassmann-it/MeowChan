@@ -23,7 +23,8 @@ public enum HttpHostPurpose { None = 0, Metadata = 1, OriginalMedia = 2, Preview
 /// DecimalPostId by arbitrary-length decimal post identity.
 /// For a PostSearch source, StableOrdinal promises nothing: post ids stay opaque, a host tells new posts
 /// only by set membership and never sends a search cursor. DecimalPostId declares that every booru post
-/// id is a positive decimal without leading zeros, that a larger id was assigned later by the provider,
+/// id is a positive decimal of up to <see cref="SdkLimits.MaximumBooruPostIdDigits"/> digits without leading zeros,
+/// that a larger id was assigned later by the provider,
 /// that every search page lists strictly descending ids, and that the source serves
 /// <see cref="BooruSearchRequest.BeforePostId"/> cursors. It does not promise dense ids, creation-time
 /// order, that an older id never starts matching a query later, or that a page is full.
@@ -51,6 +52,13 @@ public sealed record PluginDescription(string PluginId, string Name, string Plug
 {
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public PluginDeclarationStatus DeclarationStatus { get; init; }
+
+    /// <summary>
+    /// Taggers of this plugin (tagger contract <see cref="TaggerContract.Version"/>). Null and empty both mean none;
+    /// null is omitted from JSON, so descriptions without taggers keep their released wire shape.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public IReadOnlyList<TaggerDescription>? Taggers { get; init; }
 }
 
 public sealed record SourceDescription(string SourceId, string Name, Uri BaseUri,
@@ -59,6 +67,15 @@ public sealed record SourceDescription(string SourceId, string Name, Uri BaseUri
     PostOrderKind PostOrder = PostOrderKind.StableOrdinal)
 {
     public SourceMaturity Maturity { get; init; }
+
+    /// <summary>
+    /// Post-search profile of a <see cref="SourceCapabilities.PostSearch"/> source; null for every other source.
+    /// A post-search source without a profile cannot send metadata requests through the booru host, except a
+    /// source the host ships its own profile for. Omitted from JSON while null, so earlier declarations keep
+    /// their exact serialized form.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BooruSourceProfile? BooruProfile { get; init; }
 }
 
 /// <summary>Exact DNS host, without scheme, port, wildcard, credentials or path.</summary>

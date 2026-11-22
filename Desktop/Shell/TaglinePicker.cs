@@ -12,15 +12,15 @@ internal readonly record struct TaglinePick(TaglineEntry? Entry, bool ReleaseHig
 /// <summary>
 /// Chooses the header quip. Pure: the date, the random source and the versions are passed in, so every rule is deterministic in a test.
 /// Rules (Tom, 14.11.2026): Off shows nothing; Fixed shows the stored quip; Daily one per calendar day (a stable hash of the date, never
-/// <c>string.GetHashCode</c>, which differs from process to process); PerStart a random one at every start. The first start after an
-/// update shows the quip of the new release, once, in Daily and PerStart; Fixed is the user's explicit choice and Off the explicit
+/// <c>string.GetHashCode</c>, which differs from process to process); PerStart a random one at every start; Interval picks like PerStart at the start and the window then replaces it every N minutes (<see cref="PickAnother"/>). The first start after an
+/// update shows the quip of the new release, once, in Daily, PerStart and Interval; Fixed is the user's explicit choice and Off the explicit
 /// "none", so neither is overridden.
 /// </summary>
 internal static class TaglinePicker
 {
-    internal const string ModeOff = "Off", ModeFixed = "Fixed", ModeDaily = "Daily", ModePerStart = "PerStart";
+    internal const string ModeOff = "Off", ModeFixed = "Fixed", ModeDaily = "Daily", ModePerStart = "PerStart", ModeInterval = "Interval";
 
-    internal static IReadOnlyList<string> Modes { get; } = [ModeOff, ModeFixed, ModeDaily, ModePerStart];
+    internal static IReadOnlyList<string> Modes { get; } = [ModeOff, ModeFixed, ModeDaily, ModePerStart, ModeInterval];
 
     /// <summary>A stored mode as the setting keeps it (case-insensitive); anything else is the default, a new quip at every start.</summary>
     internal static string NormalizeMode(string? value)

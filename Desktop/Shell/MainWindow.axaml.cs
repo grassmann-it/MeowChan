@@ -504,6 +504,9 @@ public partial class MainWindow : Window
                 ShowNotification(Texts.T("restore.title"),
                     Texts.T("restore.failure", _session.StartupError ?? string.Empty), NotificationType.Error, operation: "session.restore");
             }
+            if (_session.BoardAdmissionRecovered)
+                ShowNotification(Texts.T("notification.session"), Texts.T("boardAdmission.recoveredBackup"),
+                    NotificationType.Warning, operation: "session.warning");
             UpdateInteractionState();
             RefreshWorkViewNotice();
             NotifyFavoritesUnreadable();
@@ -1203,13 +1206,16 @@ public partial class MainWindow : Window
             UpdateInteractionState();
             await FlushGalleryPreferencesAsync();
             int mediaTagListWidthBefore = ConfiguredMediaTagListWidth();
-            await _session.ApplySettingsAsync(candidate);
+            bool readingFilesCleanedUp = await _session.ApplySettingsAsync(candidate);
             _config.CopyFrom(_session.Config);
             ApplyMediaTagListWidthAfterSettings(mediaTagListWidthBefore);
             ForgetDesiredGalleryLayout(); // N3: the applied settings hold the layout now (a failed earlier write must not mask a reset)
             InvalidateReadingResumeState();
             ApplyAppearance();
             RefreshStoreLimitWarning(force: true);
+            if (!readingFilesCleanedUp)
+                ShowNotification(Texts.T("notification.error"), Texts.T("resume.optOutCleanupFailed"),
+                    NotificationType.Warning, operation: "preferences.reading-position");
         }
         finally
         {
@@ -1321,6 +1327,7 @@ public partial class MainWindow : Window
             return;
         }
         if (_isClosing) return;
+        if (_gallery != null) { UpdateGalleryScope(); UpdateGalleryPosition(); }
         _sessionRefresh.Request();
         RefreshAdmissionResults();
         RefreshClipboardMonitor();

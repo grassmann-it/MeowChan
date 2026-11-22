@@ -101,6 +101,11 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Assert.Equal("SinceOp", editor.SelectedReaderDateStyle!.Value);
         Assert.Equal("Hover", editor.SelectedReaderSpoilers!.Value);
         Assert.True(editor.IsGalleryFitLimited);
+        Invoke(editor, "RefreshMediaSidebarScopeChoices", Config.ReaderMediaSidebarScopeAlways);
+        Assert.Equal(new[] { Config.ReaderMediaSidebarScopeLargeReader, Config.ReaderMediaSidebarScopeAlways },
+            editor.ReaderMediaSidebarScopeChoices.Select(item => item.Value));
+        Assert.Equal(new[] { "Reader only", "Reader and Archive view" },
+            editor.ReaderMediaSidebarScopeChoices.Select(item => item.Label));
 
         Texts.SetLanguage("de");
         Invoke(editor, "RefreshReaderChoiceLabels");
@@ -110,6 +115,9 @@ public sealed class ReaderSettingsEditorTests : IDisposable
         Assert.Equal(Texts.T("settings.reader.dateStyle.sinceOp"), editor.SelectedReaderDateStyle.Label);
         Assert.Equal(Texts.T("settings.reader.spoilers.hover"), editor.SelectedReaderSpoilers.Label);
         Assert.Equal(Texts.T("settings.gallery.fitUpscale.limited"), editor.SelectedGalleryFitUpscale.Label);
+        Assert.Equal(Config.ReaderMediaSidebarScopeAlways, editor.SelectedReaderMediaSidebarScope!.Value);
+        Assert.Equal(new[] { "Nur im Reader", "Reader und Archivansicht" },
+            editor.ReaderMediaSidebarScopeChoices.Select(item => item.Label));
     }
 
     [Theory]

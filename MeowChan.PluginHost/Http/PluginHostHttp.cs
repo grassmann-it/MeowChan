@@ -30,9 +30,34 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
     {
         _borrowedTransport = transport;
         _booru = new BooruMetadataHttp(transport, policy, sources, maximumCooldownProvider);
-        _transport = new HttpClient(new HistoryTransport(transport)) { Timeout = Timeout.InfiniteTimeSpan }; _policy = policy;
+        _transport = CreateHistoryClient(transport);
+        _policy = policy;
         _sources = sources.ToDictionary(source => source.SourceId, StringComparer.Ordinal);
     }
+    private static HttpClient CreateHistoryClient(HttpClient transport)
+    {
+        HistoryTransport? handler = new(transport);
+        try
+        {
+            HttpClient client = new(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+            handler = null;
+            return client;
+        }
+        finally { handler?.Dispose(); }
+    }
+
+    private HttpClient CreatePolicyClient(string sourceId)
+    {
+        RequestPolicyHandler? handler = new(_transport, sourceId, _policy);
+        try
+        {
+            HttpClient client = new(handler, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+            handler = null;
+            return client;
+        }
+        finally { handler?.Dispose(); }
+    }
+
     public Task<HostHttpResult> SendAsync(HostHttpRequest request, CancellationToken cancellationToken = default)
         => SendCoreAsync(request, null, cancellationToken);
 
@@ -89,7 +114,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         {
             if (!_clients.TryGetValue(request.SourceId, out client!))
             {
-                client = new HttpClient(new RequestPolicyHandler(_transport, request.SourceId, _policy)) { Timeout = Timeout.InfiniteTimeSpan };
+                client = CreatePolicyClient(request.SourceId);
                 if (_borrowedTransport.DefaultRequestHeaders.UserAgent.Count == 0)
                     client.DefaultRequestHeaders.UserAgent.ParseAdd("MeowChan");
                 _clients.Add(request.SourceId, client);
@@ -106,26 +131,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                 HostHttpRequest hop = request with { Url = uri };
                 issues = SdkValidation.ValidateHttpRequest(hop, source);
                 if (issues.Count > 0) return Failure("http-redirect", "Redirect destination is outside the declared metadata hosts.");
-                using HttpRequestMessage message = new(request.Method == HostHttpMethod.Head ? HttpMethod.Head : HttpMethod.Get, uri);
-                message.Options.Set(RequestPolicyHandler.DeferWhenWaitingKey, true);
-                message.Options.Set(CallerCancellationKey, cancellationToken);
-                // Capture this operation, not whichever AsyncLocal happens to be current
-                // when the policy reports progress on a correlated service continuation.
-                if (MetadataHistory.Current is MetadataHistory history)
-                    message.Options.Set(RequestPolicyHandler.ObserverKey, history.ReportProgress);
-                if (request.Headers != null)
-                    foreach ((string key, string value) in request.Headers) message.Headers.TryAddWithoutValidation(key, value);
-                // The shared transport does not decompress, so advertise exactly what ReadDecodedBodyAsync decodes
-                // (bounded); without this header servers send chan catalogs and thread JSON uncompressed.
-                if (message.Headers.AcceptEncoding.Count == 0)
-                {
-                    message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
-                    message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("deflate"));
-                    message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("br"));
-                }
-                if (request.Validators?.EntityTag is string entityTag) message.Headers.TryAddWithoutValidation("If-None-Match", entityTag);
-                if (request.Validators?.LastModified is DateTimeOffset modified) message.Headers.IfModifiedSince = modified;
-                using HttpResponseMessage response = await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+                using HttpResponseMessage response = await SendHopAsync(client, hop, cancellationToken).ConfigureAwait(false);
                 if ((int)response.StatusCode is >= 400 and <= 599) responseFailureStatus = response.StatusCode;
                 Uri actual = response.RequestMessage?.RequestUri ?? uri;
                 if (actual != uri) return Failure("http-transport", "The supplied metadata transport followed a redirect automatically.", responseStatus: responseFailureStatus);
@@ -185,6 +191,25 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         catch (InvalidDataException exception) { return Failure("http-encoding", exception.Message, exception, responseFailureStatus); }
         catch (IOException exception) { return Failure("http-network", exception.Message, exception, responseFailureStatus); }
     }
+    private static async Task<HttpResponseMessage> SendHopAsync(HttpClient client, HostHttpRequest request,
+        CancellationToken cancellationToken)
+    {
+        HttpMethod method = request.Method == HostHttpMethod.Head ? HttpMethod.Head : HttpMethod.Get;
+        using HttpRequestMessage message = new(method, request.Url);
+        message.Options.Set(RequestPolicyHandler.DeferWhenWaitingKey, true);
+        message.Options.Set(CallerCancellationKey, cancellationToken);
+        // Retain the correlated operation when the policy reports progress.
+        if (MetadataHistory.Current is MetadataHistory history)
+            message.Options.Set(RequestPolicyHandler.ObserverKey, history.ReportProgress);
+        PluginRequestHeaders.Apply(message, request);
+
+        // The shared transport leaves decoding to ReadDecodedBodyAsync.
+        message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("gzip"));
+        message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("deflate"));
+        message.Headers.AcceptEncoding.Add(new StringWithQualityHeaderValue("br"));
+        return await client.SendAsync(message, HttpCompletionOption.ResponseHeadersRead, cancellationToken).ConfigureAwait(false);
+    }
+
     // Observe the actual transport, not advisory policy reasons (which also occur after retries).
     private sealed class HistoryTransport(HttpClient transport) : HttpMessageHandler
     {
@@ -195,7 +220,11 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
             try
             {
                 using HttpRequestMessage forwarded = new(request.Method, request.RequestUri);
-                foreach (var header in request.Headers) forwarded.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                foreach (var header in request.Headers)
+                    if (!header.Key.Equals("If-None-Match", StringComparison.OrdinalIgnoreCase))
+                        forwarded.Headers.TryAddWithoutValidation(header.Key, header.Value);
+                foreach (EntityTagHeaderValue tag in request.Headers.IfNoneMatch)
+                    forwarded.Headers.IfNoneMatch.Add(tag);
                 // The forwarded copy must keep the source the policy handler attached for the metering handler below.
                 if (request.Options.TryGetValue(MeteringHandler.SourceKey, out string? meteredSource)) forwarded.Options.Set(MeteringHandler.SourceKey, meteredSource);
                 HttpResponseMessage response = await transport.SendAsync(forwarded, HttpCompletionOption.ResponseHeadersRead, token).ConfigureAwait(false);
@@ -297,8 +326,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                 ResumedScope.Value = previousScope;
             }
         }
-        private readonly MetadataHistory? _previous = Slot.Value;
-        private readonly bool _ambient;
+        private readonly Action? _restoreAmbient;
         private CancellationToken _operationLifetime;
         private Contracts.PluginOperationContext? _boundOperation;
         private readonly object _progressLock = new();
@@ -315,8 +343,12 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         private MetadataHistory(Action<RequestPolicyProgress>? observer, bool ambient)
         {
             _observer = observer;
-            _ambient = ambient;
-            if (ambient) Slot.Value = this;
+            if (ambient)
+            {
+                MetadataHistory? previous = Slot.Value;
+                _restoreAmbient = () => Slot.Value = previous;
+                Slot.Value = this;
+            }
         }
         internal void ReportProgress(RequestPolicyProgress progress)
         {
@@ -453,7 +485,7 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
                 lock (OperationsLock)
                     if (Operations.TryGetValue(operation, out MetadataHistory? bound) && ReferenceEquals(bound, this))
                         Operations.Remove(operation);
-            if (_ambient) Slot.Value = _previous;
+            _restoreAmbient?.Invoke();
         }
     }
 
@@ -464,35 +496,49 @@ public sealed class PluginHostHttp : IHostHttp, IDisposable
         {
             if (content.Headers.ContentEncoding.Count > 2) throw new InvalidDataException("Too many content encodings.");
             foreach (string encoding in content.Headers.ContentEncoding.Reverse())
-                body = encoding.ToLowerInvariant() switch
-                {
-                    "gzip" => new GZipStream(body, CompressionMode.Decompress),
-                    "deflate" => new DeflateStream(body, CompressionMode.Decompress),
-                    "br" => new BrotliStream(body, CompressionMode.Decompress),
-                    "identity" => body,
-                    _ => throw new InvalidDataException("Unsupported metadata content encoding.")
-                };
+                body = WrapDecoder(encoding, body);
             return body;
         }
         catch { await body.DisposeAsync().ConfigureAwait(false); throw; }
     }
+    // Each wrapper owns the inner stream. The caller owns the returned outer stream.
+    private static Stream WrapDecoder(string encoding, Stream body) => encoding.ToLowerInvariant() switch
+    {
+        "gzip" => new GZipStream(body, CompressionMode.Decompress),
+        "deflate" => new DeflateStream(body, CompressionMode.Decompress),
+        "br" => new BrotliStream(body, CompressionMode.Decompress),
+        "identity" => body,
+        _ => throw new InvalidDataException("Unsupported metadata content encoding.")
+    };
+
     public void Dispose() { lock (_sync) { foreach (HttpClient client in _clients.Values) client.Dispose(); _clients.Clear(); _booru.Dispose(); _transport.Dispose(); } }
 
     /// <summary>Creates a transport with visible response bytes and no invisible redirects/retries.</summary>
-    public static HttpClient CreateTransport() => new(new MeteringHandler(new HttpClientHandler
+    public static HttpClient CreateTransport()
     {
-        AllowAutoRedirect = false,
-        // The shared transport must not silently attach profile/browser credentials to
-        // public provider metadata. BooruHostHttp also rejects explicit credential
-        // headers before the handler is entered.
-        UseCookies = false,
-        UseDefaultCredentials = false,
-        Credentials = null,
-        // Keep wire bytes observable for the Booru path. PluginHostHttp performs
-        // explicit bounded decoding for ordinary metadata and advertises
-        // Accept-Encoding itself; OriginalMedia requests advertise identity and
-        // therefore keep their payload bytes unchanged.
-        AutomaticDecompression = DecompressionMethods.None
-    // Wire bytes of every metadata, original-media and booru request are counted per source at this one point.
-    })) { Timeout = Timeout.InfiniteTimeSpan };
+        HttpClientHandler? handler = new()
+        {
+            AllowAutoRedirect = false,
+            UseCookies = false,
+            UseDefaultCredentials = false,
+            Credentials = null,
+            // Keep wire bytes observable. The metadata path bounds its own decoding.
+            AutomaticDecompression = DecompressionMethods.None
+        };
+        MeteringHandler? metering = null;
+        try
+        {
+            // Wire bytes are counted per source at this one point.
+            metering = new MeteringHandler(handler);
+            handler = null;
+            HttpClient client = new(metering, disposeHandler: true) { Timeout = Timeout.InfiniteTimeSpan };
+            metering = null;
+            return client;
+        }
+        finally
+        {
+            metering?.Dispose();
+            handler?.Dispose();
+        }
+    }
 }

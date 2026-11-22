@@ -103,7 +103,7 @@ public static class GallerySelection
             foreach (CapturedAttachment attachment in (post.Attachments ?? Array.Empty<CapturedAttachment>())
                 .OrderBy(value => value.Position))
             {
-                if (attachment.IsDeleted || attachment.MediaId == null) continue;
+                if (!ThreadMediaPositions.Includes(attachment)) continue;
                 ResolvedMediaAttachment? match = MediaAttachmentResolver.Resolve(snapshots, thread.Summary.Id, post.PostId, attachment);
                 if (match == null || !images.Any(pair => ReferenceEquals(pair.Manifest, match.Snapshot) && pair.Asset.AssetId == match.Asset.AssetId)) continue;
                 GalleryAssetKey key = new(thread.Summary.Id, match.Snapshot.Directory, match.Asset.AssetId);

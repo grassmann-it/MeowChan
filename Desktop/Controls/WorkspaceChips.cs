@@ -54,7 +54,7 @@ internal static class WorkspaceChips
     /// F05: the one height of every item in a filter chip row (chips, "+ Filter", "Reset filters"), in dip. A layout measure like the other
     /// sizes of this class, no setting. Wide enough for the 13 dip label with the 2 dip exclusion edge, so no item grows beyond its neighbours.
     /// </summary>
-    internal const double RowHeight = 28;
+    internal const double RowHeight = WorkspaceMetrics.FilterChipHeight;
 
     /// <summary>
     /// F05: gives an item of a filter chip row the common height, the common vertical inset (none: the height centres the content) and a

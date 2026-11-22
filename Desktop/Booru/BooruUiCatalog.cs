@@ -155,6 +155,10 @@ internal static class BooruUiCatalog
         ("booru.ui.load.Restricted", "Danbooru restricts the original of this post. Nothing was loaded.", "Danbooru schränkt das Original dieses Posts ein. Es wurde nichts geladen."),
         ("booru.ui.load.Offline", "Offline: nothing was added to the queue. Try again when connected.", "Offline: Es wurde nichts zur Warteschlange hinzugefügt. Mit Verbindung erneut versuchen."),
         ("booru.ui.load.Failed", "The original could not be added to the queue ({0}).", "Das Original konnte nicht zur Warteschlange hinzugefügt werden ({0})."),
+        ("booru.ui.load.DownloadFailed", "The original download failed. Try again.", "Der Download des Originals ist fehlgeschlagen. Versuche es erneut."),
+        ("booru.ui.load.LinkFailed", "The original was saved. Try again to link the existing file to the library.", "Das Original wurde gespeichert. Versuche erneut, die vorhandene Datei mit der Bibliothek zu verknüpfen."),
+        ("booru.ui.load.Interrupted", "The original download was interrupted and remains scheduled for recovery.", "Der Download des Originals wurde unterbrochen und bleibt zur Wiederaufnahme vorgemerkt."),
+        ("booru.ui.load.saveRefusal", "Save refusal again", "Ablehnung erneut speichern"),
 
         ("booru.ui.watcher.create", "Create watcher", "Suchbeobachtung anlegen"),
         ("booru.ui.watcher.createHint", "Watches the search above from now on. Posts that already exist are not downloaded; only newer matching posts are added to the download queue.", "Beobachtet die obige Suche ab jetzt. Bereits vorhandene Posts werden nicht geladen; nur neuere passende Posts kommen in die Downloadwarteschlange."),

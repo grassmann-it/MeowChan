@@ -37,6 +37,8 @@ internal static class ExportCatalog
         ("export.legacyAssociate", "Associate selected older export with this thread", "Gewählten älteren Export diesem Thread zuordnen"),
         ("export.legacyFound", "Found {0} source-matching candidates (at most 500 folders checked). Verify the folder before explicitly associating it.", "{0} Kandidaten mit passender Quelle gefunden (höchstens 500 Ordner geprüft). Ordner vor dem ausdrücklichen Zuordnen prüfen."),
         ("export.legacyAssociated", "Older export associated. Updating it will preserve its previous content.", "Älterer Export zugeordnet. Beim Aktualisieren bleibt sein bisheriger Inhalt erhalten."),
+        ("export.legacyMarked", "The older export was marked.", "Der ältere Export wurde markiert."),
+        ("export.legacyHistoryCancelled", "The older export was marked. Saving its history entry was cancelled.", "Der ältere Export wurde markiert. Das Speichern seines Historieneintrags wurde abgebrochen."),
         ("command.hint.opens-export-dialog", "Opens the export dialog", "Öffnet den Exportdialog"),
         ("export.hint", "Export the latest local capture to an independent HTML folder. Nothing is downloaded.", "Letzte lokale Erfassung als eigenständigen HTML-Ordner exportieren. Es wird nichts heruntergeladen."),
         ("export.associatedDate", "Associated", "Zugeordnet"),
@@ -53,6 +55,8 @@ internal static class ExportCatalog
         ("export.confirm", "Select an available previous export and confirm preserving its changed or reduced content.", "Verfügbaren früheren Export wählen und den Erhalt geänderter oder reduzierter Inhalte bestätigen."),
         ("export.backup", "Previous content preserved: {0}", "Bisheriger Inhalt erhalten: {0}"),
         ("export.historyError", "Export history could not be saved or read: {0}", "Exporthistorie konnte nicht gespeichert oder gelesen werden: {0}"),
+        ("export.historyLimit", "An export history limit was reached. Check the file size and entry limits in Settings.", "Eine Grenze der Exporthistorie wurde erreicht. Prüfe in den Einstellungen die Grenzen für Dateigröße und Eintragszahl."),
+        ("export.historyWriteLimit", "The new history entry was not saved because an export history limit was reached. Check the file size and entry limits in Settings.", "Der neue Historieneintrag wurde wegen einer Grenze der Exporthistorie nicht gespeichert. Prüfe in den Einstellungen die Grenzen für Dateigröße und Eintragszahl."),
         ("export.openFailed", "Could not open the export folder: {0}", "Exportordner konnte nicht geöffnet werden: {0}"),
         ("export.changed", "The selected export changed. Close and reopen this dialog to review it.", "Der gewählte Export hat sich geändert. Dialog schließen und zur erneuten Prüfung öffnen."),
         ("export.failed", "Export did not complete. Review the error and any preserved folder path below.", "Export wurde nicht abgeschlossen. Fehler und gegebenenfalls erhaltenen Ordnerpfad unten prüfen.")

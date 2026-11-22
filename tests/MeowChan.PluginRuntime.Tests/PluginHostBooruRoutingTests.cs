@@ -19,7 +19,7 @@ public sealed class PluginHostBooruRoutingTests
             ++sends;
             Assert.Equal(HttpMethod.Get, request.Method);
             Assert.Equal("https://danbooru.test/posts.json?tags=cat&page=1&limit=20", request.RequestUri!.AbsoluteUri);
-            Assert.Equal("MeowChan/1.1.0 (+https://github.com/grassmann-it/MeowChan)",
+            Assert.Equal($"MeowChan/{BooruUserAgent.ProductVersion()} (+https://github.com/grassmann-it/MeowChan)",
                 request.Headers.UserAgent.ToString());
             Assert.Equal("identity", Assert.Single(request.Headers.AcceptEncoding).Value);
             Assert.False(request.Headers.Authorization is not null);

@@ -198,14 +198,15 @@ public sealed class DefaultShortcutInvariantTests
     }
 
     [Theory, MemberData(nameof(Platforms))]
-    public void Ledger17SharedBindingsHaveExactlyTheirIntendedOwners(ShortcutPlatform platform)
+    public void SharedBindingsHaveExactlyTheirIntendedOwners(ShortcutPlatform platform)
     {
         var bindings = EffectiveShortcutBindings.Build(platform: platform);
         foreach ((string gesture, string[] owners) in new[]
         {
             ("S", new[] { "tagging.mark-skipped", "tags.queue.skip" }),
             ("Primary+Enter", new[] { "tags.queue.done-next", "tags.quick.commit-next" }),
-            ("Enter", new[] { "gallery.open", "reader.media.activate", "tagging.continue-here", "thread.read" })
+            ("Enter", new[] { "booru.search.submit", "gallery.open", "reader.media.activate", "tagging.continue-here", "thread.read" }),
+            ("Shift+Enter", new[] { "booru.search.alternate", "gallery.open" })
         })
         {
             var key = ShortcutGesture.Parse(gesture).Resolve(platform);

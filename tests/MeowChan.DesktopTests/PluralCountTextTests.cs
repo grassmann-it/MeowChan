@@ -50,6 +50,7 @@ public sealed class PluralCountTextTests : IDisposable
     // is the same in every shipped language. A new entry needs the same kind of reason.
     private static readonly Dictionary<string, string> NoSingularFormAllowed = new(StringComparer.Ordinal)
     {
+        ["boardAdmission.startupSizeLimit"] = "the placeholders name two files and a settings key",
         ["booru.crossLinks.navigationFailed"] = "the number is a post id (\"post #{0}\"), not a count",
         ["booru.media.tags.search.tooMany"] = "the Danbooru tag-search limit is a fixed provider constant above 1 and the marked count exceeds it",
         ["booru.media.tile.inMixed"] = "label form (\"in threads: {0} and Danbooru posts: {1}\"); the pair is shown only for equal bytes in both places",

@@ -1,10 +1,26 @@
+using System.Runtime.CompilerServices;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginHost.Contracts;
 
 /// <summary>Caller-owned resource lifetime; cancellation invalidates outstanding responses.</summary>
 public sealed record PluginOperationContext(string ResourceId, long Generation,
-    string? RuleRevision = null, string? GrantRevision = null);
+    string? RuleRevision = null, string? GrantRevision = null)
+{
+    // Host-only state keyed by identity. Equality still describes the caller's resource and revisions.
+    private static readonly ConditionalWeakTable<PluginOperationContext, BooruCallBinding> BooruCalls = new();
+
+    internal BooruCallBinding? BooruCall => BooruCalls.TryGetValue(this, out BooruCallBinding? call) ? call : null;
+
+    internal PluginOperationContext BindBooruCall(object request, CancellationToken lifetime)
+    {
+        PluginOperationContext scoped = this with { };
+        BooruCalls.Add(scoped, new BooruCallBinding(request, lifetime));
+        return scoped;
+    }
+}
+
+internal sealed record BooruCallBinding(object Request, CancellationToken Lifetime);
 
 public sealed record PluginWorkerIdentity(string InstanceId, string ExecutionRevision, string ConfigurationRevision);
 public sealed record PluginWorkerLaunch(string ExecutablePath, IReadOnlyList<string> Arguments, string WorkingDirectory);
@@ -13,6 +29,17 @@ public sealed record PluginWorkerSnapshot(PluginWorkerIdentity Identity, string 
 
 public sealed record PluginWorkerOptions
 {
+    internal const int AutomaticRestartsDefault = 3;
+    internal const int AutomaticRestartsMinimum = 0;
+    internal const int AutomaticRestartsMaximum = 10;
+    internal const int RestartWindowMinutesDefault = 10;
+    internal const int RestartWindowMinutesMinimum = 1;
+    internal const int RestartWindowMinutesMaximum = 60;
+
+    /// <summary>Automatic process start attempts after failure. Zero requires explicit retry after each failure.</summary>
+    public int MaximumAutomaticRestarts { get; init; } = AutomaticRestartsDefault;
+    /// <summary>Length of the rolling window in which automatic start attempts count toward the limit.</summary>
+    public int RestartWindowMinutes { get; init; } = RestartWindowMinutesDefault;
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan OperationTimeout { get; init; } = TimeSpan.FromSeconds(45);
     public TimeSpan CancellationGrace { get; init; } = TimeSpan.FromSeconds(2);

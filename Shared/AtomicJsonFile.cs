@@ -12,7 +12,29 @@ internal static class AtomicJsonFile
     // Do not fall back to delete/move: that would silently replace a user-controlled link.
     internal static bool CanAtomicallyReplaceSymbolicLink => !OperatingSystem.IsWindows();
 
-    public static void WriteAllText(string filePath, string contents, bool backupCurrentFile, CancellationToken cancellationToken = default)
+    private enum PreviousFile { RotateToBackup, PreserveForRecovery, Replace }
+
+    public static void WriteAllText(string filePath, string contents, bool backupCurrentFile, CancellationToken cancellationToken = default) =>
+        WriteAllText(filePath, contents, backupCurrentFile ? PreviousFile.RotateToBackup : PreviousFile.PreserveForRecovery, cancellationToken);
+
+    // The caller has already prepared a compatible backup of the previous snapshot.
+    internal static void ReplaceAllText(string filePath, string contents, CancellationToken cancellationToken) =>
+        WriteAllText(filePath, contents, PreviousFile.Replace, cancellationToken);
+
+    private static void WriteAllText(string filePath, string contents, PreviousFile previousFile, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        Write(filePath, Encoding.UTF8.GetBytes(contents.Replace("\r\n", "\n", StringComparison.Ordinal)),
+            previousFile, useFixedStage: false, checkAuthority: null, cancellationToken);
+    }
+
+    // The caller serializes writers across processes. One fixed staging file bounds crash residue
+    // and is safe to discard before a retried write because the primary is the commit record.
+    internal static void ReplaceUnderLease(string filePath, byte[] bytes, Action? checkAuthority, CancellationToken cancellationToken)
+        => Write(filePath, bytes, PreviousFile.Replace, useFixedStage: true, checkAuthority, cancellationToken);
+
+    private static void Write(string filePath, byte[] bytes, PreviousFile previousFile, bool useFixedStage,
+        Action? checkAuthority, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         string directory = Path.GetDirectoryName(filePath)
@@ -20,14 +42,12 @@ internal static class AtomicJsonFile
         Directory.CreateDirectory(directory);
         if (IsReparsePoint(filePath) && !CanAtomicallyReplaceSymbolicLink)
             throw new IOException("Atomic replacement of a symbolic-link destination is not supported on this platform.");
-        string temporaryPath = Path.Combine(directory, $".{Path.GetFileName(filePath)}.{Guid.NewGuid():N}.tmp");
+        string name = Path.GetFileName(filePath);
+        string temporaryPath = Path.Combine(directory, useFixedStage ? $".{name}.tmp" : $".{name}.{Guid.NewGuid():N}.tmp");
+        if (useFixedStage) File.Delete(temporaryPath);
 
         try
         {
-            // Persist JSON with a platform-independent newline so byte-stable files remain
-            // interchangeable between Windows and Unix writers. Escaped JSON string newlines
-            // are backslash sequences, not affected by this normalization.
-            byte[] bytes = Encoding.UTF8.GetBytes(contents.Replace("\r\n", "\n", StringComparison.Ordinal));
             using (FileStream stream = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None))
             {
                 stream.Write(bytes);
@@ -42,7 +62,13 @@ internal static class AtomicJsonFile
             // through to a platform-specific create/move error (and never exposes
             // that error's private path).
             bool destinationExists = File.Exists(filePath) || IsReparsePoint(filePath);
-            if (!destinationExists)
+            if (useFixedStage)
+            {
+                if (IsReparsePoint(filePath)) throw new IOException("The profile store needs a regular destination.");
+                checkAuthority?.Invoke();
+                File.Move(temporaryPath, filePath, overwrite: destinationExists);
+            }
+            else if (!destinationExists)
             {
                 File.Move(temporaryPath, filePath);
             }
@@ -58,14 +84,14 @@ internal static class AtomicJsonFile
                 PreserveDanglingLink(filePath);
                 File.Move(temporaryPath, filePath, overwrite: true);
             }
-            else if (backupCurrentFile)
+            else if (previousFile == PreviousFile.RotateToBackup)
             {
                 File.Replace(temporaryPath, filePath, filePath + ".bak");
             }
             else
             {
                 // A recovery save must not replace the last valid backup with damaged data.
-                PreserveFile(filePath);
+                if (previousFile == PreviousFile.PreserveForRecovery) PreserveFile(filePath);
                 cancellationToken.ThrowIfCancellationRequested();
                 File.Move(temporaryPath, filePath, overwrite: true);
             }

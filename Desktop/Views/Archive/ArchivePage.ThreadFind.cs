@@ -44,7 +44,10 @@ public partial class ArchivePage
         }
         ReaderFindBar.PropertyChanged += OnChange;
         ReaderTagBar.PropertyChanged += OnChange;
-        ReaderToolsRow.AddHandler(KeyDownEvent, OnThreadToolsCloseKeyDown, RoutingStrategies.Tunnel);
+        // F17: Escape on either toggle closes the open groups; a click on the Tags toggle is handled in Tags.cs, the state is synced after it.
+        ReaderFindOpen.AddHandler(KeyDownEvent, OnThreadToolsCloseKeyDown, RoutingStrategies.Tunnel);
+        ReaderTagsOpen.AddHandler(KeyDownEvent, OnThreadToolsCloseKeyDown, RoutingStrategies.Tunnel);
+        ReaderTagsOpen.Click += (_, _) => UpdateThreadToolsRow();
     }
 
     private void UpdateThreadToolsRow()
@@ -54,13 +57,18 @@ public partial class ArchivePage
         ReaderToolsRow.IsVisible = find || tags;
         ReaderFindDetails.IsVisible = find;
         ReaderTagDetails.IsVisible = tags;
-        HeaderBar.MakeClose(ReaderToolsClose, Texts.T(tags && !find ? "tags.close" : "readerFind.close"));
+        // F17: the toolbar buttons are the toggles. Active while their group is open (highlighted, with an x inside); the state is also
+        // named in the accessible name and the tip, and the toggle's own click closes the group again.
+        ReaderFindOpen.IsChecked = find;
+        ReaderTagsOpen.IsChecked = tags;
+        string open = Texts.T("readerTool.stateOpen");
+        Avalonia.Automation.AutomationProperties.SetName(ReaderFindOpen, CommandCatalog.Label("reader.find") + (find ? ", " + open : ""));
+        SetReaderActionTip(ReaderFindOpen, ReaderFindTip());
+        SetReaderActionTip(ReaderTagsOpen, ReaderTagsTip());
     }
 
     private bool IsThreadToolsCloseSource(object? source) => source is Avalonia.Visual visual
-        && visual.GetSelfAndVisualAncestors().Contains(ReaderToolsClose);
-
-    private void OnCloseThreadTools(object? sender, RoutedEventArgs e) => CloseThreadTools();
+        && visual.GetSelfAndVisualAncestors().Any(v => ReferenceEquals(v, ReaderFindOpen) || ReferenceEquals(v, ReaderTagsOpen));
 
     private void CloseThreadTools()
     {
@@ -73,7 +81,8 @@ public partial class ArchivePage
     private void OnThreadToolsCloseKeyDown(object? sender, KeyEventArgs e)
     {
         if (e.Handled || _ended || ShortcutService.IsCapturing || IsReaderDialogOpen
-            || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || !IsThreadToolsCloseSource(e.Source)) return;
+            || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || !IsThreadToolsCloseSource(e.Source)
+            || !(ReaderFindBar.IsVisible || ReaderTagBar.IsVisible)) return;
         e.Handled = true;
         CloseThreadTools();
     }
@@ -83,6 +92,15 @@ public partial class ArchivePage
 
     // Test seam: lets a harness make the one index build fail without touching real data.
     internal Func<ArchivedThreadView, string, CancellationToken, ReaderThreadFindIndex>? ThreadFindIndexFactory { get; set; }
+
+    // F17: the toolbar button is a toggle; its own click closes an open bar (Escape and the x inside the button do the same).
+    // The shortcut and the other entries keep calling OnOpenThreadFind, which only opens or refocuses.
+    private void OnThreadFindToggleClick(object? sender, RoutedEventArgs e)
+    {
+        if (ReaderFindBar.IsVisible && !_ended) { CloseThreadFind(); ReaderFindOpen.Focus(); }
+        else OnOpenThreadFind(sender, e);
+        UpdateThreadToolsRow();
+    }
 
     private void OnOpenThreadFind(object? sender, RoutedEventArgs e)
     {

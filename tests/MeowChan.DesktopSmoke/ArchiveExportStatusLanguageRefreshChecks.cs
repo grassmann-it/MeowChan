@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Threading;
 using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
@@ -217,6 +218,7 @@ internal static class ArchiveExportStatusLanguageRefreshChecks
                     "Cancelled export published output or retained a previous success.");
                 Close(page);
             }
+            await CheckLegacyCancellationAsync(page, boundary, lease, exports);
         }
         catch (Exception error) { failure = error; }
         finally
@@ -259,6 +261,101 @@ internal static class ArchiveExportStatusLanguageRefreshChecks
         if (failure != null) System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
         Console.WriteLine("SMOKE export status language: EN/DE/ES/FR/RU live labels, single/collection preparation, results, omissions, backup, folder failure, nested changed-export diagnosis, raw failure and cancellation passed; managed input only.");
     }
+
+    private static async Task CheckLegacyCancellationAsync(ArchivePage page, ReaderBoundary boundary, ProfileLease lease, string exports)
+    {
+        string destination = Directory.CreateDirectory(Path.Combine(exports, "ochan-legacy")).FullName;
+        await File.WriteAllTextAsync(Path.Combine(destination, "index.html"), "<p>" + Member(First) + "</p>");
+        string marker = Path.Combine(destination, ArchiveExportMetadataFile.Name);
+        string history = Path.Combine(lease.ProfileDirectory, "export-history.json");
+        byte[] original = await File.ReadAllBytesAsync(history);
+        await OpenAsync(page, boundary, collection: false, Path.Combine(exports, "draft"));
+        Need<Expander>(page, "ArchiveExportMoreOptions").IsExpanded = true;
+        Need<Expander>(page, "ArchiveExportLegacySection").IsExpanded = true;
+        Click(page, "ArchiveExportLegacyFind");
+        await WaitUntilAsync(() => Need<Button>(page, "ArchiveExportLegacyAssociate").IsEffectivelyEnabled, "legacy candidate discovery");
+
+        boundary.Hold();
+        try
+        {
+            Click(page, "ArchiveExportLegacyAssociate");
+            await boundary.Entered!.Task.WaitAsync(Deadline);
+            Escape(page);
+            Require(Status(page) == Texts.T("archive.exportCancelling"), "Escape did not request legacy cancellation.");
+        }
+        finally { boundary.Release!.TrySetResult(); }
+        await WaitUntilAsync(() => !page.IsExportRunning, "legacy reader cancellation");
+        boundary.Release = null;
+        boundary.Entered = null;
+        Require(Status(page) == Texts.T("archive.exportCancelled") && !File.Exists(marker) &&
+            Enumerable.SequenceEqual(original, await File.ReadAllBytesAsync(history)), "Cancellation before the marker changed the export or history.");
+
+        TaskCompletionSource locked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task blockHistory = HoldHistory(locked, release);
+        try
+        {
+            await locked.Task.WaitAsync(Deadline);
+            Click(page, "ArchiveExportLegacyAssociate");
+            await WaitUntilAsync(() => File.Exists(marker), "legacy marker commit");
+            Escape(page);
+        }
+        finally
+        {
+            release.TrySetResult();
+            await blockHistory.WaitAsync(Deadline);
+        }
+        await WaitUntilAsync(() => !page.IsExportRunning, "legacy cancellation after marker");
+        Require(Status(page) == Texts.T("export.legacyHistoryCancelled") && File.Exists(marker) &&
+            Enumerable.SequenceEqual(original, await File.ReadAllBytesAsync(history)), "Cancellation after the marker did not report the partial commit.");
+
+        ExportHistoryLimits limits = lease.StoreLimits.ExportHistory;
+        lease.StoreLimits.ExportHistory = limits with { Entries = 1 };
+        Click(page, "ArchiveExportLegacyAssociate");
+        await WaitUntilAsync(() => !page.IsExportRunning, "legacy history limit refusal");
+        Require(Status(page) == Texts.T("export.legacyMarked") && Error(page) == Texts.T("export.historyWriteLimit") &&
+            Enumerable.SequenceEqual(original, await File.ReadAllBytesAsync(history)), "History limit refusal did not report the retained marker.");
+        lease.StoreLimits.ExportHistory = limits;
+
+        TaskCompletionSource lockedAgain = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource releaseAgain = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task blockRetry = HoldHistory(lockedAgain, releaseAgain);
+        try
+        {
+            await lockedAgain.Task.WaitAsync(Deadline);
+            Click(page, "ArchiveExportLegacyAssociate");
+            // The retry starts only the history writer. Keep its UI continuation queued until
+            // the replacement is observable, then deliver Escape ahead of that continuation.
+            releaseAgain.TrySetResult();
+            Require(SpinWait.SpinUntil(() => new FileInfo(history).Length != original.LongLength, Deadline),
+                "Retry failed to commit the legacy history entry.");
+            Escape(page);
+            Require(Status(page) == Texts.T("archive.exportCancelling"), "Late Escape did not reach the running association.");
+        }
+        finally
+        {
+            releaseAgain.TrySetResult();
+            await blockRetry.WaitAsync(Deadline);
+        }
+        await WaitUntilAsync(() => !page.IsExportRunning, "legacy cancellation after history");
+        Require(Status(page) == Texts.T("export.legacyAssociated") &&
+            page.ExportHistory!.List(First).Any(entry => entry.Destination == destination),
+            "Cancellation after the history commit hid the completed association.");
+        Close(page);
+        Console.WriteLine("SMOKE legacy association: Escape before marker, between commits, and after history commit passed.");
+
+        Task HoldHistory(TaskCompletionSource entered, TaskCompletionSource resume) => Task.Run(() => lease.RunExclusive(() =>
+        {
+            entered.SetResult();
+            resume.Task.GetAwaiter().GetResult();
+            return true;
+        }));
+    }
+
+    private static void Escape(ArchivePage page) =>
+        Need<Button>(page, "ArchiveExportClose").RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+
+    private static string? Status(ArchivePage page) => Need<TextBlock>(page, "ArchiveExportStatus").Text;
 
     private static async Task OpenAsync(ArchivePage page, ReaderBoundary boundary, bool collection, string destination)
     {

@@ -96,38 +96,42 @@ internal static class MediaInteractionSmokeHelpers
         }
     }
 
-    /// <summary>Reveal an auto-hidden gallery transport, then wait for its current native hit geometry.</summary>
-    internal static async Task WaitForNativeTargetAsync(MediaNativeInput native, GalleryViewer viewer, Control target, string message, bool requireHitTest = true)
+    internal static T? GalleryControl<T>(GalleryViewer viewer, string name) where T : Control =>
+        viewer.GetGalleryVisualDescendants().OfType<T>().SingleOrDefault(control => control.Name == name);
+
+    internal static Task MoveInGalleryAsync(MediaNativeInput native, GalleryViewer viewer, Control presentation, double horizontal) =>
+        native.MoveAsync(() => Task.FromResult(TopLevel.GetTopLevel(presentation) is Window root
+                && !ReferenceEquals(root, TopLevel.GetTopLevel(viewer)) ? (Control)root : viewer),
+            surface => Task.FromResult<Point?>(new Point(surface.Bounds.Width * horizontal, surface.Bounds.Height * .35)),
+            requireEnabled: false);
+
+    /// <summary>Reveal auto-hidden controls with real motion in their current native presentation.</summary>
+    internal static Task WaitForNativeTargetAsync(MediaNativeInput native, GalleryViewer viewer, Control target, string message,
+        bool requireHitTest = true) => WaitForNativeTargetAsync(native, viewer, () => target, message, requireHitTest);
+
+    internal static async Task<T> WaitForNativeTargetAsync<T>(MediaNativeInput native, GalleryViewer viewer, Func<T?> resolveTarget,
+        string message, bool requireHitTest = true) where T : Control
     {
-        // Native macOS popup hit testing can take more than one compositor turn
-        // after the transport auto-hides. Re-issue a real pointer move rather
-        // than falling back to a routed/synthetic click.
+        bool Ready(T? target) => target != null && (requireHitTest ? IsPointerTargetReady(target) : IsNativeGeometryReady(target));
+        // Enter at two different pixels, away from the edge indicator and footer. A
+        // previous fixture (or the last click) can already have parked the pointer
+        // at either pixel. Motion over the current root is what reveals controls.
         const int revealAttempts = 8;
-        bool Ready() => requireHitTest ? IsPointerTargetReady(target) : IsNativeGeometryReady(target, requireEnabled: true);
-        for (int attempt = 0; attempt < revealAttempts && !Ready(); attempt++)
+        for (int attempt = 0; attempt < revealAttempts; attempt++)
         {
-            // First cross the reveal edge with real OS input. On macOS the
-            // transport can be a separate native presentation and its hit-test
-            // cache is not updated merely because Avalonia laid out the button.
-            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .5, viewer.Bounds.Height * .5),
-                requireEnabled: false, requireHitTest: false);
-            if (Ready()) return;
-            await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height - 2),
-                requireEnabled: false, requireHitTest: false);
-            await Task.Delay(100);
-            // Once the current target has geometry, cross into the actual
-            // control as well. This delivers the hover to the current native
-            // root and avoids checking a stale centre point after the edge
-            // reveal (the source of intermittent macOS GIF failures).
-            if (IsNativeGeometryReady(target, requireEnabled: true))
-            {
-                await native.MoveAsync(target, requireEnabled: true, requireHitTest: false);
-                await Task.Delay(100);
-            }
+            T? target = resolveTarget();
+            if (Ready(target)) return target!;
+            if (viewer.IsOverflowOpen) break; // Wait for the popup to arrange its own content.
+            Control presentation = target ?? (Control?)GalleryControl<StackPanel>(viewer, "GalleryOverlayFooter") ?? viewer;
+            await MoveInGalleryAsync(native, viewer, presentation, attempt % 2 == 0 ? .35 : .48);
+            if (TopLevel.GetTopLevel(presentation) is Window root) root.UpdateLayout();
         }
-        await Program.WaitUntilAsync(Ready, () => $"{message} " +
-            $"Target visible={target.IsEffectivelyVisible}, enabled={target.IsEffectivelyEnabled}, " +
-            $"bounds={target.Bounds}, root={TopLevel.GetTopLevel(target)?.GetType().Name ?? "none"}.");
+
+        T? resolved = null;
+        await Program.WaitUntilAsync(() => Ready(resolved = resolveTarget()), () => $"{message} " +
+            $"Target visible={resolved?.IsEffectivelyVisible}, enabled={resolved?.IsEffectivelyEnabled}, " +
+            $"bounds={resolved?.Bounds}, root={(resolved == null ? null : TopLevel.GetTopLevel(resolved)?.GetType().Name) ?? "none"}.");
+        return resolved!;
     }
 
     internal static Point TrackPoint(Slider slider, double fraction)

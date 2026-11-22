@@ -33,6 +33,8 @@ internal sealed record BooruPostView
     internal string PostId => Post.Id.PostId;
     internal Uri? PostUrl { get; private init; }
     internal Uri? PreviewUrl { get; private init; }
+    /// <summary>The reduced-size version the provider offers (Danbooru's large file), when it differs from the original; null otherwise.</summary>
+    internal Uri? SampleUrl { get; private init; }
     internal BooruRating Rating { get; private init; }
     internal string? RawRating { get; private init; }
     internal int? Score { get; private init; }
@@ -50,6 +52,7 @@ internal sealed record BooruPostView
         BooruFieldPresence fields = post.Fields;
         BooruMediaVariant? original = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Original);
         BooruMediaVariant? preview = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Preview);
+        BooruMediaVariant? sample = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Sample);
         bool withdrawn = post.IsDeleted || post.IsBanned;
         BooruOriginalAccess access = withdrawn ? BooruOriginalAccess.Restricted
             : original is null ? BooruOriginalAccess.NotOffered
@@ -58,7 +61,8 @@ internal sealed record BooruPostView
         return new BooruPostView(post)
         {
             PostUrl = post.PostUrl,
-            PreviewUrl = preview?.Url,
+            PreviewUrl = DisplayUrl(preview, original?.Url),
+            SampleUrl = DisplayUrl(sample, original?.Url),
             Rating = fields.HasFlag(BooruFieldPresence.Rating) ? post.Rating : BooruRating.Unknown,
             RawRating = fields.HasFlag(BooruFieldPresence.Rating) ? post.RawRating : null,
             Score = fields.HasFlag(BooruFieldPresence.Score) ? post.Score : null,
@@ -72,6 +76,9 @@ internal sealed record BooruPostView
             IsBanned = post.IsBanned
         };
     }
+
+    private static Uri? DisplayUrl(BooruMediaVariant? variant, Uri? original) =>
+        variant?.Url is { } url && url != original ? url : null;
 }
 
 /// <summary>Where a "Load original" request comes from; the queue adapter keeps the provenance.</summary>
@@ -80,11 +87,16 @@ internal enum BooruLoadOrigin { Search, OneShot }
 /// <summary>Per-row result of the explicit "Load original" action.</summary>
 internal enum BooruRowLoad
 {
-    Idle, Handing, Queued, AlreadyQueued, AlreadyLoaded, NoOriginal, Restricted, Offline, Failed
+    Idle, Handing, Queued, AlreadyQueued, AlreadyLoaded, NoOriginal, Restricted, Offline, Failed,
+    DownloadFailed, LinkFailed, Interrupted, RefusalPending
 }
 
 /// <summary>What the local library/queue already knows about a provider post.</summary>
-internal enum BooruLocalState { Unknown, NotLoaded, Queued, Loaded }
+internal enum BooruLocalState
+{
+    Unknown, NotLoaded, Queued, Loaded, DownloadFailed, LinkFailed, Interrupted, Cancelled,
+    NotAdmitted, RefusalPending
+}
 
 internal enum BooruPreviewState { None, Loading, Ready, Unavailable }
 
@@ -101,11 +113,13 @@ internal sealed record BooruResultRowView(
 
     /// <summary>True while the queue owns a cancellable admission or download request.</summary>
     internal bool CanCancel => Post.OriginalAccess == BooruOriginalAccess.Available
-        && Load is BooruRowLoad.Handing or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued;
+        && Load is BooruRowLoad.Handing or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued
+            or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.Interrupted;
 
     /// <summary>True when the stored claim may be explicitly re-admitted after a visible failure.</summary>
-    internal bool CanRetry => Post.OriginalAccess == BooruOriginalAccess.Available
-        && Load is BooruRowLoad.Offline or BooruRowLoad.Failed;
+    internal bool CanRetry => Load == BooruRowLoad.RefusalPending || Post.OriginalAccess == BooruOriginalAccess.Available
+        && Load is BooruRowLoad.Offline or BooruRowLoad.Failed or BooruRowLoad.DownloadFailed
+            or BooruRowLoad.LinkFailed or BooruRowLoad.Interrupted;
 }
 
 internal enum BooruNoticeKind { Info, Success, Warning, Error }

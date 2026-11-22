@@ -252,6 +252,7 @@ public sealed class GalleryTagPanelTests : IDisposable
         public IQuickTagTarget? OpenSelectionTarget(IReadOnlyList<MediaTagSubject> subjects, out string? unavailableReason) => throw new NotSupportedException();
         public IReadOnlyList<GalleryEntry> Entries => List;
         public GalleryTagPanelPosition? Position => Index >= 0 && Index < List.Count ? new GalleryTagPanelPosition(Index + 1, List.Count, More) : null;
+        public GalleryTagPanelPosition? CounterPosition { get; set; }
         public TagRecentList Recent { get; } = new();
         public QuickTagOptions Options => QuickTagOptions.Default;
         public TagContextOptions ContextOptions => TagContextOptions.Default;
@@ -294,9 +295,12 @@ public sealed class GalleryTagPanelTests : IDisposable
         Assert.Equal(new[] { "cat" }, store.ReadSnapshot().TagsOf(targetA).Select(tag => tag.Name.Display));
 
         owner.Index = 1;
+        owner.CounterPosition = new GalleryTagPanelPosition(8, 100, false);
         GalleryTagPanelFrame frame = controller.Frame(entryB);
         Assert.Equal("second.png", frame.Label);
-        Assert.Equal("Medium 2 of 2", frame.Counter);
+        Assert.Equal("Medium 8 of 100", frame.Counter);
+        Assert.Same(entryB, controller.ShownEntry());
+        Assert.Same(entryA, controller.PreviousEntry());
         Assert.NotSame(first, frame.Target);
         controller.Session.Retarget(frame.Target);
         Assert.Equal("second.png", controller.Session.Label);
@@ -567,7 +571,7 @@ public sealed class GalleryTagPanelTests : IDisposable
     public void EveryNewTextExistsInTheTwelveLanguages()
     {
         string[] keys = GalleryTagPanelCatalog.Entries.Select(entry => entry.Key).ToArray();
-        Assert.Equal(10, keys.Length);
+        Assert.Equal(12, keys.Length);
         foreach (string key in keys)
         {
             Assert.True(BuiltInCatalog.English.ContainsKey(key), key);

@@ -12,6 +12,52 @@ public sealed class DanbooruWatcherPersistenceAdmissionTests
     private static readonly TimeSpan Interval = TimeSpan.FromMinutes(30);
 
     [Fact]
+    public async Task WatcherReportsAnUnsavedRefusalAndReplaysTheWriteOnTheNextCheck()
+    {
+        using TempDirectory directory = new();
+        using SchedulerCdn cdn = new();
+        await using SchedulerProfile profile = new(directory.Path, withQueue: true, cdn);
+        await profile.Queue!.StopAllAsync();
+        BooruOriginalQueue originals = profile.Originals!;
+        SchedulerClock clock = new(T0);
+        FakeDanbooruSearch search = new(clock) { ClaimFactory = cdn.Claim };
+        search.Publish("cat", 100);
+        await using DanbooruWatcherScheduler scheduler = new(profile.Catalog, search,
+            new DanbooruWatcherQueueAdmission(originals, profile.Catalog), clock,
+            new DanbooruWatcherSchedulerOptions { Interval = Interval, CheckStartSpacing = TimeSpan.Zero });
+        scheduler.Load();
+        string watcherId = scheduler.AddWatcher("cat").Watcher!.WatcherId;
+        Assert.Equal(DanbooruWatcherCheckKind.BaselineEstablished, (await scheduler.RunNextAsync())!.Kind);
+
+        originals.OutcomeChanged += outcome =>
+        {
+            if (outcome.State != BooruOriginalDownloadState.Queued) return;
+            profile.Catalog.BeforeAdmittedMutationForTests = _ =>
+            {
+                profile.Catalog.BeforeAdmittedMutationForTests = null;
+                throw new IOException("refusal write failed");
+            };
+        };
+        search.Publish("cat", 101, 100);
+        clock.Advance(Interval);
+        DanbooruWatcherCheckSummary failed = (await scheduler.RunNextAsync())!;
+        Assert.Equal(DanbooruWatcherCheckKind.Failed, failed.Kind);
+        Assert.Equal("refusal_pending", failed.Code);
+        BooruWatcherRecord stored = Assert.Single(profile.Catalog.Read().Watchers);
+        Assert.Equal("refusal_pending", stored.ErrorCode);
+        Assert.Equal("100", stored.HighWaterMark);
+        Assert.Equal("101", Assert.Single(originals.GetPendingOriginals()).PostId);
+
+        Assert.True(scheduler.Resume(watcherId).Accepted);
+        Task<DanbooruWatcherCheckSummary> manual = scheduler.CheckNowAsync(watcherId);
+        await scheduler.RunNextAsync();
+        Assert.Equal(1, (await manual.WaitAsync(TestWait.Timeout)).NotAdmitted);
+        Assert.Equal(BooruOriginalIntent.NotAdmitted, Assert.Single(profile.Catalog.Read().Posts).OriginalIntent);
+        Assert.Empty(originals.GetPendingOriginals());
+        Assert.Empty(cdn.Requests);
+    }
+
+    [Fact]
     public async Task RealQueueAdmissionMapsCatalogRejectionToPersistFailedWithoutAdvancingCursor()
     {
         using TempDirectory directory = new();

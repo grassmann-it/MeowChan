@@ -79,7 +79,7 @@
     },
     "MeowChan.DesktopTests.ArchiveCleanupAcceptanceHostTests": {
       "cases": 36,
-      "milliseconds": 29099
+      "milliseconds": 78164
     },
     "MeowChan.DesktopTests.ArchiveCleanupExecutionFilesTests": {
       "cases": 10,
@@ -311,7 +311,7 @@
     },
     "MeowChan.DesktopTests.BooruCompositionHostTests": {
       "cases": 16,
-      "milliseconds": 17411
+      "milliseconds": 20522
     },
     "MeowChan.DesktopTests.BooruCooldownResetCodeCatalogTests": {
       "cases": 2,
@@ -511,7 +511,7 @@
     },
     "MeowChan.DesktopTests.ChanFamilyMigrationEndToEndTests": {
       "cases": 4,
-      "milliseconds": 16893
+      "milliseconds": 25837
     },
     "MeowChan.DesktopTests.ChanFamilyRepairRestrictionTests": {
       "cases": 4,
@@ -587,15 +587,15 @@
     },
     "MeowChan.DesktopTests.CommandLabelLocalizationTests": {
       "cases": 112,
-      "milliseconds": 33118
+      "milliseconds": 38932
     },
     "MeowChan.DesktopTests.CommandScopeGalleryLocalizationTests": {
       "cases": 9,
       "milliseconds": 3490
     },
     "MeowChan.DesktopTests.ConfigCorruptionTests": {
-      "cases": 294,
-      "milliseconds": 15729
+      "cases": 299,
+      "milliseconds": 41804
     },
     "MeowChan.DesktopTests.ConfigLoadWarningLocalizationTests": {
       "cases": 3,
@@ -678,12 +678,12 @@
       "milliseconds": 1369
     },
     "MeowChan.DesktopTests.DefaultShortcutInvariantTests": {
-      "cases": 21,
-      "milliseconds": 802
+      "cases": 48,
+      "milliseconds": 38578
     },
     "MeowChan.DesktopTests.DefaultsRevision19Tests": {
       "cases": 60,
-      "milliseconds": 16617
+      "milliseconds": 31859
     },
     "MeowChan.DesktopTests.DefaultsRevision21Tests": {
       "cases": 13,
@@ -707,7 +707,7 @@
     },
     "MeowChan.DesktopTests.DesktopPluginSessionIntegrationTests": {
       "cases": 41,
-      "milliseconds": 51003
+      "milliseconds": 70781
     },
     "MeowChan.DesktopTests.DesktopPrivateStoreAdmissionTests": {
       "cases": 6,
@@ -719,11 +719,11 @@
     },
     "MeowChan.DesktopTests.DesktopSessionAdmissionTests": {
       "cases": 16,
-      "milliseconds": 8664
+      "milliseconds": 33099
     },
     "MeowChan.DesktopTests.DesktopSessionHostTests": {
       "cases": 19,
-      "milliseconds": 16153
+      "milliseconds": 25898
     },
     "MeowChan.DesktopTests.DesktopSessionProjectionTests": {
       "cases": 5,
@@ -1151,7 +1151,7 @@
     },
     "MeowChan.DesktopTests.GalleryShortcutSchemeTests": {
       "cases": 44,
-      "milliseconds": 20687
+      "milliseconds": 21071
     },
     "MeowChan.DesktopTests.GallerySidePanelTests": {
       "cases": 23,
@@ -1187,7 +1187,7 @@
     },
     "MeowChan.DesktopTests.GalleryToolbarFitTests": {
       "cases": 124,
-      "milliseconds": 27317
+      "milliseconds": 32864
     },
     "MeowChan.DesktopTests.GalleryVideoPlayerScrubTests": {
       "cases": 10,
@@ -1271,7 +1271,7 @@
     },
     "MeowChan.DesktopTests.HostFinalWriteAdmissionIntegrationTests": {
       "cases": 24,
-      "milliseconds": 9661
+      "milliseconds": 24253
     },
     "MeowChan.DesktopTests.HtmlExportActionLayoutBoundaryTests": {
       "cases": 11,
@@ -1387,7 +1387,7 @@
     },
     "MeowChan.DesktopTests.KeyNamesTests": {
       "cases": 71,
-      "milliseconds": 15794
+      "milliseconds": 20601
     },
     "MeowChan.DesktopTests.LanguageSwitchFooterTests": {
       "cases": 6,
@@ -1467,7 +1467,7 @@
     },
     "MeowChan.DesktopTests.MakabaUboachanWaveIntegrationTests": {
       "cases": 6,
-      "milliseconds": 27949
+      "milliseconds": 43825
     },
     "MeowChan.DesktopTests.ManualImportCatalogDamageTests": {
       "cases": 9,
@@ -1519,7 +1519,7 @@
     },
     "MeowChan.DesktopTests.MediaFilterQueryTests": {
       "cases": 91,
-      "milliseconds": 32392
+      "milliseconds": 40845
     },
     "MeowChan.DesktopTests.MediaFilterRecoveryTests": {
       "cases": 2,
@@ -1583,7 +1583,7 @@
     },
     "MeowChan.DesktopTests.MediaPanelKeysTests": {
       "cases": 22,
-      "milliseconds": 8855
+      "milliseconds": 28301
     },
     "MeowChan.DesktopTests.MediaPanelPageKeysTests": {
       "cases": 19,
@@ -1619,7 +1619,7 @@
     },
     "MeowChan.DesktopTests.MediaShowInThreadTests": {
       "cases": 7,
-      "milliseconds": 3476
+      "milliseconds": 21132
     },
     "MeowChan.DesktopTests.MediaSingleKeyShortcutTests": {
       "cases": 13,
@@ -1735,7 +1735,7 @@
     },
     "MeowChan.DesktopTests.NativeTransferImportLifetimeTests": {
       "cases": 16,
-      "milliseconds": 13461
+      "milliseconds": 26273
     },
     "MeowChan.DesktopTests.NativeTransferPreviewEntrypointTests": {
       "cases": 4,
@@ -1814,8 +1814,8 @@
       "milliseconds": 11139
     },
     "MeowChan.DesktopTests.PaletteContrastTests": {
-      "cases": 61,
-      "milliseconds": 22954
+      "cases": 63,
+      "milliseconds": 25856
     },
     "MeowChan.DesktopTests.PassiveMediaProvenanceTests": {
       "cases": 2,
@@ -1891,7 +1891,7 @@
     },
     "MeowChan.DesktopTests.PluginMultiApprovalTests": {
       "cases": 48,
-      "milliseconds": 39962
+      "milliseconds": 53520
     },
     "MeowChan.DesktopTests.PluginProbeLanguageRefreshTests": {
       "cases": 11,
@@ -1915,7 +1915,7 @@
     },
     "MeowChan.DesktopTests.PluralCountTextTests": {
       "cases": 44,
-      "milliseconds": 17767
+      "milliseconds": 22807
     },
     "MeowChan.DesktopTests.PostBookmarkHostTests": {
       "cases": 3,
@@ -1983,7 +1983,7 @@
     },
     "MeowChan.DesktopTests.ProviderMd5DropArchiveTests": {
       "cases": 7,
-      "milliseconds": 14638
+      "milliseconds": 50767
     },
     "MeowChan.DesktopTests.QuickSettingsTests": {
       "cases": 15,
@@ -2022,8 +2022,8 @@
       "milliseconds": 6979
     },
     "MeowChan.DesktopTests.QuickTagSurfaceTests": {
-      "cases": 82,
-      "milliseconds": 27902
+      "cases": 93,
+      "milliseconds": 45719
     },
     "MeowChan.DesktopTests.QuickWinMenusDeleteTests": {
       "cases": 6,
@@ -2270,8 +2270,8 @@
       "milliseconds": 31
     },
     "MeowChan.DesktopTests.ReaderVideoKeysYieldTests": {
-      "cases": 7,
-      "milliseconds": 39079
+      "cases": 8,
+      "milliseconds": 42405
     },
     "MeowChan.DesktopTests.ReaderVideoPopoverTests": {
       "cases": 14,
@@ -2571,7 +2571,7 @@
     },
     "MeowChan.DesktopTests.StabilityRunnerHostTests": {
       "cases": 23,
-      "milliseconds": 207000
+      "milliseconds": 243750
     },
     "MeowChan.DesktopTests.StartupIsolationIntegrationTests": {
       "cases": 2,
@@ -2615,7 +2615,7 @@
     },
     "MeowChan.DesktopTests.StatsHeaderGraphTests": {
       "cases": 89,
-      "milliseconds": 19012
+      "milliseconds": 25432
     },
     "MeowChan.DesktopTests.StatusDeepLinkTests": {
       "cases": 27,
@@ -2675,7 +2675,7 @@
     },
     "MeowChan.DesktopTests.TagQueueHostTests": {
       "cases": 20,
-      "milliseconds": 10514
+      "milliseconds": 22435
     },
     "MeowChan.DesktopTests.TagSuggestionTests": {
       "cases": 19,
@@ -2891,7 +2891,7 @@
     },
     "MeowChan.DesktopTests.VideoKeyboardTests": {
       "cases": 42,
-      "milliseconds": 10849
+      "milliseconds": 22075
     },
     "MeowChan.DesktopTests.VideoPlayMarkTests": {
       "cases": 44,
@@ -2943,7 +2943,7 @@
     },
     "MeowChan.DesktopTests.VideoScrubPreviewCacheBudgetTests": {
       "cases": 8,
-      "milliseconds": 17277
+      "milliseconds": 38910
     },
     "MeowChan.DesktopTests.VideoScrubPreviewCacheMaintenanceTests": {
       "cases": 12,
@@ -3096,6 +3096,422 @@
     "MeowChan.DesktopTests.YieldingDefaultsTests": {
       "cases": 11,
       "milliseconds": 86379
+    },
+    "MeowChan.Tests.AdapterTests": {
+      "cases": 13,
+      "milliseconds": 6864
+    },
+    "MeowChan.Tests.ArchiveCatalogAdmissionTests": {
+      "cases": 77,
+      "milliseconds": 26448
+    },
+    "MeowChan.Tests.ArchiveCatalogTests": {
+      "cases": 32,
+      "milliseconds": 10478
+    },
+    "MeowChan.Tests.ArchiveCollectionHtmlExportTests": {
+      "cases": 17,
+      "milliseconds": 14924
+    },
+    "MeowChan.Tests.ArchiveFullResultQueryTests": {
+      "cases": 4,
+      "milliseconds": 5951
+    },
+    "MeowChan.Tests.ArchiveHtmlExportTests": {
+      "cases": 34,
+      "milliseconds": 12391
+    },
+    "MeowChan.Tests.ArchiveSearchAndQuoteTests": {
+      "cases": 13,
+      "milliseconds": 7387
+    },
+    "MeowChan.Tests.ArchiveSearchScaleEvidenceTests": {
+      "cases": 1,
+      "milliseconds": 7192
+    },
+    "MeowChan.Tests.ArchiveSearchSpecTests": {
+      "cases": 15,
+      "milliseconds": 7769
+    },
+    "MeowChan.Tests.Booru.BooruCatalogStoreTests": {
+      "cases": 90,
+      "milliseconds": 10825
+    },
+    "MeowChan.Tests.Booru.BooruOriginalQueueTests": {
+      "cases": 55,
+      "milliseconds": 6243
+    },
+    "MeowChan.Tests.ConsumerContractTests": {
+      "cases": 18,
+      "milliseconds": 5816
+    },
+    "MeowChan.Tests.DownloadQueueTests": {
+      "cases": 61,
+      "milliseconds": 18664
+    },
+    "MeowChan.Tests.FolderSources.FolderSourceScanBench": {
+      "cases": 1,
+      "milliseconds": 96976
+    },
+    "MeowChan.Tests.GoalFixtures.NativeTransferArchiveFixtureTests": {
+      "cases": 14,
+      "milliseconds": 6307
+    },
+    "MeowChan.Tests.HtmlExportLocalizationRenderingTests": {
+      "cases": 29,
+      "milliseconds": 11498
+    },
+    "MeowChan.Tests.HttpPolicyTests": {
+      "cases": 30,
+      "milliseconds": 5426
+    },
+    "MeowChan.Tests.Import.ManualImportTests": {
+      "cases": 28,
+      "milliseconds": 21954
+    },
+    "MeowChan.Tests.LocalCollectionMigrationTests": {
+      "cases": 47,
+      "milliseconds": 8403
+    },
+    "MeowChan.Tests.LocalCollectionReaderTests": {
+      "cases": 32,
+      "milliseconds": 7860
+    },
+    "MeowChan.Tests.LocalCollectionReceiptReadIsolationTests": {
+      "cases": 24,
+      "milliseconds": 8116
+    },
+    "MeowChan.Tests.LocalCollectionSnapshotTests": {
+      "cases": 75,
+      "milliseconds": 21451
+    },
+    "MeowChan.Tests.MediaLibraryAudioTests": {
+      "cases": 16,
+      "milliseconds": 58892
+    },
+    "MeowChan.Tests.MediaLibraryIndexCacheTests": {
+      "cases": 11,
+      "milliseconds": 5033
+    },
+    "MeowChan.Tests.MediaLibraryIndexTests": {
+      "cases": 7,
+      "milliseconds": 38517
+    },
+    "MeowChan.Tests.MediaRuleDecisionTests": {
+      "cases": 16,
+      "milliseconds": 6322
+    },
+    "MeowChan.Tests.MediaStoreTests": {
+      "cases": 68,
+      "milliseconds": 13902
+    },
+    "MeowChan.Tests.NativeMediaImportOutcomeTests": {
+      "cases": 16,
+      "milliseconds": 6193
+    },
+    "MeowChan.Tests.NativeTransferMultiThreadExportTests": {
+      "cases": 20,
+      "milliseconds": 69694
+    },
+    "MeowChan.Tests.NativeTransferStartupRecoveryTests": {
+      "cases": 40,
+      "milliseconds": 13675
+    },
+    "MeowChan.Tests.PersistenceCorruption.ReaderGroupStoreCorruptionTests": {
+      "cases": 92,
+      "milliseconds": 6651
+    },
+    "MeowChan.Tests.ProfileStoreLimitsTests": {
+      "cases": 8,
+      "milliseconds": 5131
+    },
+    "MeowChan.Tests.ReaderGroupStoreAdmissionTests": {
+      "cases": 57,
+      "milliseconds": 5115
+    },
+    "MeowChan.Tests.RegistryTests": {
+      "cases": 18,
+      "milliseconds": 6206
+    },
+    "MeowChan.Tests.SavedArchiveSearchStoreTests": {
+      "cases": 23,
+      "milliseconds": 20224
+    },
+    "MeowChan.Tests.SessionPersistenceTests": {
+      "cases": 41,
+      "milliseconds": 13500
+    },
+    "MeowChan.Tests.SessionStoreTests": {
+      "cases": 41,
+      "milliseconds": 17182
+    },
+    "MeowChan.Tests.Tags.LocalMediaTagResolverTests": {
+      "cases": 7,
+      "milliseconds": 6140
+    },
+    "MeowChan.Tests.Tags.PrivateTagLimitsTests": {
+      "cases": 5,
+      "milliseconds": 12316
+    },
+    "MeowChan.Tests.Tags.PrivateTagStoreComplexityTests": {
+      "cases": 3,
+      "milliseconds": 8915
+    },
+    "MeowChan.Tests.Tags.PrivateTagStoreScaleEvidenceTests": {
+      "cases": 1,
+      "milliseconds": 51096
+    },
+    "MeowChan.Tests.ThreadContentAdmissionTests": {
+      "cases": 45,
+      "milliseconds": 18592
+    },
+    "MeowChan.Tests.ThreadFavoriteStoreTests": {
+      "cases": 99,
+      "milliseconds": 5756
+    },
+    "MeowChan.Tests.ThreadTitleBuiltinTests": {
+      "cases": 24,
+      "milliseconds": 12238
+    },
+    "MeowChan.Tests.ThreadTitleRuntimeTests": {
+      "cases": 12,
+      "milliseconds": 5364
+    },
+    "MeowChan.Tests.Transfer.NativeInterruptedTransferDiscardTests": {
+      "cases": 7,
+      "milliseconds": 5016
+    },
+    "MeowChan.Tests.Transfer.NativeMediaImportAdmissionTests": {
+      "cases": 32,
+      "milliseconds": 15020
+    },
+    "MeowChan.Tests.Transfer.NativeMediaImportRecoveryTests": {
+      "cases": 15,
+      "milliseconds": 10941
+    },
+    "MeowChan.Tests.Transfer.NativeMediaImportTests": {
+      "cases": 44,
+      "milliseconds": 17654
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeAdmissionTests": {
+      "cases": 39,
+      "milliseconds": 23708
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeAttachmentPresenceRegressionTests": {
+      "cases": 5,
+      "milliseconds": 5239
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeBudgetTests": {
+      "cases": 5,
+      "milliseconds": 11562
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeFreshnessTests": {
+      "cases": 7,
+      "milliseconds": 9564
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeLegacyUnionTests": {
+      "cases": 16,
+      "milliseconds": 14940
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeRecoveryReconciliationRegressionTests": {
+      "cases": 9,
+      "milliseconds": 7883
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeReexportTests": {
+      "cases": 3,
+      "milliseconds": 12904
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeRetainedReuseTests": {
+      "cases": 5,
+      "milliseconds": 6276
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeRetainedTests": {
+      "cases": 6,
+      "milliseconds": 5052
+    },
+    "MeowChan.Tests.Transfer.NativeMediaMergeSafetyTests": {
+      "cases": 11,
+      "milliseconds": 12619
+    },
+    "MeowChan.Tests.Transfer.NativePrivateApplyExecutorTests": {
+      "cases": 4,
+      "milliseconds": 7424
+    },
+    "MeowChan.Tests.Transfer.NativePrivateApplyJournalBoundaryTests": {
+      "cases": 49,
+      "milliseconds": 61992
+    },
+    "MeowChan.Tests.Transfer.NativePrivateApplyJournalStoreInspectionTests": {
+      "cases": 37,
+      "milliseconds": 20555
+    },
+    "MeowChan.Tests.Transfer.NativePrivateApplyJournalTests": {
+      "cases": 13,
+      "milliseconds": 8696
+    },
+    "MeowChan.Tests.Transfer.NativePrivateMetadataSpecialFileTests": {
+      "cases": 23,
+      "milliseconds": 5073
+    },
+    "MeowChan.Tests.Transfer.NativeTextImportAdmissionTests": {
+      "cases": 29,
+      "milliseconds": 9716
+    },
+    "MeowChan.Tests.Transfer.NativeTextImportFenceTests": {
+      "cases": 15,
+      "milliseconds": 9267
+    },
+    "MeowChan.Tests.Transfer.NativeTextImportTests": {
+      "cases": 13,
+      "milliseconds": 19833
+    },
+    "MeowChan.Tests.Transfer.NativeTransfer404RoundTripRegressionTests": {
+      "cases": 2,
+      "milliseconds": 5095
+    },
+    "MeowChan.Tests.Transfer.NativeTransferArchiveBindingBudgetTests": {
+      "cases": 4,
+      "milliseconds": 122074
+    },
+    "MeowChan.Tests.Transfer.NativeTransferArchiveExporterMediaTests": {
+      "cases": 16,
+      "milliseconds": 11337
+    },
+    "MeowChan.Tests.Transfer.NativeTransferArchivePublisherTests": {
+      "cases": 16,
+      "milliseconds": 9036
+    },
+    "MeowChan.Tests.Transfer.NativeTransferArchiveRetainedBindingTests": {
+      "cases": 18,
+      "milliseconds": 9663
+    },
+    "MeowChan.Tests.Transfer.NativeTransferDamagedPayloadIsolationTests": {
+      "cases": 9,
+      "milliseconds": 6085
+    },
+    "MeowChan.Tests.Transfer.NativeTransferImportStageArchiveTests": {
+      "cases": 8,
+      "milliseconds": 6768
+    },
+    "MeowChan.Tests.Transfer.NativeTransferMultiThreadMergeRegressionTests": {
+      "cases": 2,
+      "milliseconds": 8302
+    },
+    "MeowChan.Tests.Transfer.NativeTransferV4ConsumerBoundaryTests": {
+      "cases": 11,
+      "milliseconds": 6968
+    },
+    "MeowChan.Tests.Transfer.NativeV2ImportAdmissionTests": {
+      "cases": 7,
+      "milliseconds": 6694
+    },
+    "MeowChan.Tests.Transfer.NativeV2ImportHistoryGuardTests": {
+      "cases": 22,
+      "milliseconds": 10862
+    },
+    "MeowChan.Tests.Transfer.NativeV2ImportPhaseFaultTests": {
+      "cases": 16,
+      "milliseconds": 9071
+    },
+    "MeowChan.Tests.Transfer.NativeV2ImportRecoveryTests": {
+      "cases": 26,
+      "milliseconds": 10497
+    },
+    "MeowChan.Tests.Transfer.NativeV2ImportStorageBoundaryTests": {
+      "cases": 8,
+      "milliseconds": 8209
+    },
+    "MeowChan.Tests.Transfer.NativeV2ImportTests": {
+      "cases": 5,
+      "milliseconds": 5417
+    },
+    "MeowChan.Tests.Transfer.NativeV2InventoryExportSafetyTests": {
+      "cases": 15,
+      "milliseconds": 9914
+    },
+    "MeowChan.Tests.Transfer.NativeV2InventoryReexportTests": {
+      "cases": 4,
+      "milliseconds": 9209
+    },
+    "MeowChan.Tests.Transfer.NativeV2MergeConflictInventoryTests": {
+      "cases": 11,
+      "milliseconds": 18453
+    },
+    "MeowChan.Tests.Transfer.NativeV2MergeContextOnlyStatusTests": {
+      "cases": 3,
+      "milliseconds": 7915
+    },
+    "MeowChan.Tests.Transfer.NativeV2MergeFaultRecoveryTests": {
+      "cases": 32,
+      "milliseconds": 38909
+    },
+    "MeowChan.Tests.Transfer.NativeV2MergeIdentityReplayTests": {
+      "cases": 11,
+      "milliseconds": 18017
+    },
+    "MeowChan.Tests.Transfer.NativeV2MergeRoundtripTests": {
+      "cases": 3,
+      "milliseconds": 12390
+    },
+    "MeowChan.Tests.Transfer.NativeV2MergeSupplementationTests": {
+      "cases": 5,
+      "milliseconds": 9496
+    },
+    "MeowChan.Tests.Transfer.NativeV4CandidateFileBoundaryTests": {
+      "cases": 20,
+      "milliseconds": 24726
+    },
+    "MeowChan.Tests.Transfer.NativeV4CandidateJournalTests": {
+      "cases": 85,
+      "milliseconds": 9664
+    },
+    "MeowChan.Tests.Transfer.NativeV6ConsumerBoundaryTests": {
+      "cases": 23,
+      "milliseconds": 7441
+    },
+    "MeowChan.Tests.Transfer.NativeV6DerivedSpecialFileTests": {
+      "cases": 35,
+      "milliseconds": 9698
+    },
+    "MeowChan.Tests.Transfer.PassiveMediaCandidateRecoveryTests": {
+      "cases": 26,
+      "milliseconds": 8689
+    },
+    "MeowChan.Tests.Transfer.PassiveMediaReexportTests": {
+      "cases": 12,
+      "milliseconds": 6573
+    },
+    "MeowChan.Tests.Transfer.PersistedMediaMergeReadTests": {
+      "cases": 181,
+      "milliseconds": 8596
+    },
+    "MeowChan.Tests.Transfer.PersistedMediaPagingTests": {
+      "cases": 32,
+      "milliseconds": 13918
+    },
+    "MeowChan.Tests.Transfer.PostFilterTransferBoundaryRegressionTests": {
+      "cases": 34,
+      "milliseconds": 8728
+    },
+    "MeowChan.Tests.Transfer.Schema10LegacyMediaGateTests": {
+      "cases": 45,
+      "milliseconds": 12093
+    },
+    "MeowChan.Tests.Transfer.Schema10MediaOperationsConstraintTests": {
+      "cases": 913,
+      "milliseconds": 53571
+    },
+    "MeowChan.Tests.Transfer.Schema10MediaOperationsMigrationTests": {
+      "cases": 212,
+      "milliseconds": 54730
+    },
+    "MeowChan.Tests.Transfer.Schema11PostPresenceMigrationTests": {
+      "cases": 15,
+      "milliseconds": 6885
+    },
+    "MeowChan.Tests.TransferMeteringTests": {
+      "cases": 26,
+      "milliseconds": 5469
     }
   },
   "fallback_case_ms": 97,
@@ -3149,6 +3565,58 @@
       "label": "run43928862043-job133516453772-intel6",
       "observed_ms": 623235,
       "sha256": "0afeb36574360ed8bb8518408f9ce7b061beef81d485d9cff0d1fdfcc3b70c87"
+    },
+    {
+      "artifacts": [
+        "desktop-offline-ubuntu-24.04-arm-lane-a-ARM64/desktop-cells:lane-a",
+        "desktop-offline-ubuntu-24.04-arm-lane-b-ARM64/desktop-cells:lane-b",
+        "desktop-offline-ubuntu-24.04-arm-lane-c-ARM64/desktop-cells:lane-c",
+        "desktop-offline-ubuntu-24.04-arm-lane-d-ARM64/desktop-cells:lane-d",
+        "desktop-offline-ubuntu-24.04-lane-a-X64/desktop-cells:lane-a",
+        "desktop-offline-ubuntu-24.04-lane-b-X64/desktop-cells:lane-b",
+        "desktop-offline-ubuntu-24.04-lane-c-X64/desktop-cells:lane-c",
+        "desktop-offline-ubuntu-24.04-lane-d-X64/desktop-cells:lane-d",
+        "desktop-offline-windows-2022-lane-a-X64/desktop-cells:lane-a",
+        "desktop-offline-windows-2022-lane-b-X64/desktop-cells:lane-b",
+        "desktop-offline-windows-2022-lane-c-X64/desktop-cells:lane-c",
+        "desktop-offline-windows-2022-lane-d-X64/desktop-cells:lane-d",
+        "macos-offline-macos-15-1-ARM64/shard-01:core",
+        "macos-offline-macos-15-1-ARM64/shard-01:desktop",
+        "macos-offline-macos-15-2-ARM64/shard-02:core",
+        "macos-offline-macos-15-2-ARM64/shard-02:desktop",
+        "macos-offline-macos-15-3-ARM64/shard-03:core",
+        "macos-offline-macos-15-3-ARM64/shard-03:desktop",
+        "macos-offline-macos-15-4-ARM64/shard-04:core",
+        "macos-offline-macos-15-4-ARM64/shard-04:desktop",
+        "macos-offline-macos-15-5-ARM64/shard-05:core",
+        "macos-offline-macos-15-5-ARM64/shard-05:desktop",
+        "macos-offline-macos-15-6-ARM64/shard-06:core",
+        "macos-offline-macos-15-6-ARM64/shard-06:desktop",
+        "macos-offline-macos-15-7-ARM64/shard-07:core",
+        "macos-offline-macos-15-7-ARM64/shard-07:desktop",
+        "macos-offline-macos-15-8-ARM64/shard-08:core",
+        "macos-offline-macos-15-8-ARM64/shard-08:desktop",
+        "macos-offline-macos-15-intel-1-X64/shard-01:core",
+        "macos-offline-macos-15-intel-1-X64/shard-01:desktop",
+        "macos-offline-macos-15-intel-2-X64/shard-02:core",
+        "macos-offline-macos-15-intel-2-X64/shard-02:desktop",
+        "macos-offline-macos-15-intel-3-X64/shard-03:core",
+        "macos-offline-macos-15-intel-3-X64/shard-03:desktop",
+        "macos-offline-macos-15-intel-4-X64/shard-04:core",
+        "macos-offline-macos-15-intel-4-X64/shard-04:desktop",
+        "macos-offline-macos-15-intel-5-X64/shard-05:core",
+        "macos-offline-macos-15-intel-5-X64/shard-05:desktop",
+        "macos-offline-macos-15-intel-6-X64/shard-06:core",
+        "macos-offline-macos-15-intel-6-X64/shard-06:desktop",
+        "macos-offline-macos-15-intel-7-X64/shard-07:core",
+        "macos-offline-macos-15-intel-7-X64/shard-07:desktop",
+        "macos-offline-macos-15-intel-8-X64/shard-08:core",
+        "macos-offline-macos-15-intel-8-X64/shard-08:desktop"
+      ],
+      "classes": 1237,
+      "kind": "trx",
+      "label": "run44930153815 portable Desktop cells and native Core/Desktop",
+      "observed_ms": 16417765
     }
   ]
 }

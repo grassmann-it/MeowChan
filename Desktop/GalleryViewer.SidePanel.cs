@@ -1,5 +1,7 @@
 using System;
 using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -13,6 +15,8 @@ namespace MeowChan.Desktop;
 internal sealed partial class GalleryViewer
 {
     private GallerySidePanel _sidePanel = null!;
+    private readonly TextBlock _postPanelPosition = new TextBlock { Name = "GalleryPostPanelPosition",
+        VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "tnum" } }.MetaText();
     private double _panelWidth = Config.GalleryPanelWidthDefault;
 
     internal GallerySidePanel SidePanel => _sidePanel;
@@ -66,6 +70,14 @@ internal sealed partial class GalleryViewer
         _sidePanel.Localize();
         RefreshPanelCounter(); // the host header's owner-supplied position text follows language changes too
         RefreshCloseLayerButton(_sidePanel.CloseButton, Texts.T("gallery.panel.close"));
+    }
+
+    private void RefreshPostPanelPosition()
+    {
+        if (_sidePanel == null || _tagPanelOpen) return;
+        string? text = ThreadPositions != null && !IsTagMode ? _position.Text : null;
+        _postPanelPosition.Text = text;
+        _sidePanel.HeaderCounter = string.IsNullOrEmpty(text) ? null : _postPanelPosition;
     }
 
     private void OnSidePanelSegmentRequested(GallerySidePanelSegment segment, bool focusContent)

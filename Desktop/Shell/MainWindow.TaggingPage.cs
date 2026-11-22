@@ -16,11 +16,15 @@ namespace MeowChan;
 
 // The tagging page (PT2) in the shell: a main page of MainPageOrder behind Media with a footer button (TaggingNavigationButton, a More
 // entry in the footer's More menu, all declared in MainWindow.axaml) and the command navigation.tagging, whose default digit follows the footer
-// numbering. The page is built when it is first opened. "Start tagging" goes through StartTaggingFromPageAsync, which starts the queue
+// numbering. The page is built when it is first opened. "Start tagging" goes through OpenTagQueueGalleryAsync, which starts the queue
 // walk in PT3's tagging mode.
 public partial class MainWindow
 {
     private TaggingPage? _taggingPage;
+    private int _taggingPageVisit;
+
+    internal Func<string, CancellationToken, Task<Storage.MediaAssetSnapshot>> TaggingGalleryOpenManifest { get; set; } =
+        Storage.MediaAssetReader.OpenAsync;
 
     /// <summary>The tagging page once it has been opened; null before.</summary>
     internal TaggingPage? TaggingPage => _taggingPage;
@@ -51,7 +55,7 @@ public partial class MainWindow
         if (_taggingPage != null || _isClosing) return;
         _taggingPage = new TaggingPage(_session)
         {
-            StartTagging = StartTaggingFromPageAsync, AddRequested = AddToTaggingQueueFromPage, Stamp = QuickTagStampSet,
+            StartTagging = OpenTagQueueGalleryAsync, AddRequested = AddToTaggingQueueFromPage, Stamp = QuickTagStampSet,
             // TG1: the same tag services, ranking and stamp as the media page's selection, and the passive profile data for the tag counts.
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
@@ -61,6 +65,7 @@ public partial class MainWindow
             DecisionForEntries = DecisionForMediaEntries,
             ReadBooruCatalog = _session.ReadBooruCatalog,
             ReadUserData = ReadMediaLibraryUserData,
+            ReadIndexEntries = () => _mediaPage?.Snapshot?.Entries,
             CompactDensity = () => _config.CompactDensity,
             OpenGallery = OpenTaggingEntriesGalleryAsync,
             ShowInThread = ShowTaggingEntryInThreadAsync,
@@ -111,12 +116,6 @@ public partial class MainWindow
     // Called by NavigateWorkspace after the page became the shown one.
     private void ActivateTaggingPage() => _ = _taggingPage?.ActivateAsync();
 
-    /// <summary>
-    /// The seam of the tagging mode: the page has already moved the queue's cursor to where the walk starts. The queue walk opens the
-    /// gallery in PT3's tagging mode (decision strip, keys, resume point; MainWindow.TagQueue.cs, StartTaggingMode).
-    /// </summary>
-    private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync(_taggingPage?.SelectedGroupId, _taggingPage?.UngroupedGroupSelected == true);
-
     private void AddToTaggingQueueFromPage()
     {
         if (_isClosing || !NavigateWorkspace(WorkspacePage.Media)) return;
@@ -139,26 +138,33 @@ public partial class MainWindow
     /// <summary>"Open in gallery": the gallery over the given entries (the page picks the selection or the shown list), beginning at <paramref name="start"/>.</summary>
     private async Task OpenTaggingEntriesGalleryAsync(System.Collections.Generic.IReadOnlyList<TagQueueItem> items, int start)
     {
-        if (!TaggingEntryCurrent() || start < 0 || start >= items.Count) return;
+        TaggingPage? page = _taggingPage;
+        int visit = _taggingPageVisit;
+        bool Current() => _selectedPage == WorkspacePage.Tagging && visit == _taggingPageVisit && TaggingEntryCurrent();
+        if (page == null || !Current() || start < 0 || start >= items.Count) return;
+        MediaLibraryEntry chosen = items[start].ToLibraryEntry();
         // From the chosen entry on (then the ones before it), at most the walk window: a long list opens as quickly as the queue walk does.
-        TagQueueItem[] window = items.Skip(start).Concat(items.Take(start)).Take(_session.Config.TagQueueWalkWindow).ToArray();
-        MediaLibraryEntry[] indexed = window.Select(item => item.ToLibraryEntry()).ToArray();
+        MediaLibraryEntry[] indexed = items.Skip(start).Concat(items.Take(start)).Take(TagQueueWalkWindow)
+            .Select(item => item.ToLibraryEntry()).ToArray();
         try
         {
             System.Collections.Generic.IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
-                Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
-            if (!TaggingEntryCurrent()) return;
-            GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(indexed[0], entry)) ?? entries.FirstOrDefault();
-            if (first == null)
+                TaggingGalleryOpenManifest, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
+            if (!Current()) return;
+            // Older queues lack a binding revision. The resolver still pins the saved asset and its post occurrence.
+            GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(chosen.AttachmentRevisionKey == null
+                ? chosen with { AttachmentRevisionKey = entry.AttachmentResolution?.Binding?.Reference.RevisionKey }
+                : chosen, entry));
+            if (first == null || !File.Exists(first.Asset.Path))
             {
-                ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "tagging.menu");
+                ShowNotification(Texts.T("notification.error"), Texts.T("tagging.page.openGallery.missing"), NotificationType.Warning, operation: "tagging.menu");
                 return;
             }
-            await OpenMediaGalleryAsync(entries, first.EntryKey, _taggingPage, stillRequested: () => !_isClosing && _gallery == null);
+            await OpenMediaGalleryAsync(entries, first.EntryKey, page, stillRequested: Current);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
-            if (TaggingEntryCurrent()) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "tagging.menu");
+            if (Current()) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "tagging.menu");
         }
     }
 

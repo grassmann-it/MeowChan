@@ -166,6 +166,7 @@ internal sealed partial class GalleryViewer
         // The post context was not kept current meanwhile.
         _contextDirty = true;
         EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk is the panel; it ends with it
+        RefreshPostPanelPosition();
         return true;
     }
 
@@ -290,6 +291,7 @@ internal sealed partial class GalleryViewer
     {
         if (_tagController is { } controller && _tagSurface is { } surface)
             SetPanelCounter(surface, controller, controller.ShownEntry());
+        else RefreshPostPanelPosition();
     }
 
     // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------
@@ -339,21 +341,9 @@ internal sealed partial class GalleryViewer
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.decision")) { /* Logged and shown. */ }
     }
 
-    // Shift+1…5 and Shift+0 also rate from an empty tag field: a typed "!" or ")" never starts a tag name. With text in the field (or its
-    // suggestion list open) the keys stay typing. Matches reads the effective bindings directly: CommandBindings.Matches leaves text fields.
-    private bool RouteDecisionKeyInField(KeyEventArgs e, QuickTagSurface surface)
-    {
-        if (_tagController?.Decisions == null || !surface.Input.IsKeyboardFocusWithin
-            || !string.IsNullOrEmpty(surface.Input.Text) || surface.Input.IsDropDownOpen) return false;
-        // The bare digits 1 to 5 and 0 (Lightroom keys) never rate from the field: a digit there starts a tag name.
-        if (MeowChan.Desktop.Controls.TextEntryKeys.IsBareDigit(e)) return false;
-        for (int value = 1; value <= 5; value++)
-            if (ShortcutService.Current.Matches(e, "media.rating.set-" + value)) { RequestRating(value); e.Handled = true; return true; }
-        if (!ShortcutService.Current.Matches(e, "media.rating.clear")) return false;
-        RequestRating(null);
-        e.Handled = true;
-        return true;
-    }
+    private bool QuickTagFieldOwnsKey(KeyEventArgs e) =>
+        _tagSurface is { Input.IsKeyboardFocusWithin: true } surface
+        && (surface.Input.IsComposing || QuickTagKeys.FieldOwnsCharacter(e, ShortcutService.Current.Platform));
 
     // Ctrl+T: opens the thread tags section and focuses its field; again, with the focus inside it, collapses it back to the field.
     private void OnTagThreadSectionRequested()
@@ -406,7 +396,6 @@ internal sealed partial class GalleryViewer
             e.Handled = true;
             return true;
         }
-        if (RouteDecisionKeyInField(e, surface)) return true;
         // The command that opened the panel closes it again, also from inside the field.
         if (CommandBindings.Matches(e, "media.tags.edit")) { CloseTagPanel(); e.Handled = true; return true; }
         foreach (string id in GalleryTagPanelCommands.Handled)

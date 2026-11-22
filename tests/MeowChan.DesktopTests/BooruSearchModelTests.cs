@@ -388,6 +388,41 @@ public sealed class BooruSearchModelTests : IDisposable
     // ---- load original ------------------------------------------------------------------------------------------
 
     [Fact]
+    public async Task AnOlderLocalStateReadCannotOverwriteFailureOrSuccess()
+    {
+        _h.Serve(perPage: 2);
+        _h.Queue.States["101"] = BooruLocalState.Queued;
+        _h.Queue.States["102"] = BooruLocalState.Queued;
+        await BooruTestSupport.SearchAsync(_model, "cat");
+        await BooruTestSupport.WaitAsync(() => _model.View.Rows.All(row => row.Load == BooruRowLoad.AlreadyQueued), "initial queue states");
+
+        TaskCompletionSource olderStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        TaskCompletionSource<IReadOnlyDictionary<string, BooruLocalState>> older = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _h.Queue.OnGetStates = () =>
+        {
+            olderStarted.TrySetResult();
+            return older.Task;
+        };
+        Task pending = _model.RefreshLocalStatesAsync();
+        await olderStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        _h.Queue.OnGetStates = null;
+        _h.Queue.States["101"] = BooruLocalState.DownloadFailed;
+        _h.Queue.States["102"] = BooruLocalState.Loaded;
+        await _model.RefreshLocalStatesAsync();
+
+        older.SetResult(new Dictionary<string, BooruLocalState>
+        {
+            ["101"] = BooruLocalState.Queued,
+            ["102"] = BooruLocalState.Queued
+        });
+        await pending;
+        Assert.Equal(BooruRowLoad.DownloadFailed, _model.View.Rows[0].Load);
+        Assert.True(_model.View.Rows[0].CanRetry);
+        Assert.Equal(BooruRowLoad.AlreadyLoaded, _model.View.Rows[1].Load);
+        Assert.False(_model.View.Rows[1].CanRetry);
+    }
+
+    [Fact]
     public async Task LoadOriginalHandsOverExactlyOnceAndAnotherPressDoesNotQueueAgain()
     {
         _h.Serve(perPage: 1);

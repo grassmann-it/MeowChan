@@ -469,11 +469,11 @@ public sealed class QuickTagSurfaceTests : IDisposable
     }
 
     [Theory]
-    // Alt+n (also on macOS) toggles suggestion n everywhere, even in the field; bare digits there stay text.
+    // Alt+n toggles suggestions. In the field, bare digits and macOS Option+n stay with text input.
     [InlineData(Key.D3, KeyModifiers.Alt, QuickTagFocus.Field, false, false, ShortcutPlatform.Linux, QuickTagKeyAction.ToggleSuggestion, 2)]
     [InlineData(Key.NumPad9, KeyModifiers.Alt, QuickTagFocus.Assigned, false, true, ShortcutPlatform.Windows, QuickTagKeyAction.None, 0)]
     [InlineData(Key.D1, KeyModifiers.Meta, QuickTagFocus.Field, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.None, 0)]
-    [InlineData(Key.D1, KeyModifiers.Alt, QuickTagFocus.Field, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.ToggleSuggestion, 0)]
+    [InlineData(Key.D1, KeyModifiers.Alt, QuickTagFocus.Field, false, true, ShortcutPlatform.MacOS, QuickTagKeyAction.None, 0)]
     [InlineData(Key.D2, KeyModifiers.None, QuickTagFocus.Field, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.None, 0)]
     // Undocumented digit aliases are gone; in the strip, badge letters toggle; arrows move; Up/Down change zones.
     [InlineData(Key.D2, KeyModifiers.None, QuickTagFocus.Suggestions, false, true, ShortcutPlatform.Linux, QuickTagKeyAction.None, 0)]
@@ -589,8 +589,11 @@ public sealed class QuickTagSurfaceTests : IDisposable
         return (surface, session);
     }
 
-    [Fact]
-    public async Task SuggestionChipsCarryNumberReasonAndUsesInTheirNameAndToggleThroughTheSession()
+    [Theory]
+    [InlineData(ShortcutPlatform.Linux, "Alt+1", "Alt+2")]
+    [InlineData(ShortcutPlatform.MacOS, "⌥1", "⌥2")]
+    public async Task SuggestionChipsCarryNumberReasonAndUsesInTheirNameAndToggleThroughTheSession(
+        ShortcutPlatform platform, string firstKey, string secondKey)
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
@@ -604,17 +607,19 @@ public sealed class QuickTagSurfaceTests : IDisposable
             new(Name("blue_eyes"), null, 2, QuickTagReason.SourceTag, 11),
             new(request.Snapshot.Find(wip)!.Name, wip, 1, QuickTagReason.Frequent, 2), // duplicate: dropped
         });
-        (QuickTagSurface surface, QuickTagSession session) = Surface(store, QuickTagTarget.For(Single(store, entry)), source);
-        using (session)
-        using (surface)
+        using (QuickTagSession session = new(QuickTagTarget.For(Single(store, entry))))
+        using (QuickTagSurface surface = new(session, platform: platform) { Suggestions = source, TargetLabel = "1699999999123.jpg" })
         {
             Assert.Equal(new[] { "surface", "wip", "blue_eyes" }, surface.Shown.Select(item => item.Name.Display));
             Button[] chips = surface.SuggestionButtons.ToArray();
             Assert.Equal("surface, suggestion 1 of 3, from this thread, number of uses: 4. Enter adds it.", AutomationProperties.GetName(chips[0]));
             Assert.Equal("wip, suggestion 2 of 3, same file in /g/, number of uses: 2. Enter adds it.", AutomationProperties.GetName(chips[1]));
             Assert.Equal("blue_eyes, suggestion 3 of 3, source tag. Enter creates it as an own tag and adds it.", AutomationProperties.GetName(chips[2]));
-            Assert.Equal("surface · from this thread · Alt+1", ToolTip.GetTip(chips[0]));
-            Assert.Equal("Alt+2", AutomationProperties.GetAcceleratorKey(chips[1]));
+            Assert.Equal("surface · from this thread · " + firstKey, ToolTip.GetTip(chips[0]));
+            Assert.Equal(secondKey, AutomationProperties.GetAcceleratorKey(chips[1]));
+            string fieldHint = AutomationProperties.GetHelpText(surface.Input);
+            Assert.Contains("suggestion strip", fieldHint);
+            Assert.DoesNotContain(firstKey, fieldHint);
             Assert.Contains(WorkspaceChips.Available, chips[0].Classes);
             Assert.Contains(WorkspaceChips.SourceButton, chips[2].Classes); // dashed source chip, never an own-tag look
             Assert.Contains(WorkspaceChips.TagPill, chips[0].Classes);      // the 28 dip tag pill
