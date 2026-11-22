@@ -10,7 +10,10 @@ using Avalonia.LogicalTree;
 using Avalonia.Platform;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Downloader;
 using MeowChan.Persistence;
+using MeowChan.PluginHost.Taggers;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.DesktopTests;
 
@@ -95,6 +98,57 @@ public sealed class SettingsResetCoverageTests : IDisposable
             Assert.False(Config.LoadConfig(profile.Path).RememberReadingPosition);
             Assert.Empty(Directory.GetFiles(profile.Path, "reading-*"));
         });
+    }
+
+    [Fact]
+    public async Task LocalModelImportEnforcesBothLimitsSavedByTheEditorAfterProfileRestart()
+    {
+        using TempDirectory directory = new();
+        string profile = Path.Combine(directory.Path, "profile");
+        new Config().SaveConfig(profile);
+        Config config = Config.LoadConfig(profile);
+        WithEditors(config, (editor, _) =>
+        {
+            editor.IsAvailable = true;
+            var manifest = editor.FindControl<NumericUpDown>("LocalTaggerManifestKiBInput")!;
+            var weights = editor.FindControl<NumericUpDown>("LocalTaggerWeightsMiBInput")!;
+            Assert.Equal((64m, (decimal?)1024m, 8192m), (manifest.Minimum, manifest.Value, manifest.Maximum));
+            Assert.Equal((64m, (decimal?)1024m, 2048m), (weights.Minimum, weights.Value, weights.Maximum));
+            manifest.Value = 64;
+            weights.Value = 64;
+            editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
+            Assert.False(editor.HasError, editor.ErrorMessage);
+        });
+
+        using ProfileLease lease = ProfileLease.Acquire(profile);
+        DownloadQueue queue = new(1, 1024 * 1024);
+        try
+        {
+            await using PluginSession restarted = new(profile, lease, Config.LoadConfig(profile), queue, Serilog.Core.Logger.None);
+            LocalTaggerModelStore store = restarted.LocalTaggerModels;
+            Assert.Equal(64, store.Settings.MaximumManifestKiB);
+            Assert.Equal(64, store.Settings.MaximumWeightsMiB);
+            LocalTaggerModelStore permissive = new(lease);
+            string path = Path.Combine(directory.Path, LocalTaggerModelManifest.FileName);
+            LocalTaggerModelManifest model = new(LocalTaggerModelManifest.FormatId, 1, "Test", "test", "1", 1,
+                new string('a', 64), "MIT", [new("cat", TaggerTagCategory.General)],
+                new("input", "scores", "NCHW", 1, 1, "RGB", "stretch", "nearest", null, 1, [0, 0, 0], [1, 1, 1], "identity"));
+            foreach ((LocalTaggerModelManifest candidate, int padding) in new[]
+            {
+                (model, 64 * 1024),
+                (model with { SizeBytes = 64 * 1024 * 1024 + 1 }, 0),
+            })
+            {
+                string manifest = System.Text.Json.JsonSerializer.Serialize(candidate, LocalTaggerModelManifest.JsonOptions);
+                await File.WriteAllTextAsync(path, manifest + new string(' ', padding));
+                LocalTaggerModelPreview preview = await permissive.PreviewAsync(path, CancellationToken.None);
+                LocalTaggerModelException error = await Assert.ThrowsAsync<LocalTaggerModelException>(
+                    () => store.ImportAsync(preview, CancellationToken.None));
+                Assert.Equal(LocalTaggerModelIssue.Limit, error.Issue);
+            }
+        }
+        finally { await queue.StopAllAsync(); }
     }
 
     private static async Task<bool> WaitForSaveAsync(SettingsEditor editor)

@@ -3,6 +3,8 @@
   "code": "fr",
   "nativeName": "Français (Untested)",
   "strings": {
+    "budgets.localTaggerManifest": "Taille maximale du manifeste de modèle d’étiquetage (Kio)",
+    "budgets.localTaggerWeights": "Taille maximale des poids du modèle d’étiquetage (Mio)",
     "localTagger.title": "Étiquetage local des images",
     "localTagger.choose": "Choisir le manifeste du modèle…",
     "localTagger.import": "Vérifier et importer",

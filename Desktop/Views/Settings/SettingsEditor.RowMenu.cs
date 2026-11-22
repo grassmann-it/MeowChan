@@ -104,6 +104,8 @@ public partial class SettingsEditor
             Number(WorkerIdleMinutesInput, () => WorkerIdleMinutes, value => WorkerIdleMinutes = value, config => config.PluginWorkerIdleMinutes),
             Number(SourceHeapMiBInput, () => SourceHeapMiB, value => SourceHeapMiB = value, config => config.PluginSourceHeapMiB),
             Number(FilterHeapMiBInput, () => FilterHeapMiB, value => FilterHeapMiB = value, config => config.PluginFilterHeapMiB),
+            Number(LocalTaggerManifestKiBInput, () => LocalTaggerManifestKiB, value => LocalTaggerManifestKiB = value, config => config.LocalTaggerManifestKiB),
+            Number(LocalTaggerWeightsMiBInput, () => LocalTaggerWeightsMiB, value => LocalTaggerWeightsMiB = value, config => config.LocalTaggerWeightsMiB),
             Number(BooruCatalogMiBInput, () => BooruCatalogMiB, value => BooruCatalogMiB = value, config => config.BooruCatalogLimitMiB),
             Choice(BooruNewSearchTargetInput, () => SelectedBooruNewSearchTarget?.Value,
                 value => SelectedBooruNewSearchTarget = Choice(BooruSearchTargetChoices, value), config => config.BooruNewSearchTarget),

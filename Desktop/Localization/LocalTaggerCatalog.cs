@@ -4,6 +4,8 @@ internal static class LocalTaggerCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     [
+        ("budgets.localTaggerManifest", "Tagger model manifest limit (KiB)", "Größenlimit für Tagger-Modellmanifest (KiB)"),
+        ("budgets.localTaggerWeights", "Tagger model weights limit (MiB)", "Größenlimit für Tagger-Modellgewichte (MiB)"),
         ("localTagger.title", "Local image tagger", "Lokaler Bildtagger"),
         ("localTagger.choose", "Choose model manifest…", "Modellmanifest wählen…"),
         ("localTagger.import", "Verify and import", "Prüfen und importieren"),

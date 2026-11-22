@@ -16,6 +16,8 @@ public partial class SettingsEditor
         WorkerIdleMinutes = config.PluginWorkerIdleMinutes;
         SourceHeapMiB = config.PluginSourceHeapMiB;
         FilterHeapMiB = config.PluginFilterHeapMiB;
+        LocalTaggerManifestKiB = config.LocalTaggerManifestKiB;
+        LocalTaggerWeightsMiB = config.LocalTaggerWeightsMiB;
         BooruCatalogMiB = config.BooruCatalogLimitMiB;
         BooruRetryAfterCooldownHours = config.BooruRetryAfterCooldownHours;
         PrivateTagLimit = config.PrivateTagLimit;
@@ -63,6 +65,8 @@ public partial class SettingsEditor
         ResetNumber(WorkerIdleMinutesInput, config.PluginWorkerIdleMinutes);
         ResetNumber(SourceHeapMiBInput, config.PluginSourceHeapMiB);
         ResetNumber(FilterHeapMiBInput, config.PluginFilterHeapMiB);
+        ResetNumber(LocalTaggerManifestKiBInput, config.LocalTaggerManifestKiB);
+        ResetNumber(LocalTaggerWeightsMiBInput, config.LocalTaggerWeightsMiB);
         ResetNumber(BooruCatalogMiBInput, config.BooruCatalogLimitMiB);
         ResetNumber(BooruRetryAfterCooldownHoursInput, config.BooruRetryAfterCooldownHours);
         ResetNumber(PrivateTagLimitInput, config.PrivateTagLimit);

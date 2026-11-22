@@ -103,6 +103,8 @@ public static class SettingsTransfer
             PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes,
             PluginSourceHeapMiB = source.PluginSourceHeapMiB,
             PluginFilterHeapMiB = source.PluginFilterHeapMiB,
+            LocalTaggerManifestKiB = source.LocalTaggerManifestKiB,
+            LocalTaggerWeightsMiB = source.LocalTaggerWeightsMiB,
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB,
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours,
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList,

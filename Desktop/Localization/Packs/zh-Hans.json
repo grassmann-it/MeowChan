@@ -3,6 +3,8 @@
   "code": "zh-Hans",
   "nativeName": "简体中文 (Untested)",
   "strings": {
+    "budgets.localTaggerManifest": "标签模型清单大小上限（KiB）",
+    "budgets.localTaggerWeights": "标签模型权重大小上限（MiB）",
     "localTagger.title": "本地图像标签工具",
     "localTagger.choose": "选择模型清单…",
     "localTagger.import": "验证并导入",

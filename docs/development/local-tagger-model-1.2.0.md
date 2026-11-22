@@ -17,7 +17,7 @@ Ein Paket besteht aus einem UTF-8-JSON-Manifest und der danebenliegenden Datei `
 | `preprocessing.resize`, `interpolation`, `pad` | `stretch` mit `null` oder `fit-center` mit drei ganzzahligen Füllwerten in Farbreihenfolge. Die Interpolation ist `nearest`, `bilinear`, `bicubic`. |
 | `preprocessing.scale`, `mean`, `standardDeviation`, `scoreTransform` | Normalisierung je Kanal als `(pixel * scale - mean) / standardDeviation`. `identity` oder `sigmoid` bestimmt die Überführung der Modellausgabe in den vom SDK getragenen Rohscore. |
 
-Die Grenzen liegen in `LocalTaggerModelSettings` und gelten vor der Verarbeitung. Für die erste Integration verwendet der Desktop die Standardwerte.
+Die Grenzen lassen sich im Profil unter **Einstellungen → Speicher und Limits** ändern. Der Modellstore übernimmt sie beim nächsten Start des Profils.
 
 | Setting | Default | Min | Max |
 | --- | ---: | ---: | ---: |
@@ -34,7 +34,7 @@ Der Testadapter berechnet einen deterministischen Score aus synthetischen Modell
 
 ## Lokalisierungsaudit
 
-Die 19 Schlüssel `localTagger.*` sind im eingebauten Englisch und Deutsch sowie in jedem der zehn Vorschaupakete vorhanden. Es gibt keine neuen exakten Englischübereinstimmungen.
+Die 19 Schlüssel `localTagger.*` und die Beschriftungen der Limits sind im eingebauten Englisch und Deutsch sowie in jedem der zehn Vorschaupakete vorhanden. Die Tabelle hält den Stand der Erstintegration fest. Die laufenden Katalogsummen prüft `IdenticalLocalizationStringsAuditTests`.
 
 | Katalog | Neue Schlüssel | Gesamt |
 | --- | ---: | ---: |

@@ -2327,6 +2327,28 @@
                             </StackPanel>
                                 </Grid>
                             </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="LocalTaggerManifestKiBFieldLabel" Text="{Binding LocalTaggerManifestKiBLabel}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="LocalTaggerManifestKiBInput" Value="{Binding LocalTaggerManifestKiB, Mode=TwoWay}" Minimum="{Binding LocalTaggerManifestKiBMinimum, Mode=OneTime}" Maximum="{Binding LocalTaggerManifestKiBMaximum, Mode=OneTime}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=LocalTaggerManifestKiBFieldLabel}" AutomationProperties.Name="{Binding LocalTaggerManifestKiBLabel}" AutomationProperties.HelpText="{Binding LocalTaggerManifestKiBHelp}" />
+                                        <TextBlock x:Name="LocalTaggerManifestKiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="LocalTaggerWeightsMiBFieldLabel" Text="{Binding LocalTaggerWeightsMiBLabel}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="LocalTaggerWeightsMiBInput" Value="{Binding LocalTaggerWeightsMiB, Mode=TwoWay}" Minimum="{Binding LocalTaggerWeightsMiBMinimum, Mode=OneTime}" Maximum="{Binding LocalTaggerWeightsMiBMaximum, Mode=OneTime}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=LocalTaggerWeightsMiBFieldLabel}" AutomationProperties.Name="{Binding LocalTaggerWeightsMiBLabel}" AutomationProperties.HelpText="{Binding LocalTaggerWeightsMiBHelp}" />
+                                        <TextBlock x:Name="LocalTaggerWeightsMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </Expander>
                         </StackPanel>
