@@ -104,7 +104,7 @@ public sealed class TaggingQuickfixTests : IDisposable
     }
 
     [Fact]
-    public void AStoredRevisionKeyMakesTheTagCountKnownAndWithoutTagsFindsTheUntaggedOnes() => WithPage(page =>
+    public void AnInMemoryRevisionKeyMakesTheTagCountKnownAndWithoutTagsFindsTheUntaggedOnes() => WithPage(page =>
     {
         TagQueueItem tagged = Bound(1, K1), bare = Bound(2, K2), unknown = Bound(3);
         MediaLibraryUserData data = UserData(tagged);
@@ -118,21 +118,22 @@ public sealed class TaggingQuickfixTests : IDisposable
     });
 
     [Fact]
-    public void AnOldEntryWithoutAKeyIsResolvedThroughTheMediaIndexAndStaysUnknownWithoutIt() => WithPage(page =>
+    public void OnlyAnExactMediaIndexMatchResolvesTheTagCountOfAVersionTwoEntry() => WithPage(page =>
     {
-        TagQueueItem tagged = Bound(1), bare = Bound(2), absent = Bound(3);
+        TagQueueItem tagged = Bound(1), bare = Bound(2), absent = Bound(3), ambiguous = Bound(4);
         MediaLibraryEntry Indexed(TagQueueItem item, string key) => item.ToLibraryEntry() with { AttachmentRevisionKey = key };
         MediaLibraryUserData data = UserData(tagged with { AttachmentRevisionKey = K1 });
         page.ReadUserData = () => data;
         IReadOnlyList<MediaLibraryEntry>? index = null;
         page.ReadIndexEntries = () => index;
-        Render(page, Queue(0, tagged, bare, absent), TaggingQueueFilter.Untagged);
+        Render(page, Queue(0, tagged, bare, absent, ambiguous), TaggingQueueFilter.Untagged);
         Assert.Null(page.TagCountOf(tagged));
         Assert.Empty(page.Rows); // the index is not there yet: nothing is called untagged
-        index = new[] { Indexed(tagged, K1), Indexed(bare, K2) };
-        Render(page, Queue(0, tagged, bare, absent), TaggingQueueFilter.Untagged);
+        index = new[] { Indexed(tagged, K1), Indexed(bare, K2), Indexed(ambiguous, K1), Indexed(ambiguous, K2) };
+        Render(page, Queue(0, tagged, bare, absent, ambiguous), TaggingQueueFilter.Untagged);
         Assert.Equal(1, page.TagCountOf(tagged));
         Assert.Equal(0, page.TagCountOf(bare));
+        Assert.Null(page.TagCountOf(ambiguous));
         Assert.Null(page.TagCountOf(absent)); // not in the index: still unknown
         Assert.Equal(new[] { bare.Key }, page.Rows.Select(row => row.Key).ToArray());
     });

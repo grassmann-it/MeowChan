@@ -120,8 +120,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     /// <summary>The profile's tags, favourites and ratings as the media page reads them (passive, in memory); the tag counts come from it. Null: no counts.</summary>
     internal Func<MediaLibraryUserData>? ReadUserData { get; set; }
     /// <summary>
-    /// The media index the media page holds in memory (null while it has not been built or read yet). An entry that was queued before the queue file
-    /// stored its attachment revision key is looked up in it, so its media tags are known; without the index they stay unknown (a dash).
+    /// The media index the media page holds in memory (null while it has not been built or read yet). Queue entries without an in-memory
+    /// attachment revision key use this index. A missing or ambiguous match leaves the tag count unknown (a dash).
     /// </summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>?>? ReadIndexEntries { get; set; }
     /// <summary>True when the profile asks for the compact row density (Barebones always does); read whenever the list is shown.</summary>

@@ -12,7 +12,7 @@ using MeowChan.Storage;
 namespace MeowChan.Tags;
 
 /// <summary>
-/// The profile's tagging queue (<c>tag-queue.json</c>, version 3): the media still to be tagged, their state, the position of the
+/// The profile's tagging queue (<c>tag-queue.json</c>, version 2): the media still to be tagged, their state, the position of the
 /// walk and the stamp set. Strict and atomic like the other private lists: an unknown property, a repeated property, a malformed
 /// identity, a damaged file or a link in place of the file is refused, never repaired; a file of a newer version is read as empty
 /// and kept untouched. Every write replaces the file atomically and rotates the last good copy into <c>.bak</c>. Limits (entries,
@@ -21,10 +21,9 @@ namespace MeowChan.Tags;
 /// </summary>
 internal sealed class TagQueueStore
 {
-    internal const int Version = 3;
+    internal const int Version = 2;
     internal const int LegacyVersion = 1;
-    /// <summary>Version 2 added the groups; version 3 adds the attachment revision key of an entry. Both older files are still read and become version 3 on the next write.</summary>
-    internal const int GroupsVersion = 2;
+    private const int DogfoodVersion = 3;
     internal const string FileName = "tag-queue.json";
     private static readonly UTF8Encoding StrictUtf8 = new(false, true);
     private readonly ProfileLease _lease;
@@ -34,7 +33,7 @@ internal sealed class TagQueueStore
     // parse. Accessed only inside the lease's exclusion.
     private byte[]? _primaryBytes, _backupBytes;
     private TagQueueSnapshot? _primarySnapshot;
-    private int _parses;
+    private int _primaryVersion, _parses;
 
     internal TagQueueStore(string profileDirectory, ProfileLease lease)
     {
@@ -186,7 +185,7 @@ internal sealed class TagQueueStore
             // The recovery save never rotates damaged bytes into the backup: WriteAllText without a backup preserves them next to the
             // file (one .corrupt-* copy), then the empty queue replaces them.
             RejectLink(_path);
-            string empty = Serialize(Version, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), Array.Empty<TagQueueGroup>());
+            string empty = Serialize(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), Array.Empty<TagQueueGroup>());
             _primaryBytes = null;
             _primarySnapshot = null;
             AtomicJsonFile.WriteAllText(_path, empty, backupCurrentFile: false, token);
@@ -365,15 +364,25 @@ internal sealed class TagQueueStore
             throw PrivateStoreLimit.Refusal(PrivateStoreLimitKind.TagQueueFile, _lease.StoreLimits.TagQueueFileBytes,
                 "The tagging queue has reached its size limit.");
         PrepareBackupForRotation();
-        bool rotates = File.Exists(_path);
         byte[]? previous = _primaryBytes;
         _primaryBytes = null;
         _primarySnapshot = null;
         _backupBytes = null;
-        AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
+        if (previous != null && _primaryVersion == DogfoodVersion)
+        {
+            // A v3 .bak would block the older v2 writer. Save the previous revision in its v2 shape first.
+            // If either replacement fails, the primary still holds the original v3 queue and the edit can be retried.
+            string backup = Serialize(current.Revision, current.Cursor, current.Stamp, current.Items, current.Groups);
+            AtomicJsonFile.ReplaceAllText(_path + ".bak", backup, token);
+            AtomicJsonFile.ReplaceAllText(_path, json, token);
+        }
+        else
+        {
+            AtomicJsonFile.WriteAllText(_path, json, backupCurrentFile: true, token);
+            _backupBytes = previous;
+        }
+        _primaryVersion = Version;
         TagQueueSnapshot committed = new(revision, cursor, stamp.ToArray(), Array.AsReadOnly(items.ToArray()), TagQueueLoadState.Ready, Array.AsReadOnly(savedGroups.ToArray()));
-        // The write rotated the file just read (and validated) into the backup; the file now holds exactly these bytes.
-        if (rotates) _backupBytes = previous;
         _primaryBytes = Encoding.UTF8.GetBytes(json);
         _primarySnapshot = committed;
         return committed;
@@ -394,6 +403,8 @@ internal sealed class TagQueueStore
             RejectLink(_path + ".bak");
             if (File.Exists(_path + ".bak"))
                 throw new InvalidDataException("The tagging queue is missing but a backup exists. Clear the queue to start over; nothing is restored automatically.");
+            _primaryBytes = null;
+            _primarySnapshot = null;
             return TagQueueSnapshot.Empty;
         }
         byte[] bytes = ReadBytes(_path);
@@ -401,7 +412,7 @@ internal sealed class TagQueueStore
         _primaryBytes = null;
         _primarySnapshot = null;
         _parses++;
-        TagQueueSnapshot snapshot = ParseBytes(bytes);
+        TagQueueSnapshot snapshot = ParseBytes(bytes, out _primaryVersion);
         (_primaryBytes, _primarySnapshot) = (bytes, snapshot);
         return snapshot;
     }
@@ -422,7 +433,7 @@ internal sealed class TagQueueStore
                 {
                     _backupBytes = null;
                     _parses++;
-                    if (ParseBytes(bytes).State == TagQueueLoadState.NewerVersion)
+                    if (ParseBytes(bytes, out _).State == TagQueueLoadState.NewerVersion)
                         throw new ProfileBackupBlockedException(backupPath, ProfileBackupBlockReason.NewerVersion);
                     _backupBytes = bytes;
                 }
@@ -460,7 +471,7 @@ internal sealed class TagQueueStore
         return bytes;
     }
 
-    private static TagQueueSnapshot ParseBytes(byte[] bytes)
+    private static TagQueueSnapshot ParseBytes(byte[] bytes, out int version)
     {
         try
         {
@@ -469,22 +480,22 @@ internal sealed class TagQueueStore
             if (json.Length > 0 && json[0] == '﻿') json = json[1..];
             if (JsonDuplicateProperties.Any(bytes)) throw new InvalidDataException("The tagging queue repeats a property.");
             using JsonDocument document = JsonDocument.Parse(json, new JsonDocumentOptions { MaxDepth = 8 });
-            return ParseRoot(document.RootElement);
+            return ParseRoot(document.RootElement, out version);
         }
         catch (Exception error) when (error is JsonException or DecoderFallbackException or InvalidOperationException or FormatException
             or KeyNotFoundException or OverflowException)
         { throw new InvalidDataException("The tagging queue is invalid.", error); }
     }
 
-    private static TagQueueSnapshot ParseRoot(JsonElement root)
+    private static TagQueueSnapshot ParseRoot(JsonElement root, out int version)
     {
         if (root.ValueKind != JsonValueKind.Object) throw new InvalidDataException("The tagging queue is not an object.");
         // A newer file may hold anything: only its version is looked at, nothing else is interpreted.
-        if (!root.TryGetProperty("Version", out JsonElement versionValue) || versionValue.ValueKind != JsonValueKind.Number || !versionValue.TryGetInt32(out int version))
+        if (!root.TryGetProperty("Version", out JsonElement versionValue) || versionValue.ValueKind != JsonValueKind.Number || !versionValue.TryGetInt32(out version))
             throw new InvalidDataException("The tagging queue has no version.");
-        if (version > Version) return new TagQueueSnapshot(0, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.NewerVersion);
-        if (version is not (LegacyVersion or GroupsVersion or Version)) throw new InvalidDataException("The tagging queue version is invalid.");
-        bool groupsInFile = version >= GroupsVersion;
+        if (version > DogfoodVersion) return new TagQueueSnapshot(0, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(), TagQueueLoadState.NewerVersion);
+        if (version is not (LegacyVersion or Version or DogfoodVersion)) throw new InvalidDataException("The tagging queue version is invalid.");
+        bool groupsInFile = version >= Version;
         ExactProperties(root, groupsInFile ? new[] { "Version", "Revision", "Cursor", "Stamp", "Groups", "Items" }
             : new[] { "Version", "Revision", "Cursor", "Stamp", "Items" });
         long revision = root.GetProperty("Revision").GetInt64();
@@ -507,7 +518,7 @@ internal sealed class TagQueueStore
         HashSet<TagQueueKey> keys = new();
         foreach (JsonElement element in itemArray.EnumerateArray())
         {
-            TagQueueItem item = ParseItem(element, groupsInFile, version >= Version);
+            TagQueueItem item = ParseItem(element, groupsInFile, version == DogfoodVersion);
             if (item.GroupId != null && !groupIds.Contains(item.GroupId)) throw new InvalidDataException("The tagging queue references a missing group.");
             if (!keys.Add(item.Key)) throw new InvalidDataException("The tagging queue holds an entry twice.");
             items.Add(item);
@@ -663,7 +674,6 @@ internal sealed class TagQueueStore
                 writer.WriteString("AddedAtUtc", item.AddedAtUtc.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
                 writer.WriteString("DoneAtUtc", item.DoneAtUtc?.ToString("O", System.Globalization.CultureInfo.InvariantCulture));
                 writer.WriteString("GroupId", item.GroupId);
-                writer.WriteString("AttachmentRevisionKey", item.AttachmentRevisionKey);
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();

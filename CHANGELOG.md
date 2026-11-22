@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1
+
+- Tag counts in the tagging queue use the media index. **Without tags** includes only media
+  with a known count of zero. Opening a v1, v2 or dogfood v3 queue leaves its files untouched.
+  The first edit to a v3 queue saves the previous revision in `tag-queue.json.bak` and the
+  edited revision in `tag-queue.json`, both as v2. Older v2 builds can then continue the walk
+  with its groups, cursor and stamps. Attachment revision keys are kept in memory only.
+
 ## 1.1.0 — 2026-11-19 — Media page, own tags, Danbooru and plugin SDK 1.1.0
 
 - See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and known

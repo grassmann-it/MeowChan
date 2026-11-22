@@ -408,51 +408,92 @@ public sealed class TagQueueStoreTests
         JsonObject root = JsonNode.Parse(File.ReadAllText(FileOf(temp)))!.AsObject();
         root["Version"] = TagQueueStore.LegacyVersion;
         root.Remove("Groups");
-        foreach (JsonObject item in root["Items"]!.AsArray().OfType<JsonObject>()) { item.Remove("GroupId"); item.Remove("AttachmentRevisionKey"); }
-        File.WriteAllText(FileOf(temp), root.ToJsonString());
+        foreach (JsonObject item in root["Items"]!.AsArray().OfType<JsonObject>()) item.Remove("GroupId");
+        string original = root.ToJsonString();
+        File.WriteAllText(FileOf(temp), original);
 
         TagQueueSnapshot legacy = store.Read();
+        Assert.Equal(original, File.ReadAllText(FileOf(temp)));
         Assert.Empty(legacy.Groups);
         Assert.Null(legacy.Items[0].GroupId);
         store.SetStamp(new[] { "legacy" });
-        Assert.Equal(TagQueueStore.Version, JsonNode.Parse(File.ReadAllText(FileOf(temp)))!["Version"]!.GetValue<int>());
+        Assert.Equal(2, JsonNode.Parse(File.ReadAllText(FileOf(temp)))!["Version"]!.GetValue<int>());
     }
 
-    [Fact]
-    public void VersionTwoQueueReadsWithoutRevisionKeysAndIsUpgradedKeepingEverythingReadable()
+    [Theory]
+    [InlineData(2)]
+    [InlineData(3)]
+    public void TheFirstEditKeepsTheWalkAndItsPreviousRevisionInVersionTwo(int sourceVersion)
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         TagQueueStore store = new(temp.Path, lease);
-        store.Add(new[] { Item(1) with { Position = 0 }, Item(2) });
-        JsonObject root = JsonNode.Parse(File.ReadAllText(FileOf(temp)))!.AsObject();
-        root["Version"] = TagQueueStore.GroupsVersion;
-        foreach (JsonObject item in root["Items"]!.AsArray().OfType<JsonObject>()) item.Remove("AttachmentRevisionKey");
-        File.WriteAllText(FileOf(temp), root.ToJsonString());
+        string path = FileOf(temp);
+        TagQueueItem first = Item(1) with { Position = 0 };
+        store.Add([first, Item(2)]);
+        string group = store.CreateGroup("Review", [first.Key]).Groups.Single().Id;
+        store.SetGroupStamp(group, ["blue", "cat"]);
+        store.SetStamp(["general"]);
+        store.SetCursor(1);
 
-        TagQueueSnapshot old = store.Read();
-        Assert.Equal(2, old.Count);
-        Assert.All(old.Items, item => Assert.Null(item.AttachmentRevisionKey));
-        store.SetStamp(new[] { "after" });
-        string text = File.ReadAllText(FileOf(temp));
-        Assert.Contains("\"Version\":3", text);
-        Assert.Contains("\"AttachmentRevisionKey\":null", text); // plain, strict, readable text; an absent key is an explicit null
-        Assert.Equal(2, store.Read().Count);
+        JsonObject expected = JsonNode.Parse(File.ReadAllText(path))!.AsObject();
+        Assert.Equal(2, expected["Version"]!.GetValue<int>());
+        Assert.All(expected["Items"]!.AsArray(), item => Assert.False(item!.AsObject().ContainsKey("AttachmentRevisionKey")));
+        JsonObject input = expected.DeepClone().AsObject();
+        input["Version"] = sourceVersion;
+        if (sourceVersion == 3)
+        {
+            input["Items"]![0]!["AttachmentRevisionKey"] = "rev-1";
+            input["Items"]![1]!["AttachmentRevisionKey"] = null;
+        }
+        string original = input.ToJsonString();
+        File.WriteAllText(path, original);
+        input["Revision"] = 0;
+        string previousBackup = input.ToJsonString();
+        File.WriteAllText(path + ".bak", previousBackup);
+
+        TagQueueStore reopened = new(temp.Path, lease);
+        TagQueueSnapshot loaded = reopened.Read();
+        Assert.Equal(sourceVersion == 3 ? "rev-1" : null, loaded.Items[0].AttachmentRevisionKey);
+        Assert.Equal(1, loaded.Cursor);
+        Assert.Equal("general", Assert.Single(loaded.Stamp));
+        TagQueueGroup review = Assert.Single(loaded.Groups);
+        Assert.Equal((group, "Review", 0), (review.Id, review.Name, review.Order));
+        Assert.Equal(["blue", "cat"], review.Stamp);
+        Assert.Equal(group, loaded.Items[0].GroupId);
+        Assert.Null(loaded.Items[1].GroupId);
+        Assert.Same(loaded, reopened.SetCursor(1));
+        Assert.Equal(original, File.ReadAllText(path));
+        Assert.Equal(previousBackup, File.ReadAllText(path + ".bak"));
+
+        const string futureBackup = """{"Version":4}""";
+        File.WriteAllText(path + ".bak", futureBackup);
+        Assert.Throws<ProfileBackupBlockedException>(() => reopened.SetStates(new[] { Set(2, TagQueueState.Skipped) }, T0));
+        Assert.Equal(original, File.ReadAllText(path));
+        Assert.Equal(futureBackup, File.ReadAllText(path + ".bak"));
+        File.WriteAllText(path + ".bak", previousBackup);
+
+        reopened.SetStates(new[] { Set(2, TagQueueState.Skipped) }, T0);
+        Assert.True(JsonNode.DeepEquals(expected, JsonNode.Parse(File.ReadAllText(path + ".bak"))));
+        expected["Items"]![1]!["State"] = "Skipped";
+        expected["Revision"] = loaded.Revision + 1;
+        Assert.True(JsonNode.DeepEquals(expected, JsonNode.Parse(File.ReadAllText(path))));
+        Assert.Equal(2, new TagQueueStore(temp.Path, lease).SetCursor(2).Cursor);
     }
 
     [Fact]
-    public void ARevisionKeyIsStoredReadBackAndNeverPartOfTheIdentity()
+    public void ARevisionKeyStaysInMemoryAndTheVersionTwoRoundTripKeepsTheIdentity()
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         TagQueueStore store = new(temp.Path, lease);
         TagQueueItem keyed = Item(1) with { Position = 0, AttachmentRevisionKey = "rev-1" };
         store.Add(new[] { keyed });
-        Assert.Contains("\"AttachmentRevisionKey\":\"rev-1\"", File.ReadAllText(FileOf(temp)));
+        Assert.Equal("rev-1", store.Read().Items.Single().ToLibraryEntry().AttachmentRevisionKey);
+        Assert.DoesNotContain("AttachmentRevisionKey", File.ReadAllText(FileOf(temp)));
         TagQueueItem back = new TagQueueStore(temp.Path, lease).Read().Items.Single();
-        Assert.Equal("rev-1", back.AttachmentRevisionKey);
-        Assert.Equal("rev-1", back.ToLibraryEntry().AttachmentRevisionKey);
-        Assert.Equal((keyed with { AttachmentRevisionKey = null }).Key, back.Key);
+        Assert.Equal(keyed with { AttachmentRevisionKey = null }, back);
+        Assert.Equal(keyed.Key, back.Key);
         // A key without a post attachment is an invalid entry, as is an over-long one.
         Assert.NotNull((Item(2) with { AttachmentRevisionKey = "rev" }).Validate());
         Assert.NotNull((keyed with { AttachmentRevisionKey = new string('k', TagQueueItem.MaximumTokenCharacters + 1) }).Validate());
@@ -509,7 +550,7 @@ public sealed class TagQueueStoreTests
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
-        string newer = $"{{\"Version\":{TagQueueStore.Version + 1},\"Anything\":[1,2,3]}}";
+        string newer = "{\"Version\":4,\"Anything\":[1,2,3]}";
         File.WriteAllText(FileOf(temp), newer);
         TagQueueStore store = new(temp.Path, lease);
         TagQueueSnapshot read = store.Read();
@@ -572,8 +613,10 @@ public sealed class TagQueueStoreTests
         File.WriteAllText(FileOf(temp), "damaged bytes");
         TagQueueStore store = new(temp.Path, lease);
         Assert.Throws<InvalidDataException>(() => store.Read());
-        Assert.Equal(0, store.Clear(finishedOnly: false).Count);
-        Assert.Equal(0, store.Read().Count);
+        TagQueueSnapshot cleared = store.Clear(finishedOnly: false);
+        Assert.Equal(0, cleared.Count);
+        TagQueueSnapshot reopened = store.Read();
+        Assert.Equal((cleared.Revision, 0), (reopened.Revision, reopened.Count));
         Assert.Contains(Directory.GetFiles(temp.Path, "tag-queue*"), path => File.ReadAllText(path) == "damaged bytes");
         // A damaged file cannot be partially cleared.
         File.WriteAllText(FileOf(temp), "damaged again");

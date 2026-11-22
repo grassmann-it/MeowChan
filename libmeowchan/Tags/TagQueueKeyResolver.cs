@@ -5,8 +5,7 @@ using MeowChan.Gallery;
 namespace MeowChan.Tags;
 
 /// <summary>
-/// Finds the attachment revision key of a tagging queue entry that was written before the file stored it (file versions 1 and 2),
-/// from the media index: the one present occurrence with the same thread, folder, asset, post, attachment position and bytes.
+/// Resolves the attachment revision key omitted by queue versions 1 and 2 from the media index, using a present occurrence with the same thread, folder, asset, post, attachment position and bytes.
 /// Nothing is guessed: no match, or two index entries with different keys for the same occurrence, leaves the entry as it is (its
 /// media tags stay unknown). The resolver reads the index only; it never writes the queue.
 /// </summary>
