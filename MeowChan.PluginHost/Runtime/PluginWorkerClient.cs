@@ -1,3 +1,4 @@
+using MeowChan.PluginProtocol;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginSdk;
 
@@ -140,6 +141,17 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
         ImageFilterResult result = await CallAsync<ImageFilterRequest, ImageFilterResult>("filter", request, operation, cancellationToken).ConfigureAwait(false);
         Validate(SdkValidation.ValidateImageFilterResult(result)); return result;
     }
+    internal Task<TaggerBatchResult> TagLocalBatchAsync(TaggerBatchRequest request, PluginCallContext context, CancellationToken token)
+    {
+        TaggerDescription tagger = Description.TaggersOrEmpty().SingleOrDefault(value => value.Key == request.TaggerKey)
+            ?? throw new PluginWorkerException("capability", "Unknown tagger capability.");
+        if (tagger.NetworkHosts.Count != 0 || request.ConfigurationRevision != Identity.ConfigurationRevision)
+            throw new PluginWorkerException("revision", "A local tagger needs an offline declaration and the active configuration.");
+        Validate(SdkValidation.ValidateTaggerRequest(request, tagger));
+        return CallAsync<TaggerBatchRequest, TaggerBatchResult>(ProtocolVersion.TaggerBatch, request,
+            PluginOperationContext.ForTaggerBatch(request.BatchId, context.Images), token);
+    }
+
     public async Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, CancellationToken cancellationToken = default)
     {
         IReadOnlyList<FieldValidationError> errors = await CallAsync<SettingsValidationRequest, IReadOnlyList<FieldValidationError>>("settings", request, null, cancellationToken).ConfigureAwait(false);

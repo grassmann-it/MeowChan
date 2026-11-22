@@ -8,7 +8,9 @@ internal static class ProtocolVersion
 {
     public const int Major = 1;
     public const int MaximumFrameBytes = 16 * 1024 * 1024;
+    internal const string TaggerBatch = "tagger.batch";
     public static readonly string[] Operations = ["describe", "catalog", "thread", "booru.search", "booru.post", "filter", "settings", "http", "image", "cancel"];
+    internal static readonly string[] SupportedOperations = [.. Operations, TaggerBatch];
 }
 
 internal sealed record WireEnvelope(int Version, string Direction, string Operation, string RequestId,

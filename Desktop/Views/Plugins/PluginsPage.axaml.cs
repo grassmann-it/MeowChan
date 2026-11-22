@@ -115,7 +115,12 @@ public partial class PluginsPage : UserControl
         _statusTimer.Tick += OnStatusTick;
         Localize();
     }
-    internal void Attach(PluginManagementServices services) { _services = services; ToolTip.SetTip(C<Button>("PluginsFolder"), services.PluginDirectory); }
+    internal void Attach(PluginManagementServices services)
+    {
+        _services = services;
+        ToolTip.SetTip(C<Button>("PluginsFolder"), services.PluginDirectory);
+        C<Button>("PluginsLocalTagger").IsVisible = services.LocalTaggerModels != null;
+    }
     internal async Task ActivateAsync(string? sourceId = null)
     {
         if (_ended) return;
@@ -194,7 +199,7 @@ public partial class PluginsPage : UserControl
         }) C<TextBlock>(name).Text = name == "PluginEditorHint" ? Texts.T(key, string.Empty) : Texts.T(key);
         foreach ((string name, string key) in new[]
         {
-            ("PluginsRefresh","plugins.refresh"),("PluginsFolder","plugins.folder"),("PluginBack","plugins.back"),
+            ("PluginsLocalTagger","localTagger.title"),("PluginsRefresh","plugins.refresh"),("PluginsFolder","plugins.folder"),("PluginBack","plugins.back"),
             ("PluginsReviewRepairs","plugins.repair.review"),
             ("PluginSelectCandidate","plugins.selectCandidate"),("PluginRollback","plugins.rollback"),("PluginWatches","plugins.watches"),
             ("PluginSave","plugins.save"),("PluginDiscard","plugins.discard"),("PluginEdit","plugins.edit"),

@@ -1,8 +1,6 @@
 using System;
 using System.Linq;
 using Avalonia.Controls;
-using MeowChan.Desktop;
-using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
@@ -14,12 +12,11 @@ public partial class DiagnosticsPage
     {
         DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
         grid.Columns[0].IsVisible = _visibleDiagnostics.Select(entry => entry.Category).Distinct(StringComparer.Ordinal).Count() > 1;
-        TextBlock title = this.FindControl<TextBlock>("DiagnosticOverviewTitle")!;
+        Expander section = this.FindControl<Expander>("DiagnosticOverviewSection")!;
         TextBlock body = this.FindControl<TextBlock>("DiagnosticOverview")!;
         bool show = !hasSelection && _visibleDiagnostics.Count > 0;
-        title.IsVisible = body.IsVisible = show;
+        section.IsVisible = body.IsVisible = show;
         if (!show) return;
-        title.Text = Texts.T("diagnostics.overview");
         body.Text = string.Join(Environment.NewLine, _visibleDiagnostics
             .GroupBy(entry => (entry.Category, entry.Summary))
             .OrderByDescending(group => group.Count()).ThenBy(group => group.Key.Category, StringComparer.CurrentCulture)

@@ -310,7 +310,8 @@ public sealed class BooruGalleryInlineTests
             await BooruTestSupport.WaitAsync(() => status.IsVisible && button.IsEnabled, "the original tab's cancel button");
             view.SearchTabs.Add(copyCurrent: true);
             await BooruTestSupport.WaitAsync(() => !status.IsVisible && !button.IsEnabled, "the copy's disabled download button");
-            Assert.Equal(Texts.T("booru.bulk.button"), button.Content);
+            Assert.Equal(Texts.T("booru.tabs.downloadShort"), button.Content);
+            Assert.StartsWith(Texts.T("booru.bulk.button"), Assert.IsType<string>(ToolTip.GetTip(button)));
             model.Search.CancelBulk();
             Assert.False(bulk.IsCompleted);
 

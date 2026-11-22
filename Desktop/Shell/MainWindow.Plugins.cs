@@ -35,6 +35,7 @@ public partial class MainWindow
         PluginManagementServices services = new(plugins.ProfileStore, plugins.CompilationService, plugins.Inventory,
             plugins.PluginDirectory, plugins.DescribeTestAsync, plugins.StartTestWorkerAsync, PluginProbe.ReadAsync)
         {
+            LocalTaggerModels = plugins.LocalTaggerModels,
             GetWorkerSnapshots = plugins.Runtime.GetSnapshots,
             GetProductionWorkerSnapshots = plugins.GetProductionWorkerSnapshots,
             HasSdkMismatch = plugins.SdkMismatches.Has,

@@ -10,9 +10,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.Tags;
 
-// Contract: tag-suggestions-v1. Suggestions from optional taggers, kept apart from confirmed (private) tags.
-// A suggestion belongs to content (SHA-256 + length), not to an archive occurrence: accepting applies the tag to the
-// target the user is looking at, through the private tag store, and only then records the decision here.
+// Suggestions belong to content (SHA-256 + length). The review journal binds a decision to one private occurrence.
 
 /// <summary>Review state. Only the user moves a suggestion out of Pending; Superseded is set when a newer model revision ran.</summary>
 internal enum TagSuggestionState { Pending, Accepted, Rejected, Superseded }
@@ -50,7 +48,7 @@ internal sealed record TagSuggestionRun(string MediaSha256, TagSuggestionProvena
 
 /// <summary>Append-only review history; an undo is a new event back to Pending, never a deletion.</summary>
 internal sealed record TagSuggestionReviewEvent(long Sequence, long SuggestionId, TagSuggestionState From,
-    TagSuggestionState To, DateTimeOffset At);
+    TagSuggestionState To, DateTimeOffset At, Guid? OperationId = null);
 
 internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<StoredTagSuggestion> Suggestions,
     IReadOnlyList<TagSuggestionRun> Runs, IReadOnlyList<TagSuggestionReviewEvent> Events,
@@ -62,6 +60,9 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<Stored
     internal bool CanWrite => State == TagSuggestionStoreState.Ready;
     internal long NextId { get; init; } = 1;
     internal long NextSequence { get; init; } = 1;
+    internal IReadOnlyList<TagReviewOperation> Reviews { get; init; } = [];
+    internal TagReviewOperation? PendingReview => Reviews.LastOrDefault() is { Status: TagReviewStatus.Prepared } review
+        ? review : null;
 
     /// <summary>Whether this exact tagger and model revision already tagged these bytes (resume skips it).</summary>
     internal bool HasCompletedRun(string mediaSha256, TagSuggestionProvenance provenance)
@@ -97,7 +98,11 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<Stored
     }
 }
 
-internal enum TagSuggestionStoreError { None, StaleRevision, UnknownSuggestion, InvalidTransition, InvalidInput, LimitReached, NotWritable }
+internal enum TagSuggestionStoreError
+{
+    None, StaleRevision, UnknownSuggestion, InvalidTransition, InvalidInput, LimitReached, NotWritable,
+    ReviewRecoveryRequired, OperationConflict
+}
 
 /// <summary>A rejected operation; nothing was written. The message is constant and never echoes tag names.</summary>
 internal sealed class TagSuggestionStoreException(TagSuggestionStoreError error)
@@ -107,15 +112,15 @@ internal sealed class TagSuggestionStoreException(TagSuggestionStoreError error)
 }
 
 /// <summary>
-/// Passive profile store for tagger suggestions (tag-suggestions.json). Writes are atomic (temporary file + replace),
-/// run under the profile lease and never touch confirmed tags. An unreadable or newer file is preserved and makes the
-/// store read-only; nothing is reset implicitly.
+/// Profile store for tagger suggestions (tag-suggestions.json). Run commits and review writes use the profile lease.
+/// An unreadable or newer file is preserved and makes the store read-only.
 /// </summary>
-internal sealed class TagSuggestionStore
+internal sealed partial class TagSuggestionStore
 {
     internal const string FileName = "tag-suggestions.json";
     internal const string Format = "meowchan-tag-suggestions";
     internal const int FormatVersion = 1;
+    private const int JournalVersion = 2;
     internal const string TaggedOutcome = "Tagged";
     /// <summary>Fixed read ceiling (the maximum of <see cref="TagSuggestionSettings.StoreLimitMiBRange"/>).</summary>
     internal const long MaximumBytes = 256L * 1024 * 1024;
@@ -124,14 +129,18 @@ internal sealed class TagSuggestionStore
     private readonly ProfileLease _lease;
     private readonly string _path;
     private readonly Func<DateTimeOffset> _clock;
+    private readonly PrivateTagStore? _privateTags;
     private TagSuggestionSettings _settings = TagSuggestionSettings.Default;
     private TagSuggestionSnapshot? _current;
 
-    internal TagSuggestionStore(ProfileLease lease, Func<DateTimeOffset>? clock = null)
+    internal TagSuggestionStore(ProfileLease lease, Func<DateTimeOffset>? clock = null, PrivateTagStore? privateTags = null)
     {
         _lease = lease ?? throw new ArgumentNullException(nameof(lease));
         _path = Path.Combine(lease.ProfileDirectory, FileName);
         _clock = clock ?? (() => DateTimeOffset.UtcNow);
+        if (privateTags is not null && !privateTags.UsesLease(lease))
+            throw new ArgumentException("The private tag store belongs to a different lease.", nameof(privateTags));
+        _privateTags = privateTags;
     }
 
     internal string FilePath => _path;
@@ -175,7 +184,7 @@ internal sealed class TagSuggestionStore
         });
     }
 
-    /// <summary>Accept or reject pending suggestions, or reopen decided ones (undo). Checks the expected revision.</summary>
+    /// <summary>Changes legacy suggestion-only decisions. Occurrence reviews use the journal.</summary>
     internal TagSuggestionSnapshot Decide(IReadOnlyCollection<long> ids, TagSuggestionState target, long expectedRevision,
         CancellationToken token = default)
     {
@@ -199,6 +208,9 @@ internal sealed class TagSuggestionStore
                     ? current.IsDecided
                     : current.State == TagSuggestionState.Pending;
                 if (!allowed) throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);
+                if (target == TagSuggestionState.Pending
+                    && document.Events.FindLast(review => review.SuggestionId == id)?.OperationId is not null)
+                    throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);
                 document.Suggestions[index] = current with { State = target, DecidedAt = target == TagSuggestionState.Pending ? null : now };
                 document.AddEvent(id, current.State, target, now);
             }
@@ -206,10 +218,12 @@ internal sealed class TagSuggestionStore
         });
     }
 
-    private TagSuggestionSnapshot Writable()
+    private TagSuggestionSnapshot Writable(bool allowPending = false)
     {
         TagSuggestionSnapshot disk = LoadCore();
         if (!disk.CanWrite) throw new TagSuggestionStoreException(TagSuggestionStoreError.NotWritable);
+        if (!allowPending && disk.PendingReview is not null)
+            throw new TagSuggestionStoreException(TagSuggestionStoreError.ReviewRecoveryRequired);
         return disk;
     }
 
@@ -253,6 +267,12 @@ internal sealed class TagSuggestionStore
     {
         document.Revision = checked(disk.Revision + 1);
         token.ThrowIfCancellationRequested();
+        byte[] json = PrepareWrite(document, forReview);
+        return Publish(document, json, checkAuthority, token);
+    }
+
+    private byte[] PrepareWrite(Document document, bool forReview)
+    {
         byte[] json = JsonSerializer.SerializeToUtf8Bytes(document, JsonOptions);
         TagSuggestionSettings settings = Settings;
         long limit = settings.StoreLimitBytes;
@@ -261,6 +281,11 @@ internal sealed class TagSuggestionStore
         // Preserve the ability to reduce an existing file after its configured limit has been lowered.
         if (json.LongLength > MaximumBytes || (json.LongLength > limit && json.LongLength > before))
             throw new TagSuggestionStoreException(TagSuggestionStoreError.LimitReached);
+        return json;
+    }
+
+    private TagSuggestionSnapshot Publish(Document document, byte[] json, Action? checkAuthority, CancellationToken token)
+    {
         AtomicJsonFile.ReplaceUnderLease(_path, json, checkAuthority, token);
         return _current = document.ToSnapshot();
     }
@@ -269,7 +294,7 @@ internal sealed class TagSuggestionStore
     {
         try
         {
-            using FileStream file = File.OpenRead(_path);
+            using FileStream file = RegularProfileFile.OpenRead(_path);
             long length = file.Length;
             if (length > MaximumBytes) return _current = Failed("The tag suggestion file exceeds its read ceiling.");
             byte[] bytes = new byte[(int)length];
@@ -278,7 +303,7 @@ internal sealed class TagSuggestionStore
             Document? document = JsonSerializer.Deserialize<Document>(bytes, JsonOptions);
             if (document is null || document.Format != Format || document.Version is null)
                 return _current = Failed("The tag suggestion file has an unknown format.");
-            if (document.Version != FormatVersion)
+            if (document.Version is not (FormatVersion or JournalVersion))
                 return _current = Failed("The tag suggestion file was written by a newer version.", TagSuggestionStoreState.Unsupported);
             document.Check();
             return _current = document.ToSnapshot();
@@ -338,7 +363,7 @@ internal sealed class TagSuggestionStore
     private sealed class Document
     {
         public string? Format { get; init; }
-        public int? Version { get; init; }
+        public int? Version { get; set; }
         public long Revision { get; set; } = -1;
         public long NextId { get; set; } = 1;
         public long NextSequence { get; set; } = 1;
@@ -346,24 +371,26 @@ internal sealed class TagSuggestionStore
         public List<StoredTagSuggestion> Suggestions { get; init; } = null!;
         public List<TagSuggestionRun> Runs { get; init; } = null!;
         public List<TagSuggestionReviewEvent> Events { get; init; } = null!;
+        public List<TagReviewOperation>? Reviews { get; set; }
 
         internal static Document From(TagSuggestionSnapshot snapshot) => new()
         {
             Format = TagSuggestionStore.Format,
-            Version = FormatVersion,
+            Version = snapshot.Reviews.Count == 0 ? FormatVersion : JournalVersion,
             Revision = snapshot.Revision,
             NextId = snapshot.NextId,
             NextSequence = snapshot.NextSequence,
             Suggestions = snapshot.Suggestions.ToList(),
             Runs = snapshot.Runs.ToList(),
-            Events = snapshot.Events.ToList()
+            Events = snapshot.Events.ToList(),
+            Reviews = snapshot.Reviews.Count == 0 ? null : snapshot.Reviews.ToList()
         };
 
-        internal void AddEvent(long id, TagSuggestionState from, TagSuggestionState to, DateTimeOffset at)
+        internal void AddEvent(long id, TagSuggestionState from, TagSuggestionState to, DateTimeOffset at, Guid? operationId = null)
         {
             long sequence = NextSequence;
             NextSequence = checked(sequence + 1);
-            Events.Add(new TagSuggestionReviewEvent(sequence, id, from, to, at));
+            Events.Add(new TagSuggestionReviewEvent(sequence, id, from, to, at, operationId));
         }
 
         internal void Check()
@@ -374,6 +401,7 @@ internal sealed class TagSuggestionStore
                 || Runs.Any(value => value is null || value.Provenance is null || !IsSha256(value.MediaSha256))
                 || Events.Any(value => value is null))
                 throw new InvalidDataException("The tag suggestion file is inconsistent.");
+            CheckReviewJournal(this);
 
             // Old writers could reset NextId after deleting a superseded pending suggestion.
             // The greatest identifier in surviving records or review events is still occupied.
@@ -385,6 +413,7 @@ internal sealed class TagSuggestionStore
         }
 
         internal TagSuggestionSnapshot ToSnapshot() => new(Revision, Suggestions.ToArray(), Runs.ToArray(), Events.ToArray(),
-            TagSuggestionStoreState.Ready) { NextId = NextId, NextSequence = NextSequence };
+            TagSuggestionStoreState.Ready)
+            { NextId = NextId, NextSequence = NextSequence, Reviews = Reviews?.ToArray() ?? [] };
     }
 }

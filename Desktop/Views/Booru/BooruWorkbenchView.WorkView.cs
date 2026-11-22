@@ -58,7 +58,7 @@ internal sealed partial class BooruWorkbenchView
         WorkViewGate.Apply(_mode, _workView);
         WorkViewGate.Apply(_submit, _workView);
         WorkViewGate.Apply(_cancel, _workView, stateVisible: _model.Search.View.IsBusy);
-        WorkViewGate.Apply(_statusHost, _workView);
+        WorkViewGate.Apply(_statusHost, _workView, WorkViewElement.GetStateVisible(_statusHost));
         WorkViewGate.Apply(_results, _workView);
         WorkViewGate.Apply(_watchers, _workView);
         WorkViewGate.Apply(_noticeHost, _workView, WorkViewElement.GetStateVisible(_noticeHost));

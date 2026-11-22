@@ -38,7 +38,7 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     {
         XElement[] items = ToolbarItems();
         string[] all = items.Select(Name).ToArray();
-        // Review 21.11. + F16: Star | Large reader, Gallery, Find | Tags, Export | Thread, Settings | [History back] | [Thread list], Full screen, Media sidebar (icon only, last).
+        // Actions run from Star through History back, then the view controls follow at the right edge.
         Assert.Equal(["ArchiveCurrentThreadFavorite", "ReaderUnreadReturn", "ReaderSkipUnavailableGroupMember", "ArchiveReadPosts", "ArchiveOpenGallery", "ReaderFindOpen",
             "ReaderTagsOpen", "ExportArchiveButton", "ReaderThreadOpen", "ReaderSettingsOpen", "ArchiveHistoryBack", "ArchiveThreadListToggle", "ArchiveReaderFullscreen",
             "ReaderMediaSidebarToggle"], all);
@@ -54,8 +54,10 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
         Assert.Equal(5, GroupsOf(all, groups).Zip(GroupsOf(all, groups).Skip(1)).Count(pair => pair.First != pair.Second));
         string[] shown = all.Where(name => name is not ("ReaderUnreadReturn" or "ReaderSkipUnavailableGroupMember" or "ArchiveHistoryBack")).ToArray();
         Assert.Equal(4, GroupsOf(shown, groups).Zip(GroupsOf(shown, groups).Skip(1)).Count(pair => pair.First != pair.Second));
-        // The media sidebar switch ends the bar behind Full screen; the thread list switch stands left of Full screen.
         Assert.Equal(["ArchiveThreadListToggle", "ArchiveReaderFullscreen", "ReaderMediaSidebarToggle"], all.TakeLast(3));
+        Assert.Equal(all.TakeLast(3), items
+            .Where(item => item.Attributes().Any(attribute => attribute.Name.LocalName == "ActionToolBar.End" && attribute.Value == "True"))
+            .Select(Name));
     }
 
     private static int[] GroupsOf(string[] names, Dictionary<string, int> groups) => names.Select(name => groups[name]).ToArray();

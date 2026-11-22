@@ -13,11 +13,28 @@ public partial class MainWindow
 
     private void InitializePostFilters()
     {
-        _postFilterSession = new PostFilterSession(_session.PostFilterService);
-        ArchivePage.PostFilters = _postFilterSession;
+        PostFilterSession filters = new(_session.PostFilterService);
+        _postFilterSession = filters;
+        ArchivePage.PostFilters = filters;
+        filters.Changed += OnPostFiltersChanged;
         _session.StateChanged += OnPostFilterSessionStateChanged;
-        Closed += (_, _) => _session.StateChanged -= OnPostFilterSessionStateChanged;
+        Closed += (_, _) =>
+        {
+            _session.StateChanged -= OnPostFilterSessionStateChanged;
+            filters.Changed -= OnPostFiltersChanged;
+        };
         LoadPostFiltersWhenReady();
+    }
+
+    private void OnPostFiltersChanged(object? sender, EventArgs e)
+    {
+        if (Dispatcher.UIThread.CheckAccess()) RefreshSettingsPostFilters();
+        else Dispatcher.UIThread.Post(RefreshSettingsPostFilters);
+    }
+
+    private void RefreshSettingsPostFilters()
+    {
+        if (!_isClosing) _settingsEditor?.UpdatePostFilterRules(_postFilterSession?.Current);
     }
 
     private void OnPostFilterSessionStateChanged() => Dispatcher.UIThread.Post(LoadPostFiltersWhenReady);

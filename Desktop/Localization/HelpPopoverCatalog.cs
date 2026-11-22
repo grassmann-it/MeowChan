@@ -14,6 +14,8 @@ internal static class HelpPopoverCatalog
     {
         ("help.button.name", "Help: {0}", "Hilfe: {0}"),
         ("help.popover.more", "More in Help", "Mehr in der Hilfe"),
+        ("help.diagnosticCounts.title", "Entries and retry targets", "Einträge und Wiederholungsziele"),
+        ("help.diagnosticCounts.p1", "The list counts messages. Several messages can belong to the same thread or board, which counts as one retry target if a retry is available.", "Die Liste zählt Meldungen. Mehrere Meldungen können zum selben Thread oder Board gehören. Ist eine Wiederholung möglich, zählt dieses Ziel einmal."),
         ("help.stats.title", "What is counted", "Was wird gezählt"),
         ("help.stats.p1", "Network counts the response data MeowChan receives, without headers or encryption.", "Netzwerk zählt die Antwortdaten, die MeowChan empfängt, ohne Kopfzeilen und Verschlüsselung."),
         ("help.stats.p2", "Upload counts the request payload MeowChan's application writes to the connection once a write has completed, without headers or encryption; the number of requests is shown as well.", "Upload zählt die Nutzdaten der Anfragen, die die Anwendung MeowChan nach abgeschlossenem Schreiben auf die Verbindung schreibt, ohne Kopfzeilen und Verschlüsselung; zusätzlich wird die Zahl der Anfragen gezeigt."),

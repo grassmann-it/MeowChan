@@ -1,9 +1,17 @@
+using System.Text.Json;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.PluginRuntime.Fixture;
 
-public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFilterPlugin, IPluginSettingsValidator
+public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFilterPlugin, IPluginSettingsValidator, ITaggerPlugin
 {
+    internal const string HangingTagger = "fixture-tagger-hang";
+    public const string TaggerKey = "fixture-cpu";
+    public const string ModelId = "fixture-model";
+    public const string Revision = "fixture-1";
+    public const string License = "CC0-1.0";
+    public static readonly string ModelSha256 = Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData([204]));
+
     public Task<IReadOnlyList<FieldValidationError>> ValidateSettingsAsync(SettingsValidationRequest request, PluginCallContext context, CancellationToken cancellationToken = default) =>
         Task.FromResult<IReadOnlyList<FieldValidationError>>(request.SourceId == "malformed" ? [new(null!, "bad", "Bad result")] : []);
     public PluginDescription Describe() => new("fixture", "Fixture", "1.0.0", SdkContract.Version, "Controlled runtime fixture",
@@ -14,7 +22,38 @@ public sealed class FixturePlugin : ISourcePlugin, IBooruSourcePlugin, IImageFil
          new("danbooru", "Fixture booru", new("https://booru.fixture.test/"), SourceCapabilities.PostSearch | SourceCapabilities.OriginalMedia | SourceCapabilities.Previews, [],
             [new("booru.fixture.test", HttpHostPurpose.Metadata), new("media.fixture.test", HttpHostPurpose.OriginalMedia | HttpHostPurpose.PreviewMedia)], new("1", []))],
         [new("bytes", "Bytes", "Reads actual staged bytes", FilterDataAccess.OriginalImage | FilterDataAccess.CandidateMetadata, new("1", []), ["image/png"])],
-        new("1", []), []);
+        new("1", []), [])
+    {
+        Taggers = [new(TaggerKey, "Fixture CPU", "Exercises the local model and image resources", TaggerContract.Version,
+            TaggerMediaKind.Image, ["image/png"], [new(ModelId, Revision, License, 1, ModelSha256)], new("1", []))]
+    };
+
+    public async Task<TaggerBatchResult> TagAsync(TaggerBatchRequest request, PluginCallContext context,
+        IProgress<TaggerBatchProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        string manifestPath = context.Resources.ResolvePath("model-manifest") ?? throw new InvalidDataException();
+        using JsonDocument manifest = JsonDocument.Parse(await File.ReadAllBytesAsync(manifestPath, cancellationToken));
+        string tag = manifest.RootElement.GetProperty("tags")[0].GetProperty("name").GetString()!;
+        string weightsPath = context.Resources.ResolvePath("model-weights") ?? throw new InvalidDataException();
+        byte[] weights = await File.ReadAllBytesAsync(weightsPath, cancellationToken);
+
+        List<TaggerItemResult> results = [];
+        foreach (TaggerMediaInput item in request.Items)
+        {
+            if (item.PixelWidth == 2)
+            {
+                // Exercise the host's hard cancellation path with a worker that ignores the cancellation frame.
+                string marker = Path.Combine(Environment.CurrentDirectory, HangingTagger);
+                File.WriteAllText(marker + ".pending", Environment.ProcessId.ToString());
+                File.Move(marker + ".pending", marker);
+                await Task.Delay(Timeout.InfiniteTimeSpan, CancellationToken.None);
+            }
+            ImageAssetChunk image = await context.Images.ReadImageAsync(item.AssetToken, 0, 1, cancellationToken);
+            double score = weights.Single() * image.Bytes.Single() / (255d * 255d);
+            results.Add(new(item.ItemId, TaggerItemOutcome.Tagged, [new(tag, TaggerTagCategory.General, score)]));
+        }
+        return new(request.TaggerKey, request.BatchId, new(ModelId, Revision, ModelSha256, "fixture-cpu"), results);
+    }
     public Task<CatalogReadResult> ReadCatalogAsync(CatalogReadRequest request, PluginCallContext context, CancellationToken cancellationToken = default) =>
         Task.FromResult<CatalogReadResult>(new CatalogSnapshot(new(request.Board, [new(new("fixture", request.Board.BoardId, "1"), new("https://fixture.test/b/thread/1"))], true)));
     public async Task<ThreadReadResult> ReadThreadAsync(ThreadReadRequest request, PluginCallContext context, CancellationToken cancellationToken = default)

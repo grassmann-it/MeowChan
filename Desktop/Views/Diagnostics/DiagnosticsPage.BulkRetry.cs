@@ -170,17 +170,26 @@ public partial class DiagnosticsPage
         RefreshWorkViewTexts();
     }
 
-    private bool CanRetryScope(IReadOnlyList<DiagnosticRetryTarget> scope) => !_ended && _available && !_retryBusy
-        && scope.Any(item => item.Check && CanSubmitFrozen(item, media: false)
-            || item.Media && CanSubmitFrozen(item, media: true));
+    // Fresh captures already describe current problems. Only revalidate identity against the
+    // live entries for a frozen scope, where a refresh may have changed what the action can do.
+    private int RetryableTargetCount(DiagnosticRetryTarget[] scope) => scope.Count(item =>
+        item.Check && IsRetryAdmitted(item.Target, media: false) || item.Media && IsRetryAdmitted(item.Target, media: true));
+
+    private bool IsRetryAdmitted(DiagnosticTarget target, bool media)
+    {
+        if (_ended || !_available || IsRemoved(target)) return false;
+        return media ? RetryMediaAsync != null && CanRetryMedia?.Invoke(target) == true
+            : _retry != null && _canRetry?.Invoke(target) == true;
+    }
+
+    private bool CanRetryScope(DiagnosticRetryTarget[] scope) => !_retryBusy && scope.Any(item =>
+        item.Check && CanSubmitFrozen(item, media: false) || item.Media && CanSubmitFrozen(item, media: true));
 
     private bool CanSubmitFrozen(DiagnosticRetryTarget item, bool media)
     {
-        if (_ended || !_available || IsRemoved(item.Target) || !StillHasProblem(item, media)) return false;
-        bool admitted = media ? RetryMediaAsync != null && CanRetryMedia?.Invoke(item.Target) == true
-            : _retry != null && _canRetry?.Invoke(item.Target) == true;
+        if (!StillHasProblem(item, media) || !IsRetryAdmitted(item.Target, media)) return false;
         // An advisory callback can itself refresh/end the owner synchronously.
-        return admitted && !_ended && _available && StillHasProblem(item, media);
+        return !_ended && _available && !IsRemoved(item.Target) && StillHasProblem(item, media);
     }
 
     private void RefreshDiagnosticBatchControls()
@@ -188,25 +197,26 @@ public partial class DiagnosticsPage
         DiagnosticEntry[] selected = SelectedDiagnostics();
         DiagnosticRetryTarget[] selection = DiagnosticRetryScope.Capture(selected);
         DiagnosticRetryTarget[] filtered = DiagnosticRetryScope.Capture(_visibleDiagnostics);
-        foreach (var (name, command, scope) in new[] {
-            ("RetryDiagnosticSelectionButton", "diagnostics.retry-selection", selection),
-            ("RetryDiagnosticFilteredButton", "diagnostics.retry-filtered", filtered) })
+        int filteredCount = RetryableTargetCount(filtered);
+        foreach (var (name, command, count) in new[] {
+            ("RetryDiagnosticSelectionButton", "diagnostics.retry-selection", RetryableTargetCount(selection)),
+            ("RetryDiagnosticFilteredButton", "diagnostics.retry-filtered", filteredCount) })
         {
             Button button = this.FindControl<Button>(name)!;
-            CommandBindings.ApplyLabeled(button, command, CommandCatalog.Label(command) + " (" + scope.Length + ")");
-            button.IsEnabled = CanRetryScope(scope);
-            string scopeHelp = Texts.T("diagnostics.retryScope") + " " + Texts.T("diagnostics.retryScopeCount", scope.Length);
+            CommandBindings.ApplyLabeled(button, command, CommandCatalog.Label(command) + " (" + count + ")");
+            button.IsEnabled = count > 0 && !_ended && _available && !_retryBusy;
+            string scopeHelp = Texts.T("diagnostics.retryScope") + " " + Texts.T("diagnostics.retryScopeCount", count);
             ToolTip.SetTip(button, scopeHelp);
             AutomationProperties.SetHelpText(button, scopeHelp);
         }
         RefreshDiagnosticOverview(Selected != null);
         // One selected target does what "Check now" does: the selection button only exists for a set of several targets.
         this.FindControl<Button>("RetryDiagnosticSelectionButton")!.IsVisible = selection.Length > 1;
-        // "a / b entries · c selected" only while it says something: a filter is set or rows are selected.
         TextBlock summary = this.FindControl<TextBlock>("DiagnosticFilterSummary")!;
-        summary.IsVisible = ActiveDiagnosticFilterCount > 0 || selected.Length > 0;
+        summary.IsVisible = ActiveDiagnosticFilterCount > 0 || _visibleDiagnostics.Count > 0;
         summary.Text = summary.IsVisible
             ? Texts.T("diagnostics.filterCount", _visibleDiagnostics.Count, _entries.Count(entry => entry.Kind != DiagnosticKind.Information), selected.Length)
+                + " · " + Texts.T("diagnostics.retryableTargets", filteredCount)
             : string.Empty;
     }
 

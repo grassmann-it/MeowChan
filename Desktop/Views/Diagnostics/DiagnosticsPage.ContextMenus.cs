@@ -104,7 +104,7 @@ public partial class DiagnosticsPage
             bool CanExecute() => CanRetryScope(scope);
             string? Reason() => CanExecute() ? null : Texts.T("diagnostics.retryScope");
             builder.Command(id, () => _ = RetryFrozenScopeAsync(scope), CanExecute(), Reason(),
-                CommandCatalog.Label(id) + " (" + scope.Length + ")", availableWhen: CanExecute, reasonWhen: Reason);
+                CommandCatalog.Label(id) + " (" + RetryableTargetCount(scope) + ")", availableWhen: CanExecute, reasonWhen: Reason);
         }
         if (frozen.Kind != DiagnosticKind.Information)
         {

@@ -18,7 +18,7 @@ internal enum GallerySidePanelSegment { Post, Tags }
 
 /// <summary>
 /// V2 (PLAN-MEDIEN-VIEWER-UND-SEITE §1.1): the host of the gallery side panel. Header: the segment "Post | Tags" on the left (two
-/// toggle buttons, ←/→ switch while one has the focus), the live medium counter in its own column right of it (short "No. n / m", one line, trimmed or hidden when narrow, never over the tabs),
+/// toggle buttons, ←/→ switch while one has the focus), the live medium counter centered between the tabs and the close button (one line, trimmed or hidden when narrow),
 /// at least 24 dip of space before the close button (×) alone at the right edge. Below
 /// it the two content slots <see cref="PostContent"/> and <see cref="TagContent"/>; only the one of <see cref="Segment"/> is visible.
 /// A 6-dip grip on the left edge drags the width (<see cref="Config.GalleryPanelWidthMinimum"/>–<see cref="Config.GalleryPanelWidthMaximum"/>).
@@ -39,11 +39,11 @@ internal sealed class GallerySidePanel : Grid
     private const double SlotInset = 16;
     private readonly ToggleButton _post = new() { Name = "GalleryPanelPost", Classes = { "media-control" } };
     private readonly ToggleButton _tags = new() { Name = "GalleryPanelTags", Classes = { "media-control" } };
-    private readonly StackPanel _segment = new() { Name = "GalleryPanelSegment", Orientation = Orientation.Horizontal, Spacing = 4,
+    private readonly WrapPanel _segment = new() { Name = "GalleryPanelSegment", ItemSpacing = 4, LineSpacing = 4,
         VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right,
-        HorizontalContentAlignment = HorizontalAlignment.Right, Margin = new Thickness(CounterGap, 0, CounterGap, 0) };
+        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
+        HorizontalContentAlignment = HorizontalAlignment.Center, Margin = new Thickness(CounterGap, 0, CounterGap, 0) };
     private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false };
     private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,
@@ -85,7 +85,6 @@ internal sealed class GallerySidePanel : Grid
         _grip.PointerMoved += OnGripMoved;
         _grip.PointerReleased += OnGripReleased;
         _grip.PointerCaptureLost += (_, _) => EndDrag(commit: true);
-        SizeChanged += (_, e) => ApplyHeaderLayout(e.NewSize.Width);
         // The resize cursor needs the platform's cursor factory, so it is set once the grip is shown in a window.
         _grip.AttachedToVisualTree += (_, _) => _grip.Cursor ??= new Cursor(StandardCursorType.SizeWestEast);
         Localize();
@@ -99,26 +98,23 @@ internal sealed class GallerySidePanel : Grid
     internal ContentControl PostSlot => _postSlot;
     internal ContentControl TagSlot => _tagSlot;
 
-    /// <summary>The tag surface's live medium counter, shown right beside the Post / Tags segment; null after that surface is released.</summary>
+    /// <summary>The live medium counter between the Post / Tags segment and the close button.</summary>
     internal Control? HeaderCounter
     {
         get => _headerCounter.Content as Control;
-        set { _headerCounter.Content = value; ApplyHeaderLayout(Bounds.Width); }
+        set => _headerCounter.Content = value;
     }
 
-    private void ApplyHeaderLayout(double width)
+    protected override Size MeasureOverride(Size availableSize)
     {
-        // The counter owns its own column of the tab row (tabs left, counter right, close alone at the edge) and is never an overlay:
-        // it is one line, trimmed to the room between the tabs and the close button, and hidden when even a trimmed chip does not fit.
-        bool counter = HeaderCounter != null;
-        _headerCounter.MaxWidth = double.PositiveInfinity;
-        _headerCounter.IsVisible = true;
-        if (!counter || width <= 0) return;
-        _headerCounter.Measure(Size.Infinity);
-        double segmentWidth = _post.DesiredSize.Width + _tags.DesiredSize.Width + _segment.Spacing;
-        double room = width - segmentWidth - CloseButton.DesiredSize.Width - 2 * CounterGap;
-        if (room < CounterMinWidth) _headerCounter.IsVisible = false;
-        else if (room < _headerCounter.DesiredSize.Width) _headerCounter.MaxWidth = room;
+        // Measure the current labels before deciding whether the counter fits, including after a language change.
+        CloseButton.Measure(Size.Infinity);
+        double tabsWidth = Math.Max(0, availableSize.Width - CloseButton.DesiredSize.Width - CounterClearance);
+        ColumnDefinitions[0].MaxWidth = tabsWidth;
+        _segment.Measure(new Size(tabsWidth, double.PositiveInfinity));
+        double room = availableSize.Width - _segment.DesiredSize.Width - CloseButton.DesiredSize.Width - 2 * CounterGap;
+        _headerCounter.IsVisible = room >= CounterMinWidth;
+        return base.MeasureOverride(availableSize);
     }
 
     /// <summary>The post card (built and kept by the viewer).</summary>
@@ -170,7 +166,8 @@ internal sealed class GallerySidePanel : Grid
 
     private static void Present(ToggleButton button, string label, string commandId, string? reason)
     {
-        button.Content = label;
+        if (button.Content is TextBlock text) text.Text = label;
+        else button.Content = new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap };
         AutomationProperties.SetName(button, label);
         string tip = CommandCatalog.ShortcutDisplay(commandId) is string gesture ? label + " · " + gesture : label;
         if (reason != null) tip = reason;

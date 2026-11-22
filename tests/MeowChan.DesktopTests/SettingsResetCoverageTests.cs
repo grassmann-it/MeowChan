@@ -10,6 +10,7 @@ using Avalonia.LogicalTree;
 using Avalonia.Platform;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
 
@@ -207,6 +208,31 @@ public sealed class SettingsResetCoverageTests : IDisposable
         // The one input the tests skip really is the hidden compatibility switch, and it is bound to the same value as the visible one.
         foreach (string name in HiddenAliases)
             Assert.False(probes.Single(probe => probe.Name == name).Control.IsVisible, name + " is skipped because it is hidden, but it is shown.");
+    });
+
+    [Fact]
+    public void PostFilterLimitHintCountsEnabledSupportedRulesAcrossResetAndLanguageChange() => WithEditors((editor, _) =>
+    {
+        var hint = Assert.Single(editor.GetLogicalDescendants().OfType<TextBlock>(), text => text.Text == editor.PostFilterRuleLimitHint);
+        PostFilterRule enabled = new(Guid.NewGuid(), true, PostFilterField.Text, PostFilterMatch.Contains, "visible",
+            PostFilterAction.Hide, false, null, null);
+        PostFilterRule disabled = enabled with { Enabled = false };
+        PostFilterRule unsupported = enabled with { UnsupportedReason = "Unknown match" };
+        PostFilterSnapshot ready = new(1, HiddenPostsAction.Stub, [disabled, unsupported], [], PostFilterStoreState.Ready);
+        Assert.DoesNotContain("Active rules", hint.Text);
+        editor.UpdatePostFilterRules(ready);
+        Assert.StartsWith("Active rules: 0.", hint.Text);
+        editor.UpdatePostFilterRules(ready with { Rules = [enabled, disabled, unsupported] });
+        Assert.StartsWith("Active rules: 1.", hint.Text);
+        editor.UpdatePostFilterRules(ready with { Rules = [enabled, enabled with { Pattern = "another" }] });
+        editor.PostFilterRuleLimit = Config.PostFilterRuleLimitMinimum;
+        editor.ResetDraft(SettingsEditor.SettingsResetScope.WorkerBudgets);
+        Assert.Equal(Config.PostFilterRuleLimitDefault, editor.PostFilterRuleLimit);
+        Assert.StartsWith("Active rules: 2.", hint.Text);
+        Texts.SetLanguage("de");
+        Assert.StartsWith("Aktive Regeln: 2.", hint.Text);
+        editor.UpdatePostFilterRules(ready with { State = PostFilterStoreState.RecoveryAvailable });
+        Assert.DoesNotContain("Aktive Regeln", hint.Text);
     });
 
     [Fact]

@@ -9,6 +9,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
+using Avalonia.Media;
 using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -17,22 +18,21 @@ namespace MeowChan.Desktop.Controls;
 
 internal sealed class GalleryDecisionRow : StackPanel
 {
-    private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" } };
+    private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" }, HorizontalAlignment = HorizontalAlignment.Center };
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
     /// <summary>Edge of a star glyph in dip; the cell around it (class "rating-star") is the Workspace.Size.Nav high, equal-width hit area.</summary>
     private const int StarGlyphSize = 20;
     // The rating bar: five equal star columns, an 8 dip gap and the remove button (a fixed 32 dip square).
-    private readonly Grid _group = new() { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto") };
-    // One line, right-aligned, shortened with an ellipsis (its tooltip then names it in full): the rating value only, the favourite shows itself.
+    private readonly Grid _group = new() { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto"), MaxWidth = 200 };
+    // The rating value gets its own centered line, with the full text available in the tooltip when trimmed.
     private readonly TextBlock _summary = new TrimTipTextBlock
     {
-        Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.NoWrap, MaxLines = 1,
-        TextTrimming = Avalonia.Media.TextTrimming.CharacterEllipsis, TextAlignment = Avalonia.Media.TextAlignment.Right,
-        HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center
+        Classes = { "workspace-help" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis,
+        TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center
     };
-    private readonly TextBlock _favoriteLabel = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly StackPanel _favoriteContent;
+    private readonly TextBlock _favoriteLabel = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Grid _favoriteContent;
     private GalleryDecisionView _view = GalleryDecisionView.Unavailable;
     // The star the pointer is on (1 to 5): the stars up to it show as set. Never a state of the row, never a request.
     private int? _preview;
@@ -43,10 +43,12 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal GalleryDecisionRow(string name)
     {
         Name = name;
-        Spacing = 8; // the rating bar and the favourite line
+        Spacing = 8;
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
-        _favoriteContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { FavoriteStar.Create(false, StarGlyphSize), _favoriteLabel } };
+        _favoriteContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8,
+            Children = { FavoriteStar.Create(false, StarGlyphSize), _favoriteLabel } };
+        Grid.SetColumn(_favoriteLabel, 1);
         _favorite.Content = _favoriteContent;
         for (int index = 0; index < _stars.Length; index++)
         {
@@ -63,12 +65,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(_clear, 6);
         _group.Children.Add(_clear);
-        Grid line = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Name = name + "Line" };
-        Grid.SetColumn(_summary, 1);
-        line.Children.Add(_favorite);
-        line.Children.Add(_summary);
         Children.Add(_group);
-        Children.Add(line);
+        Children.Add(_favorite);
+        Children.Add(_summary);
         _favorite.Click += OnFavorite;
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, (_, _) => _restoreFocus = false, RoutingStrategies.Bubble, handledEventsToo: true);

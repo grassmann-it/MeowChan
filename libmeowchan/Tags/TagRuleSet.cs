@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
+using MeowChan.Storage;
+using MeowChan.Transfer;
 
 namespace MeowChan.Tags;
 
@@ -36,7 +38,41 @@ internal sealed record TagRuleInput(string OriginalName, MediaTagSubject Subject
 internal sealed record TagRuleProjection(TagRuleInput Input, PrivateTagName? Canonical, IReadOnlyList<PrivateTagName> Parents)
 {
     internal bool IsIgnored => Canonical is null;
+
+    internal IEnumerable<PrivateTagName> MappedNames()
+        => Canonical is { } canonical ? Parents.Prepend(canonical) : [];
 }
+
+/// <summary>The occurrence the reviewer saw, with the same identities used by the rule projection.</summary>
+internal sealed record TagReviewTarget(string Sha256, TagReviewBoundTarget? Bound, TagReviewLocalTarget? Local)
+{
+    internal static TagReviewTarget From(MediaTagSubject subject) => subject switch
+    {
+        MediaTagSubject.Bound { Target: var target } =>
+            new(target.Sha256, new(target.Reference, target.MediaId, target.Variant, target.Role), null),
+        MediaTagSubject.Local { Observation: var observation, Expected: var expected } =>
+            new(observation.Sha256, null, new(observation.Locator, observation.AssetId, observation.Length,
+                expected?.Occurrence.Value, expected?.Revision.Value)),
+        _ => throw new PrivateTagStoreException(PrivateTagStoreError.InvalidTarget)
+    };
+
+    internal bool Matches(StoredTagSuggestion suggestion) =>
+        Sha256 == suggestion.MediaSha256 && (Bound, Local) switch
+        {
+            ({ } bound, null) => PrivateMediaTagTarget.TryCreate(bound.Reference, bound.MediaId, bound.Variant, bound.Role,
+                Sha256, out _, out _),
+            (null, { Locator: { } locator } local) => local.Length == suggestion.MediaLength
+                && (local.Occurrence is null && local.Revision is null
+                    || local.Occurrence is { } occurrence && occurrence != Guid.Empty
+                    && local.Revision is { } revision && revision != Guid.Empty)
+                && LocalMediaObservation.TryCreate(locator.Thread, locator.Directory, locator.RequestedFileName,
+                    local.AssetId, local.Length, Sha256, out _),
+            _ => false
+        };
+}
+
+internal sealed record TagReviewBoundTarget(AttachmentRevisionReference Reference, string MediaId, string Variant, TransferMediaRole Role);
+internal sealed record TagReviewLocalTarget(LocalMediaLocator Locator, string AssetId, long Length, Guid? Occurrence, Guid? Revision);
 
 internal enum TagRuleError { InvalidRule, InvalidName, AmbiguousMapping, Cycle, UnassignedPrivateTag }
 

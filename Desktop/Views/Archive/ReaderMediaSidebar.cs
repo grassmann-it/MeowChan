@@ -412,7 +412,8 @@ internal sealed class ReaderMediaSidebar : Border
         // One compact row: the info line, thread position, favourite star, "Open in gallery" and the cross.
         Grid header = _header;
         // Column 0: the post number as a link, then the rest of the line trimmed with an ellipsis.
-        Grid titleHost = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), VerticalAlignment = VerticalAlignment.Center };
+        Grid titleHost = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
         titleHost.Children.Add(_postLink);
         Grid.SetColumn(_title, 1); titleHost.Children.Add(_title);
         header.Children.Add(titleHost);

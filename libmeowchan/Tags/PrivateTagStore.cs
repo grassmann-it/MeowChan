@@ -273,7 +273,7 @@ internal enum PrivateTagWritePhase { BeforeBackupCheck, BeforeReplace, AfterRepl
 
 /// <summary>
 /// Profile-owned persistence for own tags (contracts: private-tag-store-v1, private-tag-store-v2 with the
-/// local-media-occurrence-v1 registry, private-tag-store-v3 with aliases and tag merging). One JSON document,
+/// local-media-occurrence-v1 registry, v3 with aliases and tag merging, v4 with review ownership). One JSON document,
 /// rewritten atomically with a backup, guarded by the profile lease and store-writer admission.
 /// Invalid or newer documents are never overwritten. No transfer, no source tags and no
 /// archive-existence checks live here.
@@ -303,6 +303,7 @@ internal sealed partial class PrivateTagStore
     private const int LocalVersion = 2;
     // v3 adds "Aliases" (other names of tags; merges keep the merged-away names there). Written only once an alias exists, then sticky.
     private const int AliasVersion = 3;
+    private const int ReviewVersion = 4;
     /// <summary>Read ceiling of aliases, a fixed technical bound like the assignment counts; the document size limit governs growth.</summary>
     internal const int MaximumAliases = PrivateTagCatalog.MaximumDefinitions;
     private const string Invalid = "The private tag index is invalid.";
@@ -344,6 +345,31 @@ internal sealed partial class PrivateTagStore
         internal readonly HashSet<PrivateLocalMediaTagAssignment> LocalSet = new();
         internal readonly List<PrivateTagAlias> Aliases = new();
         internal readonly List<PrivateTagFormerId> Formers = new();
+        internal PrivateTagReviewReceipt? LastReview;
+        internal readonly Dictionary<PrivateMediaTagAssignment, Guid> BoundReviewOwners = new();
+        internal readonly Dictionary<PrivateLocalMediaTagAssignment, Guid> LocalReviewOwners = new();
+
+        internal void ReleaseReviewOwnership(TagId tag)
+        {
+            foreach (var item in BoundReviewOwners.Keys.Where(item => (TagId)item.TagId == tag).ToArray())
+                BoundReviewOwners.Remove(item);
+            foreach (var item in LocalReviewOwners.Keys.Where(item => item.TagId == tag).ToArray())
+                LocalReviewOwners.Remove(item);
+        }
+
+        internal void PruneReviewOwnership()
+        {
+            // Some mutations update the lists alone. The final serialized assignments are authoritative.
+            if (BoundReviewOwners.Count > 0) Prune(BoundReviewOwners, Media);
+            if (LocalReviewOwners.Count > 0) Prune(LocalReviewOwners, Local);
+        }
+
+        private static void Prune<T>(Dictionary<T, Guid> owners, List<T> assignments) where T : notnull
+        {
+            HashSet<T> remaining = assignments.ToHashSet();
+            foreach (T assignment in owners.Keys.Where(item => !remaining.Contains(item)).ToArray())
+                owners.Remove(assignment);
+        }
 
         internal bool HasLocalData => Occurrences.Count > 0 || Local.Count > 0;
 
@@ -510,6 +536,7 @@ internal sealed partial class PrivateTagStore
                 model.Aliases.RemoveAt(alias);
                 changed = true;
             }
+            if (changed) model.ReleaseReviewOwnership(tag);
             return (changed, tag);
         });
     }
@@ -562,7 +589,7 @@ internal sealed partial class PrivateTagStore
             // an earlier key kept by a hand-over would otherwise bring the tag back at the next reconcile.
             if (!assigned) return (model.Media.RemoveAll(item => item.TagId == assignment.TagId
                 && item.Target.Identity == assignment.Target.Identity) > 0, tag);
-            if (model.MediaSet.Contains(assignment)) return (false, tag);
+            if (model.MediaSet.Contains(assignment)) return (model.BoundReviewOwners.Remove(assignment), tag);
             if (model.Media.Count >= MaximumMediaAssignments)
                 throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
             model.Media.Add(assignment);
@@ -572,7 +599,7 @@ internal sealed partial class PrivateTagStore
 
     /// <summary>
     /// One tag on several exact media versions in one write: all of them or none. Each target is
-    /// idempotent like <see cref="SetMedia"/>; a target that already has (or lacks) the tag changes nothing.
+    /// idempotent like <see cref="SetMedia"/>. Asserting an already assigned tag can release review ownership.
     /// Removing works per file: assignments of the same file under any other revision key go too.
     /// An unknown tag, an invalid target or the capacity limit rejects the whole batch.
     /// </summary>
@@ -595,7 +622,9 @@ internal sealed partial class PrivateTagStore
             if (assigned)
             {
                 List<PrivateMediaTagAssignment> fresh = wanted.Where(item => !model.MediaSet.Contains(item)).ToList();
-                if (fresh.Count == 0) return (false, tag);
+                bool released = false;
+                foreach (PrivateMediaTagAssignment item in wanted) released |= model.BoundReviewOwners.Remove(item);
+                if (fresh.Count == 0) return (released, tag);
                 if (model.Media.Count + fresh.Count > MaximumMediaAssignments)
                     throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
                 model.Media.AddRange(fresh);
@@ -775,6 +804,7 @@ internal sealed partial class PrivateTagStore
             .Select(item => new PrivateMediaTagAssignment(tag, item.Target)).Distinct().ToList();
         if (assigned)
         {
+            foreach (PrivateMediaTagAssignment item in bound) changed |= model.BoundReviewOwners.Remove(item);
             List<PrivateMediaTagAssignment> fresh = bound.Where(item => !model.MediaSet.Contains(item)).ToList();
             if (model.Media.Count + fresh.Count > MaximumMediaAssignments)
                 throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
@@ -802,6 +832,7 @@ internal sealed partial class PrivateTagStore
                 if (!asSeen) throw new PrivateTagStoreException(PrivateTagStoreError.StaleTarget);
                 LocalMediaTagTarget target = resolution is { IsRegistered: true, Target: { } known } ? known : model.Adopt(local.Observation);
                 PrivateLocalMediaTagAssignment assignment = new(tag, target);
+                changed |= model.LocalReviewOwners.Remove(assignment);
                 if (model.LocalSet.Contains(assignment)) continue;
                 if (model.Local.Count >= MaximumLocalAssignments)
                     throw new PrivateTagStoreException(PrivateTagStoreError.CapacityExceeded);
@@ -926,6 +957,7 @@ internal sealed partial class PrivateTagStore
 
     private static void ApplyMerge(Model model, TagId target, HashSet<TagId> sources, CancellationToken token)
     {
+        model.ReleaseReviewOwnership(target);
         PrivateThreadTagId threadTarget = new(target.Value);
         PrivateMediaTagId mediaTarget = new(target.Value);
         List<PrivateThreadTagAssignment> threads = new(model.Threads.Count);
@@ -1078,7 +1110,7 @@ internal sealed partial class PrivateTagStore
 
     // The change also sees the exact bytes it starts from (a merge keeps them for its undo).
     private PrivateTagCommit Mutate(ProfileAdmissionToken admission, long? expectedRevision, CancellationToken token,
-        Func<Model, byte[], (bool Changed, TagId Tag)> change)
+        Func<Model, byte[], (bool Changed, TagId Tag)> change, Action? beforePublish = null)
     {
         ArgumentNullException.ThrowIfNull(admission);
         return _lease.RunStoreWrite(admission, () =>
@@ -1096,6 +1128,7 @@ internal sealed partial class PrivateTagStore
             try { CheckBackup(); }
             catch (FileNotFoundException) { }
             byte[] next = PrepareWrite(model, bytes.Length, out bool upgradesV1);
+            beforePublish?.Invoke();
             // The exact v1 bytes are secured before the replace; ".bak" alone would lose them at the next write.
             if (upgradesV1) KeepV1Backup(bytes, token);
             WritePhaseForTests?.Invoke(PrivateTagWritePhase.BeforeReplace);
@@ -1110,9 +1143,11 @@ internal sealed partial class PrivateTagStore
 
     private byte[] PrepareWrite(Model model, int priorLength, out bool upgradesV1)
     {
+        model.PruneReviewOwnership();
         model.Revision++;
         // The first committed local data upgrades to v2, the first alias to v3. Versions stay sticky.
         int needed = model.Aliases.Count > 0 || model.Formers.Count > 0 ? AliasVersion : model.HasLocalData ? LocalVersion : BoundOnlyVersion;
+        if (model.LastReview is not null) needed = ReviewVersion;
         upgradesV1 = needed > BoundOnlyVersion && model.Version == BoundOnlyVersion && priorLength > 0;
         model.Version = Math.Max(model.Version, needed);
         byte[] next = Serialize(model);
@@ -1278,6 +1313,7 @@ internal sealed partial class PrivateTagStore
                 BoundOnlyVersion => ["Version", "Revision", "Tags", "Threads", "Media"],
                 LocalVersion => ["Version", "Revision", "Tags", "Threads", "Media", "LocalOccurrences", "LocalMedia"],
                 AliasVersion => ["Version", "Revision", "Tags", "Threads", "Media", "LocalOccurrences", "LocalMedia", "Aliases"],
+                ReviewVersion => ["Version", "Revision", "Tags", "Threads", "Media", "LocalOccurrences", "LocalMedia", "Aliases", "LastReview"],
                 _ => throw new InvalidDataException(Invalid)
             });
             Model model = new() { Version = version, Revision = root.GetProperty("Revision").GetInt64() };
@@ -1314,7 +1350,7 @@ internal sealed partial class PrivateTagStore
 
             foreach (JsonElement item in Items(root.GetProperty("Media"), MaximumMediaAssignments))
             {
-                CheckObject(item, ["Tag", "Source", "Board", "Thread", "Post", "Position", "RevisionKey",
+                Guid? owner = CheckReviewAssignment(item, version, ["Tag", "Source", "Board", "Thread", "Post", "Position", "RevisionKey",
                     "MediaId", "Variant", "Role", "Sha256"]);
                 TagId tag = ReadTagId(item.GetProperty("Tag"));
                 TransferMediaRole role = Text(item.GetProperty("Role")) switch
@@ -1333,9 +1369,11 @@ internal sealed partial class PrivateTagStore
                 if (!model.Catalog.Contains(tag) || !model.MediaSet.Add(assignment))
                     throw new InvalidDataException(Invalid);
                 model.Media.Add(assignment);
+                if (owner is { } id) model.BoundReviewOwners.Add(assignment, id);
             }
             if (version >= LocalVersion) ParseLocal(root, model);
             if (version >= AliasVersion) ParseAliases(root, model);
+            if (version >= ReviewVersion) model.LastReview = ReadReviewReceipt(root, model.Revision);
             return model;
         }
         catch (Exception error) when (error is JsonException or DecoderFallbackException or ArgumentException
@@ -1378,7 +1416,7 @@ internal sealed partial class PrivateTagStore
         }
         foreach (JsonElement item in Items(root.GetProperty("LocalMedia"), MaximumLocalAssignments))
         {
-            CheckObject(item, ["Tag", "Occurrence", "Revision"]);
+            Guid? owner = CheckReviewAssignment(item, model.Version, ["Tag", "Occurrence", "Revision"]);
             TagId tag = ReadTagId(item.GetProperty("Tag"));
             LocalMediaTagTarget target = new(new LocalMediaOccurrenceId(ReadGuid(item.GetProperty("Occurrence"))),
                 new LocalMediaRevisionId(ReadGuid(item.GetProperty("Revision"))));
@@ -1387,6 +1425,7 @@ internal sealed partial class PrivateTagStore
             if (!model.Catalog.Contains(tag) || !model.Registered(target) || !model.LocalSet.Add(assignment))
                 throw new InvalidDataException(Invalid);
             model.Local.Add(assignment);
+            if (owner is { } id) model.LocalReviewOwners.Add(assignment, id);
         }
     }
 
@@ -1514,6 +1553,7 @@ internal sealed partial class PrivateTagStore
                 writer.WriteString("Variant", target.Variant);
                 writer.WriteString("Role", target.Role == TransferMediaRole.Original ? "original" : "preview");
                 writer.WriteString("Sha256", target.Sha256);
+                if (model.BoundReviewOwners.TryGetValue(item, out Guid owner)) writer.WriteString("ReviewOwner", owner);
                 writer.WriteEndObject();
             }
             writer.WriteEndArray();
@@ -1548,6 +1588,7 @@ internal sealed partial class PrivateTagStore
                     writer.WriteString("Tag", item.TagId.Value.ToString("D"));
                     writer.WriteString("Occurrence", item.Target.Occurrence.Value.ToString("D"));
                     writer.WriteString("Revision", item.Target.Revision.Value.ToString("D"));
+                    if (model.LocalReviewOwners.TryGetValue(item, out Guid owner)) writer.WriteString("ReviewOwner", owner);
                     writer.WriteEndObject();
                 }
                 writer.WriteEndArray();
@@ -1573,6 +1614,13 @@ internal sealed partial class PrivateTagStore
                     writer.WriteEndObject();
                 }
                 writer.WriteEndArray();
+            }
+            if (model.LastReview is { } receipt)
+            {
+                writer.WriteStartObject("LastReview");
+                writer.WriteString("OperationId", receipt.OperationId);
+                writer.WriteNumber("Revision", receipt.Revision);
+                writer.WriteEndObject();
             }
             writer.WriteEndObject();
         }
