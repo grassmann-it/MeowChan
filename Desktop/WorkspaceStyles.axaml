@@ -1515,6 +1515,71 @@
         <Setter Property="Orientation" Value="Horizontal" /><Setter Property="Spacing" Value="{StaticResource Workspace.Space.8}" />
     </Style>
     <Style Selector="StackPanel.workspace-actions"><Setter Property="HorizontalAlignment" Value="Right" /></Style>
+    <Style Selector="TabControl.booru-tabs">
+        <Setter Property="ItemsPanel">
+            <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="4" /></ItemsPanelTemplate>
+        </Setter>
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Grid RowDefinitions="Auto,*">
+                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                        <Grid>
+                            <Border Background="{DynamicResource Workspace.Background}" BorderBrush="{DynamicResource Workspace.Border}"
+                                    BorderThickness="0,0,0,1" />
+                            <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
+                        </Grid>
+                    </ScrollViewer>
+                    <ContentPresenter Grid.Row="1" Name="PART_SelectedContentHost"
+                                      Background="{DynamicResource Workspace.Panel}"
+                                      Content="{TemplateBinding SelectedContent}" ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
+                </Grid>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="TabItem.booru-tab">
+        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" />
+        <Setter Property="Padding" Value="12,0" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="CornerRadius" Value="8,8,0,0" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
+                        BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
+                        Padding="{TemplateBinding Padding}">
+                    <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
+                                      ContentTemplate="{TemplateBinding HeaderTemplate}" VerticalContentAlignment="Center" />
+                </Border>
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="TabItem.booru-tab:pointerover:not(:selected):not(.booru-add-tab)">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="TabItem.booru-tab:selected:not(.booru-add-tab)">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
+        <Setter Property="BorderThickness" Value="1,1,1,0" />
+    </Style>
+    <Style Selector="TabItem.booru-add-tab">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector="Button.booru-add-tab-button">
+        <Setter Property="Width" Value="44" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Nav}" />
+    </Style>
+    <Style Selector="Button.booru-tab-close, Button.booru-pager-button">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.ControlCompact}" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.ControlCompact}" />
+        <Setter Property="MinWidth" Value="0" /><Setter Property="MinHeight" Value="0" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <Style Selector="TextBox.workspace-invalid, ComboBox.workspace-invalid, NumericUpDown.workspace-invalid">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Error}" />
     </Style>

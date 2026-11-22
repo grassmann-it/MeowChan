@@ -13,6 +13,7 @@ using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -33,7 +34,7 @@ internal sealed partial class BooruWorkbenchView
 
     private sealed record TabHeader(TextBlock Title, Button Close);
 
-    private readonly Button _alternateSubmit = new() { Name = AlternateSubmitName };
+    private readonly Button _alternateSubmit = new() { Name = AlternateSubmitName, Classes = { "subtle" } };
     private readonly Button _openWatchers = new() { Name = OpenWatchersName };
     private readonly TextBlock _tabLimitText = new() { Name = TabLimitNoticeName, TextWrapping = TextWrapping.Wrap };
     private readonly Border _tabLimitHost = new() { Classes = { "workspace-status", "workspace-status-warning" }, IsVisible = false };
@@ -43,12 +44,12 @@ internal sealed partial class BooruWorkbenchView
     internal Func<string>? NewSearchTarget { get; set; }
     private bool OpensNewSearchTab => NewSearchTarget?.Invoke() != MeowChan.Config.BooruSearchTargetCurrentTab;
 
-    private readonly Button _openInNewTab = new() { Name = OpenInNewTabName };
-    private readonly Button _downloadAll = new() { Name = DownloadAllName };
+    private readonly Button _openInNewTab = new() { Name = OpenInNewTabName, Classes = { "subtle" } };
+    private readonly Button _downloadAll = new() { Name = DownloadAllName, Classes = { "subtle" } };
     private readonly Border _bulkHost = new() { Name = BulkStatusName, Classes = { "workspace-status" }, IsVisible = false };
     private readonly TextBlock _bulkText = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly Button _newTabButton = new() { Name = NewSearchTabName };
-    private readonly TabItem _plusTab = new();
+    private readonly Button _newTabButton = new() { Name = NewSearchTabName, Classes = { "booru-add-tab-button" } };
+    private readonly TabItem _plusTab = new() { Classes = { "booru-tab", "booru-add-tab" } };
     private readonly Dictionary<int, (TabItem Item, TabHeader Header)> _extraTabs = new();
     private List<TabItem>? _tabItems;
     private BooruSearchTabs? _searchTabs;
@@ -68,9 +69,6 @@ internal sealed partial class BooruWorkbenchView
     {
         _searchTabs = new BooruSearchTabs(_model.Search, () => SearchTabsLimit?.Invoke() ?? MeowChan.Config.BooruSearchTabsDefault);
         _searchContent = _searchTab.Content as Control;
-        _newTabButton.Classes.Add("subtle");
-        _newTabButton.Padding = new Thickness(8, 0);
-        _newTabButton.MinHeight = 0;
         _newTabButton.Click += (_, _) => OpenSearchTab(copyCurrent: false);
         _plusTab.Header = _newTabButton;
         _plusTab.IsTabStop = false;
@@ -83,8 +81,7 @@ internal sealed partial class BooruWorkbenchView
         return _tabItems.ToArray();
     }
 
-    /// <summary>Called once from the search tab's construction: the two buttons next to "Create watcher" and the bulk status.</summary>
-    private void AddSearchTabActions(Panel searchActions)
+    private WrapPanel BuildSearchTabActions()
     {
         CommandBindings.EnsureIconBeforeText(_downloadAll, "download");
         CommandBindings.EnsureIconBeforeText(_alternateSubmit, "search");
@@ -96,11 +93,10 @@ internal sealed partial class BooruWorkbenchView
             if (_model.Search.Bulk.IsRunning) _model.Search.CancelBulk();
             else await _model.Search.DownloadAllAsync();
         };
-        searchActions.Children.Insert(1, _alternateSubmit);
-        searchActions.Children.Insert(2, _openInNewTab);
-        searchActions.Children.Add(_downloadAll);
         _bulkHost.Child = _bulkText;
         AutomationProperties.SetLiveSetting(_bulkText, AutomationLiveSetting.Polite);
+        return new WrapPanel { Name = "BooruSearchActions", Classes = { "workspace-toolbar" },
+            Children = { _alternateSubmit, _openInNewTab, _createWatcher, _downloadAll, _cancel } };
     }
 
     private Control BuildBulkStatus() => _bulkHost;
@@ -125,7 +121,7 @@ internal sealed partial class BooruWorkbenchView
             bool wide = _tabs.Bounds.Width >= ViewToggleLabelsMinimumWidth;
             if (wide != _wideViewToggle) { _wideViewToggle = wide; RenderViewToggleLabels(); }
         };
-        return new StackPanel { Spacing = 12, Children = { _bottomStatusHost, _pager } };
+        return new StackPanel { Spacing = 8, Children = { _bottomStatusHost, _pager, _pageLimit } };
     }
 
     /// <summary>A successful or empty result is reported under the list; failures, pauses and the repair route stay above it.</summary>
@@ -133,7 +129,7 @@ internal sealed partial class BooruWorkbenchView
     {
         bool below = view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && !_retry.IsVisible;
         _bottomStatusHost.IsVisible = below;
-        _statusHost.IsVisible = !below;
+        WorkViewElement.SetStateVisible(_statusHost, !below);
         if (!below) return;
         _bottomStatusText.Text = _statusText.Text;
         AutomationProperties.SetName(_bottomStatusText, _statusText.Text);
@@ -187,13 +183,15 @@ internal sealed partial class BooruWorkbenchView
         string defaultTarget = Texts.T(opensNewTab ? "booru.tabs.searchNew" : "booru.tabs.searchCurrent");
         string alternateTarget = Texts.T(opensNewTab ? "booru.tabs.searchCurrent" : "booru.tabs.searchNew");
         DescribeSearchAction(_submit, SubmitCommand, defaultTarget, blocked);
-        _alternateSubmit.Content = alternateTarget;
-        DescribeSearchAction(_alternateSubmit, AlternateSubmitCommand, alternateTarget, blocked);
+        _alternateSubmit.Content = Texts.T(opensNewTab ? "booru.tabs.searchCurrentShort" : "booru.tabs.searchNewShort");
+        AutomationProperties.SetName(_alternateSubmit, alternateTarget);
+        DescribeSearchAction(_alternateSubmit, AlternateSubmitCommand, alternateTarget,
+            blocked is null ? alternateTarget : alternateTarget + "\n" + blocked);
     }
 
-    private static void DescribeSearchAction(Button action, string command, string destination, string? blocked)
+    private static void DescribeSearchAction(Button action, string command, string destination, string? disabledTip)
     {
-        string? tip = blocked;
+        string? tip = disabledTip;
         if (action.IsEnabled)
         {
             string? shortcut = CommandCatalog.ShortcutTooltipDisplay(command, "booru");
@@ -350,8 +348,9 @@ internal sealed partial class BooruWorkbenchView
 
     private TabHeader MakeClosableHeader(TabItem item, Action closeTab, string? closeName = null)
     {
-        TextBlock title = new() { MaxWidth = 200, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
-        Button close = new() { Name = closeName, Classes = { "subtle" }, Padding = new Thickness(2), MinHeight = 0, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
+        item.Classes.Add("booru-tab");
+        TextBlock title = new() { MaxWidth = 160, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+        Button close = new() { Name = closeName, Classes = { "ghost", "booru-tab-close" } };
         close.AttachedToVisualTree += (_, _) => { if (close.Content is not Control) close.Content = CommandBindings.NamedIcon("x", 12); };
         close.Click += (_, e) => { e.Handled = true; closeTab(); };
         StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, close } };
@@ -406,31 +405,32 @@ internal sealed partial class BooruWorkbenchView
         _openWatchers.Content = Texts.T("booru.tabs.watchers");
         RenderTabLimitNotice();
         string newName = Texts.T("booru.tabs.new");
-        ToolTip.SetTip(_newTabButton, newName);
-        AutomationProperties.SetName(_newTabButton, newName);
-        if (_newTabButton.Content is null) _newTabButton.Content = "+";
+        IconButtons.Apply(_newTabButton, "plus", newName);
         _newTabButton.IsEnabled = true;
 
-        _openInNewTab.Content = Texts.T("booru.tabs.openCurrent");
+        _openInNewTab.Content = Texts.T("settings.booru.newSearchTarget.new");
         _openInNewTab.IsEnabled = !view.IsBusy && (view.Parsed.IsValid || view.ExecutedQuery is not null || view.ExecutedPostId is not null);
         string openHint = Texts.T("booru.tabs.openCurrentHint");
-        ToolTip.SetTip(_openInNewTab, openHint);
-        AutomationProperties.SetName(_openInNewTab, _openInNewTab.Content.ToString());
+        string openName = Texts.T("booru.tabs.openCurrent");
+        ToolTip.SetTip(_openInNewTab, openName + "\n" + openHint);
+        ToolTip.SetShowOnDisabled(_openInNewTab, true);
+        AutomationProperties.SetName(_openInNewTab, openName);
         AutomationProperties.SetHelpText(_openInNewTab, openHint);
 
         BooruSearchModel model = _model.Search;
         BooruBulkView bulk = model.Bulk;
         bool belongsToTab = bulk.TabId == tabs.ActiveId;
         bool running = bulk.IsRunning && belongsToTab;
-        _downloadAll.Content = Texts.T(running ? "booru.bulk.stop" : "booru.bulk.button");
+        string downloadName = Texts.T(running ? "booru.bulk.stop" : "booru.bulk.button");
+        _downloadAll.Content = running ? downloadName : Texts.T("booru.tabs.downloadShort");
         _downloadAll.IsEnabled = running || model.CanDownloadAll;
         string bulkHint = running ? string.Empty
             : bulk.IsRunning ? Texts.T("booru.bulk.otherTab", bulk.Query)
             : model.CanDownloadAll ? Texts.T("booru.bulk.hint", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize)
             : Texts.T("booru.bulk.needsSearch");
-        ToolTip.SetTip(_downloadAll, bulkHint.Length == 0 ? null : bulkHint);
+        ToolTip.SetTip(_downloadAll, running ? downloadName : downloadName + "\n" + bulkHint);
         ToolTip.SetShowOnDisabled(_downloadAll, true);
-        AutomationProperties.SetName(_downloadAll, _downloadAll.Content.ToString());
+        AutomationProperties.SetName(_downloadAll, downloadName);
         AutomationProperties.SetHelpText(_downloadAll, bulkHint);
 
         // The counts belong to one search: they are shown only beside the results of that same search.

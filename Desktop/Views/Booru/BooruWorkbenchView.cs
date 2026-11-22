@@ -91,12 +91,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TextBlock _title = new() { Classes = { "page-title" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _intro = new() { Classes = { "workspace-help" } };
     private readonly TextBlock _provider = new() { Classes = { "workspace-meta" } };
-    private readonly TabControl _tabs = new() { Name = TabsName };
-    private readonly TabItem _searchTab = new() { Tag = BooruSearchTabs.PrimaryId };
+    private readonly TabControl _tabs = new() { Name = TabsName, Classes = { "booru-tabs" } };
+    private readonly TabItem _searchTab = new() { Tag = BooruSearchTabs.PrimaryId, Classes = { "booru-tab" } };
     private readonly TabItem _watchersTab = new() { Name = WatchersTabName };
-    private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 170 };
+    private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 136 };
     // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
-    private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false };
     private readonly Button _submit = new() { Name = SubmitName };
     private readonly Button _cancel = new() { Name = CancelName };
     private readonly SelectableTextBlock _queryLine = new() { Name = QueryName, Classes = { "workspace-meta", "mono" } };
@@ -106,11 +106,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly Border _statusHost = new() { Name = StatusName };
     private readonly TextBlock _statusText = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _retry = new() { Name = RetryName, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly WrapPanel _pager = new() { Classes = { "workspace-toolbar" } };
-    private readonly Button _previous = new() { Name = PreviousName };
-    private readonly Button _next = new() { Name = NextName };
-    private readonly TextBlock _pageInfo = new() { Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _pageLimit = new() { Classes = { "workspace-help" } };
+    private readonly Grid _pager = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly Button _previous = new() { Name = PreviousName, Classes = { "booru-pager-button" } };
+    private readonly Button _next = new() { Name = NextName, Classes = { "booru-pager-button" } };
+    private readonly TextBlock _pageInfo = new() { Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center,
+        TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center };
+    private readonly TextBlock _pageLimit = new() { Classes = { "workspace-help" }, TextAlignment = TextAlignment.Center };
     private readonly Button _createWatcher = new() { Name = CreateWatcherName, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly Border _noticeHost = new();
     private readonly TextBlock _noticeText = new() { Name = NoticeName, TextWrapping = TextWrapping.Wrap };
@@ -328,7 +329,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildSearchTab()
     {
-        _mode.ItemsSource = new[] { new ComboBoxItem { Tag = BooruInputMode.Tags }, new ComboBoxItem { Tag = BooruInputMode.Post } };
         _mode.SelectionChanged += (_, _) =>
         {
             if (_applying || _mode.SelectedItem is not ComboBoxItem { Tag: BooruInputMode mode }) return;
@@ -348,6 +348,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             await SubmitSearchAsync(alternate);
         }, RoutingStrategies.Tunnel);
         _submit.Classes.Add("primary");
+        _cancel.Classes.Add("subtle");
+        _createWatcher.Classes.Add("subtle");
+        ToolTip.SetShowOnDisabled(_createWatcher, true);
         CommandBindings.EnsureIconBeforeText(_submit, "search");
         CommandBindings.EnsureIconBeforeText(_createWatcher, "plus");
         _submit.Click += async (_, _) => await SubmitSearchAsync();
@@ -357,12 +360,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _next.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page + 1);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
-        WrapPanel searchActions = new() { Name = "BooruSearchActions", ItemSpacing = 8, LineSpacing = 4,
-            Children = { _submit, _createWatcher, _cancel } };
-        AddSearchTabActions(searchActions);
-        Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
+        Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,240,Auto"), ColumnSpacing = 8 };
         inputRow.Children.Add(_mode);
         Grid.SetColumn(_input, 1); inputRow.Children.Add(_input);
+        Grid.SetColumn(_submit, 2); inputRow.Children.Add(_submit);
+        WrapPanel searchToolbar = new() { Classes = { "workspace-toolbar" }, Children = { inputRow, BuildSearchTabActions() } };
 
         _queryLine.TextWrapping = TextWrapping.Wrap;
         StackPanel status = new() { Spacing = 8 };
@@ -374,15 +376,16 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         AutomationProperties.SetLiveSetting(_statusText, AutomationLiveSetting.Polite);
 
         _pager.Children.Add(_previous);
+        Grid.SetColumn(_pageInfo, 1);
         _pager.Children.Add(_pageInfo);
+        Grid.SetColumn(_next, 2);
         _pager.Children.Add(_next);
 
         _noticeHost.Child = _noticeText;
         AutomationProperties.SetLiveSetting(_noticeText, AutomationLiveSetting.Polite);
 
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
-        tab.Children.Add(inputRow);
-        tab.Children.Add(searchActions);
+        tab.Children.Add(searchToolbar);
         AutomationProperties.SetLiveSetting(_inputIssue, AutomationLiveSetting.Polite);
         tab.Children.Add(_inputIssue);
         tab.Children.Add(_queryLine);
@@ -393,7 +396,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
         tab.Children.Add(_results);
         tab.Children.Add(BuildBottomBar()); // result line and pager under the list
-        tab.Children.Add(_pageLimit);
         return tab;
     }
 
@@ -515,14 +517,17 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         bool paused = model.IsPaused;
         _paused = paused;
 
-        // Mode selector items follow the language; the selection follows the model.
-        if (_mode.ItemsSource is IEnumerable<ComboBoxItem> items)
+        // The closed combo caches its selected label, so replace its items when their translations change.
+        string tagsLabel = Texts.T("booru.ui.mode.tags");
+        string postLabel = Texts.T("booru.ui.mode.post");
+        if (_mode.ItemsSource is not ComboBoxItem[] modes || modes[0].Content as string != tagsLabel || modes[1].Content as string != postLabel)
         {
-            foreach (ComboBoxItem item in items)
-                item.Content = Texts.T(item.Tag is BooruInputMode.Post ? "booru.ui.mode.post" : "booru.ui.mode.tags");
-            ComboBoxItem selected = items.First(item => (BooruInputMode)item.Tag! == view.Mode);
-            if (!ReferenceEquals(_mode.SelectedItem, selected)) _mode.SelectedItem = selected;
+            modes = [new ComboBoxItem { Tag = BooruInputMode.Tags, Content = tagsLabel },
+                     new ComboBoxItem { Tag = BooruInputMode.Post, Content = postLabel }];
+            _mode.ItemsSource = modes;
         }
+        ComboBoxItem selected = modes[view.Mode == BooruInputMode.Post ? 1 : 0];
+        if (!ReferenceEquals(_mode.SelectedItem, selected)) _mode.SelectedItem = selected;
         AutomationProperties.SetName(_mode, Texts.T("booru.ui.mode.label"));
         if (_input.Text != view.Input) _input.Text = view.Input;
         _input.PlaceholderText = Texts.T(view.Mode == BooruInputMode.Post ? "booru.ui.input.placeholder.post" : "booru.ui.input.placeholder.tags");
@@ -549,13 +554,13 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _queryHint.IsVisible = view.Mode == BooruInputMode.Tags;
         _queryHint.Text = Texts.T("booru.ui.query.hint");
 
-        _createWatcher.Content = Texts.T("booru.ui.watcher.create");
+        _createWatcher.Content = Texts.T("booru.tabs.watchShort");
         _createWatcher.IsEnabled = model.CanCreateWatcher && !_model.Watchers.View.Creating;
         string createName = Texts.T("booru.ui.watcher.create");
         string createHelp = _createWatcher.IsEnabled ? Texts.T("booru.ui.watcher.createHint") : Texts.T("booru.ui.watcher.createNeedsTags");
         AutomationProperties.SetName(_createWatcher, createName);
         AutomationProperties.SetHelpText(_createWatcher, createHelp);
-        ToolTip.SetTip(_createWatcher, createHelp);
+        ToolTip.SetTip(_createWatcher, createName + "\n" + createHelp);
 
         _loadMirror.Update(view.Rows.Select(row => (row.Post.PostId,
             row.Load == BooruRowLoad.Idle ? default((BooruRowLoad, string?)?) : (row.Load, row.LoadCode))), view.Notice);
@@ -585,7 +590,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         AutomationProperties.SetLiveSetting(_statusText, tone == BooruNoticeKind.Error ? AutomationLiveSetting.Assertive : AutomationLiveSetting.Polite);
         _statusText.Text = repairShown ? BooruText.RepairStatus(_repair) : BooruText.SearchStatus(view, paused);
         AutomationProperties.SetName(_statusText, _statusText.Text);
-        _statusHost.IsVisible = true;
         ApplyTone(_statusHost, tone);
         _retry.Content = Texts.T("booru.ui.status.retry");
         // Searching again before the restart fails the same way, so the route replaces "Search again".
