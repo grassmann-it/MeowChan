@@ -360,11 +360,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _next.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page + 1);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
-        Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,240,Auto"), ColumnSpacing = 8 };
-        inputRow.Children.Add(_mode);
-        Grid.SetColumn(_input, 1); inputRow.Children.Add(_input);
-        Grid.SetColumn(_submit, 2); inputRow.Children.Add(_submit);
-        WrapPanel searchToolbar = new() { Classes = { "workspace-toolbar" }, Children = { inputRow, BuildSearchTabActions() } };
+        SearchToolbar searchToolbar = new(_mode, _input, _submit, BuildSearchTabActions());
 
         _queryLine.TextWrapping = TextWrapping.Wrap;
         StackPanel status = new() { Spacing = 8 };
@@ -555,13 +551,17 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _queryHint.IsVisible = view.Mode == BooruInputMode.Tags;
         _queryHint.Text = Texts.T("booru.ui.query.hint");
 
-        _createWatcher.Content = Texts.T("booru.tabs.watchShort");
-        _createWatcher.IsEnabled = model.CanCreateWatcher && !_model.Watchers.View.Creating;
-        string createName = Texts.T("booru.ui.watcher.create");
-        string createHelp = _createWatcher.IsEnabled ? Texts.T("booru.ui.watcher.createHint") : Texts.T("booru.ui.watcher.createNeedsTags");
+        string createName = Texts.T("booru.tabs.watchShort");
+        _createWatcher.Content = createName;
+        bool creatingWatcher = _model.Watchers.View.Creating;
+        _createWatcher.IsEnabled = model.CanCreateWatcher && !creatingWatcher;
+        string createHelp = Texts.T(creatingWatcher ? "booru.ui.watcher.creating"
+            : view.Mode == BooruInputMode.Post ? "booru.ui.watcher.createNeedsTags"
+            : model.CanCreateWatcher ? "booru.ui.watcher.createHint"
+            : "booru.ui.watcher.createInvalidTags");
         AutomationProperties.SetName(_createWatcher, createName);
         AutomationProperties.SetHelpText(_createWatcher, createHelp);
-        ToolTip.SetTip(_createWatcher, createName + "\n" + createHelp);
+        ToolTip.SetTip(_createWatcher, createHelp);
 
         _loadMirror.Update(view.Rows.Select(row => (row.Post.PostId,
             row.Load == BooruRowLoad.Idle ? default((BooruRowLoad, string?)?) : (row.Load, row.LoadCode))), view.Notice);

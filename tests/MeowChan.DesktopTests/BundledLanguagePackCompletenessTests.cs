@@ -29,15 +29,6 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         ["pl"] = "Polski (Untested)"
     };
 
-    // These source keys were added after the preview packs and deliberately remain English
-    // fallback until reviewed translations exist. Keep this allowlist exact: it must not hide
-    // a new missing key, and it must not turn an empty sentinel into a pack entry.
-    internal static readonly IReadOnlySet<string> KnownMissingKeys = new HashSet<string>(StringComparer.Ordinal)
-    {
-        "reader.media.activation.contextChanged",
-        "reader.media.activation.missing"
-    };
-
     [Fact]
     public void EveryBundledPackIsAnExpectedPreviewAndTheReadmeNamesAllOfThem()
     {
@@ -119,11 +110,7 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
             .Select(entry => entry.Key)
             .Where(key => PluralRules.BaseKey(key) is not { } baseKey || !BuiltInCatalog.English.ContainsKey(baseKey)
                 || categories.Contains(key[(key.LastIndexOf('.') + 1)..]));
-        string[] actualMissingKeys = selectableEnglishKeys.Except(translations.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-        Assert.Equal(
-            KnownMissingKeys.Order(StringComparer.Ordinal),
-            actualMissingKeys);
-        IEnumerable<string> expectedKeys = selectableEnglishKeys.Except(KnownMissingKeys, StringComparer.Ordinal);
+        Assert.Empty(selectableEnglishKeys.Except(translations.Keys, StringComparer.Ordinal));
         // Languages with more number forms than English add optional "<key>.few" style variants of an English key.
         string[] pluralVariants = translations.Keys.Where(key => !BuiltInCatalog.English.ContainsKey(key)).ToArray();
         Assert.All(pluralVariants, key =>
@@ -136,7 +123,7 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         if (PluralRules.Category(code, 1) == PluralRules.Other)
             Assert.Empty(translations.Keys.Where(key => PluralRules.BaseKey(key) != null)); // zh/ja: no .one keys at all
         Assert.Equal(
-            expectedKeys.Order(StringComparer.Ordinal),
+            selectableEnglishKeys.Order(StringComparer.Ordinal),
             translations.Keys.Except(pluralVariants).Order(StringComparer.Ordinal));
         Assert.All(translations.Values, value => Assert.False(string.IsNullOrWhiteSpace(value)));
 
@@ -153,11 +140,5 @@ public sealed class BundledLanguagePackCompletenessTests : IDisposable
         Assert.Empty(Texts.Warnings);
         foreach (var (key, value) in translations)
             Assert.Equal(value, Texts.T(key));
-        foreach (string key in KnownMissingKeys)
-        {
-            Assert.False(translations.ContainsKey(key), code + " unexpectedly claims a translation for " + key);
-            Assert.Null(Texts.Own(key));
-            Assert.Equal(BuiltInCatalog.English[key], Texts.T(key));
-        }
     }
 }

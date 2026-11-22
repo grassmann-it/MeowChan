@@ -22,7 +22,7 @@ internal static class BooruSearchTabsCatalog
         ("settings.booru.newSearchTarget.new", "New tab", "Neuer Tab"),
         ("settings.booru.newSearchTarget.current", "Current tab", "Aktueller Tab"),
         ("booru.tabs.new", "New search tab", "Neuer Such-Tab"),
-        ("booru.tabs.openCurrent", "Open in new tab", "In neuem Tab öffnen"),
+        ("booru.tabs.duplicate", "Duplicate tab", "Tab duplizieren"),
         ("booru.tabs.openCurrentHint", "Copies the shown search and its results into a new tab. Nothing is sent.", "Kopiert die angezeigte Suche samt Ergebnissen in einen neuen Tab. Es wird nichts gesendet."),
         ("booru.tabs.close", "Close tab", "Tab schließen"),
         ("booru.tabs.closeFor", "Close tab “{0}”", "Tab „{0}“ schließen"),

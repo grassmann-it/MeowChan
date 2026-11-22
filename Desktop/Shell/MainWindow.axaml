@@ -272,7 +272,7 @@
                             </Grid>
                         </Border>
                                 <Grid x:Name="ThreadsResultPanel" Grid.Row="2">
-<DataGrid x:Name="ThreadsDataGrid"
+<controls:RowFocusDataGrid x:Name="ThreadsDataGrid" Classes="row-focus"
                               ItemsSource="{Binding VisibleThreads}"
                               AutoGenerateColumns="False" HeadersVisibility="Column" CanUserReorderColumns="True" CanUserSortColumns="True"
                               GridLinesVisibility="Horizontal"
@@ -307,6 +307,9 @@
 
                             <!-- Title Column -->
                             <DataGridTemplateColumn Header="Thread / title" Width="*" MinWidth="200" SortMemberPath="Title">
+                                <DataGridTemplateColumn.CellStyleClasses>
+                                    <x:String>cell-action</x:String>
+                                </DataGridTemplateColumn.CellStyleClasses>
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate x:DataType="desktop:ThreadRow">
                                         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Center">
@@ -372,7 +375,7 @@
 
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
-                    </DataGrid>
+                    </controls:RowFocusDataGrid>
                                     <!-- The text never takes input; only the next-step button below it does. -->
                                     <controls:WorkspaceEmptyState x:Name="ThreadsEmptyPanel">
                                         <TextBlock x:Name="ThreadsEmptyState" Tag="downloads.empty" Classes="localized workspace-empty-text"
@@ -382,7 +385,7 @@
                                     </controls:WorkspaceEmptyState>
                                 </Grid>
                                 <Grid x:Name="BoardsResultPanel" Grid.Row="2" IsVisible="False">
-<DataGrid x:Name="BoardsDataGrid"
+                    <controls:RowFocusDataGrid x:Name="BoardsDataGrid" Classes="row-focus"
                               ItemsSource="{Binding VisibleBoards}"
                               AutoGenerateColumns="False" IsReadOnly="True" SelectionMode="Extended" CanUserReorderColumns="True"
                               GridLinesVisibility="Horizontal"
@@ -417,7 +420,7 @@
 
                         <!-- ContextMenu for right-clicking on a row -->
                         <DataGrid.ContextMenu><ContextMenu /></DataGrid.ContextMenu>
-                    </DataGrid>
+                    </controls:RowFocusDataGrid>
                                     <!-- Same next step as the Threads state: the URL on the clipboard is imported (a board URL discovers its threads). -->
                                     <controls:WorkspaceEmptyState x:Name="BoardsEmptyPanel">
                                         <TextBlock x:Name="BoardsEmptyState" Tag="downloads.boardsEmpty" Classes="localized workspace-empty-text"
