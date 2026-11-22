@@ -276,9 +276,9 @@ public sealed partial class TaggingPage
     private Task OpenGalleryAsync(IReadOnlyList<TaggingQueueRow> selected, TaggingQueueRow lead)
     {
         if (OpenGallery is not { } open) return Task.CompletedTask;
-        if (selected.Count > 1) return open(selected.Select(row => row.Item).ToArray(), 0);
-        int start = _rows.ToList().FindIndex(row => row.Key == lead.Key);
-        return start < 0 ? Task.CompletedTask : open(_rows.Select(row => row.Item).ToArray(), start);
+        TagQueueItem[] window = (selected.Count > 1 ? selected : _rows).Select(row => row.Item).ToArray();
+        int start = Array.FindIndex(window, item => item.Key == lead.Key);
+        return start < 0 ? Task.CompletedTask : open(window, start);
     }
 
     // The row after the last removed one (else the one before the first) keeps the keyboard where the user was.

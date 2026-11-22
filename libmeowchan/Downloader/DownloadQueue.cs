@@ -826,7 +826,11 @@ public partial class DownloadQueue
                 }
             }
             using CancellationTokenSource waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _lifetime.Token);
-            await cleanup!.WaitAsync(waiting.Token).ConfigureAwait(false);
+            try { await cleanup!.WaitAsync(waiting.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested && _lifetime.IsCancellationRequested)
+            {
+                return false;
+            }
         }
         try
         {

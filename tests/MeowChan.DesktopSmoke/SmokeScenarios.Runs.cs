@@ -115,7 +115,10 @@ internal static partial class SmokeScenarios
             Configure = config => { config.WorkspaceMode = Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_NARROW_VIEW") ?? "Advanced"; config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
         },
         ["theme-colors"] = new(SmokeStage.Ready, mainWindow => ThemeColorsChecks.RunAsync(mainWindow)),
-        ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow)),
+        ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow))
+        {
+            Seed = MediaPageChecks.SeedAsync
+        },
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
         ["tagging-mode"] = new(SmokeStage.Ready, mainWindow => TaggingModeChecks.RunAsync(mainWindow)),
         ["tagging-cards"] = new(SmokeStage.Ready, mainWindow => TaggingCardsChecks.RunAsync(mainWindow)),

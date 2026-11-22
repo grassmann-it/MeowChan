@@ -5057,6 +5057,7 @@
     "help.themeColors.li1": "Os destaques prontos definem o destaque de ambos de uma vez. Depois você ainda pode alterar cada cor; “Redefinir tudo” volta às cores integradas.",
     "help.themeColors.li2": "O texto precisa de contraste de pelo menos 4,5 : 1 com o fundo; bordas e marcas devem chegar a 3 : 1. Aplicar fica desativado até que todas as cores de texto passem.",
     "help.themeColors.li3": "Nada é salvo até você aplicar. “Testar na janela” mostra enquanto isso suas cores em toda a janela; Cancelar, Esc ou fechar restaura as cores salvas.",
+    "tagging.page.openGallery.missing": "A mídia selecionada não está mais disponível.",
     "tagging.page.showInMedia.missing": "Esta entrada não é mostrada agora na página Mídia; um filtro pode estar ocultando-a.",
     "tagging.page.view": "Visualização",
     "tagging.page.view.list": "Lista",

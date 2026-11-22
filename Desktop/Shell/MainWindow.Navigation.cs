@@ -372,6 +372,7 @@ public partial class MainWindow
         {
             ++_mediaPageNavigationRevision;
             _mediaPage?.InvalidateSharedMediaMenu();
+            if (_selectedPage == WorkspacePage.Tagging) ++_taggingPageVisit;
         }
         ++_readingResumeNavigationRevision;
         if (page != WorkspacePage.Sources) _pluginsPage?.Deactivate();

@@ -13,6 +13,17 @@ public sealed record PluginWorkerSnapshot(PluginWorkerIdentity Identity, string 
 
 public sealed record PluginWorkerOptions
 {
+    internal const int AutomaticRestartsDefault = 3;
+    internal const int AutomaticRestartsMinimum = 0;
+    internal const int AutomaticRestartsMaximum = 10;
+    internal const int RestartWindowMinutesDefault = 10;
+    internal const int RestartWindowMinutesMinimum = 1;
+    internal const int RestartWindowMinutesMaximum = 60;
+
+    /// <summary>Automatic process start attempts after failure. Zero requires explicit retry after each failure.</summary>
+    public int MaximumAutomaticRestarts { get; init; } = AutomaticRestartsDefault;
+    /// <summary>Length of the rolling window in which automatic start attempts count toward the limit.</summary>
+    public int RestartWindowMinutes { get; init; } = RestartWindowMinutesDefault;
     public TimeSpan HandshakeTimeout { get; init; } = TimeSpan.FromSeconds(10);
     public TimeSpan OperationTimeout { get; init; } = TimeSpan.FromSeconds(45);
     public TimeSpan CancellationGrace { get; init; } = TimeSpan.FromSeconds(2);

@@ -112,7 +112,7 @@ public sealed class PluginWorkerManager : IAsyncDisposable
 
     internal async Task<WorkerConnection> StartConnectionAsync(PluginWorkerClient owner, PluginWorkerLaunch launch,
         PluginArtifact artifact, PluginConfiguration configuration, IPluginHostServices services,
-        PluginWorkerOptions options, bool testWorker, CancellationToken token)
+        PluginWorkerOptions options, bool testWorker, Action? onProcessStartAttempt, CancellationToken token)
     {
         // Evict an idle revision when a different plugin needs capacity. Busy workers retain
         // their leases. Serial calls enqueue only once at the global FIFO, so one source
@@ -130,7 +130,9 @@ public sealed class PluginWorkerManager : IAsyncDisposable
         {
             using IDisposable starting = await _starts.EnterAsync(token).ConfigureAwait(false);
             await InventoryTemporaryRootAsync(launch.WorkingDirectory, token).ConfigureAwait(false);
-            return await WorkerConnection.StartAsync(launch, artifact, configuration, services, options, process, token, temporaryBytes: TemporaryBytesWithExternal, sharedBudget: TemporaryBudget, workspaceQuota: WorkspaceQuota).ConfigureAwait(false);
+            return await WorkerConnection.StartAsync(launch, artifact, configuration, services, options, process, token,
+                temporaryBytes: TemporaryBytesWithExternal, sharedBudget: TemporaryBudget, workspaceQuota: WorkspaceQuota,
+                onProcessStartAttempt: onProcessStartAttempt).ConfigureAwait(false);
         }
         catch { process.Dispose(); throw; }
     }
@@ -179,6 +181,8 @@ public sealed class PluginWorkerManager : IAsyncDisposable
             || options.FilterHeapLimitBytes < 256L * 1024 * 1024 || options.FilterHeapLimitBytes > 2048L * 1024 * 1024
             || options.WorkspaceByteQuota is < 1 or > 2L * 1024 * 1024 * 1024
             || options.MaximumTemporaryBytes < 1 || options.MaximumTemporaryBytes > 2L * 1024 * 1024 * 1024
+            || options.MaximumAutomaticRestarts is < PluginWorkerOptions.AutomaticRestartsMinimum or > PluginWorkerOptions.AutomaticRestartsMaximum
+            || options.RestartWindowMinutes is < PluginWorkerOptions.RestartWindowMinutesMinimum or > PluginWorkerOptions.RestartWindowMinutesMaximum
             || options.HandshakeTimeout <= TimeSpan.Zero || options.OperationTimeout <= TimeSpan.Zero
             || options.CancellationGrace <= TimeSpan.Zero || options.IdleTimeout <= TimeSpan.Zero)
             throw new ArgumentOutOfRangeException(nameof(options), "Invalid or unbounded plugin runtime limits.");

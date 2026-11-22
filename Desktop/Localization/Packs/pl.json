@@ -5096,6 +5096,7 @@
     "help.themeColors.li1": "Gotowe akcenty ustawiają akcent dla obu motywów naraz. Potem nadal możesz zmieniać pojedyncze kolory; „Przywróć wszystko” wraca do kolorów wbudowanych.",
     "help.themeColors.li2": "Tekst musi mieć względem tła kontrast co najmniej 4,5 : 1; obramowania i znaczniki powinny osiągać 3 : 1. Przycisk Zastosuj pozostaje wyłączony, dopóki każdy kolor tekstu nie przejdzie kontroli.",
     "help.themeColors.li3": "Nic nie jest zapisywane, dopóki nie zastosujesz zmian. „Wypróbuj w oknie” w międzyczasie pokazuje twoje kolory w całym oknie; Anuluj, Esc lub zamknięcie przywraca zapisane kolory.",
+    "tagging.page.openGallery.missing": "Wybrany plik multimedialny nie jest już dostępny.",
     "tagging.page.showInMedia.missing": "Ten wpis nie jest teraz widoczny na stronie Media; może go ukrywać filtr.",
     "tagging.page.view": "Widok",
     "tagging.page.view.list": "Lista",

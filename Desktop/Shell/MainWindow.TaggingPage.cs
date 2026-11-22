@@ -21,6 +21,10 @@ namespace MeowChan;
 public partial class MainWindow
 {
     private TaggingPage? _taggingPage;
+    private int _taggingPageVisit;
+
+    internal Func<string, CancellationToken, Task<Storage.MediaAssetSnapshot>> TaggingGalleryOpenManifest { get; set; } =
+        Storage.MediaAssetReader.OpenAsync;
 
     /// <summary>The tagging page once it has been opened; null before.</summary>
     internal TaggingPage? TaggingPage => _taggingPage;
@@ -134,26 +138,33 @@ public partial class MainWindow
     /// <summary>"Open in gallery": the gallery over the given entries (the page picks the selection or the shown list), beginning at <paramref name="start"/>.</summary>
     private async Task OpenTaggingEntriesGalleryAsync(System.Collections.Generic.IReadOnlyList<TagQueueItem> items, int start)
     {
-        if (!TaggingEntryCurrent() || start < 0 || start >= items.Count) return;
+        TaggingPage? page = _taggingPage;
+        int visit = _taggingPageVisit;
+        bool Current() => _selectedPage == WorkspacePage.Tagging && visit == _taggingPageVisit && TaggingEntryCurrent();
+        if (page == null || !Current() || start < 0 || start >= items.Count) return;
+        MediaLibraryEntry chosen = items[start].ToLibraryEntry();
         // From the chosen entry on (then the ones before it), at most the walk window: a long list opens as quickly as the queue walk does.
-        TagQueueItem[] window = items.Skip(start).Concat(items.Take(start)).Take(_session.Config.TagQueueWalkWindow).ToArray();
-        MediaLibraryEntry[] indexed = window.Select(item => item.ToLibraryEntry()).ToArray();
+        MediaLibraryEntry[] indexed = items.Skip(start).Concat(items.Take(start)).Take(TagQueueWalkWindow)
+            .Select(item => item.ToLibraryEntry()).ToArray();
         try
         {
             System.Collections.Generic.IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
-                Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
-            if (!TaggingEntryCurrent()) return;
-            GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(indexed[0], entry)) ?? entries.FirstOrDefault();
-            if (first == null)
+                TaggingGalleryOpenManifest, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);
+            if (!Current()) return;
+            // Older queues lack a binding revision. The resolver still pins the saved asset and its post occurrence.
+            GalleryEntry? first = entries.FirstOrDefault(entry => MediaMenuIdentity.Matches(chosen.AttachmentRevisionKey == null
+                ? chosen with { AttachmentRevisionKey = entry.AttachmentResolution?.Binding?.Reference.RevisionKey }
+                : chosen, entry));
+            if (first == null || !File.Exists(first.Asset.Path))
             {
-                ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Warning, operation: "tagging.menu");
+                ShowNotification(Texts.T("notification.error"), Texts.T("tagging.page.openGallery.missing"), NotificationType.Warning, operation: "tagging.menu");
                 return;
             }
-            await OpenMediaGalleryAsync(entries, first.EntryKey, _taggingPage, stillRequested: () => !_isClosing && _gallery == null);
+            await OpenMediaGalleryAsync(entries, first.EntryKey, page, stillRequested: Current);
         }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or Microsoft.Data.Sqlite.SqliteException)
         {
-            if (TaggingEntryCurrent()) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "tagging.menu");
+            if (Current()) ShowNotification(Texts.T("notification.error"), Texts.T("media.galleryFailed"), NotificationType.Error, operation: "tagging.menu");
         }
     }
 

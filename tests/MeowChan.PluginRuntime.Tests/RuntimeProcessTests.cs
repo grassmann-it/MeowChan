@@ -293,18 +293,65 @@ public sealed class RuntimeProcessTests
         await WaitExited(child);
     }
     [Fact]
-    public async Task RestartBudgetRequiresExplicitRetryAfterThreeAutomaticRestarts()
+    public async Task CancellingThreeRestartDelaysPreservesTheNextWorkerStart()
+    {
+        using Workspace workspace = new();
+        await using PluginWorkerManager manager = new();
+        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
+        PluginWorkerIdentity original = worker.Identity;
+        await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("crash"), Operation));
+
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            using CancellationTokenSource cancellation = new();
+            Task<ThreadReadResult> call = worker.ReadThreadAsync(Thread(), Operation, cancellation.Token);
+            try { Assert.Equal("restart-delay", worker.Snapshot.State); }
+            finally { cancellation.Cancel(); }
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call.WaitAsync(HangGuard));
+            Assert.Equal(original, worker.Identity);
+        }
+
+        Assert.IsType<SdkThreadSnapshot>(await worker.ReadThreadAsync(Thread(), Operation).WaitAsync(HangGuard));
+        Assert.NotEqual(original.InstanceId, worker.Identity.InstanceId);
+    }
+
+    [Fact]
+    public async Task RestartBudgetRequiresExplicitRetryAfterThreeFailedStarts()
     {
         using Workspace workspace = new(); await using PluginWorkerManager manager = new();
-        await using IPluginWorkerClient worker = await manager.StartAsync(Launch(workspace.Path), Artifact(), Configuration, new Services());
-        for (int crash = 0; crash < 4; crash++)
-            await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("crash"), Operation));
+        PluginWorkerLaunch normal = Launch(workspace.Path);
+        List<string> arguments = [.. normal.Arguments];
+        await using IPluginWorkerClient worker = await manager.StartAsync(normal with { Arguments = arguments }, Artifact(), Configuration, new Services());
+        await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread("crash"), Operation));
+        arguments.Clear();
+        arguments.AddRange(Launch(workspace.Path, "version").Arguments);
+        for (int attempt = 0; attempt < 3; attempt++)
+        {
+            PluginWorkerException failed = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread(), Operation));
+            Assert.Equal("protocol", failed.Code);
+        }
         PluginWorkerException blocked = await Assert.ThrowsAsync<PluginWorkerException>(() => worker.ReadThreadAsync(Thread(), Operation));
         Assert.Equal("restart-limit", blocked.Code);
         Assert.Equal("intervention-required", worker.Snapshot.State);
+        arguments.Clear();
+        arguments.AddRange(normal.Arguments);
         await worker.RetryAsync();
         Assert.IsType<SdkThreadSnapshot>(await worker.ReadThreadAsync(Thread(), Operation));
     }
+
+    [Theory]
+    [InlineData(-1, 10)]
+    [InlineData(11, 10)]
+    [InlineData(3, 0)]
+    [InlineData(3, 61)]
+    public async Task RestartBudgetRejectsOptionsOutsideTheSupportedRange(int attempts, int minutes)
+    {
+        await Assert.ThrowsAsync<ArgumentOutOfRangeException>(async () =>
+        {
+            await using PluginWorkerManager manager = new(new() { MaximumAutomaticRestarts = attempts, RestartWindowMinutes = minutes });
+        });
+    }
+
     [Fact]
     public async Task CancellationWhileWaitingForWorkerCapacityRemovesTheQueuedStart()
     {
