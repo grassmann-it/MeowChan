@@ -14,7 +14,7 @@ internal static class TaglineTexts
         ("shell.tagline.lead", "Open-source imageboard downloader", "Open-Source-Imageboard-Downloader"),
         ("shell.tagline.quip.plain", "archives threads, keeps the media", "archiviert Threads und behält die Medien"),
         ("shell.tagline.quip.booru", "now with booru support", "jetzt mit Booru-Unterstützung"),
-        ("shell.tagline.quip.flashbang", "light mode now less flashbang", "heller Modus, jetzt mit weniger Blendgranate"),
+        ("shell.tagline.quip.flashbang", "light mode now less flashbang", "heller Modus, weniger Blendgranaten-Effekt"),
         ("shell.tagline.quip.workviews", "now with work views for every taste", "jetzt mit Arbeitsansichten für jeden Geschmack"),
         ("shell.tagline.quip.offline", "your archive stays on your computer", "dein Archiv bleibt auf deinem Rechner"),
         ("shell.tagline.quip.notfound", "saving threads before they 404", "rettet Threads vor dem 404"),
