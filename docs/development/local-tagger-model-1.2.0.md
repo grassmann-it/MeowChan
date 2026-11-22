@@ -23,6 +23,9 @@ Die Grenzen lassen sich im Profil unter **Einstellungen → Speicher und Limits*
 | --- | ---: | ---: | ---: |
 | Manifest (KiB) | 1 024 | 64 | 8 192 |
 | Gewichte (MiB) | 1 024 | 64 | 2 048 |
+| Eingabetensor (MiB) | 64 | 1 | 256 |
+
+Das Tensorbudget begrenzt die Float32-Eingabe für ein Bild auf vier Bytes pro Farbkanal bei drei Kanälen. Der Store prüft die deklarierten Abmessungen beim Import und vor dem Workerstart.
 
 ## Import und Worker
 

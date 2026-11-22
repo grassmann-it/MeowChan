@@ -101,7 +101,7 @@ public sealed class SettingsResetCoverageTests : IDisposable
     }
 
     [Fact]
-    public async Task LocalModelImportEnforcesBothLimitsSavedByTheEditorAfterProfileRestart()
+    public async Task LocalModelImportEnforcesLimitsSavedByTheEditorAfterProfileRestart()
     {
         using TempDirectory directory = new();
         string profile = Path.Combine(directory.Path, "profile");
@@ -112,10 +112,13 @@ public sealed class SettingsResetCoverageTests : IDisposable
             editor.IsAvailable = true;
             var manifest = editor.FindControl<NumericUpDown>("LocalTaggerManifestKiBInput")!;
             var weights = editor.FindControl<NumericUpDown>("LocalTaggerWeightsMiBInput")!;
+            var tensor = editor.FindControl<NumericUpDown>("LocalTaggerInputTensorMiBInput")!;
             Assert.Equal((64m, (decimal?)1024m, 8192m), (manifest.Minimum, manifest.Value, manifest.Maximum));
             Assert.Equal((64m, (decimal?)1024m, 2048m), (weights.Minimum, weights.Value, weights.Maximum));
+            Assert.Equal((1m, (decimal?)64m, 256m), (tensor.Minimum, tensor.Value, tensor.Maximum));
             manifest.Value = 64;
             weights.Value = 64;
+            tensor.Value = 1;
             editor.FindControl<Button>("SaveSettingsButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             BooruComponentDispatcher.Wait(WaitForSaveAsync(editor));
             Assert.False(editor.HasError, editor.ErrorMessage);
@@ -129,6 +132,7 @@ public sealed class SettingsResetCoverageTests : IDisposable
             LocalTaggerModelStore store = restarted.LocalTaggerModels;
             Assert.Equal(64, store.Settings.MaximumManifestKiB);
             Assert.Equal(64, store.Settings.MaximumWeightsMiB);
+            Assert.Equal(1, store.Settings.MaximumInputTensorMiB);
             LocalTaggerModelStore permissive = new(lease);
             string path = Path.Combine(directory.Path, LocalTaggerModelManifest.FileName);
             LocalTaggerModelManifest model = new(LocalTaggerModelManifest.FormatId, 1, "Test", "test", "1", 1,
@@ -138,6 +142,7 @@ public sealed class SettingsResetCoverageTests : IDisposable
             {
                 (model, 64 * 1024),
                 (model with { SizeBytes = 64 * 1024 * 1024 + 1 }, 0),
+                (model with { Preprocessing = model.Preprocessing with { Width = 1024, Height = 1024 } }, 0),
             })
             {
                 string manifest = System.Text.Json.JsonSerializer.Serialize(candidate, LocalTaggerModelManifest.JsonOptions);

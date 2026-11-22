@@ -6,6 +6,7 @@ internal static class LocalTaggerCatalog
     [
         ("budgets.localTaggerManifest", "Tagger model manifest limit (KiB)", "Größenlimit für Tagger-Modellmanifest (KiB)"),
         ("budgets.localTaggerWeights", "Tagger model weights limit (MiB)", "Größenlimit für Tagger-Modellgewichte (MiB)"),
+        ("budgets.localTaggerInputTensor", "Tagger input tensor limit (MiB)", "Speicherlimit für Tagger-Eingabetensor (MiB)"),
         ("localTagger.title", "Local image tagger", "Lokaler Bildtagger"),
         ("localTagger.choose", "Choose model manifest…", "Modellmanifest wählen…"),
         ("localTagger.import", "Verify and import", "Prüfen und importieren"),

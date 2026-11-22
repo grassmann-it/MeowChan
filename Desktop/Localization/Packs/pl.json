@@ -5,6 +5,7 @@
   "strings": {
     "budgets.localTaggerManifest": "Limit manifestu modelu tagowania (KiB)",
     "budgets.localTaggerWeights": "Limit wag modelu tagowania (MiB)",
+    "budgets.localTaggerInputTensor": "Limit tensora wejściowego modelu tagowania (MiB)",
     "localTagger.title": "Lokalne tagowanie obrazów",
     "localTagger.choose": "Wybierz manifest modelu…",
     "localTagger.import": "Sprawdź i zaimportuj",

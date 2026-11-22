@@ -11,14 +11,18 @@ internal sealed record LocalTaggerModelSettings
 {
     internal static readonly TagSuggestionSettingRange ManifestKiBRange = new(1024, 64, 8192);
     internal static readonly TagSuggestionSettingRange WeightsMiBRange = new(1024, 64, 2048);
+    internal static readonly TagSuggestionSettingRange InputTensorMiBRange = new(64, 1, 256);
 
     internal int MaximumManifestKiB { get; init; } = ManifestKiBRange.Default;
     internal int MaximumWeightsMiB { get; init; } = WeightsMiBRange.Default;
+    internal int MaximumInputTensorMiB { get; init; } = InputTensorMiBRange.Default;
 
     internal int MaximumManifestBytes => MaximumManifestKiB * 1024;
     internal long MaximumWeightsBytes => MaximumWeightsMiB * 1024L * 1024;
+    internal long MaximumInputTensorBytes => MaximumInputTensorMiB * 1024L * 1024;
 
-    internal bool IsValid => ManifestKiBRange.Contains(MaximumManifestKiB) && WeightsMiBRange.Contains(MaximumWeightsMiB);
+    internal bool IsValid => ManifestKiBRange.Contains(MaximumManifestKiB) && WeightsMiBRange.Contains(MaximumWeightsMiB)
+        && InputTensorMiBRange.Contains(MaximumInputTensorMiB);
 }
 
 internal sealed record LocalTaggerModelTag(string Name, TaggerTagCategory Category);
@@ -41,6 +45,13 @@ internal sealed record LocalTaggerPreprocessing(string InputName, string OutputN
         && Mean is { Length: 3 } && Mean.All(double.IsFinite)
         && StandardDeviation is { Length: 3 } && StandardDeviation.All(value => double.IsFinite(value) && value > 0)
         && ScoreTransform is "identity" or "sigmoid";
+
+    internal bool FitsInputTensor(long maximumBytes)
+    {
+        const int bytesPerPixel = 3 * sizeof(float);
+        // Two positive Int32 dimensions fit in Int64. Divide the budget before comparing to avoid overflow.
+        return (long)Width * Height <= maximumBytes / bytesPerPixel;
+    }
 }
 
 internal sealed record LocalTaggerModelManifest(string Format, int Version, string Publisher, string ModelId, string Revision,
@@ -69,7 +80,7 @@ internal sealed record LocalTaggerModelManifest(string Format, int Version, stri
             || !IsIdentity(manifest.License) || !CompilerWire.IsHash(manifest.Sha256)
             || manifest is { SizeBytes: <= 0 } || manifest.Preprocessing is not { IsValid: true } || !ValidTags(manifest.Tags))
             throw new InvalidDataException("Malformed local tagger model manifest.");
-        if (manifest.SizeBytes > settings.MaximumWeightsBytes)
+        if (manifest.SizeBytes > settings.MaximumWeightsBytes || !manifest.Preprocessing.FitsInputTensor(settings.MaximumInputTensorBytes))
             throw new LocalTaggerModelException(LocalTaggerModelIssue.Limit);
         return manifest;
     }

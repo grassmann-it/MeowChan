@@ -5,6 +5,7 @@
   "strings": {
     "budgets.localTaggerManifest": "Limite del manifesto del modello di etichettatura (KiB)",
     "budgets.localTaggerWeights": "Limite dei pesi del modello di etichettatura (MiB)",
+    "budgets.localTaggerInputTensor": "Limite del tensore di ingresso del modello di etichettatura (MiB)",
     "localTagger.title": "Tag automatici locali per immagini",
     "localTagger.choose": "Scegli il manifesto del modello…",
     "localTagger.import": "Verifica e importa",

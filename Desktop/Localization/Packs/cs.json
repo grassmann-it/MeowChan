@@ -5,6 +5,7 @@
   "strings": {
     "budgets.localTaggerManifest": "Limit manifestu modelu taggeru (KiB)",
     "budgets.localTaggerWeights": "Limit vah modelu taggeru (MiB)",
+    "budgets.localTaggerInputTensor": "Limit vstupního tenzoru taggeru (MiB)",
     "localTagger.title": "Místní označování obrázků",
     "localTagger.choose": "Vybrat manifest modelu…",
     "localTagger.import": "Ověřit a importovat",

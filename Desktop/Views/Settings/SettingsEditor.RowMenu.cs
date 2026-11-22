@@ -106,6 +106,7 @@ public partial class SettingsEditor
             Number(FilterHeapMiBInput, () => FilterHeapMiB, value => FilterHeapMiB = value, config => config.PluginFilterHeapMiB),
             Number(LocalTaggerManifestKiBInput, () => LocalTaggerManifestKiB, value => LocalTaggerManifestKiB = value, config => config.LocalTaggerManifestKiB),
             Number(LocalTaggerWeightsMiBInput, () => LocalTaggerWeightsMiB, value => LocalTaggerWeightsMiB = value, config => config.LocalTaggerWeightsMiB),
+            Number(LocalTaggerInputTensorMiBInput, () => LocalTaggerInputTensorMiB, value => LocalTaggerInputTensorMiB = value, config => config.LocalTaggerInputTensorMiB),
             Number(BooruCatalogMiBInput, () => BooruCatalogMiB, value => BooruCatalogMiB = value, config => config.BooruCatalogLimitMiB),
             Choice(BooruNewSearchTargetInput, () => SelectedBooruNewSearchTarget?.Value,
                 value => SelectedBooruNewSearchTarget = Choice(BooruSearchTargetChoices, value), config => config.BooruNewSearchTarget),

@@ -5,6 +5,7 @@
   "strings": {
     "budgets.localTaggerManifest": "태거 모델 매니페스트 한도 (KiB)",
     "budgets.localTaggerWeights": "태거 모델 가중치 한도 (MiB)",
+    "budgets.localTaggerInputTensor": "태거 입력 텐서 한도 (MiB)",
     "localTagger.title": "로컬 이미지 태거",
     "localTagger.choose": "모델 매니페스트 선택…",
     "localTagger.import": "검증 후 가져오기",

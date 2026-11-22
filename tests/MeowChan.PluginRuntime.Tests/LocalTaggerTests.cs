@@ -132,6 +132,55 @@ public sealed class LocalTaggerTests
     }
 
     [Fact]
+    public async Task TensorBudgetIsEnforcedAtImportAndBeforeWorkerStartup()
+    {
+        using Workspace workspace = new();
+        using ProfileLease lease = ProfileLease.Acquire(Path.Combine(workspace.Path, "profile"));
+        LocalTaggerModelStore permissive = new(lease);
+        LocalTaggerModelStore restricted = new(lease, new LocalTaggerModelSettings { MaximumInputTensorMiB = 1 });
+        string path = WritePackage(workspace.Path, "candidate", [204], width: 1024, height: 1024);
+        CancellationToken token = CancellationToken.None;
+        LocalTaggerModelPreview preview = await permissive.PreviewAsync(path, token);
+        LocalTaggerModelException import = await Assert.ThrowsAsync<LocalTaggerModelException>(() => restricted.ImportAsync(preview, token));
+        Assert.Equal(LocalTaggerModelIssue.Limit, import.Issue);
+        Assert.Null(await restricted.VerifyInstalledAsync(token));
+
+        await permissive.ImportAsync(preview, token);
+        TagSuggestionStore suggestions = new(lease);
+        await using PluginWorkerManager manager = new();
+        LocalTaggerWorker worker = CreateWorker(workspace.Path, restricted, suggestions, manager, Approve(preview.Package.ManifestSha256));
+        LocalTaggerModelException startup = await Assert.ThrowsAsync<LocalTaggerModelException>(
+            () => RunAsync(worker, preview.Package.ManifestSha256, TestImage(255), token));
+        Assert.Equal(LocalTaggerModelIssue.Limit, startup.Issue);
+        Assert.Empty(manager.GetSnapshots());
+        Assert.False(Directory.Exists(Path.Combine(workspace.Path, "workers")));
+        Assert.NotNull(await permissive.VerifyInstalledAsync(token));
+    }
+
+    [Theory]
+    [InlineData(87381, 1, true)] // 12 bytes per pixel: 4 bytes below one MiB.
+    [InlineData(87382, 1, false)]
+    [InlineData(int.MaxValue, int.MaxValue, false)]
+    public async Task TensorBudgetRejectsSizesAboveTheLimitWithoutOverflow(int width, int height, bool accepted)
+    {
+        using Workspace workspace = new();
+        using ProfileLease lease = ProfileLease.Acquire(Path.Combine(workspace.Path, "profile"));
+        LocalTaggerModelStore models = new(lease, new LocalTaggerModelSettings { MaximumInputTensorMiB = 1 });
+        string path = WritePackage(workspace.Path, "candidate", [204], width: width, height: height);
+        if (accepted)
+        {
+            LocalTaggerModelPreview preview = await models.PreviewAsync(path, CancellationToken.None);
+            Assert.Equal(width, preview.Package.Manifest.Preprocessing.Width);
+        }
+        else
+        {
+            LocalTaggerModelException error = await Assert.ThrowsAsync<LocalTaggerModelException>(
+                () => models.PreviewAsync(path, CancellationToken.None));
+            Assert.Equal(LocalTaggerModelIssue.Limit, error.Issue);
+        }
+    }
+
+    [Fact]
     public async Task CancellingNonCooperativeWorkerLeavesNoResultsAndNextWorkerCanRun()
     {
         using Workspace workspace = new();
@@ -198,14 +247,15 @@ public sealed class LocalTaggerTests
             (offset, count, _) => Task.FromResult(bytes.AsSpan((int)offset, count).ToArray()), PixelWidth: width, PixelHeight: 1);
     }
 
-    private static string WritePackage(string root, string name, byte[] weights, long sizeBytes = 1, int version = 1)
+    private static string WritePackage(string root, string name, byte[] weights, long sizeBytes = 1, int version = 1,
+        int width = 1, int height = 1)
     {
         string directory = Path.Combine(root, name);
         Directory.CreateDirectory(directory);
         LocalTaggerModelManifest manifest = new(LocalTaggerModelManifest.FormatId, version, "MeowChan test fixture",
             FixturePlugin.ModelId, FixturePlugin.Revision, sizeBytes, FixturePlugin.ModelSha256, FixturePlugin.License,
             [new("test_tag", TaggerTagCategory.General)],
-            new("input", "scores", "NCHW", 1, 1, "RGB", "stretch", "nearest", null, 1.0 / 255, [0, 0, 0], [1, 1, 1], "identity"));
+            new("input", "scores", "NCHW", width, height, "RGB", "stretch", "nearest", null, 1.0 / 255, [0, 0, 0], [1, 1, 1], "identity"));
         string path = Path.Combine(directory, LocalTaggerModelManifest.FileName);
         File.WriteAllBytes(path, JsonSerializer.SerializeToUtf8Bytes(manifest, LocalTaggerModelManifest.JsonOptions));
         File.WriteAllBytes(Path.Combine(directory, LocalTaggerModelManifest.WeightsFileName), weights);

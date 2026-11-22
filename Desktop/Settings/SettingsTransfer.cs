@@ -105,6 +105,7 @@ public static class SettingsTransfer
             PluginFilterHeapMiB = source.PluginFilterHeapMiB,
             LocalTaggerManifestKiB = source.LocalTaggerManifestKiB,
             LocalTaggerWeightsMiB = source.LocalTaggerWeightsMiB,
+            LocalTaggerInputTensorMiB = source.LocalTaggerInputTensorMiB,
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB,
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours,
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList,

@@ -5,6 +5,7 @@
   "strings": {
     "budgets.localTaggerManifest": "Limite do manifesto do modelo de marcação (KiB)",
     "budgets.localTaggerWeights": "Limite dos pesos do modelo de marcação (MiB)",
+    "budgets.localTaggerInputTensor": "Limite do tensor de entrada do modelo de marcação (MiB)",
     "localTagger.title": "Marcação local de imagens",
     "localTagger.choose": "Escolher manifesto do modelo…",
     "localTagger.import": "Verificar e importar",

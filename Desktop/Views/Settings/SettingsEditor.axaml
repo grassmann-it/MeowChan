@@ -2349,6 +2349,17 @@
                                     </StackPanel>
                                 </Grid>
                             </Border>
+                            <Border Classes="settings-divider">
+                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <TextBlock x:Name="LocalTaggerInputTensorMiBFieldLabel" Text="{Binding LocalTaggerInputTensorMiBLabel}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                        <desktop:SettingsNumberInput x:Name="LocalTaggerInputTensorMiBInput" Value="{Binding LocalTaggerInputTensorMiB, Mode=TwoWay}" Minimum="{Binding LocalTaggerInputTensorMiBMinimum, Mode=OneTime}" Maximum="{Binding LocalTaggerInputTensorMiBMaximum, Mode=OneTime}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=LocalTaggerInputTensorMiBFieldLabel}" AutomationProperties.Name="{Binding LocalTaggerInputTensorMiBLabel}" AutomationProperties.HelpText="{Binding LocalTaggerInputTensorMiBHelp}" />
+                                        <TextBlock x:Name="LocalTaggerInputTensorMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                                    </StackPanel>
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </Expander>
                         </StackPanel>
