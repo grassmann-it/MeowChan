@@ -12,6 +12,8 @@ using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -55,7 +57,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
     }
 
     [Fact]
-    public void GalleryCounterMovesBesidePostTagsAndKeepsLiveTextVisibilityAndAccessibleName()
+    public void GalleryHeaderCounterKeepsLiveTextVisibilityAndAccessibleNameAfterMoving()
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
@@ -67,18 +69,12 @@ public sealed class QuickTagSurfaceTests : IDisposable
         GallerySidePanel panel = new(new Button()) { HeaderCounter = counter };
         Assert.DoesNotContain(counter, surface.Header.Children);
         Assert.Same(counter, panel.HeaderCounter);
-        Control slot = (Control)counter.Parent!;
+        ContentControl slot = Assert.IsType<ContentControl>(counter.Parent);
         Assert.Same(panel, slot.Parent);
-        Assert.Equal(0, Grid.GetRow(slot));
-        Assert.Equal(Grid.GetRow((Control)panel.PostButton.Parent!), Grid.GetRow(slot));
-        Assert.Equal(1, Grid.GetColumn(slot));
-        Assert.Equal(2, Grid.GetColumn(panel.CloseButton));
         Assert.False(slot.Focusable);
-        Assert.Equal(new Avalonia.Thickness(8, 0, 8, 0), slot.Margin); // its own column right of the tabs
-        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, slot.HorizontalAlignment);
         TextBlock label = Assert.IsType<TextBlock>(counter.Child);
         Assert.Equal("Medium 4 of 27", label.Text);
-        Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping); // one line: the tab row never grows
+        Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping);
         Assert.Equal(1, label.MaxLines);
         Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
         surface.CounterShortText = "No. 4 / 27";
@@ -99,13 +95,24 @@ public sealed class QuickTagSurfaceTests : IDisposable
     }
 
     [Fact]
-    public void GalleryMovesTheBadgeAfterPoliteAnnouncementsAreEnabledAndClearsItOnRelease()
+    public void GalleryMovesTheLiveBadgeToThePanelHeaderAndCentersTheTitleOverTheRatingRow()
     {
-        string source = File.ReadAllText(Path.GetFullPath(Path.Combine(AppContext.BaseDirectory,
-            "../../../../../Desktop/GalleryViewer.TagPanel.cs")));
-        Assert.True(source.IndexOf("AnnounceCounter(surface);", StringComparison.Ordinal)
-            < source.IndexOf("_sidePanel.HeaderCounter = surface.DetachCounter();", StringComparison.Ordinal));
-        Assert.Contains("_sidePanel.HeaderCounter = null;", source);
+        var source = CSharpSource.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
+            Path.GetDirectoryName(ThisFile())!, "../../Desktop/GalleryViewer.TagPanel.cs"))));
+        var show = source.Method("ShowTagPanel");
+        var announce = Assert.Single(show.Calls("AnnounceCounter"));
+        var move = Assert.Single(show.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
+            SyntaxFactory.AreEquivalent(assignment.Left, SyntaxFactory.ParseExpression("_sidePanel.HeaderCounter")));
+        Assert.Single(move.Right.Calls("DetachCounter", "surface"));
+        Assert.True(announce.SpanStart < move.SpanStart);
+        Assert.Contains(show.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
+            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression(
+                "surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Center")));
+        Assert.Contains(show.Calls("SetColumnSpan", "Grid"), call =>
+            SyntaxFactory.AreEquivalent(call.ArgumentList, SyntaxFactory.ParseArgumentList(
+                "(surface.Title, surface.Header.ColumnDefinitions.Count)")));
+        Assert.Contains(source.Method("ReleaseTagPanel").DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
+            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_sidePanel.HeaderCounter = null")));
     }
 
     // ---- session: add, create, remove, status -------------------------------------------------------------------

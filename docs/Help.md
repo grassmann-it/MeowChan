@@ -2146,12 +2146,24 @@ in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open t
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
 command, **Esc** or its close button closes it; **Shift+P** switches to the post panel.
-The side panel has **Post | Tags** at the top left, the live medium counter
-immediately beside it, and × alone at the right. The counter updates as you navigate,
-with localized position text and polite accessibility announcements. When the
-switch has focus, Left/Right selects the segment. Closing returns focus to
+The live medium counter is centered at the top of the side panel when shown. Below it,
+**Post | Tags** are on the left and × is on the right. The tabs wrap onto two lines
+when space is tight. The counter updates as you navigate, with localized position
+text and polite accessibility announcements. In the Tags panel, the media title
+is centered above the favorite and rating controls. In the Post panel, the line
+with the source, board and thread is centered above those controls and includes
+the post number when available. When the switch has focus, Left/Right selects
+the segment. Closing returns focus to
 the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
 layout profile. Below 900 DIP it overlays the picture.
+
+**Deutsch:** Wenn der Positionszähler angezeigt wird, steht er oben mittig im Galerie-Seitenpanel. Darunter
+stehen **Post | Tags** links und × rechts. Bei wenig Platz werden die Tabs auf zwei
+Zeilen verteilt. Beim Blättern aktualisiert sich der Zähler in der gewählten
+Sprache. Screenreader lesen die neue Position bei der nächsten Sprechpause vor.
+Im Tag-Panel steht der Medientitel mittig über den Favoriten- und Bewertungsfunktionen.
+Im Post-Panel ist dort die Zeile mit Quelle, Board und Thread zentriert. Ist eine
+Post-Nummer verfügbar, steht sie ebenfalls in dieser Zeile.
 
 **Safe flow.** Nothing is assigned automatically. Type a name and press Enter to
 give your own tag to the shown medium; a new name creates a local own tag. With an

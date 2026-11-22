@@ -591,22 +591,35 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void GalleryHelpMatchesLeftPlacementAndUnreducedSafetyState()
+    public void GalleryHelpMatchesHeaderAndSidePanelPlacementAndUnreducedSafetyState()
     {
         string text = Plain(Section(Read(Help), "Images, search and navigation"));
         Assert.Contains("far left of the header, before the title, with the favorite star directly to its right", text);
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
-        // The left-hand Post | Tags segment is not the gallery's Back action.
         Assert.Contains("Back to {target}", text);
-        Assert.Contains("The side panel has Post | Tags at the top left, the live medium counter immediately beside it, and × alone at the right", text);
+        Assert.Contains("The live medium counter is centered at the top of the side panel", text);
+        Assert.Contains("Post | Tags are on the left and × is on the right", text);
+        Assert.Contains("The tabs wrap onto two lines when space is tight", text);
         Assert.Contains("The counter updates as you navigate, with localized position text and polite accessibility announcements", text);
-        string sidePanel = Read("Desktop/Controls/GallerySidePanel.cs");
-        Assert.Contains("Children.Add(_segment);", sidePanel);
-        Assert.Contains("Children.Add(close); SetColumn(close, 2);", sidePanel);
-        // Tom's rule of 14.11.: the code places the way back first at the LEFT with the star directly right of it. The two Help.md assertions
-        // above (right edge wording) change together with the Help section, which the coordinator edits (GL3 report has the sentence).
-        Assert.Contains("_close.HorizontalAlignment = HorizontalAlignment.Left", Read("Desktop/GalleryViewer.cs"));
-        Assert.Contains("_close.Bounds.Width : 44) + StarGap", Read("Desktop/GalleryViewer.Favorites.cs"));
+        Assert.Contains("the media title is centered above the favorite and rating controls", text);
+        Assert.Contains("the line with the source, board and thread is centered above those controls", text);
+        Assert.Contains("steht er oben mittig im Galerie-Seitenpanel", text);
+        Assert.Contains("der Medientitel mittig über den Favoriten- und Bewertungsfunktionen", text);
+        var viewer = CSharpSource.Parse(Read("Desktop/GalleryViewer.cs"));
+        Assert.Contains(viewer.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
+            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_close.HorizontalAlignment = HorizontalAlignment.Left")));
+        var context = viewer.Method("BuildContext");
+        var postWhere = Assert.Single(context.Calls("AddContext"), call => call.ArgumentList.Arguments.Any(argument =>
+            argument.Expression is LiteralExpressionSyntax name && name.Token.ValueText == "GalleryPostWhere"));
+        var postWhereAlignment = Assert.IsType<AssignmentExpressionSyntax>(postWhere.Parent!.Parent);
+        Assert.True(SyntaxFactory.AreEquivalent(postWhereAlignment.Right, SyntaxFactory.ParseExpression("TextAlignment.Center")));
+        Assert.True(postWhere.SpanStart < Assert.Single(context.Calls("PostDecisionSection")).SpanStart);
+        var favorites = CSharpSource.Parse(Read("Desktop/GalleryViewer.Favorites.cs"));
+        var starMargin = Assert.Single(favorites.DescendantNodes().OfType<PropertyDeclarationSyntax>(),
+            property => property.Identifier.ValueText == "StarLeftMargin");
+        Assert.Contains(starMargin.DescendantNodes().OfType<MemberAccessExpressionSyntax>(), member =>
+            SyntaxFactory.AreEquivalent(member, SyntaxFactory.ParseExpression("_close.Bounds.Width")));
+        Assert.Contains(starMargin.DescendantNodes().OfType<IdentifierNameSyntax>(), name => name.Identifier.ValueText == "StarGap");
         foreach (WorkView view in Enum.GetValues<WorkView>())
         {
             foreach (string id in new[] { "gallery.back", "gallery.favorite.indicator", "gallery.video.transport",

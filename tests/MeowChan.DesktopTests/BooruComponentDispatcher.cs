@@ -62,11 +62,17 @@ internal static class BooruComponentDispatcher
         FieldInfo primary = Field(typeof(Dispatcher), "s_uiThread");
         FieldInfo languageHandlers = Field(typeof(Texts), "Changed");
         FieldInfo shortcutHandlers = Field(typeof(ShortcutService), "Changed");
+        FieldInfo shortcutSnapshot = Field(typeof(ShortcutService), "_current");
+        PropertyInfo shortcutSection = typeof(ShortcutService).GetProperty(nameof(ShortcutService.CurrentSection))!;
+        PropertyInfo shortcutRevision = typeof(ShortcutService).GetProperty(nameof(ShortcutService.Revision))!;
         FieldInfo pruneCounter = Field(typeof(ShortcutService), "_observersUntilPrune");
         var refreshers = (List<WeakReference<Action>>)Field(typeof(ShortcutService), "Refreshers").GetValue(null)!;
         object? previousDispatcher = primary.GetValue(null);
         object? previousHandlers = languageHandlers.GetValue(null);
         object? previousShortcutHandlers = shortcutHandlers.GetValue(null);
+        var previousShortcuts = ShortcutService.Current;
+        var previousShortcutSection = ShortcutService.CurrentSection;
+        long previousShortcutRevision = ShortcutService.Revision;
         object? previousPruneCounter = pruneCounter.GetValue(null);
         WeakReference<Action>[] previousRefreshers = refreshers.ToArray();
         string language = Texts.Language;
@@ -113,6 +119,9 @@ internal static class BooruComponentDispatcher
                     refreshers.Clear();
                     refreshers.AddRange(previousRefreshers);
                     pruneCounter.SetValue(null, previousPruneCounter);
+                    shortcutSnapshot.SetValue(null, previousShortcuts);
+                    shortcutSection.SetValue(null, previousShortcutSection);
+                    shortcutRevision.SetValue(null, previousShortcutRevision);
                     languageHandlers.SetValue(null, previousHandlers);
                     shortcutHandlers.SetValue(null, previousShortcutHandlers);
                     primary.SetValue(null, previousDispatcher);

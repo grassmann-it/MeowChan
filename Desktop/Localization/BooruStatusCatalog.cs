@@ -13,6 +13,7 @@ internal static class BooruStatusCatalog
     {
         ("booru.failure.invalid_query", "The search text is not accepted.", "Der Suchtext wird nicht akzeptiert."),
         ("booru.failure.invalid_page", "Search results are limited to pages 1 to 5.", "Suchergebnisse sind auf die Seiten 1 bis 5 begrenzt."),
+        ("booru.failure.invalid_limit", "The requested number of results per page is not supported.", "Die angeforderte Anzahl von Ergebnissen pro Seite wird nicht unterstützt."),
         ("booru.failure.capability", "This source does not offer post search.", "Diese Quelle bietet keine Post-Suche."),
         ("booru.failure.booru-source", "This source is not available for post search.", "Diese Quelle ist für die Post-Suche nicht verfügbar."),
         ("booru.failure.booru-job", "The request is no longer active.", "Die Anfrage ist nicht mehr aktiv."),

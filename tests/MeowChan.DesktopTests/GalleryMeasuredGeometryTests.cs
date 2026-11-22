@@ -1,10 +1,10 @@
 using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.LogicalTree;
 using Avalonia.Platform;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
@@ -70,29 +70,55 @@ public sealed class GalleryMeasuredGeometryTests
         }
     });
 
+    private static void WithSidePanel(double width, Action<GallerySidePanel> test) => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        GallerySidePanel panel = new(new Button { Width = 32, Height = 32 }) { Width = width };
+        Window window = new() { Width = 520, Height = 500, Content = panel };
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            test(panel);
+        }
+        finally
+        {
+            window.Close();
+        }
+    });
+
+    private static Rect BoundsIn(Control control, GallerySidePanel panel)
+    {
+        Point origin = Assert.IsType<Point>(control.TranslatePoint(default, panel));
+        return new Rect(origin, control.Bounds.Size);
+    }
+
+    private static void AssertCenteredAboveControls(Control counter, GallerySidePanel panel)
+    {
+        Rect bounds = BoundsIn(counter, panel);
+        Assert.True(counter.IsEffectivelyVisible);
+        Assert.True(bounds.Width > 0 && bounds.Height > 0, $"Counter bounds: {bounds}");
+        Assert.InRange(bounds.Center.X, panel.Bounds.Width / 2 - 0.5, panel.Bounds.Width / 2 + 0.5);
+        Assert.InRange(bounds.Left, -0.5, panel.Bounds.Width);
+        Assert.InRange(bounds.Right, 0, panel.Bounds.Width + 0.5);
+        foreach (Control control in new[] { panel.PostButton, panel.TagsButton, panel.CloseButton })
+        {
+            Rect controlBounds = BoundsIn(control, panel);
+            Assert.True(controlBounds.Width > 0 && controlBounds.Height > 0, $"{control.Name} bounds: {controlBounds}");
+            Assert.True(bounds.Bottom <= controlBounds.Top + 0.5, $"Counter {bounds} overlaps {control.Name} {controlBounds}");
+        }
+    }
+
     [Theory]
     [InlineData(280)]
     [InlineData(320)]
     [InlineData(480)]
-    public void MediumCounterIsCenteredBetweenTheTabsAndCloseButton(double width) => OnDispatcher(() =>
+    public void MediumCounterIsCenteredAcrossThePanelAboveTabsAndClose(double width) => WithSidePanel(width, panel =>
     {
-        GallerySidePanel panel = new(new Button { Width = 32 });
-        panel.PostButton.Width = 56;
-        panel.TagsButton.Width = 56;
-        Border counter = new() { Width = 92, Height = 18, Child = new TextBlock { Text = "Medium 1 of 4", TextAlignment = Avalonia.Media.TextAlignment.Center } };
+        TextBlock counter = new() { Text = "Medium 1 of 4" };
         panel.HeaderCounter = counter;
-        panel.Measure(new Size(width, 500));
-        panel.Arrange(new Rect(0, 0, width, 500));
         panel.UpdateLayout();
-        ContentControl slot = Assert.IsType<ContentControl>(counter.Parent);
-        Point origin = OriginIn(slot, panel);
-        Control segment = (Control)panel.PostButton.Parent!;
-        Assert.Equal(Grid.GetRow(segment), Grid.GetRow(slot)); // no extra line
-        double tabsEnd = OriginIn(segment, panel).X + segment.Bounds.Width;
-        double closeStart = OriginIn(panel.CloseButton, panel).X;
-        Assert.True(origin.X >= tabsEnd + 7.5);
-        Assert.True(origin.X + slot.Bounds.Width <= closeStart - 7.5);
-        Assert.InRange(Math.Abs(origin.X + slot.Bounds.Width / 2 - (tabsEnd + closeStart) / 2), 0, 0.5);
+        AssertCenteredAboveControls(counter, panel);
     });
 
     [Theory]
@@ -103,69 +129,53 @@ public sealed class GalleryMeasuredGeometryTests
     [InlineData("pl", 280)]
     [InlineData("fr", 320)]
     [InlineData("es", 248)] // 280 dip minus the panel's two 16-dip insets
-    public void ShortCounterStaysInItsOwnColumnAndNeverOverlapsTabsOrAddsHeight(string language, double width) => OnDispatcher(() =>
+    public void LocalizedShortCounterIsCenteredAboveTheTabsAndKeepsTheirHeight(string language, double width) => WithSidePanel(width, panel =>
     {
-        Texts.Initialize();
         Texts.SetLanguage(language);
-        try
-        {
-            using TempDirectory temp = new();
-            using ProfileLease lease = ProfileLease.Acquire(temp.Path);
-            PrivateTagStore store = new(temp.Path, lease);
-            using QuickTagSession session = new(QuickTagTarget.For(QuickTagSurfaceTests.Single(store, QuickTagSurfaceTests.Entry("a", 'a'))));
-            using QuickTagSurface surface = new(session);
-            surface.CounterShortText = GalleryTagPanelCommands.ShortCounterText(new GalleryTagPanelPosition(183, 197, false), marked: true);
-            surface.CounterText = GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(183, 197, false), marked: true);
-            GallerySidePanel plain = new(new Button());
-            plain.Measure(new Size(width, 500));
-            plain.Arrange(new Rect(0, 0, width, 500));
-            plain.UpdateLayout();
-            double rowHeight = ((Control)plain.PostButton.Parent!).Bounds.Height;
-            GallerySidePanel panel = new(new Button());
-            panel.HeaderCounter = surface.DetachCounter();
-            panel.Measure(new Size(width, 500));
-            panel.Arrange(new Rect(0, 0, width, 500));
-            panel.UpdateLayout();
-            ContentControl slot = Assert.IsType<ContentControl>(panel.HeaderCounter!.Parent);
-            Control segment = (Control)panel.PostButton.Parent!;
-            Assert.Equal(1, Grid.GetColumn(slot));
-            Assert.Equal(Grid.GetRow(segment), Grid.GetRow(slot));
-            Assert.Equal(rowHeight, segment.Bounds.Height, 0.5); // the counter never makes the tab row taller
-            Assert.Equal(1, ((TextBlock)((Border)panel.HeaderCounter).Child!).MaxLines);
-            Assert.True(slot.IsVisible);
-            Assert.True(slot.Bounds.Height <= segment.Bounds.Height + 0.5);
-            Assert.True(OriginIn(slot, panel).X >= OriginIn(segment, panel).X + segment.Bounds.Width - 0.5, "counter overlaps the tabs");
-            Assert.True(OriginIn(slot, panel).X + slot.Bounds.Width <= OriginIn(panel.CloseButton, panel).X + 0.5, "counter overlaps the close button");
-        }
-        finally { Texts.SetLanguage("en"); }
+        panel.Localize();
+        panel.UpdateLayout();
+        double tabHeight = ((Control)panel.PostButton.Parent!).Bounds.Height;
+
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        PrivateTagStore store = new(temp.Path, lease);
+        using QuickTagSession session = new(QuickTagTarget.For(QuickTagSurfaceTests.Single(store, QuickTagSurfaceTests.Entry("a", 'a'))));
+        using QuickTagSurface surface = new(session);
+        GalleryTagPanelPosition position = new(183, 197, false);
+        surface.CounterShortText = GalleryTagPanelCommands.ShortCounterText(position, marked: true);
+        surface.CounterText = GalleryTagPanelCommands.CounterText(position, marked: true);
+        Border counter = surface.DetachCounter();
+        panel.HeaderCounter = counter;
+        panel.UpdateLayout();
+
+        AssertCenteredAboveControls(counter, panel);
+        TextBlock label = Assert.IsType<TextBlock>(counter.Child);
+        Assert.Equal(surface.CounterShortText, label.Text);
+        Assert.True(label.Bounds.Width > 0 && label.Bounds.Height > 0);
+        Assert.Equal(tabHeight, ((Control)panel.PostButton.Parent!).Bounds.Height, 0.5);
     });
 
     [Fact]
-    public void AtVeryNarrowWidthsTheTabsWrapAndTheCounterReturnsWhenRoomOpens() => OnDispatcher(() =>
+    public void AtVeryNarrowWidthsTheTabsWrapWithoutHidingTheCounter() => WithSidePanel(140, panel =>
     {
-        GallerySidePanel panel = new(new Button { Width = 32, Height = 32 });
         panel.PostButton.Width = panel.TagsButton.Width = 56;
         panel.PostButton.Height = panel.TagsButton.Height = 32;
-        Border counter = new() { Width = 92, Height = 18 };
+        TextBlock counter = new() { Text = "Medium 1 of 4" };
         panel.HeaderCounter = counter;
-        ContentControl slot = Assert.IsType<ContentControl>(counter.Parent);
-        Control segment = (Control)panel.PostButton.Parent!;
+        panel.UpdateLayout();
 
-        void Layout(double width)
-        {
-            panel.Measure(new Size(width, 500));
-            panel.Arrange(new Rect(0, 0, width, 500));
-        }
+        AssertCenteredAboveControls(counter, panel);
+        Assert.True(BoundsIn(panel.TagsButton, panel).Top >= BoundsIn(panel.PostButton, panel).Bottom);
+        Rect close = BoundsIn(panel.CloseButton, panel);
+        Assert.Equal(140, close.Right, 0.5);
+        Assert.True(BoundsIn(panel.TagsButton, panel).Right < close.Left);
 
-        Layout(140);
-        Assert.False(slot.IsVisible);
-        Assert.True(panel.TagsButton.Bounds.Top > panel.PostButton.Bounds.Top);
-        Assert.InRange(panel.CloseButton.Bounds.Right, 139.5, 140.5);
-        Assert.True(segment.Bounds.Right < panel.CloseButton.Bounds.Left);
+        panel.Width = 280;
+        panel.UpdateLayout();
 
-        Layout(280);
-        Assert.True(slot.IsVisible);
-        Assert.Equal(panel.PostButton.Bounds.Top, panel.TagsButton.Bounds.Top);
+        AssertCenteredAboveControls(counter, panel);
+        Assert.Equal(BoundsIn(panel.PostButton, panel).Top, BoundsIn(panel.TagsButton, panel).Top, 0.5);
+        Assert.True(BoundsIn(panel.TagsButton, panel).Right < BoundsIn(panel.CloseButton, panel).Left);
     });
 
     [Fact]
