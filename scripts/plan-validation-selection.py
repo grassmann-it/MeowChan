@@ -25,7 +25,7 @@ vstest = balance.native
 offline = importlib.import_module('run-dotnet-shards')
 
 ROOT = Path(__file__).resolve().parents[1]
-RULES_VERSION = 1
+RULES_VERSION = 2
 INVENTORY_VERSION = 1
 DEFAULT_PERCENT = 10
 DISCOVERY_BUDGET = 35 * 60
@@ -315,10 +315,19 @@ def discover(repo, checkout):
 
 
 WINDOWS_METHODS = {
-    'MeowChan.DesktopTests.ArchiveCleanupSpecialFileHostTests.SharingViolationKeepsFullErrorsOpaqueAndDoesNotRecover',
-    'MeowChan.DesktopTests.UrlTextExportFileWriterTests.NativeWindowsDeviceAdsAndTrailingAliasesAreRejected',
-    'MeowChan.DesktopTests.UrlTextExportFileWriterTests.NativeWindowsMixedUncAndDriveRelativePathsAreRejected',
-    'MeowChan.DesktopTests.UrlTextExportFileWriterTests.WindowsExclusiveHandleIsHeldUntilRealTaskFinishes',
+    CORE: {
+        'MeowChan.Tests.Transfer.RegularProfileFileTests.IdentityChangesWhenASameSizeRewriteRestoresTheTimestamps',
+    },
+    DESKTOP: {
+        'MeowChan.DesktopTests.ArchiveCleanupSpecialFileHostTests.SharingViolationKeepsFullErrorsOpaqueAndDoesNotRecover',
+        'MeowChan.DesktopTests.UrlTextExportFileWriterTests.NativeWindowsDeviceAdsAndTrailingAliasesAreRejected',
+        'MeowChan.DesktopTests.UrlTextExportFileWriterTests.NativeWindowsMixedUncAndDriveRelativePathsAreRejected',
+        'MeowChan.DesktopTests.UrlTextExportFileWriterTests.WindowsExclusiveHandleIsHeldUntilRealTaskFinishes',
+    },
+    'tests/MeowChan.PluginHost.Configuration.Tests/MeowChan.PluginHost.Configuration.Tests.csproj': {
+        'MeowChan.PluginHost.Configuration.Tests.PluginProfileStoreTests.WindowsReaderWithoutDeleteSharingRejectsWriteWithoutChangingRevision',
+        'MeowChan.PluginHost.Configuration.Tests.PluginProfileStoreTests.WindowsReadOnlyCoordinationFileStillAllowsProfileReads',
+    },
 }
 MEDIA_FIXTURES = ('tests/Fixtures/gallery-playback-', 'tests/Fixtures/gif-playback/', 'tests/Fixtures/release102/')
 MEDIA_INPUTS = (*MEDIA_FIXTURES, 'scripts/generate-playback-fixtures.py')
@@ -472,7 +481,7 @@ def select(requirements, inventory, seed, percent):
     required_tests, sampled_tests = [], []
     for project, inventory_methods in inventory['projects'].items():
         methods = set(inventory_methods)
-        windows = methods & WINDOWS_METHODS if project == DESKTOP else set()
+        windows = methods.intersection(WINDOWS_METHODS.get(project, ()))
         classes = requirements.classes.get(project)
         linux_required = requirements.tests.get((project, LINUX), set())
         targets = {target for key, target in requirements.tests if key == project}
