@@ -97,8 +97,16 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
 
     private readonly string _path = Path.Combine(lease.ProfileDirectory, FileName);
     private readonly ILogger _logger = logger ?? Log.Logger;
-    private long _saveRevision;
-    internal Task<bool> PendingSave { get; private set; } = Task.FromResult(true);
+    private readonly object _saveGate = new();
+    private QueuedSave? _queuedSave;
+    private Task<bool> _pendingSave = Task.FromResult(true);
+
+    private sealed record QueuedSave(BooruSearchTabState State, ProfileAdmissionToken Admission);
+
+    internal Task<bool> PendingSave
+    {
+        get { lock (_saveGate) return _pendingSave; }
+    }
 
     internal BooruSearchTabState? Read()
     {
@@ -114,30 +122,87 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
         WriteUnderAdmission(admission, state);
     }
 
-    internal Task<bool> Save(BooruSearchTabState state) => PendingSave = SaveAfterAsync(PendingSave, state);
-
-    private async Task<bool> SaveAfterAsync(Task previous, BooruSearchTabState state)
+    internal Task<bool> Save(BooruSearchTabState state)
     {
+        ProfileAdmissionToken admission;
         try
         {
-            // Reserve admission synchronously, so a final save joins the shutdown drain.
-            using ProfileAdmissionToken admission = lease.Admission.EnterStoreWriter();
-            long revision = Interlocked.Increment(ref _saveRevision);
-            await previous.ConfigureAwait(false);
-            if (revision != Interlocked.Read(ref _saveRevision)) return true;
-            await Task.Run(() => WriteUnderAdmission(admission, state)).ConfigureAwait(false);
-            return true;
+            // Reserve admission before returning to the dispatcher so the final save joins shutdown's drain.
+            admission = lease.Admission.EnterStoreWriter();
         }
         catch (Exception error) when (IsStoreError(error))
         {
-            await previous.ConfigureAwait(false);
             _logger.Warning("Could not save local Booru search tabs");
-            return false;
+            return Task.FromResult(false);
+        }
+
+        lock (_saveGate)
+        {
+            _queuedSave?.Admission.Dispose();
+            _queuedSave = new QueuedSave(state, admission);
+            if (_pendingSave.IsCompleted)
+            {
+                TaskCompletionSource<bool> drained = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                _pendingSave = drained.Task;
+                _ = Task.Run(() => DrainSaves(drained));
+            }
+            return _pendingSave;
         }
     }
 
-    private void WriteUnderAdmission(ProfileAdmissionToken admission, BooruSearchTabState state)
+    private void DrainSaves(TaskCompletionSource<bool> drained)
     {
+        bool saved = true;
+        try
+        {
+            while (true)
+            {
+                QueuedSave request;
+                lock (_saveGate)
+                {
+                    if (_queuedSave is not { } queued)
+                    {
+                        drained.SetResult(saved);
+                        return;
+                    }
+                    request = queued;
+                    _queuedSave = null;
+                }
+
+                using (request.Admission)
+                {
+                    try
+                    {
+                        WriteUnderAdmission(request.Admission, request.State, coalesce: true);
+                        saved = true;
+                    }
+                    catch (Exception error) when (IsStoreError(error))
+                    {
+                        _logger.Warning("Could not save local Booru search tabs");
+                        saved = false;
+                    }
+                }
+            }
+        }
+        catch (Exception error)
+        {
+            lock (_saveGate)
+            {
+                _queuedSave?.Admission.Dispose();
+                _queuedSave = null;
+                drained.SetException(error);
+            }
+        }
+    }
+
+    private bool HasQueuedSave
+    {
+        get { lock (_saveGate) return _queuedSave is not null; }
+    }
+
+    private void WriteUnderAdmission(ProfileAdmissionToken admission, BooruSearchTabState state, bool coalesce = false)
+    {
+        if (coalesce && HasQueuedSave) return;
         Validate(state);
         BooruSearchTabState trimmed = state with
         {
@@ -145,7 +210,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
         };
         lease.RunStoreWrite(admission, () =>
         {
-            Replace(trimmed);
+            // A newer snapshot can arrive during preparation or while waiting for the profile.
+            if (!coalesce || !HasQueuedSave) Replace(trimmed);
             return true;
         });
     }

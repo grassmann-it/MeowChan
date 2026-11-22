@@ -304,6 +304,64 @@ public sealed class BooruSearchTabPersistenceTests
         });
 
     [Fact]
+    public void TabSwitchesStayResponsiveAndShutdownDrainsTheLatestSnapshotWhenTheProfileIsBusy() =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory profile = new();
+            using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+            {
+                lease.Admission.CompleteStartup();
+                BooruSearchTabStore store = new(lease);
+                using BooruPage page = new(WithSource(new BooruUiHarness()));
+                page.RestoreSearchTabs(store, new Config());
+                TaskCompletionSource locked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                Task<bool> blocker = Task.Run(() => lease.RunExclusive(() =>
+                {
+                    locked.SetResult();
+                    release.Task.WaitAsync(TimeSpan.FromSeconds(15)).GetAwaiter().GetResult();
+                    return true;
+                }));
+                Task drain;
+                try
+                {
+                    BooruComponentDispatcher.Wait(locked.Task);
+                    page.Model.Search.SetInput("first");
+                    BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => !store.PendingSave.IsCompleted, "queued tab snapshot"));
+                    Task<bool> first = store.PendingSave;
+
+                    BooruSearchTabs tabs = page.View.SearchTabs;
+                    int second = tabs.Add(copyCurrent: false);
+                    page.Model.Search.SetInput("intermediate");
+                    Assert.True(tabs.Select(BooruSearchTabs.PrimaryId));
+                    page.Model.Search.SetInput("latest_primary");
+                    Assert.True(tabs.Select(second));
+                    page.Model.Search.SetInput("latest");
+                    page.FlushSearchTabs();
+                    Assert.Same(first, store.PendingSave);
+
+                    lease.Admission.BeginShutdown();
+                    drain = lease.Admission.DrainAsync();
+                    Assert.False(drain.IsCompleted);
+                    Assert.False(File.Exists(Path.Combine(profile.Path, BooruSearchTabStore.FileName)));
+                }
+                finally
+                {
+                    release.TrySetResult();
+                    BooruComponentDispatcher.Wait(blocker);
+                }
+                Assert.True(BooruComponentDispatcher.Wait(store.PendingSave));
+                BooruComponentDispatcher.Wait(drain);
+            }
+
+            using ProfileLease reopened = ProfileLease.Acquire(profile.Path);
+            BooruSearchTabState saved = Assert.IsType<BooruSearchTabState>(new BooruSearchTabStore(reopened).Read());
+            Assert.Equal(1, saved.ActiveIndex);
+            Assert.Equal(new[] { "latest_primary", "latest" }, saved.Tabs.Select(tab => tab!.Input));
+        });
+
+    [Fact]
     public void TabEditsAreSavedAfterTheDebounceAndOptOutKeepsThePreviousCopy() => BooruComponentDispatcher.Run(() =>
     {
         using TempDirectory profile = new();
