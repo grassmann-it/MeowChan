@@ -19,7 +19,7 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class ReaderMediaSidebarLayoutTests
 {
-    private static void OnDispatcher(Action test)
+    internal static void OnDispatcher(Action test)
     {
         using IDisposable platform = AvaloniaTestPlatform.EnterSkia();
         BooruComponentDispatcher.Run(() =>
@@ -34,7 +34,19 @@ public sealed class ReaderMediaSidebarLayoutTests
         });
     }
 
-    private static ArchivePage Page() => new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
+    internal static ArchivePage Page() => new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
+
+    internal static void Layout(Control root, Size size)
+    {
+        // No window/layout manager in this fixture: settle the real visual tree.
+        for (int pass = 0; pass < 4; pass++)
+        {
+            foreach (Layoutable child in root.GetVisualDescendants().OfType<Layoutable>().Reverse()) child.InvalidateMeasure();
+            root.InvalidateMeasure();
+            root.Measure(size);
+            root.Arrange(new Rect(size));
+        }
+    }
 
     [Fact]
     public void DefaultToolbarStateMatchesTheDefaultScopeWithoutChangingPreferences() => OnDispatcher(() =>
@@ -122,17 +134,6 @@ public sealed class ReaderMediaSidebarLayoutTests
         FieldInfo large = typeof(ArchivePage).GetField("_largeReader", BindingFlags.Instance | BindingFlags.NonPublic)!;
         Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
         Control root = page.FindControl<Grid>("ArchiveRoot")!;
-        static void Layout(Control root, Size size)
-        {
-            // No window/layout manager in this fixture: settle the real visual tree.
-            for (int pass = 0; pass < 4; pass++)
-            {
-                foreach (Layoutable child in root.GetVisualDescendants().OfType<Layoutable>().Reverse()) child.InvalidateMeasure();
-                root.InvalidateMeasure();
-                root.Measure(size);
-                root.Arrange(new Rect(size));
-            }
-        }
         try
         {
             page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(new Config
@@ -156,7 +157,12 @@ public sealed class ReaderMediaSidebarLayoutTests
             ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
             Assert.Equal(right ? "panel-right" : "panel-left", IconButtons.KeyOf(toggle));
             Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
-            Assert.Equal(largeReader ? 1 : 2, Grid.GetRowSpan(sidebar));
+            GridSplitter splitter = Assert.Single(host.Children.OfType<GridSplitter>(), item => item.Name == "ReaderMediaSidebarSplitter");
+            Assert.All(new Control[] { sidebar, splitter }, control =>
+            {
+                Assert.Equal(0, Grid.GetRow(control));
+                Assert.Equal(largeReader ? 1 : 2, Grid.GetRowSpan(control));
+            });
             foreach (bool withChrome in new[] { false, true })
             {
                 if (withChrome)
@@ -210,13 +216,19 @@ public sealed class ReaderMediaSidebarLayoutTests
             Layout(root, geometries[0]);
             Assert.False(page.IsMediaSidebarShown);
             Assert.True(toggle.IsVisible);
-            Assert.False(toggle.IsEnabled);
-            Assert.Equal(Ursa.Controls.OverflowMode.Always, Ursa.Controls.ToolBar.GetOverflowMode(toggle));
+            Assert.True(toggle.IsEnabled);
+            var group = Assert.IsType<SidebarToggleGroup>(toggle.Parent);
+            Assert.Equal(Ursa.Controls.OverflowMode.Never, Ursa.Controls.ToolBar.GetOverflowMode(group));
+            Assert.True(toggle.IsChecked);
+            toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.False(toggle.IsChecked);
+            Assert.False(page.IsMediaSidebarShown);
             page.ApplyReaderMediaPreferences(saved with { SidebarWidth = 620 });
             Layout(root, geometries[0]);
             Assert.True(page.IsMediaSidebarShown);
             Assert.True(toggle.IsEnabled);
-            Assert.Equal(Ursa.Controls.OverflowMode.AsNeeded, Ursa.Controls.ToolBar.GetOverflowMode(toggle));
+            Assert.Same(group, toggle.Parent);
+            Assert.Equal(Ursa.Controls.OverflowMode.Never, Ursa.Controls.ToolBar.GetOverflowMode(group));
             Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
             Assert.Equal(ReaderMediaSidebarRules.EffectiveWidth(620, host.Bounds.Width, largeReader ? 0 : 2 * ReaderMediaSidebarRules.ArchiveViewGap), sidebar.Bounds.Width);
             Assert.Equal(host.Bounds.Height, sidebar.Bounds.Height);

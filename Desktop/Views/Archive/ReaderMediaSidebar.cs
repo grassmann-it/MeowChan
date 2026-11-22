@@ -347,7 +347,8 @@ internal sealed class ReaderMediaSidebar : Border
         _header.RowDefinitions[0].Height = GridLength.Auto;
         _headerText.HorizontalAlignment = HorizontalAlignment.Stretch;
         _title.TextWrapping = TextWrapping.Wrap;
-        _title.TextTrimming = TextTrimming.None;
+        // Keep long file names from displacing the media. The tooltip still shows the full metadata.
+        _title.MaxLines = 2;
         _postLink.VerticalAlignment = VerticalAlignment.Top;
         Grid.SetRow(_headerText, 1);
         FitHeader(_header.Bounds.Width);

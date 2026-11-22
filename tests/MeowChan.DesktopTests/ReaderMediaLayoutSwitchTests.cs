@@ -41,8 +41,13 @@ public sealed class ReaderMediaLayoutSwitchTests
             items.Where(item => Attached(item, "End") == "True").Select(item => (string)item.Attribute(X + "Name")!));
         XElement[] pair = items.TakeLast(2).ToArray();
         Assert.All(pair, item => Assert.Equal("ToggleButton", item.Name.LocalName));
-        Assert.Equal("segment segment-first", (string?)pair[0].Attribute("Classes"));
-        Assert.Equal("segment segment-last", (string?)pair[1].Attribute("Classes"));
+        BooruComponentDispatcher.Run(() => WithPage(page =>
+        {
+            ToggleButton tiles = page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!;
+            ToggleButton table = page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!;
+            ToolbarGapPatternTests.AssertJoinedToggleClasses(tiles.Classes, "segment-first");
+            ToolbarGapPatternTests.AssertJoinedToggleClasses(table.Classes, "segment-last");
+        }));
         foreach (XElement toggle in pair)
         {
             Assert.Null(toggle.Attribute("Padding"));
@@ -165,7 +170,7 @@ public sealed class ReaderMediaLayoutSwitchTests
         TokenApplication.Bind();
         MeowChan.ArchivePage page = new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
         try { test(page); }
-        finally { (page as IDisposable)?.Dispose(); }
+        finally { page.EndLifetime(); }
     }
 
 }
