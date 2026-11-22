@@ -26,15 +26,17 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
     private readonly BooruOriginalQueue _originals;
     private readonly BooruCatalogStore _catalog;
     private readonly string _sourceId;
+    private readonly string _instanceId;
     private readonly BooruPortAvailabilityGate _availability;
     private int _disposed;
 
     internal BooruOriginalQueuePort(BooruOriginalQueue originals, BooruCatalogStore catalog, string sourceId,
-        BooruPortAvailabilityGate? availability = null)
+        BooruPortAvailabilityGate? availability = null, string instanceId = BooruPostKey.DefaultInstance)
     {
         _originals = originals ?? throw new ArgumentNullException(nameof(originals));
         _catalog = catalog ?? throw new ArgumentNullException(nameof(catalog));
         _sourceId = sourceId;
+        _instanceId = instanceId;
         _availability = availability ?? new BooruPortAvailabilityGate();
         _originals.OutcomeChanged += OnOutcomeChanged;
     }
@@ -49,7 +51,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
     {
         ArgumentNullException.ThrowIfNull(post);
         cancellationToken.ThrowIfCancellationRequested();
-        if (!string.Equals(post.SourceId, _sourceId, StringComparison.Ordinal))
+        if (post.SourceId != _sourceId || post.Identity.InstanceId != _instanceId)
             return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.BooruSource);
         using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
         if (Volatile.Read(ref _disposed) != 0 || operation == null) return Unavailable();
@@ -57,7 +59,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         if (post.OriginalAccess == BooruOriginalAccess.NotOffered) return new BooruLoadResult(BooruLoadStatus.NoOriginal);
         if (post.OriginalAccess == BooruOriginalAccess.Restricted) return new BooruLoadResult(BooruLoadStatus.Restricted);
         BooruPostClaim claim;
-        try { claim = BooruClaimMapper.Map(post.Post); }
+        try { claim = BooruClaimMapper.Map(post.Post, _sourceId, _instanceId); }
         catch (Exception exception) when (exception is ArgumentException or InvalidDataException or FormatException or OverflowException)
         {
             return new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.MalformedPost);
@@ -169,6 +171,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         BooruOriginalAdmissionStatus.Queued => new BooruLoadResult(BooruLoadStatus.Queued),
         BooruOriginalAdmissionStatus.AlreadyQueued => new BooruLoadResult(BooruLoadStatus.AlreadyQueued),
         BooruOriginalAdmissionStatus.AlreadyLinked => new BooruLoadResult(BooruLoadStatus.AlreadyLoaded),
+        BooruOriginalAdmissionStatus.SourceUnavailable => Unavailable(),
         BooruOriginalAdmissionStatus.RefusalPending => new BooruLoadResult(BooruLoadStatus.RefusalPending),
         BooruOriginalAdmissionStatus.Unavailable when admission.SelectionError == BooruOriginalSelectionError.MissingOriginal
             => new BooruLoadResult(BooruLoadStatus.NoOriginal),
@@ -188,7 +191,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
             Dictionary<string, BooruLocalState> states = new(StringComparer.Ordinal);
             foreach (BooruPostRecord record in posts)
             {
-                if (record.SourceId != _sourceId || !wanted.Contains(record.PostId)) continue;
+                if (record.SourceId != _sourceId || record.Identity.InstanceId != _instanceId || !wanted.Contains(record.PostId)) continue;
                 outcomes.TryGetValue(record.PostId, out BooruOriginalDownloadOutcome? outcome);
                 states[record.PostId] = LocalState(record, outcome);
             }

@@ -31,7 +31,7 @@ internal sealed class BooruWorkbenchModel : IDisposable
     internal async Task<bool> CreateWatcherAsync()
     {
         BooruSearchView view = Search.View;
-        if (view.Mode != BooruInputMode.Tags || view.Parsed.Kind != BooruInputKind.Tags || view.Parsed.Canonical is not { } query)
+        if (!Search.CanCreateWatcher || view.Parsed.Canonical is not { } query)
         {
             Search.SetNotice(new BooruNotice(BooruNoticeKind.Warning, "booru.ui.watcher.createNeedsTags"));
             return false;

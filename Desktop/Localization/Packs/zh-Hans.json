@@ -5222,7 +5222,7 @@
     "booru.tabs.post": "帖子 #{0}",
     "booru.tabs.limit": "已达到搜索标签页上限（{0}）。请先关闭一个标签页，或在设置中提高上限。",
     "settings.limits.booruSearchTabs": "Danbooru：搜索标签页上限",
-    "settings.limits.booruSearchTabs.hint": "Danbooru 可打开的额外搜索标签页数量上限。标签页会在当前会话中保留。",
+    "settings.limits.booruSearchTabs.hint": "Danbooru 可打开的额外搜索标签页数量上限。重启后可重新打开已提交的搜索。",
     "booru.bulk.button": "下载此搜索的全部结果",
     "booru.bulk.stop": "停止收集",
     "booru.bulk.hint": "获取当前搜索的现有结果，并把每个原图加入队列，最多到来源的页数上限（{0} 页，每页 {1} 个帖子）。监视只获取新帖子。",

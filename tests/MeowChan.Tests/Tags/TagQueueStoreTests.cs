@@ -429,7 +429,7 @@ public sealed class TagQueueStoreTests
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         TagQueueStore store = new(temp.Path, lease);
         string path = FileOf(temp);
-        TagQueueItem first = Item(1) with { Position = 0 };
+        TagQueueItem first = Item(1) with { Position = 0, BooruPost = "42" };
         store.Add([first, Item(2)]);
         string group = store.CreateGroup("Review", [first.Key]).Groups.Single().Id;
         store.SetGroupStamp(group, ["blue", "cat"]);
@@ -455,6 +455,7 @@ public sealed class TagQueueStoreTests
         TagQueueStore reopened = new(temp.Path, lease);
         TagQueueSnapshot loaded = reopened.Read();
         Assert.Equal(sourceVersion == 3 ? "rev-1" : null, loaded.Items[0].AttachmentRevisionKey);
+        Assert.Equal(MeowChan.Booru.BooruMediaKey.Original(new("danbooru", "default", "42")), loaded.Items[0].Key.BooruOriginal);
         Assert.Equal(1, loaded.Cursor);
         Assert.Equal("general", Assert.Single(loaded.Stamp));
         TagQueueGroup review = Assert.Single(loaded.Groups);

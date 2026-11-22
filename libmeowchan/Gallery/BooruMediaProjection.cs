@@ -193,7 +193,7 @@ internal static class BooruMediaProjection
         List<MediaLibraryEntry> entries = new();
         Dictionary<string, MediaLibraryManifestState> states = new(StringComparer.Ordinal);
         int unreadable = 0;
-        foreach (BooruPostRecord record in catalog.Posts.Where(post => post.SourceId == BooruMediaIdentity.Source && post.LocalAssetId != null)
+        foreach (BooruPostRecord record in catalog.Posts.Where(post => post.Identity.IsLegacyDanbooru && post.LocalAssetId != null)
             .OrderBy(post => post, Comparer<BooruPostRecord>.Create((left, right) => DanbooruPostReference.ComparePostIds(left.PostId, right.PostId))))
         {
             cancellationToken.ThrowIfCancellationRequested();

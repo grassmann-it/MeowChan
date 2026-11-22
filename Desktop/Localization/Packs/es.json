@@ -5324,7 +5324,7 @@
     "booru.tabs.post": "Publicación #{0}",
     "booru.tabs.limit": "Se alcanzó el límite de pestañas de búsqueda ({0}). Cierra una pestaña primero o sube el límite en Ajustes.",
     "settings.limits.booruSearchTabs": "Danbooru: máximo de pestañas de búsqueda",
-    "settings.limits.booruSearchTabs.hint": "Número máximo de pestañas de búsqueda adicionales en Danbooru. Las pestañas se conservan durante la sesión actual.",
+    "settings.limits.booruSearchTabs.hint": "Número máximo de pestañas de búsqueda adicionales en Danbooru. Las búsquedas enviadas se pueden volver a abrir tras reiniciar.",
     "booru.bulk.button": "Descargar todo de esta búsqueda",
     "booru.bulk.stop": "Detener la recopilación",
     "booru.bulk.hint": "Obtiene los resultados existentes de la búsqueda mostrada y pone cada original en cola, hasta el límite de páginas de la fuente (páginas {0}, publicaciones por página {1}). La vigilancia solo toma publicaciones nuevas.",

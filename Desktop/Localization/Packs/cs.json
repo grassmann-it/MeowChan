@@ -5372,7 +5372,7 @@
     "booru.tabs.post": "Příspěvek #{0}",
     "booru.tabs.limit": "Limit karet hledání ({0}) je dosažen. Nejdřív zavřete některou kartu nebo zvyšte limit v nastavení.",
     "settings.limits.booruSearchTabs": "Danbooru: nejvíce karet hledání",
-    "settings.limits.booruSearchTabs.hint": "Nejvyšší počet dalších karet hledání v Danbooru. Karty zůstávají otevřené v aktuální relaci.",
+    "settings.limits.booruSearchTabs.hint": "Nejvyšší počet dalších karet hledání v Danbooru. Spuštěná hledání lze po restartu znovu otevřít.",
     "booru.bulk.button": "Stáhnout vše z tohoto hledání",
     "booru.bulk.stop": "Zastavit shromažďování",
     "booru.bulk.hint": "Načte existující výsledky zobrazeného hledání a zařadí každý originál do fronty, nejvýše do limitu stránek zdroje (stránky {0}, příspěvků na stránku {1}). Sledování přebírá jen nové příspěvky.",

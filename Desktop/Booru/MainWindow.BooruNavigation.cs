@@ -35,6 +35,7 @@ public partial class MainWindow
         BooruPage page = new(services);
         ConfigureBooruMediaLinks(page);
         ConfigureBooruViewPreferences(page);
+        _session.ConfigureBooruSearchTabTargets(page.View);
         // The sdk-mismatch repair route (MainWindow.BooruRepair): review, confirm, restart.
         AttachBooruRepair(page, services);
         page.ApplyWorkView(ConfiguredWorkView, viewChanged: true);

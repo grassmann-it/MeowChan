@@ -134,8 +134,10 @@ internal sealed record BooruPostClaim(
     IReadOnlyList<BooruPostClaimMedia>? Media = null,
     string? SourceClaim = null,
     bool IsDeleted = false,
-    bool IsBanned = false)
+    bool IsBanned = false,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstanceId = null)
 {
+    internal BooruPostKey Identity => new(SourceId, InstanceId ?? BooruPostKey.DefaultInstance, PostId);
     public IReadOnlyList<BooruPostClaimTag> Tags { get; init; } = Tags ?? Array.Empty<BooruPostClaimTag>();
     public IReadOnlyList<BooruPostClaimMedia> Media { get; init; } = Media ?? Array.Empty<BooruPostClaimMedia>();
 }
@@ -150,8 +152,11 @@ internal sealed record BooruPostRecord(
     [property: JsonRequired] string? LocalAssetId = null,
     [property: JsonRequired] string? LocalPath = null,
     IReadOnlyList<BooruFinding>? Findings = null,
-    BooruOriginalIntent OriginalIntent = BooruOriginalIntent.None)
+    BooruOriginalIntent OriginalIntent = BooruOriginalIntent.None,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? InstanceId = null)
 {
+    internal BooruPostKey Identity => new(SourceId, InstanceId ?? BooruPostKey.DefaultInstance, PostId);
+    internal BooruMediaKey OriginalIdentity => BooruMediaKey.Original(Identity);
     // Every schema-1 writer has written the asset link and the findings. A missing key is therefore an incomplete
     // record, not an older one, and must not silently turn a linked original back into a post to download again.
     [JsonRequired]
@@ -225,24 +230,28 @@ internal sealed record BooruCatalogSnapshot(
     IReadOnlyList<BooruPostRecord> Posts,
     IReadOnlyList<BooruWatcherRecord> Watchers)
 {
+    // Retain the original schema for Danbooru-only profiles until they actually contain a scoped identity.
     internal const int CurrentSchemaVersion = 1;
+    internal const int ScopedIdentitySchemaVersion = 2;
     internal static BooruCatalogSnapshot Empty => new(CurrentSchemaVersion,
         Array.Empty<BooruPostRecord>(), Array.Empty<BooruWatcherRecord>());
 
     // Posts by identity, made the first time a lookup asks and kept for as long as this (immutable) snapshot lives; the first lookup
     // costs one pass, every later one is a dictionary hit instead of a scan over thousands of posts.
-    private static readonly ConditionalWeakTable<BooruCatalogSnapshot, Dictionary<(string Source, string Post), BooruPostRecord>> ByIdentity = new();
+    private static readonly ConditionalWeakTable<BooruCatalogSnapshot, Dictionary<BooruPostKey, BooruPostRecord>> ByIdentity = new();
 
     /// <summary>One post of this snapshot by identity, or null (the first one of equal identity, as a scan would find).</summary>
-    internal BooruPostRecord? TryGetPost(string sourceId, string postId)
+    internal BooruPostRecord? TryGetPost(string sourceId, string postId) => TryGetPost(BooruPostKey.FromLegacy(sourceId, postId));
+
+    internal BooruPostRecord? TryGetPost(BooruPostKey identity)
     {
-        Dictionary<(string Source, string Post), BooruPostRecord> index = ByIdentity.GetValue(this, snapshot =>
+        Dictionary<BooruPostKey, BooruPostRecord> index = ByIdentity.GetValue(this, snapshot =>
         {
-            Dictionary<(string Source, string Post), BooruPostRecord> made = new(snapshot.Posts.Count);
-            foreach (BooruPostRecord record in snapshot.Posts) made.TryAdd((record.SourceId, record.PostId), record);
+            Dictionary<BooruPostKey, BooruPostRecord> made = new(snapshot.Posts.Count);
+            foreach (BooruPostRecord record in snapshot.Posts) made.TryAdd(record.Identity, record);
             return made;
         });
-        return index.GetValueOrDefault((sourceId, postId));
+        return index.GetValueOrDefault(identity);
     }
 }
 
@@ -369,12 +378,14 @@ internal sealed class BooruCatalogStore
     });
 
     /// <summary>One stored post by identity (indexed lookup), or null.</summary>
-    internal BooruPostRecord? TryGetPost(string sourceId, string postId) => _lease.RunExclusive(() =>
+    internal BooruPostRecord? TryGetPost(string sourceId, string postId) => TryGetPost(BooruPostKey.FromLegacy(sourceId, postId));
+
+    internal BooruPostRecord? TryGetPost(BooruPostKey identity) => _lease.RunExclusive(() =>
     {
         lock (_sync)
         {
             Cache cache = LoadLocked();
-            return cache.Posts.TryGetValue(PostKey(sourceId, postId), out int index) ? cache.Snapshot.Posts[index] : null;
+            return cache.Posts.TryGetValue(identity, out int index) ? cache.Snapshot.Posts[index] : null;
         }
     });
 
@@ -442,7 +453,7 @@ internal sealed class BooruCatalogStore
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Cache cache = LoadLocked();
-                int index = IndexOf(cache, post.SourceId, post.PostId);
+                int index = IndexOf(cache, post.Identity);
                 BooruPostRecord next = Merged(cache, index, FreezeClaim(post), observedAtUtc.ToUniversalTime());
                 return WritePostLocked(cache, index, next, admission, cancellationToken);
             }
@@ -457,7 +468,7 @@ internal sealed class BooruCatalogStore
         string? watcherId, string? query, DateTimeOffset foundAtUtc,
         CancellationToken cancellationToken = default)
     {
-        ValidateFindingArguments(sourceId, postId, kind, watcherId, query);
+        ValidateFindingArguments(BooruPostKey.FromLegacy(sourceId, postId), kind, watcherId, query);
         using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
         return AddFindingAdmitted(sourceId, postId, kind, watcherId, query, foundAtUtc, admission, cancellationToken);
     }
@@ -466,14 +477,14 @@ internal sealed class BooruCatalogStore
         string? watcherId, string? query, DateTimeOffset foundAtUtc, ProfileAdmissionToken admission,
         CancellationToken cancellationToken = default)
     {
-        ValidateFindingArguments(sourceId, postId, kind, watcherId, query);
+        ValidateFindingArguments(BooruPostKey.FromLegacy(sourceId, postId), kind, watcherId, query);
         return _lease.RunStoreWrite(admission, () =>
         {
             lock (_sync)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Cache cache = LoadLocked();
-                int index = IndexOf(cache, sourceId, postId);
+                int index = IndexOf(cache, BooruPostKey.FromLegacy(sourceId, postId));
                 if (index < 0) throw new InvalidOperationException("A provider post must be stored before its finding.");
                 BooruPostRecord current = cache.Snapshot.Posts[index];
                 BooruPostRecord next = WithFinding(current, kind, watcherId, query, foundAtUtc.ToUniversalTime());
@@ -489,7 +500,7 @@ internal sealed class BooruCatalogStore
     /// <summary>
     /// One explicit observation in a single durable write: the claim is merged (as <see cref="UpsertPost"/>), the
     /// finding is added (as <see cref="AddFinding"/>) and, if <paramref name="decideIntent"/> returns a value, the
-    /// original intent is set (as <see cref="SetOriginalIntent"/>) on the merged record. The callback runs inside
+    /// original intent is set (as <see cref="SetOriginalIntent(BooruPostKey, BooruOriginalIntent, CancellationToken)"/>) on the merged record. The callback runs inside
     /// the store's write lock: it must be fast, must not take other locks and must not call the store. A crash
     /// leaves either the previous document or all three changes, never a claim whose request is missing.
     /// </summary>
@@ -499,7 +510,7 @@ internal sealed class BooruCatalogStore
     {
         ArgumentNullException.ThrowIfNull(post);
         ValidatePostClaim(post);
-        ValidateFindingArguments(post.SourceId, post.PostId, kind, watcherId, query);
+        ValidateFindingArguments(post.Identity, kind, watcherId, query);
         using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
         return _lease.RunStoreWrite(admission, () =>
         {
@@ -507,7 +518,7 @@ internal sealed class BooruCatalogStore
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Cache cache = LoadLocked();
-                int index = IndexOf(cache, post.SourceId, post.PostId);
+                int index = IndexOf(cache, post.Identity);
                 DateTimeOffset observed = observedAtUtc.ToUniversalTime();
                 BooruPostRecord next = WithFinding(Merged(cache, index, FreezeClaim(post), observed), kind, watcherId, query, observed);
                 if (decideIntent?.Invoke(next) is BooruOriginalIntent intent)
@@ -524,17 +535,18 @@ internal sealed class BooruCatalogStore
     internal BooruPostRecord LinkLocalAsset(string sourceId, string postId, string assetId,
         string? localPath = null, CancellationToken cancellationToken = default)
     {
-        ValidateIdentity(sourceId, postId);
-        ValidateRequiredText(assetId, nameof(assetId), 512);
-        ValidateOptionalText(localPath, nameof(localPath), 4096);
         using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
-        return LinkLocalAssetAdmitted(sourceId, postId, assetId, localPath, admission, cancellationToken);
+        return LinkLocalAssetAdmitted(BooruPostKey.FromLegacy(sourceId, postId), assetId, localPath, admission, cancellationToken);
     }
 
     internal BooruPostRecord LinkLocalAssetAdmitted(string sourceId, string postId, string assetId,
+        string? localPath, ProfileAdmissionToken admission, CancellationToken cancellationToken = default) =>
+        LinkLocalAssetAdmitted(BooruPostKey.FromLegacy(sourceId, postId), assetId, localPath, admission, cancellationToken);
+
+    internal BooruPostRecord LinkLocalAssetAdmitted(BooruPostKey identity, string assetId,
         string? localPath, ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
     {
-        ValidateIdentity(sourceId, postId);
+        ValidateIdentity(identity);
         ValidateRequiredText(assetId, nameof(assetId), 512);
         ValidateOptionalText(localPath, nameof(localPath), 4096);
         return _lease.RunStoreWrite(admission, () =>
@@ -543,7 +555,7 @@ internal sealed class BooruCatalogStore
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Cache cache = LoadLocked();
-                int index = IndexOf(cache, sourceId, postId);
+                int index = IndexOf(cache, identity);
                 if (index < 0) throw new InvalidOperationException("A provider post must be stored before its asset link.");
                 // A committed link is a terminal intent; anything else would look pending after a restart.
                 BooruPostRecord next = cache.Snapshot.Posts[index] with
@@ -562,18 +574,24 @@ internal sealed class BooruCatalogStore
     /// survive a restart so it is never silently re-admitted, and a queue refusal stays visible.
     /// </summary>
     internal BooruPostRecord SetOriginalIntent(string sourceId, string postId, BooruOriginalIntent intent,
+        CancellationToken cancellationToken = default) =>
+        SetOriginalIntent(BooruPostKey.FromLegacy(sourceId, postId), intent, cancellationToken);
+
+    internal BooruPostRecord SetOriginalIntent(BooruPostKey identity, BooruOriginalIntent intent,
         CancellationToken cancellationToken = default)
     {
-        ValidateIdentity(sourceId, postId);
-        if (!Enum.IsDefined(intent)) throw new ArgumentOutOfRangeException(nameof(intent));
         using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(cancellationToken);
-        return SetOriginalIntentAdmitted(sourceId, postId, intent, admission, cancellationToken);
+        return SetOriginalIntentAdmitted(identity, intent, admission, cancellationToken);
     }
 
     internal BooruPostRecord SetOriginalIntentAdmitted(string sourceId, string postId, BooruOriginalIntent intent,
+        ProfileAdmissionToken admission, CancellationToken cancellationToken = default) =>
+        SetOriginalIntentAdmitted(BooruPostKey.FromLegacy(sourceId, postId), intent, admission, cancellationToken);
+
+    internal BooruPostRecord SetOriginalIntentAdmitted(BooruPostKey identity, BooruOriginalIntent intent,
         ProfileAdmissionToken admission, CancellationToken cancellationToken = default)
     {
-        ValidateIdentity(sourceId, postId);
+        ValidateIdentity(identity);
         if (!Enum.IsDefined(intent)) throw new ArgumentOutOfRangeException(nameof(intent));
         return _lease.RunStoreWrite(admission, () =>
         {
@@ -581,7 +599,7 @@ internal sealed class BooruCatalogStore
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 Cache cache = LoadLocked();
-                int index = IndexOf(cache, sourceId, postId);
+                int index = IndexOf(cache, identity);
                 if (index < 0) throw new InvalidOperationException("A provider post must be stored before its download intent.");
                 BooruPostRecord current = cache.Snapshot.Posts[index];
                 RejectLinkedWithoutAsset(current, intent);
@@ -691,16 +709,16 @@ internal sealed class BooruCatalogStore
             Snapshot = snapshot;
             DocumentBytes = documentBytes;
             Identity = identity;
-            Posts = new Dictionary<string, int>(snapshot.Posts.Count, StringComparer.Ordinal);
+            Posts = new Dictionary<BooruPostKey, int>(snapshot.Posts.Count);
             for (int index = 0; index < snapshot.Posts.Count; index++)
-                Posts[PostKey(snapshot.Posts[index].SourceId, snapshot.Posts[index].PostId)] = index;
+                Posts[snapshot.Posts[index].Identity] = index;
             Watchers = new Dictionary<string, int>(snapshot.Watchers.Count, StringComparer.Ordinal);
             for (int index = 0; index < snapshot.Watchers.Count; index++)
                 Watchers[snapshot.Watchers[index].WatcherId] = index;
         }
 
         private Cache(BooruCatalogSnapshot snapshot, long documentBytes, RegularProfileFileIdentity? identity,
-            Dictionary<string, int> posts, Dictionary<string, int> watchers)
+            Dictionary<BooruPostKey, int> posts, Dictionary<string, int> watchers)
         {
             Snapshot = snapshot;
             DocumentBytes = documentBytes;
@@ -713,14 +731,14 @@ internal sealed class BooruCatalogStore
         internal long DocumentBytes { get; }
         /// <summary>Null: this entry is not reusable (missing file, or the file changed while it was read).</summary>
         internal RegularProfileFileIdentity? Identity { get; }
-        internal Dictionary<string, int> Posts { get; }
+        internal Dictionary<BooruPostKey, int> Posts { get; }
         internal Dictionary<string, int> Watchers { get; }
 
         /// <summary>The entry after a successful write; this entry is no longer used afterwards.</summary>
         internal Cache Next(BooruCatalogSnapshot snapshot, long documentBytes, RegularProfileFileIdentity? identity,
-            string? addedPostKey, string? addedWatcherId)
+            BooruPostKey? addedPostKey, string? addedWatcherId)
         {
-            if (addedPostKey is not null) Posts.Add(addedPostKey, snapshot.Posts.Count - 1);
+            if (addedPostKey is { } key) Posts.Add(key, snapshot.Posts.Count - 1);
             if (addedWatcherId is not null) Watchers.Add(addedWatcherId, snapshot.Watchers.Count - 1);
             return new Cache(snapshot, documentBytes, identity, Posts, Watchers);
         }
@@ -754,13 +772,13 @@ internal sealed class BooruCatalogStore
         return loaded;
     }
 
-    private static int IndexOf(Cache cache, string sourceId, string postId) =>
-        cache.Posts.TryGetValue(PostKey(sourceId, postId), out int index) ? index : -1;
+    private static int IndexOf(Cache cache, BooruPostKey identity) =>
+        cache.Posts.TryGetValue(identity, out int index) ? index : -1;
 
     /// <summary>The stored record with <paramref name="claim"/> merged in, or a new record (index -1).</summary>
     private static BooruPostRecord Merged(Cache cache, int index, BooruPostClaim claim, DateTimeOffset observed)
     {
-        if (index < 0) return new(claim.SourceId, claim.PostId, claim, observed, observed);
+        if (index < 0) return new(claim.SourceId, claim.PostId, claim, observed, observed, InstanceId: claim.InstanceId);
         BooruPostRecord current = cache.Snapshot.Posts[index];
         return current with
         {
@@ -776,7 +794,7 @@ internal sealed class BooruCatalogStore
     private static BooruPostRecord WithFinding(BooruPostRecord current, BooruFindingKind kind, string? watcherId,
         string? query, DateTimeOffset observed)
     {
-        string findingId = FindingIdentity(current.SourceId, current.PostId, kind, watcherId, query);
+        string findingId = FindingIdentity(current.Identity, kind, watcherId, query);
         BooruPostRecord widened = current with
         {
             FirstSeenAtUtc = Earliest(current.FirstSeenAtUtc, observed),
@@ -805,8 +823,9 @@ internal sealed class BooruCatalogStore
         // index keeps the identity unique (a new identity is appended, a known one replaced in place).
         ValidatePostRecord(frozen);
         BooruPostRecord[] posts = CopyWith(cache.Snapshot.Posts, index, frozen);
-        WriteLocked(cache, cache.Snapshot with { Posts = Array.AsReadOnly(posts) },
-            index < 0 ? PostKey(frozen.SourceId, frozen.PostId) : null, null, admission, cancellationToken, stateChangeOnly);
+        int schema = frozen.Identity.IsLegacyDanbooru ? cache.Snapshot.SchemaVersion : BooruCatalogSnapshot.ScopedIdentitySchemaVersion;
+        WriteLocked(cache, cache.Snapshot with { SchemaVersion = schema, Posts = Array.AsReadOnly(posts) },
+            index < 0 ? frozen.Identity : null, null, admission, cancellationToken, stateChangeOnly);
         return frozen;
     }
 
@@ -856,7 +875,7 @@ internal sealed class BooruCatalogStore
         Math.Min(MaximumDocumentBytes,
             Math.Max(configuredLimitBytes, previousDocumentBytes) + (stateChangeOnly ? StateChangeSlackBytes : 0));
 
-    private void WriteLocked(Cache previous, BooruCatalogSnapshot snapshot, string? addedPostKey, string? addedWatcherId,
+    private void WriteLocked(Cache previous, BooruCatalogSnapshot snapshot, BooruPostKey? addedPostKey, string? addedWatcherId,
         ProfileAdmissionToken admission, CancellationToken cancellationToken, bool stateChangeOnly = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -1006,17 +1025,17 @@ internal sealed class BooruCatalogStore
     private static void ValidateSnapshot(BooruCatalogSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
-        if (snapshot.SchemaVersion != BooruCatalogSnapshot.CurrentSchemaVersion)
+        if (snapshot.SchemaVersion is not (BooruCatalogSnapshot.CurrentSchemaVersion or BooruCatalogSnapshot.ScopedIdentitySchemaVersion))
             throw new InvalidDataException("The Booru catalog schema is not supported.");
         if (snapshot.Posts is null || snapshot.Watchers is null)
             throw new InvalidDataException("The Booru catalog collections are missing.");
 
-        HashSet<string> postKeys = new(StringComparer.Ordinal);
+        HashSet<BooruPostKey> postKeys = new();
         foreach (BooruPostRecord? post in snapshot.Posts)
         {
             if (post is null) throw new InvalidDataException("The Booru catalog contains a null post.");
             ValidatePostRecord(post);
-            if (!postKeys.Add(PostKey(post.SourceId, post.PostId)))
+            if (!postKeys.Add(post.Identity) || snapshot.SchemaVersion == BooruCatalogSnapshot.CurrentSchemaVersion && !post.Identity.IsLegacyDanbooru)
                 throw new InvalidDataException("The Booru catalog contains an invalid or duplicate post identity.");
         }
 
@@ -1042,9 +1061,9 @@ internal sealed class BooruCatalogStore
     private static void ValidatePostRecord(BooruPostRecord post)
     {
         if (post.Post is null) throw new InvalidDataException("The Booru catalog contains a post without a claim.");
-        ValidateIdentity(post.SourceId, post.PostId);
+        ValidateIdentity(post.Identity);
         ValidatePostClaim(post.Post);
-        if (post.SourceId != post.Post.SourceId || post.PostId != post.Post.PostId)
+        if (post.Identity != post.Post.Identity)
             throw new InvalidDataException("The Booru catalog contains a mismatched post identity.");
         if (post.FirstSeenAtUtc > post.LastSeenAtUtc)
             throw new InvalidDataException("The Booru catalog contains an invalid observation range.");
@@ -1065,8 +1084,8 @@ internal sealed class BooruCatalogStore
         foreach (BooruFinding? finding in post.Findings)
         {
             if (finding is null) throw new InvalidDataException("The Booru catalog contains a null finding.");
-            ValidateFindingArguments(post.SourceId, post.PostId, finding.Kind, finding.WatcherId, finding.Query);
-            string expected = FindingIdentity(post.SourceId, post.PostId, finding.Kind, finding.WatcherId, finding.Query);
+            ValidateFindingArguments(post.Identity, finding.Kind, finding.WatcherId, finding.Query);
+            string expected = FindingIdentity(post.Identity, finding.Kind, finding.WatcherId, finding.Query);
             if (!findings.Add(finding.FindingId) || finding.FindingId != expected)
                 throw new InvalidDataException("The Booru catalog contains duplicate or invalid findings.");
         }
@@ -1075,13 +1094,17 @@ internal sealed class BooruCatalogStore
     private static void ValidatePostClaim(BooruPostClaim post)
     {
         ArgumentNullException.ThrowIfNull(post);
-        ValidateIdentity(post.SourceId, post.PostId);
+        ValidateIdentity(post.Identity);
         if ((post.Fields & ~BooruPostClaimPresence.All) != 0)
             throw new ArgumentException("The Booru post claim contains unknown fields.", nameof(post));
-        ValidateOptionalText(post.PostUrl, nameof(post.PostUrl), MaximumClaimTextLength);
-        if (post.PostUrl is not null && (!DanbooruPostReference.TryParse(post.PostUrl, out DanbooruPostReference? reference, out _)
-            || reference is null || reference.PostId != post.PostId))
-            throw new ArgumentException("The Booru post URL does not match its provider identity.", nameof(post));
+        if (post.Identity.IsLegacyDanbooru)
+        {
+            ValidateOptionalText(post.PostUrl, nameof(post.PostUrl), MaximumClaimTextLength);
+            if (post.PostUrl is not null && (!DanbooruPostReference.TryParse(post.PostUrl, out DanbooruPostReference? reference, out _)
+                || reference is null || reference.PostId != post.PostId))
+                throw new ArgumentException("The Booru post URL does not match its provider identity.", nameof(post));
+        }
+        else ValidateMediaUrl(post.PostUrl);
         ValidateProviderText(post.RawRating, nameof(post.RawRating), 128);
         ValidateProviderText(post.SourceClaim, nameof(post.SourceClaim), MaximumClaimTextLength);
         if (!Enum.IsDefined(post.Rating)) throw new ArgumentException("The Booru post rating is invalid.", nameof(post));
@@ -1310,10 +1333,10 @@ internal sealed class BooruCatalogStore
             throw Invalid("inconsistent budget limit", name);
     }
 
-    private static void ValidateFindingArguments(string sourceId, string postId, BooruFindingKind kind,
+    private static void ValidateFindingArguments(BooruPostKey identity, BooruFindingKind kind,
         string? watcherId, string? query)
     {
-        ValidateIdentity(sourceId, postId);
+        ValidateIdentity(identity);
         if (!Enum.IsDefined(kind)) throw new ArgumentOutOfRangeException(nameof(kind));
         if (kind == BooruFindingKind.Watcher)
         {
@@ -1323,7 +1346,8 @@ internal sealed class BooruCatalogStore
         else if (watcherId is not null)
             throw new ArgumentException("Only watcher findings may carry a watcher identity.", nameof(watcherId));
 
-        ValidateOptionalQuery(query);
+        if (identity.IsLegacyDanbooru) ValidateOptionalQuery(query);
+        else ValidateOptionalText(query, nameof(query), 1024);
     }
 
     private static void ValidateOptionalQuery(string? query)
@@ -1351,11 +1375,9 @@ internal sealed class BooruCatalogStore
         return values.ToArray();
     }
 
-    private static void ValidateIdentity(string sourceId, string postId)
+    private static void ValidateIdentity(BooruPostKey identity)
     {
-        ValidateRequiredText(sourceId, nameof(sourceId), 128);
-        if (sourceId != DanbooruPostReference.ProviderId || !IsValidPostId(postId))
-            throw new ArgumentException("Only valid Danbooru post identities are supported.", nameof(postId));
+        if (!identity.IsValid) throw new ArgumentException("The Booru post identity is invalid.", nameof(identity));
     }
 
     private static bool IsValidPostId(string? postId) => DanbooruPostReference.IsValidPostId(postId);
@@ -1422,19 +1444,19 @@ internal sealed class BooruCatalogStore
     private static DateTimeOffset Latest(DateTimeOffset left, DateTimeOffset right) =>
         left >= right ? left : right;
 
-    private static string PostKey(string sourceId, string postId) => sourceId + "\0" + postId;
-
-    private static string FindingIdentity(string sourceId, string postId, BooruFindingKind kind,
-        string? watcherId, string? query) => string.Join("|", sourceId, postId, kind.ToString(), watcherId ?? string.Empty, query ?? string.Empty);
+    private static string FindingIdentity(BooruPostKey identity, BooruFindingKind kind, string? watcherId, string? query) =>
+        string.Join("|", identity.SourceId, identity.PostId, kind.ToString(), watcherId ?? string.Empty, query ?? string.Empty);
 
     private static BooruPostClaim FreezeClaim(BooruPostClaim post) => post with
     {
+        InstanceId = post.InstanceId == BooruPostKey.DefaultInstance ? null : post.InstanceId,
         Tags = Array.AsReadOnly(post.Tags.Select(tag => tag with { }).ToArray()),
         Media = Array.AsReadOnly(post.Media.Select(media => media with { }).ToArray())
     };
 
     private static BooruPostRecord FreezePostRecord(BooruPostRecord post) => post with
     {
+        InstanceId = post.InstanceId == BooruPostKey.DefaultInstance ? null : post.InstanceId,
         Post = FreezeClaim(post.Post),
         Findings = FreezeFindings(post.Findings)
     };
