@@ -1,14 +1,15 @@
 namespace MeowChan.Desktop.Localization;
 
 /// <summary>
-/// EN/DE texts of the Danbooru search tabs, of "Download all of this search" and of the setting that limits the tabs. The counts of the
-/// bulk result are labels (not sentences with a counted noun), so no plural forms are needed.
+/// EN/DE texts for the Danbooru search tabs, watcher shortcut, bulk download and tab settings.
 /// </summary>
 internal static class BooruSearchTabsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
         ("booru.tabs.watchers", "Watchers", "Suchbeobachtungen"),
+        ("booru.tabs.watchersTip", "Open the Watchers tab. {0} active watchers.", "Tab für Suchbeobachtungen öffnen. {0} aktive Suchbeobachtungen."),
+        ("booru.tabs.watchersTip.one", "Open the Watchers tab. {0} active watcher.", "Tab für Suchbeobachtungen öffnen. {0} aktive Suchbeobachtung."),
         ("booru.tabs.searchNew", "Search in new tab", "In neuem Tab suchen"),
         ("booru.tabs.searchCurrent", "Search in current tab", "Im aktuellen Tab suchen"),
         ("booru.tabs.searchNewShort", "In new tab", "In neuem Tab"),

@@ -5229,6 +5229,7 @@
     "media.nextUntagged.unknown": "태그를 아직 사용할 수 없어 태그 없는 미디어를 아직 구분할 수 없습니다.",
     "work.scopeSummary": "재시도 범위: 스레드 {1}개의 미디어 파일 {0}개. 제외: 전체 {3}개 중 이미 저장된 {2}개, 이미 대기 중인 {4}개.",
     "booru.tabs.watchers": "검색 감시",
+    "booru.tabs.watchersTip": "감시자 탭을 엽니다. 활성 감시자 {0}개.",
     "booru.tabs.searchNew": "새 탭에서 검색",
     "booru.tabs.searchCurrent": "현재 탭에서 검색",
     "booru.tabs.searchNewShort": "새 탭에서 검색",

@@ -5229,6 +5229,7 @@
     "media.nextUntagged.unknown": "标签尚不可用，因此还无法区分无标签的媒体。",
     "work.scopeSummary": "重试范围：{1} 个线程中的 {0} 个媒体文件。不受影响：{3} 个中已保存 {2} 个，已排队 {4} 个。",
     "booru.tabs.watchers": "监视的搜索",
+    "booru.tabs.watchersTip": "打开关注器标签页。共有 {0} 个活跃关注器。",
     "booru.tabs.searchNew": "在新标签页中搜索",
     "booru.tabs.searchCurrent": "在当前标签页中搜索",
     "booru.tabs.searchNewShort": "在新标签页搜索",

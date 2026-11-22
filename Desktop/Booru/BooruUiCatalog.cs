@@ -17,6 +17,7 @@ internal static class BooruUiCatalog
         ("booru.ui.noFilterNote", "Results appear exactly as Danbooru returns them for your tags. MeowChan adds no rating filter and no extra search terms. Originals you load use the normal download queue.", "Die Treffer erscheinen genau so, wie Danbooru sie für deine Tags liefert. MeowChan fügt weder einen Einstufungsfilter noch weitere Suchbegriffe hinzu. Geladene Originale nutzen die normale Downloadwarteschlange."),
         ("booru.ui.tab.search", "Search", "Suche"),
         ("booru.ui.tab.watchers", "Watchers ({0})", "Suchbeobachtungen ({0})"),
+        ("booru.ui.tab.watchers.one", "Watcher ({0})", "Suchbeobachtung ({0})"),
 
         ("booru.ui.mode.label", "Input type", "Eingabeart"),
         ("booru.ui.mode.tags", "Tag search", "Tag-Suche"),
