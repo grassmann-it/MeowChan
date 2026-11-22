@@ -198,7 +198,7 @@ public sealed class ToolbarVisualIconAuditTests
             window.ShowPage(plugins);
             Audit(Bar(plugins, "PluginsHeaderActions"), "PluginsAdd", "PluginsRefresh", "PluginCategory");
             window.ShowPage(rules);
-            Audit(Bar(rules, "RulesHeaderActions"), "RulesHelpButton");
+            Audit(Bar(rules, "RulesHeaderRow"), "RulesHelpButton");
             Audit(Bar(rules, "RulesOverviewEmptyActions"), "CreateFirstRuleButton");
             rules.OpenNewRuleWizard();
             Settle(window);
