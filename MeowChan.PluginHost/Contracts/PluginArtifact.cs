@@ -5,4 +5,7 @@ public sealed record PluginArtifactResource(string Name, string RelativePath, st
 /// <summary>An immutable, verified compilation and resource revision. Never activates itself.</summary>
 public sealed record PluginArtifact(string CompilationFingerprint, string ExecutionRevision,
     string AssemblyPath, string AssemblySha256, string SdkFingerprint, string CompilerFingerprint,
-    IReadOnlyList<PluginArtifactResource> Resources, string? ResourceRootPath = null);
+    IReadOnlyList<PluginArtifactResource> Resources, string? ResourceRootPath = null)
+{
+    internal bool VerifyAssemblyOnLoad { get; init; }
+}

@@ -106,10 +106,13 @@ internal sealed class WorkerConnection : IAsyncDisposable
             connection._processTree.ConfirmGroup();
             if (hello.Operations == null || hello.Operations.Length > 32 || ProtocolVersion.Operations.Any(operation => !hello.Operations.Contains(operation)))
                 throw new PluginWorkerException("protocol", "Worker does not implement the required operations.");
+            if (artifact.VerifyAssemblyOnLoad && !hello.Operations.Contains(ProtocolVersion.VerifiedAssemblyLoad))
+                throw new PluginWorkerException("protocol", "Worker cannot load a hash-pinned adapter.");
             connection._supportsTagger = hello.Operations.Contains(ProtocolVersion.TaggerBatch);
             span = PerformanceDiagnostics.Measure("plugin.worker.describe", asset: artifact.ExecutionRevision);
             PluginDescription description = await connection.InvokeAsync<InitializeRequest, PluginDescription>("describe",
-                new(Path.GetFullPath(artifact.AssemblyPath), resources, configuration, !describeOnly), null, options.HandshakeTimeout, token).ConfigureAwait(false);
+                new(Path.GetFullPath(artifact.AssemblyPath), resources, configuration, !describeOnly,
+                    artifact.VerifyAssemblyOnLoad ? artifact.AssemblySha256 : null), null, options.HandshakeTimeout, token).ConfigureAwait(false);
             span.Dispose();
             SdkValidation.ThrowIfInvalid(SdkValidation.ValidateDescription(description));
             if (!describeOnly) SdkValidation.ThrowIfInvalid(SdkValidation.ValidateConfiguration(description, configuration));

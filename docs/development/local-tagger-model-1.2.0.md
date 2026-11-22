@@ -4,7 +4,7 @@ Unter **Quellen → Lokaler Bildtagger** lässt sich ein lokales Modellpaket pr�
 
 ## Manifest v1
 
-Ein Paket besteht aus einem UTF-8-JSON-Manifest und der danebenliegenden Datei `model.onnx`. V1 sieht eine einzelne Modelldatei vor. Feldnamen sind case-sensitive. Alle Felder müssen vorkommen und doppelte oder unbekannte Mitglieder werden abgelehnt. `sha256` ist der kleingeschriebene Hexdigest der Gewichte und `sizeBytes` deren exakte Bytezahl. Herausgeber, unveränderliche Quellrevision und Lizenz werden im Manifest deklariert. Die Freigabe muss den exakten Manifest-SHA-256 pinnen und die Herkunft und Lizenz gesondert belegen.
+Ein Paket besteht aus einem UTF-8-JSON-Manifest und der danebenliegenden Datei `model.onnx`. V1 sieht eine einzelne Modelldatei vor. Feldnamen sind case-sensitive. Alle Felder müssen vorkommen und doppelte oder unbekannte Mitglieder werden abgelehnt. `sha256` ist der kleingeschriebene Hexdigest der Gewichte und `sizeBytes` deren exakte Bytezahl. Herausgeber, unveränderliche Quellrevision und Lizenz werden im Manifest deklariert. Die Freigabe des Hosts gilt für ein konkretes Paar aus Manifest- und Adapter-SHA-256. Sie enthält die Lizenzkennungen sowie den SHA-256 des geprüften Nachweises für Herkunft und Lizenzen dieses Paars.
 
 | Feld | Inhalt |
 | --- | --- |
@@ -28,7 +28,7 @@ Die Grenzen liegen in `LocalTaggerModelSettings` und gelten vor der Verarbeitung
 
 Der Host verifiziert den Manifest-SHA aus der Vorschau erneut und kopiert die Gewichte mit begrenztem Puffer. Nach Abgleich von Bytezahl und SHA-256 veröffentlicht er den neuen Slot per atomarem Wechsel der aktiven Referenz. Ein falscher Hash, ein Größenfehler oder ein Abbruch vor der Veröffentlichung lässt den alten Slot aktiv. Bei der nächsten Benutzung werden Manifest und Gewichte erneut verifiziert.
 
-Der interne Worker-Pfad bindet den freigegebenen Manifest-SHA, Adapter und Ressourcen an dieselbe Ausführung. Der Worker nutzt das bestehende Bild-IPC und erhält nur Tokens für den laufenden Batch. Host-HTTP ist für diesen Vorgang gesperrt. Der Runner speichert den Rohscore und Modell-ID, Revision sowie Gewichte-SHA im bestehenden Vorschlagsspeicher. Der Host beendet bei Bedarf einen Worker, der auf Abbruch nicht reagiert. Der Worker läuft mit Nutzerrechten.
+Der Host prüft die gemeinsame Freigabe vor dem Workerstart. Der Worker lädt die Adapter-Assembly aus den Bytes, deren SHA-256 er geprüft hat. Der Worker nutzt das bestehende Bild-IPC und erhält nur Tokens für den laufenden Batch. Host-HTTP ist für diesen Vorgang gesperrt. Der Runner speichert den Rohscore und Modell-ID, Revision sowie Gewichte-SHA im bestehenden Vorschlagsspeicher. Der Host beendet bei Bedarf einen Worker, der auf Abbruch nicht reagiert. Der Worker läuft mit Nutzerrechten.
 
 Der Testadapter berechnet einen deterministischen Score aus synthetischen Modell- und Bildbytes und läuft nur in den Laufzeittests. Offen bleiben die Freigabe eines konkreten, lizenzgeprüften ONNX-Pakets, dessen CPU-Adapter und die Messung von Speicherbedarf und Laufzeit auf den Zielarchitekturen. Erst dann kann der Desktop CPU-Tagging für echte Bilder anbieten.
 
