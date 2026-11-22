@@ -223,6 +223,7 @@ public static class SettingsTransfer
             TagQueueConfirmAbove = source.TagQueueConfirmAbove,
             MediaTagListTop = source.MediaTagListTop,
             BooruResultTagsShown = source.BooruResultTagsShown,
+            BooruNewSearchTarget = source.BooruNewSearchTarget,
             BooruSearchTabs = source.BooruSearchTabs,
             BooruGallerySampleMiB = source.BooruGallerySampleMiB,
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB,

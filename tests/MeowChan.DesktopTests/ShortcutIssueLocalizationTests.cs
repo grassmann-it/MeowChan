@@ -32,7 +32,7 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
     ];
 
     [Fact]
-    public void AllSeventeenProducedHostReasonsHaveDistinctCatalogKeysAndPreservePublicDiagnostics()
+    public void AllProducedHostReasonsHaveDistinctCatalogKeysAndPreservePublicDiagnostics()
     {
         var reasons = new List<ShortcutIssueReason>();
         foreach (var (gestureText, code) in InvalidGestures)
@@ -65,8 +65,10 @@ public sealed class ShortcutIssueLocalizationTests : IDisposable
         reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("post.open-source", [ShortcutGesture.Parse("Shift+F10")]), "notImplemented"));
         reasons.Add(ReasonFor(ConflictDraft(), "conflictingActions"));
 
-        Assert.Equal(17, ShortcutIssueCatalog.Entries.Length);
-        Assert.Equal(17, ShortcutIssueCatalog.Entries.Select(e => e.Key).Distinct().Count());
+        reasons.Add(ReasonFor(new ShortcutBindingsSection().Set("booru.search.alternate", [ShortcutGesture.Parse("A")]), "booruTextInput"));
+
+        Assert.Equal(reasons.Count, ShortcutIssueCatalog.Entries.Length);
+        Assert.Equal(reasons.Count, ShortcutIssueCatalog.Entries.Select(e => e.Key).Distinct().Count());
         Assert.Equal(ShortcutIssueCatalog.Entries.Select(e => e.Key).Order(),
             reasons.Select(r => ShortcutIssueCatalog.Prefix + r.Code).Order());
         foreach (string language in new[] { "en", "de" })

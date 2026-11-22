@@ -91,7 +91,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         if (_page != null) Require(ReferenceEquals(_page, page), "Presentation/navigation replaced the same-service page.");
         _page = page;
         await page.ActivateAsync(); // idempotent local-list initialization, also awaited by the fixture
-        await SelectTabAsync(page, 0);
+        await SelectTabAsync(page, watchers: false);
         if (!_searched)
         {
             Require(_h.Search.Requests == 0 && _h.Queue.Loads.Count == 0 && _h.Watchers.Checks == 0
@@ -107,10 +107,10 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
             && page.GetVisualDescendants().OfType<Image>().Count(image => image.Source is Bitmap) == PostIds.Length
             && _h.Queue.StateReads > 0,
             () => "The actual result cards/previews were not materialized.");
-        await SelectTabAsync(page, 1);
+        await SelectTabAsync(page, watchers: true);
         await Program.WaitUntilAsync(() => Cards(page, "BooruWatcher:").Length == WatcherIds.Length,
             () => "The actual watcher cards were not materialized.");
-        await SelectTabAsync(page, 0);
+        await SelectTabAsync(page, watchers: false);
         RequireNoSideEffects();
     }
 
@@ -156,7 +156,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
             bool expected = stateVisible && WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, view));
             Require(control.IsVisible == expected, $"{viewName}: {control.Name ?? id} visibility disagrees with {id}.");
         }
-        await SelectTabAsync(page, 0);
+        await SelectTabAsync(page, watchers: false);
         Require(Cards(page, "BooruResult:").Select(card => card.Name).SequenceEqual(PostIds.Select(id => "BooruResult:" + id)),
             "The visible search tab lost or replaced its exact result cards.");
         foreach (string id in PostIds)
@@ -169,7 +169,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         }
         Require(Find<TextBox>(page, BooruWorkbenchView.InputName).Text == Query && page.Model.Search.View.ExecutedQuery == Query,
             "Changing presentation altered the displayed/executed query.");
-        await SelectTabAsync(page, 1);
+        await SelectTabAsync(page, watchers: true);
         Require(Cards(page, "BooruWatcher:").Select(card => card.Name).SequenceEqual(WatcherIds.Select(id => "BooruWatcher:" + id)),
             "The visible watcher tab lost or replaced its exact watcher cards.");
         foreach (string id in WatcherIds)
@@ -187,7 +187,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         Require(more.IsVisible == (expectedMore > 0)
             && AutomationProperties.GetName(more) == Texts.Count("workview.moreCount", expectedMore),
             $"{viewName}: More does not advertise all {expectedMore} reduced result/watcher/catalog entries.");
-        await SelectTabAsync(page, 0);
+        await SelectTabAsync(page, watchers: false);
         RequireNoSideEffects();
         Console.WriteLine($"SMOKE work-views booru/{viewName}: exact result and watcher cards, all policy ids and placements; More={expectedMore}; fake ports only.");
     }
@@ -197,11 +197,11 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         BooruPage page = Page;
         try
         {
-            await SelectTabAsync(page, 1);
+            await SelectTabAsync(page, watchers: true);
             Require(Cards(page, "BooruWatcher:").Length == WatcherIds.Length, "The watcher capture would be empty.");
             Program.CaptureWindow(_window, file, output);
         }
-        finally { await SelectTabAsync(page, 0); }
+        finally { await SelectTabAsync(page, watchers: false); }
     }
 
     private void RequireNoSideEffects()
@@ -258,16 +258,24 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         if (failures.Count > 0) throw new AggregateException("Booru work-view fixture restoration failed.", failures);
     }
 
-    // Also the UI catalog run's tab switch (Search 0, Watchers 1).
-    internal async Task SelectTabAsync(int index) => await SelectTabAsync(Page, index);
+    internal Task SelectTabAsync(bool watchers) => SelectTabAsync(Page, watchers);
 
-    private static async Task SelectTabAsync(BooruPage page, int index)
+    private static async Task SelectTabAsync(BooruPage page, bool watchers)
     {
         TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-        tabs.SelectedIndex = index;
+        if (watchers) page.View.ShowWatchers();
+        else
+        {
+            int activeId = page.View.SearchTabs.ActiveId;
+            TabItem search = tabs.Items.OfType<TabItem>().Single(tab => tab.Tag is int id && id == activeId);
+            tabs.SelectedItem = search;
+        }
         for (int pass = 0; pass < 2; pass++)
             await Dispatcher.UIThread.InvokeAsync(page.UpdateLayout, DispatcherPriority.Background);
-        Require(tabs.SelectedIndex == index, "The actual tab selection did not settle.");
+        bool selected = watchers
+            ? (tabs.SelectedItem as TabItem)?.Name == BooruWorkbenchView.WatchersTabName
+            : tabs.SelectedItem is TabItem { Tag: int id } && id == page.View.SearchTabs.ActiveId;
+        Require(selected, "The actual tab selection did not settle.");
     }
 
     private static T Find<T>(Control root, string name) where T : Control => root.GetVisualDescendants().OfType<T>().Single(control => control.Name == name);

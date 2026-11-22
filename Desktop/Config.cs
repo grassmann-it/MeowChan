@@ -321,7 +321,12 @@ namespace MeowChan
         internal const int BooruResultTagsShownDefault = 12;
         internal const int BooruResultTagsShownMinimum = 0;
         internal const int BooruResultTagsShownMaximum = 200;
-        /// <summary>How many extra search tabs the Danbooru page may hold next to "Search" and "Watchers" (the tabs live for the session only).</summary>
+        /// <summary>Destination used when submitting from the Booru search field.</summary>
+        public string BooruNewSearchTarget { get; set; } = BooruSearchTargetNewTab;
+        internal const string BooruSearchTargetNewTab = "NewTab";
+        internal const string BooruSearchTargetCurrentTab = "CurrentTab";
+
+        /// <summary>How many extra search tabs the Booru page may hold during the session.</summary>
         public int BooruSearchTabs { get; set; } = BooruSearchTabsDefault;
         internal const int BooruSearchTabsDefault = 8;
         internal const int BooruSearchTabsMinimum = 1;
@@ -1714,6 +1719,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (BooruResultTagsShown is < BooruResultTagsShownMinimum or > BooruResultTagsShownMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
+            if (BooruNewSearchTarget is not (BooruSearchTargetNewTab or BooruSearchTargetCurrentTab))
+                throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
             if (BooruGallerySampleMiB is < BooruGallerySampleMiBMinimum or > BooruGallerySampleMiBMaximum)
@@ -1986,6 +1993,7 @@ namespace MeowChan
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
+                BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
                 BooruGallerySampleMiB = BooruGallerySampleMiB,
                 BooruGalleryCacheMiB = BooruGalleryCacheMiB,
@@ -2271,6 +2279,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
@@ -2508,6 +2517,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;

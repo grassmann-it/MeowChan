@@ -4,7 +4,7 @@ using System.Collections.Generic;
 namespace MeowChan.Desktop.Booru;
 
 /// <summary>
-/// The extra search tabs next to "Search" and "Watchers". Slot 0 is the permanent Search tab (it cannot be closed and does not count
+/// The extra tabs next to the permanent search. Slot 0 is the permanent Search tab (it cannot be closed and does not count
 /// against the limit); every other slot is one opened search. The tabs share the one <see cref="BooruSearchModel"/>: leaving a tab stores
 /// the model's immutable view in it, entering a tab puts that view back (never sending a request). Tabs live for the session only.
 /// </summary>

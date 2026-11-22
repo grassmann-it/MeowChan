@@ -260,6 +260,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(config);
             LoadReaderDraft(config);
+            LoadBooruSearchDraft(config);
             LoadTagQueueDraft(config);
             LoadBooruGalleryDraft(config);
             LoadTaggingDraft(config);
@@ -807,6 +808,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
+            LoadBooruSearchDraft(_config);
             LoadTagQueueDraft(_config);
             LoadBooruGalleryDraft(_config);
             LoadTaggingDraft(_config);
@@ -935,6 +937,7 @@ namespace MeowChan
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 RaiseStatisticsTextsChanged();
                 RaiseReaderTextsChanged();
+                RefreshBooruSearchChoices(SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget);
                 RaiseTagQueueTextsChanged();
                 RaiseBooruGalleryTextsChanged();
                 RaiseViewerTextsChanged();
@@ -1246,6 +1249,7 @@ namespace MeowChan
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
                 ApplyStatisticsDraft(candidate, _config);
                 ApplyReaderDraft(candidate);
+                candidate.BooruNewSearchTarget = SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget;
                 ApplyTagQueueDraft(candidate);
                 ApplyBooruGalleryDraft(candidate);
                 ApplyViewerDraft(candidate);
@@ -1330,6 +1334,7 @@ namespace MeowChan
 
             LoadStatisticsDraft(_config);
             LoadReaderDraft(_config);
+            LoadBooruSearchDraft(_config);
             LoadTagQueueDraft(_config);
             LoadBooruGalleryDraft(_config);
             LoadTaggingDraft(_config);
@@ -1415,7 +1420,7 @@ namespace MeowChan
                 field = value;
                 bool rebindingChoice = _refreshingLanguageLabels && propertyName is
                     nameof(SelectedTheme) or nameof(SelectedAnimations) or nameof(SelectedWorkspaceMode) or nameof(SelectedLanguage) or
-                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
+                    nameof(SelectedReadingFontSize) or nameof(SelectedReaderPostWidth) or nameof(SelectedGalleryPlaybackMode) or nameof(SelectedStatsHeaderGraph) or nameof(SelectedHeaderTagline) or nameof(SelectedHeaderTaglineFixed) or nameof(SelectedBooruNewSearchTarget) or nameof(SelectedReaderDateStyle) or nameof(SelectedReaderSpoilers) or nameof(SelectedGalleryFitUpscale)
                     or nameof(SelectedGallerySlideshowVideoRule) or nameof(SelectedReaderMediaSidebarSide) or nameof(SelectedReaderMediaSidebarScope) or nameof(SelectedReaderMediaClick) or nameof(SelectedReaderNavigationMode) or nameof(SelectedGalleryFilmstripFlagUntagged) or nameof(SelectedGalleryWheelMode)
                     or nameof(SelectedTaggingCard1) or nameof(SelectedTaggingCard2) or nameof(SelectedTaggingCard3) or nameof(SelectedTaggingCard4) or nameof(SelectedTaggingCard5);
                 if (!rebindingChoice && propertyName is not (nameof(IsBusy) or nameof(ErrorMessage) or nameof(ErrorDetails) or nameof(StatusMessage)))

@@ -17,6 +17,7 @@ internal static class ShortcutIssueCatalog
         ("shortcuts.issue.duplicateModifiers", "Duplicate modifiers", "Doppelte Modifikatoren"),
         ("shortcuts.issue.repeatedPlatformModifier", "Repeated platform modifier", "Doppelte Plattformtaste"),
         ("shortcuts.issue.fixedNavigation", "Tab and Escape are fixed navigation", "Tab und Escape bleiben feste Navigation"),
+        ("shortcuts.issue.booruTextInput", "Use Enter, a function key or a Ctrl/Cmd shortcut in the Booru search field.", "Verwende im Booru-Suchfeld Enter, eine Funktionstaste oder ein Kürzel mit Strg/Cmd."),
         ("shortcuts.issue.altGrText", "Ctrl+Alt can produce AltGr text", "Strg+Alt kann AltGr-Text erzeugen"),
         ("shortcuts.issue.reservedSystem", "Reserved system shortcut", "Reserviertes Systemkürzel"),
         ("shortcuts.issue.reservedMacSystem", "Reserved by macOS: the system takes this key before MeowChan sees it", "Von macOS reserviert: Das System behandelt diese Taste, bevor MeowChan sie sieht"),

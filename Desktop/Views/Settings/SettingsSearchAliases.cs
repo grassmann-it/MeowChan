@@ -106,6 +106,7 @@ internal static class SettingsSearchAliases
         ["TagQueueUndoDepth"] = "undo back history steps queue rückgängig zurücknehmen schritte verlauf warteschlange tagging-warteschlange",
         ["MediaTagListTop"] = "booru mode tag list sidebar tag counts top show all booru-modus tag-liste seitenleiste anzahl alle anzeigen",
         ["BooruResultTagsShown"] = "booru danbooru result list tag chips shown more limit compact tags per result booru-ergebnis liste tag-chips angezeigt mehr begrenzung kompakt",
+        ["BooruNewSearchTarget"] = "booru danbooru search new current tab neue suche aktueller reiter",
         ["BooruSearchTabs"] = "booru danbooru search tabs open limit most extra tabs session booru-suche tabs offen begrenzung maximal reiter",
         ["BooruGallerySampleMiB"] = "booru danbooru gallery inline image sample larger largest size limit mib megabytes reduced booru-galerie bild größe größtes limit verkleinert",
         ["BooruGalleryCacheMiB"] = "booru danbooru gallery inline image cache memory samples keep paging back mib booru-galerie bild speicher zwischenspeicher blättern zurück",
