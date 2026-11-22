@@ -5051,6 +5051,7 @@
     "help.themeColors.li1": "Les accents prédéfinis règlent l’accent des deux à la fois. Vous pouvez ensuite modifier chaque couleur ; « Tout réinitialiser » revient aux couleurs intégrées.",
     "help.themeColors.li2": "Le texte doit atteindre un contraste d’au moins 4,5 : 1 avec son arrière-plan ; les bordures et les repères devraient atteindre 3 : 1. Appliquer reste désactivé tant que chaque couleur de texte n’est pas valide.",
     "help.themeColors.li3": "Rien n’est enregistré avant d’appliquer. « Essayer dans la fenêtre » affiche entre-temps vos couleurs dans toute la fenêtre ; Annuler, Échap ou la fermeture rétablit les couleurs enregistrées.",
+    "tagging.page.openGallery.missing": "Le média sélectionné n’est plus disponible.",
     "tagging.page.showInMedia.missing": "Cette entrée n’est pas affichée pour le moment sur la page Médias ; un filtre la masque peut-être.",
     "tagging.page.view": "Affichage",
     "tagging.page.view.list": "Liste",

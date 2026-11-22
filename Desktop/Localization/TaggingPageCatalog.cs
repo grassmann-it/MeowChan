@@ -116,6 +116,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.empty.showAll", "Show all entries", "Alle Einträge zeigen"),
         ("command.tagging.tag-together", "Tag together…", "Gemeinsam taggen…"),
         ("command.tagging.show-in-media", "Show in Media", "In Medien zeigen"),
+        ("tagging.page.openGallery.missing", "The selected media file is no longer available.", "Die ausgewählte Mediendatei ist nicht mehr verfügbar."),
         ("tagging.page.showInMedia.missing", "This entry is not shown on the Media page right now; a filter may hide it.", "Dieser Eintrag wird auf der Medienseite gerade nicht gezeigt; vielleicht blendet ihn ein Filter aus."),
         ("tagging.page.view", "View", "Ansicht"),
         ("tagging.page.view.list", "List", "Liste"),

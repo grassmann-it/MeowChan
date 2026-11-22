@@ -210,6 +210,29 @@ public sealed class ArchiveCleanupReservationTests
     }
 
     [Fact]
+    public async Task QueueStopRefusesAdmissionWhileArchiveCleanupRemainsReserved()
+    {
+        using TempDirectory temp = new();
+        using StubImageBoard provider = new();
+        DownloadQueue queue = new(1, 1L << 30);
+        try
+        {
+            using IDisposable reservation = Assert.IsAssignableFrom<IDisposable>(queue.TryReserveArchiveCleanup([Target(temp.Path)]));
+            ProbeThread thread = new(provider.Board, new Uri(Url));
+            DownloadItem item = new(new Uri("https://offline.invalid/image"),
+                Path.Combine(Target(temp.Path).MediaDirectories[0], "image.bin"), provider, thread, "image");
+            Task<bool> waiting = queue.EnqueueAsync(item);
+            Assert.False(waiting.IsCompleted);
+
+            await queue.StopAllAsync().WaitAsync(TestWait.Timeout);
+
+            Assert.False(await waiting.WaitAsync(TestWait.Timeout));
+            Assert.Equal((0, 0, 0), queue.GetCapacitySnapshot());
+        }
+        finally { await queue.StopAllAsync(); }
+    }
+
+    [Fact]
     public async Task SchedulerTargetProbeTransitRemainsVisibleToCleanup()
     {
         using TempDirectory temp = new();

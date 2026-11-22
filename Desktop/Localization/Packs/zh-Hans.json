@@ -4966,6 +4966,7 @@
     "help.themeColors.li1": "预设会一次性为两者设置强调色。之后仍可修改任何单个颜色；“全部重置”会恢复内置颜色。",
     "help.themeColors.li2": "文字与其背景的对比度至少要达到 4.5 : 1；边框和标记应达到 3 : 1。在所有文字颜色都合格之前，“应用”保持不可用。",
     "help.themeColors.li3": "应用之前不会保存任何内容。“在窗口中试用”会在此期间把你的颜色显示在整个窗口中；取消、按 Esc 或关闭会恢复已保存的颜色。",
+    "tagging.page.openGallery.missing": "所选媒体已不可用。",
     "tagging.page.showInMedia.missing": "此条目目前未显示在“媒体”页面上，可能被过滤条件隐藏了。",
     "tagging.page.view": "视图",
     "tagging.page.view.list": "列表",

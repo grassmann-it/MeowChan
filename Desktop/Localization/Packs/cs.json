@@ -5095,6 +5095,7 @@
     "help.themeColors.li1": "Předvolby nastaví zvýraznění pro oba motivy najednou. Poté můžete dál měnit každou jednotlivou barvu; „Obnovit vše“ vrátí vestavěné barvy.",
     "help.themeColors.li2": "Text musí mít vůči pozadí kontrast alespoň 4,5 : 1; okraje a značky by měly dosáhnout 3 : 1. Tlačítko Použít zůstane vypnuté, dokud každá barva textu nevyhoví.",
     "help.themeColors.li3": "Nic se neuloží, dokud nepoužijete změny. „Vyzkoušet v okně“ mezitím ukáže vaše barvy v celém okně; Zrušit, Esc nebo zavření vrátí uložené barvy.",
+    "tagging.page.openGallery.missing": "Vybrané médium už není dostupné.",
     "tagging.page.showInMedia.missing": "Tato položka se teď na stránce Média nezobrazuje; možná ji skrývá filtr.",
     "tagging.page.view": "Zobrazení",
     "tagging.page.view.list": "Seznam",

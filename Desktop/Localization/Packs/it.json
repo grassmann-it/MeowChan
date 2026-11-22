@@ -5057,6 +5057,7 @@
     "help.themeColors.li1": "Gli accenti predefiniti impostano l’accento per entrambi in un colpo solo. Dopo puoi ancora cambiare ogni singolo colore; «Ripristina tutto» torna ai colori integrati.",
     "help.themeColors.li2": "Il testo deve raggiungere un contrasto di almeno 4,5 : 1 con lo sfondo; bordi e indicatori dovrebbero raggiungere 3 : 1. Applica resta disattivato finché ogni colore del testo non è valido.",
     "help.themeColors.li3": "Nulla viene salvato finché non applichi. «Prova nella finestra» intanto mostra i tuoi colori in tutta la finestra; Annulla, Esc o la chiusura ripristina i colori salvati.",
+    "tagging.page.openGallery.missing": "Il contenuto multimediale selezionato non è più disponibile.",
     "tagging.page.showInMedia.missing": "Questa voce al momento non è mostrata nella pagina Media; forse un filtro la nasconde.",
     "tagging.page.view": "Vista",
     "tagging.page.view.list": "Elenco",
