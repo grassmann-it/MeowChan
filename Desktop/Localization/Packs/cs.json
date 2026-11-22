@@ -254,7 +254,7 @@
     "diagnostics.clearFilters": "Zrušit filtry",
     "diagnostics.filterCount": "Položky: {0} / {1} · vybráno: {2}",
     "diagnostics.overview": "Přehled aktuálních záznamů",
-    "diagnostics.retryScopeCount": "Aktuální rozsah: {0} cílů v tabulce. Počet na kartě Stav zahrnuje všechny aktuální záznamy, i čekající a ty bez akce opakování, a může být proto vyšší.",
+    "diagnostics.retryScopeCount": "Počet cílů opakování v tabulce: {0}. Počet na kartě Stav zahrnuje všechny aktuální záznamy, i čekající a ty bez akce opakování, a může být proto vyšší.",
     "diagnostics.noMatch": "Žádné položky neodpovídají filtrům.",
     "diagnostics.retryScope": "Opakuje problémy zafixovaných vláken/boardů v tomto rozsahu, ne celé relace. Opakování médií pokrývá chybějící soubory v těchto vláknech. Limity a pauza platí dál. Zprávy bez akce opakování se přeskočí.",
     "diagnostics.batchResult": "Rozsah: cílů: {0} · kontroly vyžádané/už ve frontě: {1}/{2} · opakování médií ve frontě: {3} · přeskočených akcí: {4} · selhalo: {5}. Limity a pauza platí dál.",

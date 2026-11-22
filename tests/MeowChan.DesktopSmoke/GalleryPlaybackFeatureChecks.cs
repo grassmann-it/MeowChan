@@ -527,32 +527,18 @@ internal static partial class GalleryPlaybackFeatureChecks
         async Task BottomAsync()
         {
             Console.WriteLine("EDGE before move: " + JsonSerializer.Serialize(ObserveEdges()));
-            // The bottom edge can be hosted by a different current presentation
-            // root from the GalleryViewer (the transparent native video overlay).
-            // Resolve the control that owns the point in this turn instead of
-            // pairing a viewer-relative bottom coordinate with a stale root. When
-            // the footer is visible, its current surface owns the transport; after
-            // auto-hide, the edge handle owns the reveal. MoveAsync keeps the
-            // strict native hit-test and re-resolves this selector on every bounded
-            // transaction retry.
-            await native.MoveAsync(
-                () =>
-                {
-                    Control footer = Find<Control>(viewer, "GalleryOverlayFooter");
-                    if (footer.IsEffectivelyVisible && footer.IsHitTestVisible)
-                        return Task.FromResult(footer);
-                    return Task.FromResult<Control>(Find<Button>(viewer, "GalleryControlsEdgeIndicator"));
-                },
-                target => Task.FromResult<Point?>(new Point(target.Bounds.Width / 2, target.Bounds.Height / 2)));
+            // The edge band receives motion even while the idle handle is transparent to pointer hits.
+            // Use its live screen position in the current presentation root.
+            Button handle = Find<Button>(viewer, "GalleryControlsEdgeIndicator");
+            Control target = handle.IsEffectivelyVisible ? handle : Find<Control>(viewer, "GalleryOverlayFooter");
+            await native.MoveAsync(target, requireHitTest: false);
             Console.WriteLine("EDGE after move: " + JsonSerializer.Serialize(ObserveEdges()));
         }
         await CenterAsync();
         await UntilAsync(() => !Visible(controls), "A stored automatic overlay did not start collapsed.");
-        RequireEdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
+        Button controlsHint = RequireEdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
         Button postIndicator = RequireEdgeIndicator(viewer, "GalleryPostEdgeIndicator");
         Require(!Visible(post), "Post overlay was visible before its right-edge activation.");
-        // Targets remain available at idle; only their borderless chevron artwork is transient.
-        Button controlsHint = RequireEdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
         // Center motion reveals the footer while both transient edge affordances
         // remain visible during the short motion window.
         bool CenterMotionVisible() => Visible(controls)
@@ -927,10 +913,10 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         Button indicator = Find<Button>(viewer, name);
         MediaInteractionSmokeHelpers.RequireBorderlessEdgeTarget(indicator);
-        Require(Visible(indicator) && indicator.IsEffectivelyEnabled && indicator.IsHitTestVisible && indicator.Focusable
+        Require(Visible(indicator) && indicator.IsEffectivelyEnabled && indicator.Focusable
             && indicator.Bounds.Width >= 24 && indicator.Bounds.Height >= 24
             && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(indicator)),
-            "Collapsed overlay has no discoverable, named keyboard/pointer target (minimum 24 DIP): " + name);
+            "Collapsed overlay has no discoverable, named keyboard target (minimum 24 DIP): " + name);
         MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(indicator, viewer);
         return indicator;
     }

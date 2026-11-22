@@ -29,7 +29,6 @@ public sealed partial class TaggingPage
     private void InitializeColumns()
     {
         WorkViewElement.SetId(_columnsButton, "tagging.columns");
-        CommandBindings.Apply(_columnsButton, "tagging.preview-column", iconWithLabel: true);
         _columnsButton.IsChecked = _showPreviewColumn;
         _columnsButton.Click += (_, _) => SetPreviewColumnVisible(_columnsButton.IsChecked == true);
         _columnMenuHost = new ContextMenuHost(_columnHeader, ComposeColumnMenu, fallbackFocus: () => FocusContent());

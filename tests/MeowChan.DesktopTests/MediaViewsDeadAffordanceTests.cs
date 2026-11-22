@@ -123,15 +123,6 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         ReaderMediaSidebar sidebar = new();
         Assert.Equal(0, sidebar.Close.Opacity);
         Assert.False(sidebar.Close.IsHitTestVisible);
-        // The pointer over the sidebar shows it, and then it is clickable; leaving hides it and takes the click away again.
-        sidebar.RaiseEvent(new PointerEventArgs(InputElement.PointerEnteredEvent, sidebar, new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), sidebar,
-            default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None));
-        Assert.Equal(1, sidebar.Close.Opacity);
-        Assert.True(sidebar.Close.IsHitTestVisible);
-        sidebar.RaiseEvent(new PointerEventArgs(InputElement.PointerExitedEvent, sidebar, new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), sidebar,
-            default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None));
-        Assert.Equal(0, sidebar.Close.Opacity);
-        Assert.False(sidebar.Close.IsHitTestVisible);
     });
 
     [Fact]

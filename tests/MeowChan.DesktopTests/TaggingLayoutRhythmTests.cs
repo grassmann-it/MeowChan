@@ -212,8 +212,9 @@ public sealed class TaggingLayoutRhythmTests
         page.ColumnsButton.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
         Assert.True(page.ShowPreviewColumn);
         Assert.Equal("Remove finished", Avalonia.Automation.AutomationProperties.GetName(page.ClearDoneButton));
-        Assert.IsNotType<string>(page.ClearDoneButton.Content); // icon with its label, not a bare icon
+        Assert.Equal(OverflowMode.Always, ToolBar.GetOverflowMode(page.ClearDoneButton));
         Texts.SetLanguage("de");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
         Assert.Equal("Vorschaubilder", Avalonia.Automation.AutomationProperties.GetName(page.ColumnsButton));
         Assert.Equal("Erledigte entfernen", Avalonia.Automation.AutomationProperties.GetName(page.ClearDoneButton));
     });
@@ -298,7 +299,7 @@ public sealed class TaggingLayoutRhythmTests
     {
         DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
         Task.Run(() => host.StartAsync()).GetAwaiter().GetResult();
-        page.StartTagging = () => Task.CompletedTask;
+        page.StartTagging = _ => Task.CompletedTask;
         page.AddRequested = () => { };
         TagQueueSnapshot open = new(1, 0, Array.Empty<string>(), new[] { Item() }, TagQueueLoadState.Ready);
         foreach (WorkView view in WorkViewSetting.All)

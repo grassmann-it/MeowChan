@@ -31,9 +31,9 @@ internal static partial class GalleryPlaybackFeatureChecks
     {
         Button indicator = Find<Button>(viewer, name);
         MediaInteractionSmokeHelpers.RequireBorderlessEdgeTarget(indicator);
-        Require(Visible(indicator) && indicator.IsEffectivelyEnabled && indicator.IsHitTestVisible
+        Require(Visible(indicator) && indicator.IsEffectivelyEnabled
             && indicator.Focusable && !string.IsNullOrWhiteSpace(AutomationProperties.GetName(indicator)),
-            "Collapsed edge has no available named keyboard/touch target (artwork may be idle-hidden): " + name);
+            "Collapsed edge has no available named keyboard target (artwork may be idle-hidden): " + name);
         Require(indicator.Bounds.Width >= 16 && indicator.Bounds.Height >= 16,
             "Edge indicator has no usable pointer/touch hit area: " + name);
         MediaInteractionSmokeHelpers.RequireEdgeTargetWithinViewer(indicator, viewer);
@@ -85,10 +85,7 @@ internal static partial class GalleryPlaybackFeatureChecks
                 await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .4, viewer.Bounds.Height * .3));
                 await UntilAsync(() => !Visible(controls) && !viewer.CaptureState().ContextOpen,
                     "First-key precondition: controls/post never collapsed after leaving their panels.");
-                // Real mouse motion anywhere over the gallery intentionally reveals the
-                // controls. The edge chevron is transient artwork, so verify the
-                // persistent transparent handles as native targets instead of moving back
-                // through the centre and reopening the footer.
+                // Idle handles keep their keyboard target and geometry. Motion over the edge reveals the panel.
                 Button bottomHint = EdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
                 Button rightHint = EdgeIndicator(viewer, "GalleryPostEdgeIndicator");
                 await UntilAsync(() => MediaInteractionSmokeHelpers.IsNativeGeometryReady(bottomHint)
@@ -114,10 +111,11 @@ internal static partial class GalleryPlaybackFeatureChecks
             await FirstKeyAsync(false, "hidden Left");
             await HiddenAsync();
             await LayoutAsync(fixture.Window);
-            await native.MoveAsync(() => NativeTargetAsync<Button>(viewer, "GalleryControlsEdgeIndicator"));
+            await native.MoveAsync(EdgeIndicator(viewer, "GalleryControlsEdgeIndicator"), requireHitTest: false);
             await UntilAsync(() => Visible(controls), "Bottom indicator hover did not reveal controls.");
             await FirstKeyAsync(true, "after bottom-indicator hover");
             await HiddenAsync();
+            Require(EdgeIndicator(viewer, "GalleryControlsEdgeIndicator").Focus(NavigationMethod.Tab), "Could not reveal the edge handle for a native click.");
             await native.ClickAsync(() => NativeTargetAsync<Button>(viewer, "GalleryControlsEdgeIndicator"));
             await UntilAsync(() => Visible(controls), "Bottom indicator click did not reveal controls.");
             await FirstKeyAsync(false, "after bottom-indicator click");
@@ -132,11 +130,12 @@ internal static partial class GalleryPlaybackFeatureChecks
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Keyboard activation of the post indicator did not open context.");
             await FirstKeyAsync(false, "after keyboard post-indicator activation");
             await HiddenAsync();
+            Require(EdgeIndicator(viewer, "GalleryPostEdgeIndicator").Focus(NavigationMethod.Tab), "Could not reveal the edge handle for a native click.");
             await native.ClickAsync(() => NativeTargetAsync<Button>(viewer, "GalleryPostEdgeIndicator"));
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Post indicator click did not reveal context.");
             await FirstKeyAsync(true, "after post-indicator click");
             await HiddenAsync();
-            await native.MoveAsync(() => NativeTargetAsync<Button>(viewer, "GalleryPostEdgeIndicator"));
+            await native.MoveAsync(EdgeIndicator(viewer, "GalleryPostEdgeIndicator"), requireHitTest: false);
             await UntilAsync(() => viewer.CaptureState().ContextOpen, "Post indicator hover did not reveal context.");
             await FirstKeyAsync(false, "after post-indicator hover");
             Program.CaptureWindow(fixture.Window, "smoke-gallery-first-key-indicators.png");

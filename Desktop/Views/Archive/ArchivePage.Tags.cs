@@ -151,6 +151,7 @@ public partial class ArchivePage
         int count = id == null ? 0 : _threadTagNames.GetValueOrDefault(id)?.Length ?? 0;
         string label = count > 0 ? Texts.T("tags.openCount", count) : Texts.T("tags.open");
         if (!Equals(open.Content, label)) open.Content = label;
+        AutomationProperties.SetName(open, label);
         open.IsEnabled = id != null && !IsReaderDialogOpen;
         bool show = _tagBarWanted && id != null;
         if (bar.IsVisible != show)

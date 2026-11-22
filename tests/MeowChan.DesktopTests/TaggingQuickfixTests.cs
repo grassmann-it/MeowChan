@@ -100,7 +100,7 @@ public sealed class TaggingQuickfixTests : IDisposable
         Assert.True(PrivateTagName.TryCreate("cat", out PrivateTagName? name, out _));
         PrivateTagDefinition tag = new(new TagId(Guid.NewGuid()), name!);
         PrivateMediaTagAssignment[] media = tagged.Select(item => new PrivateMediaTagAssignment(tag.Id, MediaLibraryFilterEngine.TagTarget(item.ToLibraryEntry())!)).ToArray();
-        return new MediaLibraryUserData(new PrivateTagStoreSnapshot(1, "tq5", new[] { tag }, Array.Empty<PrivateThreadTagAssignment>(), media), [], []);
+        return new MediaLibraryUserData(new PrivateTagStoreSnapshot(1, "tq5", new[] { tag }, tagged.Select(item => new PrivateThreadTagAssignment(tag.Id, item.Thread)).Distinct().ToArray(), media), [], []);
     }
 
     [Fact]
@@ -115,6 +115,29 @@ public sealed class TaggingQuickfixTests : IDisposable
         Assert.Null(page.TagCountOf(unknown)); // no key and no index: unknown, never "no tags"
         Render(page, Queue(0, tagged, bare, unknown), TaggingQueueFilter.Untagged);
         Assert.Equal(new[] { bare.Key }, page.Rows.Select(row => row.Key).ToArray());
+    });
+
+    [Fact]
+    public void StartUsesTheMarkedUntaggedEntryAndKeepsItsMembershipAcrossRefresh() => WithPage(page =>
+    {
+        DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
+        Task.Run(() => host.StartAsync()).GetAwaiter().GetResult();
+        TagQueueItem tagged = Bound(1, K1), bare = Bound(2, K2), later = Bound(3, K1);
+        TagQueueSnapshot queue = Queue(0, tagged, bare, later);
+        MediaLibraryUserData data = UserData(tagged);
+        page.ReadUserData = () => data;
+        TaggingWalkScope? walk = null;
+        page.StartTagging = scope => { walk = scope; return Task.CompletedTask; };
+        Render(page, queue, TaggingQueueFilter.Untagged);
+        Assert.Equal(bare.Key, Assert.Single(page.Rows, row => row.Next).Key);
+        Assert.True(page.StartButton.IsEnabled);
+        page.StartAsync(null).GetAwaiter().GetResult();
+
+        data = UserData(bare, later, tagged);
+        Render(page, queue, TaggingQueueFilter.Untagged);
+        Assert.Empty(page.Rows);
+        Assert.False(page.StartButton.IsEnabled);
+        Assert.Equal(new[] { bare.Key, later.Key }, walk!.OpenEntries(Queue(2, tagged, bare, later)).Select(item => item.Key));
     });
 
     [Fact]

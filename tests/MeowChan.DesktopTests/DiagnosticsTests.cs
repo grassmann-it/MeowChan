@@ -58,6 +58,21 @@ public sealed class DiagnosticsTests
         Assert.False(DiagnosticsSnapshot.ContainsTarget(readded, target with { WatchId = 18, Kind = DiagnosticTargetKind.Board }));
     }
 
+    [Theory]
+    [InlineData("en", "Number of retry targets shown in the table")]
+    [InlineData("de", "Anzahl der Wiederholungsziele in der Tabelle")]
+    public void RetryScopeStatesTheCountForOneOrManyTargets(string language, string label)
+    {
+        string previous = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language);
+            foreach (int count in new[] { 0, 1, 2 })
+                Assert.StartsWith(label + ": " + count + ".", Texts.T("diagnostics.retryScopeCount", count));
+        }
+        finally { Texts.SetLanguage(previous); }
+    }
+
     [Fact]
     public void RecoveryErrorIsReadableAndQuietSessionDoesNotInventEvents()
     {

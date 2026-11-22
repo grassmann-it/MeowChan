@@ -435,7 +435,7 @@
     "diagnostics.clearFilters": "Effacer les filtres",
     "diagnostics.filterCount": "Entrées : {0} / {1} · sélectionnées : {2}",
     "diagnostics.overview": "Aperçu des entrées actuelles",
-    "diagnostics.retryScopeCount": "Portée actuelle : {0} cible(s) dans le tableau. Le nombre de l’onglet État compte toutes les entrées actuelles, y compris celles en attente et celles sans action de nouvelle tentative ; il peut donc être plus élevé.",
+    "diagnostics.retryScopeCount": "Nombre de cibles de nouvelle tentative dans le tableau : {0}. Le nombre de l’onglet État compte toutes les entrées actuelles, y compris celles en attente et celles sans action de nouvelle tentative ; il peut donc être plus élevé.",
     "diagnostics.noMatch": "Aucune entrée ne correspond aux filtres.",
     "diagnostics.retryScope": "Relance les actions en échec pour les fils et tableaux figés dans ce périmètre, pas pour toute la session. Les nouvelles tentatives de médias concernent les fichiers manquants de ces fils. Les limites et la pause restent applicables. Les messages sans action de relance sont ignorés.",
     "diagnostics.batchResult": "Périmètre : cibles : {0} · vérifications demandées/déjà en attente : {1}/{2} · nouvelles tentatives de médias en attente : {3} · actions ignorées : {4} · échecs : {5}. Les limites et la pause restent applicables.",

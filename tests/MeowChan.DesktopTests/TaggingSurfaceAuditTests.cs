@@ -150,31 +150,41 @@ public sealed class TaggingSurfaceAuditTests : IDisposable
         DecisionHost host = new() { Rating = 2 };
         WithPopover(host, popover =>
         {
-            // The star's tooltip says "· Shift+3"; the key has to do it (the popover is a window of its own: the page's key routing never sees it).
-            KeyEventArgs three = Key(Avalonia.Input.Key.D3, KeyModifiers.Shift);
+            // The star's tooltip says "· 3"; the key has to do it (the popover is a window of its own: the page's key routing never sees it).
+            KeyEventArgs three = Key(Avalonia.Input.Key.D3, KeyModifiers.None);
             popover.Frame.RaiseEvent(three);
             Assert.True(three.Handled);
             Assert.Equal(3, host.Rating);
             Assert.Equal(3, popover.DecisionRow!.View.Rating);
             Assert.True(popover.DecisionRow.StarButtons[2].IsChecked);
 
-            KeyEventArgs clear = Key(Avalonia.Input.Key.D0, KeyModifiers.Shift);
+            KeyEventArgs clear = Key(Avalonia.Input.Key.D0, KeyModifiers.None);
             popover.Frame.RaiseEvent(clear);
             Assert.True(clear.Handled);
             Assert.Null(host.Rating);
 
             // Nothing left to remove: the key is still the row's and writes nothing.
             int calls = host.Calls.Count;
-            KeyEventArgs again = Key(Avalonia.Input.Key.D0, KeyModifiers.Shift);
+            KeyEventArgs again = Key(Avalonia.Input.Key.D0, KeyModifiers.None);
             popover.Frame.RaiseEvent(again);
             Assert.True(again.Handled);
             Assert.Equal(calls, host.Calls.Count);
 
-            // The plain digit and any other chord are not ratings (the rating route leaves them; whatever nothing inside took then stops at the frame,
-            // so it never reaches the page behind the popover).
-            KeyEventArgs plain = Key(Avalonia.Input.Key.D3, KeyModifiers.None);
-            Assert.False(popover.TryRouteDecisionKey(plain, ShortcutService.Current));
-            popover.Frame.RaiseEvent(plain);
+            KeyEventArgs shifted = Key(Avalonia.Input.Key.D3, KeyModifiers.Shift);
+            Assert.True(popover.TryRouteDecisionKey(shifted, ShortcutService.Current));
+            Assert.Equal(3, host.Rating);
+            calls = host.Calls.Count;
+            KeyEventArgs typing = Key(Avalonia.Input.Key.D3, KeyModifiers.None);
+            var input = popover.Surface!.Input;
+            input.Template = new Avalonia.Controls.Templates.FuncControlTemplate<IdentitySuggestionBox>((_, names) =>
+            {
+                TextBox editor = new() { Name = "PART_TextBox" };
+                names.Register(editor.Name, editor);
+                return editor;
+            });
+            input.ApplyTemplate();
+            typing.Source = input.GetVisualDescendants().OfType<TextBox>().Single();
+            Assert.False(popover.TryRouteDecisionKey(typing, ShortcutService.Current));
             Assert.Equal(calls, host.Calls.Count);
         });
     }
@@ -220,7 +230,7 @@ public sealed class TaggingSurfaceAuditTests : IDisposable
             new QuickTagPopoverOptions { RestoreFocus = false, Decision = host.Make() });
         try
         {
-            KeyEventArgs five = Key(Avalonia.Input.Key.D5, KeyModifiers.Shift);
+            KeyEventArgs five = Key(Avalonia.Input.Key.D5, KeyModifiers.None);
             popover.Frame.RaiseEvent(five);
             Assert.True(five.Handled);
             Assert.Equal(5, host.Rating);

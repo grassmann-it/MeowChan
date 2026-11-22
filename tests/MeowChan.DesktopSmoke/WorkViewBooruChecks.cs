@@ -119,7 +119,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
     private static Control[] Controls(BooruPage page)
     {
         TabControl tabs = Find<TabControl>(page, BooruWorkbenchView.TabsName);
-        Control[] roots = [page.View.Header, page.View.Footer, .. tabs.Items.OfType<TabItem>().Select(tab => (Control)tab.Content!)];
+        Control[] roots = [page.View.Header, page.View.Footer, .. tabs.Items.OfType<TabItem>().Select(tab => tab.Content).OfType<Control>()];
         return roots.SelectMany(root => root.GetLogicalDescendants().OfType<Control>().Prepend(root))
             .Distinct().Where(control => WorkViewElement.GetId(control) is { } id
                 && WorkViewPolicy.Get(id).Page == WorkViewPage.Booru).ToArray();
@@ -134,6 +134,7 @@ internal sealed class WorkViewBooruChecks : IAsyncDisposable
         HashSet<string> registered = controls.Select(control => WorkViewElement.GetId(control)!).ToHashSet(StringComparer.Ordinal);
         string[] missing = WorkViewPolicy.Entries.Where(entry => entry.Page == WorkViewPage.Booru
             && entry.Kind is WorkViewKind.Action or WorkViewKind.Element or WorkViewKind.Section
+            && entry.Id is not ("booru.result.cancel" or "booru.result.retry") // idle result cards offer Load
             && !registered.Contains(entry.Id)).Select(entry => entry.Id).ToArray();
         Require(missing.Length == 0, "Policy rows without controls on the visited page: " + string.Join(", ", missing));
         Console.WriteLine($"SMOKE work-views registrations: booru: {registered.Count} ids on the actual page, no orphaned policy row.");

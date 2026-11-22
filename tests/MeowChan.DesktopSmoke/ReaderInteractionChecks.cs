@@ -619,6 +619,10 @@ internal static class ReaderInteractionChecks
             Button closeGallery = viewer.GetGalleryVisualDescendants().OfType<Button>().Single(b => b.Name == "GalleryClose");
             try
             {
+                // Enter the gallery, then move over the button's screen position while the media still owns the hit.
+                // The second motion reveals the corner and keeps it held for the single native click below.
+                await input.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .3));
+                await input.MoveAsync(closeGallery, requireHitTest: false);
                 await Program.WaitUntilAsync(() =>
                 {
                     window.UpdateLayout();
