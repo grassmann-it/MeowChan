@@ -16,7 +16,8 @@ internal sealed partial class GalleryViewer
 {
     private GallerySidePanel _sidePanel = null!;
     private readonly TextBlock _postPanelPosition = new TextBlock { Name = "GalleryPostPanelPosition",
-        VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "tnum" } }.MetaText();
+        VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center,
+        TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "tnum" } }.MetaText();
     private double _panelWidth = Config.GalleryPanelWidthDefault;
 
     internal GallerySidePanel SidePanel => _sidePanel;
@@ -77,6 +78,7 @@ internal sealed partial class GalleryViewer
         if (_sidePanel == null || _tagPanelOpen) return;
         string? text = ThreadPositions != null && !IsTagMode ? _position.Text : null;
         _postPanelPosition.Text = text;
+        ToolTip.SetTip(_postPanelPosition, text);
         _sidePanel.HeaderCounter = string.IsNullOrEmpty(text) ? null : _postPanelPosition;
     }
 
