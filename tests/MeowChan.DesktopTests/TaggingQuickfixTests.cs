@@ -205,14 +205,16 @@ public sealed class TaggingQuickfixTests : IDisposable
     });
 
     [Fact]
-    public void TheLastFileIsOneLineAndTheBrowseHintLivesInHelp() => WithPage(page =>
+    public void TheStartButtonCarriesTheResumeContextAndTheBrowseHintLivesInHelp() => WithPage(page =>
     {
         Render(page, Queue(0, Item(1), Item(2)));
-        Assert.False(page.LastShownContext.IsVisible);
-        Render(page, Queue(1, Item(1), Item(2), Item(3)));
-        Assert.True(page.LastShownContext.IsVisible);
-        Assert.Equal("file-2.png", page.LastShownContext.Text);
-        Assert.Equal("Last shown: file-2.png · position 2 of 3", ToolTip.GetTip(page.LastShownContext));
+        Assert.Equal("Start tagging", AutomationProperties.GetName(page.StartButton));
+        Render(page, Queue(37, Enumerable.Range(1, 201).Select(n => Item(n)).ToArray()));
+        Assert.Equal("Continue tagging (no. 38)", AutomationProperties.GetName(page.StartButton));
+        Assert.Equal("0 of 201", page.ProgressText.Text);
+        const string context = "Last shown: file-38.png · position 38 of 201";
+        Assert.Contains(context, AutomationProperties.GetHelpText(page.StartButton));
+        Assert.Contains(context, Assert.IsType<string>(ToolTip.GetTip(page.StartButton)));
         const string command = "tags.queue.done-next";
         Assert.Contains(Texts.T("tagging.strip.browseHint", CommandCatalog.ShortcutDisplay(command) ?? CommandCatalog.Label(command)),
             page.HelpButton.Resolve()!.Paragraphs);

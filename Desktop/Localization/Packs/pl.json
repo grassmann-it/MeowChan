@@ -4718,6 +4718,7 @@
     "tagging.page.percent": "Przetworzono {0:P0}",
     "tagging.page.progressName": "Postęp kolejki tagowania",
     "tagging.page.continue": "Kontynuuj tagowanie (nr {0})",
+    "tagging.page.start.space": "Naciśnij spację, aby rozpocząć",
     "tagging.page.filter": "Pokaż",
     "tagging.page.filter.all": "Wszystkie wpisy",
     "tagging.page.state.open": "Otwarte",

@@ -168,14 +168,18 @@ public static class CommandBindings
     }
 
     /// <summary>Uses a context-specific visible label while retaining the catalog icon and shortcut.</summary>
-    public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16)
+    public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16) =>
+        ApplyLabeled(button, id, visibleLabel, null, iconSize);
+
+    internal static void ApplyLabeled(Button button, string id, string visibleLabel, Func<string, string>? describe, int iconSize = 16)
     {
         Track(button, id);
-        Observe(button, () => ApplyLabeled(button, id, visibleLabel, iconSize));
+        Observe(button, () => ApplyLabeled(button, id, visibleLabel, describe, iconSize));
         button.Classes.Set("command-icon", true);
         ApplyButtonContent(button, id, iconSize, visibleLabel);
         string tip = CommandCatalog.ShortcutTooltipDisplay(id) is string shortcut
             ? visibleLabel + " · " + shortcut : visibleLabel;
+        tip = describe?.Invoke(tip) ?? tip;
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, visibleLabel);
         AutomationProperties.SetHelpText(button, tip);

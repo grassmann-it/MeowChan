@@ -4681,6 +4681,7 @@
     "tagging.page.percent": "{0:P0} elaborato",
     "tagging.page.progressName": "Avanzamento della coda di tagging",
     "tagging.page.continue": "Continua il tagging (n. {0})",
+    "tagging.page.start.space": "Premi Spazio per iniziare",
     "tagging.page.filter": "Mostra",
     "tagging.page.filter.all": "Tutte le voci",
     "tagging.page.state.open": "Da fare",

@@ -31,6 +31,7 @@ internal static class TaggingPageCatalog
         ("tagging.page.percent", "{0:P0}", "{0:P0}"),
         ("tagging.page.progressName", "Progress of the tagging queue", "Fortschritt der Tagging-Warteschlange"),
         ("tagging.page.continue", "Continue tagging (no. {0})", "Weiter taggen (Nr. {0})"),
+        ("tagging.page.start.space", "Press Space to start", "Leertaste zum Starten"),
         ("tagging.page.lastShown", "Last shown: {0} · position {1} of {2}", "Zuletzt gezeigt: {0} · Position {1} von {2}"),
         ("tagging.page.lastShown.help", "Continues in the gallery at this entry", "Setzt in der Galerie bei diesem Eintrag fort"),
         ("tagging.page.continue.notOpen", "Only an open entry can be continued from. Mark this entry as open first.", "Nur bei einem offenen Eintrag lässt sich fortsetzen. Markiere diesen Eintrag zuerst als offen."),

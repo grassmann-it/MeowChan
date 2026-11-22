@@ -62,6 +62,19 @@ internal static class TaggingPageChecks
                 && Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) == Texts.T("command.tagging.start"),
                 () => "start enabled=" + tagging.StartButton.IsEffectivelyEnabled + ", name='"
                     + Avalonia.Automation.AutomationProperties.GetName(tagging.StartButton) + "', host=" + window.SessionHost.State);
+            Require(tagging.StartButton.IsFocused && tagging.SelectedCount == 0, "First opening did not focus Start with an empty selection.");
+            Require(AutomationProperties.GetHelpText(tagging.StartButton)?.Contains(Texts.T("tagging.page.start.space"), StringComparison.Ordinal) == true,
+                "The focused Start button lost its Space hint.");
+            var originalStart = tagging.StartTagging;
+            TagQueueKey? started = null;
+            tagging.StartTagging = scope => { started = scope.Start; return Task.CompletedTask; };
+            try
+            {
+                Press(tagging.StartButton, Key.Space);
+                tagging.StartButton.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space });
+                await Program.WaitUntilAsync(() => started == tagging.Rows[0].Key && tagging.SelectedCount == 0);
+            }
+            finally { tagging.StartTagging = originalStart; }
             Program.CaptureWindow(window, "smoke-tagging-page-light-en.png");
 
             await CheckSelectionLifecycleAsync(window, tagging);

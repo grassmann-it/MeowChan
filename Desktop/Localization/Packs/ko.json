@@ -4592,6 +4592,7 @@
     "tagging.page.percent": "{0:P0} 처리함",
     "tagging.page.progressName": "태그 지정 대기열 진행률",
     "tagging.page.continue": "태그 지정 계속 ({0}번)",
+    "tagging.page.start.space": "스페이스바를 눌러 시작",
     "tagging.page.filter": "표시",
     "tagging.page.filter.all": "모든 항목",
     "tagging.page.state.open": "미처리",

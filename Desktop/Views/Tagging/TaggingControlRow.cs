@@ -24,11 +24,13 @@ internal sealed class TaggingControlRow : Panel
     public double LineSpacing { get => GetValue(LineSpacingProperty); set => SetValue(LineSpacingProperty, value); }
     public Control? TrailingChild { get; set; }
     internal Action<bool>? SetTrailingCompact { get; set; }
+    internal IReadOnlyList<(Control Group, Action<bool> SetCompact)> CompactGroups { get; set; } = [];
     private bool _trailingCompact;
 
     protected override Size MeasureOverride(Size availableSize)
     {
         Size constraint = new(availableSize.Width, double.PositiveInfinity);
+        foreach (var (_, setCompact) in CompactGroups) setCompact(false);
         double leadingWidth = 0;
         foreach (Control child in Children)
         {
@@ -46,6 +48,24 @@ internal sealed class TaggingControlRow : Panel
             _trailingCompact = fullWidth + (_trailingCompact ? GroupSpacing : 0) > availableSize.Width;
             compact(_trailingCompact);
             trailing.Measure(constraint);
+        }
+        double rowWidth = 0;
+        int visibleCount = 0;
+        foreach (Control child in Children)
+        {
+            if (!child.IsVisible) continue;
+            rowWidth += child.DesiredSize.Width;
+            visibleCount++;
+        }
+        rowWidth += Math.Max(0, visibleCount - 1) * GroupSpacing;
+        foreach (var (group, setCompact) in CompactGroups)
+        {
+            if (rowWidth <= availableSize.Width) break;
+            if (!group.IsVisible) continue;
+            double fullWidth = group.DesiredSize.Width;
+            setCompact(true);
+            group.Measure(constraint);
+            rowWidth -= fullWidth - group.DesiredSize.Width;
         }
         return Place(availableSize.Width);
     }

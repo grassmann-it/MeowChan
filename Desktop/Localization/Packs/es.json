@@ -4675,6 +4675,7 @@
     "tagging.page.percent": "{0:P0} procesado",
     "tagging.page.progressName": "Progreso de la cola de etiquetado",
     "tagging.page.continue": "Seguir etiquetando (n.º {0})",
+    "tagging.page.start.space": "Pulsa Espacio para empezar",
     "tagging.page.filter": "Mostrar",
     "tagging.page.filter.all": "Todas las entradas",
     "tagging.page.state.open": "Pendiente",

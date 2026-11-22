@@ -57,12 +57,8 @@ public sealed class TaggingRowStructureTests
         TaggingControlRow actions = Find<TaggingControlRow>(page, "TaggingQueueActionRow");
         Assert.Equal(new[] { "TaggingTitle", "TaggingStart", "TaggingProgress", "TaggingActions" }, actions.Children.Select(c => c.Name));
         Assert.Same(page.Actions, actions.TrailingChild);
-        Assert.Equal(new[] { "TaggingProgressMeter", "TaggingLastShown" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
-        Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, Find<WrapPanel>(page, "TaggingProgressMeter").Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
         Assert.Contains(page.ProgressText, ((ILogical)actions).GetLogicalDescendants());
-        Assert.Contains(Find<ProgressBar>(page, "TaggingProgressBar"), ((ILogical)actions).GetLogicalDescendants());
-        Assert.Equal(1, page.LastShownContext.MaxLines);
-        Assert.IsType<TextBlock>(page.LastShownContext); // One continue entry point, not a second link.
         Assert.Equal(new[] { "TaggingAdd", "TaggingHelp", "TaggingClearDone", "TaggingClear" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
         Assert.DoesNotContain(((ILogical)page).GetLogicalDescendants().OfType<Control>(), c => c.Name is "TaggingKeysHint" or "TaggingBrowseHint" or "TaggingSecondaryToolbar");
         Grid listArea = Find<Grid>(page, "TaggingListArea");

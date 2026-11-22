@@ -3,6 +3,7 @@ using Ursa.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Automation;
+using Avalonia.Layout;
 using MeowChan.Desktop.Controls;
 using Avalonia.LogicalTree;
 using Avalonia.Platform;
@@ -60,6 +61,9 @@ public sealed class TaggingLayoutRhythmTests
         TaggingControlRow heading = Find<TaggingControlRow>(page, "TaggingQueueActionRow");
         Assert.Equal(Token(heading, "Workspace.Space.16"), heading.GroupSpacing);
         Assert.Equal(Token(heading, "Workspace.Space.8"), heading.LineSpacing);
+        StackPanel progress = Find<StackPanel>(page, "TaggingProgress");
+        Assert.Equal(Token(progress, "Workspace.Space.4"), progress.Spacing);
+        Assert.Equal(Orientation.Horizontal, progress.Orientation);
         StackPanel error = Assert.IsType<StackPanel>(page.ErrorPanel.Child);
         Assert.Equal(Token(error, "Workspace.Space.8"), error.Spacing);
         StackPanel stamp = Find<StackPanel>(page, "TaggingStamp");

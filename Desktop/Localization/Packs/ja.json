@@ -4592,6 +4592,7 @@
     "tagging.page.percent": "{0:P0} 処理済み",
     "tagging.page.progressName": "タグ付けキューの進み具合",
     "tagging.page.continue": "タグ付けを続ける（{0} 番）",
+    "tagging.page.start.space": "スペースキーで開始",
     "tagging.page.filter": "表示",
     "tagging.page.filter.all": "すべての項目",
     "tagging.page.state.open": "未処理",

@@ -4695,6 +4695,7 @@
     "tagging.page.percent": "Обработано: {0:P0}",
     "tagging.page.progressName": "Ход очереди тегов",
     "tagging.page.continue": "Продолжить тегирование (№ {0})",
+    "tagging.page.start.space": "Нажмите пробел, чтобы начать",
     "tagging.page.filter": "Показать",
     "tagging.page.filter.all": "Все записи",
     "tagging.page.state.open": "Открыто",

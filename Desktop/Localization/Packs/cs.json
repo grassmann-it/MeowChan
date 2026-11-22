@@ -4717,6 +4717,7 @@
     "tagging.page.percent": "Zpracováno {0:P0}",
     "tagging.page.progressName": "Průběh fronty štítkování",
     "tagging.page.continue": "Pokračovat ve štítkování (č. {0})",
+    "tagging.page.start.space": "Spusťte mezerníkem",
     "tagging.page.filter": "Zobrazit",
     "tagging.page.filter.all": "Všechny položky",
     "tagging.page.state.open": "Otevřené",

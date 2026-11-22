@@ -4675,6 +4675,7 @@
     "tagging.page.percent": "{0:P0} traité",
     "tagging.page.progressName": "Progression de la file d’étiquetage",
     "tagging.page.continue": "Continuer l’étiquetage (n° {0})",
+    "tagging.page.start.space": "Appuyez sur Espace pour commencer",
     "tagging.page.filter": "Afficher",
     "tagging.page.filter.all": "Toutes les entrées",
     "tagging.page.state.open": "À faire",

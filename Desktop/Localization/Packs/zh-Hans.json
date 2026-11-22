@@ -4592,6 +4592,7 @@
     "tagging.page.percent": "已处理 {0:P0}",
     "tagging.page.progressName": "标签队列的进度",
     "tagging.page.continue": "继续打标签（第 {0} 个）",
+    "tagging.page.start.space": "按空格键开始",
     "tagging.page.filter": "显示",
     "tagging.page.filter.all": "所有条目",
     "tagging.page.state.open": "待处理",

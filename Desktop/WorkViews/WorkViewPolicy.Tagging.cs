@@ -20,8 +20,6 @@ public static partial class WorkViewPolicy
         Same("tagging.filter", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         Same("tagging.group", WorkViewPage.Tagging, WorkViewKind.Element, Direct),
         new("tagging.columns", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Direct, Direct, "tagging.preview-column", OverflowOrder: 35),
-        // Supporting context attached to Start, never a separate link. Barebones already names the resume position on Start.
-        new("tagging.last-shown", WorkViewPage.Tagging, WorkViewKind.Element, Hidden, Direct, Direct, Alternative: "tagging.start"),
         // The shortcut reference lives in Help in every view, not in a separately gated footer row.
         // TG1: the help button of the page sits at the end of the tool row; Barebones moves it under More.
         new("tagging.help", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Direct, Direct, OverflowOrder: 50),

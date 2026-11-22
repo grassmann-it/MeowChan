@@ -4681,6 +4681,7 @@
     "tagging.page.percent": "{0:P0} processado",
     "tagging.page.progressName": "Progresso da fila de tags",
     "tagging.page.continue": "Continuar a aplicar tags (n.º {0})",
+    "tagging.page.start.space": "Pressione Espaço para começar",
     "tagging.page.filter": "Mostrar",
     "tagging.page.filter.all": "Todas as entradas",
     "tagging.page.state.open": "Pendente",
