@@ -4,6 +4,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan;
@@ -230,6 +231,66 @@ public sealed class BooruGalleryInlineTests
             }
             await BooruTestSupport.WaitAsync(() => !popup.IsVisible && view.Gallery.CurrentPostId is null, "the empty gallery and closed popup");
             Assert.Empty(model.Search.View.Rows);
+        }
+    });
+
+    [Fact]
+    public void PopoutReplacesThePreviewWithOneBoundedSampleAndCancelsWhenBrowsingAway() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope window = new(view))
+        {
+            TaskCompletionSource<byte[]?> firstSample = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101", tags: [], sample: true),
+                    BooruUiFixtures.Post("102", tags: [], sample: true), BooruUiFixtures.Post("103", tags: []))));
+            int canceledSamples = 0;
+            harness.Previews.OnSample = async (post, token) =>
+            {
+                if (post.PostId == "101") return await firstSample.Task.WaitAsync(token);
+                try { await Task.Delay(Timeout.Infinite, token); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { Interlocked.Increment(ref canceledSamples); throw; }
+                return null;
+            };
+            view.GallerySampleMiB = () => 2;
+            view.GalleryCacheMiB = () => 16;
+            view.GalleryMaximumWidth = () => 300;
+            await SearchAsync(harness, model, view);
+            Assert.Empty(harness.Previews.SampleRequests);
+            Assert.True(view.OpenResultViewer("101"));
+            Window host = Assert.IsType<Window>(TopLevel.GetTopLevel(view));
+            BooruResultViewerWindow popup = Assert.Single(host.OwnedWindows.OfType<BooruResultViewerWindow>());
+            Image image = popup.GetVisualDescendants().OfType<Image>().Single(picture => picture.Name == "GalleryImage");
+            TextBlock caption = popup.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "BooruViewerCaption");
+            await BooruTestSupport.WaitAsync(() => image.Source is Bitmap && harness.Previews.SampleRequests.Count == 1, "the preview and one sample request");
+            Bitmap preview = Assert.IsType<Bitmap>(image.Source);
+            Assert.Contains(Texts.T("booru.gallery.shown.preview"), caption.Text);
+
+            using SKBitmap source = new(640, 320);
+            using SKImage pixels = SKImage.FromBitmap(source);
+            using SKData bytes = pixels.Encode(SKEncodedImageFormat.Png, 100);
+            firstSample.SetResult(bytes.ToArray());
+            await BooruTestSupport.WaitAsync(() => caption.Text!.Contains(Texts.T("booru.gallery.shown.sample")), "the sample caption");
+            Assert.NotSame(preview, image.Source);
+            Assert.Equal(300, Assert.IsType<Bitmap>(image.Source).PixelSize.Width);
+            Assert.Equal(new[] { "101" }, harness.Previews.SampleRequests);
+            Assert.Equal((2 * MiB, 16L * MiB), harness.Previews.SampleLimits[0]);
+
+            image.RaiseEvent(Press(Key.Right, image));
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 2, "the next post's sample request");
+            image.RaiseEvent(Press(Key.Right, image));
+            await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 1, "cancellation after leaving the next post");
+            Assert.Equal("103", popup.CurrentPostId);
+            Assert.Equal(new[] { "101", "102" }, harness.Previews.SampleRequests);
+            Assert.Empty(harness.Queue.Loads);
+            image.RaiseEvent(Press(Key.Left, image));
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 3, "the revisited post's sample request");
+            popup.Close();
+            await popup.Cleanup;
+            await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 2, "cancellation after closing the popout");
         }
     });
 

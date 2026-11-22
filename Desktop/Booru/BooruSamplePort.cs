@@ -6,7 +6,7 @@ using MeowChan.PluginHost.Http;
 namespace MeowChan.Desktop.Booru;
 
 /// <summary>
-/// The reduced-size image (sample) of one post for the inline gallery, through the same safe preview path as the thumbnails. Called only
+/// The reduced-size image (sample) of one post for the gallery, through the same safe preview path as the thumbnails. Called only
 /// for the post the person has open, never for a page ahead. An empty result means "no sample" (not offered, refused by the size limit or not
 /// delivered); the gallery then keeps the preview and says so.
 /// </summary>

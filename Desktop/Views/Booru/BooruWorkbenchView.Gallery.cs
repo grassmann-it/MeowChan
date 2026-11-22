@@ -46,13 +46,7 @@ internal sealed partial class BooruWorkbenchView
     private void InitializeGallery()
     {
         _gallery.Samples = () => _model.Search.Samples;
-        _gallery.SampleLimitBytes = () => Math.Clamp(GallerySampleMiB?.Invoke() ?? MeowChan.Config.BooruGallerySampleMiBDefault,
-            MeowChan.Config.BooruGallerySampleMiBMinimum, MeowChan.Config.BooruGallerySampleMiBMaximum) * 1024 * 1024;
-        _gallery.CacheBytes = () => Math.Clamp(GalleryCacheMiB?.Invoke() ?? MeowChan.Config.BooruGalleryCacheMiBDefault,
-            MeowChan.Config.BooruGalleryCacheMiBMinimum, MeowChan.Config.BooruGalleryCacheMiBMaximum) * 1024L * 1024;
-        _gallery.MaximumPixels = () => GalleryMaximumPixels?.Invoke() ?? Config.BooruGalleryMaximumPixelsDefault;
-        _gallery.MaximumWidth = () => GalleryMaximumWidth?.Invoke() ?? Config.BooruGalleryMaximumWidthDefault;
-        _gallery.TimeoutSeconds = () => GalleryTimeoutSeconds?.Invoke() ?? Config.BooruGalleryTimeoutSecondsDefault;
+        _gallery.SampleSettings = ReadGallerySampleSettings;
         _gallery.IsSelected = postId => _selectedResults.Contains(postId);
         _gallery.SelectionToggled = postId =>
         {
@@ -76,6 +70,10 @@ internal sealed partial class BooruWorkbenchView
         }, RoutingStrategies.Tunnel);
         SizeChanged += (_, _) => UpdateGalleryStageHeight();
     }
+
+    private BooruGallerySampleLimits ReadGallerySampleSettings() => BooruGallerySampleLimits.FromSettings(
+        GallerySampleMiB?.Invoke(), GalleryCacheMiB?.Invoke(), GalleryMaximumPixels?.Invoke(), GalleryMaximumWidth?.Invoke(),
+        GalleryTimeoutSeconds?.Invoke());
 
     private void UpdateGalleryScroll()
     {

@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
@@ -15,9 +13,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
-using Avalonia.Threading;
 using MeowChan.Desktop.Localization;
-using MeowChan.PluginHost.Http;
 using SkiaSharp;
 
 namespace MeowChan.Desktop.Booru;
@@ -70,7 +66,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
 {
     internal const string PanelName = "BooruGallery";
 
-    private readonly CancellationTokenSource _lifetime = new();
+    private readonly BooruGallerySampleLoader _sample = new();
     private readonly Image _image = new() { Name = "BooruGalleryImage", Stretch = Stretch.Uniform, StretchDirection = StretchDirection.Both };
     private readonly TextBlock _placeholder = new() { Name = "BooruGalleryPlaceholder", Classes = { "workspace-meta" }, TextAlignment = TextAlignment.Center,
         TextWrapping = TextWrapping.Wrap, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
@@ -88,12 +84,8 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     private IImage? _previewBitmap;
     private IImage? _sampleBitmap;
     private BooruGalleryPicture _picture;
-    private BooruGallerySampleState _sampleState = BooruGallerySampleState.NotOffered;
-    private Action? _cancelSample;
     private bool _requestSample;
-    private SampleLimits _sampleLimits;
-
-    private readonly record struct SampleLimits(int Bytes, long CacheBytes, int MaximumPixels, int MaximumWidth, int TimeoutSeconds);
+    private bool _samplesSuspended;
     private bool _disposed;
 
     internal BooruGalleryPanel()
@@ -138,7 +130,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     /// <summary>The post on the stage (null before the first <see cref="Show"/>).</summary>
     internal string? CurrentPostId => _currentId;
     internal BooruGalleryPicture Picture => _picture;
-    internal BooruGallerySampleState SampleState => _sampleState;
+    internal BooruGallerySampleState SampleState => _sample.State;
     internal Control Stage => _stage;
     internal string StatusText => _status.Text ?? string.Empty;
     internal Button DownloadButton => _toolbar.Download;
@@ -147,7 +139,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     internal CheckBox SelectBox => _toolbar.Select;
 
     /// <summary>How long a post must stay open before its sample is requested, so flipping through posts sends nothing (a pause, not a limit of the user's data; tests shorten it).</summary>
-    internal TimeSpan SampleDelay { get; set; } = TimeSpan.FromMilliseconds(200);
+    internal TimeSpan SampleDelay { get; set; } = BooruGallerySampleLoader.DefaultDelay;
 
     /// <summary>Decodes still-image bytes to at most the given width (null: not decodable); the seam lets tests run without a rendering platform.</summary>
     internal Func<byte[], int, IImage?>? Decoder { get; set; }
@@ -159,13 +151,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         set => _stage.Height = _tags.MaxHeight = Math.Max(_stage.MinHeight, value);
     }
 
-    /// <summary>Reads the setting "largest image" in bytes (the view's setting, read at each load).</summary>
-    internal Func<int>? SampleLimitBytes { get; set; }
-    /// <summary>Reads the setting "image memory" in bytes (read at each load).</summary>
-    internal Func<long>? CacheBytes { get; set; }
-    internal Func<int>? MaximumPixels { get; set; }
-    internal Func<int>? MaximumWidth { get; set; }
-    internal Func<int>? TimeoutSeconds { get; set; }
+    internal Func<BooruGallerySampleLimits>? SampleSettings { get; set; }
     /// <summary>The sample source; null when there is none (the preview then stays).</summary>
     internal Func<IBooruSamplePort?>? Samples { get; set; }
     internal Func<string, bool>? IsSelected { get; set; }
@@ -211,8 +197,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         {
             ResetPost(postId);
             ShowPreview(row);
-            if (Samples?.Invoke() != null && row.Post.SampleUrl is not null)
-                _sampleState = BooruGallerySampleState.Deferred;
+            _sample.Reset(Samples?.Invoke() != null && row.Post.SampleUrl is not null);
         }
         else if (!ReferenceEquals(_previewBytes, row.PreviewBytes) && _picture != BooruGalleryPicture.Sample)
             ShowPreview(row);
@@ -231,7 +216,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
 
     private void ResetPost(string? postId)
     {
-        PauseSample();
+        _sample.Reset(offered: false);
         _requestSample = false;
         _currentId = postId;
         _toolbar.IsVisible = postId is not null;
@@ -242,7 +227,6 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         }
         _previewBytes = null;
         _picture = BooruGalleryPicture.None;
-        _sampleState = BooruGallerySampleState.NotOffered;
         _image.Source = null;
         Release(_previewBitmap);
         _previewBitmap = null;
@@ -263,60 +247,17 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         if (_sampleBitmap is null) _picture = bitmap is null ? BooruGalleryPicture.None : BooruGalleryPicture.Preview;
     }
 
-    private void PauseSample()
+    internal void SuspendSamples(bool suspended)
     {
-        if (_sampleState != BooruGallerySampleState.Loading) return;
-        _cancelSample?.Invoke();
-        _cancelSample = null;
-        _sampleState = BooruGallerySampleState.Deferred;
+        _samplesSuspended = suspended;
+        if (suspended) _sample.Pause();
+        else ResumeWhenVisible();
     }
 
     private void StartSampleIfVisible(BooruResultRowView row)
     {
-        if (!_requestSample || !CanShowSample || _sampleState != BooruGallerySampleState.Deferred
-            || Samples?.Invoke() is not { } port) return;
-        _sampleState = BooruGallerySampleState.Loading;
-        _sampleLimits = new SampleLimits(
-            Math.Clamp(SampleLimitBytes?.Invoke() ?? Config.BooruGallerySampleMiBDefault * 1024 * 1024,
-                Config.BooruGallerySampleMiBMinimum * 1024 * 1024, Config.BooruGallerySampleMiBMaximum * 1024 * 1024),
-            Math.Clamp(CacheBytes?.Invoke() ?? Config.BooruGalleryCacheMiBDefault * 1024L * 1024,
-                Config.BooruGalleryCacheMiBMinimum * 1024L * 1024, Config.BooruGalleryCacheMiBMaximum * 1024L * 1024),
-            Math.Clamp(MaximumPixels?.Invoke() ?? Config.BooruGalleryMaximumPixelsDefault,
-                Config.BooruGalleryMaximumPixelsMinimum, Config.BooruGalleryMaximumPixelsMaximum),
-            Math.Clamp(MaximumWidth?.Invoke() ?? Config.BooruGalleryMaximumWidthDefault,
-                Config.BooruGalleryMaximumWidthMinimum, Config.BooruGalleryMaximumWidthMaximum),
-            Math.Clamp(TimeoutSeconds?.Invoke() ?? Config.BooruGalleryTimeoutSecondsDefault,
-                Config.BooruGalleryTimeoutSecondsMinimum, Config.BooruGalleryTimeoutSecondsMaximum));
-        SampleLimits limits = _sampleLimits;
-        OpenActions.Start(() => LoadSampleAsync(port, row.Post, limits), "booru.gallery.sample");
-    }
-
-    private async Task LoadSampleAsync(IBooruSamplePort port, BooruPostView post, SampleLimits limits)
-    {
-        using CancellationTokenSource cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _cancelSample = () => { try { cancellation.Cancel(); } catch (ObjectDisposedException) { } };
-        CancellationToken token = cancellation.Token;
-        IImage? bitmap = null;
-        try
-        {
-            await Task.Delay(SampleDelay, token);
-            token.ThrowIfCancellationRequested();
-            BooruSampleResult result = await port.LoadSampleAsync(post, limits.Bytes, limits.CacheBytes,
-                TimeSpan.FromSeconds(limits.TimeoutSeconds), token);
-            BooruGallerySampleState state = result.TimedOut ? BooruGallerySampleState.TimedOut : BooruGallerySampleState.Failed;
-            if (result.Bytes is { Length: > 0 } bytes && bytes.Length <= limits.Bytes)
-                (bitmap, state) = await Task.Run(() => Decode(bytes, limits.MaximumWidth, limits.MaximumPixels), token);
-            token.ThrowIfCancellationRequested();
-            Adopt(post.PostId, token, bitmap, state);
-            bitmap = null;
-        }
-        catch (OperationCanceledException) { }
-        catch (Exception exception) when (exception is not OutOfMemoryException)
-        {
-            Serilog.Log.Warning(exception, "A Danbooru gallery sample could not be shown");
-            if (!token.IsCancellationRequested) Adopt(post.PostId, token, null, BooruGallerySampleState.Failed);
-        }
-        finally { Release(bitmap); }
+        if (_requestSample && CanShowSample)
+            _sample.Start(Samples?.Invoke(), row.Post, SampleSettings, SampleDelay, Decode, bitmap => ApplySample(row.Post.PostId, bitmap));
     }
 
     private (IImage? Bitmap, BooruGallerySampleState State) Decode(byte[] bytes, int width, int maximumPixels)
@@ -326,31 +267,20 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         return (bitmap, bitmap is null ? BooruGallerySampleState.Failed : BooruGallerySampleState.Shown);
     }
 
-    private void Adopt(string postId, CancellationToken token, IImage? bitmap, BooruGallerySampleState state)
+    private bool ApplySample(string postId, IImage? bitmap)
     {
-        if (Dispatcher.UIThread.CheckAccess()) Apply(postId, token, bitmap, state);
-        else Dispatcher.UIThread.Post(() => Apply(postId, token, bitmap, state));
-    }
-
-    private void Apply(string postId, CancellationToken token, IImage? bitmap, BooruGallerySampleState state)
-    {
-        if (_disposed || token.IsCancellationRequested || !CanShowSample || _currentId != postId)
-        {
-            Release(bitmap);
-            return;
-        }
-        _cancelSample = null;
-        _sampleState = state;
+        if (_disposed || !CanShowSample || _currentId != postId) return false;
         if (bitmap is not null)
         {
+            _image.Source = bitmap;
             Release(_sampleBitmap);
             _sampleBitmap = bitmap;
-            _image.Source = bitmap;
             _picture = BooruGalleryPicture.Sample;
             Release(_previewBitmap);
             _previewBitmap = null;
         }
         if (_rows.FirstOrDefault(row => row.Post.PostId == postId) is { } row) Render(row);
+        return true;
     }
 
     private void Render(BooruResultRowView row)
@@ -364,8 +294,9 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         _placeholder.Text = Texts.T(row.Preview == BooruPreviewState.Loading ? "booru.ui.post.previewLoading"
             : row.Preview == BooruPreviewState.None ? "booru.ui.post.noPreview" : "booru.ui.post.previewUnavailable");
         AutomationProperties.SetName(_stage, Texts.T("booru.ui.post.title", id));
-        _status.Text = BooruGalleryStatus.Line(row, _picture, _sampleState,
-            _sampleLimits.Bytes / (1024 * 1024), _sampleLimits.MaximumPixels, _sampleLimits.TimeoutSeconds);
+        BooruGallerySampleLimits limits = _sample.Limits;
+        _status.Text = BooruGalleryStatus.Line(row, _picture, _sample.State,
+            limits.Bytes / (1024 * 1024), limits.MaximumPixels, limits.TimeoutSeconds);
         AutomationProperties.SetName(this, Texts.T("booru.gallery.listName"));
         // A button that became disabled (the first or last post) must not take the keyboard focus with it.
         if (!PreviousButton.IsEnabled && PreviousButton.IsFocused || !NextButton.IsEnabled && NextButton.IsFocused) FocusStage();
@@ -419,11 +350,10 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _lifetime.Cancel();
+        _sample.Pause();
         // May run on any thread (the page is disposed by its host): only what is not a control is touched here.
         Release(_previewBitmap);
         Release(_sampleBitmap);
         _previewBitmap = _sampleBitmap = null;
-        _lifetime.Dispose();
     }
 }

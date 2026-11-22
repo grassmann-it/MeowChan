@@ -34,9 +34,11 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
             || !_model.Search.View.Rows.Any(row => row.Post.PostId == postId)) return false;
         _resultViewer?.Close();
         BooruResultViewerWindow viewer = new(_model.Search, postId, _selectedResults, () => Render(force: true),
-            openPost: url => OpenActions.Start(() => OpenLinkAsync(url), "booru.viewer.openPost"));
+            openPost: url => OpenActions.Start(() => OpenLinkAsync(url), "booru.viewer.openPost"),
+            sampleSettings: ReadGallerySampleSettings);
         if ((_viewerBounds ??= RestoreViewerBounds?.Invoke()) is { } bounds) viewer.RestoreNormalBounds(owner, bounds);
         _resultViewer = viewer;
+        _gallery.SuspendSamples(true);
         viewer.Closed += (_, _) =>
         {
             if (!ReferenceEquals(_resultViewer, viewer)) return;
@@ -49,9 +51,14 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
             if (_closed) return;
             // The cursor follows the post the popup ended on; the inline gallery (when shown) moves there too.
             BooruSearchView current = _model.Search.View;
-            if (!current.Rows.Any(row => row.Post.PostId == viewer.CurrentPostId)) return;
+            if (!current.Rows.Any(row => row.Post.PostId == viewer.CurrentPostId))
+            {
+                _gallery.SuspendSamples(false);
+                return;
+            }
             SetCursor(viewer.CurrentPostId);
             if (_resultView == BooruResultView.Gallery) ShowInGallery(current);
+            _gallery.SuspendSamples(false);
             if (_attached && IsEffectivelyVisible && IsSearchItem(_tabs.SelectedItem)) FocusHit(viewer.CurrentPostId);
         };
         viewer.Show(owner);
