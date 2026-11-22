@@ -125,6 +125,8 @@ internal sealed partial class PrivateTagStore
             if (input.Origin is not TagRuleOrigin.Model origin) continue;
             snapshot ??= new TagSuggestionStore(_lease).Load();
             if (!snapshot.CanWrite) throw new TagSuggestionStoreException(TagSuggestionStoreError.NotWritable);
+            if (snapshot.PendingReview is not null)
+                throw new TagSuggestionStoreException(TagSuggestionStoreError.ReviewRecoveryRequired);
             if (snapshot.Revision != origin.Revision) throw new TagSuggestionStoreException(TagSuggestionStoreError.StaleRevision);
             byId ??= snapshot.Suggestions.ToDictionary(value => value.Id);
             StoredTagSuggestion suggestion = origin.Suggestion;
