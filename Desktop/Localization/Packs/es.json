@@ -3365,6 +3365,7 @@
     "booru.ui.tab.search": "Búsqueda",
     "booru.ui.tab.watchers": "Vigilantes ({0})",
     "booru.ui.tab.watchers.one": "Vigilante ({0})",
+    "booru.tabs.source": "Fuente de búsqueda",
     "booru.ui.mode.label": "Tipo de entrada",
     "booru.ui.mode.tags": "Búsqueda por etiquetas",
     "booru.ui.mode.post": "Enlace o ID de publicación",

@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Avalonia.Controls;
+using Avalonia.VisualTree;
 using MeowChan.Booru;
 using MeowChan.Desktop.Booru;
 using MeowChan.Persistence;
@@ -6,8 +8,58 @@ using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Localization")]
 public sealed class BooruSearchTabIdentityTests
 {
+    [Fact]
+    public void SourcePickerRoutesEqualPostIdsAndRestoresTheirOwnRows()
+    {
+        BooruComponentDispatcher.Run(() =>
+        {
+            BooruUiHarness legacy = new();
+            BooruUiHarness second = new();
+            BooruPostView firstPost = BooruUiFixtures.Post("42", preview: false);
+            BooruPostView secondPost = BooruPostView.From(firstPost.Post with { Id = new("test-source", "42") });
+            FakeBooruSearchPort provider = new() { ProviderId = "test-source", ProviderName = "Fixture" };
+            legacy.Search.OnSearch = (query, page, _) => Task.FromResult(
+                BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true, firstPost)));
+            provider.OnSearch = (query, page, _) => Task.FromResult(
+                BooruCallResult<BooruResultPage>.Ok(BooruUiFixtures.Page(query, page, true, secondPost)));
+            BooruWorkbenchServices first = new(legacy.Search, legacy.Queue, legacy.Watchers, legacy.Previews, legacy.Clock);
+            BooruWorkbenchServices other = new(provider, second.Queue, second.Watchers, second.Previews, second.Clock);
+            using BooruPage single = new(first);
+            ComboBox Picker(BooruPage page)
+            {
+                TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
+                Control search = Assert.IsAssignableFrom<Control>(tabs.Items.OfType<TabItem>().First().Content);
+                return Assert.Single(search.GetVisualDescendants().OfType<ComboBox>(), control => control.Name == "BooruSourcePicker");
+            }
+            Assert.False(Picker(single).IsVisible);
+            using BooruPage page = new(first, [first, other]);
+            ComboBox picker = Picker(page);
+            Assert.True(picker.IsVisible);
+
+            BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(page.Model.Search, "cat"));
+            int secondTab = page.View.SearchTabs.Add(copyCurrent: false);
+            picker.SelectedIndex = 1;
+            Assert.Equal(0, provider.Requests);
+            BooruComponentDispatcher.Wait(BooruTestSupport.SearchAsync(page.Model.Search, "cat"));
+            Assert.Equal(secondPost.Identity, Assert.Single(page.Model.Search.View.Rows).Post.Identity);
+            BooruComponentDispatcher.Wait(page.Model.Search.LoadOriginalAsync("42", firstPost.Identity));
+            Assert.Empty(second.Queue.Loads);
+            BooruComponentDispatcher.Wait(page.Model.Search.LoadOriginalAsync("42", secondPost.Identity));
+            Assert.Single(second.Queue.Loads);
+            Assert.Empty(legacy.Queue.Loads);
+
+            Assert.True(page.View.SearchTabs.Select(BooruSearchTabs.PrimaryId));
+            Assert.Equal(firstPost.Identity, Assert.Single(page.Model.Search.View.Rows).Post.Identity);
+            Assert.True(page.View.SearchTabs.Select(secondTab));
+            Assert.Equal(secondPost.Identity, Assert.Single(page.Model.Search.View.Rows).Post.Identity);
+            Assert.Equal(1, provider.Requests);
+            Assert.Equal(1, legacy.Search.Requests);
+        });
+    }
+
     [Fact]
     public void Scoped120VersionOneMigratesBothExplicitAndImplicitIdentities()
     {

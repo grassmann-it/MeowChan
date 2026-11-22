@@ -14,6 +14,7 @@ using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -30,7 +31,7 @@ namespace MeowChan.Desktop.Booru;
 internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 {
     private readonly BooruSearchModel _search;
-    private readonly string[] _ids;
+    private readonly BooruPostKey[] _ids;
     private readonly HashSet<string> _selected;
     private readonly Action _selectionChanged;
     private readonly GalleryViewer _viewer = new();
@@ -47,17 +48,18 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
     private bool _ended;
 
     internal (Size Size, PixelPoint Position)? NormalBounds { get; private set; }
-    internal string CurrentPostId => _ids[_index];
+    internal BooruPostKey CurrentPost => _ids[_index];
+    internal string CurrentPostId => CurrentPost.PostId;
     internal Task Cleanup { get; private set; } = Task.CompletedTask;
-    private BooruResultRowView? Row => _search.View.Rows.FirstOrDefault(row => row.Post.PostId == CurrentPostId);
+    private BooruResultRowView? Row => _search.View.Rows.FirstOrDefault(row => row.Post.Identity == CurrentPost);
 
     internal BooruResultViewerWindow(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged,
         BooruPreviewDecoder? decoder = null, Action<string>? openPost = null, Func<BooruGallerySampleLimits>? sampleSettings = null)
     {
         _search = search;
         _sampleSettings = sampleSettings;
-        _ids = search.View.Rows.Select(row => row.Post.PostId).ToArray();
-        _index = Array.IndexOf(_ids, postId);
+        _ids = search.View.Rows.Select(row => row.Post.Identity).ToArray();
+        _index = Array.FindIndex(_ids, identity => identity.PostId == postId);
         if (_index < 0) throw new ArgumentException("The post is not in this result page.", nameof(postId));
         _selected = selected;
         _selectionChanged = selectionChanged;
@@ -193,8 +195,8 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         // Resolve the current row again; never let an old button closure target a previous image.
         if (Row is not { } row) return;
         string id = row.Post.PostId;
-        if (row.CanRetry) await _search.RetryOriginalAsync(id);
-        else if (row.CanLoad) await _search.LoadOriginalAsync(id);
+        if (row.CanRetry) await _search.RetryOriginalAsync(id, row.Post.Identity);
+        else if (row.CanLoad) await _search.LoadOriginalAsync(id, row.Post.Identity);
         if (!_ended) Refresh();
     }
 
@@ -215,7 +217,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 
     private void Refresh()
     {
-        if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.PostId)) || Row is not { } row)
+        if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.Identity)) || Row is not { } row)
         { Close(); return; }
         Title = Texts.T("booru.ui.post.title", CurrentPostId);
         _toolbar.Present(row, _index, _ids.Length, _selected.Contains(CurrentPostId));
@@ -291,6 +293,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         MediaAssetSnapshot snapshot = new("booru-preview", MediaManifestStatus.Missing, null, null, new[] { asset });
         // BooruPostId.SourceId is part of the identity contract; hard-coding Danbooru makes a
         // non-Danbooru provider's synthetic entry report the wrong source to Gallery diagnostics.
-        return new(new(new ResourceId(row.Post.SourceId, "preview", id), "booru-preview", id), snapshot, asset, null, null, false, true);
+        string board = row.Post.Identity.InstanceId == BooruPostKey.DefaultInstance ? "preview" : "preview:" + row.Post.Identity.InstanceId;
+        return new(new(new ResourceId(row.Post.SourceId, board, id), "booru-preview", id), snapshot, asset, null, null, false, true);
     }
 }

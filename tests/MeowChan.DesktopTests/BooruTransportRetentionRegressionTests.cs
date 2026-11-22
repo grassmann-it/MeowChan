@@ -150,7 +150,7 @@ public sealed class BooruTransportRetentionRegressionTests
                 profile.Path, stub, () => binding.Binding, paused: false);
             // The Ready continuation must have subscribed and finished; otherwise it could add a second attempt.
             await WaitAsync(() => Field<Task>(session, "_booruStart").IsCompleted
-                && Field<BooruProviderBinding?>(session, "_booruBinding") != null, "the Ready continuation of the Booru start");
+                && Field<BooruProviderBinding[]>(session, "_booruBindings").Contains(binding.Binding), "the Ready continuation of the Booru start");
             Assert.Empty(TransportOwners(host));
 
             List<BooruSessionComposition> failed = new();

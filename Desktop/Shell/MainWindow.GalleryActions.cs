@@ -19,6 +19,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Gallery;
 
 namespace MeowChan;
@@ -155,11 +156,11 @@ public partial class MainWindow
 
     private Uri? GalleryProviderPostUrl(GalleryEntry entry)
     {
-        if (!BooruMediaIdentity.TryGetPostId(entry.Key.Thread, out string postId)) return null;
+        if (!BooruMediaIdentity.TryGetPostKey(entry.Key.Thread, out var identity)) return null;
         BooruPostRecord? record = null;
-        try { record = _session.ReadBooruCatalog()?.TryGetPost(BooruMediaIdentity.Source, postId); }
+        try { record = _session.ReadBooruCatalog()?.TryGetPost(identity); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
-        return BooruMediaIdentity.PostUrl(postId, record?.Post.PostUrl);
+        return BooruMediaIdentity.PostUrl(identity, record?.Post.PostUrl);
     }
 
     // The exact entry the menu was opened on; a failure is said in words and changes nothing.
@@ -263,7 +264,7 @@ public partial class MainWindow
     private async Task ShowGalleryDetailsAsync(GalleryEntry entry)
     {
         var origin = FocusManager?.GetFocusedElement() as Control;
-        if (BooruMediaIdentity.TryGetPostId(entry.Key.Thread, out string booruPost))
+        if (BooruMediaIdentity.TryGetPostKey(entry.Key.Thread, out var booruPost))
         {
             await ShowBooruMediaDetailsAsync(entry, booruPost, origin);
             return;
@@ -301,11 +302,11 @@ public partial class MainWindow
     // Context lines of the gallery panel for a downloaded provider medium: source, post and the provider's own rating.
     private IReadOnlyList<string>? BooruGalleryContext(GalleryEntry entry)
     {
-        if (!BooruMediaIdentity.TryGetPostId(entry.Key.Thread, out string postId)) return null;
-        List<string> lines = new() { Texts.T("booru.media.tile.post", postId) };
+        if (!BooruMediaIdentity.TryGetPostKey(entry.Key.Thread, out var identity)) return null;
+        List<string> lines = new() { Texts.T("booru.media.tile.post", identity.PostId) };
         try
         {
-            if (_session.ReadBooruCatalog() is { } catalog && BooruMediaProjection.Find(catalog, postId) is { } details)
+            if (_session.ReadBooruCatalog() is { } catalog && BooruMediaProjection.Find(catalog, identity) is { } details)
             {
                 lines.Add(Texts.T("booru.rating.label") + ": " + (details.RatingKnown ? BooruMessages.Rating(details.Rating) : Texts.T("booru.field.absent")));
                 if (details.Tags.Count > 0) lines.Add(Texts.Count("booru.media.gallery.tags", details.Tags.Count));
@@ -316,15 +317,16 @@ public partial class MainWindow
     }
 
     // The same details for a downloaded provider medium from the media page and from the gallery. Local data only.
-    private async Task ShowBooruMediaDetailsAsync(GalleryEntry entry, string postId, Control? origin)
+    private async Task ShowBooruMediaDetailsAsync(GalleryEntry entry, BooruPostKey identity, Control? origin)
     {
         // The dialog may remain open across a plugin/profile presentation change. Capture the
         // exact service object that was current at open time; the live gate below refuses to
         // hand the old dialog's query to a later composition.
-        BooruWorkbenchServices? openedServices = CanOpenBooru ? _session.BooruServices : null;
+        BooruWorkbenchServices? openedServices = CanOpenBooru ? _session.ActiveBooruServices.FirstOrDefault(services =>
+            services.Search.ProviderId == identity.SourceId && services.Search.InstanceId == identity.InstanceId) : null;
         BooruMediaDetails? details = null;
         // Off the UI thread: a cold catalog cache parses the whole file once.
-        try { if (await Task.Run(_session.ReadBooruCatalog) is { } catalog) details = BooruMediaProjection.Find(catalog, postId, localFilePresent: true); }
+        try { if (await Task.Run(_session.ReadBooruCatalog) is { } catalog) details = BooruMediaProjection.Find(catalog, identity, localFilePresent: true); }
         catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException) { }
         string[] file =
         {
@@ -332,7 +334,7 @@ public partial class MainWindow
             MediaProvenanceText.LocalSize(entry.Asset.Length),
             "SHA-256: " + entry.Asset.Sha256
         };
-        BooruMediaDetailsDialog dialog = new(postId, file, details,
+        BooruMediaDetailsDialog dialog = new(identity.PostId, file, details,
             url => OpenProviderPageForTests?.Invoke(url) ?? ExternalLauncher.OpenAsync(url.AbsoluteUri),
             async url =>
             {
@@ -363,14 +365,14 @@ public partial class MainWindow
     /// profile/plugin composition.
     /// </summary>
     private bool IsBooruSearchAvailable(BooruWorkbenchServices openedServices) =>
-        !_isClosing && CanOpenBooru && ReferenceEquals(_session.BooruServices, openedServices);
+        !_isClosing && CanOpenBooru && _session.ActiveBooruServices.Contains(openedServices);
 
     private (bool Opened, int? Limit) UseAsBooruSearchForDialog(string query, BooruWorkbenchServices openedServices)
     {
         if (!IsBooruSearchAvailable(openedServices) || !NavigateWorkspace(WorkspacePage.Booru)) return default;
         if (!IsBooruSearchAvailable(openedServices) || _booruPage is not { } page
-            || !ReferenceEquals(page.Services, openedServices)) return default;
+            || !page.Model.Sources.Contains(openedServices)) return default;
 
-        return OpenBooruSearchDraft(page, query);
+        return OpenBooruSearchDraft(page, query, openedServices);
     }
 }

@@ -3183,6 +3183,7 @@
     "booru.ui.noFilterNote": "결과는 입력한 태그에 대해 Danbooru가 반환한 그대로 표시됩니다. MeowChan은 등급 필터나 추가 검색어를 넣지 않습니다. 불러오는 원본은 일반 다운로드 대기열을 사용합니다.",
     "booru.ui.tab.search": "검색",
     "booru.ui.tab.watchers": "감시자({0})",
+    "booru.tabs.source": "검색 소스",
     "booru.ui.mode.label": "입력 유형",
     "booru.ui.mode.tags": "태그 검색",
     "booru.ui.mode.post": "게시물 링크 또는 ID",

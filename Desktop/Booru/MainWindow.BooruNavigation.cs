@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -27,13 +28,16 @@ public partial class MainWindow
     /// <summary>Returns the current page only for the exact service composition that created it.</summary>
     private bool EnsureBooruPage()
     {
-        if (!CanOpenBooru || _session.BooruServices is not { } services) return false;
-        if (_booruPage is { } current && ReferenceEquals(current.Services, services)) return true;
+        if (!CanOpenBooru) return false;
+        IReadOnlyList<BooruWorkbenchServices> sources = _session.ActiveBooruServices;
+        if (sources.Count == 0) return false;
+        BooruWorkbenchServices services = sources[0];
+        if (_booruPage is { } current && current.HasSources(sources)) return true;
 
         // A provider/profile composition is a lifetime boundary, even when it exposes the
         // same provider id. Never let callbacks from the previous page reach the new one.
         DisposeBooruPage();
-        BooruPage page = new(services);
+        BooruPage page = new(services, sources);
         ConfigureBooruMediaLinks(page);
         ConfigureBooruViewPreferences(page);
         // The sdk-mismatch repair route (MainWindow.BooruRepair): review, confirm, restart.
@@ -81,8 +85,7 @@ public partial class MainWindow
         }
         if (_isClosing) return;
 
-        BooruWorkbenchServices? services = _session.BooruServices;
-        if (_booruPage is { } page && !ReferenceEquals(page.Services, services)) DisposeBooruPage();
+        if (_booruPage is { } page && !page.HasSources(_session.ActiveBooruServices)) DisposeBooruPage();
         if (_selectedPage == WorkspacePage.Booru && CanOpenBooru)
         {
             _booruUnavailableNavigation.Clear();

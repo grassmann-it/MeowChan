@@ -139,8 +139,8 @@ public sealed class BooruPageNavigationContractTests
     public void CompositionSwitchDisposesByReferenceAndDoesNotRecreateOnRepeatedOpen()
     {
         string host = Read("Desktop/Booru/MainWindow.BooruNavigation.cs");
-        Assert.Contains("ReferenceEquals(current.Services, services)", host, StringComparison.Ordinal);
-        Assert.Contains("ReferenceEquals(page.Services, services)", host, StringComparison.Ordinal);
+        Assert.Contains("current.HasSources(sources)", host, StringComparison.Ordinal);
+        Assert.Contains("page.HasSources(_session.ActiveBooruServices)", host, StringComparison.Ordinal);
         Assert.Contains("Dispatcher.UIThread.Post(OnBooruChanged)", host, StringComparison.Ordinal);
         Assert.Contains("RequestBooruUnavailableFallback();", host, StringComparison.Ordinal); // turning Booru off in Settings leaves the page this way (F1)
         Assert.Contains("page.Dispose();", host, StringComparison.Ordinal);
@@ -152,7 +152,7 @@ public sealed class BooruPageNavigationContractTests
     {
         string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
         Assert.Contains("NavigateWorkspace(WorkspacePage.Booru)", booru, StringComparison.Ordinal);
-        Assert.Contains("page.View.TryShowQueryInNewTab(query)", booru, StringComparison.Ordinal);
+        Assert.Contains("page.View.TryShowQueryInNewTab(query, source?.Search)", booru, StringComparison.Ordinal);
         Assert.DoesNotContain("SearchAsync", booru, StringComparison.Ordinal);
         Assert.Contains("BooruPage", Read("Desktop/Booru/MainWindow.BooruNavigation.cs"), StringComparison.Ordinal);
     }
@@ -179,7 +179,7 @@ public sealed class BooruPageNavigationContractTests
         int activation = bridge.IndexOf("await page.ActivateAsync()", StringComparison.Ordinal);
         int capture = bridge.IndexOf("page.CaptureBooruHandoffInteraction()", StringComparison.Ordinal);
         int recheck = bridge.IndexOf("if (!Current() || !interactionCurrent()) return Cancelled();", activation, StringComparison.Ordinal);
-        int selection = bridge.IndexOf("await page.ShowBooruPostAsync(postId, Current, cancelNotice)", StringComparison.Ordinal);
+        int selection = bridge.IndexOf("await page.ShowBooruPostAsync(identity, Current, cancelNotice)", StringComparison.Ordinal);
         Assert.True(capture >= 0 && activation > capture && recheck > activation && selection > recheck,
             "A delayed media activation must revalidate navigation and source lifetime before changing selection.");
     }

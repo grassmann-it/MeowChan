@@ -3365,6 +3365,7 @@
     "booru.ui.tab.search": "Recherche",
     "booru.ui.tab.watchers": "Veilles ({0})",
     "booru.ui.tab.watchers.one": "Veille ({0})",
+    "booru.tabs.source": "Source de recherche",
     "booru.ui.mode.label": "Type de saisie",
     "booru.ui.mode.tags": "Recherche par tags",
     "booru.ui.mode.post": "Lien ou ID de publication",

@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 
 namespace MeowChan.Desktop.Booru;
@@ -9,19 +11,33 @@ namespace MeowChan.Desktop.Booru;
 /// </summary>
 internal sealed class BooruWorkbenchModel : IDisposable
 {
-    internal BooruWorkbenchModel(BooruWorkbenchServices services)
+    private readonly Dictionary<(string Source, string Instance), BooruWatcherListModel> _watchers;
+
+    internal BooruWorkbenchModel(BooruWorkbenchServices services, IReadOnlyList<BooruWorkbenchServices>? sources = null)
     {
         Services = services ?? throw new ArgumentNullException(nameof(services));
-        Search = new BooruSearchModel(services.Search, services.Queue, services.Previews, services.Clock);
-        Watchers = new BooruWatcherListModel(services.Watchers, services.Clock);
+        Sources = sources ?? [services];
+        Search = new BooruSearchModel(Sources.Select(source => new BooruSearchModel.Binding(
+            source.Search, source.Queue, source.Previews, source.Source)).ToArray(), services.Clock);
+        _watchers = Sources.ToDictionary(source => (source.Search.ProviderId, source.Search.InstanceId),
+            source => new BooruWatcherListModel(source.Watchers, source.Clock));
+        foreach (BooruWatcherListModel watchers in _watchers.Values) watchers.Changed += OnWatchersChanged;
     }
 
     internal BooruWorkbenchServices Services { get; }
+    internal IReadOnlyList<BooruWorkbenchServices> Sources { get; }
     internal BooruSearchModel Search { get; }
-    internal BooruWatcherListModel Watchers { get; }
+    internal BooruWatcherListModel Watchers => WatchersFor(Search.View);
+    internal event Action? WatchersChanged;
 
-    /// <summary>Only the read of the stored watcher list; nothing is requested from the provider.</summary>
-    internal Task InitializeAsync() => Watchers.RefreshAsync();
+    private void OnWatchersChanged() => WatchersChanged?.Invoke();
+
+    private BooruWatcherListModel WatchersFor(BooruSearchView view) =>
+        _watchers.GetValueOrDefault((view.ProviderId, view.InstanceId))
+            ?? _watchers[(Services.Search.ProviderId, Services.Search.InstanceId)];
+
+    /// <summary>Reads the stored watcher lists locally on first show.</summary>
+    internal Task InitializeAsync() => Task.WhenAll(_watchers.Values.Select(watchers => watchers.RefreshAsync()));
 
     /// <summary>
     /// Stores a watcher for the exact query shown in the field. The watcher starts from now (the first
@@ -36,12 +52,16 @@ internal sealed class BooruWorkbenchModel : IDisposable
             Search.SetNotice(new BooruNotice(BooruNoticeKind.Warning, "booru.ui.watcher.createNeedsTags"));
             return false;
         }
-        if (Watchers.HasWatcherFor(query))
+        BooruWatcherListModel watchers = WatchersFor(view);
+        if (watchers.HasWatcherFor(query))
         {
             Search.SetNotice(new BooruNotice(BooruNoticeKind.Info, "booru.ui.watcher.duplicate", new object?[] { query }));
             return false;
         }
-        BooruWatcherCommandResult result = await Watchers.CreateAsync(query).ConfigureAwait(false);
+        BooruWatcherCommandResult result = await watchers.CreateAsync(query).ConfigureAwait(false);
+        BooruSearchView current = Search.View;
+        if (current.ProviderId != view.ProviderId || current.InstanceId != view.InstanceId)
+            return result.Status == BooruWatcherCommandStatus.Done;
         if (result.Status == BooruWatcherCommandStatus.Done)
         {
             Search.SetNotice(new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.created", new object?[] { query }));
@@ -55,6 +75,10 @@ internal sealed class BooruWorkbenchModel : IDisposable
     public void Dispose()
     {
         Search.Dispose();
-        Watchers.Dispose();
+        foreach (BooruWatcherListModel watchers in _watchers.Values)
+        {
+            watchers.Changed -= OnWatchersChanged;
+            watchers.Dispose();
+        }
     }
 }
