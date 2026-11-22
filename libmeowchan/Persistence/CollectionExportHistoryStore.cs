@@ -30,7 +30,7 @@ public sealed class CollectionExportHistoryStore
     public IReadOnlyList<CollectionExportHistoryEntry> List(IReadOnlyList<ResourceId> members)
     {
         ResourceId[] frozen = ArchiveCollectionHtmlExporter.FreezeMembers(members);
-        return _lease.RunExclusive(() => (IReadOnlyList<CollectionExportHistoryEntry>)Read().Entries
+        return _lease.RunExclusive(() => (IReadOnlyList<CollectionExportHistoryEntry>)Read(_lease.StoreLimits.ExportHistory).Entries
             .Where(entry => entry.Members.SequenceEqual(frozen)).OrderByDescending(entry => entry.ExportedAt).ToArray());
     }
 
@@ -88,16 +88,16 @@ public sealed class CollectionExportHistoryStore
         }
     }
 
-    private Index Read()
+    private Index Read(ExportHistoryLimits limits)
     {
-        if (!File.Exists(_path)) return new Index(1, new List<CollectionExportHistoryEntry>());
-        FileInfo info = new(_path);
-        if (info.Length > 4_000_000 || info.LinkTarget != null) throw new InvalidDataException("Export history index is invalid.");
+        string? json = limits.ReadText(_path);
+        if (json == null) return new Index(1, new List<CollectionExportHistoryEntry>());
         Index? index;
-        try { index = JsonSerializer.Deserialize<Index>(File.ReadAllText(_path)); }
+        try { index = JsonSerializer.Deserialize<Index>(json); }
         catch (JsonException ex) { throw new InvalidDataException("Export history JSON is invalid.", ex); }
-        if (index == null || index.Version != 1 || index.Entries == null || index.Entries.Count > 20_000)
+        if (index == null || index.Version != 1 || index.Entries == null)
             throw new InvalidDataException("Export history index version or entries are invalid.");
+        limits.CheckCount(index.Entries.Count);
         foreach (CollectionExportHistoryEntry entry in index.Entries)
         {
             if (entry == null || entry.Members == null || entry.Members.Count == 0 ||
@@ -116,10 +116,12 @@ public sealed class CollectionExportHistoryStore
 
     private void Commit(CollectionExportHistoryEntry entry, CancellationToken token)
     {
-        Index index = Read();
+        token.ThrowIfCancellationRequested();
+        ExportHistoryLimits limits = _lease.StoreLimits.ExportHistory;
+        Index index = Read(limits);
         index.Entries.RemoveAll(previous => previous.Destination == entry.Destination ||
             (previous.ExportId == entry.ExportId && previous.Generation <= entry.Generation));
         index.Entries.Add(entry);
-        AtomicJsonFile.WriteAllText(_path, JsonSerializer.Serialize(index), backupCurrentFile: true, token);
+        limits.Write(_path, index, index.Entries.Count, token);
     }
 }

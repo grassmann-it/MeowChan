@@ -118,6 +118,26 @@ internal sealed class ProfileStoreLimits
     private int _tagQueueHistory = DefaultTagQueueHistory;
     private int _tagQueueGroups = DefaultTagQueueGroups;
     private int _tagQueueGroupNameCharacters = DefaultTagQueueGroupNameCharacters;
+    private ExportHistoryLimits _exportHistory = new(ExportHistoryLimits.DefaultSizeMiB, ExportHistoryLimits.DefaultEntries);
+    private int _boardAdmissionSizeMiB = Admission.BoardAdmissionStore.DefaultSizeMiB;
+
+    internal ExportHistoryLimits ExportHistory
+    {
+        get => Volatile.Read(ref _exportHistory);
+        set
+        {
+            Checked(value.SizeMiB, ExportHistoryLimits.MinimumSizeMiB, ExportHistoryLimits.MaximumSizeMiB);
+            Checked(value.Entries, ExportHistoryLimits.MinimumEntries, ExportHistoryLimits.MaximumEntries);
+            Volatile.Write(ref _exportHistory, value);
+        }
+    }
+
+    internal int BoardAdmissionSizeMiB
+    {
+        get => Volatile.Read(ref _boardAdmissionSizeMiB);
+        set => Volatile.Write(ref _boardAdmissionSizeMiB, Checked(value, Admission.BoardAdmissionStore.MinimumSizeMiB,
+            Admission.BoardAdmissionStore.MaximumSizeMiB));
+    }
 
     /// <summary>Most entries a write may leave in a favorite or rating list; a new entry at or above it is refused.</summary>
     internal int FavoriteEntries

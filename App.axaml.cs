@@ -113,6 +113,13 @@ public partial class App : Application
                 Texts.SetLanguage(SettingsRecoveryRequiredException.StartupLanguage(recovery.SavedLanguage, CultureInfo.CurrentUICulture));
                 ShowStartupFailure(desktop, recovery.LocalizedMessage());
             }
+            catch (BoardAdmissionStartupException recovery)
+            {
+                Log.Error(recovery, "Desktop startup stopped because the board admission rules could not be loaded.");
+                Texts.Initialize();
+                Texts.SetLanguage(recovery.SavedLanguage);
+                ShowStartupFailure(desktop, recovery.LocalizedMessage());
+            }
             catch (Exception exception)
             {
                 Log.Error(exception, "Desktop startup failed.");

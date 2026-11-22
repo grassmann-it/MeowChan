@@ -504,6 +504,9 @@ public partial class MainWindow : Window
                 ShowNotification(Texts.T("restore.title"),
                     Texts.T("restore.failure", _session.StartupError ?? string.Empty), NotificationType.Error, operation: "session.restore");
             }
+            if (_session.BoardAdmissionRecovered)
+                ShowNotification(Texts.T("notification.session"), Texts.T("boardAdmission.recoveredBackup"),
+                    NotificationType.Warning, operation: "session.warning");
             UpdateInteractionState();
             RefreshWorkViewNotice();
             NotifyFavoritesUnreadable();

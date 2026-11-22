@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Admission;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -89,6 +90,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             // Fail closed: nothing may write into a profile whose settings were not read as they are. The startup
             // window explains the files and the way out (SettingsRecoveryRequiredException.LocalizedMessage).
             if (!Config.AllowsOrdinaryWrites) throw SettingsRecoveryRequiredException.For(Config, _profileLease.ProfileDirectory);
+            ApplyArchivePersistenceLimits();
+            _boardAdmission = OpenBoardAdmissionStore();
             _confirmedConfig = Config.Clone();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "config-done");
@@ -126,7 +129,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _booruProducers = new MeowChan.Booru.BooruProducerLifecycle(_profileLease.Admission);
             _hostFinalWriteParticipant = new HostFinalWriteParticipant(this);
             _registry.RegisterProfileFinalWriteParticipant(_hostFinalWriteParticipant);
-            _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
+            _registry.ConfigureBoardAdmission(_boardAdmission);
             _registry.StateChanged += OnRegistryChanged;
             queue.MediaTagsCarriedOver += OnMediaTagsCarriedOver;
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
@@ -571,6 +574,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             Config candidate = Config.Clone();
             candidate.CopySettingsFieldsFrom(settings);
             candidate.Validate();
+            if (candidate.BoardAdmissionSizeMiB != Config.BoardAdmissionSizeMiB)
+                CheckBoardAdmissionSizeLimit(candidate.BoardAdmissionSizeMiB);
             if (!candidate.RememberReadingPosition) DeleteReadingPositionFile();
             SessionOptions options = new SessionOptions
             {
@@ -588,6 +593,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             ApplyBooruCatalogLimit();
             ApplyPrivateTagLimits();
             ApplyStoreLimits();
+            ApplyArchivePersistenceLimits();
             ApplyIoStatsOptions();
             ApplyFolderSourceSettings();
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
