@@ -171,6 +171,7 @@ public partial class SettingsEditor
         foreach (string property in new[] { nameof(DownloadPathHelp), nameof(RecheckTimerHelp), nameof(BandwidthInputHelp),
             nameof(ParallelDownloadsHelp), nameof(ParallelDownloadsSafetyHelp), nameof(ReserveInputHelp), nameof(ProductionWorkersHelp),
             nameof(WorkerIdleMinutesHelp), nameof(SourceHeapMiBHelp), nameof(FilterHeapMiBHelp), nameof(BooruCatalogMiBHelp),
+            nameof(LocalTaggerManifestKiBHelp), nameof(LocalTaggerWeightsMiBHelp), nameof(LocalTaggerInputTensorMiBHelp),
             nameof(BooruRetryAfterCooldownHoursHelp),
             nameof(PrivateTagLimitHelp), nameof(PrivateTagFileMiBHelp), nameof(MediaIndexCacheMiBHelp),
             nameof(ProfileRegistryLimitHelp),
@@ -219,6 +220,12 @@ public partial class SettingsEditor
         yield return (WorkerIdleMinutesInput, WorkerIdleMinutes, WorkerIdleMinutesLabel, Texts.T("settings.unitMinutes"), 1, 30, true);
         yield return (SourceHeapMiBInput, SourceHeapMiB, SourceHeapMiBLabel, Texts.T("settings.unitMiB"), 128, 1024, true);
         yield return (FilterHeapMiBInput, FilterHeapMiB, FilterHeapMiBLabel, Texts.T("settings.unitMiB"), 256, 2048, true);
+        yield return (LocalTaggerManifestKiBInput, LocalTaggerManifestKiB, LocalTaggerManifestKiBLabel, Texts.T("settings.unitKiB"),
+            LocalTaggerManifestKiBMinimum, LocalTaggerManifestKiBMaximum, true);
+        yield return (LocalTaggerWeightsMiBInput, LocalTaggerWeightsMiB, LocalTaggerWeightsMiBLabel, Texts.T("settings.unitMiB"),
+            LocalTaggerWeightsMiBMinimum, LocalTaggerWeightsMiBMaximum, true);
+        yield return (LocalTaggerInputTensorMiBInput, LocalTaggerInputTensorMiB, LocalTaggerInputTensorMiBLabel, Texts.T("settings.unitMiB"),
+            LocalTaggerInputTensorMiBMinimum, LocalTaggerInputTensorMiBMaximum, true);
         yield return (BooruCatalogMiBInput, BooruCatalogMiB, BooruCatalogMiBLabel, Texts.T("settings.unitMiB"),
             Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB, true);
         yield return (BooruRetryAfterCooldownHoursInput, BooruRetryAfterCooldownHours, BooruRetryAfterCooldownHoursLabel, Texts.T("settings.unitHours"),

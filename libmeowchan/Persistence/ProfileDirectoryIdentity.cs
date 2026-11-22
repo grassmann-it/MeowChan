@@ -47,11 +47,30 @@ internal sealed class ProfileDirectoryIdentity
         if (_volume != current._volume || _file != current._file) throw Invalid();
     }
 
+    internal void EnsureMatches(SafeFileHandle handle)
+    {
+        ProfileDirectoryIdentity current = Capture(handle);
+        if (_volume != current._volume || _file != current._file) throw Invalid();
+    }
+
+    internal static ProfileDirectoryIdentity Capture(SafeFileHandle handle)
+    {
+        if (OperatingSystem.IsWindows()) return CaptureWindows(handle);
+        if (UnixFStat(handle, out FileStatus status) != 0 || (status.Mode & 0xF000) != 0x4000 || status.Ino == 0)
+            throw Invalid();
+        return new(unchecked((ulong)status.Dev), unchecked((ulong)status.Ino));
+    }
+
     private static ProfileDirectoryIdentity CaptureWindows(string path)
     {
         using SafeFileHandle handle = CreateFile(path, 0x80 /* FILE_READ_ATTRIBUTES */,
             7 /* SHARE_READ | SHARE_WRITE | SHARE_DELETE */, IntPtr.Zero, 3 /* OPEN_EXISTING */,
             0x02200000 /* BACKUP_SEMANTICS | OPEN_REPARSE_POINT */, IntPtr.Zero);
+        return CaptureWindows(handle);
+    }
+
+    private static ProfileDirectoryIdentity CaptureWindows(SafeFileHandle handle)
+    {
         if (handle.IsInvalid || !GetFileInformation(handle, out WindowsFileInformation information)
             || (information.Attributes & (FileAttributes.ReparsePoint | FileAttributes.Device)) != 0
             || (information.Attributes & FileAttributes.Directory) == 0) throw Invalid();
@@ -64,6 +83,9 @@ internal sealed class ProfileDirectoryIdentity
 
     [DllImport("System.Native", EntryPoint = "SystemNative_LStat", SetLastError = true)]
     private static extern int UnixLStat([MarshalAs(UnmanagedType.LPUTF8Str)] string path, out FileStatus output);
+
+    [DllImport("System.Native", EntryPoint = "SystemNative_FStat", SetLastError = true)]
+    private static extern int UnixFStat(SafeFileHandle handle, out FileStatus output);
 
     // Normalized .NET PAL ABI, not platform-libc struct stat.
     [StructLayout(LayoutKind.Sequential)]

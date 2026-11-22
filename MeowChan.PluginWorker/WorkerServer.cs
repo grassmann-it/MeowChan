@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Reflection;
 using System.Runtime.Loader;
+using System.Security.Cryptography;
 using MeowChan.PluginProtocol;
 using MeowChan.PluginSdk;
 
@@ -89,6 +90,24 @@ internal sealed class WorkerServer
             throw new InvalidDataException("Stale worker or execution revision.");
     }
 
+    private static async Task<Assembly> LoadVerifiedAssemblyAsync(string path, string expectedSha256, CancellationToken token)
+    {
+        // The compiler and prebuilt installation paths already cap a plugin assembly at 32 MiB.
+        const int maximumAssemblyBytes = 32 * 1024 * 1024;
+        await using FileStream input = new(path, FileMode.Open, FileAccess.Read, FileShare.Read, 4096, FileOptions.Asynchronous);
+        long length = input.Length;
+        if (length is <= 0 or > maximumAssemblyBytes)
+            throw new InvalidDataException("The approved adapter assembly has an invalid size.");
+        byte[] bytes = new byte[checked((int)length)];
+        await input.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
+        string actualSha256 = Convert.ToHexStringLower(SHA256.HashData(bytes));
+        if (!string.Equals(expectedSha256, actualSha256, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("The loaded adapter must match the approved SHA-256.");
+        token.ThrowIfCancellationRequested();
+        using MemoryStream verified = new(bytes, writable: false);
+        return AssemblyLoadContext.Default.LoadFromStream(verified);
+    }
+
     private async Task ExecuteAsync(WireEnvelope envelope, CancellationTokenSource callCancellation)
     {
         CancellationToken token = callCancellation.Token;
@@ -100,7 +119,9 @@ internal sealed class WorkerServer
                 InitializeRequest initialize = WireJson.Read<InitializeRequest>(envelope.Payload);
                 if (initialize.Configuration.Revision != envelope.ConfigurationRevision)
                     throw new InvalidDataException("Configuration revision mismatch.");
-                Assembly assembly = AssemblyLoadContext.Default.LoadFromAssemblyPath(initialize.AssemblyPath);
+                Assembly assembly = initialize.RequiredAssemblySha256 is { } hash
+                    ? await LoadVerifiedAssemblyAsync(initialize.AssemblyPath, hash, token).ConfigureAwait(false)
+                    : AssemblyLoadContext.Default.LoadFromAssemblyPath(initialize.AssemblyPath);
                 Type[] entries = assembly.GetExportedTypes().Where(type => typeof(IPlugin).IsAssignableFrom(type)
                     && type is { IsAbstract: false, IsInterface: false } && type.GetConstructor(Type.EmptyTypes) != null).ToArray();
                 if (entries.Length != 1) throw new InvalidDataException("Exactly one public plugin entrypoint is required.");

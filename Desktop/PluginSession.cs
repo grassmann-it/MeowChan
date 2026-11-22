@@ -79,7 +79,7 @@ internal sealed partial class PluginSession : IAsyncDisposable
         _sourceMediaIntegrityPolicyFactory = sourceMediaIntegrityPolicyFactory;
         string applicationDirectory = PayloadDirectory();
         PluginDirectory = Path.Combine(profileDirectory, "plugins");
-        LocalTaggerModels = new(profileLease);
+        LocalTaggerModels = new(profileLease, config.LocalTaggerSettings());
         SiteSwitches = new ChanSiteSwitches(profileDirectory, logger);
         _shippedDirectory = Path.Combine(applicationDirectory, "plugins");
         _savedSourcePermissions = config.SourceMediaIntegrityPermissions.Values.Where(permission => permission.AllowProviderSizeMd5Mismatch).ToArray();

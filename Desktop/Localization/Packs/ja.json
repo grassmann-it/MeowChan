@@ -3,6 +3,9 @@
   "code": "ja",
   "nativeName": "日本語 (Untested)",
   "strings": {
+    "budgets.localTaggerManifest": "タグ付けモデルのマニフェスト上限 (KiB)",
+    "budgets.localTaggerWeights": "タグ付けモデルの重み上限 (MiB)",
+    "budgets.localTaggerInputTensor": "タグ付けモデルの入力テンソル上限 (MiB)",
     "localTagger.title": "ローカル画像タグ付け",
     "localTagger.choose": "モデルのマニフェストを選択…",
     "localTagger.import": "検証してインポート",

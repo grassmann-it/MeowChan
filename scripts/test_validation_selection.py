@@ -17,7 +17,9 @@ def inventory_for(sha, drop_project=None, skip_normal=None):
                 if project != drop_project}
     if planner.DESKTOP in projects:
         projects[planner.DESKTOP].extend(f'Tests.{name}.Run' for name in planner.GALLERY_CLASSES)
-        projects[planner.DESKTOP].extend(planner.WINDOWS_METHODS)
+    for project, methods in planner.WINDOWS_METHODS.items():
+        if project in projects:
+            projects[project].extend(methods)
     smokes = dict.fromkeys(('normal', *planner.balance.scenes.full_scene_inventory(),
                             *planner.GALLERY_SMOKES, *planner.BOORU_SMOKES, 'settings-reader-display', 'media-page'))
     smokes.update(normal=skip_normal, **{'external-driver': 'needs its own runner'})
@@ -85,7 +87,7 @@ class SelectionTest(unittest.TestCase):
         self.assertIn('libmeowchan/Http/Old name.cs', self.required(report, planner.CORE)['reasons'])
         self.assertIn('Desktop/Renamed\nFile.cs', self.required(report, planner.DESKTOP)['reasons'])
         self.assertIn(new_test, self.required(report, planner.DESKTOP)['reasons'])
-        self.assertEqual(set(planner.WINDOWS_METHODS),
+        self.assertEqual(planner.WINDOWS_METHODS[planner.DESKTOP],
                          set(self.required(report, planner.DESKTOP, planner.WINDOWS)['methods']))
         self.assertFalse(any(row['project'] in (planner.CORE, planner.DESKTOP) for row in report['sample']['tests']))
 
@@ -135,10 +137,13 @@ class SelectionTest(unittest.TestCase):
         unordered['sha256'] = planner.vstest.digest(unordered)
         self.assertEqual(first, self.plan(self.push(self.base), load=lambda _: unordered))
         self.assertNotEqual(first['sample'], self.plan(self.push(self.base), seed='another-seed')['sample'])
-        self.assertEqual(3, len(next(entry for entry in first['sample']['tests'] if entry['project'] == planner.CORE)['methods']))
+        self.assertEqual(3, len(next(entry for entry in first['sample']['tests']
+                                     if (entry['project'], entry['platform']) == (planner.CORE, planner.LINUX))['methods']))
         windows = [row for row in first['sample']['tests'] if row['platform'] == planner.WINDOWS]
-        self.assertEqual(1, len(windows[0]['methods']))
-        self.assertTrue(set(windows[0]['methods']) <= planner.WINDOWS_METHODS)
+        self.assertEqual(set(planner.WINDOWS_METHODS), {row['project'] for row in windows})
+        for row in windows:
+            self.assertEqual(1, len(row['methods']))
+            self.assertTrue(set(row['methods']) <= planner.WINDOWS_METHODS[row['project']])
         self.assertEqual(dict(tests=[], smokes=[]), self.plan(self.push(self.base), percent=0)['sample'])
         self.assertNotIn('normal', {row['id'] for row in first['sample']['smokes']})
         self.assertNotIn('external-driver', {row['id'] for row in first['sample']['smokes']})
@@ -182,6 +187,20 @@ class SelectionTest(unittest.TestCase):
         self.assertEqual('full', report['scope'])
         self.assertEqual([f'central_path:{path}'], report['fallback_reasons'])
         self.assertEqual([f'dotnet-test:{planner.ANALYZER}'], [row['id'] for row in report['required']['checks']])
+
+    def test_documentation_contracts_are_required_without_sampling(self):
+        matrix = 'docs/development/booru-test-matrix.md'
+        plugin_guide = 'docs/plugins/using-plugins.md'
+        readme = 'README.md'
+        for path in (matrix, plugin_guide, readme, 'docs/development/meeting-notes.md'):
+            self.write(path, '# Documentation\n')
+        report = self.plan(self.push(self.commit('documentation changes')), percent=0)
+        self.assertEqual('selected', report['scope'], report['fallback_reasons'])
+        self.assertCountEqual([
+            dict(id='python:tests/test_plugin_packaging.py', platform=planner.LINUX, reasons=[matrix]),
+            dict(id='python:tests/test_plugin_documentation.py', platform=planner.LINUX, reasons=[plugin_guide]),
+        ], report['required']['checks'])
+        self.assertEqual([readme], self.required(report, planner.DESKTOP)['reasons'])
 
     def test_unassigned_test_project_invalidates_complete_inventory_claim(self):
         path = 'tests/NewTests/NewTests.csproj'
@@ -292,6 +311,22 @@ class RepositorySelectionContractTest(unittest.TestCase):
         self.assertTrue(set(planner.BOORU_SMOKES) <= requirements.smokes.keys())
         self.assert_consumers('plugins/Official/FourChan/FourChan.cs', ('MeowChan.SourceAdapter.Tests', 'libmeowchan'))
         self.assert_consumers('tests/PluginReauthorizationProbe/Program.cs', ('MeowChan.PluginRuntime.Tests',))
+
+    def test_regular_profile_file_requires_windows_identity_test(self):
+        path = 'libmeowchan/Persistence/RegularProfileFile.cs'
+        owners, consumers = self.assert_consumers(path, ('MeowChan.Tests',))
+        requirements = planner.Requirements()
+        requirements.route(path, owners, consumers, self.graph.delivered, True)
+        identity = 'MeowChan.Tests.Transfer.RegularProfileFileTests.IdentityChangesWhenASameSizeRewriteRestoresTheTimestamps'
+        portable = 'MeowChan.Tests.Transfer.RegularProfileFileTests.WindowsRegularFileFilterRejectsLinksDirectoriesAndDevices'
+        required, sample = planner.select(requirements, {
+            'projects': {planner.CORE: [identity, portable]}, 'smokes': inventory_for('HEAD')['smokes'],
+        }, 'test', 0)
+        self.assertCountEqual([
+            dict(project=planner.CORE, platform=planner.LINUX, methods=[portable], reasons=[path]),
+            dict(project=planner.CORE, platform=planner.WINDOWS, methods=[identity], reasons=[path]),
+        ], required['tests'])
+        self.assertEqual([], sample['tests'])
 
     def test_shadow_job_has_no_matrix_or_gate_consumer(self):
         text = (planner.ROOT / '.github/workflows/dotnet-desktop.yml').read_text(encoding='utf-8')

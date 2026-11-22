@@ -3,6 +3,9 @@
   "code": "ru",
   "nativeName": "Русский (Untested)",
   "strings": {
+    "budgets.localTaggerManifest": "Предел размера манифеста модели тегирования (КиБ)",
+    "budgets.localTaggerWeights": "Предел размера весов модели тегирования (МиБ)",
+    "budgets.localTaggerInputTensor": "Предел размера входного тензора модели тегирования (МиБ)",
     "localTagger.title": "Локальная разметка изображений",
     "localTagger.choose": "Выбрать манифест модели…",
     "localTagger.import": "Проверить и импортировать",

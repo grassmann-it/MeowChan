@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using MeowChan.Models;
 using MeowChan.Desktop;
 using MeowChan.Persistence;
+using MeowChan.PluginHost.Taggers;
 using Serilog;
 
 namespace MeowChan
@@ -193,6 +194,19 @@ namespace MeowChan
         public int PluginWorkerIdleMinutes { get; set; } = 5;
         public int PluginSourceHeapMiB { get; set; } = 256;
         public int PluginFilterHeapMiB { get; set; } = 512;
+        [JsonInclude]
+        internal int LocalTaggerManifestKiB { get; set; } = LocalTaggerModelSettings.ManifestKiBRange.Default;
+        [JsonInclude]
+        internal int LocalTaggerWeightsMiB { get; set; } = LocalTaggerModelSettings.WeightsMiBRange.Default;
+        [JsonInclude]
+        internal int LocalTaggerInputTensorMiB { get; set; } = LocalTaggerModelSettings.InputTensorMiBRange.Default;
+
+        internal LocalTaggerModelSettings LocalTaggerSettings() => new()
+        {
+            MaximumManifestKiB = LocalTaggerManifestKiB,
+            MaximumWeightsMiB = LocalTaggerWeightsMiB,
+            MaximumInputTensorMiB = LocalTaggerInputTensorMiB,
+        };
         /// <summary>
         /// Write limit of the local Danbooru catalog (provider claims, findings, watchers) in MiB. Lowering it below the
         /// current size keeps the catalog readable and only stops it from growing.
@@ -1679,6 +1693,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PluginSourceHeapMiB), "The plugin limit must be between 128 and 1024.");
             if (PluginFilterHeapMiB is < 256 or > 2048)
                 throw new ArgumentOutOfRangeException(nameof(PluginFilterHeapMiB), "The plugin limit must be between 256 and 2048.");
+            if (!LocalTaggerModelSettings.ManifestKiBRange.Contains(LocalTaggerManifestKiB))
+                throw new ArgumentOutOfRangeException(nameof(LocalTaggerManifestKiB));
+            if (!LocalTaggerModelSettings.WeightsMiBRange.Contains(LocalTaggerWeightsMiB))
+                throw new ArgumentOutOfRangeException(nameof(LocalTaggerWeightsMiB));
+            if (!LocalTaggerModelSettings.InputTensorMiBRange.Contains(LocalTaggerInputTensorMiB))
+                throw new ArgumentOutOfRangeException(nameof(LocalTaggerInputTensorMiB));
             if (MinimumFreeSpaceGiB is < MinimumFreeSpaceGiBMinimum or > MinimumFreeSpaceGiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must be between " + MinimumFreeSpaceGiBMinimum + " and " + MinimumFreeSpaceGiBMaximum + " GiB.");
             if (BooruCatalogLimitMiB is < BooruCatalogMinimumLimitMiB or > BooruCatalogMaximumLimitMiB)
@@ -1982,6 +2002,9 @@ namespace MeowChan
                 PluginWorkerIdleMinutes = PluginWorkerIdleMinutes,
                 PluginSourceHeapMiB = PluginSourceHeapMiB,
                 PluginFilterHeapMiB = PluginFilterHeapMiB,
+                LocalTaggerManifestKiB = LocalTaggerManifestKiB,
+                LocalTaggerWeightsMiB = LocalTaggerWeightsMiB,
+                LocalTaggerInputTensorMiB = LocalTaggerInputTensorMiB,
                 BooruCatalogLimitMiB = BooruCatalogLimitMiB,
                 BooruRetryAfterCooldownHours = BooruRetryAfterCooldownHours,
                 ArchiveTagFilterTagsPerList = ArchiveTagFilterTagsPerList,
@@ -2271,6 +2294,9 @@ namespace MeowChan
             PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+            LocalTaggerManifestKiB = source.LocalTaggerManifestKiB;
+            LocalTaggerWeightsMiB = source.LocalTaggerWeightsMiB;
+            LocalTaggerInputTensorMiB = source.LocalTaggerInputTensorMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
@@ -2512,6 +2538,9 @@ namespace MeowChan
             PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+            LocalTaggerManifestKiB = source.LocalTaggerManifestKiB;
+            LocalTaggerWeightsMiB = source.LocalTaggerWeightsMiB;
+            LocalTaggerInputTensorMiB = source.LocalTaggerInputTensorMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;

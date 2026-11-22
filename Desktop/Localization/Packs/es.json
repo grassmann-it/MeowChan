@@ -3,6 +3,9 @@
   "code": "es",
   "nativeName": "Español (Untested)",
   "strings": {
+    "budgets.localTaggerManifest": "Límite del manifiesto del modelo de etiquetado (KiB)",
+    "budgets.localTaggerWeights": "Límite de los pesos del modelo de etiquetado (MiB)",
+    "budgets.localTaggerInputTensor": "Límite del tensor de entrada del modelo de etiquetado (MiB)",
     "localTagger.title": "Etiquetado local de imágenes",
     "localTagger.choose": "Elegir manifiesto del modelo…",
     "localTagger.import": "Verificar e importar",

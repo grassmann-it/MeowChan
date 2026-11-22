@@ -909,6 +909,7 @@ namespace MeowChan
                     nameof(WorkViewSwitchNoticeSecondsHelp), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel), nameof(StorageLimitsLabel), nameof(StorageLimitsIntro), nameof(ParallelEffectiveText),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
+                    nameof(LocalTaggerManifestKiBLabel), nameof(LocalTaggerWeightsMiBLabel), nameof(LocalTaggerInputTensorMiBLabel),
                     nameof(BooruRetryAfterCooldownHoursLabel), nameof(BooruRetryAfterCooldownHoursHint), nameof(BooruRetryAfterCooldownHoursHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
                     nameof(ProfileRegistryLimitLabel), nameof(ProfileRegistryLimitHint), nameof(ProfileRegistryLimitHelp), nameof(ProfileFolderLabel), nameof(ProfileFolderHint), nameof(ProfileFolderOpenLabel),
@@ -1206,6 +1207,7 @@ namespace MeowChan
                 candidate.PluginWorkerIdleMinutes = GetInteger(WorkerIdleMinutes, WorkerIdleMinutesLabel, 1, 30);
                 candidate.PluginSourceHeapMiB = GetInteger(SourceHeapMiB, SourceHeapMiBLabel, 128, 1024);
                 candidate.PluginFilterHeapMiB = GetInteger(FilterHeapMiB, FilterHeapMiBLabel, 256, 2048);
+                SaveLocalTaggerLimits(candidate);
                 candidate.BooruCatalogLimitMiB = GetInteger(BooruCatalogMiB, BooruCatalogMiBLabel, Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB);
                 candidate.BooruRetryAfterCooldownHours = GetInteger(BooruRetryAfterCooldownHours, BooruRetryAfterCooldownHoursLabel, Config.BooruRetryAfterCooldownMinimumHours, Config.BooruRetryAfterCooldownMaximumHours);
                 candidate.PrivateTagLimit = GetInteger(PrivateTagLimit, PrivateTagLimitLabel, Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit);

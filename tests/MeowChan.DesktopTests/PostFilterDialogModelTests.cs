@@ -568,10 +568,33 @@ public sealed class PostFilterDialogModelTests
         Assert.Equal(Texts.T("postFilter.failed", "boom"), PostFilterSession.ErrorText(new InvalidOperationException("boom")));
     }
 
+    [Fact]
+    public async Task SettingsStopReportingTheLastSnapshotDuringALoadError()
+    {
+        PostFilterRule rule = new(Guid.NewGuid(), true, PostFilterField.Text, PostFilterMatch.Contains, "test",
+            PostFilterAction.Hide, false, null, null);
+        PostFilterSnapshot loaded = new(1, HiddenPostsAction.Stub, [rule], [], PostFilterStoreState.Ready);
+        FailingService service = new() { Snapshot = loaded };
+        PostFilterSession session = new(service);
+
+        await session.LoadAsync();
+        Assert.Same(loaded, session.CurrentForSettings);
+        service.Snapshot = null;
+        await session.LoadAsync();
+        Assert.NotNull(session.LoadError);
+        Assert.Same(loaded, session.Current);
+        Assert.Null(session.CurrentForSettings);
+
+        service.Snapshot = loaded;
+        await session.LoadAsync();
+        Assert.Same(loaded, session.CurrentForSettings);
+    }
+
     private sealed class FailingService : IPostFilterService
     {
+        internal PostFilterSnapshot? Snapshot { get; set; }
         private static Task<PostFilterSnapshot> Fail() => Task.FromException<PostFilterSnapshot>(new InvalidOperationException("not ready"));
-        public Task<PostFilterSnapshot> LoadAsync(CancellationToken token) => Fail();
+        public Task<PostFilterSnapshot> LoadAsync(CancellationToken token) => Snapshot is { } snapshot ? Task.FromResult(snapshot) : Fail();
         public Task<PostFilterSnapshot> RecoverAsync(long revision, CancellationToken token) => Fail();
         public Task<PostFilterSnapshot> AddRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) => Fail();
         public Task<PostFilterSnapshot> ReplaceRuleAsync(Guid id, PostFilterRuleDraft draft, long revision, CancellationToken token) => Fail();

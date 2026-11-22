@@ -4,7 +4,6 @@ using System.Text;
 using MeowChan.Persistence;
 using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginHost.Contracts;
-using Microsoft.Win32.SafeHandles;
 
 namespace MeowChan.PluginHost.Taggers;
 
@@ -28,6 +27,7 @@ internal sealed class LocalTaggerModelStore
 {
     // Installation and worker use share the lease's slot gate, including multiple wrappers for the same profile.
     private static readonly ConditionalWeakTable<ProfileLease, SemaphoreSlim> Gates = new();
+    private const string RootName = "tagger-model";
     private const string ActiveFile = "active";
     private const string PendingFile = "active.pending";
     private const int PointerBytes = 66; // one slot letter, LF and the ASCII SHA-256
@@ -41,7 +41,7 @@ internal sealed class LocalTaggerModelStore
         _lease = lease;
         Settings = settings ?? new();
         if (!Settings.IsValid) throw new ArgumentOutOfRangeException(nameof(settings));
-        _root = Path.Combine(lease.ProfileDirectory, "tagger-model");
+        _root = Path.Combine(lease.ProfileDirectory, RootName);
         _gate = Gates.GetValue(lease, static _ => new SemaphoreSlim(1, 1));
     }
 
@@ -49,7 +49,9 @@ internal sealed class LocalTaggerModelStore
 
     internal async Task<LocalTaggerModelPreview> PreviewAsync(string manifestPath, CancellationToken token)
     {
-        (LocalTaggerModelPackage package, _) = await ReadManifestAsync(Path.GetFullPath(manifestPath), token).ConfigureAwait(false);
+        string path = Path.GetFullPath(manifestPath);
+        using FileStream input = RegularProfileFile.OpenRead(path);
+        (LocalTaggerModelPackage package, _) = await ReadManifestAsync(input, path, token).ConfigureAwait(false);
         return new(package, AvailableBytes());
     }
 
@@ -68,58 +70,61 @@ internal sealed class LocalTaggerModelStore
         finally { _gate.Release(); }
     }
 
-    internal async Task<LocalTaggerModelPackage> ImportAsync(LocalTaggerModelPreview preview, CancellationToken token)
+    internal async Task<LocalTaggerModelPackage> ImportAsync(LocalTaggerModelPreview preview, CancellationToken token, Action? beforePublish = null)
     {
         await _gate.WaitAsync(token).ConfigureAwait(false);
         try
         {
             using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
-            _lease.EnsureMatches(_lease.ProfileDirectory);
-            (LocalTaggerModelPackage package, byte[] manifestBytes) =
-                await ReadManifestAsync(preview.Package.ManifestPath, token).ConfigureAwait(false);
+            using LocalTaggerDirectory profile = LocalTaggerDirectory.OpenProfile(_lease.ProfileDirectory);
+            _lease.EnsureDirectoryIdentity(profile.Handle);
+            LocalTaggerModelPackage package;
+            byte[] manifestBytes;
+            using (FileStream sourceManifest = RegularProfileFile.OpenRead(preview.Package.ManifestPath))
+                (package, manifestBytes) = await ReadManifestAsync(sourceManifest, preview.Package.ManifestPath, token).ConfigureAwait(false);
             if (package.ManifestSha256 != preview.Package.ManifestSha256)
                 throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
 
-            RejectLink(_root);
-            Directory.CreateDirectory(_root);
-            (char Slot, string Hash)? active = await ReadPointerAsync(token).ConfigureAwait(false);
-            char slot = active?.Slot == 'a' ? 'b' : 'a';
-            string destination = SlotPath(slot);
-            string pending = Path.Combine(_root, PendingFile);
-            RejectLink(destination);
-            RejectLink(pending);
-            DeleteSlot(destination);
-            File.Delete(pending);
+            using LocalTaggerDirectory root = profile.OpenDirectory(RootName, create: true)
+                ?? throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
+            (string Slot, string Hash)? active = await ReadPointerAsync(root, token).ConfigureAwait(false);
+            string slot = active?.Slot == "a" ? "b" : "a";
+            using LocalTaggerDirectory? previous = active is { } old ? TryOpenPreviousSlot(root, old.Slot) : null;
+            using LocalTaggerDirectory destination = root.OpenDirectory(slot, create: true)
+                ?? throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
+            DeleteSlotFiles(destination);
+            root.DeleteFile(PendingFile);
             if (AvailableBytes() is long available && available < package.RequiredBytes + PointerBytes)
                 throw new LocalTaggerModelException(LocalTaggerModelIssue.FreeSpace);
 
             bool committed = false;
             try
             {
-                Directory.CreateDirectory(destination);
-                string weights = WeightsPath(package.DirectoryPath);
-                await using (FileStream output = CreateFile(WeightsPath(destination)))
+                using (FileStream weights = RegularProfileFile.OpenRead(Path.Combine(package.DirectoryPath, LocalTaggerModelManifest.WeightsFileName)))
+                using (FileStream output = destination.CreateFile(LocalTaggerModelManifest.WeightsFileName))
                     await VerifyWeightsAsync(weights, package.Manifest, output, token).ConfigureAwait(false);
 
-                string installedManifest = Path.Combine(destination, LocalTaggerModelManifest.FileName);
-                await WriteFileAsync(installedManifest, manifestBytes, token).ConfigureAwait(false);
-                await WriteFileAsync(pending, Encoding.ASCII.GetBytes(slot + "\n" + package.ManifestSha256), token).ConfigureAwait(false);
+                await WriteFileAsync(destination, LocalTaggerModelManifest.FileName, manifestBytes, token).ConfigureAwait(false);
+                await WriteFileAsync(root, PendingFile, Encoding.ASCII.GetBytes(slot + "\n" + package.ManifestSha256), token).ConfigureAwait(false);
+                beforePublish?.Invoke();
                 _lease.RunStoreWrite(admission, () =>
                 {
                     token.ThrowIfCancellationRequested();
-                    File.Move(pending, Path.Combine(_root, ActiveFile), overwrite: true);
+                    EnsureAttached(profile, root, slot, destination);
+                    root.ReplaceFile(PendingFile, ActiveFile);
                     return true;
                 });
                 committed = true;
-                if (active is { } previous) TryDeleteSlot(SlotPath(previous.Slot));
-                return package with { ManifestPath = installedManifest };
+                if (previous is not null) TryDeleteSlotFiles(previous);
+                return package with { ManifestPath = InstalledManifestPath(slot) };
             }
             finally
             {
                 if (!committed)
                 {
-                    TryDeleteSlot(destination);
-                    TryDeleteFile(pending);
+                    TryDeleteSlotFiles(destination);
+                    try { root.DeleteFile(PendingFile); }
+                    catch (Exception error) when (IsCleanupFailure(error)) { }
                 }
             }
         }
@@ -128,47 +133,70 @@ internal sealed class LocalTaggerModelStore
 
     private async Task<LocalTaggerModelPackage?> VerifyActiveAsync(CancellationToken token)
     {
-        _lease.EnsureMatches(_lease.ProfileDirectory);
-        RejectLink(_root);
-        if (await ReadPointerAsync(token).ConfigureAwait(false) is not { } active) return null;
-        string directory = SlotPath(active.Slot);
-        RejectLink(directory);
+        using LocalTaggerDirectory profile = LocalTaggerDirectory.OpenProfile(_lease.ProfileDirectory);
+        _lease.EnsureDirectoryIdentity(profile.Handle);
+        using LocalTaggerDirectory? root = profile.OpenDirectory(RootName);
+        if (root is null || await ReadPointerAsync(root, token).ConfigureAwait(false) is not { } active) return null;
+        using LocalTaggerDirectory directory = root.OpenDirectory(active.Slot)
+            ?? throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
+        using FileStream manifest = directory.OpenRead(LocalTaggerModelManifest.FileName)
+            ?? throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
         (LocalTaggerModelPackage package, _) = await ReadManifestAsync(
-            Path.Combine(directory, LocalTaggerModelManifest.FileName), token).ConfigureAwait(false);
+            manifest, InstalledManifestPath(active.Slot), token).ConfigureAwait(false);
         if (package.ManifestSha256 != active.Hash) throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
-        await VerifyWeightsAsync(WeightsPath(directory), package.Manifest, null, token).ConfigureAwait(false);
+        using FileStream weights = directory.OpenRead(LocalTaggerModelManifest.WeightsFileName)
+            ?? throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
+        await VerifyWeightsAsync(weights, package.Manifest, null, token).ConfigureAwait(false);
+        EnsureAttached(profile, root, active.Slot, directory);
         return package;
     }
 
-    private async Task<(char Slot, string Hash)?> ReadPointerAsync(CancellationToken token)
+    private void EnsureAttached(LocalTaggerDirectory profile, LocalTaggerDirectory root, string slot, LocalTaggerDirectory directory)
     {
-        string path = Path.Combine(_root, ActiveFile);
-        RejectLink(path);
-        if (!File.Exists(path)) return null;
-        string value = Encoding.ASCII.GetString(await CompilerWire.ReadBoundedAsync(path, PointerBytes, token).ConfigureAwait(false));
-        if (value.Length != PointerBytes || value[0] is not ('a' or 'b') || value[1] != '\n' || !CompilerWire.IsHash(value[2..]))
-            throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
-        return (value[0], value[2..]);
+        try
+        {
+            _lease.EnsureDirectoryIdentity();
+            profile.EnsureChildMatches(RootName, root);
+            root.EnsureChildMatches(slot, directory);
+        }
+        catch (InvalidDataException) { throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity); }
     }
 
-    private async Task<(LocalTaggerModelPackage Package, byte[] Bytes)> ReadManifestAsync(string path, CancellationToken token)
+    private static async Task<(string Slot, string Hash)?> ReadPointerAsync(LocalTaggerDirectory root, CancellationToken token)
     {
-        RejectLink(path);
-        if (new FileInfo(path).Length > Settings.MaximumManifestBytes) throw new LocalTaggerModelException(LocalTaggerModelIssue.Limit);
-        byte[] bytes = await CompilerWire.ReadBoundedAsync(path, Settings.MaximumManifestBytes, token).ConfigureAwait(false);
+        using FileStream? input = root.OpenRead(ActiveFile);
+        if (input is null) return null;
+        byte[] bytes = await ReadBytesAsync(input, PointerBytes, LocalTaggerModelIssue.Integrity, token).ConfigureAwait(false);
+        string value = Encoding.ASCII.GetString(bytes);
+        if (value.Length != PointerBytes || value[0] is not ('a' or 'b') || value[1] != '\n' || !CompilerWire.IsHash(value[2..]))
+            throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
+        return (value[..1], value[2..]);
+    }
+
+    private async Task<(LocalTaggerModelPackage Package, byte[] Bytes)> ReadManifestAsync(FileStream input, string path, CancellationToken token)
+    {
+        byte[] bytes = await ReadBytesAsync(input, Settings.MaximumManifestBytes, LocalTaggerModelIssue.Limit, token).ConfigureAwait(false);
         return (new(path, LocalTaggerModelManifest.Parse(bytes, Settings), CompilerWire.Hash(bytes), bytes.Length), bytes);
     }
 
-    private static async Task VerifyWeightsAsync(string path, LocalTaggerModelManifest manifest, FileStream? output, CancellationToken token)
+    private static async Task<byte[]> ReadBytesAsync(FileStream input, int maximum, LocalTaggerModelIssue issue, CancellationToken token)
     {
-        RejectLink(path);
-        using SafeFileHandle input = CompilerWire.OpenRead(path);
-        if (RandomAccess.GetLength(input) != manifest.SizeBytes) throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
+        long length = input.Length;
+        if (length > maximum) throw new LocalTaggerModelException(issue);
+        byte[] bytes = new byte[checked((int)length)];
+        await input.ReadExactlyAsync(bytes, token).ConfigureAwait(false);
+        if (input.ReadByte() != -1) throw new LocalTaggerModelException(issue);
+        return bytes;
+    }
+
+    private static async Task VerifyWeightsAsync(FileStream input, LocalTaggerModelManifest manifest, FileStream? output, CancellationToken token)
+    {
+        if (input.Length != manifest.SizeBytes) throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
         using IncrementalHash hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
         byte[] buffer = new byte[CopyBufferBytes];
         long length = 0;
         int read;
-        while ((read = await RandomAccess.ReadAsync(input, buffer, length, token).ConfigureAwait(false)) != 0)
+        while ((read = await input.ReadAsync(buffer, token).ConfigureAwait(false)) != 0)
         {
             length += read;
             if (length > manifest.SizeBytes) throw new LocalTaggerModelException(LocalTaggerModelIssue.Integrity);
@@ -194,44 +222,33 @@ internal sealed class LocalTaggerModelStore
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { return null; }
     }
 
-    private static FileStream CreateFile(string path) => new(path, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-        CopyBufferBytes, FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-    private static async Task WriteFileAsync(string path, byte[] bytes, CancellationToken token)
+    private static async Task WriteFileAsync(LocalTaggerDirectory directory, string name, byte[] bytes, CancellationToken token)
     {
-        await using FileStream output = CreateFile(path);
+        using FileStream output = directory.CreateFile(name);
         await output.WriteAsync(bytes, token).ConfigureAwait(false);
         output.Flush(flushToDisk: true);
     }
 
-    private string SlotPath(char slot) => Path.Combine(_root, slot.ToString());
-    private static string WeightsPath(string directory) => Path.Combine(directory, LocalTaggerModelManifest.WeightsFileName);
+    private string InstalledManifestPath(string slot) => Path.Combine(_root, slot, LocalTaggerModelManifest.FileName);
 
-    private static void RejectLink(string path)
+    private static LocalTaggerDirectory? TryOpenPreviousSlot(LocalTaggerDirectory root, string slot)
     {
-        if (new FileInfo(path).LinkTarget is not null || new DirectoryInfo(path).LinkTarget is not null)
-            throw new InvalidDataException("Local tagger model paths cannot be symbolic links.");
+        try { return root.OpenDirectory(slot); }
+        catch (Exception error) when (IsCleanupFailure(error)) { return null; }
     }
 
-    private static void DeleteSlot(string path)
+    private static void DeleteSlotFiles(LocalTaggerDirectory slot)
     {
-        // Only the two files this store owns may be removed. A foreign file prevents reuse of the slot.
-        if (!Directory.Exists(path)) return;
-        RejectLink(path);
-        File.Delete(WeightsPath(path));
-        File.Delete(Path.Combine(path, LocalTaggerModelManifest.FileName));
-        Directory.Delete(path);
+        // Keep the two slot directories so cleanup never has to unlink a potentially replaced directory name.
+        slot.DeleteFile(LocalTaggerModelManifest.WeightsFileName);
+        slot.DeleteFile(LocalTaggerModelManifest.FileName);
     }
 
-    private static void TryDeleteSlot(string path)
+    private static void TryDeleteSlotFiles(LocalTaggerDirectory slot)
     {
-        try { DeleteSlot(path); }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or InvalidDataException) { }
+        try { DeleteSlotFiles(slot); }
+        catch (Exception error) when (IsCleanupFailure(error)) { }
     }
 
-    private static void TryDeleteFile(string path)
-    {
-        try { File.Delete(path); }
-        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { }
-    }
+    private static bool IsCleanupFailure(Exception error) => error is IOException or UnauthorizedAccessException or InvalidDataException;
 }
