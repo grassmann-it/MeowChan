@@ -69,7 +69,7 @@ internal sealed partial class BooruWorkbenchView
         _searchTabs = new BooruSearchTabs(_model.Search, () => SearchTabsLimit?.Invoke() ?? MeowChan.Config.BooruSearchTabsDefault);
         _searchContent = _searchTab.Content as Control;
         _newTabButton.Classes.Add("subtle");
-        _newTabButton.Padding = new Thickness(6, 0);
+        _newTabButton.Padding = new Thickness(8, 0);
         _newTabButton.MinHeight = 0;
         _newTabButton.Click += (_, _) => OpenSearchTab(copyCurrent: false);
         _plusTab.Header = _newTabButton;
@@ -147,7 +147,7 @@ internal sealed partial class BooruWorkbenchView
         foreach ((ToggleButton button, string icon, string textKey) in new[] { (_viewToggle.First, "list", "tagging.page.view.list"), (_viewToggle.Second, "grid", "tagging.page.view.grid"), (_viewToggle.Third, "image", "booru.gallery.name") })
         {
             if (!_wideViewToggle) { if (_viewToggleKey is not null && _viewToggleKey.EndsWith("True", StringComparison.Ordinal)) button.Content = CommandBindings.NamedIcon(icon); continue; }
-            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 6 };
+            StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 8 };
             content.Children.Add(CommandBindings.NamedIcon(icon));
             content.Children.Add(new TextBlock { Text = Texts.T(textKey), VerticalAlignment = VerticalAlignment.Center });
             button.Content = content;
@@ -354,7 +354,7 @@ internal sealed partial class BooruWorkbenchView
         Button close = new() { Name = closeName, Classes = { "subtle" }, Padding = new Thickness(2), MinHeight = 0, MinWidth = 0, VerticalAlignment = VerticalAlignment.Center };
         close.AttachedToVisualTree += (_, _) => { if (close.Content is not Control) close.Content = CommandBindings.NamedIcon("x", 12); };
         close.Click += (_, e) => { e.Handled = true; closeTab(); };
-        StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 6, Children = { title, close } };
+        StackPanel header = new() { Orientation = Orientation.Horizontal, Spacing = 8, Children = { title, close } };
         item.Header = header;
         MiddleClickTracker middle = new();
         // A middle click on the tab closes it (press and release on the same tab); the close button keeps its own click.
