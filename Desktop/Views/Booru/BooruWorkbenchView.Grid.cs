@@ -13,8 +13,8 @@ using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Booru;
 
-/// <summary>How the Booru page shows its results (E1): the list of cards, or a grid of tiles. A view preference of the profile.</summary>
-internal enum BooruResultView { List, Grid }
+/// <summary>How the Booru page shows its results (E1): the list of cards, a grid of tiles, or the inline gallery (one large image). A view preference of the profile.</summary>
+internal enum BooruResultView { List, Grid, Gallery }
 
 /// <summary>The saved spelling of <see cref="BooruResultView"/> (<c>Config.BooruPageView</c>): unknown or empty text means the list.</summary>
 internal static class BooruResultViews
@@ -145,7 +145,7 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>The decoded width of a preview: the largest tile picture (Large) is smaller, so a tile never shows an enlarged bitmap.</summary>
     private const int PreviewDecodeWidth = 256;
 
-    private readonly TwoWayToggle _viewToggle = new() { Name = "BooruViewToggle" };
+    private readonly ThreeWayToggle _viewToggle = new() { Name = "BooruViewToggle" };
     private readonly ToggleButton _sizeSmall = new() { Name = "BooruTileSmall", Classes = { "segment", "segment-first" } };
     private readonly ToggleButton _sizeMedium = new() { Name = "BooruTileMedium", Classes = { "segment" } };
     private readonly ToggleButton _sizeLarge = new() { Name = "BooruTileLarge", Classes = { "segment", "segment-last" } };
@@ -164,7 +164,7 @@ internal sealed partial class BooruWorkbenchView
     internal MediaTileSize TileSize => _tileSize;
     /// <summary>The tile panel while the tiles are shown and there are hits (tests and smokes).</summary>
     internal BooruTilePanel? TilePanel => _tiles;
-    internal TwoWayToggle ViewToggle => _viewToggle;
+    internal ThreeWayToggle ViewToggle => _viewToggle;
 
     /// <summary>The hit cards or tiles that are shown now, in order.</summary>
     private IReadOnlyList<Control> ResultCards => _tiles is { } tiles && ReferenceEquals(tiles.Parent, _results) ? tiles.Children : _results.Children;
@@ -185,10 +185,13 @@ internal sealed partial class BooruWorkbenchView
         bool focus = _results.IsKeyboardFocusWithin;
         string? focused = focus ? (TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as Visual)?.GetSelfAndVisualAncestors()
             .OfType<Control>().FirstOrDefault(control => control.Name?.StartsWith("BooruResult:", StringComparison.Ordinal) == true)?.Name : null;
+        // Leaving the gallery with the focus on its stage or buttons: the cursor's hit takes the focus; entering it from a hit: the stage does.
+        if (focused is null && focus && _resultView == BooruResultView.Gallery && _cursorPostId is { } leaving) focused = "BooruResult:" + leaving;
         _resultView = view;
         Render(force: true);
         if (save) SaveResultView?.Invoke(view);
         if (focused is not null) FocusHit(focused["BooruResult:".Length..]);
+        else if (view == BooruResultView.Gallery && _results.IsKeyboardFocusWithin) FocusGalleryStage();
     }
 
     /// <summary>Sets the tile size (shown at once, saved once); false when it is the current one.</summary>
@@ -211,7 +214,7 @@ internal sealed partial class BooruWorkbenchView
             button.Click += (_, _) => ChooseTileSize(size);
         _viewToggle.SelectionChanged += (_, _) =>
         {
-            if (!_syncingView) SetResultView(_viewToggle.SelectedIndex == 1 ? BooruResultView.Grid : BooruResultView.List, save: true);
+            if (!_syncingView) SetResultView(_viewToggle.SelectedIndex switch { 1 => BooruResultView.Grid, 2 => BooruResultView.Gallery, _ => BooruResultView.List }, save: true);
         };
         _viewBar.Children.Add(_sizeGroup);
         _viewBar.Children.Add(_viewToggle);
@@ -221,8 +224,9 @@ internal sealed partial class BooruWorkbenchView
     private void RenderResultViewBar(BooruSearchView view)
     {
         _viewBar.IsVisible = view.Rows.Any();
-        _viewToggle.SetIconItems("list", Texts.T("tagging.page.view.list"), Texts.T("booru.ui.view.listHint"),
-            "grid", Texts.T("tagging.page.view.grid"), Texts.T("booru.ui.view.gridHint"));
+        _viewToggle.SetIconItem(0, "list", Texts.T("tagging.page.view.list"), Texts.T("booru.ui.view.listHint"));
+        _viewToggle.SetIconItem(1, "grid", Texts.T("tagging.page.view.grid"), Texts.T("booru.ui.view.gridHint"));
+        _viewToggle.SetIconItem(2, "image", Texts.T("booru.gallery.name"), Texts.T("booru.gallery.hint"));
         AutomationProperties.SetName(_viewToggle, Texts.T("tagging.page.view"));
         AutomationProperties.SetName(_sizeGroup, Texts.T("booru.ui.tile.sizeName"));
         Describe(_sizeSmall, "S", "media.layout.size.small");
@@ -245,7 +249,7 @@ internal sealed partial class BooruWorkbenchView
         _syncingView = true;
         try
         {
-            _viewToggle.SelectedIndex = _resultView == BooruResultView.Grid ? 1 : 0;
+            _viewToggle.SelectedIndex = _resultView switch { BooruResultView.Grid => 1, BooruResultView.Gallery => 2, _ => 0 };
             _sizeSmall.IsChecked = _tileSize == MediaTileSize.Small;
             _sizeMedium.IsChecked = _tileSize == MediaTileSize.Medium;
             _sizeLarge.IsChecked = _tileSize == MediaTileSize.Large;
@@ -256,10 +260,17 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Builds the hits of <paramref name="view"/> into the results panel: the cards of the list, or the one tile panel.</summary>
     private void RebuildResults(BooruSearchView view)
     {
+        if (_resultView == BooruResultView.Gallery && view.Rows.Any())
+        {
+            RebuildGallery(view);
+            return;
+        }
+        ReleaseGallery();
         if (_resultView != BooruResultView.Grid || !view.Rows.Any())
         {
             _tiles = null;
             RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null);
+            ApplyCursor();
             return;
         }
         BooruTilePanel tiles = new() { Name = "BooruTiles", ColumnWidth = BooruTileMetrics.CellWidth(_tileSize) };
@@ -273,6 +284,7 @@ internal sealed partial class BooruWorkbenchView
             foreach (Control tile in NumberHits(view.Rows.Select(CreateResultTile).ToList())) tiles.Children.Add(tile);
             return new List<Control> { tiles };
         }, fallback: () => null);
+        ApplyCursor();
     }
 
     /// <summary>

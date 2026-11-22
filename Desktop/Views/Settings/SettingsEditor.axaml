@@ -1626,6 +1626,30 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruGallerySampleMiBFieldLabel" Text="{Binding BooruGallerySampleMiBLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruGallerySampleMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruGallerySampleMiBInput" Value="{Binding BooruGallerySampleMiB, Mode=TwoWay}" Minimum="{Binding BooruGallerySampleMiBMinimum}" Maximum="{Binding BooruGallerySampleMiBMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruGallerySampleMiBFieldLabel}" AutomationProperties.Name="{Binding BooruGallerySampleMiBLabel}" AutomationProperties.HelpText="{Binding BooruGallerySampleMiBHelp}" />
+                                <TextBlock x:Name="BooruGallerySampleMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruGalleryCacheMiBFieldLabel" Text="{Binding BooruGalleryCacheMiBLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruGalleryCacheMiBHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruGalleryCacheMiBInput" Value="{Binding BooruGalleryCacheMiB, Mode=TwoWay}" Minimum="{Binding BooruGalleryCacheMiBMinimum}" Maximum="{Binding BooruGalleryCacheMiBMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruGalleryCacheMiBFieldLabel}" AutomationProperties.Name="{Binding BooruGalleryCacheMiBLabel}" AutomationProperties.HelpText="{Binding BooruGalleryCacheMiBHelp}" />
+                                <TextBlock x:Name="BooruGalleryCacheMiBInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <TextBlock x:Name="MediaTagListWidthFieldLabel" Text="{Binding MediaTagListWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding MediaTagListWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>

@@ -5271,6 +5271,20 @@
     "booru.bulk.endLimit": "O limite de páginas da fonte foi atingido; a pesquisa pode ter mais resultados que não podem ser listados.",
     "booru.bulk.endEnd": "A fonte não informou mais resultados depois destes.",
     "booru.bulk.endBlocked": "A fonte parou de responder (pausa, limite de taxa, offline ou erro); o resto não foi listado. Tente novamente mais tarde.",
-    "booru.bulk.endCanceled": "Interrompido por você; o resto não foi listado. O que foi enfileirado continua na fila."
+    "booru.bulk.endCanceled": "Interrompido por você; o resto não foi listado. O que foi enfileirado continua na fila.",
+    "booru.gallery.name": "Galeria",
+    "booru.gallery.hint": "Mostra os resultados desta página um de cada vez, como uma imagem grande. Esc volta para a lista ou a grade.",
+    "booru.gallery.listName": "Galeria dos resultados desta página",
+    "booru.gallery.position": "{0} de {1}",
+    "booru.gallery.shown.preview": "Exibido: pré-visualização",
+    "booru.gallery.shown.sample": "Exibido: versão reduzida (sample)",
+    "booru.gallery.sample.loading": "Carregando a versão maior…",
+    "booru.gallery.sample.none": "A fonte não oferece uma versão reduzida, então a pré-visualização permanece.",
+    "booru.gallery.sample.failed": "Não foi possível carregar a versão maior (não entregue ou maior que {0} MiB); a pré-visualização permanece.",
+    "booru.gallery.openWindow": "Abrir em nova janela",
+    "settings.limits.booruGallerySampleMiB": "Galeria do Danbooru: maior imagem (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "Maior imagem reduzida que a galeria carrega para exibição. Uma maior não é carregada e a pré-visualização permanece. O original nunca é carregado para exibição.",
+    "settings.limits.booruGalleryCacheMiB": "Galeria do Danbooru: memória de imagens (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "Quantos MiB de imagens carregadas da galeria ficam na memória para que voltar não as carregue de novo. Nada é salvo no disco."
   }
 }

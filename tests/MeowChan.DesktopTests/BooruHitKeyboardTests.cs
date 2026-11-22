@@ -160,14 +160,19 @@ public sealed class BooruHitKeyboardTests
             await BooruTestSupport.WaitAsync(() => shown.Count == 1, "the Show in Media action");
             Assert.Equal("101", shown[0]);
 
-            // No local copy: Enter and a double click do nothing (decision 95), in particular no download.
+            // No local copy: Enter and a double click open the inline gallery on the hit (F13a), in particular no download (decision 95).
             TextBlock title = cards[1].GetLogicalDescendants().OfType<TextBlock>().First();
             KeyEventArgs without = Press(Avalonia.Input.Key.Enter, title);
             Raise(title, without);
-            Assert.False(without.Handled);
+            Assert.True(without.Handled);
+            Assert.Equal(BooruResultView.Gallery, view.ResultView);
+            Assert.Equal("102", view.Gallery.CurrentPostId);
+            view.SetResultView(BooruResultView.List, save: false);
             TappedEventArgs doubleTap = DoubleTap(cards[1], cards[1]);
             Raise(cards[1], doubleTap);
-            Assert.False(doubleTap.Handled);
+            Assert.True(doubleTap.Handled);
+            Assert.Equal(BooruResultView.Gallery, view.ResultView);
+            view.SetResultView(BooruResultView.List, save: false);
             await Task.Delay(20);
             Assert.Empty(harness.Queue.Loads);
             Assert.Equal(0, harness.ProviderRequests - harness.Search.Requests);

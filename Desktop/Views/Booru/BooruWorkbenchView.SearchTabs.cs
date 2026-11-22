@@ -126,7 +126,7 @@ internal sealed partial class BooruWorkbenchView
     private void RenderViewToggleLabels()
     {
         string key = Texts.Language + "|" + _wideViewToggle;
-        foreach ((ToggleButton button, string icon, string textKey) in new[] { (_viewToggle.First, "list", "tagging.page.view.list"), (_viewToggle.Second, "grid", "tagging.page.view.grid") })
+        foreach ((ToggleButton button, string icon, string textKey) in new[] { (_viewToggle.First, "list", "tagging.page.view.list"), (_viewToggle.Second, "grid", "tagging.page.view.grid"), (_viewToggle.Third, "image", "booru.gallery.name") })
         {
             if (!_wideViewToggle) { if (_viewToggleKey is not null && _viewToggleKey.EndsWith("True", StringComparison.Ordinal)) button.Content = CommandBindings.NamedIcon(icon); continue; }
             StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 6 };

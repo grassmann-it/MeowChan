@@ -220,6 +220,8 @@ public static class SettingsTransfer
             MediaTagListTop = source.MediaTagListTop,
             BooruResultTagsShown = source.BooruResultTagsShown,
             BooruSearchTabs = source.BooruSearchTabs,
+            BooruGallerySampleMiB = source.BooruGallerySampleMiB,
+            BooruGalleryCacheMiB = source.BooruGalleryCacheMiB,
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth,
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB,
             TagQueueHistory = source.TagQueueHistory,

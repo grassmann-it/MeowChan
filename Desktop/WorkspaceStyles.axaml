@@ -2262,6 +2262,11 @@
     <Style Selector="Border.booru-tile.booru-tile-selected">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
     </Style>
+    <!-- The cursor of the Booru list and grid: the hit the person is on keeps an accent edge while the focus is elsewhere on the page (the 1-px edge is
+         already reserved, so nothing moves). -->
+    <Style Selector="Border.workspace-card.booru-cursor, Border.booru-tile.booru-cursor">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+    </Style>
     <Style Selector="Border.booru-tile-bar"><Setter Property="Background" Value="{DynamicResource Workspace.Accent}" /></Style>
     <Style Selector="Border.booru-tile WrapPanel.booru-tile-actions"><Setter Property="Opacity" Value="0" /></Style>
     <Style Selector="Border.booru-tile:pointerover WrapPanel.booru-tile-actions, Border.booru-tile:focus-within WrapPanel.booru-tile-actions, Border.booru-tile.booru-tile-selected WrapPanel.booru-tile-actions">

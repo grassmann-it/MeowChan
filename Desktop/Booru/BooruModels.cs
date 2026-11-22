@@ -33,6 +33,8 @@ internal sealed record BooruPostView
     internal string PostId => Post.Id.PostId;
     internal Uri? PostUrl { get; private init; }
     internal Uri? PreviewUrl { get; private init; }
+    /// <summary>The reduced-size version the provider offers (Danbooru's large file), when it differs from the original; null otherwise.</summary>
+    internal Uri? SampleUrl { get; private init; }
     internal BooruRating Rating { get; private init; }
     internal string? RawRating { get; private init; }
     internal int? Score { get; private init; }
@@ -50,6 +52,7 @@ internal sealed record BooruPostView
         BooruFieldPresence fields = post.Fields;
         BooruMediaVariant? original = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Original);
         BooruMediaVariant? preview = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Preview);
+        BooruMediaVariant? sample = post.Media?.FirstOrDefault(media => media.Role == BooruMediaRole.Sample);
         bool withdrawn = post.IsDeleted || post.IsBanned;
         BooruOriginalAccess access = withdrawn ? BooruOriginalAccess.Restricted
             : original is null ? BooruOriginalAccess.NotOffered
@@ -59,6 +62,7 @@ internal sealed record BooruPostView
         {
             PostUrl = post.PostUrl,
             PreviewUrl = preview?.Url,
+            SampleUrl = sample?.Url,
             Rating = fields.HasFlag(BooruFieldPresence.Rating) ? post.Rating : BooruRating.Unknown,
             RawRating = fields.HasFlag(BooruFieldPresence.Rating) ? post.RawRating : null,
             Score = fields.HasFlag(BooruFieldPresence.Score) ? post.Score : null,

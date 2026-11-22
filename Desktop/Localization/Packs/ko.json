@@ -5163,6 +5163,20 @@
     "booru.bulk.endLimit": "출처의 페이지 한도에 도달했습니다. 검색에는 나열할 수 없는 결과가 더 있을 수 있습니다.",
     "booru.bulk.endEnd": "출처는 이 이후의 결과가 없다고 알렸습니다.",
     "booru.bulk.endBlocked": "출처가 응답을 멈췄습니다(일시 중지, 속도 제한, 오프라인 또는 오류). 나머지는 나열하지 않았습니다. 나중에 다시 시도하세요.",
-    "booru.bulk.endCanceled": "사용자가 중지했습니다. 나머지는 나열하지 않았습니다. 대기열에 넣은 항목은 그대로 남습니다."
+    "booru.bulk.endCanceled": "사용자가 중지했습니다. 나머지는 나열하지 않았습니다. 대기열에 넣은 항목은 그대로 남습니다.",
+    "booru.gallery.name": "갤러리",
+    "booru.gallery.hint": "이 페이지의 결과를 큰 이미지 한 장씩 보여 줍니다. Esc를 누르면 목록 또는 격자로 돌아갑니다.",
+    "booru.gallery.listName": "이 페이지 결과의 갤러리",
+    "booru.gallery.position": "{0} / {1}",
+    "booru.gallery.shown.preview": "표시 중: 미리보기",
+    "booru.gallery.shown.sample": "표시 중: 축소 버전(샘플)",
+    "booru.gallery.sample.loading": "더 큰 버전을 불러오는 중…",
+    "booru.gallery.sample.none": "소스가 축소 버전을 제공하지 않아 미리보기가 그대로 유지됩니다.",
+    "booru.gallery.sample.failed": "더 큰 버전을 불러오지 못했습니다(전달되지 않았거나 {0} MiB보다 큼). 미리보기가 그대로 유지됩니다.",
+    "booru.gallery.openWindow": "새 창에서 열기",
+    "settings.limits.booruGallerySampleMiB": "Danbooru 갤러리: 가장 큰 이미지 (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "갤러리가 표시용으로 불러오는 가장 큰 축소 이미지입니다. 이보다 큰 이미지는 불러오지 않고 미리보기가 유지됩니다. 원본은 표시용으로 절대 불러오지 않습니다.",
+    "settings.limits.booruGalleryCacheMiB": "Danbooru 갤러리: 이미지 메모리 (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "뒤로 넘길 때 다시 불러오지 않도록 메모리에 보관하는 갤러리 이미지의 용량(MiB)입니다. 디스크에는 아무것도 저장되지 않습니다."
   }
 }

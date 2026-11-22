@@ -232,6 +232,8 @@ public sealed class SettingsResetCoverageTests : IDisposable
         ("MediaTagListTopInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
         ("BooruResultTagsShownInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
         ("BooruSearchTabsInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
+        ("BooruGallerySampleMiBInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
+        ("BooruGalleryCacheMiBInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
         ("MediaTagListWidthInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
         ("MediaPanelWidthInput", SettingsEditor.SettingsResetScope.WorkerBudgets),
         ("MediaPanelMinimumPageWidthInput", SettingsEditor.SettingsResetScope.WorkerBudgets),

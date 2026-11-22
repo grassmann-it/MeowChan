@@ -5163,6 +5163,20 @@
     "booru.bulk.endLimit": "取得元のページ上限に達しました。検索にはまだ一覧にできない結果がある可能性があります。",
     "booru.bulk.endEnd": "取得元は、これ以降の結果はないと伝えました。",
     "booru.bulk.endBlocked": "取得元が応答しなくなりました（一時停止、レート制限、オフライン、またはエラー）。残りは一覧にしていません。後でもう一度お試しください。",
-    "booru.bulk.endCanceled": "ユーザーが停止しました。残りは一覧にしていません。キューに入れたものはそのまま残ります。"
+    "booru.bulk.endCanceled": "ユーザーが停止しました。残りは一覧にしていません。キューに入れたものはそのまま残ります。",
+    "booru.gallery.name": "ギャラリー",
+    "booru.gallery.hint": "このページの結果を、大きな画像で1件ずつ表示します。Esc でリストまたはグリッドに戻ります。",
+    "booru.gallery.listName": "このページの結果のギャラリー",
+    "booru.gallery.position": "{0} / {1}",
+    "booru.gallery.shown.preview": "表示中: プレビュー",
+    "booru.gallery.shown.sample": "表示中: 縮小版（サンプル）",
+    "booru.gallery.sample.loading": "大きいバージョンを読み込み中…",
+    "booru.gallery.sample.none": "ソースが縮小版を提供していないため、プレビューのままです。",
+    "booru.gallery.sample.failed": "大きいバージョンを読み込めませんでした（提供されなかったか、{0} MiB を超えています）。プレビューのままです。",
+    "booru.gallery.openWindow": "新しいウィンドウで開く",
+    "settings.limits.booruGallerySampleMiB": "Danbooru ギャラリー: 最大の画像 (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "ギャラリーが表示用に読み込む縮小画像の最大サイズです。これを超える画像は読み込まず、プレビューのままです。オリジナルは表示用には読み込みません。",
+    "settings.limits.booruGalleryCacheMiB": "Danbooru ギャラリー: 画像メモリ (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "戻るときに再読み込みしないよう、読み込んだギャラリー画像をメモリに保持する量（MiB）です。ディスクには何も保存されません。"
   }
 }

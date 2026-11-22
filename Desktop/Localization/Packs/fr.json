@@ -5265,6 +5265,20 @@
     "booru.bulk.endLimit": "La limite de pages de la source a été atteinte ; la recherche peut avoir d’autres résultats impossibles à lister.",
     "booru.bulk.endEnd": "La source n’a signalé aucun autre résultat après ceux-ci.",
     "booru.bulk.endBlocked": "La source a cessé de répondre (pause, limite de débit, hors ligne ou erreur) ; le reste n’a pas été listé. Réessayez plus tard.",
-    "booru.bulk.endCanceled": "Arrêté par vous ; le reste n’a pas été listé. Ce qui a été mis en file y reste."
+    "booru.bulk.endCanceled": "Arrêté par vous ; le reste n’a pas été listé. Ce qui a été mis en file y reste.",
+    "booru.gallery.name": "Galerie",
+    "booru.gallery.hint": "Affiche les résultats de cette page un par un, en grande image. Échap revient à la liste ou à la grille.",
+    "booru.gallery.listName": "Galerie des résultats de cette page",
+    "booru.gallery.position": "{0} sur {1}",
+    "booru.gallery.shown.preview": "Affiché : aperçu",
+    "booru.gallery.shown.sample": "Affiché : version réduite (sample)",
+    "booru.gallery.sample.loading": "Chargement de la version plus grande…",
+    "booru.gallery.sample.none": "La source n’offre pas de version réduite ; l’aperçu reste affiché.",
+    "booru.gallery.sample.failed": "La version plus grande n’a pas pu être chargée (non fournie ou supérieure à {0} Mio) ; l’aperçu reste affiché.",
+    "booru.gallery.openWindow": "Ouvrir dans une nouvelle fenêtre",
+    "settings.limits.booruGallerySampleMiB": "Galerie Danbooru : plus grande image (MiB)",
+    "settings.limits.booruGallerySampleMiB.hint": "Plus grande image réduite que la galerie charge pour l’affichage. Une image plus grande n’est pas chargée et l’aperçu reste. L’original n’est jamais chargé pour l’affichage.",
+    "settings.limits.booruGalleryCacheMiB": "Galerie Danbooru : mémoire d’images (MiB)",
+    "settings.limits.booruGalleryCacheMiB.hint": "Nombre de MiB d’images de la galerie conservées en mémoire pour que le retour en arrière ne les recharge pas. Rien n’est enregistré sur le disque."
   }
 }
