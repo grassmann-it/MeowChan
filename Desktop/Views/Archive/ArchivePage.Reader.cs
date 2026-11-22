@@ -255,8 +255,13 @@ public partial class ArchivePage
         {
             if (over) return;
             _readerSurfacePointer = null;
-            _readerNavigationPointerOver = _readerNavigationActive = false;
-            _readerNavigationIdleTimer?.Stop();
+            _readerNavigationPointerOver = false;
+            // A shortcut can scroll the posts and release hover while its reveal is still fresh.
+            if (_readerNavigationActivityFromPointer || !TransientHover.WindowUsable(ReaderContentSurface))
+            {
+                _readerNavigationActive = false;
+                _readerNavigationIdleTimer?.Stop();
+            }
             UpdateReaderNavigationShown();
         });
         ReaderNavigation.GotFocus += (_, _) => UpdateReaderNavigationShown();
@@ -787,7 +792,7 @@ public partial class ArchivePage
         ReaderNavigation.Margin = new Thickness(0, 0, ReaderNavigationLayout.RightInset, bottom);
     }
 
-    private bool _readerNavigationPointerOver, _readerNavigationActive;
+    private bool _readerNavigationPointerOver, _readerNavigationActive, _readerNavigationActivityFromPointer;
     private string _readerNavigationMode = Config.ReaderNavigationModeAuto;
     private bool _readerNavigationShowPosition = true;
     private Point? _readerSurfacePointer;
@@ -861,16 +866,16 @@ public partial class ArchivePage
         // without raising PointerExited on the capsule. Keep the hover flag in sync so a move
         // away from the capsule can actually arm auto-hide even when the hit host is present.
         _readerNavigationPointerOver = false;
-        ShowReaderNavigation();
+        ShowReaderNavigation(fromPointer: true);
     }
 
     // Pointer activity (or a navigation shortcut) shows the bar and (re)arms the idle timer; the timer only re-checks the
     // elapsed time, so a stream of pointer moves costs one timestamp each. "Always" and "Off" need no timer.
-    internal void ShowReaderNavigation()
+    internal void ShowReaderNavigation(bool fromPointer = false)
     {
         if (!_largeReader || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;
         _readerNavigationLastActivity = Environment.TickCount64;
-        bool wasActive = _readerNavigationActive;
+        _readerNavigationActivityFromPointer = fromPointer;
         _readerNavigationActive = true;
         if (_readerNavigationIdleTimer == null)
         {
