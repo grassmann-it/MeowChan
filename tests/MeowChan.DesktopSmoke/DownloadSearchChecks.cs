@@ -245,8 +245,12 @@ internal static class DownloadSearchChecks
 
     private static void CheckRowFocus(MainWindow window, DataGrid grid, ThreadRow first, ThreadRow second)
     {
+        DataGridColumn title = grid.Columns.Single(column => column.SortMemberPath == nameof(ThreadRow.Title));
+        DataGridColumn next = grid.Columns.Where(column => column.IsVisible && column.DisplayIndex > title.DisplayIndex)
+            .MinBy(column => column.DisplayIndex)!;
         grid.SelectedItem = first;
-        grid.ScrollIntoView(first, null);
+        grid.ScrollIntoView(first, next);
+        grid.CurrentColumn = next;
         Require(grid.Focus(NavigationMethod.Tab), "The Downloads table did not take keyboard focus.");
         window.UpdateLayout();
 
@@ -254,29 +258,33 @@ internal static class DownloadSearchChecks
             .Single(row => ReferenceEquals(row.DataContext, item));
         Border RowBackground(DataGridRow row) => row.GetVisualDescendants().OfType<Border>()
             .Single(border => border.Name == "BackgroundBorder");
-        void AssertRowFocus(DataGridRow row)
+        void AssertRowFocus(DataGridRow row, bool cellAction = false)
         {
             DataGridCell cell = row.GetVisualDescendants().OfType<DataGridCell>()
                 .Single(cell => cell.Classes.Contains(":current"));
             foreach (string part in new[] { "CurrencyVisual", "FocusVisual" })
-                Require(cell.GetVisualDescendants().OfType<Control>().Single(control => control.Name == part).Opacity == 0,
-                    $"The current Downloads cell still draws {part}.");
+                Require((cell.GetVisualDescendants().OfType<Control>().Single(control => control.Name == part).Opacity > 0) == cellAction,
+                    $"The Downloads {grid.CurrentColumn.SortMemberPath} cell has the wrong visibility for {part} (interactive: {cellAction}).");
             Require(RowBackground(row).BorderThickness == new Thickness(3, 1, 1, 1),
                 "The focused Downloads row lacks a border.");
         }
 
         AssertRowFocus(Row(first));
-        DataGridColumn currentColumn = grid.CurrentColumn;
+        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Left });
+        Require(grid.CurrentColumn == title && ReferenceEquals(grid.SelectedItem, first),
+            "Left Arrow did not reach the title cell in the same row.");
+        AssertRowFocus(Row(first), cellAction: true);
         grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
-        Require(grid.CurrentColumn != currentColumn && ReferenceEquals(grid.SelectedItem, first),
-            "Right Arrow did not move the current cell within the row.");
-        AssertRowFocus(Row(first));
-        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down });
-        Require(ReferenceEquals(grid.SelectedItem, second), "Down Arrow did not move the selection to the next row.");
+        Require(grid.CurrentColumn == next, "Right Arrow did not return to the adjacent ordinary cell.");
+        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down, KeyModifiers = KeyModifiers.Shift });
+        Require(grid.SelectedItems.Count == 2 && grid.SelectedItems.Contains(first) && grid.SelectedItems.Contains(second),
+            "Shift+Down did not extend selection to the second row.");
+        Require(RowBackground(Row(first)).BorderThickness == new Thickness(3, 0, 0, 0),
+            "The previous current row did not retain just its selection strip.");
         AssertRowFocus(Row(second));
         window.FindControl<TextBox>("UrlInput")!.Focus(NavigationMethod.Tab);
-        Require(RowBackground(Row(second)).BorderThickness == new Thickness(3, 0, 0, 0),
-            "Moving focus out of the table did not leave the normal row selection.");
+        Require(new[] { first, second }.All(item => RowBackground(Row(item)).BorderThickness == new Thickness(3, 0, 0, 0)),
+            "Moving focus out of the table did not leave both selection strips.");
     }
 
     private static void CheckHeaderAlignment(TabControl tabs, ActionToolBar toolbar, Window window)

@@ -4,10 +4,12 @@ using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
+using MeowChan.Testing;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -18,6 +20,20 @@ namespace MeowChan.DesktopSmoke;
 // panel's medium. Compile-checked only when written (no GUI smokes at that time); the central run decides.
 internal static partial class MediaPageChecks
 {
+    internal static async Task RunPanelSelectionAsync(MainWindow owner)
+    {
+        string language = Texts.Language;
+        try
+        {
+            Texts.SetLanguage("en");
+            string profile = TemporaryWorkspacePaths.CreateDirectory("media-page-panel-");
+            new Config().SaveConfig(profile);
+            await SeedAsync(profile);
+            await PanelFollowsSelectionAsync(owner, profile);
+        }
+        finally { Texts.SetLanguage(language); }
+    }
+
     private static async Task PanelFollowsSelectionAsync(MainWindow owner, string profile)
     {
         await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
@@ -96,9 +112,25 @@ internal static partial class MediaPageChecks
             Require(Math.Abs(TopOf(panel.Card) + panel.Card.Bounds.Height - (hostTop + panelHost.Bounds.Height)) <= 1,
                 "The media card must consume the host height below the title line.");
 
+            // A fit change refreshes the current medium without announcing it again.
+            TextBlock live = panel.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "ReaderMediaSidebarLive");
+            await PanelUntilAsync(() => live.Text?.Contains(rows[0].Name, StringComparison.Ordinal) == true,
+                () => "the initial medium was not announced");
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                live.Text = null;
+                page.ConfigurePanel(ReaderInlineVideoOptions.From(host.Config), new GalleryFitPreferences(Limit: true));
+            });
+            await Task.Delay(2 * ReaderMediaSidebarRules.AnnounceDelayMs);
+            await Dispatcher.UIThread.InvokeAsync(() => Require(live.Text is null,
+                "The panel announced the same medium after a fit change."), DispatcherPriority.Background);
+
             // 2. Another selection (the grid's own selection, as an arrow key makes it): the content changes with it.
-            page.Grid.SelectedIndex = 1;
+            await Dispatcher.UIThread.InvokeAsync(() => page.Grid.SelectedIndex = 1);
             Bitmap? second = await ShowsAsync(1, "selection", picture: true);
+            await PanelUntilAsync(() => live.Text?.Contains(rows[1].Name, StringComparison.Ordinal) == true,
+                () => "the new medium was not announced: " + live.Text);
+            Console.WriteLine("SMOKE media panel announcements: the fit refresh stayed silent and the next medium was announced.");
             Require(!ReferenceEquals(first, second), "The panel's picture must change with the selected tile.");
 
             // 3. The grid's own selection moves on (as an arrow key in the list does), and the panel follows (the file without a post: no post line).

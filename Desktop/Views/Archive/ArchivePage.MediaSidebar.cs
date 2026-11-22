@@ -502,6 +502,7 @@ public partial class ArchivePage
         button.IsEnabled = enabled;
         button.Content = content;
         ToolTip.SetTip(button, tip);
+        ToolTip.SetShowOnDisabled(button, true);
         Avalonia.Automation.AutomationProperties.SetName(button, name);
         Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
     }

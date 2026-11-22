@@ -95,6 +95,7 @@ internal static partial class SmokeScenarios
             await MediaMenuCompositionChecks.RunAsync(mainWindow);
             await MediaPageChecks.RunAsync(mainWindow);
         }),
+        ["media-panel-selection"] = new(SmokeStage.Ready, mainWindow => MediaPageChecks.RunPanelSelectionAsync(mainWindow)),
         ["gallery-exif-orientation"] = new(SmokeStage.Ready, mainWindow => GalleryExifOrientationChecks.RunAsync(mainWindow))
         {
             Seed = ExifOrientationFixture.SeedAsync,

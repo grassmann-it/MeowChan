@@ -961,11 +961,11 @@
     </Style>
     <!-- Semi draws separate outlines for the current cell and for cell focus. Suppress both in row tables,
          leaving editable grids and columns marked cell-action their own cell indicators. -->
-    <Style Selector="DataGrid[IsReadOnly=True] DataGridCell:not(.cell-action) /template/ Rectangle#CurrencyVisual,
-                     DataGrid[IsReadOnly=True] DataGridCell:not(.cell-action) /template/ Panel#FocusVisual">
+    <Style Selector="DataGrid.row-focus DataGridCell:not(.cell-action) /template/ Rectangle#CurrencyVisual,
+                     DataGrid.row-focus DataGridCell:not(.cell-action) /template/ Panel#FocusVisual">
         <Setter Property="Opacity" Value="0" />
     </Style>
-    <Style Selector="DataGrid[IsReadOnly=True]:focus-within DataGridRow:selected /template/ Border#BackgroundBorder">
+    <Style Selector="DataGrid.row-focus:focus-within DataGridRow.current-cell-row /template/ Border#BackgroundBorder">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,1,1,1" />
     </Style>
     <Style Selector="ListBox.workspace-selection-bar ListBoxItem:selected /template/ ContentPresenter">
@@ -1334,6 +1334,9 @@
     </Style>
     <Style Selector="Button.media-control"><Setter Property="Padding" Value="9,4" /></Style>
     <Style Selector="ToggleButton.media-control"><Setter Property="Padding" Value="11,0" /></Style>
+    <Style Selector="ToggleButton#GalleryPanelTags">
+        <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
+    </Style>
     <!-- Gallery "⋯" menu: the rare toolbar commands as full-width rows (lead mark, label, shortcut). The check of the two
          overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
@@ -1551,8 +1554,12 @@
                 <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
                         Padding="{TemplateBinding Padding}">
-                    <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
-                                      ContentTemplate="{TemplateBinding HeaderTemplate}" VerticalContentAlignment="Center" />
+                    <Grid>
+                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
+                                          ContentTemplate="{TemplateBinding HeaderTemplate}" VerticalContentAlignment="Center" />
+                        <Border Name="BooruTabSelection" Height="4" VerticalAlignment="Top" IsHitTestVisible="False"
+                                Background="{DynamicResource Workspace.Accent}" IsVisible="False" />
+                    </Grid>
                 </Border>
             </ControlTemplate>
         </Setter>
@@ -1564,6 +1571,9 @@
     <Style Selector="TabItem.booru-tab:selected:not(.booru-add-tab)">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
         <Setter Property="BorderThickness" Value="1,1,1,0" />
+    </Style>
+    <Style Selector="TabItem.booru-tab:selected:not(.booru-add-tab) /template/ Border#BooruTabSelection">
+        <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="TabItem.booru-add-tab">
         <Setter Property="Background" Value="Transparent" />

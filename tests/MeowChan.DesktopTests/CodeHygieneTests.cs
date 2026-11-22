@@ -57,13 +57,6 @@ public sealed class CodeHygieneTests
     }
 
     [Fact]
-    public void ThePanelAnnouncesAnotherMediumButNotARefreshOfTheSameOne()
-    {
-        string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs");
-        Assert.Matches(@"if \(!same\)\s*\{[^}]*ScheduleAnnouncement\(Texts\.T\(""media\.panel\.region"",", panel.Replace("\r\n", "\n"));
-    }
-
-    [Fact]
     public void AFitLimitDecodesThePanelAgainButAVolumeDoesNot()
     {
         string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs");

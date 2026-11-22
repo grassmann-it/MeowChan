@@ -183,8 +183,9 @@ internal sealed partial class BooruWorkbenchView
         string defaultTarget = Texts.T(opensNewTab ? "booru.tabs.searchNew" : "booru.tabs.searchCurrent");
         string alternateTarget = Texts.T(opensNewTab ? "booru.tabs.searchCurrent" : "booru.tabs.searchNew");
         DescribeSearchAction(_submit, SubmitCommand, defaultTarget, blocked);
-        _alternateSubmit.Content = Texts.T(opensNewTab ? "booru.tabs.searchCurrentShort" : "booru.tabs.searchNewShort");
-        AutomationProperties.SetName(_alternateSubmit, alternateTarget);
+        string alternateLabel = Texts.T(opensNewTab ? "booru.tabs.searchCurrentShort" : "booru.tabs.searchNewShort");
+        _alternateSubmit.Content = alternateLabel;
+        AutomationProperties.SetName(_alternateSubmit, alternateLabel);
         DescribeSearchAction(_alternateSubmit, AlternateSubmitCommand, alternateTarget,
             blocked is null ? alternateTarget : alternateTarget + "\n" + blocked);
     }
@@ -408,10 +409,10 @@ internal sealed partial class BooruWorkbenchView
         IconButtons.Apply(_newTabButton, "plus", newName);
         _newTabButton.IsEnabled = true;
 
-        _openInNewTab.Content = Texts.T("settings.booru.newSearchTarget.new");
+        string openName = Texts.T("booru.tabs.duplicate");
+        _openInNewTab.Content = openName;
         _openInNewTab.IsEnabled = !view.IsBusy && (view.Parsed.IsValid || view.ExecutedQuery is not null || view.ExecutedPostId is not null);
         string openHint = Texts.T("booru.tabs.openCurrentHint");
-        string openName = Texts.T("booru.tabs.openCurrent");
         ToolTip.SetTip(_openInNewTab, openName + "\n" + openHint);
         ToolTip.SetShowOnDisabled(_openInNewTab, true);
         AutomationProperties.SetName(_openInNewTab, openName);
