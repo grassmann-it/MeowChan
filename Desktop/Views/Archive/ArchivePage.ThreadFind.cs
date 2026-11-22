@@ -63,8 +63,6 @@ public partial class ArchivePage
         ReaderTagsOpen.IsChecked = tags;
         string open = Texts.T("readerTool.stateOpen");
         Avalonia.Automation.AutomationProperties.SetName(ReaderFindOpen, CommandCatalog.Label("reader.find") + (find ? ", " + open : ""));
-        if (tags) Avalonia.Automation.AutomationProperties.SetName(ReaderTagsOpen, Texts.T("tags.open") + ", " + open);
-        else ReaderTagsOpen.ClearValue(Avalonia.Automation.AutomationProperties.NameProperty);
         SetReaderActionTip(ReaderFindOpen, ReaderFindTip());
         SetReaderActionTip(ReaderTagsOpen, ReaderTagsTip());
     }

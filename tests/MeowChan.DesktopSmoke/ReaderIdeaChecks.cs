@@ -84,6 +84,48 @@ internal static partial class ReaderIdeaChecks
     private static ReaderBodyTextBlock Body(Fixture fixture, string postId) => Container(fixture, postId).GetVisualDescendants()
         .OfType<ReaderBodyTextBlock>().Single();
 
+    private static async Task HoverQuoteAsync(MediaNativeInput input, ReaderBodyTextBlock body, ArchiveQuoteRow quote)
+    {
+        ReaderBodySegment segment = body.Document!.Segments.First(part => part.Quote == quote);
+        var root = TopLevel.GetTopLevel(body)!;
+        Point? target = null;
+        Visual? lastHit = null;
+        await Program.WaitUntilAsync(() =>
+        {
+            // A block can wrap or have whitespace at its centre. Choose a character of the actual reference
+            // after the renderer has published the current item and a pointer can hit its text.
+            for (int i = segment.Start; i < segment.End; i++)
+            {
+                foreach (Rect area in body.TextLayout.HitTestTextRange(i, 1))
+                {
+                    Point local = area.Center + new Vector(body.Padding.Left, body.Padding.Top);
+                    if (body.QuoteAt(local)?.Quote != quote || body.TranslatePoint(local, root) is not Point client) continue;
+                    lastHit = root.InputHitTest(client) as Visual;
+                    if (lastHit?.GetSelfAndVisualAncestors().Contains(body) != true) continue;
+                    target = client;
+                    return true;
+                }
+            }
+            return false;
+        }, () => $"No glyph of {quote.Quote.Label} receives pointer input. Hit {lastHit?.GetType().Name} ({(lastHit as Control)?.Name}).");
+        bool delivered = false;
+        void Moved(object? sender, PointerEventArgs e) => delivered |= body.QuoteAt(e.GetPosition(body))?.Quote == quote;
+        body.AddHandler(InputElement.PointerMovedEvent, Moved, RoutingStrategies.Tunnel, handledEventsToo: true);
+        try
+        {
+            await input.MoveAsync(root, target);
+            await Program.WaitUntilAsync(() => delivered, () => $"No native move on {quote.Quote.Label} at {target}, pointer over body {body.IsPointerOver}.");
+        }
+        finally { body.RemoveHandler(InputElement.PointerMovedEvent, Moved); }
+    }
+
+    private static async Task LeaveQuoteAsync(MediaNativeInput input, Fixture fixture)
+    {
+        // Move clear of both the link and its popup. Traversing the corridor between them has a close grace period.
+        await input.MoveAsync(fixture.Window, new Point(fixture.Window.ClientSize.Width - 12, 12));
+        await Program.WaitUntilAsync(() => !fixture.Page.IsQuotePreviewOpen && !fixture.Page.IsQuotePreviewPending);
+    }
+
     private static Color Token(Window window, string key) => Application.Current!.TryGetResource(key, window.ActualThemeVariant, out object? value)
         && value is ISolidColorBrush brush ? brush.Color : throw new InvalidOperationException("Missing token " + key);
 
@@ -183,8 +225,11 @@ internal static partial class ReaderIdeaChecks
         page.CloseReaderRequested = () => readerClosed = true;
         Popup popup = page.FindControl<Popup>("QuotePreviewPopup")!;
 
+        fixture.Window.Activate();
+        using MediaNativeInput native = new(fixture.Window);
+        await Program.WaitUntilAsync(() => fixture.Window.IsActive);
         // Hover: nothing at once, the preview after the delay, built from the quoted post only.
-        firstBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, first.Quotes[0], new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, firstBody, first.Quotes[0]);
         Require(!page.IsQuotePreviewOpen, "The quote preview opened without its delay.");
         await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "no preview after hover");
         TextBlock header = page.FindControl<TextBlock>("QuotePreviewHeader")!, body = page.FindControl<TextBlock>("QuotePreviewBody")!;
@@ -194,15 +239,15 @@ internal static partial class ReaderIdeaChecks
         Require(ReferenceEquals(popup.PlacementTarget, firstBody), "The preview was not placed at the hovered reference.");
         SavePopup(popup, fixture.Window, "smoke-reader-i1-preview.png");
         // One at a time: hovering another reference replaces it.
-        secondBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, second.Quotes[0], new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, secondBody, second.Quotes[0]);
         Require(!page.IsQuotePreviewOpen, "A second preview did not replace the first (it must reopen after the delay).");
         await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen && ReferenceEquals(popup.PlacementTarget, secondBody), () => "no second preview");
         Require(header.Text.StartsWith(MeowChan.Desktop.Localization.Texts.T("reader.postNumber", "311"), StringComparison.Ordinal), "The second preview showed the wrong post: " + header.Text);
-        secondBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        await LeaveQuoteAsync(native, fixture);
         Require(!page.IsQuotePreviewOpen, "Leaving the reference did not close the preview.");
         // A reference to a post that was never captured has nothing to preview.
         ArchiveQuoteRow dead = second.Quotes.Single(quote => quote.IsDead);
-        secondBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, dead, new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, secondBody, dead);
         // A reference without a captured post is refused synchronously: no popup, no pending delay timer, no remembered row.
         Require(!page.IsQuotePreviewOpen && !page.IsQuotePreviewPending && page.QuotePreviewRow == null, "A dead reference opened or scheduled a preview.");
 
@@ -271,31 +316,41 @@ internal static partial class ReaderIdeaChecks
         Require(!outline.IsVisible && !outline.IsHitTestVisible, "The outline was visible without a hovered reference.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-p3-quote-marks.png");
 
+        fixture.Window.Activate();
+        using MediaNativeInput native = new(fixture.Window);
+        await Program.WaitUntilAsync(() => fixture.Window.IsActive);
         // Hover: the target (here the realized opening post) is outlined at once, before the preview delay.
+        // Enter the card before moving onto its link. The virtualized list can update its extent on
+        // first hover, which dismisses transient controls just like a scroll.
+        int plain = body.PlainText.IndexOf("opening post", StringComparison.Ordinal);
+        Point approach = body.TextLayout.HitTestTextRange(plain, 1).First().Center + new Vector(body.Padding.Left, body.Padding.Top);
+        await native.MoveAsync(fixture.Window, body.TranslatePoint(approach, fixture.Window)!.Value);
+        await Program.WaitUntilAsync(() => body.IsPointerOver);
+        await Dispatcher.UIThread.InvokeAsync(fixture.Window.UpdateLayout, DispatcherPriority.Background);
         ArchiveQuoteRow toOpening = reply.Quotes.Single(quote => quote.TargetsOpeningPost);
-        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toOpening, new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, body, toOpening);
         Require(outline.IsVisible && page.IsQuoteHighlightVisible && outline.Width > 100 && outline.Height > 20 && outline.BorderThickness.Left == 2,
-            "The target post was not outlined on hover.");
+            $"The target post was not outlined on hover: visible={outline.IsVisible}, size={outline.Width}×{outline.Height}, border={outline.BorderThickness}, pending={page.IsQuotePreviewPending}, open={page.IsQuotePreviewOpen}.");
         // Same on a post that is not the selected one, so the outline is not confused with the selection frame.
-        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        await LeaveQuoteAsync(native, fixture);
         ArchiveQuoteRow toReply = rows.Single(row => row.Id == "322").Quotes.Single();
-        Body(fixture, "322").RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toReply, new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, Body(fixture, "322"), toReply);
         Require(outline.IsVisible, "The reply target was not outlined.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-p3-quote-outline.png");
-        Body(fixture, "322").RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
-        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toOpening, new Rect(0, 0, 40, 18)));
+        await LeaveQuoteAsync(native, fixture);
+        await HoverQuoteAsync(native, body, toOpening);
         await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "no preview after hover");
         Require(outline.IsVisible, "The outline vanished when the preview opened.");
-        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        await LeaveQuoteAsync(native, fixture);
         Require(!outline.IsVisible, "Leaving the reference did not remove the outline.");
 
         // References to a dead post or another thread have no target in the list: no outline.
-        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes.Single(quote => quote.IsCrossThread), new Rect(0, 0, 40, 18)));
-        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes.Single(quote => quote.IsDead), new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, body, reply.Quotes.Single(quote => quote.IsCrossThread));
+        await HoverQuoteAsync(native, body, reply.Quotes.Single(quote => quote.IsDead));
         Require(!outline.IsVisible, "A dead or foreign reference was outlined.");
 
         // Scrolling away removes the outline; a target that is no longer realized or in view is not outlined.
-        body.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, toOpening, new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, body, toOpening);
         Require(outline.IsVisible, "The outline did not come back.");
         ScrollViewer scroll = ListScroll(fixture);
         scroll.Offset = new Vector(0, scroll.Offset.Y + 120);
@@ -551,21 +606,24 @@ internal static partial class ReaderIdeaChecks
         ReaderBodyTextBlock replyBody = await Realize("363");
         Popup popup = page.FindControl<Popup>("QuotePreviewPopup")!;
         TextBlock previewBody = page.FindControl<TextBlock>("QuotePreviewBody")!;
+        fixture.Window.Activate();
+        using MediaNativeInput native = new(fixture.Window);
+        await Program.WaitUntilAsync(() => fixture.Window.IsActive);
         page.QuotePreviewMaxLines = 3;
         page.QuotePreviewDelayMilliseconds = 1200;
-        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes[0], new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, replyBody, reply.Quotes[0]);
         await Task.Delay(500); // the old fixed delay of 300 ms would have opened it by now
         Require(!page.IsQuotePreviewOpen && page.IsQuotePreviewPending, "A longer preview delay did not hold the preview back.");
         await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "no preview after the longer delay");
         Require(previewBody.Text!.Split('\n').Length == 3 && previewBody.Text.EndsWith("…", StringComparison.Ordinal) && previewBody.Text.StartsWith("Opening line 1", StringComparison.Ordinal),
             "The preview did not keep exactly 3 lines: " + previewBody.Text);
-        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        await LeaveQuoteAsync(native, fixture);
         page.QuotePreviewDelayMilliseconds = 0;
         page.QuotePreviewMaxLines = 10;
-        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, reply.Quotes[0], new Rect(0, 0, 40, 18)));
+        await HoverQuoteAsync(native, replyBody, reply.Quotes[0]);
         await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "no preview with a delay of 0");
         Require(previewBody.Text!.Split('\n').Length == 10, "The preview did not keep 10 lines: " + previewBody.Text);
-        replyBody.RaiseEvent(new ReaderQuoteHoverEventArgs(ReaderBodyTextBlock.QuoteHoverEvent, null, default));
+        await LeaveQuoteAsync(native, fixture);
         page.QuotePreviewMaxLines = ReaderDisplayLimits.PreviewLinesDefault;
         page.QuotePreviewDelayMilliseconds = ReaderDisplayLimits.PreviewDelayDefault;
 

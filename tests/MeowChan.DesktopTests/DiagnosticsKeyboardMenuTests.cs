@@ -29,6 +29,27 @@ public sealed class DiagnosticsKeyboardMenuTests
         Assert.Contains("diagnostics.copy", grid.ContextMenu.Items.OfType<MenuItem>().Select(item => (string?)item.Tag));
     });
 
+    [Fact]
+    public void PlatformSelectionReplacesTheOverviewUntilCleared() => Run(page =>
+    {
+        var problem = new DiagnosticEntry("disk", "Storage", "/volume", "Disk full", "Disk full", null) { Kind = DiagnosticKind.Storage };
+        var view = new DesktopSessionView([], [], [], DesktopSessionState.Ready, null);
+        var snapshot = new DiagnosticsSnapshot(0, 0, 0, 0, [problem]);
+        void Refresh() => page.Refresh(view, available: true, snapshot: snapshot);
+        Refresh();
+        var overview = page.FindControl<TextBlock>("DiagnosticOverview")!;
+        var detail = page.FindControl<TextBlock>("DiagnosticSelectionTitle")!;
+        DataGrid grid = page.FindControl<DataGrid>("PlatformGrid")!;
+        Assert.True(overview.IsVisible);
+        grid.SelectedItem = grid.ItemsSource!.Cast<DiagnosticEntry>().First();
+        Refresh();
+        Assert.True(detail.IsVisible);
+        Assert.False(overview.IsVisible);
+        grid.SelectedItem = null;
+        Refresh();
+        Assert.True(overview.IsVisible);
+    });
+
     private static void Run(Action<DiagnosticsPage> test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable scope = AvaloniaLocator.EnterScope();

@@ -441,7 +441,7 @@
     "diagnostics.clearFilters": "Quitar filtros",
     "diagnostics.filterCount": "Entradas: {0} / {1} · seleccionadas: {2}",
     "diagnostics.overview": "Resumen de las entradas actuales",
-    "diagnostics.retryScopeCount": "Alcance actual: {0} destino(s) en la tabla. El número de la pestaña Estado cuenta todas las entradas actuales, incluidas las que esperan y las que no tienen acción de reintento, por lo que puede ser mayor.",
+    "diagnostics.retryScopeCount": "Número de destinos de reintento en la tabla: {0}. El número de la pestaña Estado cuenta todas las entradas actuales, incluidas las que esperan y las que no tienen acción de reintento, por lo que puede ser mayor.",
     "diagnostics.noMatch": "Ninguna entrada coincide con los filtros.",
     "diagnostics.retryScope": "Reintenta los problemas de los hilos y tablones fijados en este ámbito, no de toda la sesión. Los reintentos de medios abarcan los archivos ausentes de esos hilos. Siguen vigentes los límites y la pausa. Se omiten los mensajes sin acción de reintento.",
     "diagnostics.batchResult": "Ámbito: destinos: {0} · comprobaciones solicitadas/ya en cola: {1}/{2} · reintentos de medios en cola: {3} · acciones omitidas: {4} · fallidas: {5}. Siguen vigentes los límites y la pausa.",

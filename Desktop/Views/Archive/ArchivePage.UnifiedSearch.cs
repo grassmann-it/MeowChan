@@ -80,6 +80,7 @@ public partial class ArchivePage
     internal bool ReceiveCarriedSearch(SearchScope scope, string query, string source)
     {
         if (_ended) return false;
+        ShowThreadListForListCommand();
         ArchiveSearchScope.Scope = scope;
         SearchBox box = ArchiveScopedBox;
         return ArchiveSearchCarryOffer.Carry(source, query, box.Text ?? string.Empty, () =>

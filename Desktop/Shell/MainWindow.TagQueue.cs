@@ -45,7 +45,10 @@ public partial class MainWindow
     /// Opens the gallery over the open entries of the queue, beginning at the entry "continue" resumes from. An entry whose file is gone
     /// is not shown but stays in the queue. When nothing can be walked a sentence says why.
     /// </summary>
-    internal async Task OpenTagQueueGalleryAsync(string? groupId = null, bool ungrouped = false)
+    internal Task OpenTagQueueGalleryAsync(string? groupId = null, bool ungrouped = false) =>
+        OpenTagQueueGalleryAsync(new TaggingWalkScope(groupId, ungrouped));
+
+    private async Task OpenTagQueueGalleryAsync(TaggingWalkScope scope)
     {
         if (!CanOpenTagQueue) return;
         _tagQueueOpening = true;
@@ -59,18 +62,18 @@ public partial class MainWindow
                 return;
             }
             if (_isClosing || _gallery != null) return;
-            TagQueueGroup? group = groupId == null ? null : queue.Group(groupId);
-            if (groupId != null && group == null) { groupId = null; }
-            if (queue.ResumeIndex(groupId, ungrouped) is not { } resume)
+            TagQueueGroup? group = scope.GroupId == null ? null : queue.Group(scope.GroupId);
+            // A standalone queue action can outlive its group. A walk marked on the page must keep its captured scope.
+            if (group == null && scope is { GroupId: not null, Start: null, Filter: null }) scope = scope with { GroupId = null };
+            string? groupId = scope.GroupId;
+            bool ungrouped = scope.Ungrouped;
+            TagQueueItem[] walk = scope.OpenEntries(queue).Take(TagQueueWalkWindow).ToArray();
+            if (walk.Length == 0)
             {
-                int scopedCount = queue.Items.Count(item => TaggingQueueView.InGroup(item, groupId, ungrouped));
-                bool scopedDone = queue.Items.Where(item => TaggingQueueView.InGroup(item, groupId, ungrouped)).All(item => item.State != TagQueueState.Open);
-                ShowNotification(Texts.T("queue.title"), Texts.T(scopedCount == 0 ? "queue.empty" : scopedDone ? "queue.allDone" : "queue.unavailable"), NotificationType.Information, operation: "media.queue.open");
+                bool empty = !queue.Items.Any(scope.Includes);
+                ShowNotification(Texts.T("queue.title"), Texts.T(empty ? "queue.empty" : "queue.allDone"), NotificationType.Information, operation: "media.queue.open");
                 return;
             }
-            // From the resume point to the end, then the open entries before it, so a wrapped walk still reaches everything.
-            TagQueueItem[] walk = queue.Items.Skip(resume).Concat(queue.Items.Take(resume))
-                .Where(item => item.State == TagQueueState.Open && TaggingQueueView.InGroup(item, groupId, ungrouped)).Take(TagQueueWalkWindow).ToArray();
             MediaLibraryEntry[] indexed = walk.Select(item => item.ToLibraryEntry()).ToArray();
             IReadOnlyList<GalleryEntry> entries = await MediaLibraryGallery.ResolveAsync(indexed, _session.OpenArchiveReaderAsync,
                 Storage.MediaAssetReader.OpenAsync, readBooruCatalog: _session.ReadBooruCatalog, readImportCatalog: _session.ReadManualImportCatalog);

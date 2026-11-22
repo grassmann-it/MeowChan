@@ -199,7 +199,7 @@ public partial class DiagnosticsPage
             ToolTip.SetTip(button, scopeHelp);
             AutomationProperties.SetHelpText(button, scopeHelp);
         }
-        RefreshDiagnosticOverview(selected.Length > 0);
+        RefreshDiagnosticOverview(Selected != null);
         // One selected target does what "Check now" does: the selection button only exists for a set of several targets.
         this.FindControl<Button>("RetryDiagnosticSelectionButton")!.IsVisible = selection.Length > 1;
         // "a / b entries · c selected" only while it says something: a filter is set or rows are selected.

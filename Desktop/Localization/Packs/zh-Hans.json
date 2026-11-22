@@ -439,7 +439,7 @@
     "diagnostics.clearFilters": "清除过滤条件",
     "diagnostics.filterCount": "{0} / {1} 个条目 · 已选 {2} 个",
     "diagnostics.overview": "当前条目概览",
-    "diagnostics.retryScopeCount": "当前范围：表中有 {0} 个目标。“状态”选项卡上的数字统计所有当前条目，包括等待中的和没有重试操作的条目，因此可能更大。",
+    "diagnostics.retryScopeCount": "表中的重试目标数：{0}。“状态”选项卡上的数字统计所有当前条目，包括等待中的和没有重试操作的条目，因此可能更大。",
     "diagnostics.noMatch": "没有符合过滤条件的条目。",
     "diagnostics.retryScope": "对此范围内已冻结的串/版块重试问题，而非整个会话。媒体重试涵盖这些串中缺失的文件。限制和暂停仍然适用。没有重试操作的消息将被跳过。",
     "diagnostics.batchResult": "范围：{0} 个目标 · 已请求/已排队的检查：{1}/{2} · 已排队的媒体重试：{3} · 跳过的操作：{4} · 失败：{5}。限制和暂停仍然适用。",

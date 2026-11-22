@@ -345,7 +345,7 @@ public partial class SettingsEditor
     {
         foreach (var field in NumericFields())
         {
-            if (!IsStatisticsFieldActive(field.Input)) continue;
+            if (!IsStatisticsFieldActive(field.Input) || (field.Input == HeaderTaglineIntervalMinutesInput && !HeaderTaglineIntervalEnabled)) continue;
             string? key = NumericDraftError(field.Input.Text, field.Input.ParsingNumberStyle, field.Input.NumberFormat,
                 DataValidationErrors.GetHasErrors(field.Input), field.Value, field.Min, field.Max, field.Integer);
             if (key == null) continue;

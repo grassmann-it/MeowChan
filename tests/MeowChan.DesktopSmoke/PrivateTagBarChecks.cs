@@ -192,6 +192,7 @@ internal static partial class PrivateTagBarChecks
 
         f.Click(f.Suggestions()[0]);
         await f.SettleAsync();
+        Require(Avalonia.Automation.AutomationProperties.GetName(open) == Texts.T("tags.openCount", 1), "Open Tags toggle lost its accessible count.");
         Require(f.Chips().SequenceEqual(new[] { "/rpt/" }) && Equals(open.Content, "Tags (1)"), "Suggestion click did not tag the thread.");
         Require(f.Suggestions().Select(Fixture.Label).SequenceEqual(new[] { "+ /sdg/" }), "An accepted suggestion must disappear.");
         PrivateTagStoreSnapshot stored = f.Stored();
@@ -207,6 +208,7 @@ internal static partial class PrivateTagBarChecks
         Require(f.Chips().SequenceEqual(new[] { "/rpt/", "my_tag" }), "Typed tag missing or underscore lost: " + string.Join("|", f.Chips()));
         Require(string.IsNullOrEmpty(input.Text) && input.IsKeyboardFocusWithin && Equals(open.Content, "Tags (2)"), "Add did not clear the field and keep focus.");
 
+        Require(Avalonia.Automation.AutomationProperties.GetName(open) == Texts.T("tags.openCount", 2), "Open Tags toggle kept a stale accessible count.");
         Capture(f.Page, "bar");
         // The same name in another spelling is the same tag: no duplicate, no error.
         input.Text = "MY_TAG";

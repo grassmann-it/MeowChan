@@ -114,7 +114,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     /// Opens the gallery over the open entries, starting where the queue's cursor stands (the shell's walk-through, PT1). The tagging
     /// mode of PT3 replaces what the shell passes here; the page only moves the cursor first when the user picked an entry.
     /// </summary>
-    internal Func<Task>? StartTagging { get; set; }
+    internal Func<TaggingWalkScope, Task>? StartTagging { get; set; }
     /// <summary>"Add…": the shell opens the media page, where a selection is added to the queue.</summary>
     internal Action? AddRequested { get; set; }
     /// <summary>The profile's tags, favourites and ratings as the media page reads them (passive, in memory); the tag counts come from it. Null: no counts.</summary>
@@ -255,9 +255,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     /// <summary>The number of own media tags of an entry, or null when the tag store is not known (shown as a dash).</summary>
     internal int? TagCountOf(TagQueueItem item)
     {
-        if (_userData == null) return null;
-        MediaLibraryEntryState state = MediaLibraryEntryState.Of(EntryOf(item), _userData);
-        return state.TagsKnown && state.TagSubject != null ? state.MediaTags.Count : null;
+        return _userData?.OwnTagCount(MediaTagSubjects.Of(EntryOf(item)));
     }
 
     private IReadOnlyList<MediaLibraryEntry>? _resolverSource;
@@ -410,7 +408,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _rendering = true;
         try
         {
-            _rows = TaggingQueueView.Rows(queue, Filter, EffectiveScope, _selectedGroupId, _ungroupedSelected);
+            RenderGroups();
+            CaptureScope(queue);
+            _rows = TaggingQueueView.Rows(queue, Filter, _effectiveScope, _selectedGroupId, _ungroupedSelected);
             UpdateOptionalColumns();
             // Only the shown list is bound: the other one holds no rows (no tiles or rows built behind the scenes).
             // Clear both native selection collections before replacing ItemsSource. Avalonia can retain the old
@@ -439,7 +439,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         ToolTip.SetTip(_progressText, breakdown);
         _bar.Value = TaggingQueueView.Share(queue, _selectedGroupId, _ungroupedSelected, Scope) * 100;
         _percent.Text = TaggingQueueView.PercentText(queue, _selectedGroupId, _ungroupedSelected, Scope);
-        RenderGroups();
         AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
         AutomationProperties.SetHelpText(_bar, _progressText.Text + " · " + _percent.Text + " · " + breakdown);
         bool empty = _rows.Count == 0;
@@ -465,7 +464,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     // The work-view gate controls supporting context; the only activation target is Start.
     private void RenderLastShown(TagQueueSnapshot queue)
     {
-        string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
         _lastShown.Text = text; // its visibility is the work-view gate's (RefreshWorkView)
         string? done = CommandCatalog.ShortcutDisplay("tags.queue.done-next");
         _browseHint.Text = text == null ? null : Texts.T("tagging.strip.browseHint", done ?? CommandCatalog.Label("tags.queue.done-next"));
@@ -482,11 +481,11 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private bool CanChange => _queueWork.CanChange;
 
     private bool CanStart => _queueWork.Loaded && !_queueWork.Busy && !_queueWork.Loading && _queueWork.LoadError == null && !_queueWork.Ended
-        && StartTagging != null && _queueWork.HostReady && TaggingQueueView.Resume(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, Scope) != null;
+        && StartTagging != null && _queueWork.HostReady && TaggingQueueView.Resume(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, _effectiveScope) != null;
 
     private void UpdateActions()
     {
-        string? label = TaggingQueueView.StartLabel(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, Scope);
+        string? label = TaggingQueueView.StartLabel(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
         CommandBindings.ApplyLabeled(_start, "tagging.start", label ?? Texts.T("command.tagging.start"));
         _start.IsEnabled = label != null && CanStart;
         if (label == null)
@@ -524,6 +523,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             _retryLoad.Content = Texts.T("action.retry");
             AutomationProperties.SetName(_retryLoad, Texts.T("action.retry"));
             LocalizeGroups();
+            CommandBindings.Apply(_columnsButton, "tagging.preview-column", iconWithLabel: true);
             _help.Refresh();
             LocalizeColumns();
             LocalizeCommands();

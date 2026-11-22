@@ -16,7 +16,7 @@ namespace MeowChan;
 
 // The tagging page (PT2) in the shell: a main page of MainPageOrder behind Media with a footer button (TaggingNavigationButton, a More
 // entry in the footer's More menu, all declared in MainWindow.axaml) and the command navigation.tagging, whose default digit follows the footer
-// numbering. The page is built when it is first opened. "Start tagging" goes through StartTaggingFromPageAsync, which starts the queue
+// numbering. The page is built when it is first opened. "Start tagging" goes through OpenTagQueueGalleryAsync, which starts the queue
 // walk in PT3's tagging mode.
 public partial class MainWindow
 {
@@ -51,7 +51,7 @@ public partial class MainWindow
         if (_taggingPage != null || _isClosing) return;
         _taggingPage = new TaggingPage(_session)
         {
-            StartTagging = StartTaggingFromPageAsync, AddRequested = AddToTaggingQueueFromPage, Stamp = QuickTagStampSet,
+            StartTagging = OpenTagQueueGalleryAsync, AddRequested = AddToTaggingQueueFromPage, Stamp = QuickTagStampSet,
             // TG1: the same tag services, ranking and stamp as the media page's selection, and the passive profile data for the tag counts.
             TagServices = new(_session.GetPublishedPrivateTagSnapshot,
                 (name, subjects, expectedRevision, token) => _session.DefineAndSetMediaSubjectTagsAsync(name, subjects, expectedRevision, token),
@@ -111,12 +111,6 @@ public partial class MainWindow
 
     // Called by NavigateWorkspace after the page became the shown one.
     private void ActivateTaggingPage() => _ = _taggingPage?.ActivateAsync();
-
-    /// <summary>
-    /// The seam of the tagging mode: the page has already moved the queue's cursor to where the walk starts. The queue walk opens the
-    /// gallery in PT3's tagging mode (decision strip, keys, resume point; MainWindow.TagQueue.cs, StartTaggingMode).
-    /// </summary>
-    private Task StartTaggingFromPageAsync() => OpenTagQueueGalleryAsync(_taggingPage?.SelectedGroupId, _taggingPage?.UngroupedGroupSelected == true);
 
     private void AddToTaggingQueueFromPage()
     {

@@ -229,12 +229,17 @@ internal static class DanbooruTestPlugin
 
     private static IBooruSourcePlugin Load()
     {
-        DirectoryInfo output = new(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
-        string configuration = output.Parent?.Name ?? throw new InvalidOperationException("Unexpected test output layout.");
-        string assembly = Path.Combine(RepositoryRoot(), "plugins", "Official", "Danbooru", "bin", configuration, output.Name,
-            "MeowChan.Plugin.Danbooru.dll");
+        const string fileName = "MeowChan.Plugin.Danbooru.dll";
+        string assembly = Path.Combine(AppContext.BaseDirectory, "plugins", "assemblies", fileName);
         if (!File.Exists(assembly))
-            throw new FileNotFoundException($"Build the Danbooru plugin first: dotnet build plugins/Official/Danbooru -c {configuration}", assembly);
+        {
+            // Standalone test builds may omit bundled plugins and build the official project separately.
+            DirectoryInfo output = new(AppContext.BaseDirectory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
+            string configuration = output.Parent?.Name ?? throw new InvalidOperationException("Unexpected test output layout.");
+            assembly = Path.Combine(RepositoryRoot(), "plugins", "Official", "Danbooru", "bin", configuration, output.Name, fileName);
+            if (!File.Exists(assembly))
+                throw new FileNotFoundException($"Build the Danbooru plugin first: dotnet build plugins/Official/Danbooru -c {configuration}", assembly);
+        }
         if (File.GetLastWriteTimeUtc(assembly) < File.GetLastWriteTimeUtc(SourcePath))
             throw new InvalidOperationException($"The Danbooru plugin build '{assembly}' is older than its source; rebuild it.");
         Type type = Assembly.LoadFrom(assembly).GetType("MeowChan.OfficialSources.Danbooru.DanbooruPlugin", throwOnError: true)!;

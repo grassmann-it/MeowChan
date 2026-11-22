@@ -358,6 +358,9 @@ internal sealed class MediaLibraryUserData
         return subject != null && ownTags == null;
     }
 
+    internal int? OwnTagCount(MediaTagSubject? subject) =>
+        _mediaTags == null || subject == null ? null : OwnTagsOf(subject)?.Count ?? 0;
+
     // The one reading of an occurrence's own tags: its thread's tags and those of its media subject (null: none; sets are never empty).
     private (HashSet<Guid>? Thread, HashSet<Guid>? Own, MediaTagSubject? Subject) Carried(MediaLibraryEntry entry)
     {
