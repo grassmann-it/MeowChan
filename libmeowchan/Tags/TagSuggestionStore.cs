@@ -69,9 +69,26 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<TagSug
 
     /// <summary>Pending suggestions of one medium at or above the display threshold, best first. The threshold never changes stored data.</summary>
     internal IReadOnlyList<TagSuggestion> PendingFor(string mediaSha256, double threshold)
+        => PendingForContent(mediaSha256, threshold, mediaLength: null).ToArray();
+
+    /// <summary>Binds pending raw suggestions for the observed bytes to the exact occurrence being reviewed.</summary>
+    internal IReadOnlyList<TagRuleInput> PendingFor(MediaTagSubject subject, long mediaLength, double threshold)
+    {
+        string sha256 = subject switch
+        {
+            MediaTagSubject.Bound bound when mediaLength > 0 => bound.Target.Sha256,
+            MediaTagSubject.Local local when mediaLength > 0 && local.Observation.Length == mediaLength => local.Observation.Sha256,
+            _ => throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidInput)
+        };
+        return PendingForContent(sha256, threshold, mediaLength)
+            .Select(value => new TagRuleInput(value.Name, subject, new TagRuleOrigin.Model(value, Revision))).ToArray();
+    }
+
+    private IOrderedEnumerable<TagSuggestion> PendingForContent(string mediaSha256, double threshold, long? mediaLength)
         => Suggestions.Where(value => value.State == TagSuggestionState.Pending && value.Confidence >= threshold
-                && string.Equals(value.MediaSha256, mediaSha256, StringComparison.Ordinal))
-            .OrderByDescending(value => value.Confidence).ThenBy(value => value.Name, StringComparer.Ordinal).ToArray();
+                && string.Equals(value.MediaSha256, mediaSha256, StringComparison.Ordinal)
+                && (mediaLength is null || value.MediaLength == mediaLength))
+            .OrderByDescending(value => value.Confidence).ThenBy(value => value.Name, StringComparer.Ordinal);
 }
 
 internal enum TagSuggestionStoreError { None, StaleRevision, UnknownSuggestion, InvalidTransition, InvalidInput, LimitReached, NotWritable }
