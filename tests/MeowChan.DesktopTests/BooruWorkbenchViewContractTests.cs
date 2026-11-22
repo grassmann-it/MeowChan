@@ -15,7 +15,7 @@ public sealed class BooruWorkbenchViewContractTests
         const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
         FieldInfo[] viewNames = typeof(BooruWorkbenchView).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
         FieldInfo[] windowNames = typeof(BooruWorkbenchWindow).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
-        Assert.Equal(59, viewNames.Length); // original selectors, CatalogStorageName, local-media actions, cancel/retry actions, the 11 card menu entry ids and the 8 sdk-mismatch repair route controls
+        Assert.Equal(58, viewNames.Length); // Search guidance now belongs to the existing input selector.
         Assert.Equal(viewNames.Select(field => field.Name).Order(), windowNames.Select(field => field.Name).Order());
         foreach (FieldInfo field in viewNames)
         {

@@ -48,7 +48,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal const string ResultsName = "BooruResults";
     internal const string WatchersName = "BooruWatchers";
     internal const string RemoveNoteName = "BooruRemoveNote";
-    internal const string NoFilterNoteName = "BooruNoFilterNote";
     internal const string LoadPrefix = "BooruLoad:";
     internal const string CancelLoadPrefix = "BooruCancelLoad:";
     internal const string RetryLoadPrefix = "BooruRetryLoad:";
@@ -125,7 +124,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly Button _watchersReload = new();
     private readonly Button _resetCooldown = new() { Name = ResetCooldownName };
     private readonly StackPanel _watchers = new() { Name = WatchersName, Spacing = 8 };
-    private readonly TextBlock _footerNote = new() { Name = NoFilterNoteName, Classes = { "workspace-help" } };
     private readonly TextBlock _linkNote = new() { Name = LinkNoteName, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
 
     private (string Key, string Argument, bool Problem)? _linkNoteState;
@@ -321,10 +319,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private Control BuildFooter()
     {
         AutomationProperties.SetLiveSetting(_linkNote, AutomationLiveSetting.Polite);
-        StackPanel notes = new() { Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        notes.Children.Add(_footerNote);
-        notes.Children.Add(_linkNote);
-        return notes;
+        return new StackPanel { VerticalAlignment = VerticalAlignment.Center, Children = { _linkNote } };
     }
 
     private Control BuildSearchTab()
@@ -502,8 +497,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _provider.Text = Texts.T("booru.ui.provider", _model.Search.View.ProviderName);
         _intro.Text = Texts.T("booru.ui.intro");
         _searchTab.Header = Texts.T("booru.ui.tab.search");
-        _footerNote.Text = Texts.T("booru.ui.noFilterNote");
-        _linkNote.IsVisible = _linkNoteState is not null;
+        Footer.IsVisible = _linkNote.IsVisible = _linkNoteState is not null;
         _linkNote.Text = _linkNoteState is { } note ? Texts.T(note.Key, note.Argument) : string.Empty;
         _linkNote.Classes.Set("workspace-error", _linkNoteState is { Problem: true });
         ChromeChanged?.Invoke();
@@ -533,7 +527,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         bool invalid = view.Parsed.Kind == BooruInputKind.Invalid;
         _input.Classes.Set("workspace-invalid", invalid);
         string issue = invalid ? BooruText.Issue(view.Parsed.Issue) : string.Empty;
-        AutomationProperties.SetHelpText(_input, issue);
         _inputIssue.Text = issue;
         _inputIssue.IsVisible = invalid;
 
@@ -541,16 +534,25 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _cancel.Content = Texts.T("booru.ui.cancel");
         _cancel.IsVisible = view.IsBusy;
 
-        // The exact query is always visible: what is sent is what the field canonicalizes to, nothing added.
-        _queryLine.IsVisible = view.Parsed.Kind is BooruInputKind.Tags or BooruInputKind.Post;
+        bool hasSearched = view.ExecutedQuery is not null || view.ExecutedPostId is not null;
+        _queryLine.IsVisible = !hasSearched && view.Parsed.Kind is BooruInputKind.Tags or BooruInputKind.Post;
         _queryLine.Text = view.Parsed.Kind switch
         {
             BooruInputKind.Tags => Texts.T("booru.ui.query.sent", view.Parsed.Canonical),
             BooruInputKind.Post => Texts.T("booru.ui.post.sent", view.Parsed.PostId),
             _ => string.Empty
         };
-        _queryHint.IsVisible = view.Mode == BooruInputMode.Tags;
+        _queryHint.IsVisible = !hasSearched && view.Mode == BooruInputMode.Tags;
         _queryHint.Text = Texts.T("booru.ui.query.hint");
+        string? queryHelp = view.ExecutedQuery is { } sentQuery ? Texts.T("booru.ui.query.sent", sentQuery)
+            : view.ExecutedPostId is { } sentPost ? Texts.T("booru.ui.post.sent", sentPost) : _queryLine.Text;
+        string help = string.Join(Environment.NewLine, new[]
+        {
+            issue, queryHelp, view.Mode == BooruInputMode.Tags ? _queryHint.Text : null,
+            Texts.T("booru.ui.noFilterNote")
+        }.Where(text => !string.IsNullOrEmpty(text)));
+        ToolTip.SetTip(_input, help);
+        AutomationProperties.SetHelpText(_input, help);
 
         string createName = Texts.T("booru.tabs.watchShort");
         _createWatcher.Content = createName;

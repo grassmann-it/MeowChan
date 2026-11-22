@@ -75,8 +75,10 @@ internal static partial class BooruWorkbenchChecks
                 "Opening the page made a provider, queue or check request.");
             Require(h.Watchers.Calls.All(call => call == "list"), "Opening the page did more than read the watcher list.");
             Require(Text(page).Contains("Nothing is requested until you do."), "Idle state does not say that nothing is requested.");
-            Require(Text(page).Contains("adds no rating filter") || Text(page).Contains("no rating filter"),
-                "The no-rating-filter note is missing.");
+            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            string searchNote = Texts.T("booru.ui.noFilterNote");
+            Require(!Text(page).Contains(searchNote) && AutomationProperties.GetHelpText(input)!.Contains(searchNote)
+                && (ToolTip.GetTip(input) as string)!.Contains(searchNote), "The no-rating-filter note belongs to the search field's help.");
             Require(!Text(page).Contains("18+"), "An 18+ notice appeared.");
             // The former tool caption is now exactly one page heading, not another window's
             // chrome. The body must not repeat it, and the hosted page must fit the shell viewport.
@@ -98,18 +100,22 @@ internal static partial class BooruWorkbenchChecks
             // ---- search: the query is visible exactly as sent -------------------------------------------------------
             // This state walkthrough deliberately reuses a single search tab.
             page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
-            TextBox input = Find<TextBox>(page, BooruWorkbenchView.InputName);
             await CheckSearchRowResizeAsync(owner, h, shots);
             await CheckTabStripAsync(owner, page, shots);
             await CheckInvalidInputAsync(page, input);
             input.Text = "cat blue_eyes";
             await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text == "Query sent to Danbooru: cat blue_eyes",
                 () => "query line: " + Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text);
+            Require(Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).IsVisible, "The first query must be visible before submission.");
             Require(h.Search.Requests == 0, "Typing into the field sent a request.");
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 3 && Previews(page) == 3,
                 () => "cards=" + Cards(page, "BooruResult:").Count + " previews=" + Previews(page));
             Require(h.Search.Searches.Single() == ("cat blue_eyes", 1), "The search did not send the exact query.");
+            Require(!Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).IsVisible
+                && AutomationProperties.GetHelpText(input)!.Contains("Query sent to Danbooru: cat blue_eyes")
+                && AutomationProperties.GetHelpText(input)!.Contains(Texts.T("booru.ui.query.hint")),
+                "The submitted query and syntax guidance must remain in the search field's accessible help.");
             Require(!h.Search.Searches[0].Query.Contains("rating"), "A rating term was added to the query.");
             string text = Text(page);
             foreach (string expected in new[] { "Post #101", "Danbooru rating", "Danbooru score",
@@ -741,7 +747,7 @@ internal static partial class BooruWorkbenchChecks
         Require(AutomationProperties.GetLiveSetting(issue) == AutomationLiveSetting.Polite, "The input issue is not a polite live region.");
         Require(!submit.IsEnabled && AutomationProperties.GetHelpText(submit) == expected && ToolTip.GetTip(submit) as string == expected
             && ToolTip.GetShowOnDisabled(submit), "The disabled Search does not name its reason.");
-        Require(AutomationProperties.GetHelpText(input) == expected, "The field lost its issue help text.");
+        Require(AutomationProperties.GetHelpText(input)!.StartsWith(expected, StringComparison.Ordinal), "The field lost its issue help text.");
         RequireWatcherBlock(create, "booru.ui.watcher.createInvalidTags");
         input.Text = string.Empty;
         await Program.WaitUntilAsync(() => !issue.IsVisible && string.IsNullOrEmpty(AutomationProperties.GetHelpText(submit)),

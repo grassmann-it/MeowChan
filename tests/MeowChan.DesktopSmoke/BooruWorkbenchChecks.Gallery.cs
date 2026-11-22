@@ -16,6 +16,14 @@ internal static partial class BooruWorkbenchChecks
     {
         Click(Find<Button>(page, "BooruView:101"));
         BooruGalleryPanel gallery = page.View.Gallery;
+        Border resultLine = Find<Border>(page, "BooruResultsLine");
+        var pager = (Grid)Find<Button>(page, BooruWorkbenchView.PreviousName).Parent!;
+        TextBlock pageInfo = pager.Children.OfType<TextBlock>().Single();
+        string result = BooruText.SearchStatus(page.Model.Search.View, false);
+        Require(!resultLine.IsVisible && pageInfo.IsEffectivelyVisible
+            && AutomationProperties.GetLiveSetting(pageInfo) == AutomationLiveSetting.Polite
+            && AutomationProperties.GetName(pageInfo)!.Contains(result) && Equals(ToolTip.GetTip(pageInfo), result),
+            "The gallery pager must keep the result status as accessible help and a polite announcement.");
         TextBlock position = Find<TextBlock>(gallery, "BooruGalleryPosition");
         Require(position.Text == "1 of 3" && !gallery.PreviousButton.IsEnabled, "The gallery must start at the first result.");
         Click(gallery.NextButton);
