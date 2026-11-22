@@ -72,6 +72,8 @@ internal sealed partial class BooruSearchModel : IDisposable
     private readonly Dictionary<string, long> _originalActionVersions = new(StringComparer.Ordinal);
     private long _nextOriginalAction;
     private long _requestId;
+    private long _nextLocalStateRead;
+    private long _appliedLocalStateRead;
     private BooruSearchView _view;
     private bool _disposed;
 
@@ -401,17 +403,19 @@ internal sealed partial class BooruSearchModel : IDisposable
         });
     }
 
-    private void OnLocalStatesChanged()
+    private void OnLocalStatesChanged() => _ = RefreshLocalStatesAsync();
+
+    internal Task RefreshLocalStatesAsync()
     {
         long id;
         RequestLifetime request;
         lock (_gate)
         {
-            if (_disposed || _request is null || _view.Rows.IsEmpty) return;
+            if (_disposed || _request is null || _view.Rows.IsEmpty) return Task.CompletedTask;
             id = _requestId;
             request = _request.Acquire();
         }
-        _ = Task.Run(async () =>
+        return Task.Run(async () =>
         {
             using (request) await RefreshLocalStatesAsync(id, request.Token).ConfigureAwait(false);
         });
@@ -420,10 +424,12 @@ internal sealed partial class BooruSearchModel : IDisposable
     private async Task RefreshLocalStatesAsync(long id, CancellationToken token)
     {
         string[] ids;
+        long version;
         lock (_gate)
         {
             if (id != _requestId) return;
             ids = _view.Rows.Select(row => row.Post.PostId).ToArray();
+            version = ++_nextLocalStateRead;
         }
         if (ids.Length == 0) return;
         IReadOnlyDictionary<string, BooruLocalState> states;
@@ -433,21 +439,29 @@ internal sealed partial class BooruSearchModel : IDisposable
         bool changed = false;
         lock (_gate)
         {
-            if (id != _requestId || _disposed) return;
+            if (id != _requestId || _disposed || version <= _appliedLocalStateRead) return;
+            _appliedLocalStateRead = version;
             ImmutableArray<BooruResultRowView>.Builder rows = _view.Rows.ToBuilder();
             for (int index = 0; index < rows.Count; index++)
             {
                 BooruResultRowView row = rows[index];
-                if (row.Load is not (BooruRowLoad.Idle or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded)
-                    || !states.TryGetValue(row.Post.PostId, out BooruLocalState state)) continue;
-                BooruRowLoad load = state switch
+                if (row.Load == BooruRowLoad.Handing || !states.TryGetValue(row.Post.PostId, out BooruLocalState state)) continue;
+                (BooruRowLoad load, string? code) = state switch
                 {
-                    BooruLocalState.Loaded => BooruRowLoad.AlreadyLoaded,
-                    BooruLocalState.Queued => row.Load == BooruRowLoad.Queued ? BooruRowLoad.Queued : BooruRowLoad.AlreadyQueued,
-                    _ => row.Load is BooruRowLoad.AlreadyLoaded or BooruRowLoad.AlreadyQueued ? BooruRowLoad.Idle : row.Load
+                    BooruLocalState.Loaded => (BooruRowLoad.AlreadyLoaded, null),
+                    BooruLocalState.Queued => (row.Load == BooruRowLoad.Queued ? row.Load : BooruRowLoad.AlreadyQueued, null),
+                    BooruLocalState.DownloadFailed => (BooruRowLoad.DownloadFailed, null),
+                    BooruLocalState.LinkFailed => (BooruRowLoad.LinkFailed, null),
+                    BooruLocalState.Interrupted => (BooruRowLoad.Interrupted, null),
+                    BooruLocalState.RefusalPending => (BooruRowLoad.RefusalPending, null),
+                    BooruLocalState.Cancelled => (BooruRowLoad.Failed, BooruCodes.Cancelled),
+                    BooruLocalState.NotAdmitted => (BooruRowLoad.Failed, BooruCodes.NotAdmitted),
+                    BooruLocalState.NotLoaded when row.Load is BooruRowLoad.AlreadyLoaded or BooruRowLoad.AlreadyQueued
+                        => (BooruRowLoad.Idle, null),
+                    _ => (row.Load, row.LoadCode)
                 };
-                if (load == row.Load) continue;
-                rows[index] = row with { Load = load };
+                if (load == row.Load && code == row.LoadCode) continue;
+                rows[index] = row with { Load = load, LoadCode = code };
                 changed = true;
             }
             if (changed) _view = _view with { Rows = rows.ToImmutable() };
@@ -507,9 +521,10 @@ internal sealed partial class BooruSearchModel : IDisposable
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == post.PostId);
             // A concurrent cancel/retry owns the newer version; never let this admission resurrect a cancelled row.
             if (index >= 0 && IsCurrentOriginalAction(post.PostId, actionVersion))
-                SetRow(index, _view.Rows[index] with { Load = load, LoadCode = result.Code });
+                SetOriginalResult(index, load, result.Code);
         }
         RaiseChanged();
+        OnLocalStatesChanged();
     }
 
     /// <summary>Durably cancels one queued or in-flight original through the queue port.</summary>
@@ -549,17 +564,19 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (_disposed) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
-                SetRow(index, _view.Rows[index] with { Load = BooruRowLoad.Failed, LoadCode = code });
+                SetOriginalResult(index, BooruRowLoad.Failed, code);
         }
         RaiseChanged();
+        OnLocalStatesChanged();
     }
 
-    /// <summary>Explicitly retries a stored claim after a cancellation or failed admission.</summary>
+    /// <summary>Saves an outstanding refusal or retries a stored claim after a failed or cancelled request.</summary>
     internal async Task RetryOriginalAsync(string postId)
     {
         BooruPostView post;
         RequestLifetime lifetime;
         long actionVersion;
+        bool saveRefusal;
         lock (_gate)
         {
             if (_disposed) return;
@@ -569,13 +586,18 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (!row.CanRetry || !_originalActions.Add(postId)) return;
             actionVersion = BeginOriginalAction(postId);
             post = row.Post;
+            saveRefusal = row.Load == BooruRowLoad.RefusalPending;
             SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
             lifetime = _lifetime.Acquire();
         }
         using RequestLifetime operation = lifetime;
         RaiseChanged();
         BooruLoadResult result;
-        try { result = await _queue.RetryOriginalAsync(post.PostId, operation.Token).ConfigureAwait(false); }
+        try
+        {
+            result = await (saveRefusal ? _queue.SaveOriginalRefusalAsync(post.PostId, operation.Token)
+                : _queue.RetryOriginalAsync(post.PostId, operation.Token)).ConfigureAwait(false);
+        }
         catch (OperationCanceledException) { result = new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.Canceled); }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         { result = new BooruLoadResult(BooruLoadStatus.Failed, "exception"); }
@@ -585,9 +607,17 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (_disposed) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
-                SetRow(index, _view.Rows[index] with { Load = MapLoad(result), LoadCode = result.Code });
+                SetOriginalResult(index, MapLoad(result), result.Code);
         }
         RaiseChanged();
+        OnLocalStatesChanged();
+    }
+
+    private void SetOriginalResult(int index, BooruRowLoad load, string? code)
+    {
+        // Reads started during the action may predate its result. The follow-up reads the new state.
+        _appliedLocalStateRead = _nextLocalStateRead;
+        SetRow(index, _view.Rows[index] with { Load = load, LoadCode = code });
     }
 
     private long BeginOriginalAction(string postId)
@@ -608,6 +638,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         BooruLoadStatus.NoOriginal => BooruRowLoad.NoOriginal,
         BooruLoadStatus.Restricted => BooruRowLoad.Restricted,
         BooruLoadStatus.Offline => BooruRowLoad.Offline,
+        BooruLoadStatus.RefusalPending => BooruRowLoad.RefusalPending,
         _ => BooruRowLoad.Failed
     };
 

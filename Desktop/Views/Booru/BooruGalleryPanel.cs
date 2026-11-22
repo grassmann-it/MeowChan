@@ -365,12 +365,14 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         _select.IsChecked = IsSelected?.Invoke(id) == true;
         AutomationProperties.SetName(_select, Texts.T("media.tile.selected") + ": " + Texts.T("booru.ui.post.title", id));
 
-        _download.Content = Texts.T("booru.ui.load");
+        string action = row.CanRetry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
+        string actionName = row.CanRetry ? $"{action}: {Texts.T("booru.ui.post.title", id)}" : Texts.T("booru.ui.loadFor", id);
+        _download.Content = action;
         _download.IsEnabled = row.CanLoad || row.CanRetry;
         string? why = BooruText.Load(row) ?? BooruText.Original(row.Post.OriginalAccess, row.Post.IsDeleted || row.Post.IsBanned);
-        ToolTip.SetTip(_download, Texts.T("booru.ui.loadFor", id) + Environment.NewLine + why);
+        ToolTip.SetTip(_download, actionName + Environment.NewLine + why);
         ToolTip.SetShowOnDisabled(_download, true);
-        AutomationProperties.SetName(_download, Texts.T("booru.ui.loadFor", id));
+        AutomationProperties.SetName(_download, actionName);
 
         bool hasLink = BooruPostLinks.TryCanonical(row.Post, out string url);
         _openPost.IsVisible = hasLink;

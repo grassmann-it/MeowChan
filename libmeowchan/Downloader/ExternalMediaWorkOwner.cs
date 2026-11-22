@@ -43,6 +43,9 @@ internal interface IExternalMediaWorkOwner
     /// </summary>
     void OnMediaCommitted(DownloadItem item, MediaCommitResult committed, ProfileAdmissionToken? admission);
 
+    /// <summary>The committed or failed item no longer holds its queue identity and may be retried.</summary>
+    void OnMediaReleased(DownloadItem item);
+
     /// <summary>
     /// Called when an admitted item of this owner leaves the queue without a commit or failure: an explicit
     /// owner cancel (<see cref="ExternalMediaCancellation.Cancelled"/>) or a queue stop

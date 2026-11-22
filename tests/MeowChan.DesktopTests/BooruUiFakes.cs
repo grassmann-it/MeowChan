@@ -109,6 +109,7 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
     internal Func<BooruPostView, BooruLoadOrigin, Task<BooruLoadResult>>? OnLoad { get; set; }
     internal Func<string, Task<bool>>? OnCancel { get; set; }
     internal Func<string, Task<BooruLoadResult>>? OnRetry { get; set; }
+    internal Func<Task<IReadOnlyDictionary<string, BooruLocalState>>>? OnGetStates { get; set; }
     internal List<string> Cancellations { get; } = new();
     internal List<string> Retries { get; } = new();
     internal Dictionary<string, BooruLocalState> States { get; } = new(StringComparer.Ordinal);
@@ -146,7 +147,7 @@ internal sealed class FakeBooruQueuePort : IBooruQueuePort
         lock (_gate)
         {
             StateReads++;
-            return Task.FromResult<IReadOnlyDictionary<string, BooruLocalState>>(
+            return OnGetStates?.Invoke() ?? Task.FromResult<IReadOnlyDictionary<string, BooruLocalState>>(
                 postIds.Where(States.ContainsKey).ToDictionary(id => id, id => States[id], StringComparer.Ordinal));
         }
     }

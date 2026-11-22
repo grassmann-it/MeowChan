@@ -749,7 +749,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded => BooruNoticeKind.Success,
         BooruRowLoad.Handing => BooruNoticeKind.Info,
-        BooruRowLoad.Failed => BooruNoticeKind.Error,
+        BooruRowLoad.Failed or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.RefusalPending
+            => BooruNoticeKind.Error,
         _ => BooruNoticeKind.Warning
     };
 
@@ -802,13 +803,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             info.Children.Add(CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
                 Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId));
 
-        bool cancel = row.CanCancel;
-        bool retry = !cancel && row.CanRetry;
+        bool retry = row.CanRetry;
+        bool cancel = row.CanCancel && !retry;
         string actionText = cancel ? Texts.T("booru.ui.cancel")
-            : retry ? Texts.T("booru.ui.status.retry") : Texts.T("booru.ui.load");
-        string actionName = cancel
-            ? $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}"
-            : retry ? $"{Texts.T("booru.ui.status.retry")}: {Texts.T("booru.ui.post.title", post.PostId)}"
+            : retry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
+        string actionName = cancel || retry ? $"{actionText}: {Texts.T("booru.ui.post.title", post.PostId)}"
             : Texts.T("booru.ui.loadFor", post.PostId);
         string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
         Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, HorizontalAlignment = HorizontalAlignment.Left };
@@ -830,6 +829,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         WrapPanel actions = new() { Name = "BooruResultActions:" + post.PostId, Classes = { "workspace-toolbar" } };
         actions.Children.Add(load);
+        if (retry && row.CanCancel)
+        {
+            Button cancelPending = new() { Name = CancelLoadPrefix + post.PostId, Content = Texts.T("booru.ui.cancel") };
+            AutomationProperties.SetName(cancelPending, $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}");
+            cancelPending.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
+            RegisterWorkViewAction(cancelPending, "booru.result.cancel", _resultWorkViewActions);
+            actions.Children.Add(cancelPending);
+        }
         if (BooruPostLinks.TryCanonical(post, out string canonical))
             foreach (Button link in CreateLinkButtons(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
                 Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions, iconOnly: true))
@@ -843,7 +850,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             {
                 BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded => "workspace-status-success",
                 BooruRowLoad.Handing => "workspace-meta",
-                BooruRowLoad.Failed => "workspace-error",
+                BooruRowLoad.Failed or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.RefusalPending
+                    => "workspace-error",
                 _ => "workspace-warning"
             });
             // Announced through the persistent notice line (_noticeText); this rebuilt line would stay silent.

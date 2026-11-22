@@ -40,6 +40,7 @@ internal static class BooruAddUrl
                 BooruLoadStatus.NoOriginal => Failure(postId, Texts.T(BooruText.Prefix + "load.NoOriginal")),
                 BooruLoadStatus.Restricted => Failure(postId, Texts.T(BooruText.Prefix + "load.Restricted")),
                 BooruLoadStatus.Offline => Failure(postId, Texts.T(BooruText.Prefix + "load.Offline")),
+                BooruLoadStatus.RefusalPending => Failure(postId, Texts.T(BooruCodes.Key(BooruCodes.RefusalPending))),
                 _ => Failure(postId, Texts.T(BooruText.Prefix + "load.Failed", BooruCodeLabel(load.Code)))
             };
         }

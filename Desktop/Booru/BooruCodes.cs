@@ -17,6 +17,7 @@ namespace MeowChan.Desktop.Booru
         internal const string CatalogUnreadable = "catalog_unreadable";
         internal const string WatcherRecordInvalid = "watcher_record_invalid";
         internal const string PersistFailed = "persist_failed";
+        internal const string RefusalPending = "refusal_pending";
         internal const string SchedulerStopped = "scheduler_stopped";
         internal const string SessionPaused = "session_paused";
         internal const string ProfileSuspended = "profile_suspended";
@@ -85,7 +86,7 @@ namespace MeowChan.Desktop.Booru
         /// <summary>Codes whose text lives under <c>booru.watcher.problem.*</c> (domain texts on goal plus <see cref="BooruCodeCatalog"/>).</summary>
         internal static readonly IReadOnlyList<string> All =
         [
-            CatalogUnreadable, WatcherRecordInvalid, PersistFailed, SchedulerStopped, SessionPaused, ProfileSuspended, SchedulerNotStarted, InvalidQuery,
+            CatalogUnreadable, WatcherRecordInvalid, PersistFailed, RefusalPending, SchedulerStopped, SessionPaused, ProfileSuspended, SchedulerNotStarted, InvalidQuery,
             WatcherExists, WatcherNotFound, WatcherRemoved, Rejected, Superseded, Cancelled, ContinuationBlocked,
             SearchResultMissing, SearchPortFault, ForeignPost, PageRejected, ProviderDeferred, SourceUnavailable, ProviderError,
             SearchResultUnknown, AdmissionFailed, ProviderCooldown, ProviderCooldownUnavailable, TransportResetFailed,
@@ -125,6 +126,8 @@ namespace MeowChan.Desktop.Localization
                 "Eine gespeicherte Suchbeobachtung konnte nicht wiederhergestellt werden, daher läuft keine Suchbeobachtung. Es wurde nichts gelöscht; prüfe den Profilordner und starte MeowChan neu."),
             (P + "persist_failed", "The change could not be saved in this profile. Check free disk space and folder permissions, then try again.",
                 "Die Änderung konnte in diesem Profil nicht gespeichert werden. Prüfe freien Speicherplatz und Ordnerrechte und versuche es erneut."),
+            (P + "refusal_pending", "The queue refused the original, but the refusal could not be saved. The original may download after a restart. Try saving the refusal again.",
+                "Die Warteschlange hat das Original abgelehnt. Die Ablehnung konnte nicht gespeichert werden. Das Original kann nach einem Neustart heruntergeladen werden. Versuche erneut, die Ablehnung zu speichern."),
             (P + "scheduler_stopped", "MeowChan is closing; watchers are no longer checked.", "MeowChan wird beendet; Suchbeobachtungen werden nicht mehr geprüft."),
             (P + "session_paused", "Downloads are paused for this session; watchers do not check automatically until you resume. Check now still works.",
                 "Die Sitzung ist pausiert; Suchbeobachtungen prüfen erst nach dem Fortsetzen wieder automatisch. „Jetzt prüfen“ funktioniert weiterhin."),
