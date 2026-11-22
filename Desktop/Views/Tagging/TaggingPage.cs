@@ -458,6 +458,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         AutomationProperties.SetHelpText(_bar, count.Description + " · " + percent + " · " + breakdown);
         _resultCount.IsVisible = _queueWork.Loaded && _queueWork.ErrorText == null;
         _resultCount.Text = _resultCount.IsVisible ? Texts.Count("tagging.page.results", _rows.Count) : null;
+        UpdateFilterHelp();
         bool empty = _rows.Count == 0;
         _emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null;
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
@@ -533,6 +534,13 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             Localize();
             Show();
         });
+    }
+
+    private void UpdateFilterHelp()
+    {
+        string value = TaggingQueueView.FilterText(Filter);
+        ToolTip.SetTip(_filter, value);
+        AutomationProperties.SetHelpText(_filter, value);
     }
 
     private void Localize()
