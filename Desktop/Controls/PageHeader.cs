@@ -7,7 +7,7 @@ using Avalonia.Media;
 
 namespace MeowChan.Desktop.Controls;
 
-/// <summary>What a child of a <see cref="PageHeader"/> is: the title block, the action row or a short statement under the actions.</summary>
+/// <summary>The layout role of a child in a <see cref="PageHeader"/>.</summary>
 public enum PageHeaderRole
 {
     /// <summary>The page's title and subtitle (normally one <c>workspace-page-header</c> stack). Always at the start edge.</summary>
@@ -15,7 +15,9 @@ public enum PageHeaderRole
     /// <summary>The page's actions (a WrapPanel of buttons, a status line): top right beside the title, or under it when they do not fit.</summary>
     Actions,
     /// <summary>A short statement about the page (a count): right-aligned under the actions, or between the title and the actions when stacked.</summary>
-    Aside
+    Aside,
+    /// <summary>The help button, displayed at the right edge and declared after the action row for keyboard navigation.</summary>
+    Help
 }
 
 /// <summary>
@@ -23,6 +25,7 @@ public enum PageHeaderRole
 /// windows"): the title block at the start edge, the page's actions at the end edge. When the actions' natural single-row width leaves the
 /// title less than <see cref="TitleMinWidth"/> (or the row is narrower than <see cref="StackBelowWidth"/>), the header stacks: title on the
 /// full width, then the aside, then the actions at the start edge, where a WrapPanel of actions wraps onto further lines.
+/// The help button has a separate column at the right edge, alongside the final line of actions when stacked.
 /// </summary>
 /// <remarks>
 /// <para>The bug it replaces: a plain <c>Grid ColumnDefinitions="*,Auto"</c> measures the Auto action column at infinity, so a long action row
@@ -54,6 +57,8 @@ public sealed class PageHeader : Grid
     /// <summary>The room above the actions when they stand under the title, in dip.</summary>
     public const double StackedActionsGap = 8;
 
+    private const double HelpGap = 8;
+
     /// <summary>The least room the title keeps beside the actions; less, and the actions go under it.</summary>
     public static readonly StyledProperty<double> TitleMinWidthProperty =
         AvaloniaProperty.Register<PageHeader, double>(nameof(TitleMinWidth), DefaultTitleMinWidth);
@@ -78,10 +83,9 @@ public sealed class PageHeader : Grid
 
     public PageHeader()
     {
-        ColumnDefinitions = new ColumnDefinitions("*,Auto");
+        // Title (or stacked actions), title gap, actions, help gap, help.
+        ColumnDefinitions = new ColumnDefinitions("*,0,Auto,0,Auto");
         RowDefinitions = new RowDefinitions("Auto,Auto,Auto");
-        RowSpacing = 0;
-        ColumnSpacing = DefaultSpacing;
     }
 
     public double TitleMinWidth { get => GetValue(TitleMinWidthProperty); set => SetValue(TitleMinWidthProperty, value); }
@@ -112,54 +116,68 @@ public sealed class PageHeader : Grid
 
     protected override Size MeasureOverride(Size constraint)
     {
-        double actionsWidth = 0, titleWidth = 0;
+        double titleWidth = 0, actionsWidth = 0, asideWidth = 0, helpWidth = 0;
         Size natural = new(double.PositiveInfinity, constraint.Height);
         foreach (Control child in Children.Where(child => child.IsVisible))
         {
             child.Measure(natural);
-            if (GetRole(child) == PageHeaderRole.Title) titleWidth = Math.Max(titleWidth, child.DesiredSize.Width);
-            else actionsWidth = Math.Max(actionsWidth, child.DesiredSize.Width);
+            double width = child.DesiredSize.Width;
+            switch (GetRole(child))
+            {
+                case PageHeaderRole.Title: titleWidth = Math.Max(titleWidth, width); break;
+                case PageHeaderRole.Actions: actionsWidth = Math.Max(actionsWidth, width); break;
+                case PageHeaderRole.Aside: asideWidth = Math.Max(asideWidth, width); break;
+                case PageHeaderRole.Help: helpWidth = Math.Max(helpWidth, width); break;
+            }
         }
-        Apply(ShouldStack(constraint.Width, actionsWidth, titleWidth, TitleMinWidth, Spacing, StackBelowWidth), actionsWidth > 0);
+
+        double helpGap = actionsWidth > 0 && helpWidth > 0 ? HelpGap : 0;
+        double endWidth = Math.Max(asideWidth, actionsWidth + helpGap + helpWidth);
+        bool stacked = ShouldStack(constraint.Width, endWidth, titleWidth, TitleMinWidth, Spacing, StackBelowWidth);
+        Apply(stacked, stacked || endWidth == 0 ? 0 : Spacing, helpGap);
         return base.MeasureOverride(constraint);
     }
 
-    private void Apply(bool stacked, bool hasEnd)
+    private void Apply(bool stacked, double titleGap, double helpGap)
     {
         if (IsStacked != stacked) { IsStacked = stacked; PseudoClasses.Set(":stacked", stacked); }
-        // No gap before an empty end column (all actions hidden): the title then reaches the row's end edge.
-        double spacing = stacked || !hasEnd ? 0 : Spacing;
-        if (ColumnSpacing != spacing) ColumnSpacing = spacing;
+        if (ColumnDefinitions[1].Width.Value != titleGap) ColumnDefinitions[1].Width = new GridLength(titleGap);
+        if (ColumnDefinitions[3].Width.Value != helpGap) ColumnDefinitions[3].Width = new GridLength(helpGap);
         foreach (Control child in Children)
         {
             PageHeaderRole role = GetRole(child);
-            // Wide: title in the star column over two rows; actions top right, the aside right-aligned under them.
-            // Stacked: title, aside and actions one under the other on the full width, all at the start edge.
             (int row, int column, int columnSpan, int rowSpan) = (role, stacked) switch
             {
                 (PageHeaderRole.Title, false) => (0, 0, 1, 2),
-                (PageHeaderRole.Title, true) => (0, 0, 2, 1),
-                (PageHeaderRole.Aside, false) => (1, 1, 1, 1),
-                (PageHeaderRole.Aside, true) => (1, 0, 2, 1),
-                (_, false) => (0, 1, 1, 1),
-                (_, true) => (2, 0, 2, 1)
+                (PageHeaderRole.Title, true) => (0, 0, 5, 1),
+                (PageHeaderRole.Aside, false) => (1, 2, 3, 1),
+                (PageHeaderRole.Aside, true) => (1, 0, 5, 1),
+                (PageHeaderRole.Help, false) => (0, 4, 1, 1),
+                (PageHeaderRole.Help, true) => (2, 4, 1, 1),
+                (_, false) => (0, 2, 1, 1),
+                (_, true) => (2, 0, 3, 1)
             };
             if (GetRow(child) != row) SetRow(child, row);
             if (GetColumn(child) != column) SetColumn(child, column);
             if (GetColumnSpan(child) != columnSpan) SetColumnSpan(child, columnSpan);
             if (GetRowSpan(child) != rowSpan) SetRowSpan(child, rowSpan);
             if (role == PageHeaderRole.Title) continue;
-            HorizontalAlignment alignment = stacked ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+            HorizontalAlignment alignment = stacked && role != PageHeaderRole.Help ? HorizontalAlignment.Left : HorizontalAlignment.Right;
             if (child.HorizontalAlignment != alignment) child.HorizontalAlignment = alignment;
             if (child is TextBlock text)
             {
                 TextAlignment textAlignment = stacked ? TextAlignment.Left : TextAlignment.Right;
                 if (text.TextAlignment != textAlignment) text.TextAlignment = textAlignment;
             }
-            if (role == PageHeaderRole.Actions)
+            if (role is PageHeaderRole.Actions or PageHeaderRole.Help)
             {
                 Thickness margin = stacked ? new Thickness(0, StackedActionsGap, 0, 0) : default;
                 if (child.Margin != margin) child.Margin = margin;
+            }
+            if (role == PageHeaderRole.Help)
+            {
+                VerticalAlignment verticalAlignment = stacked ? VerticalAlignment.Bottom : VerticalAlignment.Top;
+                if (child.VerticalAlignment != verticalAlignment) child.VerticalAlignment = verticalAlignment;
             }
         }
     }
