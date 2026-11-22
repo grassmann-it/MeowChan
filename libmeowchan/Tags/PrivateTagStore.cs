@@ -382,7 +382,7 @@ internal sealed partial class PrivateTagStore
             Catalog.Find(name) ?? (PrivateTagAliasIndex.Find(Aliases, name) is { } alias
                 ? Catalog.Definitions.FirstOrDefault(item => item.Id == alias.Tag) : null);
 
-        /// <summary>Replaces every content section with <paramref name="other"/>'s; revision and version stay this model's.</summary>
+        /// <summary>Restores content and assignment ownership while keeping the current revision, version and review receipt.</summary>
         internal void ReplaceContent(Model other)
         {
             Catalog = other.Catalog;
@@ -395,6 +395,10 @@ internal sealed partial class PrivateTagStore
             LocalIds.Clear(); LocalIds.UnionWith(other.LocalIds);
             Local.Clear(); Local.AddRange(other.Local);
             LocalSet.Clear(); LocalSet.UnionWith(other.LocalSet);
+            BoundReviewOwners.Clear();
+            foreach (var owner in other.BoundReviewOwners) BoundReviewOwners.Add(owner.Key, owner.Value);
+            LocalReviewOwners.Clear();
+            foreach (var owner in other.LocalReviewOwners) LocalReviewOwners.Add(owner.Key, owner.Value);
             Aliases.Clear(); Aliases.AddRange(other.Aliases);
             Formers.Clear(); Formers.AddRange(other.Formers);
         }
