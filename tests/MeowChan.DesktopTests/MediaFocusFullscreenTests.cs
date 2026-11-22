@@ -184,7 +184,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
     }
 
     [Fact]
-    public void TheHeaderFloatsOverThePageBehindAHoverStripSoTheWindowControlsStayReachable() => OwnedUiDispatcher.Run(() =>
+    public void TheHeaderFloatsOverThePageBehindAHoverStripSoTheWindowControlsStayReachable() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using Profile profile = new();
@@ -195,41 +195,37 @@ public sealed class MediaFocusFullscreenTests : IDisposable
         {
             await using DesktopSessionHost session = new(profile.Path, Array.Empty<MeowChan.Interfaces.IImageBoard>(),
                 updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
-            MainWindow window = new(session) { Width = 1000, Height = 700, Classes = { MotionPolicy.OffClass } };
+            await using MainWindow window = new(session) { Width = 1000, Height = 700, Classes = { MotionPolicy.OffClass } };
             const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
-            try
-            {
-                window.Show();
-                window.PlatformImpl!.Activated?.Invoke();
-                // Model the focus-mode notification on Media without waiting for the session startup gate.
-                typeof(MainWindow).GetField("_selectedPage", privateInstance)!.SetValue(window, MainWindow.WorkspacePage.Media);
-                typeof(MainWindow).GetField("_mediaFocusActive", privateInstance)!.SetValue(window, true);
-                typeof(MainWindow).GetMethod("UpdateMediaFocusChrome", privateInstance)!.Invoke(window, null);
-                Dispatcher.UIThread.RunJobs();
-                Border strip = window.FindControl<Border>("MediaFocusHeaderStrip")!;
-                Border frame = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
-                Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
-                Assert.True(window.IsActive && window.MediaFocusHeaderHidden);
-                Assert.True(strip.IsVisible);
-                Assert.Equal(6, strip.Bounds.Height);
-                Assert.Equal(new GridLength(0), root.RowDefinitions[0].Height);
-                Assert.False(frame.IsVisible);
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            // Model the focus-mode notification on Media without waiting for the session startup gate.
+            typeof(MainWindow).GetField("_selectedPage", privateInstance)!.SetValue(window, MainWindow.WorkspacePage.Media);
+            typeof(MainWindow).GetField("_mediaFocusActive", privateInstance)!.SetValue(window, true);
+            typeof(MainWindow).GetMethod("UpdateMediaFocusChrome", privateInstance)!.Invoke(window, null);
+            Dispatcher.UIThread.RunJobs();
+            Border strip = window.FindControl<Border>("MediaFocusHeaderStrip")!;
+            Border frame = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
+            Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
+            Assert.True(window.IsActive && window.MediaFocusHeaderHidden);
+            Assert.True(strip.IsVisible);
+            Assert.Equal(6, strip.Bounds.Height);
+            Assert.Equal(new GridLength(0), root.RowDefinitions[0].Height);
+            Assert.False(frame.IsVisible);
 
-                Point edge = strip.TranslatePoint(new Point(strip.Bounds.Width / 2, strip.Bounds.Height / 2), window)!.Value;
-                window.MouseMove(edge);
-                Assert.True(window.MediaFocusHeaderRevealed);
-                Assert.True(frame.IsVisible);
-                Assert.False(strip.IsVisible);
-                Assert.Equal(2, Grid.GetRowSpan(frame));
-                Assert.Equal(WorkspaceMetrics.TitleBarHeight, frame.Height);
+            Point edge = strip.TranslatePoint(new Point(strip.Bounds.Width / 2, strip.Bounds.Height / 2), window)!.Value;
+            window.MouseMove(edge);
+            Assert.True(window.MediaFocusHeaderRevealed);
+            Assert.True(frame.IsVisible);
+            Assert.False(strip.IsVisible);
+            Assert.Equal(2, Grid.GetRowSpan(frame));
+            Assert.Equal(WorkspaceMetrics.TitleBarHeight, frame.Height);
 
-                window.PlatformImpl.Deactivated?.Invoke();
-                Assert.False(window.IsActive);
-                Assert.False(window.MediaFocusHeaderRevealed);
-                Assert.False(frame.IsVisible);
-                Assert.True(strip.IsVisible);
-            }
-            finally { await (Task)typeof(MainWindow).GetMethod("CloseApplicationAsync", privateInstance)!.Invoke(window, null)!; }
+            window.PlatformImpl.Deactivated?.Invoke();
+            Assert.False(window.IsActive);
+            Assert.False(window.MediaFocusHeaderRevealed);
+            Assert.False(frame.IsVisible);
+            Assert.True(strip.IsVisible);
             return true;
         }
     });

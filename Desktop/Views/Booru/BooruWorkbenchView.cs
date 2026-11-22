@@ -439,14 +439,15 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             if (_renderQueued) return;
             _renderQueued = true;
         }
-        Dispatcher.UIThread.Post(() =>
+        // Model notifications can arrive from background requests. Queue on this view's dispatcher.
+        Dispatcher.Post(() =>
         {
             lock (this) _renderQueued = false;
             if (!_closed) Render(force: false);
         });
     }
 
-    private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() =>
+    private void OnTextsChanged(object? sender, EventArgs e) => Dispatcher.Post(() =>
     {
         if (!_closed) Render(force: true);
     });
@@ -719,7 +720,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         panel.Children.Clear();
         foreach (Control child in build()) panel.Children.Add(child);
         if (card < 0) return;
-        Dispatcher.UIThread.Post(() =>
+        Dispatcher.Post(() =>
         {
             if (_closed) return;
             Control? target = Enabled(panel, moveTo) ?? Enabled(panel, focusedName) ?? Enabled(panel, Counterpart(focusedName));

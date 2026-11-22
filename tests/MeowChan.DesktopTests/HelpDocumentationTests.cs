@@ -16,6 +16,9 @@ using MeowChan.Interop.Links;
 using MeowChan.PluginHost.Http;
 using MeowChan.Persistence;
 using MeowChan.Tags;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -314,39 +317,68 @@ public sealed class HelpDocumentationTests
     [Fact]
     public void GalleryMarkStampAndPopoverHelpHasCurrentSourceConnections()
     {
-        // Source contracts only: these pin actual adapters, not runtime writes, focus or native UI behavior.
-        string viewer = Read("Desktop/GalleryViewer.TagPanel.cs");
-        Assert.Contains("surface.NavigationRequested += OnTagNavigationRequested;", viewer, StringComparison.Ordinal);
-        Assert.Contains("ApplyMarkResult(controller.Mark(controller.ShownEntry()));", viewer, StringComparison.Ordinal);
-        Assert.Contains("ApplyMarkResult(controller.Unmark(previous));", viewer, StringComparison.Ordinal);
-        Assert.Contains("surface.MarksClearRequested += OnTagMarksClearRequested;", viewer, StringComparison.Ordinal);
-        Assert.Contains("surface.ExtraUndo = controller.ExtraUndo;", viewer, StringComparison.Ordinal);
-        Assert.Contains("run(decisions, controller.DecisionTargets())", viewer, StringComparison.Ordinal);
-        string model = Read("Desktop/GalleryTagPanelModel.cs");
-        Assert.Contains("if (Marks.Count > 0) return Selection(out reason);", model, StringComparison.Ordinal);
-        Assert.Contains("_owner.OpenSelectionTarget(Marks.Snapshot(), out reason)", model, StringComparison.Ordinal);
+        SyntaxNode Source(string path) => CSharpSource.Parse(Read(path));
+        static void Assigns(SyntaxNode source, string left, string right, SyntaxKind kind = SyntaxKind.SimpleAssignmentExpression)
+        {
+            ExpressionSyntax target = SyntaxFactory.ParseExpression(left), value = SyntaxFactory.ParseExpression(right);
+            Assert.True(source.DescendantNodes().OfType<AssignmentExpressionSyntax>().Any(assignment => assignment.IsKind(kind)
+                && SyntaxFactory.AreEquivalent(assignment.Left, target) && SyntaxFactory.AreEquivalent(assignment.Right, value)),
+                $"Expected {kind} connecting {left} to {right}.");
+        }
+
+        var viewer = Source("Desktop/GalleryViewer.TagPanel.cs");
+        var show = viewer.Method("ShowTagPanel");
+        Assigns(show, "surface.NavigationRequested", "OnTagNavigationRequested", SyntaxKind.AddAssignmentExpression);
+        Assigns(show, "surface.MarksClearRequested", "OnTagMarksClearRequested", SyntaxKind.AddAssignmentExpression);
+        Assigns(show, "surface.ExtraUndo", "controller.ExtraUndo");
+        var marks = viewer.Method("OnTagNavigationRequested").Calls("ApplyMarkResult").ToArray();
+        Assert.Contains(marks, call => call.Calls("Mark", "controller").Any() && call.Calls("ShownEntry", "controller").Any());
+        Assert.Contains(marks, call => call.Calls("Unmark", "controller").Any());
+        Assert.Single(Assert.Single(viewer.Method("RunDecision").Calls("run")).Calls("DecisionTargets", "controller"));
+        var model = Source("Desktop/GalleryTagPanelModel.cs");
+        Assert.Contains(model.Method("Resolve").DescendantNodes().OfType<IfStatementSyntax>(),
+            branch => SyntaxFactory.AreEquivalent(branch.Condition, SyntaxFactory.ParseExpression("Marks.Count > 0"))
+                && branch.Statement.Calls("Selection").Any());
+        Assert.Single(Assert.Single(model.Method("Selection").Calls("OpenSelectionTarget", "_owner")).Calls("Snapshot", "Marks"));
 
         string panel = Plain(Section(Read(Help), "Gallery tag panel"));
         Assert.Contains("gallery panel, Media/reader/Archive popovers and Tagging page share the same stamp for this profile, saved with its settings", panel, StringComparison.Ordinal);
         Assert.Contains("each tag is its own undo step", panel, StringComparison.Ordinal);
         Assert.Contains("Lowering that size removes names from the end of the stamp, not tags from media", panel, StringComparison.Ordinal);
         Assert.Equal("Primary+Shift+Enter", CommandCatalog.Get(QuickTagCommands.StampApply).Shortcut);
-        string owner = Read("Desktop/Shell/MainWindow.GalleryTags.cs");
-        Assert.Contains("TaggingSettings.StampOptions(_config).CreateStamp(_config.TagStamp)", owner, StringComparison.Ordinal);
-        Assert.Contains("_quickTagStamp.Capacity = _config.TagStampSize", owner, StringComparison.Ordinal);
-        Assert.Contains("config => config.TagStamp = (string[])names.Clone()", owner, StringComparison.Ordinal);
-        Assert.Contains("await RunAsync(target => target.AddExistingAsync(tag.Id, token));", Read("Desktop/QuickTagSession.cs"), StringComparison.Ordinal);
-        Assert.Contains("case QuickTagKeyAction.ApplyStamp: OpenActions.Start(() => ApplyStampAsync(), \"tags.quick.stamp.key\"); return true;", Plain(Read("Desktop/Controls/QuickTagSurface.cs")), StringComparison.Ordinal);
-        string popoverKeys = Read("Desktop/Controls/QuickTagPopover.cs");
-        Assert.Contains("TryRouteCommand(Surface, e, ShortcutService.Current)", popoverKeys, StringComparison.Ordinal);
-        Assert.Contains("return surface.Execute(QuickTagKeys.RouteCommand(", popoverKeys, StringComparison.Ordinal);
-        Assert.Equal(QuickTagKeyAction.ApplyStamp, GalleryTagPanelCommands.RouteOf(QuickTagCommands.StampApply)?.Action);
-        Assert.Contains("TagPopoverAsync = OpenMediaLibraryTagPopoverAsync", Read("Desktop/Shell/MainWindow.Media.cs"), StringComparison.Ordinal);
-        Assert.Contains("_archivePage.TagPopoverAsync = OpenArchiveMediaTagPopoverAsync", Read("Desktop/Shell/MainWindow.Navigation.cs"), StringComparison.Ordinal);
-        string popover = Read("Desktop/Shell/MainWindow.QuickTags.cs");
-        Assert.Contains("if (!Current() || _mediaTagDialogOpen) return;", popover, StringComparison.Ordinal);
-        Assert.Contains("if (_isClosing || _galleryTagDialogOpen || !isCurrent()) return;", popover, StringComparison.Ordinal);
-        Assert.Contains("QuickTagPopover.OpenBlocked(anchor, label", popover, StringComparison.Ordinal);
+        var owner = Source("Desktop/Shell/MainWindow.GalleryTags.cs");
+        Assert.Single(Assert.Single(owner.Calls("CreateStamp")).Calls("StampOptions", "TaggingSettings"));
+        Assigns(owner, "_quickTagStamp.Capacity", "_config.TagStampSize");
+        Assigns(owner.Method("OnQuickTagStampChanged"), "config.TagStamp", "(string[])names.Clone()");
+        var applyStamp = Source("Desktop/QuickTagSession.cs").Method("ApplyStampWithOutcomeAsync");
+        var pendingTags = Assert.Single(applyStamp.DescendantNodes().OfType<ForEachStatementSyntax>());
+        Assert.Single(Assert.Single(pendingTags.Calls("RunAsync")).Calls("AddExistingAsync"));
+        Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.ApplyStamp), GalleryTagPanelCommands.RouteOf(QuickTagCommands.StampApply));
+        var execute = Source("Desktop/Controls/QuickTagSurface.cs").Method("Execute");
+        var stampCase = Assert.Single(execute.DescendantNodes().OfType<SwitchSectionSyntax>(), section =>
+            section.Labels.OfType<CaseSwitchLabelSyntax>().Any(label =>
+                SyntaxFactory.AreEquivalent(label.Value, SyntaxFactory.ParseExpression("QuickTagKeyAction.ApplyStamp"))));
+        Assert.Single(Assert.Single(stampCase.Calls("Start", "OpenActions")).Calls("ApplyStampAsync"));
+        var popover = Source("Desktop/Controls/QuickTagPopover.cs");
+        Assert.Contains(popover.DescendantNodes().OfType<MethodDeclarationSyntax>(),
+            method => method.Identifier.ValueText != "TryRouteCommand" && method.Calls("TryRouteCommand").Any());
+        var route = Assert.Single(popover.Method("TryRouteCommand").Calls("Execute", "surface"));
+        Assert.Single(route.Calls("RouteCommand", "QuickTagKeys"));
+        Assigns(Source("Desktop/Shell/MainWindow.Media.cs"), "TagPopoverAsync", "OpenMediaLibraryTagPopoverAsync");
+        Assigns(Source("Desktop/Shell/MainWindow.Navigation.cs"), "_archivePage.TagPopoverAsync", "OpenArchiveMediaTagPopoverAsync");
+        var hosts = Source("Desktop/Shell/MainWindow.QuickTags.cs");
+        foreach (var (method, dialogOpen) in new[]
+        {
+            ("OpenMediaLibraryTagPopoverAsync", "_mediaTagDialogOpen"),
+            ("OpenArchiveMediaTagPopoverAsync", "_galleryTagDialogOpen")
+        })
+        {
+            var host = hosts.Method(method);
+            Assert.Contains(host.Body!.Statements.OfType<IfStatementSyntax>(), guard =>
+                guard.Statement is ReturnStatementSyntax && guard.Condition.DescendantNodesAndSelf()
+                    .OfType<IdentifierNameSyntax>().Any(identifier => identifier.Identifier.ValueText == dialogOpen));
+            Assert.Single(host.Calls("OpenBlocked", "QuickTagPopover"));
+        }
     }
 
     [Fact]

@@ -95,7 +95,6 @@ public sealed class BooruWorkbenchViewContractTests
             "foreach (CachedBitmap cached in _bitmaps.Values) cached.Bitmap.Dispose();", "_bitmaps.Clear();", "if (_ownsModel) _model.Dispose();" })
             Assert.Contains(required, dispose);
         string changed = Between(view, "private void OnModelChanged()", "private void OnTextsChanged(");
-        Assert.Contains("Dispatcher.UIThread.Post(() =>", changed);
         Assert.Contains("if (!_closed) Render(force: false);", changed);
         // Queued updates stay valid through a temporary detach, but not after final disposal.
         Assert.DoesNotContain("_attached", changed);
