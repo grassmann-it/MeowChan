@@ -14,8 +14,8 @@ using MeowChan.Desktop.Motion;
 
 namespace MeowChan.DesktopTests;
 
-// Shared "Rate and tag…" decision row (UX-LEDGER-12): the rating bar (five equal full-width star cells and the remove button),
-// an equally wide favourite, then a short rating caption. Hover previews, one tab stop, the label of a partly favourite
+// Shared "Rate and tag…" decision row: the centered rating bar (five equal star cells and the remove button),
+// the favourite, then a short rating caption. Hover previews, one tab stop, the label of a partly favourite
 // selection, and the full help sentence stay intact. Controls without an application have no theme, so geometry is checked on the grid and
 // the real layout of the cells at the popover width and the narrow width belongs to the captures run centrally.
 [Collection("Localization")]
@@ -54,13 +54,15 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         // Only the bar is laid out: a caption needs the platform's text services, which a test without an application does not have.
         bar.Measure(new Size(width, double.PositiveInfinity));
         bar.Arrange(new Rect(0, 0, width, bar.DesiredSize.Height));
-        double cell = (width - 8 - row.ClearButton.Bounds.Width) / 5;
+        Assert.InRange(bar.Bounds.Width, Math.Min(width, 200) - 0.5, Math.Min(width, 200) + 0.5);
+        Assert.InRange(bar.Bounds.Center.X, width / 2 - 0.5, width / 2 + 0.5);
+        double cell = (bar.Bounds.Width - 8 - row.ClearButton.Bounds.Width) / 5;
         // Layout rounding snaps each cell to whole pixels, so a cell may differ from the exact fifth by up to one pixel.
         Assert.All(row.StarButtons, star => Assert.InRange(star.Bounds.Width, cell - 1, cell + 1));
         for (int index = 0; index < 4; index++)
             Assert.Equal(row.StarButtons[index].Bounds.Right, row.StarButtons[index + 1].Bounds.Left, 3); // no gap: the hit area is continuous
         Assert.Equal(0, row.StarButtons[0].Bounds.Left, 3);
-        Assert.InRange(row.ClearButton.Bounds.Right, width - 1, width + 1);
+        Assert.InRange(row.ClearButton.Bounds.Right, bar.Bounds.Width - 1, bar.Bounds.Width + 1);
     }
 
     [Fact]
@@ -208,31 +210,14 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
 
     // ---- the favourite line --------------------------------------------------------------------------------------------------------
 
-    [Theory]
-    [InlineData(440.0), InlineData(336.0), InlineData(280.0)]
-    public void FavouriteAndRatingCaptionShareOneRowAndFavouriteFillsTheRemainingWidth(double width)
+    [Fact]
+    public void FavouriteAndRatingCaptionAreCenteredOnSeparateLines()
     {
         GalleryDecisionRow row = new("DesignRow");
-        Grid line = Assert.IsType<Grid>(row.Children[1]);
-        Assert.Equal(2, line.ColumnDefinitions.Count);
-        Assert.Equal(GridUnitType.Star, line.ColumnDefinitions[0].Width.GridUnitType);
-        Assert.Equal(GridLength.Auto, line.ColumnDefinitions[1].Width);
-        Assert.Equal(8, line.ColumnSpacing);
-        Assert.Equal(0, Grid.GetRow(row.FavoriteButton));
-        Assert.Equal(0, Grid.GetRow(row.Summary));
-        Assert.Equal(0, Grid.GetColumn(row.FavoriteButton));
-        Assert.Equal(1, Grid.GetColumn(row.Summary));
-        row.FavoriteButton.Content = null;
-        line.Children.Remove(row.Summary);
-        Border captionSlot = new() { Width = 64 };
-        Grid.SetColumn(captionSlot, 1);
-        line.Children.Add(captionSlot);
-        line.Measure(new Size(width, double.PositiveInfinity));
-        line.Arrange(new Rect(0, 0, width, 40));
-        Assert.Equal(0, row.FavoriteButton.Bounds.Left, 3);
-        Assert.Equal(width - 64, captionSlot.Bounds.Left, 3);
-        Assert.Equal(width, captionSlot.Bounds.Right, 3);
-        Assert.Equal(width - 72, row.FavoriteButton.Bounds.Width, 3);
+        Assert.Equal(new Control[] { row.RatingGroup, row.FavoriteButton, row.Summary }, row.Children);
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, row.FavoriteButton.HorizontalAlignment);
+        Assert.Equal(Avalonia.Media.TextAlignment.Center, row.Summary.TextAlignment);
+        Assert.Equal(8, row.Spacing);
     }
 
     [Fact]
@@ -247,7 +232,6 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
             .ToDictionary(setter => (string)setter.Attribute("Property")!, setter => (string?)setter.Attribute("Value"));
         Assert.Equal("{StaticResource Workspace.Size.Nav}", settings["MinHeight"]);
         Assert.Equal("11,7", settings["Padding"]);
-        Assert.Equal("Stretch", settings["HorizontalAlignment"]);
         Assert.Equal("Center", settings["HorizontalContentAlignment"]);
         Assert.Equal("Center", settings["VerticalContentAlignment"]);
         Assert.Equal("{StaticResource Workspace.FocusAdorner}", settings["FocusAdorner"]);
@@ -259,14 +243,14 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
             GalleryDecisionView view = View(3, coverage);
             row.Show(view);
             Assert.Equal(GalleryDecisionText.Favorite(view), AutomationProperties.GetHelpText(row.FavoriteButton));
-            StackPanel content = Assert.IsType<StackPanel>(row.FavoriteButton.Content);
+            Grid content = Assert.IsType<Grid>(row.FavoriteButton.Content);
             Assert.Equal(20, content.Children[0].Width);
             Assert.Equal(20, content.Children[0].Height);
         }
     }
 
     private static string FavoriteLabel(GalleryDecisionRow row) =>
-        Assert.IsType<StackPanel>(row.FavoriteButton.Content).Children.OfType<TextBlock>().Single().Text!;
+        Assert.IsType<Grid>(row.FavoriteButton.Content).Children.OfType<TextBlock>().Single().Text!;
 
     [Fact]
     public void TheFavouriteLabelSaysSomeWhileOnlySomeOfASelectionAreFavouritesAndKeepsItsName()
@@ -320,15 +304,6 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.False(row.FavoriteButton.IsVisible);
         Assert.True(row.Summary.IsVisible);
         Assert.Equal(MediaRatingText.Value(3), row.Summary.Text);
-        Assert.Equal(2, row.Children.Count);
-        Grid line = Assert.IsType<Grid>(row.Children[1]);
-        Assert.Same(row.RatingGroup, row.Children[0]);
-        Assert.Contains(row.FavoriteButton, line.Children);
-        Assert.Contains(row.Summary, line.Children);
-        Assert.Equal(0, Grid.GetRow(row.Summary));
-        Assert.Equal(1, Grid.GetColumn(row.Summary));
-        Assert.Equal(1, Grid.GetColumnSpan(row.Summary));
-        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Right, row.Summary.HorizontalAlignment);
-        Assert.Equal(8, row.Spacing); // the two lines
+        Assert.Same(row.Summary, row.Children[^1]);
     }
 }

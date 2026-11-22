@@ -478,7 +478,7 @@ public partial class ArchivePage
 
     // ---- switch and commands -------------------------------------------------------------------------------------------------
 
-    private (bool On, bool Enabled, bool Available, string Label, string Tip)? _mediaSidebarTogglePresentation;
+    private (bool Enabled, string Content, string Icon, string Name, string Tip)? _mediaSidebarTogglePresentation;
 
     private void RefreshMediaSidebarToggle()
     {
@@ -488,18 +488,21 @@ public partial class ArchivePage
         bool available = !ReaderMediaSidebarRules.IsCollapsedByWidth(media, width);
         bool enabled = CanToggleMediaSidebar && available;
         bool on = ReaderMediaSidebarRules.IsOn(media, _largeReader);
-        string label = CommandCatalog.Label("reader.sidebar.toggle") + ": " + Texts.T(on ? "window.fullscreen.on" : "window.fullscreen.off");
+        string content = Texts.T("reader.sidebar.compact");
+        string icon = CommandCatalog.IconForState("reader.sidebar.toggle", media.SidebarRight ? "right" : "left");
+        string name = CommandCatalog.Label("reader.sidebar.toggle") + ": " + Texts.T(on ? "window.fullscreen.on" : "window.fullscreen.off");
         string tip = CommandBindings.Tooltip("reader.sidebar.toggle", MediaSidebarHint());
-        var presentation = (on, enabled, available, label, tip);
+        var presentation = (enabled, content, icon, name, tip);
         if (button.IsChecked != on) button.IsChecked = on;
+        var overflow = available ? Ursa.Controls.OverflowMode.AsNeeded : Ursa.Controls.OverflowMode.Always;
+        if (Ursa.Controls.ToolBar.GetOverflowMode(button) != overflow) Ursa.Controls.ToolBar.SetOverflowMode(button, overflow);
         if (_mediaSidebarTogglePresentation == presentation) return;
+        if (_mediaSidebarTogglePresentation?.Icon != icon) CommandBindings.ShowIconBeforeText(button, icon);
         _mediaSidebarTogglePresentation = presentation;
-        Ursa.Controls.ToolBar.SetOverflowMode(button, available ? Ursa.Controls.OverflowMode.AsNeeded : Ursa.Controls.OverflowMode.Always);
         button.IsEnabled = enabled;
-        // Icon only (Tom's review 21.11.): the half of the frame the sidebar sits in, the full name stays the accessible name and the tip.
-        button.Content = CommandBindings.Icon("reader.sidebar.toggle", state: media.SidebarRight ? "right" : "left");
+        button.Content = content;
         ToolTip.SetTip(button, tip);
-        Avalonia.Automation.AutomationProperties.SetName(button, label);
+        Avalonia.Automation.AutomationProperties.SetName(button, name);
         Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
     }
 

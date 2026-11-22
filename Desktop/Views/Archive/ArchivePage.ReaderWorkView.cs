@@ -24,6 +24,7 @@ public partial class ArchivePage
         if (!_readerWorkViewGate.Changed((view, _archiveFavoritesOnly, _mediaRatingFilter > 0, !_allVersions,
                 MeowChan.Desktop.Localization.Texts.Language))) return;
         WorkViewPresenter.ApplyToolBar(ReaderToolbar, view);
+        RefreshMediaSidebarToggle();
         // R6: a filter that narrows the saved media, or the latest-versions-only scope, is a state and stays on the bar.
         WorkViewPresenter.ApplyToolBar(ReaderMediaTools, view, nonDefaultState: item =>
             ReferenceEquals(item, ArchiveFavoritesFilter) ? _archiveFavoritesOnly

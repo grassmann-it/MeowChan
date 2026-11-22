@@ -60,7 +60,7 @@ public sealed class CodeHygieneTests
     public void ThePanelAnnouncesAnotherMediumButNotARefreshOfTheSameOne()
     {
         string panel = Source("Desktop/Views/Media/MediaPage.Panel.cs");
-        Assert.Contains("if (!same)\n            ScheduleAnnouncement(Texts.T(\"media.panel.region\"", panel.Replace("\r\n", "\n"));
+        Assert.Matches(@"if \(!same\)\s*\{[^}]*ScheduleAnnouncement\(Texts\.T\(""media\.panel\.region"",", panel.Replace("\r\n", "\n"));
     }
 
     [Fact]

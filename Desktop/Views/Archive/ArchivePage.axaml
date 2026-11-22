@@ -302,11 +302,10 @@
                     <!-- RL1: the former "View" menu and the quick settings popover in one popover (session view switches, media, text and layout, thread). -->
                     <Button x:Name="ReaderSettingsOpen" desktop:ActionToolBar.Group="3" wv:WorkViewElement.Id="reader.toolbar.settings" Click="OnReaderSettingsClick" />
                     <Button x:Name="ArchiveHistoryBack" desktop:ActionToolBar.Group="4" wv:WorkViewElement.Id="reader.toolbar.history-back" Tag="archive.historyBack" Classes="localized" Click="OnHistoryBack" IsVisible="False" />
-                    <!-- Switch 21.11. (review): the view group ends the bar: the thread list switch (embedded reader only), Full screen, and the media sidebar
-                         switch (icon only) last. Full screen stays the first action to move under More (the end of the keep-visible order); the header button and F11 carry it too. -->
-                    <ToggleButton x:Name="ArchiveThreadListToggle" desktop:ActionToolBar.Group="5" wv:WorkViewElement.Id="reader.toolbar.thread-list" IsVisible="False" />
-                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="5" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
-                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="5" Classes="icon-square subtle" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" ursa:ToolBar.OverflowMode="Never" />
+                    <!-- The view group docks to the right. Full screen is first to move under More when width is limited. -->
+                    <ToggleButton x:Name="ArchiveThreadListToggle" desktop:ActionToolBar.Group="5" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.thread-list" IsVisible="False" />
+                    <Button x:Name="ArchiveReaderFullscreen" desktop:ActionToolBar.Group="5" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.fullscreen" Content="Full screen" Click="OnReaderFullscreenClick" />
+                    <ToggleButton x:Name="ReaderMediaSidebarToggle" desktop:ActionToolBar.Group="5" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.toolbar.media-sidebar" />
                     </desktop:ActionToolBar>
                     <TextBlock x:Name="ReaderGroupAvailabilityMessage" wv:WorkViewElement.Id="reader.status.group-availability" IsVisible="False" TextWrapping="Wrap" />
                     <!-- F02: Find and Tags share ONE thread-tools row. Each group shows only while open; side by side they wrap (the tag group

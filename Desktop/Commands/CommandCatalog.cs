@@ -319,7 +319,7 @@ public static class CommandCatalog
         // R8: the media sidebar of the large reader (a settings-popover switch) and its steps through the focused post's media.
         new("reader.sidebar.toggle", "command.reader.sidebar.toggle", "Media sidebar", "Medienleiste", "panel-left", "Primary+Shift+M", CommandScope.Reader, new[] { "reader-settings", "reader-media-sidebar" }),
         // The archive's thread list on or off (reader toolbar switch; Config.ArchiveThreadListHidden). No default gesture (21.11. review): each user can give it one.
-        new("archive.thread-list.toggle", "command.archive.thread-list.toggle", "Thread list", "Threadliste", "list", null, CommandScope.Archive | CommandScope.Reader, new[] { "reader-toolbar" }),
+        new("archive.thread-list.toggle", "command.archive.thread-list.toggle", "Thread list", "Threadliste", "panel-left", null, CommandScope.Archive | CommandScope.Reader, new[] { "reader-toolbar" }),
         new("reader.sidebar.previous-media", "command.reader.sidebar.previous-media", "Previous media of the post", "Voriges Medium des Posts", "chevron-left", "Alt+Shift+Left", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         new("reader.sidebar.next-media", "command.reader.sidebar.next-media", "Next media of the post", "Nächstes Medium des Posts", "chevron-right", "Alt+Shift+Right", CommandScope.Reader, new[] { "reader-media-sidebar" }),
         // The Media page's media panel (a large medium beside the grid).

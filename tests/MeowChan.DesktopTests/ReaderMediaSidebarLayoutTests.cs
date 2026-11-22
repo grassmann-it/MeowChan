@@ -11,6 +11,7 @@ using Avalonia.Layout;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
@@ -45,7 +46,14 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.True(button.IsVisible);
             Assert.True(button.IsEnabled);
             Assert.False(button.IsChecked);
+            Assert.Equal("Media", button.Content);
             Assert.Equal("Media sidebar: Off", AutomationProperties.GetName(button));
+            Assert.StartsWith("Media sidebar", Assert.IsType<string>(ToolTip.GetTip(button)));
+            ToggleButton threads = page.FindControl<ToggleButton>("ArchiveThreadListToggle")!;
+            Assert.Equal("Threads", threads.Content);
+            Assert.Equal("panel-left", IconButtons.KeyOf(threads));
+            Assert.Equal("Thread list: On", AutomationProperties.GetName(threads));
+            Assert.StartsWith("Hide the thread list", Assert.IsType<string>(ToolTip.GetTip(threads)));
             // 071e43347 deliberately registered this tool as Direct in every work
             // view. Direct tools stay discoverable but overflow when they do not fit.
             var policy = MeowChan.Desktop.WorkViews.WorkViewPolicy.Find("reader.toolbar.media-sidebar")!;
@@ -57,6 +65,10 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.True(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: true));
             Assert.False(ReaderMediaSidebarRules.IsOn(page.ReaderMedia, largeReader: false));
             Assert.False(page.IsMediaSidebarShown);
+            Texts.SetLanguage("pl");
+            Assert.Equal("Multimedia", button.Content);
+            Assert.Equal("Wątki", threads.Content);
+            Assert.StartsWith("Panel boczny mediów", AutomationProperties.GetName(button));
         }
         finally { page.EndLifetime(); }
     });
@@ -77,6 +89,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(saved));
             page.SaveReaderMediaSwitches = update => { update(saved); writes++; return Task.CompletedTask; };
             ToggleButton button = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
+            Assert.Equal("panel-right", IconButtons.KeyOf(button));
             bool initial = largeReader;
             Assert.Equal(initial, button.IsChecked);
             button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
@@ -144,6 +157,8 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.True(page.IsMediaSidebarShown);
             ReaderMediaSidebar sidebar = page.MediaSidebar!;
             Grid host = (Grid)sidebar.Parent!;
+            ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
+            Assert.Equal(right ? "panel-right" : "panel-left", IconButtons.KeyOf(toggle));
             Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));
             Assert.Equal(largeReader ? 1 : 2, Grid.GetRowSpan(sidebar));
             foreach (bool withChrome in new[] { false, true })
@@ -174,7 +189,8 @@ public sealed class ReaderMediaSidebarLayoutTests
                     Assert.Equal(0, sidebar.Padding.Top);
                     Assert.Equal(0, sidebar.Padding.Bottom);
                     Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, sidebar.HeaderRow.Bounds.Height);
-                    Assert.Equal(sidebar.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, sidebar.Card.Bounds.Height);
+                    Assert.Equal(8, sidebar.HeaderRow.TranslatePoint(default, sidebar)!.Value.Y);
+                    Assert.Equal(sidebar.Bounds.Height - 8 - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, sidebar.Card.Bounds.Height);
                     Assert.Equal(sidebar.Bounds.Height, sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height);
                     double chrome = sidebar.Bounds.Height - sidebar.Frame.Bounds.Height;
                     chromeHeight ??= chrome;
@@ -197,7 +213,6 @@ public sealed class ReaderMediaSidebarLayoutTests
             });
             Layout(root, geometries[0]);
             Assert.False(page.IsMediaSidebarShown);
-            ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
             Assert.True(toggle.IsVisible);
             Assert.False(toggle.IsEnabled);
             Assert.Equal(Ursa.Controls.OverflowMode.Always, Ursa.Controls.ToolBar.GetOverflowMode(toggle));
@@ -214,6 +229,7 @@ public sealed class ReaderMediaSidebarLayoutTests
     });
 
     [Theory]
+    [InlineData(8, 512, 240, 720)]
     [InlineData(8, 512, 360, 720)]
     [InlineData(512, 8, 360, 720)]
     [InlineData(64, 64, 500, 900)]
@@ -233,6 +249,10 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - ReaderMediaSidebar.HeaderLineHeight - ReaderMediaSidebar.HeaderGap, view.Card.Bounds.Height);
         }
         Layout(); // Empty state reserves exactly the same title row.
+        Grid headerRow = Assert.IsType<Grid>(view.HeaderRow);
+        // ActualWidth includes the gap after the first grid column.
+        double titleWidth = headerRow.ColumnDefinitions[0].ActualWidth - headerRow.ColumnSpacing;
+        Assert.InRange(Math.Abs(headerRow.Children[0].Bounds.Center.X - titleWidth / 2), 0, 0.5);
         Rect header = view.HeaderRow.Bounds;
         Rect card = view.Card.Bounds;
         view.Describe("No. 123", new string('x', 500) + ".png", "100 MiB · 50000×100", true, "Copy post reference");
