@@ -28,7 +28,7 @@ public sealed class ReaderPassiveFocusFixtureTests
         string source = Source();
         Assert.Contains("[page, false]", source);
         Assert.Contains("[id, \"__pf05_missing_post__\", 0d, selected]", source);
-        Assert.Contains(".Invoke(page, [anchor, true, intent])", source);
+        Assert.Contains(".Invoke(page, [anchor, true, intent, null, null])", source);
         Assert.Contains("await LocalizationCase(\"missing-anchor-new-search\", search, missing: true);", source);
         Assert.Contains("await LocalizationCase(\"missing-anchor-replace-own-post\", null, missing: true);", source);
         Assert.Contains("expected.IsKeyboardFocusWithin && latePostFocus == 0", source);
