@@ -43,6 +43,7 @@ dotnet test tests/MeowChan.Tests --filter "FullyQualifiedName~Release|FullyQuali
 
 The 1.1.1 release page follows the clearer 1.0.2 layout rather than the 1.1.0 one:
 
+- The 1.0.2 page shows readable **asset labels** ("Windows x64 (.zip)", "macOS Apple Silicon (.dmg)", ...) in place of file names; the 1.1.0 assets have none and show raw file names. `upload-verified-release.yml` now uploads with these labels, and `scripts/label-release-assets.sh <tag>` sets them on an existing release (run it after publication if a label is missing).
 - Application downloads keep the `01-`..`09-` order and readable names (`01-MeowChan-1.1.1-win-x64.zip`, `02-...-osx-arm64.dmg`, ...). Nothing else sorts before them.
 - The release text carries a **Downloads** table with a plain platform label per package (Windows x64 .zip, macOS Apple Silicon .dmg, macOS Intel .dmg, Linux x64/ARM64 AppImage, Linux bundled-VLC and system-VLC .tar.gz) and a direct link to each file, followed by the `SHA256SUMS` link and a one-line note on system VLC requirements.
 - Supporting files (`candidate-inventory.json`, the NuGet packages, the corresponding video-source archives) are explained in one sentence so no asset name is cryptic. The 1.1.0 page lacked the table and these explanations.
