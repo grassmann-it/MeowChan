@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
@@ -223,13 +224,12 @@ internal static class QuickTagNativeTypingChecks
         List<string> problems = new();
         if (!string.IsNullOrEmpty(surface.Input.Text)) problems.Add("the repeats of a held R were typed into the field: '" + surface.Input.Text + "'");
         if (!surface.Input.IsKeyboardFocusWithin) problems.Add("R did not put the caret in the tag input");
-        // Preserve the existing direct-rating contract on an empty field; once typing starts Shift+digit is text, not a rating.
-        await input.ChordAsync('3', MediaNativeInput.ShiftLeft);
-        await WaitQuietly(() => row.View.Rating == 3);
-        if (row.View.Rating != 3 || !string.IsNullOrEmpty(surface.Input.Text)) problems.Add("Shift+3 on the empty field did not rate 3");
-        await input.ChordAsync('0', MediaNativeInput.ShiftLeft);
-        await WaitQuietly(() => row.View.Rating == null);
-        if (row.View.Rating != null) problems.Add("Shift+0 on the empty field did not clear the rating");
+        surface.Input.Dismiss();
+        await input.ChordAsync('1', MediaNativeInput.ShiftLeft);
+        await Settle(window);
+        if (surface.Input.Text != "!" || row.View.Rating != null) problems.Add("Shift+1 on the empty field did not type '!': '" + surface.Input.Text + "'");
+        surface.Input.Text = "";
+        surface.Input.Dismiss();
         await TypeAsync(input, "r");
         await Settle(window);
         if (surface.Input.Text != "r") problems.Add("a new R after the held one did not type 'r': '" + surface.Input.Text + "'");
@@ -262,6 +262,44 @@ internal static class QuickTagNativeTypingChecks
         TextBox field = surface.Input.GetVisualDescendants().OfType<TextBox>().First(candidate => candidate.IsEffectivelyVisible);
         await input.ClickAsync(field, requireHitTest: false);
         await Settle(window);
+        TextPresenter presenter = field.GetVisualDescendants().OfType<TextPresenter>().First();
+        TagId stamp = surface.Session.Snapshot!.Tags.Single(tag => tag.Name.Display == "innocent").Id;
+        bool addedStamp = surface.Session.AddToStamp(stamp);
+        surface.Input.Text = "composition-draft";
+        surface.Input.Dismiss();
+        presenter.PreeditText = "未";
+        field.AddHandler(InputElement.KeyDownEvent, EndPreeditOnEscape, RoutingStrategies.Bubble);
+        try
+        {
+            if (!surface.Input.IsComposing) problems.Add("the popover tag editor did not see the preedit");
+            foreach (var (key, modifiers) in new[] { (Key.Enter, KeyModifiers.Control), (Key.Enter, KeyModifiers.Control | KeyModifiers.Shift),
+                         (Key.Tab, KeyModifiers.None), (Key.Tab, KeyModifiers.Shift), (Key.Escape, KeyModifiers.None) })
+            {
+                var press = new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers };
+                field.RaiseEvent(press);
+                if (popover.IsClosed) return Fail(surfaceName, entry, medium, $"The popover closed on {modifiers}+{key} during preedit ({popover.Reason}).");
+                if (key == Key.Escape && (press.Handled || PopupEscape.ClosesOnEscape(press, open: true, lightDismiss: true)))
+                    problems.Add("Esc did not pass the popover's frame and popup fallback during composition");
+            }
+            await Settle(window);
+            if (popover.IsClosed || surface.Input.Text != "composition-draft" || !field.IsKeyboardFocusWithin
+                || surface.Session.Busy || surface.Session.UndoSteps.Count != steps || surface.Session.OnAll().Contains(stamp))
+                problems.Add("a quick-tag shortcut changed the draft, tags, focus or popover during composition");
+        }
+        finally
+        {
+            field.RemoveHandler(InputElement.KeyDownEvent, EndPreeditOnEscape);
+            presenter.PreeditText = null;
+            surface.Input.Text = "";
+            surface.Input.Dismiss();
+            if (addedStamp) surface.Session.RemoveFromStamp(stamp);
+        }
+
+        void EndPreeditOnEscape(object? sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.Escape) presenter.PreeditText = null;
+        }
+
         // The suggestion list of the field is a popup inside the popover's popup: typing opens it, a real click on its row takes the tag.
         await TypeAsync(input, "inn");
         string listState = "";
@@ -445,6 +483,13 @@ internal static class QuickTagNativeTypingChecks
             string focusOnOpen = Describe(window.FocusManager?.GetFocusedElement());
             bool fieldFocusedOnOpen = surface.Input.IsKeyboardFocusWithin;
             bool ratingVisibleOnOpen = surface.DecisionContent is GalleryDecisionRow { IsEffectivelyVisible: true };
+            int? ratingBeforeTyping = viewer.DecisionRow?.View.Rating;
+            surface.Input.Dismiss();
+            await input.ChordAsync('1', MediaNativeInput.ShiftLeft);
+            await Settle(window);
+            bool firstCharacterTyped = surface.Input.Text == "!" && viewer.DecisionRow?.View.Rating == ratingBeforeTyping;
+            surface.Input.Text = "";
+            surface.Input.Dismiss();
             trace.Begin();
             await TypeAsync(input, "q");
             await Settle(window);
@@ -465,6 +510,7 @@ internal static class QuickTagNativeTypingChecks
             surface.Input.Text = "";
             List<string> problems = new();
             if (!fieldFocusedOnOpen) problems.Add("opening did not focus the tag input (" + focusOnOpen + ")");
+            if (!firstCharacterTyped) problems.Add("Shift+1 on the empty gallery tag field did not type '!'");
             if (entry == "R" && !ratingVisibleOnOpen) problems.Add("R hid the gallery rating row instead of only changing initial focus");
             if (typed != Word) problems.Add($"'{Word}' typed after a click gave '{typed}' (focus {focusAfterClick}; first handled at {handled}; text inputs {textInputs})");
             if (afterOpenTyping != "q") problems.Add($"'q' typed into the focused field gave '{afterOpenTyping}' (focus {focusOnOpen})");

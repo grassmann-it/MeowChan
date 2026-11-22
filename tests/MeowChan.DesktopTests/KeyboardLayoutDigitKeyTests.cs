@@ -1,5 +1,6 @@
 using Avalonia.Input;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
 
@@ -39,6 +40,34 @@ public sealed class KeyboardLayoutDigitKeyTests
         Assert.True(bindings.Matches(Press(Key.D1, KeyModifiers.Shift, "1"), "media.rating.set-1"));
         Assert.True(bindings.Matches(Press(Key.D0, KeyModifiers.Shift, "0"), "media.rating.clear"));
         Assert.False(bindings.Matches(Press(Key.D6, KeyModifiers.Shift, "6"), "media.label.red"));
+    }
+
+    [Theory]
+    [InlineData("!", KeyModifiers.Shift)]
+    [InlineData("1", KeyModifiers.Shift)]
+    [InlineData(null, KeyModifiers.Shift)]
+    [InlineData("&", KeyModifiers.None)]
+    public void TheFirstRatingDigitIsAlsoACharacterInTheTagField(string? symbol, KeyModifiers modifiers)
+    {
+        KeyEventArgs press = Press(Key.D1, modifiers, symbol);
+        foreach (ShortcutPlatform platform in Enum.GetValues<ShortcutPlatform>())
+        {
+            Assert.True(EffectiveShortcutBindings.Build(platform: platform).Matches(press, "media.rating.set-1"));
+            Assert.True(QuickTagKeys.FieldOwnsCharacter(press, platform));
+        }
+    }
+
+    [Fact]
+    public void MacOptionDigitsStayWithTheFieldAndStillToggleEveryNumberedSuggestionFromTheStrip()
+    {
+        var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.MacOS);
+        for (int number = 1; number <= 9; number++)
+        {
+            KeyEventArgs press = Press(Key.D0 + number, KeyModifiers.Alt, symbol: null);
+            Assert.Equal(QuickTagKeyAction.None, QuickTagKeys.Route(press, QuickTagFocus.Field, false, true, false, bindings).Action);
+            Assert.Equal(new QuickTagKeyRoute(QuickTagKeyAction.ToggleSuggestion, number - 1),
+                QuickTagKeys.Route(press, QuickTagFocus.Suggestions, false, true, false, bindings));
+        }
     }
 
     [Theory]

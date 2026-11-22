@@ -279,6 +279,10 @@ The harness covers page navigation/drafts, presentation/settings, profile confli
 
 If MeowChan helps you, you can voluntarily [support its development via PayPal](https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ). The same link is available in the app's About window.
 
+## Use and sources
+
+MeowChan retrieves posts and media from the sources you choose and saves them in your local archive. Access rules and adapter request limits vary by source. You are responsible for respecting those rules and obtaining any permissions you need to download, store or share content. This information is not legal advice.
+
 ## License
 
 The project uses Artistic License 2.0; see [LICENSE](LICENSE). Desktop dependency and asset notices are in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).

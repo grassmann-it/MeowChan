@@ -66,11 +66,17 @@ internal static class QuickTagKeys
     /// <param name="fieldEmpty">The field holds no text (Ctrl+Z then is the surface's undo, not the editor's).</param>
     /// <param name="navigation">The host moves through media (gallery panel); off in a popover.</param>
     internal static QuickTagKeyRoute Route(Key key, KeyModifiers modifiers, QuickTagFocus focus, bool listOpen, bool fieldEmpty,
-        bool navigation, ShortcutPlatform platform, EffectiveShortcutBindings? bindings = null)
+        bool navigation, ShortcutPlatform platform, EffectiveShortcutBindings? bindings = null) =>
+        Route(new KeyEventArgs { Key = key, KeyModifiers = modifiers }, focus, listOpen, fieldEmpty,
+            navigation, bindings ?? EffectiveShortcutBindings.Build(platform: platform));
+
+    internal static QuickTagKeyRoute Route(KeyEventArgs press, QuickTagFocus focus, bool listOpen, bool fieldEmpty,
+        bool navigation, EffectiveShortcutBindings bindings)
     {
-        bindings ??= EffectiveShortcutBindings.Build(platform: platform);
-        QuickTagKeyRoute command = RouteCommand(key, modifiers, focus, listOpen, fieldEmpty, navigation, bindings);
+        QuickTagKeyRoute command = RouteCommand(press, focus, listOpen, fieldEmpty, navigation, bindings);
         if (command.Action != QuickTagKeyAction.None) return command;
+        Key key = press.Key;
+        KeyModifiers modifiers = press.KeyModifiers;
         if (key == Key.Escape && modifiers == KeyModifiers.None)
             return new(focus != QuickTagFocus.Field ? QuickTagKeyAction.Close
                 : !fieldEmpty ? QuickTagKeyAction.ClearField
@@ -118,13 +124,10 @@ internal static class QuickTagKeys
     }
 
     /// <summary>All rebindable quick-tag actions resolve from the same snapshot as the shortcut table.</summary>
-    internal static QuickTagKeyRoute RouteCommand(Key key, KeyModifiers modifiers, QuickTagFocus focus, bool listOpen,
+    internal static QuickTagKeyRoute RouteCommand(KeyEventArgs press, QuickTagFocus focus, bool listOpen,
         bool fieldEmpty, bool navigation, EffectiveShortcutBindings bindings)
     {
-        KeyEventArgs press = new() { Key = key, KeyModifiers = modifiers };
-        // A recorded bare character must not steal tag-name typing.
-        if (focus == QuickTagFocus.Field && EffectiveShortcutBindings.IsSingleCharacterKey(
-            new ShortcutGesture(key.ToString(), ModifierNames(modifiers)))) return QuickTagKeyRoute.None;
+        if (focus == QuickTagFocus.Field && FieldOwnsCharacter(press, bindings.Platform)) return QuickTagKeyRoute.None;
         foreach (string id in QuickTagCommands.All)
         {
             if (!bindings.Matches(press, id) || GalleryTagPanelCommands.RouteOf(id) is not { } route) continue;
@@ -136,6 +139,13 @@ internal static class QuickTagKeys
         }
         return QuickTagKeyRoute.None;
     }
+
+    // Option-number can produce text even when the platform leaves KeySymbol empty.
+    internal static bool FieldOwnsCharacter(KeyEventArgs press, ShortcutPlatform platform) =>
+        TextEntryKeys.TypesText(press)
+        || EffectiveShortcutBindings.IsSingleCharacterKey(new ShortcutGesture(press.Key.ToString(), ModifierNames(press.KeyModifiers)))
+        || platform == ShortcutPlatform.MacOS && press.Key is >= Key.D0 and <= Key.D9
+            && press.KeyModifiers is KeyModifiers.Alt or (KeyModifiers.Alt | KeyModifiers.Shift);
 
     private static IReadOnlyList<string> ModifierNames(KeyModifiers modifiers) =>
         new[] { (KeyModifiers.Control, "Control"), (KeyModifiers.Meta, "Meta"), (KeyModifiers.Alt, "Alt"), (KeyModifiers.Shift, "Shift") }
@@ -293,7 +303,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private IQuickTagExtraUndo? _extraUndo;
     private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _close = new();
-    private readonly IdentitySuggestionBox _input = new();
+    private readonly IdentitySuggestionBox _input = new() { ProtectComposition = true };
     private readonly TextBlock _suggestionsHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _strip = new() { ItemSpacing = StripItemSpacing, LineSpacing = 0, VerticalAlignment = VerticalAlignment.Top };
     // One viewport for the entire surface in both hosts. Assigned tags and suggestions never scroll independently.
@@ -966,8 +976,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private void Localize()
     {
         TagSuggestionInput.Localize(_input);
-        string first = QuickTagKeys.SuggestionGesture(0, _platform)!, last = QuickTagKeys.SuggestionGesture(QuickTagOptions.NumberedSuggestions - 1, _platform)!;
-        string hint = Texts.T("tags.suggest.hint") + " " + Texts.T("tags.quick.fieldHint", first, last);
+        string hint = Texts.T("tags.suggest.hint") + " " + Texts.T("tags.quick.fieldNavigation") + " " + Texts.T("tags.quick.fieldHint");
         if (NavigationEnabled) hint += " " + QuickTagKeys.TextWithKey("tags.quick.fieldHintNavigation", QuickTagKeys.CommitNextGesture(_platform));
         AutomationProperties.SetHelpText(_input, hint);
         ToolTip.SetTip(_input, hint);
@@ -1244,11 +1253,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         : _assigned.IsKeyboardFocusWithin ? QuickTagFocus.Assigned
         : QuickTagFocus.Other;
 
+    internal bool FieldHasComposition => _input.IsKeyboardFocusWithin && _input.IsComposing;
+
     private void OnKey(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing) return;
-        QuickTagKeyRoute route = QuickTagKeys.Route(e.Key, e.KeyModifiers, FocusZone(), _input.IsDropDownOpen,
-            string.IsNullOrEmpty(_input.Text), NavigationEnabled, _platform, ShortcutService.Current);
+        if (e.Handled || ShortcutService.IsCapturing || FieldHasComposition) return;
+        QuickTagKeyRoute route = QuickTagKeys.Route(e, FocusZone(), _input.IsDropDownOpen,
+            string.IsNullOrEmpty(_input.Text), NavigationEnabled, ShortcutService.Current);
         if (Execute(route)) e.Handled = true;
     }
 

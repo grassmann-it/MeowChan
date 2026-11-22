@@ -262,7 +262,8 @@ public sealed class HelpDocumentationTests
             Assert.Equal("Alt+" + number, CommandCatalog.Get(QuickTagCommands.Suggestion(number)).Shortcut);
         foreach (string phrase in new[]
         {
-            "Ctrl+Shift+T (Command+Shift+T on macOS)", "Alt+1 to Alt+9 (Command+1 to Command+9 on macOS)", "Page Down and Page Up",
+            "Ctrl+Shift+T (Command+Shift+T on macOS)", "Alt+1 through Alt+9 (Option+1 through Option+9 on macOS)", "Page Down and Page Up",
+            "On macOS, Option+number in the tag field goes to text input", "digits and Shift+digits go to text input from the first character",
             "Ctrl+Enter (Command+Enter)", "Ctrl+Z (Command+Z)", "Ctrl+T (Command+T)", "Shift+P switches to the post panel"
         })
             Assert.Contains(phrase, panel, StringComparison.Ordinal);

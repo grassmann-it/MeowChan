@@ -33,6 +33,8 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
     /// <summary>Opt-in: Escape with no open list is left unhandled for the owner (a dialog's Escape policy, <c>DialogEscape</c>); an open
     /// list is still closed by it. Off: Escape is always consumed here.</summary>
     internal bool ReleaseEscape { get; set; }
+    /// <summary>Keep quick-tag navigation and autocomplete out of an active composition.</summary>
+    internal bool ProtectComposition { get; set; }
     /// <summary>Rows shown at most; the screen reader hint still counts every match.</summary>
     internal int VisibleLimit { get; set; } = IdentitySuggestions.VisibleLimit;
     /// <summary>Catalog key of the hint announced after each list update; formatted with the match count and the limit.</summary>
@@ -315,7 +317,12 @@ public sealed class IdentitySuggestionBox : Ursa.Controls.AutoCompleteBox, IDisp
     }
     private void OnInputKey(object? sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Enter && IsComposing) { e.Handled = true; return; }
+        if ((ProtectComposition || e.Key == Key.Enter) && IsComposing)
+        {
+            // Preserve native composition keys. Tab would otherwise move keyboard focus out of the editor.
+            if (e.Key is Key.Enter or Key.Tab) e.Handled = true;
+            return;
+        }
         if (e.Key == Key.Escape)
         {
             bool listWasOpen = IsDropDownOpen;

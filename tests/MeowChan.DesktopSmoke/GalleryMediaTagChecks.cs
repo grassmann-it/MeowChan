@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -142,10 +143,7 @@ internal static class GalleryMediaTagChecks
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedCounter) == Avalonia.Automation.AutomationLiveSetting.Polite
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedLabel) == Avalonia.Automation.AutomationLiveSetting.Polite,
                 "Navigation did not update the reparented polite live region's text and accessible name.");
-            // PT6: the favorite and rating row sits above the field; Shift+4 in the empty field rates the shown medium, the row and the status line
-            // say so, and the panel's undo key takes the rating back (the newest step of the tag and decision stacks goes first).
-            // The clear button leaves the gallery on the unbound next medium, whose tag field is disabled (it has no tag target), so the
-            // empty-field rating key is tried on the bound medium again.
+            // Rate from the stars and keep the same keys available for text on the bound medium's tag field.
             viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey && marking.Input.IsEffectivelyEnabled);
             MeowChan.Desktop.Controls.GalleryDecisionRow decisions = viewer.DecisionRow ?? throw new InvalidOperationException("The tag panel has no favorite and rating row.");
@@ -161,16 +159,28 @@ internal static class GalleryMediaTagChecks
             Require(favoriteOrigin.X <= 0.5 && summaryOrigin.X + decisions.Summary.Bounds.Width >= decisionLine.Bounds.Width - 0.5,
                 "Favorite does not stretch or the rating caption is not right aligned.");
             marking.FocusField();
-            // Focusing the field offers the saved tags in a list for a moment, and an open list keeps the digit keys for itself (typing or
-            // choosing); the smoke closes it first, like a user who dismisses the list before rating.
+            await UntilAsync(() => marking.Input.IsKeyboardFocusWithin);
             marking.Input.Dismiss();
             await UntilAsync(() => !marking.Input.IsDropDownOpen);
+            TextBox editor = marking.Input.GetVisualDescendants().OfType<TextBox>().Single(box => box.IsKeyboardFocusWithin);
+            foreach (string? symbol in new[] { "!", "1", null })
+            {
+                var firstCharacter = new KeyEventArgs
+                {
+                    RoutedEvent = InputElement.KeyDownEvent, Key = Key.D1, KeyModifiers = KeyModifiers.Shift, KeySymbol = symbol
+                };
+                editor.RaiseEvent(firstCharacter);
+                Require(!firstCharacter.Handled && decisions.View.Rating == null && string.IsNullOrEmpty(marking.Input.Text),
+                    "The empty gallery tag field consumed Shift+D1 with symbol " + (symbol ?? "(none)") + ".");
+            }
+            await CheckTagPanelCompositionAsync(viewer, marking, editor, primary);
+            Require(decisions.FocusRating(), "The stars did not take focus after editing.");
             KeyEventArgs rate = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.D4, KeyModifiers = KeyModifiers.Shift };
-            marking.Input.RaiseEvent(rate);
+            decisions.StarButtons[0].RaiseEvent(rate);
             // The row shows the rating a moment before the decision's sentence reaches the status line, so wait for both.
             await UntilAsync(() => decisions.View.Rating == 4 && marking.Status.Text == Texts.T("gallery.decision.status.ratingSaved", 4));
             Require(rate.Handled && decisions.StarButtons[3].IsChecked == true && marking.Status.Text == Texts.T("gallery.decision.status.ratingSaved", 4)
-                && string.IsNullOrEmpty(marking.Input.Text), "Shift+4 in the empty field did not rate the shown medium: " + marking.Status.Text);
+                && string.IsNullOrEmpty(marking.Input.Text), "Shift+4 on the stars did not rate the shown medium: " + marking.Status.Text);
             Program.CaptureWindow(window, "smoke-gallery-decision-row.png");
             Require(marking.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Undo)), "The undo key did not reach the decision stack.");
             await UntilAsync(() => decisions.View.Rating == null);
@@ -268,6 +278,47 @@ internal static class GalleryMediaTagChecks
             await window.GalleryCleanupTask;
             Texts.SetLanguage(language);
         }
+    }
+
+    private static async Task CheckTagPanelCompositionAsync(GalleryViewer viewer, QuickTagSurface surface, TextBox editor, KeyModifiers primary)
+    {
+        TagId stamp = surface.Session.Snapshot!.Tags.Single(tag => tag.Name.Display == "existing").Id;
+        Require(surface.Session.AddToStamp(stamp), "Could not prepare the composition test stamp.");
+        TextPresenter presenter = editor.GetVisualDescendants().OfType<TextPresenter>().First();
+        int before = surface.Session.UndoSteps.Count;
+        GalleryEntryKey entry = viewer.TagPanelController!.Entry.EntryKey;
+        presenter.PreeditText = "未";
+        try
+        {
+            Require(surface.Input.IsComposing, "The gallery tag editor did not see the preedit.");
+            Press(Key.Tab);
+            Press(Key.Tab, KeyModifiers.Shift);
+            Press(Key.Up);
+            Press(Key.Down);
+            Require(editor.IsKeyboardFocusWithin, "A gallery focus shortcut moved out of the composing field.");
+
+            surface.Input.Text = "composition-draft";
+            surface.Input.Dismiss();
+            presenter.PreeditText = "未";
+            Press(Key.Enter, primary);
+            Press(Key.Enter, primary | KeyModifiers.Shift);
+            Press(Key.Escape);
+            await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Background);
+            Require(surface.Input.Text == "composition-draft" && editor.IsKeyboardFocusWithin
+                && viewer.IsTagPanelOpen && viewer.TagPanelController?.Entry.EntryKey == entry
+                && surface.Session.UndoSteps.Count == before && !surface.Session.OnAll().Contains(stamp),
+                "The gallery consumed a composing key as commit, stamp, Escape or navigation.");
+        }
+        finally
+        {
+            presenter.PreeditText = null;
+            surface.Input.Text = "";
+            surface.Input.Dismiss();
+            surface.Session.RemoveFromStamp(stamp);
+        }
+
+        void Press(Key key, KeyModifiers modifiers = KeyModifiers.None) =>
+            editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
     }
 
     // Same dialog through the real archive menu and MainWindow wiring, without
