@@ -38,6 +38,7 @@ internal sealed partial class BooruWorkbenchView
     private readonly Dictionary<int, ExtraTab> _extraTabs = new();
     private List<TabItem>? _tabItems;
     private BooruSearchTabs? _searchTabs;
+    private int _renderedSearchTab = BooruSearchTabs.PrimaryId;
     private Control? _searchContent;
     private TabItem? _lastRealTab;
     private bool _syncingTabs;
@@ -190,6 +191,13 @@ internal sealed partial class BooruWorkbenchView
     private void SyncSearchTabs()
     {
         if (_closed || _searchTabs is not { } tabs || _tabItems is not { } items) return;
+        if (_renderedSearchTab != tabs.ActiveId)
+        {
+            _renderedSearchTab = tabs.ActiveId;
+            ReleaseGallery();
+            _cursorPostId = null;
+            _resultsKey = null;
+        }
         _syncingTabs = true;
         try
         {
@@ -287,10 +295,12 @@ internal sealed partial class BooruWorkbenchView
 
         BooruSearchModel model = _model.Search;
         BooruBulkView bulk = model.Bulk;
-        bool running = bulk.IsRunning;
+        bool belongsToTab = bulk.TabId == tabs.ActiveId;
+        bool running = bulk.IsRunning && belongsToTab;
         _downloadAll.Content = Texts.T(running ? "booru.bulk.stop" : "booru.bulk.button");
         _downloadAll.IsEnabled = running || model.CanDownloadAll;
         string bulkHint = running ? string.Empty
+            : bulk.IsRunning ? Texts.T("booru.bulk.otherTab", bulk.Query)
             : model.CanDownloadAll ? Texts.T("booru.bulk.hint", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize)
             : Texts.T("booru.bulk.needsSearch");
         ToolTip.SetTip(_downloadAll, bulkHint.Length == 0 ? null : bulkHint);
@@ -299,7 +309,8 @@ internal sealed partial class BooruWorkbenchView
         AutomationProperties.SetHelpText(_downloadAll, bulkHint);
 
         // The counts belong to one search: they are shown only beside the results of that same search.
-        bool showBulk = bulk.Phase != BooruBulkPhase.Idle && bulk.Query is not null && string.Equals(bulk.Query, view.ExecutedQuery, StringComparison.Ordinal);
+        bool showBulk = belongsToTab && (running || bulk.Phase == BooruBulkPhase.Finished
+            && string.Equals(bulk.Query, view.ExecutedQuery, StringComparison.Ordinal));
         _bulkHost.IsVisible = showBulk;
         if (!showBulk) return;
         if (running)

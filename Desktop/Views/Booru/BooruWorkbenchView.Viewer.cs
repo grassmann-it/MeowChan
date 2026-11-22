@@ -36,9 +36,11 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
             if (ReferenceEquals(_resultViewer, viewer)) _resultViewer = null;
             if (_closed) return;
             // The cursor follows the post the popup ended on; the inline gallery (when shown) moves there too.
+            BooruSearchView current = _model.Search.View;
+            if (!current.Rows.Any(row => row.Post.PostId == viewer.CurrentPostId)) return;
             SetCursor(viewer.CurrentPostId);
-            if (_resultView == BooruResultView.Gallery) ShowInGallery();
-            if (_attached) FocusHit(viewer.CurrentPostId);
+            if (_resultView == BooruResultView.Gallery) ShowInGallery(current);
+            if (_attached && IsEffectivelyVisible && IsSearchItem(_tabs.SelectedItem)) FocusHit(viewer.CurrentPostId);
         };
         viewer.Show(owner);
         return true;

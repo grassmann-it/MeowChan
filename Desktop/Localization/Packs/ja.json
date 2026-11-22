@@ -5192,6 +5192,7 @@
     "booru.bulk.stop": "収集を停止",
     "booru.bulk.hint": "表示中の検索の既存の結果を取得し、取得元のページ上限（{1}件×{0}ページ）まで、各オリジナルをキューに入れます。監視は新しい投稿だけを取得します。",
     "booru.bulk.needsSearch": "先にタグ検索を実行してください。表示中の検索の結果が取得されます。",
+    "booru.bulk.otherTab": "「{0}」の結果を収集中です。停止するには、その検索タブを開いてください。",
     "booru.bulk.running": "「{0}」の結果を収集中: 読み込んだページ {1}（最大 {2}）、見つかった投稿 {3}、キュー済み {4}。",
     "booru.bulk.result": "「{0}」のすべて: 見つかった投稿 {1}（{2} ページ、最大 {3} ページ）。キュー済み {4}、すでにキュー内 {5}、保存済み {6}、オリジナルなし {7}、失敗 {8}。",
     "booru.bulk.endLimit": "取得元のページ上限に達しました。検索にはまだ一覧にできない結果がある可能性があります。",
@@ -5211,6 +5212,14 @@
     "settings.limits.booruGallerySampleMiB": "Danbooru ギャラリー: 最大の画像 (MiB)",
     "settings.limits.booruGallerySampleMiB.hint": "ギャラリーが表示用に読み込む縮小画像の最大サイズです。これを超える画像は読み込まず、プレビューのままです。オリジナルは表示用には読み込みません。",
     "settings.limits.booruGalleryCacheMiB": "Danbooru ギャラリー: 画像メモリ (MiB)",
-    "settings.limits.booruGalleryCacheMiB.hint": "戻るときに再読み込みしないよう、読み込んだギャラリー画像をメモリに保持する量（MiB）です。ディスクには何も保存されません。"
+    "settings.limits.booruGalleryCacheMiB.hint": "戻るときに再読み込みしないよう、読み込んだギャラリー画像をメモリに保持する量（MiB）です。ディスクには何も保存されません。",
+    "booru.gallery.sample.pixelLimit": "大きいバージョンは上限の {0:N0} ピクセルを超えています。プレビューのままです。",
+    "booru.gallery.sample.timeout": "大きいバージョンを {0} 秒以内に取得できませんでした。プレビューのままです。",
+    "settings.limits.booruGalleryMaximumPixels": "Danbooru ギャラリー: 画像の総ピクセル数の上限",
+    "settings.limits.booruGalleryMaximumPixels.hint": "デコード前の縮小版画像に許容される総ピクセル数の上限です。",
+    "settings.limits.booruGalleryMaximumWidth": "Danbooru ギャラリー: デコード後の画像幅 (px)",
+    "settings.limits.booruGalleryMaximumWidth.hint": "縮小版画像の幅がこの値を超える場合、ギャラリーでこの幅まで縮小します。",
+    "settings.limits.booruGalleryTimeoutSeconds": "Danbooru ギャラリー: 応答タイムアウト (秒)",
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "ソースから縮小版画像が届くまでギャラリーが待機する時間です。"
   }
 }

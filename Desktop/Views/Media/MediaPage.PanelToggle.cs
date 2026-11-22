@@ -47,7 +47,8 @@ public sealed partial class MediaPage
             if (_panelIconSide != _layout.PanelSide)
             {
                 _panelIconSide = _layout.PanelSide;
-                _panelToggle.Content = MeowChan.Desktop.Commands.CommandBindings.Icon(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, state: _layout.PanelSide == MeowChan.Desktop.MediaPanelSide.Left ? "left" : "right");
+                _mediaLabelContent.SetIcon(MeowChan.Desktop.Commands.CommandBindings.Icon(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, state: _layout.PanelSide == MeowChan.Desktop.MediaPanelSide.Left ? "left" : "right"));
+                _panelToggle.Content ??= _mediaLabelContent;
                 ReapplyToolbarLabels();
             }
             else ReapplyToolbarLabels(force: false);

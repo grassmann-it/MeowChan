@@ -5342,6 +5342,7 @@
     "booru.bulk.stop": "Zastavit shromažďování",
     "booru.bulk.hint": "Načte existující výsledky zobrazeného hledání a zařadí každý originál do fronty, nejvýše do limitu stránek zdroje (stránky {0}, příspěvků na stránku {1}). Sledování přebírá jen nové příspěvky.",
     "booru.bulk.needsSearch": "Nejprve spusťte hledání podle štítků; načtou se výsledky zobrazeného hledání.",
+    "booru.bulk.otherTab": "Shromažďují se výsledky pro „{0}“. Shromažďování zastavíte na příslušné kartě hledání.",
     "booru.bulk.running": "Shromažďují se výsledky „{0}“: přečtené stránky {1} z nejvýše {2}, nalezené příspěvky {3}, ve frontě {4}.",
     "booru.bulk.result": "Vše z „{0}“: nalezené příspěvky {1}, přečtené stránky {2} z nejvýše {3}. Ve frontě {4}, už ve frontě {5}, už uloženo {6}, bez nabízeného originálu {7}, selhalo {8}.",
     "booru.bulk.endLimit": "Bylo dosaženo limitu stránek zdroje; hledání může mít další výsledky, které nelze vypsat.",
@@ -5361,6 +5362,14 @@
     "settings.limits.booruGallerySampleMiB": "Galerie Danbooru: největší obrázek (MiB)",
     "settings.limits.booruGallerySampleMiB.hint": "Největší zmenšený obrázek, který galerie načte k zobrazení. Větší se nenačte a zůstane náhled. Originál se k zobrazení nikdy nenačítá.",
     "settings.limits.booruGalleryCacheMiB": "Galerie Danbooru: paměť obrázků (MiB)",
-    "settings.limits.booruGalleryCacheMiB.hint": "Kolik MiB načtených obrázků galerie zůstává v paměti, aby je listování zpět nenačítalo znovu. Na disk se nic neukládá."
+    "settings.limits.booruGalleryCacheMiB.hint": "Kolik MiB načtených obrázků galerie zůstává v paměti, aby je listování zpět nenačítalo znovu. Na disk se nic neukládá.",
+    "booru.gallery.sample.pixelLimit": "Větší verze překračuje limit {0:N0} pixelů. Náhled zůstává.",
+    "booru.gallery.sample.timeout": "Větší verze nedorazila do {0} s. Náhled zůstává.",
+    "settings.limits.booruGalleryMaximumPixels": "Galerie Danbooru: limit pixelů obrázku",
+    "settings.limits.booruGalleryMaximumPixels.hint": "Nejvyšší celkový počet pixelů zmenšeného obrázku před dekódováním.",
+    "settings.limits.booruGalleryMaximumWidth": "Galerie Danbooru: šířka dekódovaného obrázku (px)",
+    "settings.limits.booruGalleryMaximumWidth.hint": "Širší zmenšené obrázky galerie přizpůsobí této šířce.",
+    "settings.limits.booruGalleryTimeoutSeconds": "Galerie Danbooru: časový limit odpovědi (s)",
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "Jak dlouho galerie čeká na zmenšený obrázek ze zdroje."
   }
 }

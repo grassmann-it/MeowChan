@@ -32,6 +32,9 @@ public partial class MainWindow
         view.SearchTabsLimit = () => _session.Config.BooruSearchTabs;
         view.GallerySampleMiB = () => _session.Config.BooruGallerySampleMiB;
         view.GalleryCacheMiB = () => _session.Config.BooruGalleryCacheMiB;
+        view.GalleryMaximumPixels = () => _session.Config.BooruGalleryMaximumPixels;
+        view.GalleryMaximumWidth = () => _session.Config.BooruGalleryMaximumWidth;
+        view.GalleryTimeoutSeconds = () => _session.Config.BooruGalleryTimeoutSeconds;
     }
 
     // E1: the result view (list or tiles) and the tile size are view preferences of the profile, restored when the page is built and saved when

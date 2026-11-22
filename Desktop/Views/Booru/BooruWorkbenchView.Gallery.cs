@@ -27,6 +27,9 @@ internal sealed partial class BooruWorkbenchView
     internal Func<int>? GallerySampleMiB { get; set; }
     /// <summary>The setting "gallery image memory" in MiB (read at each load); the default without a host.</summary>
     internal Func<int>? GalleryCacheMiB { get; set; }
+    internal Func<int>? GalleryMaximumPixels { get; set; }
+    internal Func<int>? GalleryMaximumWidth { get; set; }
+    internal Func<int>? GalleryTimeoutSeconds { get; set; }
 
     /// <summary>The hit the cursor is on (null before the person moved or clicked, or when it is not on this page).</summary>
     internal string? CursorPostId => _cursorPostId;
@@ -40,13 +43,16 @@ internal sealed partial class BooruWorkbenchView
             MeowChan.Config.BooruGallerySampleMiBMinimum, MeowChan.Config.BooruGallerySampleMiBMaximum) * 1024 * 1024;
         _gallery.CacheBytes = () => Math.Clamp(GalleryCacheMiB?.Invoke() ?? MeowChan.Config.BooruGalleryCacheMiBDefault,
             MeowChan.Config.BooruGalleryCacheMiBMinimum, MeowChan.Config.BooruGalleryCacheMiBMaximum) * 1024L * 1024;
+        _gallery.MaximumPixels = () => GalleryMaximumPixels?.Invoke() ?? Config.BooruGalleryMaximumPixelsDefault;
+        _gallery.MaximumWidth = () => GalleryMaximumWidth?.Invoke() ?? Config.BooruGalleryMaximumWidthDefault;
+        _gallery.TimeoutSeconds = () => GalleryTimeoutSeconds?.Invoke() ?? Config.BooruGalleryTimeoutSecondsDefault;
         _gallery.IsSelected = postId => _selectedResults.Contains(postId);
         _gallery.SelectionToggled = postId =>
         {
             if (!_selectedResults.Add(postId)) _selectedResults.Remove(postId);
             Render(force: true);
         };
-        _gallery.Moved = postId => { SetCursor(postId); ShowInGallery(); };
+        _gallery.Moved = postId => { SetCursor(postId); ShowInGallery(_model.Search.View, requestSample: true); };
         _gallery.DownloadRequested = postId => OpenActions.Start(() => DownloadOriginalAsync(postId), "booru.gallery.download");
         _gallery.OpenPostRequested = postId =>
         {
@@ -127,6 +133,7 @@ internal sealed partial class BooruWorkbenchView
         if (_resultView != BooruResultView.Gallery) _galleryReturn = _resultView;
         _cursorPostId = postId;
         SetResultView(BooruResultView.Gallery, save: false);
+        ShowInGallery(_model.Search.View, requestSample: true);
         return true;
     }
 
@@ -137,24 +144,24 @@ internal sealed partial class BooruWorkbenchView
     }
 
     /// <summary>The post the gallery shows: the cursor when it is on this page, else the first hit (the cursor follows).</summary>
-    private string ResolveGalleryPost(BooruSearchView view)
+    private string? ResolveGalleryPost(BooruSearchView view)
     {
         if (_cursorPostId is { } id && view.Rows.Any(row => row.Post.PostId == id)) return id;
-        _cursorPostId = view.Rows[0].Post.PostId;
+        _cursorPostId = view.Rows.IsEmpty ? null : view.Rows[0].Post.PostId;
         return _cursorPostId;
     }
 
-    private void ShowInGallery() => _gallery.Show(_model.Search.View, ResolveGalleryPost(_model.Search.View));
+    private void ShowInGallery(BooruSearchView view, bool requestSample = false) =>
+        _gallery.Show(view, ResolveGalleryPost(view), requestSample);
 
     /// <summary>Builds the gallery view of <paramref name="view"/>: the one persistent panel, put under the results host once and then only updated.</summary>
     private void RebuildGallery(BooruSearchView view)
     {
         _tiles = null;
-        string id = ResolveGalleryPost(view);
         if (!ReferenceEquals(_gallery.Parent, _results) || _results.Children.Count != 1)
             RebuildPanel(_results, () => new List<Control> { _gallery }, fallback: () => null);
         UpdateGalleryStageHeight();
-        _gallery.Show(view, id);
+        ShowInGallery(view);
     }
 
     /// <summary>Another view than the gallery is shown: the gallery lets go of its pictures and cancels a sample that is still loading.</summary>

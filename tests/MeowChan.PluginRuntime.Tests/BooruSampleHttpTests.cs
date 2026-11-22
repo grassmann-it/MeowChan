@@ -70,6 +70,54 @@ public sealed class BooruSampleHttpTests
         Assert.Equal(0, handler.Requests);
     }
 
+    [Fact]
+    public async Task CacheHitsEnforceLowerSampleAndCacheLimitsImmediately()
+    {
+        using Sizes handler = new(2 * MiB);
+        using HttpClient transport = new(handler);
+        using BooruPreviewHttp http = new(transport, Source());
+        Uri a = new("https://cdn.example.test/a.png"), b = new("https://cdn.example.test/b.png");
+        Assert.NotNull(await http.LoadSampleAsync(a, 4 * MiB, 4 * MiB));
+        Assert.NotNull(await http.LoadSampleAsync(b, 4 * MiB, 4 * MiB));
+
+        Assert.Null(await http.LoadSampleAsync(a, MiB, 4 * MiB));
+        Assert.Equal(2, handler.Requests);
+        Assert.NotNull(await http.LoadSampleAsync(b, 4 * MiB, 2 * MiB));
+        Assert.Equal(2 * MiB, http.CachedSampleBytes);
+        Assert.Equal(2, handler.Requests);
+        Assert.NotNull(await http.LoadSampleAsync(a, 4 * MiB, 2 * MiB));
+        Assert.Equal(3, handler.Requests);
+    }
+
+    [Fact]
+    public async Task TheConfiguredDeadlineReportsTimeoutAndCallerCancellationStillPropagates()
+    {
+        ManualClock clock = new();
+        using Pending handler = new();
+        using HttpClient transport = new(handler);
+        using BooruPreviewHttp http = new(transport, Source(), timeProvider: clock);
+        Uri url = new("https://cdn.example.test/a.png");
+        Task<BooruSampleResult> timed = http.LoadSampleAsync(url, MiB, MiB, TimeSpan.FromSeconds(3), default);
+        clock.Advance(TimeSpan.FromSeconds(2));
+        Assert.False(timed.IsCompleted);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(new BooruSampleResult(null, TimedOut: true), await timed.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        using CancellationTokenSource caller = new();
+        Task<BooruSampleResult> canceled = http.LoadSampleAsync(url, MiB, MiB, TimeSpan.FromSeconds(3), caller.Token);
+        caller.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => canceled.WaitAsync(TimeSpan.FromSeconds(5)));
+    }
+
+    private sealed class Pending : HttpMessageHandler
+    {
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+            throw new InvalidOperationException();
+        }
+    }
+
     private static SourceDescription Source() => new("example-booru", "Example booru", new("https://booru.example.test/"),
         SourceCapabilities.PostSearch, [], [new("cdn.example.test", HttpHostPurpose.PreviewMedia)], new("1", []));
 

@@ -5294,6 +5294,7 @@
     "booru.bulk.stop": "Arrêter la collecte",
     "booru.bulk.hint": "Récupère les résultats existants de la recherche affichée et met chaque original en file d’attente, jusqu’à la limite de pages de la source (pages {0}, publications par page {1}). La veille ne prend que les nouvelles publications.",
     "booru.bulk.needsSearch": "Lancez d’abord une recherche par étiquettes ; ce sont les résultats de la recherche affichée qui sont récupérés.",
+    "booru.bulk.otherTab": "Collecte des résultats pour « {0} ». Ouvrez l’onglet de recherche correspondant pour l’arrêter.",
     "booru.bulk.running": "Collecte des résultats de « {0} » : pages lues {1} sur {2} au plus, publications trouvées {3}, en file {4}.",
     "booru.bulk.result": "Tout de « {0} » : publications trouvées {1}, pages lues {2} sur {3} au plus. En file {4}, déjà en file {5}, déjà enregistrées {6}, sans original proposé {7}, échecs {8}.",
     "booru.bulk.endLimit": "La limite de pages de la source a été atteinte ; la recherche peut avoir d’autres résultats impossibles à lister.",
@@ -5313,6 +5314,14 @@
     "settings.limits.booruGallerySampleMiB": "Galerie Danbooru : plus grande image (MiB)",
     "settings.limits.booruGallerySampleMiB.hint": "Plus grande image réduite que la galerie charge pour l’affichage. Une image plus grande n’est pas chargée et l’aperçu reste. L’original n’est jamais chargé pour l’affichage.",
     "settings.limits.booruGalleryCacheMiB": "Galerie Danbooru : mémoire d’images (MiB)",
-    "settings.limits.booruGalleryCacheMiB.hint": "Nombre de MiB d’images de la galerie conservées en mémoire pour que le retour en arrière ne les recharge pas. Rien n’est enregistré sur le disque."
+    "settings.limits.booruGalleryCacheMiB.hint": "Nombre de MiB d’images de la galerie conservées en mémoire pour que le retour en arrière ne les recharge pas. Rien n’est enregistré sur le disque.",
+    "booru.gallery.sample.pixelLimit": "La version plus grande dépasse la limite de {0:N0} pixels. L’aperçu reste affiché.",
+    "booru.gallery.sample.timeout": "La version plus grande n’a pas été reçue dans les {0} s. L’aperçu reste affiché.",
+    "settings.limits.booruGalleryMaximumPixels": "Galerie Danbooru : nombre maximal de pixels",
+    "settings.limits.booruGalleryMaximumPixels.hint": "Nombre total maximal de pixels d’une image réduite avant son décodage.",
+    "settings.limits.booruGalleryMaximumWidth": "Galerie Danbooru : largeur de l’image décodée (px)",
+    "settings.limits.booruGalleryMaximumWidth.hint": "La galerie ramène les images réduites plus larges à cette largeur.",
+    "settings.limits.booruGalleryTimeoutSeconds": "Galerie Danbooru : délai de réponse (s)",
+    "settings.limits.booruGalleryTimeoutSeconds.hint": "Durée pendant laquelle la galerie attend une image réduite de la source."
   }
 }

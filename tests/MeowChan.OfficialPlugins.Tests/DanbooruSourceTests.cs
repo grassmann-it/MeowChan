@@ -755,6 +755,16 @@ public sealed class DanbooruSourceTests
     }
 
     [Theory]
+    [InlineData("https://CDN.DONMAI.US/original/a.jpg")]
+    [InlineData("https://cdn.donmai.us:443/original/a.jpg")]
+    public async Task DisplayVariantsCannotPointToTheNormalizedOriginal(string alias)
+    {
+        const string original = "https://cdn.donmai.us/original/a.jpg";
+        BooruPost post = await PostFrom($"\"file_url\":\"{original}\",\"large_file_url\":\"{alias}\",\"preview_file_url\":\"{alias}\"");
+        Assert.Equal(BooruMediaRole.Original, Assert.Single(post.Media!).Role);
+    }
+
+    [Theory]
     [InlineData("https://images.example.invalid/a.jpg")]
     [InlineData("http://cdn.donmai.us/a.jpg")]
     [InlineData("https://cdn.donmai.us.example.invalid/a.jpg")]

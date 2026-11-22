@@ -1,5 +1,8 @@
 namespace MeowChan.PluginHost.Http;
 
+/// <summary>Result of a gallery sample request, including whether its response deadline expired.</summary>
+internal readonly record struct BooruSampleResult(byte[]? Bytes, bool TimedOut = false);
+
 /// <summary>
 /// The reduced-size version (sample) of a post, for the inline gallery only. It is the same bounded path as the thumbnails (declared preview
 /// host, GET, no redirects, identity encoding, image signature, the same request gate of <see cref="MaximumConcurrentRequests"/>), with two
@@ -15,6 +18,7 @@ public sealed partial class BooruPreviewHttp
     private readonly Dictionary<string, LinkedListNode<(string Url, byte[] Bytes)>> _samples = new(StringComparer.Ordinal);
     private readonly LinkedList<(string Url, byte[] Bytes)> _sampleOrder = new();
     private long _sampleBytes;
+    private long _sampleBudget;
 
     /// <summary>Total bytes of the samples kept in memory right now (diagnostics and tests).</summary>
     public long CachedSampleBytes { get { lock (_sampleSync) return _sampleBytes; } }
@@ -25,61 +29,82 @@ public sealed partial class BooruPreviewHttp
     /// </summary>
     /// <param name="maximumBytes">The largest body accepted (declared or streamed).</param>
     /// <param name="cacheBytes">How many bytes of samples may be kept; a sample larger than this is shown but not kept.</param>
-    public async Task<byte[]?> LoadSampleAsync(Uri? url, int maximumBytes, long cacheBytes, CancellationToken cancellationToken = default)
+    public async Task<byte[]?> LoadSampleAsync(Uri? url, int maximumBytes, long cacheBytes, CancellationToken cancellationToken = default) =>
+        (await LoadSampleAsync(url, maximumBytes, cacheBytes, SampleResponseTimeout, cancellationToken).ConfigureAwait(false)).Bytes;
+
+    /// <summary>Loads a gallery sample with the caller's response deadline.</summary>
+    internal async Task<BooruSampleResult> LoadSampleAsync(Uri? url, int maximumBytes, long cacheBytes, TimeSpan responseTimeout,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (maximumBytes <= 0) return null;
-        if (_disposed || !IsAllowed(url) || HasForbiddenTransportDefaults()) return null;
-        string key = url!.AbsoluteUri;
-        if (TryGetSample(key, out byte[]? kept)) return kept;
+        string? key = _disposed || maximumBytes <= 0 || !IsAllowed(url) || HasForbiddenTransportDefaults() ? null : url!.AbsoluteUri;
+        if (TryGetSample(key, maximumBytes, cacheBytes, out byte[]? kept)) return new(kept);
+        if (key is null) return default;
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            if (_disposed) return null;
-            if (TryGetSample(key, out kept)) return kept;
-            using CancellationTokenSource deadline = new(SampleResponseTimeout, _clock);
+            if (_disposed) return default;
+            if (TryGetSample(key, maximumBytes, cacheBytes: null, out kept)) return new(kept);
+            using CancellationTokenSource deadline = new(responseTimeout, _clock);
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
-            byte[]? bytes = await FetchAsync(url, maximumBytes, linked.Token).ConfigureAwait(false);
-            if (bytes != null) RememberSample(key, bytes, cacheBytes);
-            return bytes;
+            try
+            {
+                byte[]? bytes = await FetchAsync(url!, maximumBytes, linked.Token).ConfigureAwait(false);
+                linked.Token.ThrowIfCancellationRequested();
+                if (bytes != null) RememberSample(key, bytes);
+                return new(bytes);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return new(null, TimedOut: deadline.IsCancellationRequested);
+            }
         }
-        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { return null; }
         catch (Exception exception) when (exception is HttpRequestException or IOException or InvalidOperationException
-            or ObjectDisposedException) { return null; }
+            or ObjectDisposedException) { return default; }
         finally { _gate.Release(); }
     }
 
-    private bool TryGetSample(string key, out byte[]? bytes)
+    private bool TryGetSample(string? key, int maximumBytes, long? cacheBytes, out byte[]? bytes)
     {
         lock (_sampleSync)
         {
-            if (_samples.TryGetValue(key, out LinkedListNode<(string Url, byte[] Bytes)>? node))
+            if (cacheBytes is { } budget) _sampleBudget = Math.Max(0, budget);
+            bool found = false;
+            bytes = null;
+            if (!_disposed && key != null && _samples.TryGetValue(key, out var node))
             {
-                _sampleOrder.Remove(node);
-                _sampleOrder.AddFirst(node);
-                bytes = node.Value.Bytes;
-                return true;
+                found = true;
+                if (node.Value.Bytes.Length <= maximumBytes)
+                {
+                    bytes = node.Value.Bytes;
+                    _sampleOrder.Remove(node);
+                    _sampleOrder.AddFirst(node);
+                }
             }
+            TrimSamples();
+            return found;
         }
-        bytes = null;
-        return false;
     }
 
-    private void RememberSample(string key, byte[] bytes, long cacheBytes)
+    private void RememberSample(string key, byte[] bytes)
     {
         lock (_sampleSync)
         {
-            if (_disposed || _samples.ContainsKey(key) || bytes.Length > cacheBytes) return;
+            if (_disposed || _samples.ContainsKey(key) || bytes.Length > _sampleBudget) return;
             _samples[key] = _sampleOrder.AddFirst((key, bytes));
             _sampleBytes += bytes.Length;
-            // The newest sample always stays; the least recently shown ones go until the budget holds.
-            while (_sampleBytes > cacheBytes && _sampleOrder.Last is { } last && !ReferenceEquals(last, _sampleOrder.First))
-            {
-                _sampleOrder.RemoveLast();
-                _samples.Remove(last.Value.Url);
-                _sampleBytes -= last.Value.Bytes.Length;
-            }
+            TrimSamples();
+        }
+    }
+
+    private void TrimSamples()
+    {
+        while (_sampleBytes > _sampleBudget && _sampleOrder.Last is { } last)
+        {
+            _sampleOrder.RemoveLast();
+            _samples.Remove(last.Value.Url);
+            _sampleBytes -= last.Value.Bytes.Length;
         }
     }
 
