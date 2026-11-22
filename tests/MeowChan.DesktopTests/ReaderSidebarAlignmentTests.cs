@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using static MeowChan.DesktopTests.ReaderMediaSidebarLayoutTests;
 
@@ -16,7 +17,6 @@ public sealed class ReaderSidebarAlignmentTests
     {
         Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
         Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
-        Assert.Equal(MediaPage.PanelHeaderLineHeight, ReaderMediaSidebar.HeaderLineHeight);
         ArchivePage page = Page();
         try
         {
@@ -36,6 +36,7 @@ public sealed class ReaderSidebarAlignmentTests
                 page.ApplyReaderMediaPreferences(preferences with { SidebarRight = right });
                 Layout(root, new Size(1440, 720));
                 ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
+                Assert.IsType<MediaSidebarHeader>(sidebar.HeaderRow);
                 GridSplitter splitter = Assert.Single(pane.Children.OfType<GridSplitter>());
                 Assert.True(page.IsMediaSidebarShown);
                 Assert.Equal(right ? 2 : 0, Grid.GetColumn(sidebar));

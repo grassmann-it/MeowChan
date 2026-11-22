@@ -242,13 +242,15 @@ internal sealed class ReaderMediaFollowThrottle
 /// </summary>
 internal sealed class ReaderMediaSidebar : Border
 {
-    // The media facts; the reader wraps them when the post column needs more room.
-    private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Grid _headerText = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly Grid _headingHost;
+    private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", TextTrimming = TextTrimming.CharacterEllipsis,
+        VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis,
+        TextWrapping = TextWrapping.Wrap, MaxLines = 2, LineHeight = HeaderLineHeight / 2, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _headerActions = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _threadPosition = new TextBlock { Name = "ReaderMediaSidebarThreadPosition",
-        IsVisible = false, VerticalAlignment = VerticalAlignment.Center, Classes = { "tnum" } }.MetaText();
+        IsVisible = false, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
+        Classes = { "tnum" } }.MetaText();
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
     // The "No. 75" part of the header line as a link (the reader's sidebar: a click copies the post's reference, as the post's own "No." does). The hand shows while a click opens the medium.
     private readonly Button _postLink = new() { Name = "ReaderMediaSidebarPostLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
@@ -273,10 +275,7 @@ internal sealed class ReaderMediaSidebar : Border
     // The card (Tom, 15.11.2026): the medium with, inside the same edge, the strip of a post with several files and the video's controls.
     // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", Height = HeaderLineHeight,
-        RowDefinitions = new RowDefinitions("*,Auto"), ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8,
-        Margin = new Thickness(0, HeaderTopInset, 0, 0) };
-    private const double StackedHeaderWidth = 360;
+    private readonly Grid _header;
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly ArchiveFavoriteButton _favorite = new()
@@ -299,11 +298,12 @@ internal sealed class ReaderMediaSidebar : Border
     private bool _stripSyncing;
     private Bitmap? _bitmap;
     private Action<Bitmap>? _release;
-    private bool _hover, _readerHeader;
+    private bool _hover;
 
     // The texts and the toggle command of the host: the reader's sidebar says "post", the Media page's panel says "medium" (same view, other words).
     /// <summary>The key of the accessible region name and the Media page panel's empty header.</summary>
     internal string TitleKey { get; set; } = "reader.sidebar.title";
+    internal bool ShowEmptyTitle { get; init; }
     /// <summary>The key of the text shown while nothing is selected.</summary>
     internal string EmptyKey { get; set; } = "reader.sidebar.empty";
     /// <summary>The key of the cross's name and tip.</summary>
@@ -337,34 +337,8 @@ internal sealed class ReaderMediaSidebar : Border
     internal Control HeaderRow => _header;
     /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
     internal const double HeaderTopInset = 8;
-    /// <summary>The height of the header line when a host fixes it (the Media page's panel and the reader's sidebar: the 32 dip line of Workspace.Size.Control rows).</summary>
-    internal const double HeaderLineHeight = 32;
-    /// <summary>Fits the reader's file metadata and actions to the available width.</summary>
-    internal void ConfigureReaderHeader()
-    {
-        _readerHeader = true;
-        HeaderHeight = double.NaN;
-        _header.MinHeight = HeaderLineHeight;
-        _header.RowDefinitions[0].Height = GridLength.Auto;
-        _headerText.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _title.TextWrapping = TextWrapping.Wrap;
-        // Keep long file names from displacing the media. The tooltip still shows the full metadata.
-        _title.MaxLines = 2;
-        _postLink.VerticalAlignment = VerticalAlignment.Top;
-        FitHeader(_header.Bounds.Width);
-        _header.SizeChanged += (_, e) => { if (e.WidthChanged) FitHeader(e.NewSize.Width); };
-        RefreshHeader();
-    }
-
-    private void FitHeader(double width)
-    {
-        bool stacked = width > 0 && width < StackedHeaderWidth;
-        Grid.SetColumnSpan(_headerText, stacked ? 2 : 1);
-        Grid.SetRow(_headerText, stacked ? 1 : 0);
-    }
-
-    /// <summary>A fixed height for the header line (NaN: its content's), so a host can centre it on a line of its own.</summary>
-    internal double HeaderHeight { get => _header.Height; set => _header.Height = value; }
+    /// <summary>The height of the primary header row, shared with workspace controls.</summary>
+    internal const double HeaderLineHeight = WorkspaceMetrics.InputHeight;
     internal Image Picture => _image;
     internal Bitmap? Shown => _bitmap;
     /// <summary>
@@ -441,17 +415,14 @@ internal sealed class ReaderMediaSidebar : Border
         Close.IsHitTestVisible = false;
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
-        Grid header = _header;
-        _headerText.Children.Add(_postLink);
-        Grid.SetColumn(_title, 1);
-        _headerText.Children.Add(_title);
-        header.Children.Add(_headerText);
-        _headerActions.Children.Add(_threadPosition);
         _headerActions.Children.Add(_favorite);
         _headerActions.Children.Add(Open);
         _headerActions.Children.Add(Close);
-        Grid.SetColumn(_headerActions, 1);
-        header.Children.Add(_headerActions);
+        _headingHost = new Grid { Children = { _heading, _postLink } };
+        _header = new MediaSidebarHeader(_headingHost, _title, _threadPosition, _headerActions)
+        {
+            Name = "ReaderMediaSidebarHeaderRow", Margin = new Thickness(0, HeaderTopInset, 0, 0)
+        };
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -489,7 +460,7 @@ internal sealed class ReaderMediaSidebar : Border
         };
         UpdateCardRows();
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(header);
+        layout.Children.Add(_header);
         layout.Children.Add(_live);
         Grid.SetRow(_card, 1); layout.Children.Add(_card);
         Child = layout;
@@ -580,6 +551,7 @@ internal sealed class ReaderMediaSidebar : Border
     {
         _threadPosition.Text = text;
         _threadPosition.IsVisible = !string.IsNullOrEmpty(text);
+        ToolTip.SetTip(_threadPosition, text);
     }
 
     /// <summary>The "No." of the header line was clicked (only while the host described the post with a tip, see <see cref="Describe"/>).</summary>
@@ -600,9 +572,7 @@ internal sealed class ReaderMediaSidebar : Border
 
     private void RefreshHeader()
     {
-        string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _detail);
-        string rest = ReaderMediaSidebarRules.HeaderText(string.Empty, _fileName, _detail);
-        // The post number is a link only when the host gave it a tip (it copies the post's reference); the line then reads "No. 75" + " · file · size".
+        string metadata = ReaderMediaSidebarRules.HeaderText(string.Empty, _fileName, _detail);
         bool link = _postLine.Length > 0 && _postLinkTip.Length > 0;
         _postLink.IsVisible = link;
         if (link)
@@ -610,14 +580,13 @@ internal sealed class ReaderMediaSidebar : Border
             _postLink.Content = _postLine;
             ToolTip.SetTip(_postLink, _postLinkTip);
             AutomationProperties.SetName(_postLink, _postLinkTip);
-            _title.Text = rest.Length > 0 ? " · " + rest : string.Empty;
-            _title.IsVisible = rest.Length > 0;
-            ToolTip.SetTip(_title, text);
-            return;
         }
-        _title.Text = text.Length > 0 || _readerHeader ? text : Texts.T(TitleKey);
-        _title.IsVisible = _title.Text.Length > 0;
-        ToolTip.SetTip(_title, _title.Text);
+        _heading.Text = _postLine.Length == 0 && metadata.Length == 0 && ShowEmptyTitle ? Texts.T(TitleKey) : _postLine;
+        _heading.IsVisible = !link && _heading.Text.Length > 0;
+        _headingHost.IsVisible = link || _heading.IsVisible;
+        _title.Text = metadata;
+        _title.IsVisible = metadata.Length > 0;
+        ToolTip.SetTip(_title, HeaderLine);
     }
 
     /// <summary>

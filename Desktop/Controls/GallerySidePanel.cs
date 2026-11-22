@@ -17,7 +17,7 @@ namespace MeowChan.Desktop.Controls;
 internal enum GallerySidePanelSegment { Post, Tags }
 
 /// <summary>
-/// The gallery side panel shows a centered medium counter above the Post and Tags switches and the close button.
+/// The gallery side panel shows the medium counter at the left above the Post and Tags switches, with the close button at the right.
 /// Below the header, only the content slot for <see cref="Segment"/> is visible.
 /// A 6-dip grip on the left edge drags the width (<see cref="Config.GalleryPanelWidthMinimum"/>–<see cref="Config.GalleryPanelWidthMaximum"/>).
 /// The host only shows state and raises requests: which segment may be shown, what closing does and where the width is kept is
@@ -35,7 +35,7 @@ internal sealed class GallerySidePanel : Grid
     private readonly WrapPanel _segment = new() { Name = "GalleryPanelSegment", ItemSpacing = 4, LineSpacing = 4,
         ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
-        HorizontalContentAlignment = HorizontalAlignment.Center };
+        HorizontalContentAlignment = HorizontalAlignment.Left };
     private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,

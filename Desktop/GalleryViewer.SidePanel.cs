@@ -16,7 +16,7 @@ internal sealed partial class GalleryViewer
 {
     private GallerySidePanel _sidePanel = null!;
     private readonly TextBlock _postPanelPosition = new TextBlock { Name = "GalleryPostPanelPosition",
-        VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Center,
+        VerticalAlignment = VerticalAlignment.Center,
         TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "tnum" } }.MetaText();
     private double _panelWidth = Config.GalleryPanelWidthDefault;
 

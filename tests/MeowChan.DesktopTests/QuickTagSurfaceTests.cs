@@ -95,7 +95,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
     }
 
     [Fact]
-    public void GalleryMovesTheLiveBadgeToThePanelHeaderAndCentersTheTitleOverTheRatingRow()
+    public void GalleryMovesTheLiveBadgeToThePanelHeaderAndLeftAlignsTheTitleAboveTheRatingRow()
     {
         var source = CSharpSource.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
             Path.GetDirectoryName(ThisFile())!, "../../Desktop/GalleryViewer.TagPanel.cs"))));
@@ -107,7 +107,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.True(announce.SpanStart < move.SpanStart);
         Assert.Contains(show.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
             SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression(
-                "surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Center")));
+                "surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Left")));
         Assert.Contains(show.Calls("SetColumnSpan", "Grid"), call =>
             SyntaxFactory.AreEquivalent(call.ArgumentList, SyntaxFactory.ParseArgumentList(
                 "(surface.Title, surface.Header.ColumnDefinitions.Count)")));

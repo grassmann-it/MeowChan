@@ -29,7 +29,7 @@ public sealed class GallerySidePanelTests : IDisposable
     [Theory]
     [InlineData(140)]
     [InlineData(148)]
-    public void WrappedSegmentsStayAboveTheContentAndTheCounterIsCentered(int width) => BooruComponentDispatcher.Run(() =>
+    public void WrappedSegmentsStayAboveTheContentAndTheCounterIsLeftAligned(int width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.SetLanguage("fr");
@@ -50,7 +50,7 @@ public sealed class GallerySidePanelTests : IDisposable
             Assert.True(close.Bounds.Left - segment.Bounds.Right >= 23);
             Control counter = Assert.IsType<TextBlock>(panel.HeaderCounter);
             Point origin = counter.TranslatePoint(default, panel)!.Value;
-            Assert.InRange(origin.X + counter.Bounds.Width / 2, width / 2.0 - 1, width / 2.0 + 1);
+            Assert.InRange(origin.X, -0.5, 0.5);
             Assert.True(origin.Y + counter.Bounds.Height <= segment.Bounds.Top);
         }
         finally

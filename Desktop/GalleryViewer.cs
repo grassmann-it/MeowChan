@@ -1511,7 +1511,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         {
             var post = entry.Post;
             AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread
-                + (post != null ? " · #" + post.PostId : string.Empty), "workspace-meta", "GalleryPostWhere").TextAlignment = TextAlignment.Center;
+                + (post != null ? " · #" + post.PostId : string.Empty), "workspace-meta", "GalleryPostWhere").TextAlignment = TextAlignment.Left;
             // Review 15.11.: favourite and stars, then the medium's tags, stand on top of the card, with or without a post (GalleryViewer.PostPanel.cs).
             _context.Children.Add(PostDecisionSection());
             _context.Children.Add(BuildPostTagsSection(ContextCommand));

@@ -8,8 +8,6 @@ namespace MeowChan;
 // header, negative margin, or reservation on the summary/selection line is needed.
 public sealed partial class MediaPage
 {
-    internal const double PanelHeaderLineHeight = ReaderMediaSidebar.HeaderLineHeight;
-
     // Compatibility seam for the diagnostic smoke checks; the header is never lifted now.
     internal bool IsPanelHeaderLifted => false;
 
