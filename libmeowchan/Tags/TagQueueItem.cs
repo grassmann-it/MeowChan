@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using MeowChan.Gallery;
+using MeowChan.Booru;
 using MeowChan.Import;
 using MeowChan.Storage;
 
@@ -18,7 +19,17 @@ internal enum TagQueueState { Open, Done, Skipped }
 /// provider medium. Two entries with the same key are the same medium; the queue never holds a key twice.
 /// </summary>
 internal readonly record struct TagQueueKey(ResourceId Thread, string Directory, string AssetId, string? PostId, int? Position,
-    string? ImportItem, string? BooruPost);
+    string? ImportItem, BooruMediaKey? BooruOriginal, string? OpaqueLegacyBooruPost)
+{
+    internal static TagQueueKey From(ResourceId thread, string directory, string assetId, string? postId, int? position,
+        string? importItem, string? legacyBooruPost)
+    {
+        BooruMediaKey? original = DanbooruPostReference.IsValidPostId(legacyBooruPost)
+            ? BooruMediaKey.Original(BooruPostKey.FromLegacy(DanbooruPostReference.ProviderId, legacyBooruPost!)) : null;
+        return new(thread, directory, assetId, postId, position, importItem, original,
+            original is null ? legacyBooruPost : null);
+    }
+}
 
 /// <summary>
 /// One entry of the tagging queue: a frozen description of a saved medium plus its state. It carries no bytes and is never an
@@ -34,7 +45,7 @@ internal sealed record TagQueueItem(ResourceId Thread, string Directory, string 
     internal const int MaximumTokenCharacters = 256;
     internal const int MaximumGroupIdCharacters = 64;
 
-    internal TagQueueKey Key => new(Thread, Directory, AssetId, PostId, Position, ImportItem, BooruPost);
+    internal TagQueueKey Key => TagQueueKey.From(Thread, Directory, AssetId, PostId, Position, ImportItem, BooruPost);
 
     /// <summary>The entry of a media index entry, or null when that entry has no saved file to walk (not saved, or no asset).</summary>
     internal static TagQueueItem? From(MediaLibraryEntry entry, DateTimeOffset now)

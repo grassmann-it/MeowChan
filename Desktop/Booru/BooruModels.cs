@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Linq;
 using MeowChan.PluginSdk;
+using MeowChan.Booru;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -26,11 +27,16 @@ internal enum BooruOriginalAccess
 /// </summary>
 internal sealed record BooruPostView
 {
-    private BooruPostView(BooruPost post) => Post = post;
+    private BooruPostView(BooruPost post, string instanceId)
+    {
+        Post = post;
+        Identity = new BooruPostKey(post.Id.SourceId, instanceId, post.Id.PostId);
+    }
 
     internal BooruPost Post { get; }
-    internal string SourceId => Post.Id.SourceId;
-    internal string PostId => Post.Id.PostId;
+    internal BooruPostKey Identity { get; }
+    internal string SourceId => Identity.SourceId;
+    internal string PostId => Identity.PostId;
     internal Uri? PostUrl { get; private init; }
     internal Uri? PreviewUrl { get; private init; }
     /// <summary>The reduced-size version the provider offers (Danbooru's large file), when it differs from the original; null otherwise.</summary>
@@ -46,7 +52,9 @@ internal sealed record BooruPostView
     internal bool IsDeleted { get; private init; }
     internal bool IsBanned { get; private init; }
 
-    internal static BooruPostView From(BooruPost post)
+    internal static BooruPostView From(BooruPost post) => From(post, BooruPostKey.DefaultInstance);
+
+    internal static BooruPostView From(BooruPost post, string instanceId)
     {
         ArgumentNullException.ThrowIfNull(post);
         BooruFieldPresence fields = post.Fields;
@@ -58,7 +66,7 @@ internal sealed record BooruPostView
             : original is null ? BooruOriginalAccess.NotOffered
             : original.Url is null ? BooruOriginalAccess.Restricted
             : BooruOriginalAccess.Available;
-        return new BooruPostView(post)
+        return new BooruPostView(post, instanceId)
         {
             PostUrl = post.PostUrl,
             PreviewUrl = DisplayUrl(preview, original?.Url),

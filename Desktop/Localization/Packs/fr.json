@@ -5324,7 +5324,7 @@
     "booru.tabs.post": "Publication #{0}",
     "booru.tabs.limit": "La limite d’onglets de recherche ({0}) est atteinte. Fermez d’abord un onglet ou augmentez la limite dans les paramètres.",
     "settings.limits.booruSearchTabs": "Danbooru : nombre maximal d’onglets de recherche",
-    "settings.limits.booruSearchTabs.hint": "Nombre maximal d’onglets de recherche supplémentaires dans Danbooru. Les onglets sont conservés pendant la session en cours.",
+    "settings.limits.booruSearchTabs.hint": "Nombre maximal d’onglets de recherche supplémentaires dans Danbooru. Les recherches lancées peuvent être rouvertes après le redémarrage.",
     "booru.bulk.button": "Tout télécharger de cette recherche",
     "booru.bulk.stop": "Arrêter la collecte",
     "booru.bulk.hint": "Récupère les résultats existants de la recherche affichée et met chaque original en file d’attente, jusqu’à la limite de pages de la source (pages {0}, publications par page {1}). La veille ne prend que les nouvelles publications.",

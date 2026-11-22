@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.PluginHost.Http;
+using MeowChan.Booru;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -29,9 +30,11 @@ internal sealed record BooruSearchView(
     DateTimeOffset? RetryAt,
     string? Code,
     BooruNotice? Notice,
-    bool Restored = false)
+    bool Restored = false,
+    string InstanceId = BooruPostKey.DefaultInstance)
 {
-    internal bool IsPostResult => ExecutedPostId is not null;
+    internal BooruPostKey? ExecutedPostIdentity => ExecutedPostId is { } postId ? new(ProviderId, InstanceId, postId) : null;
+    internal bool IsPostResult => ExecutedPostIdentity is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
     /// <summary>Bounded paging: never beyond page 5, never after the provider reported the end.</summary>
     internal bool HasNextPage => Status == BooruSearchStatus.Results && ExecutedQuery is not null && !IsPostResult
@@ -65,7 +68,7 @@ internal sealed partial class BooruSearchModel : IDisposable
     private readonly IBooruPreviewPort _previews;
     private readonly TimeProvider _clock;
     private readonly RequestLifetime _lifetime = new();
-    private readonly SemaphoreSlim _previewSlots = new(2);
+    private readonly BooruAsyncPermits _previewSlots = new(2);
     private RequestLifetime? _request;
     // Prevents a double click from issuing two lifecycle mutations while the row is rebuilt.
     private readonly HashSet<string> _originalActions = new(StringComparer.Ordinal);
@@ -85,7 +88,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         _clock = clock;
         _view = new BooruSearchView(search.ProviderId, search.ProviderName, BooruInputMode.Tags, string.Empty,
             new BooruParsedInput(BooruInputKind.Empty), BooruSearchStatus.Idle, null, null, 1, true,
-            ImmutableArray<BooruResultRowView>.Empty, null, null, null);
+            ImmutableArray<BooruResultRowView>.Empty, null, null, null, InstanceId: search.InstanceId);
         _queue.LocalStatesChanged += OnLocalStatesChanged;
     }
 
@@ -106,7 +109,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         get
         {
             BooruSearchView view = View;
-            return !_disposed && view.Parsed.IsValid && !view.IsBusy && PauseEnd(view) is null;
+            return !_disposed && IsBound(view) && view.Parsed.IsValid && !view.IsBusy && PauseEnd(view) is null;
         }
     }
 
@@ -115,7 +118,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         get
         {
             BooruSearchView view = View;
-            return !_disposed && view.Mode == BooruInputMode.Tags && view.Parsed.Kind == BooruInputKind.Tags;
+            return !_disposed && IsBound(view) && view.Mode == BooruInputMode.Tags && view.Parsed.Kind == BooruInputKind.Tags;
         }
     }
 
@@ -170,7 +173,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         bool refused = false;
         lock (_gate)
         {
-            if (_disposed) return;
+            if (_disposed || !IsBound(_view)) return;
             parsed = _view.Parsed;
             if (!parsed.IsValid)
             {
@@ -256,7 +259,7 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (result.Status == BooruCallStatus.Ok && result.Value is { } value)
             {
                 if (value.Page != page || !string.Equals(value.Query, query, StringComparison.Ordinal)
-                    || value.Posts.Length > PageSize)
+                    || value.Posts.Length > PageSize || value.Posts.Any(post => !MatchesView(post, _view)))
                 {
                     _view = _view with { Status = BooruSearchStatus.Failed, Code = "page_binding" };
                 }
@@ -304,7 +307,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         {
             if (id != _requestId || _disposed) return;
             if (result.Status == BooruCallStatus.Ok && result.Value is { } post
-                && string.Equals(post.PostId, postId, StringComparison.Ordinal))
+                && post.Identity == _view.ExecutedPostIdentity)
             {
                 _view = _view with
                 {
@@ -326,7 +329,7 @@ internal sealed partial class BooruSearchModel : IDisposable
     {
         lock (_gate)
         {
-            if (_disposed) return (0, default);
+            if (_disposed || !IsBound(_view)) return (0, default);
             RequestLifetime request = ReplaceRequest(needsRequest: true)!;
             _view = _view with
             {

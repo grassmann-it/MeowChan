@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.Json.Nodes;
 using MeowChan.Persistence;
 using MeowChan.Tags;
 
@@ -13,6 +14,7 @@ public sealed class TagSuggestionStoreTests : IDisposable
     private const string MediaB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
     private static readonly TagSuggestionProvenance R1 = new("test.tagger", "reference", "1.0", "reference-model", "r1");
     private static readonly TagSuggestionProvenance R2 = R1 with { ModelRevision = "r2" };
+    private static readonly TagSuggestionProvenance OtherTagger = R1 with { TaggerKey = "other" };
     private readonly DirectoryInfo _directory = Directory.CreateTempSubdirectory("meowchan-tag-suggestions-");
     private readonly ProfileLease _lease;
     private DateTimeOffset _now = new(2026, 11, 22, 12, 0, 0, TimeSpan.Zero);
@@ -129,6 +131,50 @@ public sealed class TagSuggestionStoreTests : IDisposable
     }
 
     [Fact]
+    public void ACompletedTaggerKeepsItsSuggestionAfterAnotherTaggersEmptyRerun()
+    {
+        TagSuggestionStore store = Store();
+        store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]);
+        TagSuggestionSnapshot snapshot = store.CommitRuns([Run(MediaA, OtherTagger, ("cat", 0.6), ("cat", 0.5))]);
+        Assert.Equal([R1, OtherTagger], snapshot.PendingFor(MediaA, 0.05).Select(value => value.Provenance));
+        StoredTagSuggestion other = Assert.Single(snapshot.Suggestions, value => value.Provenance == OtherTagger);
+
+        store.CommitRuns([Run(MediaA, R1)]);
+
+        TagSuggestionSnapshot resumed = Store().Load();
+        Assert.True(resumed.HasCompletedRun(MediaA, OtherTagger));
+        StoredTagSuggestion pending = Assert.Single(resumed.PendingFor(MediaA, 0.05));
+        Assert.Equal(other.Id, pending.Id);
+        Assert.Equal(("cat", 0.6, OtherTagger), (pending.Name, pending.Confidence, pending.Provenance));
+        Assert.Equal(TagSuggestionState.Superseded, Assert.Single(resumed.Suggestions, value => value.Provenance == R1).State);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void DecisionsSuppressMatchingProposalsAcrossTaggersUntilUndo(bool accept)
+    {
+        TagSuggestionState decision = accept ? TagSuggestionState.Accepted : TagSuggestionState.Rejected;
+        TagSuggestionStore store = Store();
+        TagSuggestionSnapshot snapshot = store.CommitRuns([Run(MediaA, R1, ("cat", 0.4))]);
+        long cat = Assert.Single(snapshot.Suggestions).Id;
+        snapshot = store.CommitRuns([Run(MediaA, OtherTagger, ("cat", 0.9))]);
+        long otherCat = Assert.Single(snapshot.Suggestions, value => value.Provenance == OtherTagger).Id;
+
+        snapshot = store.Decide([cat], decision, snapshot.Revision);
+        Assert.Empty(Store().Load().PendingFor(MediaA, 0.8));
+
+        TagSuggestionProvenance thirdTagger = OtherTagger with { PluginId = "third.plugin" };
+        snapshot = store.CommitRuns([Run(MediaA, thirdTagger, ("cat", 0.95)), Run(MediaB, thirdTagger, ("cat", 0.95))]);
+        Assert.Empty(snapshot.PendingFor(MediaA, 0.05));
+        Assert.Single(snapshot.PendingFor(MediaB, 0.05));
+        Assert.DoesNotContain(snapshot.Suggestions, value => value.MediaSha256 == MediaA && value.Provenance == thirdTagger);
+
+        snapshot = store.Decide([cat], TagSuggestionState.Pending, snapshot.Revision);
+        Assert.Equal([otherCat, cat], snapshot.PendingFor(MediaA, 0.05).Select(value => value.Id));
+    }
+
+    [Fact]
     public void RepeatedWritesReuseOneStagingFileAndDoNotCreateSnapshots()
     {
         TagSuggestionStore store = Store();
@@ -207,6 +253,63 @@ public sealed class TagSuggestionStoreTests : IDisposable
         Assert.Equal(TagSuggestionStoreState.Unsupported, store.Load().State);
         Assert.Throws<TagSuggestionStoreException>(() => store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]));
         Assert.Contains("\"version\":2", File.ReadAllText(store.FilePath));
+    }
+
+    [Fact]
+    public void ANewStoreAndItsPersistedEmptyDocumentAreWritable()
+    {
+        TagSuggestionStore store = Store();
+        Assert.Equal(TagSuggestionSnapshot.Empty, store.Load());
+        Assert.False(File.Exists(store.FilePath));
+
+        TagSuggestionSnapshot empty = store.CommitRuns([]);
+        TagSuggestionStore reopened = Store();
+        TagSuggestionSnapshot persisted = reopened.Load();
+        Assert.True(persisted.CanWrite);
+        Assert.Equal(empty.Revision, persisted.Revision);
+        Assert.Empty(persisted.Suggestions);
+        Assert.Empty(persisted.Runs);
+        Assert.Empty(persisted.Events);
+        Assert.Equal(1L, Assert.Single(reopened.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]).Suggestions).Id);
+    }
+
+    [Theory]
+    [InlineData("{ }\n")]
+    [InlineData("""{"format":"meowchan-tag-suggestions","version":1,"revision":0,"nextId":1,"nextSequence":1,"suggestions":[],"events":[]}""")]
+    public void AnExistingDocumentWithMissingFieldsIsPreservedByteForByte(string json)
+    {
+        TagSuggestionStore store = Store();
+        File.WriteAllText(store.FilePath, json);
+        byte[] original = File.ReadAllBytes(store.FilePath);
+
+        TagSuggestionSnapshot snapshot = store.Load();
+        Assert.Equal(TagSuggestionStoreState.Failed, snapshot.State);
+        Assert.Equal(TagSuggestionStoreError.NotWritable,
+            Assert.Throws<TagSuggestionStoreException>(() => store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))])).Error);
+        Assert.Equal(TagSuggestionStoreError.NotWritable,
+            Assert.Throws<TagSuggestionStoreException>(() => store.Decide([1L], TagSuggestionState.Rejected, snapshot.Revision)).Error);
+        Assert.Equal(original, File.ReadAllBytes(store.FilePath));
+    }
+
+    [Fact]
+    public void LegacyCountersAreRepairedUsingSurvivingSuggestionsAndReviewEvents()
+    {
+        TagSuggestionStore store = Store();
+        store.CommitRuns([Run(MediaA, R1, ("cat", 0.9)), Run(MediaB, R1, ("dog", 0.8))]);
+        store.CommitRuns([Run(MediaB, R1)]);
+        JsonNode document = JsonNode.Parse(File.ReadAllText(store.FilePath))!;
+        document["suggestions"]!.AsArray().RemoveAt(1);
+        document["nextId"] = 1;
+        document["nextSequence"] = 1;
+        File.WriteAllText(store.FilePath, document.ToJsonString());
+
+        TagSuggestionStore reopened = Store();
+        Assert.True(reopened.Load().CanWrite);
+        TagSuggestionSnapshot snapshot = reopened.CommitRuns([Run(MediaB, R1, ("bird", 0.7))]);
+        StoredTagSuggestion bird = Assert.Single(snapshot.PendingFor(MediaB, 0.05));
+        Assert.Equal(3L, bird.Id);
+        snapshot = reopened.Decide([bird.Id], TagSuggestionState.Accepted, snapshot.Revision);
+        Assert.Equal([1L, 2L], snapshot.Events.Select(value => value.Sequence));
     }
 
     [Fact]

@@ -26,7 +26,7 @@ internal static class BooruSearchTabsCatalog
         ("booru.tabs.post", "Post #{0}", "Post #{0}"),
         ("booru.tabs.limit", "The limit of search tabs ({0}) is reached. Close a tab first or raise the limit in Settings.", "Das Limit für Such-Tabs ({0}) ist erreicht. Schließe zuerst einen Tab oder erhöhe das Limit in den Einstellungen."),
         ("settings.limits.booruSearchTabs", "Danbooru: most search tabs", "Danbooru: höchstens so viele Such-Tabs"),
-        ("settings.limits.booruSearchTabs.hint", "Maximum number of additional search tabs in Danbooru. Tabs are kept for the current session.", "Höchstzahl zusätzlicher Such-Tabs in Danbooru. Tabs bleiben für die aktuelle Sitzung geöffnet."),
+        ("settings.limits.booruSearchTabs.hint", "Maximum number of additional search tabs in Danbooru. Submitted searches can be reopened after a restart.", "Höchstzahl zusätzlicher Such-Tabs in Danbooru. Ausgeführte Suchen lassen sich nach einem Neustart wieder öffnen."),
         ("booru.bulk.button", "Download all of this search", "Alles aus dieser Suche laden"),
         ("booru.bulk.stop", "Stop collecting", "Sammeln beenden"),
         ("booru.bulk.hint", "Fetches the existing results of the shown search and queues each original, up to the source's page limit (pages {0}, posts per page {1}). The watcher only takes new posts.", "Holt die vorhandenen Ergebnisse der angezeigten Suche und reiht jedes Original ein, höchstens bis zum Seitenlimit der Quelle (Seiten {0}, Posts je Seite {1}). Die Suchbeobachtung übernimmt nur neue Posts."),

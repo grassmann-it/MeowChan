@@ -23,8 +23,8 @@ internal enum BooruOriginalSelectionError
 
 /// <summary>Validated immutable input for one original-variant queue admission.</summary>
 internal sealed record BooruOriginalDownloadPlan(
-    string SourceId,
-    string PostId,
+    BooruMediaKey Identity,
+    Uri? PostUrl,
     Uri DownloadUri,
     string Extension,
     long? ExpectedSize,
@@ -32,7 +32,9 @@ internal sealed record BooruOriginalDownloadPlan(
 {
     internal const string Variant = "original";
     internal string? ExpectedMimeType => MediaMimeValidation.FromExtension(Extension);
-    internal string MediaIdentifier => $"booru-{SourceId}-{PostId}";
+    internal string SourceId => Identity.Post.SourceId;
+    internal string PostId => Identity.Post.PostId;
+    internal string MediaIdentifier => Identity.StorageId;
 }
 
 /// <summary>
@@ -47,8 +49,7 @@ internal static class BooruOriginalDownloadSelector
         ArgumentNullException.ThrowIfNull(post);
         plan = null;
         error = BooruOriginalSelectionError.None;
-        if (!post.SourceId.Equals(DanbooruPostReference.ProviderId, StringComparison.Ordinal)
-            || !DanbooruPostReference.IsValidPostId(post.PostId))
+        if (!post.Identity.IsValid)
             throw new ArgumentException("The Booru post identity is invalid.", nameof(post));
 
         BooruPostClaimMedia? original = post.Media.FirstOrDefault(media => media.Role == BooruPostClaimMediaRole.Original);
@@ -100,7 +101,8 @@ internal static class BooruOriginalDownloadSelector
             extension = ".bin";
         }
 
-        plan = new BooruOriginalDownloadPlan(post.SourceId, post.PostId, uri, extension.ToLowerInvariant(),
+        plan = new BooruOriginalDownloadPlan(BooruMediaKey.Original(post.Identity), post.Identity.CanonicalDanbooruUrl
+            ?? (post.PostUrl is { } postUrl ? new Uri(postUrl, UriKind.Absolute) : null), uri, extension.ToLowerInvariant(),
             original.ExpectedSize, original.ExpectedMd5);
         return true;
     }

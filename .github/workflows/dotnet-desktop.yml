@@ -2095,3 +2095,34 @@ jobs:
           path: ${{ runner.temp }}/meowchan-homebrew/evidence/**
           if-no-files-found: warn
           retention-days: 14
+
+  validation-selection-shadow:
+    name: Desktop validation selection (shadow)
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref_type == 'branch')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Test the selection contract
+        run: python3 -m unittest discover -s scripts -p test_validation_selection.py -v
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages*.lock.json'
+      - name: Record the proposed validation scope
+        if: ${{ !cancelled() }}
+        run: |
+          python3 scripts/plan-validation-selection.py --discover \
+            --output "$RUNNER_TEMP/validation-selection-shadow"
+      - uses: actions/upload-artifact@v7
+        if: ${{ !cancelled() }}
+        with:
+          name: validation-selection-shadow
+          path: ${{ runner.temp }}/validation-selection-shadow
+          if-no-files-found: error
+          retention-days: 14
