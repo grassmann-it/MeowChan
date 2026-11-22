@@ -4833,6 +4833,8 @@
     "media.status.queue": "{0} da fare nella coda di tagging",
     "media.tagList": "Elenco tag",
     "media.tagList.tip": "Elenco tag: accanto alla griglia elenca tutti i tag dei risultati e quanti media li hanno. Fai clic su un tag per vedere solo i media che lo hanno, {0}+clic per nasconderli.",
+    "media.toolbar.tagsLabel": "Tag",
+    "media.toolbar.mediaLabel": "Media",
     "media.layout.name": "Layout",
     "media.layout.tip": "Scegli cosa mostra la pagina Media: elenco tag, chip dei filtri, riga di stato, sottotitolo, didascalie e dimensione dei riquadri, oppure un layout già pronto.",
     "media.layout.menuName": "Layout della pagina Media",

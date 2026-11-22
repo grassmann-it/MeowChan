@@ -4859,6 +4859,8 @@
     "theme.colors.preview.error": "問題が発生しました",
     "media.tagList": "タグ一覧",
     "media.tagList.tip": "タグ一覧: グリッドの横に、結果に含まれるすべてのタグとその件数を表示します。タグをクリックするとそのタグのメディアだけを表示し、{0}+クリックで非表示にします。",
+    "media.toolbar.tagsLabel": "タグ",
+    "media.toolbar.mediaLabel": "メディア",
     "media.layout.name": "レイアウト",
     "media.layout.tip": "メディアページに表示する内容を選びます: タグ一覧、フィルターチップ、ステータス行、サブタイトル、タイルの説明、タイルのサイズ。用意されたレイアウトも選べます。",
     "media.layout.menuName": "メディアページのレイアウト",

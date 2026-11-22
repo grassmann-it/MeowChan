@@ -99,6 +99,7 @@ public sealed partial class MediaPage
         tools.Children.Add(order); Avalonia.Controls.Grid.SetColumn(order, 3);
         tools.Children.Add(right); Avalonia.Controls.Grid.SetColumn(right, 4);
         InstallToolbarAlignment(tools, query, order, right);
+        InstallToolbarLabels(tools);
         ApplyToolbarMinWidths();
         tools.SizeChanged += (_, e) => ApplyToolbarWidth(e.NewSize.Width);
         return tools;

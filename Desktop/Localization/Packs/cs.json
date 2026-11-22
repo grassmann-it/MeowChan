@@ -4869,6 +4869,8 @@
     "media.status.queue": "Otevřené ve frontě štítkování: {0}",
     "media.tagList": "Seznam štítků",
     "media.tagList.tip": "Seznam štítků: vedle mřížky vypíše všechny štítky výsledků a kolik médií je nese. Kliknutím na štítek zobrazíte jen média s ním, {0}+kliknutím je skryjete.",
+    "media.toolbar.tagsLabel": "Štítky",
+    "media.toolbar.mediaLabel": "Média",
     "media.layout.name": "Rozvržení",
     "media.layout.tip": "Zvolte, co stránka Média zobrazuje: seznam štítků, čipy filtrů, stavový řádek, podtitul, popisky a velikost dlaždic, nebo hotové rozvržení.",
     "media.layout.menuName": "Rozvržení stránky Média",

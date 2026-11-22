@@ -4870,6 +4870,8 @@
     "media.status.queue": "Otwarte w kolejce tagowania: {0}",
     "media.tagList": "Lista tagów",
     "media.tagList.tip": "Lista tagów: obok siatki wyświetla wszystkie tagi wyników i liczbę mediów, które je mają. Kliknij tag, aby pokazać tylko media z nim, {0}+klik, aby je ukryć.",
+    "media.toolbar.tagsLabel": "Tagi",
+    "media.toolbar.mediaLabel": "Media",
     "media.layout.name": "Układ",
     "media.layout.tip": "Wybierz, co pokazuje strona Media: listę tagów, chipy filtrów, wiersz stanu, podtytuł, podpisy i rozmiar kafelków albo gotowy układ.",
     "media.layout.menuName": "Układ strony Media",

@@ -4827,6 +4827,8 @@
     "media.status.queue": "{0} en attente dans la file d’étiquetage",
     "media.tagList": "Liste d’étiquettes",
     "media.tagList.tip": "Liste d’étiquettes : affiche à côté de la grille toutes les étiquettes des résultats et le nombre de médias qui les portent. Cliquez sur une étiquette pour n’afficher que les médias qui l’ont, {0}+clic pour les masquer.",
+    "media.toolbar.tagsLabel": "Étiquettes",
+    "media.toolbar.mediaLabel": "Médias",
     "media.layout.name": "Disposition",
     "media.layout.tip": "Choisissez ce que la page Médias affiche : liste d’étiquettes, puces de filtre, ligne d’état, sous-titre, légendes et taille des vignettes, ou une disposition prête à l’emploi.",
     "media.layout.menuName": "Disposition de la page Médias",
