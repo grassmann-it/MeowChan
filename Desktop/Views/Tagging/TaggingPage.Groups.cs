@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -20,12 +21,8 @@ namespace MeowChan;
 /// <summary>TG2's named queue scopes: the page keeps the existing state-filter seam and narrows it with this selection.</summary>
 public sealed partial class TaggingPage
 {
-    private readonly StackPanel _groupPanel = new() { Name = "TaggingGroupPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
-    private readonly TextBlock _groupLabel = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly ComboBox _group = new() { Name = "TaggingGroup", Width = 168 };
-    // One icon square after the group box opens "New group", "Rename" and "Delete" (instead of a second "+" and two long flat labels
-    // on the bar); the menu opens on this button itself, also when the group panel stands in the second toolbar row.
-    private readonly Button _groupManage = new() { Name = "TaggingGroupManage", VerticalAlignment = VerticalAlignment.Center };
+    private readonly ComboBox _group = new() { Name = "TaggingGroup", Width = 160 };
+    private readonly Button _groupManage = new() { Name = "TaggingGroupManage" };
     private ContextMenuHost? _groupManageHost;
     private string? _selectedGroupId;
     private bool _ungroupedSelected;
@@ -76,12 +73,9 @@ public sealed partial class TaggingPage
             _queueWork.SelectGroup(_selectedGroupId, _ungroupedSelected);
             Render();
         };
-        _groupManage.Classes.Add("bar-button"); // outlined like the group box beside it, also inside the toolbar
-        _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent());
+        _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent(),
+            resolveOrigin: () => _groupManage.IsAttachedToVisualTree() ? _groupManage : _actions.More ?? (Control)_groupManage);
         _groupManage.Click += (_, _) => _groupManageHost?.Show(atPointer: false);
-        _groupPanel.Children.Add(_groupLabel);
-        _groupPanel.Children.Add(_group);
-        _groupPanel.Children.Add(_groupManage);
         RenderGroups();
     }
 
@@ -102,13 +96,15 @@ public sealed partial class TaggingPage
         finally { _groupLocalizing = false; }
         // The button stays usable while "New group" is: the entries inside the menu carry their own enabled rules.
         _groupManage.IsEnabled = CanChange;
-        AutomationProperties.SetName(_group, _groupLabel.Text ?? Texts.T("tagging.page.group"));
+        ToolTip.SetTip(_group, selected.Label);
     }
 
     private void LocalizeGroups()
     {
-        _groupLabel.Text = Texts.T("tagging.page.group");
-        WorkspaceIcons.MakeSquare(_groupManage, WorkspaceIcons.More, Texts.T("tagging.page.group.manage"));
+        string manage = Texts.T("tagging.page.group.manage");
+        _groupManage.Content = manage;
+        ToolTip.SetTip(_groupManage, manage);
+        AutomationProperties.SetName(_groupManage, manage);
         AutomationProperties.SetName(_group, Texts.T("tagging.page.group"));
         RenderGroups();
     }

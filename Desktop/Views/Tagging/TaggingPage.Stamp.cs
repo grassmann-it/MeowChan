@@ -101,9 +101,8 @@ public sealed partial class TaggingPage
         KeyboardNavigation.SetTabNavigation(body, KeyboardNavigationMode.Cycle);
         body.KeyDown += (_, e) =>
         {
-            if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None || StampInputIsComposing()) return;
-            e.Handled = true;
-            CloseStamp(restoreFocus: true);
+            if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+                e.Handled = DismissStampByEscape();
         };
         _stampFlyout.Content = body;
         return _stampButton;
@@ -141,6 +140,14 @@ public sealed partial class TaggingPage
         };
     }
 
+    internal bool DismissStampByEscape()
+    {
+        if (!StampOpen || StampInputIsComposing()) return false;
+        if (_stampHelp.Popover.IsOpen) _stampHelp.Popover.Hide();
+        else CloseStamp(restoreFocus: true);
+        return true;
+    }
+
     internal void CloseStamp(bool restoreFocus = false)
     {
         if (!StampOpen) return;
@@ -156,6 +163,7 @@ public sealed partial class TaggingPage
         _stampInput.PlaceholderText = Texts.T("tags.input.several");
         AutomationProperties.SetName(_stampInput, Texts.T("tagging.page.stamp.input"));
         _stampAdd.Content = Texts.T("tagging.page.stamp.add");
+        ShowStampFeedback(null);
     }
 
     private void SetStampCompact(bool compact)

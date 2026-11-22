@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Markup.Xaml.MarkupExtensions;
@@ -47,9 +48,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         Width = MiniBarWidth, MinWidth = 0, Height = 4, MinHeight = 0, MaxHeight = 4 };
     private readonly Button _start = new TaggingActivationButton() { Name = "TaggingStart", Classes = { "primary" } };
     private readonly TaggingControlRow _queueActionRow = new() { Name = "TaggingQueueActionRow" };
-    private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
-    private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly ComboBox _filter = new() { Name = "TaggingFilter", MinWidth = 160 };
+    private readonly StackPanel _filterPanel = new() { Name = "TaggingResultFilters", Orientation = Orientation.Horizontal, Spacing = 8 };
+    private readonly ComboBox _filter = new() { Name = "TaggingFilter", Width = 144 };
+    private readonly TextBlock _resultCount = (new TextBlock { Name = "TaggingResultCount", Classes = { "tnum" },
+        VerticalAlignment = VerticalAlignment.Center, IsVisible = false }).MetaText();
     private readonly HelpButton _help = new() { Name = "TaggingHelp", HelpKey = "help.taggingPage" };
     private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0),
         // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
@@ -92,7 +94,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         Content = BuildLayout();
         _start.GotFocus += (_, e) =>
         {
-            _keyboardStartFocus = e.NavigationMethod != Avalonia.Input.NavigationMethod.Pointer;
+            _keyboardStartFocus = e.NavigationMethod != NavigationMethod.Pointer;
             UpdateStart();
         };
         _start.LostFocus += (_, _) =>
@@ -138,6 +140,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     internal ListBox List => _list;
     internal Button StartButton => _start;
     internal ComboBox FilterBox => _filter;
+    internal TextBlock ResultCount => _resultCount;
     internal TextBlock StatusText => _status;
     internal TextBlock ProgressText => _progressText;
     internal Border ErrorPanel => _error;
@@ -174,8 +177,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _queueActionRow.TrailingChild = _actions;
         _queueActionRow.CompactGroups = [(_stampButton, SetStampCompact), (_progress, compact => _bar.IsVisible = !compact)];
 
-        _filterPanel.Children.Add(_filterLabel);
+        _filterPanel.Children.Add(_group);
+        _filter.ItemTemplate = new FuncDataTemplate<string>((value, _) => new TrimTipTextBlock { Text = value });
         _filterPanel.Children.Add(_filter);
+        _filterPanel.Children.Add(_resultCount);
 
         // The first row uses the shared page-title inset (LY-03).
         StackPanel header = new() { Name = "TaggingSections",
@@ -451,6 +456,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         ToolTip.SetTip(_bar, percent + " · " + breakdown);
         AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
         AutomationProperties.SetHelpText(_bar, count.Description + " · " + percent + " · " + breakdown);
+        _resultCount.IsVisible = _queueWork.Loaded && _queueWork.ErrorText == null;
+        _resultCount.Text = _resultCount.IsVisible ? Texts.Count("tagging.page.results", _rows.Count) : null;
         bool empty = _rows.Count == 0;
         _emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null;
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
@@ -497,12 +504,17 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             if (_keyboardStartFocus && _start.IsEnabled) tip += " · " + Texts.T("tagging.page.start.space");
             if (!_start.IsEnabled)
             {
-                string key = _queueWork.ErrorText != null || IsBusy || label != null ? "tagging.menu.reason.notReady"
-                    : _queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone";
-                tip += " · " + Texts.T(key);
+                string reason = (_queueWork.ErrorText != null || IsBusy || label != null, _emptyKind) switch
+                {
+                    (true, _) => Texts.T("tagging.menu.reason.notReady"),
+                    (false, TaggingEmptyKind.GroupEmpty) => _empty.Text ?? Texts.T("queue.empty"),
+                    (false, TaggingEmptyKind.FilterNoHits) when Filter == TaggingQueueFilter.Untagged => Texts.T("tagging.page.filterEmpty.untagged"),
+                    _ => Texts.T(_queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone")
+                };
+                tip += " · " + reason;
             }
             return tip;
-        });
+        }, keyContext: "tagging");
     }
 
     private void ShowStatus(string? text)
@@ -514,7 +526,13 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         if (_queueWork.Ended) return;
-        Dispatcher.UIThread.Post(() => { if (!_queueWork.Ended) { Localize(); Show(); } });
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_queueWork.Ended) return;
+            ShowStatus(null);
+            Localize();
+            Show();
+        });
     }
 
     private void Localize()
@@ -523,7 +541,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         try
         {
             _title.Text = Texts.T("tagging.page.title");
-            _filterLabel.Text = Texts.T("tagging.page.filter");
             int filter = Math.Max(0, _filter.SelectedIndex);
             _filter.ItemsSource = Enum.GetValues<TaggingQueueFilter>().Select(TaggingQueueView.FilterText).ToArray();
             _filter.SelectedIndex = filter;

@@ -33,6 +33,7 @@ public static partial class WorkViewPolicy
         Same("tagging.selection.more", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         Same("tagging.selection.clear", WorkViewPage.Tagging, WorkViewKind.Action, Required),
         new("tagging.toolbar.add", WorkViewPage.Tagging, WorkViewKind.Action, Direct, Direct, Direct, "tagging.add", OverflowOrder: 10),
+        new("tagging.toolbar.groups", WorkViewPage.Tagging, WorkViewKind.Element, Overflow, Overflow, Overflow, OverflowOrder: 15),
         new("tagging.toolbar.clear-done", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear-done", OverflowOrder: 20),
         new("tagging.toolbar.clear", WorkViewPage.Tagging, WorkViewKind.Action, Overflow, Overflow, Overflow, "tagging.clear", OverflowOrder: 30),
     ];

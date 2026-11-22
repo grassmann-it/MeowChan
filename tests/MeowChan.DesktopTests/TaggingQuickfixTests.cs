@@ -169,6 +169,7 @@ public sealed class TaggingQuickfixTests : IDisposable
         page.ReadUserData = () => UserData(Bound(1, K1));
         Render(page, Queue(0, Bound(1, K1)), TaggingQueueFilter.Untagged);
         Assert.Equal(TaggingEmptyKind.FilterNoHits, page.EmptyKind);
+        Assert.Equal("0 results", page.ResultCount.Text);
         Assert.Equal("No entry without tags.", page.EmptyText.Text);
         Assert.Equal("Kein Eintrag ohne Tags.", WithLanguage("de", () => Texts.T("tagging.page.filterEmpty.untagged")));
         Render(page, Queue(0, Item(1, TagQueueState.Open)), TaggingQueueFilter.Done);
@@ -211,6 +212,7 @@ public sealed class TaggingQuickfixTests : IDisposable
         Assert.Equal("Start tagging", AutomationProperties.GetName(page.StartButton));
         Render(page, Queue(37, Enumerable.Range(1, 201).Select(n => Item(n)).ToArray()));
         Assert.Equal("Continue tagging (no. 38)", AutomationProperties.GetName(page.StartButton));
+        Assert.Equal("201 results", page.ResultCount.Text);
         Assert.Equal("0 of 201", page.ProgressText.Text);
         const string context = "Last shown: file-38.png · position 38 of 201";
         Assert.Contains(context, AutomationProperties.GetHelpText(page.StartButton));
@@ -218,6 +220,20 @@ public sealed class TaggingQuickfixTests : IDisposable
         const string command = "tags.queue.done-next";
         Assert.Contains(Texts.T("tagging.strip.browseHint", CommandCatalog.ShortcutDisplay(command) ?? CommandCatalog.Label(command)),
             page.HelpButton.Resolve()!.Paragraphs);
+    });
+
+    [Fact]
+    public void LanguageSwitchRefreshesTheResultCountAndClearsOldFeedback() => WithPage(page =>
+    {
+        Render(page, Queue(0, Item(1), Item(2)));
+        typeof(TaggingPage).GetMethod("ShowStatus", Private)!.Invoke(page, ["Marked as finished: 1."]);
+        Assert.True(page.StatusText.IsVisible);
+        Assert.Equal("2 results", page.ResultCount.Text);
+        Texts.SetLanguage("de");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.False(page.StatusText.IsVisible);
+        Assert.Equal("2 Treffer", page.ResultCount.Text);
+        Assert.Equal("Alle Gruppen", ((TaggingGroupChoice)page.GroupBox.SelectedItem!).Label);
     });
 
     [Fact]

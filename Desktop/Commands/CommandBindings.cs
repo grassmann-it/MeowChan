@@ -182,13 +182,14 @@ public static class CommandBindings
     public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16) =>
         ApplyLabeled(button, id, visibleLabel, null, iconSize);
 
-    internal static void ApplyLabeled(Button button, string id, string visibleLabel, Func<string, string>? describe, int iconSize = 16)
+    internal static void ApplyLabeled(Button button, string id, string visibleLabel, Func<string, string>? describe,
+        int iconSize = 16, string? keyContext = null)
     {
         Track(button, id);
-        Observe(button, () => ApplyLabeled(button, id, visibleLabel, describe, iconSize));
+        Observe(button, () => ApplyLabeled(button, id, visibleLabel, describe, iconSize, keyContext));
         button.Classes.Set("command-icon", true);
         ApplyButtonContent(button, id, iconSize, visibleLabel);
-        string tip = CommandCatalog.ShortcutTooltipDisplay(id) is string shortcut
+        string tip = CommandCatalog.ShortcutTooltipDisplay(id, keyContext) is string shortcut
             ? visibleLabel + " · " + shortcut : visibleLabel;
         tip = describe?.Invoke(tip) ?? tip;
         ToolTip.SetTip(button, tip);

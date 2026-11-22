@@ -18,8 +18,8 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_start, "tagging.start");
         WorkViewElement.SetId(_list, "tagging.list");
         WorkViewElement.SetId(_error, "tagging.error");
-        WorkViewElement.SetId(_filterPanel, "tagging.filter");
-        WorkViewElement.SetId(_groupPanel, "tagging.group");
+        WorkViewElement.SetId(_filter, "tagging.filter");
+        WorkViewElement.SetId(_group, "tagging.group");
         WorkViewElement.SetId(_help, "tagging.help");
         WorkViewElement.SetId(_viewToggle, "tagging.view-toggle");
         WorkViewElement.SetId(_selectionBar, "tagging.selection-bar");
@@ -29,6 +29,7 @@ public sealed partial class TaggingPage
         WorkViewElement.SetId(_selMore, "tagging.selection.more");
         WorkViewElement.SetId(_selClear, "tagging.selection.clear");
         WorkViewElement.SetId(_add, "tagging.toolbar.add");
+        WorkViewElement.SetId(_groupManage, "tagging.toolbar.groups");
         WorkViewElement.SetId(_clearDone, "tagging.toolbar.clear-done");
         WorkViewElement.SetId(_clear, "tagging.toolbar.clear");
     }

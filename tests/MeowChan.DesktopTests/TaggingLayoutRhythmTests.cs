@@ -69,7 +69,7 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Contains(page.StampButton, heading.Children);
         // Hidden feedback/secondary rows must not add phantom spacing.
         Assert.False(page.ErrorPanel.IsVisible);
-        Assert.Equal(new[] { "TaggingGroupPanel", "TaggingFilterPanel", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingResultFilters", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
     });
     private static readonly BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
 

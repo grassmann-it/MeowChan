@@ -66,12 +66,11 @@ public sealed partial class TaggingPage
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
         // Queue actions stay together; visible-result controls have their own measured row above the list.
-        foreach (Control item in new Control[] { _add, _help, _clearDone, _clear })
+        foreach (Control item in new Control[] { _add, _help, _groupManage, _clearDone, _clear })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
             _actions.Items.Add(item);
         }
-        _listControls.Children.Add(_groupPanel);
         _listControls.Children.Add(_filterPanel);
         _listControls.Children.Add(_listPresentation);
         _listControls.TrailingChild = _listPresentation;

@@ -177,12 +177,13 @@ public sealed class ToolbarGapPatternTests
     }
 
     [Fact]
-    public void TaggingActionsKeepTheirOutlinesAndShareThePageToolbar() => TaggingLayoutRhythmTests.WithPage(page =>
+    public void TaggingActionsKeepTheirOutlinesAndGroupManagementStaysInThePageToolbar() => TaggingLayoutRhythmTests.WithPage(page =>
     {
         Assert.All(new[] { page.SelectionTagButton, page.SelectionDoneButton, page.SelectionMoreButton, page.SelectionClearButton },
             button => Assert.Contains("bar-button", button.Classes));
-        Assert.Equal(new Control[] { page.AddButton, page.HelpButton, page.ClearDoneButton, page.ClearButton },
+        Assert.Equal(new Control[] { page.AddButton, page.HelpButton, page.GroupManageButton, page.ClearDoneButton, page.ClearButton },
             page.Actions.Items.Cast<Control>());
+        Assert.Equal(OverflowMode.Always, ToolBar.GetOverflowMode(page.GroupManageButton));
         Assert.DoesNotContain("Margin = new Thickness(16", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs")));
     });
 

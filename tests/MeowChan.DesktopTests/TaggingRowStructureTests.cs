@@ -15,6 +15,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Interfaces;
 using Semi.Avalonia;
+using Ursa.Controls;
 using Ursa.Themes.Semi;
 
 namespace MeowChan.DesktopTests;
@@ -59,14 +60,16 @@ public sealed class TaggingRowStructureTests
         Assert.Same(page.Actions, actions.TrailingChild);
         Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
         Assert.Contains(page.ProgressText, ((ILogical)actions).GetLogicalDescendants());
-        Assert.Equal(new[] { "TaggingAdd", "TaggingHelp", "TaggingClearDone", "TaggingClear" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingAdd", "TaggingHelp", "TaggingGroupManage", "TaggingClearDone", "TaggingClear" }, page.Actions.Items.Cast<Control>().Select(c => c.Name));
         Assert.DoesNotContain(((ILogical)page).GetLogicalDescendants().OfType<Control>(), c => c.Name is "TaggingKeysHint" or "TaggingBrowseHint" or "TaggingSecondaryToolbar");
         Grid listArea = Find<Grid>(page, "TaggingListArea");
         Assert.Equal(new[] { "TaggingListControls", "TaggingSelectionBar", "TaggingListSurface" }, listArea.Children.Select(c => c.Name));
         Assert.Equal(new[] { 0, 1, 2 }, listArea.Children.Select(Grid.GetRow));
-        Assert.Equal(new[] { "TaggingGroupPanel", "TaggingFilterPanel", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
-        Assert.Same(page.ListControls.Children[0], page.GroupBox.Parent);
-        Assert.Same(page.ListControls.Children[1], page.FilterBox.Parent);
+        Assert.Equal(new[] { "TaggingResultFilters", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
+        StackPanel filters = Assert.IsType<StackPanel>(page.ListControls.Children[0]);
+        Assert.Equal(new Control[] { page.GroupBox, page.FilterBox, page.ResultCount }, filters.Children);
+        Assert.Equal(8, filters.Spacing);
+        Assert.Equal(OverflowMode.Always, ToolBar.GetOverflowMode(page.GroupManageButton));
         ActionToolBar presentation = Find<ActionToolBar>(page, "TaggingListPresentation");
         Assert.Equal(new Control[] { page.ColumnsButton, page.ViewToggle }, presentation.Items.Cast<Control>());
     });
