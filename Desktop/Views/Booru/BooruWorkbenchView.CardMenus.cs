@@ -48,9 +48,12 @@ internal sealed partial class BooruWorkbenchView
         if (_closed) return null;
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("booru.ui.post.title", postId));
         Button? load = ButtonOf(card, LoadPrefix + postId), cancel = ButtonOf(card, CancelLoadPrefix + postId), retry = ButtonOf(card, RetryLoadPrefix + postId);
-        // The primary action of the card is the one button it shows: load the original, cancel the running load, or try again.
-        if (cancel != null) AddButtonItem(menu, cancel, MenuLoad, CardMenuIcons.Cancel);
-        else if (retry != null) AddButtonItem(menu, retry, MenuLoad, CardMenuIcons.Retry);
+        if (retry != null)
+        {
+            AddButtonItem(menu, retry, MenuLoad, CardMenuIcons.Retry);
+            AddButtonItem(menu, cancel, "booru.menu.cancel-original", CardMenuIcons.Cancel);
+        }
+        else if (cancel != null) AddButtonItem(menu, cancel, MenuLoad, CardMenuIcons.Cancel);
         else if (load != null) AddButtonItem(menu, load, MenuLoad, CardMenuIcons.Load);
         AddShowInMedia(menu, ButtonOf(card, ShowInMediaPrefix + postId));
         menu.Section();

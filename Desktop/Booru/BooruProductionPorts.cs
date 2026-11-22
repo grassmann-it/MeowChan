@@ -118,7 +118,13 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         }
     }
 
-    public async Task<BooruLoadResult> RetryOriginalAsync(string postId, CancellationToken cancellationToken)
+    public Task<BooruLoadResult> RetryOriginalAsync(string postId, CancellationToken cancellationToken) =>
+        RetryOriginalAsync(postId, saveRefusalOnly: false, cancellationToken);
+
+    public Task<BooruLoadResult> SaveOriginalRefusalAsync(string postId, CancellationToken cancellationToken) =>
+        RetryOriginalAsync(postId, saveRefusalOnly: true, cancellationToken);
+
+    private async Task<BooruLoadResult> RetryOriginalAsync(string postId, bool saveRefusalOnly, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         using BooruPortAvailabilityGate.Lease? operation = _availability.TryEnter(cancellationToken);
@@ -127,7 +133,8 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         {
             Task<BooruOriginalAdmission>? pending = null;
             bool accepted = await Task.Run(() => operation.TryStart(
-                () => _originals.RetryAsync(postId, operation.Token), out pending), operation.Token).ConfigureAwait(false);
+                () => saveRefusalOnly ? _originals.SaveRefusalAsync(postId, operation.Token)
+                    : _originals.RetryAsync(postId, operation.Token), out pending), operation.Token).ConfigureAwait(false);
             if (!accepted || pending is null || !operation.IsCurrent) return Unavailable();
             BooruOriginalAdmission admission = await pending.ConfigureAwait(false);
             if (!operation.IsCurrent) return Unavailable();
@@ -162,6 +169,7 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         BooruOriginalAdmissionStatus.Queued => new BooruLoadResult(BooruLoadStatus.Queued),
         BooruOriginalAdmissionStatus.AlreadyQueued => new BooruLoadResult(BooruLoadStatus.AlreadyQueued),
         BooruOriginalAdmissionStatus.AlreadyLinked => new BooruLoadResult(BooruLoadStatus.AlreadyLoaded),
+        BooruOriginalAdmissionStatus.RefusalPending => new BooruLoadResult(BooruLoadStatus.RefusalPending),
         BooruOriginalAdmissionStatus.Unavailable when admission.SelectionError == BooruOriginalSelectionError.MissingOriginal
             => new BooruLoadResult(BooruLoadStatus.NoOriginal),
         // Withheld URL, missing integrity claims or an unusable original: never substituted by a sample.
@@ -175,18 +183,40 @@ internal sealed class BooruOriginalQueuePort : IBooruQueuePort, IDisposable
         {
             cancellationToken.ThrowIfCancellationRequested();
             HashSet<string> wanted = new(postIds, StringComparer.Ordinal);
-            IReadOnlyDictionary<string, BooruOriginalDownloadOutcome> outcomes = _originals.Snapshot();
+            IReadOnlyList<BooruPostRecord> posts = _catalog.Read().Posts;
+            IReadOnlyDictionary<string, BooruOriginalDownloadOutcome> outcomes = _originals.Snapshot(wanted);
             Dictionary<string, BooruLocalState> states = new(StringComparer.Ordinal);
-            foreach (BooruPostRecord record in _catalog.Read().Posts)
+            foreach (BooruPostRecord record in posts)
             {
                 if (record.SourceId != _sourceId || !wanted.Contains(record.PostId)) continue;
-                bool queued = record.HasPendingOriginal || outcomes.TryGetValue(record.PostId, out BooruOriginalDownloadOutcome? outcome)
-                    && outcome.State == BooruOriginalDownloadState.Queued;
-                states[record.PostId] = record.LocalAssetId is not null ? BooruLocalState.Loaded
-                    : queued ? BooruLocalState.Queued : BooruLocalState.NotLoaded;
+                outcomes.TryGetValue(record.PostId, out BooruOriginalDownloadOutcome? outcome);
+                states[record.PostId] = LocalState(record, outcome);
             }
             return states;
         }, cancellationToken);
+
+    private static BooruLocalState LocalState(BooruPostRecord record, BooruOriginalDownloadOutcome? outcome)
+    {
+        if (record.LocalAssetId != null) return BooruLocalState.Loaded;
+        return outcome?.State switch
+        {
+            BooruOriginalDownloadState.Queued => BooruLocalState.Queued,
+            BooruOriginalDownloadState.Linked => BooruLocalState.Loaded,
+            BooruOriginalDownloadState.LinkFailed => BooruLocalState.LinkFailed,
+            BooruOriginalDownloadState.DownloadFailed => BooruLocalState.DownloadFailed,
+            BooruOriginalDownloadState.Interrupted => BooruLocalState.Interrupted,
+            BooruOriginalDownloadState.Cancelled => BooruLocalState.Cancelled,
+            BooruOriginalDownloadState.NotAdmitted => BooruLocalState.NotAdmitted,
+            BooruOriginalDownloadState.RefusalPending => BooruLocalState.RefusalPending,
+            _ => record.OriginalIntent switch
+            {
+                BooruOriginalIntent.Requested => BooruLocalState.Queued,
+                BooruOriginalIntent.Cancelled => BooruLocalState.Cancelled,
+                BooruOriginalIntent.NotAdmitted => BooruLocalState.NotAdmitted,
+                _ => BooruLocalState.NotLoaded
+            }
+        };
+    }
 
     private void OnOutcomeChanged(BooruOriginalDownloadOutcome outcome) => RaiseLocalStatesChanged();
 

@@ -54,7 +54,7 @@ internal interface IBooruSearchPort
     Task<BooruCallResult<BooruPostView>> ReadPostAsync(string postId, CancellationToken cancellationToken);
 }
 
-internal enum BooruLoadStatus { Queued, AlreadyQueued, AlreadyLoaded, NoOriginal, Restricted, Offline, Failed }
+internal enum BooruLoadStatus { Queued, AlreadyQueued, AlreadyLoaded, NoOriginal, Restricted, Offline, Failed, RefusalPending }
 
 internal sealed record BooruLoadResult(BooruLoadStatus Status, string? Code = null);
 
@@ -79,6 +79,10 @@ internal interface IBooruQueuePort
     /// <summary>Explicitly re-admits the stored original claim after a cancellation or failed admission.</summary>
     Task<BooruLoadResult> RetryOriginalAsync(string postId, CancellationToken cancellationToken) =>
         Task.FromResult(new BooruLoadResult(BooruLoadStatus.Failed, "retry_unavailable"));
+
+    /// <summary>Persists an outstanding refusal without admitting a download.</summary>
+    Task<BooruLoadResult> SaveOriginalRefusalAsync(string postId, CancellationToken cancellationToken) =>
+        Task.FromResult(new BooruLoadResult(BooruLoadStatus.RefusalPending));
 
     /// <summary>Local queue/library state by provider post id; unknown ids may be omitted.</summary>
     Task<IReadOnlyDictionary<string, BooruLocalState>> GetLocalStatesAsync(

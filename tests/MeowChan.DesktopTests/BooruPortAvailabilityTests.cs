@@ -11,6 +11,7 @@ using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Sources.Booru;
 using MeowChan.PluginSdk;
+using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
@@ -441,6 +442,73 @@ public sealed class BooruPortAvailabilityTests
     }
 
     [Fact]
+    public async Task SearchShowsAnUnsavedRefusalAndRetrySavesIt()
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        using BooruSearchModel model = await OpenOriginalSearchAsync(f);
+        await f.Queue.StopAllAsync();
+        f.Composition.Originals.OutcomeChanged += outcome =>
+        {
+            if (outcome.State != BooruOriginalDownloadState.Queued) return;
+            f.Catalog.BeforeAdmittedMutationForTests = _ =>
+            {
+                f.Catalog.BeforeAdmittedMutationForTests = null;
+                throw new IOException("refusal write failed");
+            };
+        };
+
+        await model.LoadOriginalAsync("1");
+        BooruResultRowView pending = Assert.Single(model.View.Rows);
+        Assert.Equal(BooruRowLoad.RefusalPending, pending.Load);
+        Assert.True(pending.CanRetry);
+        Assert.True(Assert.Single(f.Catalog.Read().Posts).HasPendingOriginal);
+
+        await model.RetryOriginalAsync("1");
+        BooruResultRowView saved = Assert.Single(model.View.Rows);
+        Assert.Equal(BooruRowLoad.Failed, saved.Load);
+        Assert.Equal(BooruCodes.NotAdmitted, saved.LoadCode);
+        Assert.Equal(BooruOriginalIntent.NotAdmitted, Assert.Single(f.Catalog.Read().Posts).OriginalIntent);
+
+        long writes = f.Catalog.Counters.Writes;
+        BooruLoadResult repeated = await f.Composition.Services.Queue.SaveOriginalRefusalAsync("1", CancellationToken.None);
+        Assert.Equal(BooruCodes.NotAdmitted, repeated.Code);
+        Assert.Equal(writes, f.Catalog.Counters.Writes);
+        Assert.Equal(0, f.Http.Originals);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task ACompletedOriginalFailureReachesTheSearchAndRetryCanFinishIt(bool failLink)
+    {
+        await using Fixture f = new();
+        await f.StartAsync();
+        using BooruSearchModel model = await OpenOriginalSearchAsync(f);
+        if (failLink)
+            f.Composition.Originals.LinkingForTests = (_, _) => throw new IOException("link failed");
+        else
+            f.Http.BadOriginal = true;
+
+        await model.LoadOriginalAsync("1");
+        await f.Queue.SetPausedAsync(false);
+        BooruRowLoad expected = failLink ? BooruRowLoad.LinkFailed : BooruRowLoad.DownloadFailed;
+        await WaitAsync(() => model.View.Rows.Single().Load == expected);
+        Assert.True(Assert.Single(model.View.Rows).CanRetry);
+        Assert.True(Assert.Single(f.Catalog.Read().Posts).HasPendingOriginal);
+        int requests = f.Http.Originals;
+        Assert.True(requests > 0);
+
+        f.Composition.Originals.LinkingForTests = null;
+        f.Http.BadOriginal = false;
+        await model.RetryOriginalAsync("1");
+        await WaitAsync(() => model.View.Rows.Single().Load == BooruRowLoad.AlreadyLoaded);
+        Assert.False(Assert.Single(model.View.Rows).CanRetry);
+        Assert.Equal(BooruOriginalIntent.Linked, Assert.Single(f.Catalog.Read().Posts).OriginalIntent);
+        Assert.Equal(failLink ? 1 : requests + 1, f.Http.Originals);
+    }
+
+    [Fact]
     public async Task CallerCancellationIsStillCancellationAndLegacyConstructorDefaultsRemainUsable()
     {
         await using Fixture f = new();
@@ -479,6 +547,25 @@ public sealed class BooruPortAvailabilityTests
         Assert.Equal((BooruWatcherCommandStatus.Failed, BooruCodes.SourceUnavailable), (result.Status, result.Code));
     private static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private static Task WaitAsync(Func<bool> predicate) => BooruTestSupport.WaitAsync(predicate, "booru availability boundary", 15000);
+
+    private static async Task<BooruSearchModel> OpenOriginalSearchAsync(Fixture f)
+    {
+        FakeBooruSearchPort search = new();
+        search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, Post("1"))));
+        FakeBooruPreviewPort previews = new() { OnPreview = _ => null };
+        BooruSearchModel model = new(search, f.Composition.Services.Queue, previews, TimeProvider.System);
+        try
+        {
+            await BooruTestSupport.SearchAsync(model, "cat");
+            return model;
+        }
+        catch
+        {
+            model.Dispose();
+            throw;
+        }
+    }
 
     private static BooruPostView Post(string id) => BooruPostView.From(new BooruPost(new BooruPostId("danbooru", id),
         BooruFieldPresence.Media, Media:
@@ -607,6 +694,7 @@ public sealed class BooruPortAvailabilityTests
     {
         private int _previews, _originals;
         internal bool HoldPreviews { get; set; }
+        internal bool BadOriginal { get; set; }
         internal TaskCompletionSource ReleasePreviews { get; } = Signal();
         internal CancellationToken PreviewToken { get; private set; }
         internal int Previews => Volatile.Read(ref _previews);
@@ -622,7 +710,12 @@ public sealed class BooruPortAvailabilityTests
                 Interlocked.Increment(ref _previews);
                 if (HoldPreviews) await ReleasePreviews.Task; // deliberate non-cooperative completion
             }
-            else Interlocked.Increment(ref _originals);
+            else
+            {
+                Interlocked.Increment(ref _originals);
+                if (BadOriginal)
+                    return new HttpResponseMessage(HttpStatusCode.NotFound) { RequestMessage = request };
+            }
             // Original downloads are MIME-validated before the queue publishes the verified asset.
             return new HttpResponseMessage(HttpStatusCode.OK)
             {

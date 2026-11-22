@@ -1531,6 +1531,14 @@ public partial class DownloadQueue
             // Notify before thread retirement completes, so a finished cancel or stop implies a notified owner.
             if (externalEnd is ExternalMediaCancellation reason)
                 NotifyExternalCancelled(job.Item, reason, producerAdmission);
+            else if ((succeeded || externalReported) && job.Item.Thread is IExternalMediaWorkOwner released)
+            {
+                try { released.OnMediaReleased(job.Item); }
+                catch (Exception ownerFailure)
+                {
+                    _logger.Error(ownerFailure, "External media owner could not release {MediaId}", job.Item.MediaIdentifier);
+                }
+            }
             RunCleanup(cleanup);
             StartWorkers(ready);
             _changes.Signal();

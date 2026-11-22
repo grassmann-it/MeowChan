@@ -87,11 +87,16 @@ internal enum BooruLoadOrigin { Search, OneShot }
 /// <summary>Per-row result of the explicit "Load original" action.</summary>
 internal enum BooruRowLoad
 {
-    Idle, Handing, Queued, AlreadyQueued, AlreadyLoaded, NoOriginal, Restricted, Offline, Failed
+    Idle, Handing, Queued, AlreadyQueued, AlreadyLoaded, NoOriginal, Restricted, Offline, Failed,
+    DownloadFailed, LinkFailed, Interrupted, RefusalPending
 }
 
 /// <summary>What the local library/queue already knows about a provider post.</summary>
-internal enum BooruLocalState { Unknown, NotLoaded, Queued, Loaded }
+internal enum BooruLocalState
+{
+    Unknown, NotLoaded, Queued, Loaded, DownloadFailed, LinkFailed, Interrupted, Cancelled,
+    NotAdmitted, RefusalPending
+}
 
 internal enum BooruPreviewState { None, Loading, Ready, Unavailable }
 
@@ -108,11 +113,13 @@ internal sealed record BooruResultRowView(
 
     /// <summary>True while the queue owns a cancellable admission or download request.</summary>
     internal bool CanCancel => Post.OriginalAccess == BooruOriginalAccess.Available
-        && Load is BooruRowLoad.Handing or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued;
+        && Load is BooruRowLoad.Handing or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued
+            or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.Interrupted;
 
     /// <summary>True when the stored claim may be explicitly re-admitted after a visible failure.</summary>
-    internal bool CanRetry => Post.OriginalAccess == BooruOriginalAccess.Available
-        && Load is BooruRowLoad.Offline or BooruRowLoad.Failed;
+    internal bool CanRetry => Load == BooruRowLoad.RefusalPending || Post.OriginalAccess == BooruOriginalAccess.Available
+        && Load is BooruRowLoad.Offline or BooruRowLoad.Failed or BooruRowLoad.DownloadFailed
+            or BooruRowLoad.LinkFailed or BooruRowLoad.Interrupted;
 }
 
 internal enum BooruNoticeKind { Info, Success, Warning, Error }

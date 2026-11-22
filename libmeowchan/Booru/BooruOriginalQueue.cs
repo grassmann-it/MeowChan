@@ -27,7 +27,9 @@ internal enum BooruOriginalAdmissionStatus
     /// <summary>No acceptable original exists; sample/preview are never substituted.</summary>
     Unavailable,
     /// <summary>The queue refused the job (stopping, cancelled identity still draining, or closed admission).</summary>
-    NotAdmitted
+    NotAdmitted,
+    /// <summary>The refusal could not be saved; the original remains requested for recovery.</summary>
+    RefusalPending
 }
 
 /// <summary>Observable lifecycle of an original download. Only <see cref="Linked"/> is a success.</summary>
@@ -42,6 +44,7 @@ internal enum BooruOriginalDownloadState
     Cancelled,
     Unavailable,
     NotAdmitted,
+    RefusalPending,
     /// <summary>
     /// The queue stopped (shutdown, profile close) before the original completed. This is not a
     /// cancellation: the durable request is kept and <see cref="BooruOriginalQueue.RecoverPendingAsync"/>
@@ -77,8 +80,8 @@ internal sealed record BooruOriginalAdmission(
 /// stores the provider claim and its finding (provenance only); a plannable explicit request is then
 /// recorded as <see cref="BooruOriginalIntent.Requested"/> (write-ahead, before it is visible as queued or
 /// offered to the queue), the single pending state that restart recovery re-admits. A queue refusal replaces
-/// it with <see cref="BooruOriginalIntent.NotAdmitted"/> before the admission returns, so only a request the
-/// queue accepted, or one whose admission a process crash interrupted, stays pending. A user cancel is
+/// it with <see cref="BooruOriginalIntent.NotAdmitted"/>. If that write fails, the admission reports
+/// <see cref="BooruOriginalAdmissionStatus.RefusalPending"/> and the stored request remains recoverable. A user cancel is
 /// recorded as <see cref="BooruOriginalIntent.Cancelled"/> before <see cref="CancelAsync"/> returns; a queue
 /// stop keeps the request. Only after the queue reports an atomic <see cref="MediaCommitResult.AssetId"/> is <see cref="BooruCatalogStore.LinkLocalAssetAdmitted"/>
 /// called, once, under the job's own producer admission. A failed link stays visible as
@@ -124,6 +127,8 @@ internal sealed class BooruOriginalQueue
         WatcherRequest,
         /// <summary>An explicit user retry; it overrides a terminal cancelled/refused/unavailable intent.</summary>
         Retry,
+        /// <summary>Only persist an outstanding refusal, even if the caller saw an older state.</summary>
+        SaveRefusal,
         /// <summary>Restart recovery; only a still-Requested record without an asset is admitted.</summary>
         Recover
     }
@@ -159,6 +164,16 @@ internal sealed class BooruOriginalQueue
         lock (_sync) return new Dictionary<string, BooruOriginalDownloadOutcome>(_outcomes, StringComparer.Ordinal);
     }
 
+    internal IReadOnlyDictionary<string, BooruOriginalDownloadOutcome> Snapshot(IEnumerable<string> postIds)
+    {
+        Dictionary<string, BooruOriginalDownloadOutcome> outcomes = new(StringComparer.Ordinal);
+        lock (_sync)
+            foreach (string id in postIds)
+                if (_outcomes.TryGetValue(id, out BooruOriginalDownloadOutcome? outcome))
+                    outcomes[id] = outcome;
+        return outcomes;
+    }
+
     /// <summary>Number of runtime owners that have not reached a terminal outcome yet.</summary>
     internal int ActiveCount
     {
@@ -172,7 +187,7 @@ internal sealed class BooruOriginalQueue
     /// <para>
     /// The finding is provenance only and never makes the post pending: the durable
     /// <see cref="BooruOriginalIntent.Requested"/> is written ahead of the queue offer and replaced by
-    /// <see cref="BooruOriginalIntent.NotAdmitted"/> if the queue refuses the job.
+    /// <see cref="BooruOriginalIntent.NotAdmitted"/> when a refusal is successfully saved.
     /// An unacceptable original is recorded as <see cref="BooruOriginalIntent.Unavailable"/>; the claim
     /// itself is kept so a later, richer provider answer can still be evaluated.
     /// </para>
@@ -187,11 +202,19 @@ internal sealed class BooruOriginalQueue
         return (await AdmitStoredAsync(post.PostId, mode, cancellationToken, observation).ConfigureAwait(false))!;
     }
 
-    /// <summary>Re-admits a stored post without adding a finding, e.g. after a visible failure or cancel.</summary>
+    /// <summary>Saves an outstanding refusal or re-admits a stored post without adding a finding.</summary>
     internal async Task<BooruOriginalAdmission> RetryAsync(string postId, CancellationToken cancellationToken = default)
     {
         if (!DanbooruPostReference.IsValidPostId(postId)) throw new ArgumentException("The Danbooru post id is invalid.", nameof(postId));
         return (await AdmitStoredAsync(postId, AdmissionMode.Retry, cancellationToken).ConfigureAwait(false))!;
+    }
+
+    internal async Task<BooruOriginalAdmission> SaveRefusalAsync(string postId, CancellationToken cancellationToken)
+    {
+        if (!DanbooruPostReference.IsValidPostId(postId)) throw new ArgumentException("The Danbooru post id is invalid.", nameof(postId));
+        return await AdmitStoredAsync(postId, AdmissionMode.SaveRefusal, cancellationToken).ConfigureAwait(false)
+            ?? new BooruOriginalAdmission(BooruOriginalAdmissionStatus.NotAdmitted, postId,
+                Task.FromResult(new BooruOriginalDownloadOutcome(BooruOriginalDownloadState.NotAdmitted, postId)));
     }
 
     /// <summary>
@@ -250,6 +273,7 @@ internal sealed class BooruOriginalQueue
         {
             PostOwner? owner;
             bool storedCancellation = false;
+            BooruOriginalDownloadOutcome? storedOutcome = null;
             await _admissionGate.WaitAsync().ConfigureAwait(false);
             try
             {
@@ -269,6 +293,11 @@ internal sealed class BooruOriginalQueue
                     // Set before the queue cancel: a refused admission or a stop that races with this cancel
                     // then settles as Cancelled instead of NotAdmitted/Interrupted.
                     owner.RequestCancel();
+                if (storedCancellation)
+                {
+                    storedOutcome = new BooruOriginalDownloadOutcome(BooruOriginalDownloadState.Cancelled, postId);
+                    lock (_sync) _outcomes[postId] = storedOutcome;
+                }
             }
             finally { _admissionGate.Release(); }
 
@@ -276,8 +305,7 @@ internal sealed class BooruOriginalQueue
             {
                 // Publish only after releasing _admissionGate. Observers are allowed to synchronously issue
                 // another admission/cancel and must never deadlock behind this stored cancellation.
-                if (storedCancellation)
-                    Publish(new BooruOriginalDownloadOutcome(BooruOriginalDownloadState.Cancelled, postId));
+                if (storedOutcome is not null) RaiseOutcome(storedOutcome);
                 return storedCancellation | cancelled;
             }
 
@@ -319,13 +347,13 @@ internal sealed class BooruOriginalQueue
     private sealed record Observation(BooruPostClaim Post, BooruFindingKind Kind, string? WatcherId, string? Query,
         DateTimeOffset ObservedAtUtc);
 
-    private enum AdmissionStep { AlreadyLinked, AlreadyQueued, NotPending, KeptCancelled, Unavailable, Admit }
+    private enum AdmissionStep { AlreadyLinked, AlreadyQueued, NotPending, KeptCancelled, SaveRefusal, Unavailable, Admit }
 
     /// <summary>
     /// The admission decision for a stored (or just merged) record. Pure: it reads only its arguments, so it may run
     /// inside the catalog's write lock. A linked record wins over an owner that is just finishing its link.
     /// </summary>
-    private AdmissionStep Decide(BooruPostRecord record, AdmissionMode mode, PostOwner? existing,
+    private AdmissionStep Decide(BooruPostRecord record, AdmissionMode mode, PostOwner? existing, bool refusalPending,
         out BooruOriginalDownloadPlan? plan, out BooruOriginalSelectionError error)
     {
         plan = null;
@@ -333,6 +361,8 @@ internal sealed class BooruOriginalQueue
         if (record.LocalAssetId != null) return AdmissionStep.AlreadyLinked;
         if (existing != null) return AdmissionStep.AlreadyQueued;
         if (mode == AdmissionMode.Recover && !record.HasPendingOriginal) return AdmissionStep.NotPending;
+        if (refusalPending && record.HasPendingOriginal) return AdmissionStep.SaveRefusal;
+        if (mode == AdmissionMode.SaveRefusal) return AdmissionStep.NotPending;
         // Nothing is written for a kept cancellation: the stored cancellation stays the durable decision.
         if (mode == AdmissionMode.WatcherRequest && record.OriginalIntent == BooruOriginalIntent.Cancelled)
             return AdmissionStep.KeptCancelled;
@@ -342,8 +372,7 @@ internal sealed class BooruOriginalQueue
     }
 
     /// <summary>
-    /// Starts one admission from the current stored record. Null only for <see cref="AdmissionMode.Recover"/>
-    /// when the record is no longer pending.
+    /// Acts on the current stored record. Recovery and refusal-only requests return null if there is no work to do.
     /// </summary>
     private async Task<BooruOriginalAdmission?> AdmitStoredAsync(string postId, AdmissionMode mode,
         CancellationToken cancellationToken, Observation? observation = null)
@@ -355,9 +384,12 @@ internal sealed class BooruOriginalQueue
         try
         {
             PostOwner? existing;
+            bool refusalPending;
             lock (_sync)
             {
                 if (!_active.TryGetValue(postId, out existing)) _acceptedAwaitingIntent.TryGetValue(postId, out existing);
+                refusalPending = _outcomes.TryGetValue(postId, out BooruOriginalDownloadOutcome? last)
+                    && last.State == BooruOriginalDownloadState.RefusalPending;
             }
             AdmissionStep step = AdmissionStep.NotPending;
             BooruOriginalDownloadPlan? plan = null;
@@ -376,14 +408,20 @@ internal sealed class BooruOriginalQueue
                         merged =>
                         {
                             wasRequested = merged.OriginalIntent == BooruOriginalIntent.Requested;
-                            step = Decide(merged, mode, existing, out plan, out error);
+                            step = Decide(merged, mode, existing, refusalPending, out plan, out error);
                             return step switch
                             {
+                                AdmissionStep.SaveRefusal => BooruOriginalIntent.NotAdmitted,
                                 AdmissionStep.Unavailable => BooruOriginalIntent.Unavailable,
                                 AdmissionStep.Admit when !wasRequested => BooruOriginalIntent.Requested,
                                 _ => null
                             };
                         }, cancellationToken);
+                }
+                catch (Exception exception) when (step == AdmissionStep.SaveRefusal
+                    && BooruCatalogPersistenceException.IsStoreWriteFailure(exception))
+                {
+                    return PendingRefusal(postId, exception.Message);
                 }
                 catch (Exception exception) when (BooruCatalogPersistenceException.IsStoreWriteFailure(exception))
                 {
@@ -394,7 +432,19 @@ internal sealed class BooruOriginalQueue
             {
                 record = FindRecord(postId) ?? throw new InvalidOperationException("The provider post is not stored locally.");
                 wasRequested = record.OriginalIntent == BooruOriginalIntent.Requested;
-                step = Decide(record, mode, existing, out plan, out error);
+                step = Decide(record, mode, existing, refusalPending, out plan, out error);
+                if (step == AdmissionStep.SaveRefusal)
+                {
+                    try
+                    {
+                        _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
+                            BooruOriginalIntent.NotAdmitted, cancellationToken);
+                    }
+                    catch (Exception exception) when (BooruCatalogPersistenceException.IsStoreWriteFailure(exception))
+                    {
+                        return PendingRefusal(postId, exception.Message);
+                    }
+                }
                 if (step == AdmissionStep.Unavailable)
                     _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
                         BooruOriginalIntent.Unavailable, cancellationToken);
@@ -402,8 +452,7 @@ internal sealed class BooruOriginalQueue
                 // the queue may start the transfer. A process crash between the queue accept and the
                 // acknowledgement therefore leaves a Requested record that recovery re-admits, exactly like an
                 // interrupted request, instead of an accepted (possibly already transferring) job whose request
-                // silently vanishes. Every decision this admission still reaches replaces it: a refusal records
-                // NotAdmitted, a cancel Cancelled, a link Linked, before the admission or cancel returns.
+                // silently vanishes. A successful refusal, cancel or link replaces it with its durable outcome.
                 else if (step == AdmissionStep.Admit && !wasRequested)
                     _catalog.SetOriginalIntent(DanbooruPostReference.ProviderId, postId,
                         BooruOriginalIntent.Requested, cancellationToken);
@@ -422,6 +471,10 @@ internal sealed class BooruOriginalQueue
                 case AdmissionStep.KeptCancelled:
                     BooruOriginalDownloadOutcome kept = new(BooruOriginalDownloadState.Cancelled, postId);
                     return new(BooruOriginalAdmissionStatus.NotAdmitted, postId, Task.FromResult(kept));
+                case AdmissionStep.SaveRefusal:
+                    publishAfterGate = new(BooruOriginalDownloadState.NotAdmitted, postId);
+                    immediate = new(BooruOriginalAdmissionStatus.NotAdmitted, postId, Task.FromResult(publishAfterGate));
+                    break;
                 case AdmissionStep.Unavailable:
                     BooruOriginalDownloadOutcome unavailable = new(BooruOriginalDownloadState.Unavailable, postId, error);
                     immediate = new(BooruOriginalAdmissionStatus.Unavailable, postId, Task.FromResult(unavailable), error);
@@ -437,14 +490,20 @@ internal sealed class BooruOriginalQueue
                     }
                     break;
             }
+            if (publishAfterGate is not null)
+                lock (_sync) _outcomes[postId] = publishAfterGate;
         }
         finally { _admissionGate.Release(); }
-        if (publishAfterGate is not null) Publish(publishAfterGate);
+        if (publishAfterGate is not null) RaiseOutcome(publishAfterGate);
         if (immediate is not null) return immediate;
         if (owner is null) throw new InvalidOperationException("The original admission did not produce an owner.");
         RaiseOutcome(new(BooruOriginalDownloadState.Queued, postId));
         return await EnqueueAsync(owner, cancellationToken).ConfigureAwait(false);
     }
+
+    private static BooruOriginalAdmission PendingRefusal(string postId, string failure) =>
+        new(BooruOriginalAdmissionStatus.RefusalPending, postId,
+            Task.FromResult(new BooruOriginalDownloadOutcome(BooruOriginalDownloadState.RefusalPending, postId, Failure: failure)));
 
     private async Task<BooruOriginalAdmission> EnqueueAsync(PostOwner owner, CancellationToken cancellationToken)
     {
@@ -458,8 +517,8 @@ internal sealed class BooruOriginalQueue
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // The caller abandoned the admission wait; nothing was admitted.
-            SettleRefused(owner, "The original admission was cancelled by its caller.");
+            // A caller can abandon the wait when its profile generation is cut for exclusive work.
+            SettleRefused(owner, "The original admission was cancelled by its caller.", callerCancelled: true);
             throw;
         }
         catch (Exception exception)
@@ -473,8 +532,11 @@ internal sealed class BooruOriginalQueue
         {
             SettleRefused(owner, failure ?? (_queue.IsStopping
                 ? "The download queue is stopping."
-                : "The download queue refused the original."));
-            return new(BooruOriginalAdmissionStatus.NotAdmitted, postId, owner.Completion);
+                : "The download queue refused the original."), callerCancelled: cancellationToken.IsCancellationRequested);
+            BooruOriginalDownloadOutcome outcome = await owner.Completion.ConfigureAwait(false);
+            BooruOriginalAdmissionStatus status = outcome.State == BooruOriginalDownloadState.RefusalPending
+                ? BooruOriginalAdmissionStatus.RefusalPending : BooruOriginalAdmissionStatus.NotAdmitted;
+            return new(status, postId, owner.Completion);
         }
 
         lock (_sync) _acceptedAwaitingIntent[postId] = owner;
@@ -537,7 +599,7 @@ internal sealed class BooruOriginalQueue
     }
 
     /// <summary>The queue did not admit the job (refusal, stop, caller cancellation or failure).</summary>
-    private void SettleRefused(PostOwner owner, string failure)
+    private void SettleRefused(PostOwner owner, string failure, bool callerCancelled = false)
     {
         string postId = owner.Plan.PostId;
         if (owner.CancelRequested)
@@ -547,10 +609,9 @@ internal sealed class BooruOriginalQueue
             // startup) keeps its durable request; it is not a refusal of a new request.
             Settle(owner, new(BooruOriginalDownloadState.Interrupted, postId, Failure: failure), durable: null);
         else
-            // A refusal is terminal until the user asks again; it must not look pending after a restart, so it
-            // replaces the write-ahead Requested. Only a profile that is already closing cannot take this write;
-            // the request then stays pending like one interrupted by a crash.
-            Settle(owner, new(BooruOriginalDownloadState.NotAdmitted, postId, Failure: failure), BooruOriginalIntent.NotAdmitted);
+            // Report a terminal refusal only after replacing the write-ahead Requested.
+            Settle(owner, new(BooruOriginalDownloadState.NotAdmitted, postId, Failure: failure),
+                BooruOriginalIntent.NotAdmitted, callerCancelled: callerCancelled);
     }
 
     private bool TryPlan(BooruPostClaim post, out BooruOriginalDownloadPlan? plan, out BooruOriginalSelectionError error)
@@ -568,8 +629,6 @@ internal sealed class BooruOriginalQueue
     private void OnCommitted(PostOwner owner, MediaCommitResult committed, ProfileAdmissionToken? admission)
     {
         string postId = owner.Plan.PostId;
-        BooruOriginalDownloadOutcome outcome;
-        bool completed;
         lock (owner.Gate)
         {
             try
@@ -585,24 +644,39 @@ internal sealed class BooruOriginalQueue
                 // and an unlinked asset would only be relinked by a later request.
                 BooruPostRecord linked = _catalog.LinkLocalAssetAdmitted(DanbooruPostReference.ProviderId, postId,
                     assetId, committed.Path, token);
-                outcome = new(BooruOriginalDownloadState.Linked, postId, AssetId: linked.LocalAssetId,
+                owner.Result = new(BooruOriginalDownloadState.Linked, postId, AssetId: linked.LocalAssetId,
                     LocalPath: linked.LocalPath, Sha256: committed.Sha256, Length: committed.Length);
             }
             catch (Exception exception)
             {
                 // The durable request stays Requested: recovery finds the committed file and relinks it.
-                outcome = new(BooruOriginalDownloadState.LinkFailed, postId, AssetId: committed.AssetId,
+                owner.Result = new(BooruOriginalDownloadState.LinkFailed, postId, AssetId: committed.AssetId,
                     LocalPath: committed.Path, Sha256: committed.Sha256, Length: committed.Length, Failure: exception.Message);
             }
-            completed = owner.TryComplete(outcome);
         }
-        if (completed) Finish(owner, outcome);
-        else if (outcome.State == BooruOriginalDownloadState.Linked) Publish(outcome);
     }
 
-    private void OnFailed(PostOwner owner, Exception exception) => Settle(owner,
+    private void OnFailed(PostOwner owner, Exception exception)
+    {
         // A failed transfer keeps the durable request: a retry or restart recovery may try again.
-        new(BooruOriginalDownloadState.DownloadFailed, owner.Plan.PostId, Failure: exception.Message), durable: null);
+        lock (owner.Gate)
+            owner.Result = new(BooruOriginalDownloadState.DownloadFailed, owner.Plan.PostId, Failure: exception.Message);
+    }
+
+    private void OnReleased(PostOwner owner)
+    {
+        BooruOriginalDownloadOutcome outcome;
+        bool completed;
+        lock (owner.Gate)
+        {
+            if (owner.Result is not { } result) return;
+            outcome = result;
+            owner.Result = null;
+            completed = Complete(owner, outcome);
+        }
+        if (completed) RaiseOutcome(outcome);
+        else if (outcome.State == BooruOriginalDownloadState.Linked) Publish(outcome);
+    }
 
     private void OnCancelled(PostOwner owner, ExternalMediaCancellation reason, ProfileAdmissionToken? admission)
     {
@@ -623,7 +697,7 @@ internal sealed class BooruOriginalQueue
     /// gate; entering never blocks, so the gate is never held while waiting for admission.
     /// </summary>
     private bool Settle(PostOwner owner, BooruOriginalDownloadOutcome outcome, BooruOriginalIntent? durable,
-        ProfileAdmissionToken? admission = null)
+        ProfileAdmissionToken? admission = null, bool callerCancelled = false)
     {
         if (owner.Completion.IsCompleted) return false;
         ProfileAdmissionToken? entered = null;
@@ -634,13 +708,24 @@ internal sealed class BooruOriginalQueue
             lock (owner.Gate)
             {
                 if (owner.Completion.IsCompleted) return false;
-                if (durable is BooruOriginalIntent intent && (admission ?? entered) is { } token)
-                    TryWriteIntent(owner.Plan.PostId, intent, token);
-                completed = owner.TryComplete(outcome);
+                if (durable is { } intent)
+                {
+                    ProfileAdmissionToken? writer = admission ?? entered;
+                    string? writeFailure = writer != null
+                        ? TryWriteIntent(owner.Plan.PostId, intent, writer)
+                        : "The profile is not accepting catalog writes.";
+                    if (writeFailure != null && intent == BooruOriginalIntent.NotAdmitted)
+                        // A profile cut can cancel the admission wait and reserve the store for exclusive work.
+                        // Keep the request replayable when no writer was available to settle that interruption.
+                        outcome = callerCancelled && writer == null
+                            ? outcome with { State = BooruOriginalDownloadState.Interrupted }
+                            : outcome with { State = BooruOriginalDownloadState.RefusalPending, Failure = writeFailure };
+                }
+                completed = Complete(owner, outcome);
             }
         }
         finally { entered?.Dispose(); }
-        if (completed) Finish(owner, outcome);
+        if (completed) RaiseOutcome(outcome);
         return completed;
     }
 
@@ -654,36 +739,39 @@ internal sealed class BooruOriginalQueue
         }
     }
 
-    private void TryWriteIntent(string postId, BooruOriginalIntent intent, ProfileAdmissionToken admission)
+    private string? TryWriteIntent(string postId, BooruOriginalIntent intent, ProfileAdmissionToken admission)
     {
         try
         {
             _catalog.SetOriginalIntentAdmitted(DanbooruPostReference.ProviderId, postId, intent, admission);
+            return null;
         }
-        catch (Exception exception) when (exception is InvalidOperationException or ObjectDisposedException
-            or IOException or UnauthorizedAccessException)
+        catch (Exception exception) when (BooruCatalogPersistenceException.IsStoreWriteFailure(exception))
         {
-            // The post record or profile is gone; the in-memory outcome is still terminal.
+            return exception.Message;
         }
     }
 
-    private void Finish(PostOwner owner, BooruOriginalDownloadOutcome outcome)
+    // Complete and publish to the snapshot under one lock so an awaiting retry observes the terminal state.
+    private bool Complete(PostOwner owner, BooruOriginalDownloadOutcome outcome)
     {
         lock (_sync)
         {
+            if (!owner.TryComplete(outcome)) return false;
             if (_active.TryGetValue(owner.Plan.PostId, out PostOwner? current) && ReferenceEquals(current, owner))
+            {
                 _active.Remove(owner.Plan.PostId);
-            else if (current != null) return; // A newer owner for the same post owns the visible state.
-            _outcomes[owner.Plan.PostId] = outcome;
+                _outcomes[owner.Plan.PostId] = outcome;
+            }
+            return true;
         }
-        RaiseOutcome(outcome);
     }
 
     private void Publish(BooruOriginalDownloadOutcome outcome)
     {
         lock (_sync)
         {
-            // An unavailable re-read never hides a concurrently active job for the same post.
+            // The late link never hides a concurrently active job for the same post.
             if (_active.ContainsKey(outcome.PostId)) return;
             _outcomes[outcome.PostId] = outcome;
         }
@@ -723,6 +811,8 @@ internal sealed class BooruOriginalQueue
         internal object Gate { get; } = new();
         /// <summary>The stored intent was already Requested when this owner started (recovery or retry).</summary>
         internal bool WasRequested { get; }
+        /// <summary>Result of the worker, published once the queue releases its identity. Guarded by <see cref="Gate"/>.</summary>
+        internal BooruOriginalDownloadOutcome? Result { get; set; }
         internal bool CancelRequested => _cancelRequested;
         internal void RequestCancel() => _cancelRequested = true;
         internal Task<BooruOriginalDownloadOutcome> Completion => _completion.Task;
@@ -755,6 +845,12 @@ internal sealed class BooruOriginalQueue
         public void ReportMediaFailure(string mediaIdentifier, Exception exception, string? destinationPath = null)
         {
             if (mediaIdentifier == Plan.MediaIdentifier && Volatile.Read(ref _committed) == 0) _owner.OnFailed(this, exception);
+        }
+
+        void IExternalMediaWorkOwner.OnMediaReleased(DownloadItem item)
+        {
+            if (ReferenceEquals(item.Thread, this) && item.MediaIdentifier == Plan.MediaIdentifier
+                && item.Variant == BooruOriginalDownloadPlan.Variant) _owner.OnReleased(this);
         }
 
         void IExternalMediaWorkOwner.OnMediaCancelled(DownloadItem item, ExternalMediaCancellation reason,
