@@ -824,6 +824,7 @@
     "archive.tilePreviewUnavailable": "Sem prévia para este tipo de arquivo.",
     "archive.previewLoadFailed": "Não foi possível carregar a prévia.",
     "archive.previewLoadFailedDetail": "Não foi possível carregar a prévia. O arquivo salvo não foi alterado. Detalhes: {0}",
+    "archive.previewMediaReadFailed": "Não foi possível verificar as mídias salvas.",
     "archive.invalidImage": "O arquivo salvo não pôde ser decodificado como imagem.",
     "archive.tooLarge": "Esta imagem é grande demais para a prévia integrada.",
     "archive.deletedAttachment": "Anexo removido na fonte",

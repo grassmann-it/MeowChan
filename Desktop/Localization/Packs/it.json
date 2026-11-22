@@ -824,6 +824,7 @@
     "archive.tilePreviewUnavailable": "Nessuna anteprima per questo tipo di file.",
     "archive.previewLoadFailed": "Impossibile caricare l’anteprima.",
     "archive.previewLoadFailedDetail": "Impossibile caricare l’anteprima. Il file salvato non è cambiato. Dettagli: {0}",
+    "archive.previewMediaReadFailed": "Non è stato possibile verificare i contenuti multimediali salvati.",
     "archive.invalidImage": "Il file salvato non può essere decodificato come immagine.",
     "archive.tooLarge": "Questa immagine è troppo grande per l’anteprima integrata.",
     "archive.deletedAttachment": "Allegato rimosso nella fonte",

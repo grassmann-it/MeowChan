@@ -1272,6 +1272,7 @@
     "archive.tilePreviewUnavailable": "No hay vista previa para este tipo de archivo.",
     "archive.previewLoadFailed": "No se pudo cargar la vista previa.",
     "archive.previewLoadFailedDetail": "No se pudo cargar la vista previa. El archivo guardado no ha cambiado. Detalles: {0}",
+    "archive.previewMediaReadFailed": "No se pudieron comprobar los archivos multimedia guardados.",
     "archive.invalidImage": "No se pudo decodificar el archivo guardado como imagen.",
     "archive.tooLarge": "Esta imagen es demasiado grande para la vista previa integrada.",
     "archive.deletedAttachment": "Adjunto eliminado en la fuente",

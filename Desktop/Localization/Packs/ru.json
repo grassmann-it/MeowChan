@@ -1276,6 +1276,7 @@
     "archive.tilePreviewUnavailable": "Для этого типа файла нет предпросмотра.",
     "archive.previewLoadFailed": "Не удалось загрузить предпросмотр.",
     "archive.previewLoadFailedDetail": "Не удалось загрузить предпросмотр. Сохранённый файл не изменён. Подробности: {0}",
+    "archive.previewMediaReadFailed": "Не удалось проверить сохранённые медиафайлы.",
     "archive.invalidImage": "Сохранённый файл не удалось декодировать как изображение.",
     "archive.tooLarge": "Это изображение слишком велико для встроенного предпросмотра.",
     "archive.deletedAttachment": "Вложение удалено на источнике",

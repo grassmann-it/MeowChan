@@ -51,8 +51,11 @@ internal sealed partial record ArchiveThreadRow(ArchiveThreadSummary Summary, Th
     public string ExportLabel => Texts.T("gallery.export");
 }
 
+internal sealed class ArchiveAttachmentNotSavedException(string key) : IOException(Texts.T(key));
+
 internal sealed record ArchiveAttachmentRow(CapturedAttachment Attachment)
 {
+    internal Action? RetryMediaRead { get; init; }
     public Func<bool>? FavoriteAvailable { get; set; }
     public Func<bool>? IsFavorite { get; set; }
     public Func<Task>? ToggleFavoriteAsync { get; set; }

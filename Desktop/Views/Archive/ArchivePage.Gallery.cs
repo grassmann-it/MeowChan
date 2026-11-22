@@ -156,7 +156,7 @@ public partial class ArchivePage
     {
         ArchivedThreadView? thread = _thread;
         ResourceId? selected = _selectedThread;
-        ArchiveAssetRow[] assets = _assets.ToArray();
+        MediaRead media = _mediaRead;
         bool reader = _showReader;
         int offset = _postOffset;
         int tab = ArchiveContentTabs.SelectedIndex;
@@ -195,7 +195,8 @@ public partial class ArchivePage
             ++_contentRequest;
             _contentCancellation?.Cancel();
             CancelReferences();
-            CancelMediaLoad();
+            bool sameMediaRead = ReferenceEquals(media, _mediaRead) && ReferenceEquals(thread, _thread);
+            if (!sameMediaRead) CancelMediaLoad();
             _busy = false;
             _query = query; _appliedSearch = appliedSearch; _appliedWork = appliedWork; UpdateAppliedFilters(); _listOffset = listOffset; _listTotal = listTotal; _workFilter = workFilter;
             _mediaSort = mediaSort; _allVersions = allVersions;
@@ -214,10 +215,26 @@ public partial class ArchivePage
             PreviousReferences.IsEnabled = backlinkPost != null && referenceOffset > 0;
             NextReferences.IsEnabled = backlinkPost != null && referenceOffset + PageSize < referenceTotal;
             CloseThreadFind();
-            _thread = thread; _selectedThread = selected; _assets = assets;
+            _thread = thread; _selectedThread = selected;
             ReaderSnapshotLoaded();
             _postOffset = offset; _showReader = reader;
-            _mediaReady.TrySetResult(assets);
+            // A gallery can open while the origin's manifests are still being read. Use the result
+            // if it arrived while away, keep the active read, or restart a read cancelled by a jump.
+            bool restartMedia = false;
+            if (!sameMediaRead)
+            {
+                MediaReadAttempt attempt = media.Attempt;
+                bool haveInventory = attempt.Ready.Task.IsCompletedSuccessfully && !attempt.Incomplete;
+                _assets = haveInventory ? attempt.Ready.Task.Result : Array.Empty<ArchiveAssetRow>();
+                restartMedia = thread != null && !haveInventory;
+                _mediaProjectionPending = restartMedia;
+                if (!restartMedia)
+                {
+                    _mediaReady.TrySetResult(_assets);
+                    MediaLoadTask = Task.CompletedTask;
+                }
+            }
+            else RetryMediaRead(media);
             _updatingList = true;
             try
             {
@@ -230,13 +247,15 @@ public partial class ArchivePage
             }
             finally { _updatingList = false; }
             RenderThread(); UpdateLayoutMode();
+            if (restartMedia) MediaLoadTask = LoadMediaAsync(thread!);
             RestoreInlineReplyState(inlineReplies);
             ArchiveContentTabs.SelectedIndex = tab;
             SetMediaSelection(mediaSelection);
             if (ArchivePosts.ItemsSource is IEnumerable<ArchivePostRow> posts)
                 ArchivePosts.SelectedItem = posts.FirstOrDefault(post => post.Id == postSelection);
             foreach (var item in scroll) item.View.Offset = item.Offset;
-            RestoreMediaPosition(mediaPosition);
+            if (_mediaLoading && _assets.Count == 0) _retainedMediaPosition = mediaPosition;
+            else RestoreMediaPosition(mediaPosition);
             if (readerAnchor != null) _ = RestoreReaderAnchorAsync(readerAnchor, restoreReaderFocus);
         };
     }

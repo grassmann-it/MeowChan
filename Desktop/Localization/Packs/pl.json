@@ -830,6 +830,7 @@
     "archive.tilePreviewUnavailable": "Brak podglądu dla tego typu pliku.",
     "archive.previewLoadFailed": "Nie udało się wczytać podglądu.",
     "archive.previewLoadFailedDetail": "Nie udało się wczytać podglądu. Zapisany plik nie został zmieniony. Szczegóły: {0}",
+    "archive.previewMediaReadFailed": "Nie udało się sprawdzić zapisanych multimediów.",
     "archive.invalidImage": "Nie udało się zdekodować zapisanego pliku jako obrazu.",
     "archive.tooLarge": "Ten obraz jest za duży dla wbudowanego podglądu.",
     "archive.deletedAttachment": "Załącznik usunięty w źródle",

@@ -251,16 +251,17 @@ public partial class ArchivePage
             if (bitmap != null)
             {
                 if (!cancellation.IsCancellationRequested && generation == _previewPrefetchGeneration)
+                {
                     row.KnownAspect = ReaderPreviewReservation.Settle(row.KnownAspect, bitmap.PixelSize.Width, bitmap.PixelSize.Height);
+                    _previewPrefetched.Add(row);
+                }
                 MediaTileThumbnails.Release(bitmap);
             }
-            if (generation == _previewPrefetchGeneration) _previewPrefetched.Add(row);
         }
         catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
         catch (Exception)
         {
-            // Not saved, damaged, timed out: the visible load reports it. Not retried on every scroll step.
-            if (generation == _previewPrefetchGeneration) _previewPrefetched.Add(row);
+            // The visible load owns error reporting. A failed preload never counts as a cached preview.
         }
         finally
         {
