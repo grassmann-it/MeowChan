@@ -1436,7 +1436,8 @@ internal sealed class BooruCatalogStore
             Has(incoming.Fields, BooruPostClaimPresence.Media) ? incoming.Media : previous.Media,
             Has(incoming.Fields, BooruPostClaimPresence.SourceClaim) ? incoming.SourceClaim : previous.SourceClaim,
             Has(incoming.Fields, BooruPostClaimPresence.IsDeleted) ? incoming.IsDeleted : previous.IsDeleted,
-            Has(incoming.Fields, BooruPostClaimPresence.IsBanned) ? incoming.IsBanned : previous.IsBanned);
+            Has(incoming.Fields, BooruPostClaimPresence.IsBanned) ? incoming.IsBanned : previous.IsBanned,
+            previous.InstanceId);
 
     private static DateTimeOffset Earliest(DateTimeOffset left, DateTimeOffset right) =>
         left <= right ? left : right;

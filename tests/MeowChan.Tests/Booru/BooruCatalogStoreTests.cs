@@ -105,6 +105,35 @@ public sealed partial class BooruCatalogStoreTests
     }
 
     [Fact]
+    public void RepeatedPartialClaimsForANonDefaultInstanceSurviveRestart()
+    {
+        using TempDirectory directory = new();
+        DateTimeOffset first = DateTimeOffset.Parse("2026-11-12T12:00:00Z");
+        BooruPostClaim tags = Post("42") with
+        {
+            InstanceId = "test-instance",
+            Tags = [new("scoped_tag", BooruPostClaimTagCategory.General)]
+        };
+        BooruPostClaim score = new(tags.SourceId, tags.PostId, BooruPostClaimPresence.Score,
+            Score: 19, InstanceId: tags.InstanceId);
+
+        using (ProfileLease lease = ProfileLease.Acquire(directory.Path))
+        {
+            BooruCatalogStore store = new(directory.Path, lease);
+            store.UpsertPost(tags, first);
+            store.UpsertPost(score, first.AddMinutes(1));
+        }
+
+        using ProfileLease reopened = ProfileLease.Acquire(directory.Path);
+        BooruPostRecord saved = Assert.Single(new BooruCatalogStore(directory.Path, reopened).Read().Posts);
+        Assert.Equal(tags.Identity, saved.Identity);
+        Assert.Equal(tags.Identity, saved.Post.Identity);
+        Assert.Equal(tags.Fields | score.Fields, saved.Post.Fields);
+        Assert.Equal(Assert.Single(tags.Tags), Assert.Single(saved.Post.Tags));
+        Assert.Equal(19, saved.Post.Score);
+    }
+
+    [Fact]
     public void OutOfOrderObservationTimesKeepAStableObservationRange()
     {
         using TempDirectory directory = new();
