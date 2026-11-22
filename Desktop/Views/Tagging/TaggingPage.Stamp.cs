@@ -15,6 +15,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 
@@ -79,10 +80,11 @@ public sealed partial class TaggingPage
     {
         WorkViewElement.SetId(_stampButton, "tagging.stamp");
         StackPanel trigger = new() { Orientation = Orientation.Horizontal, Spacing = 8,
-            Children = { _stampSummary, _stampPreview, WorkspaceIcons.Create(WorkspaceIcons.ChevronDown) } };
+            Children = { CommandBindings.NamedIcon("tag"), _stampSummary, _stampPreview, CommandBindings.NamedIcon("chevron-down", 12) } };
         AutomationProperties.SetAccessibilityView(trigger, AccessibilityView.Raw);
         _stampButton.Content = trigger;
         _stampButton.Flyout = _stampFlyout;
+        CommandBindings.EnsureIconBeforeText(_stampAdd, "plus");
 
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"), ColumnSpacing = 8,
             Children = { _stampHeading, _stampHelp, _stampClose } };

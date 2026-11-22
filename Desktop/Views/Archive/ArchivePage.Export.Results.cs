@@ -7,6 +7,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Archive;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -29,6 +30,7 @@ public partial class ArchivePage
         // ActionToolBar moves this same button into overflow when it cannot fit.
         string label = Texts.Count("export.resultsAction", total);
         button.Content = label;
+        CommandBindings.EnsureIconBeforeText(button, CommandCatalog.Get("export.open-all-results-html-dialog").Icon);
         ToolTip.SetTip(button, label);
         AutomationProperties.SetName(button, label);
         AutomationProperties.SetHelpText(button, Texts.T("export.resultsScope"));

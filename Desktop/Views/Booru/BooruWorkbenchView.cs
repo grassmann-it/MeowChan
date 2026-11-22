@@ -384,8 +384,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ToolTip.SetShowOnDisabled(_createWatcher, true);
         CommandBindings.EnsureIconBeforeText(_submit, "search");
         CommandBindings.EnsureIconBeforeText(_createWatcher, "plus");
-        CommandBindings.EnsureIconBeforeText(_cancel, "x");
-        CommandBindings.EnsureIconBeforeText(_retry, "refresh-cw");
+        CommandBindings.EnsureIconBeforeText(_cancel, CardMenuIcons.Cancel);
+        CommandBindings.EnsureIconBeforeText(_retry, CardMenuIcons.Retry);
         _submit.Click += async (_, _) => await SubmitSearchAsync();
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
@@ -440,7 +440,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _removeNoteHost.Child = _removeNote;
         _watcherNoticeHost.Child = _watcherNoticeText;
         AutomationProperties.SetLiveSetting(_watcherNoticeText, AutomationLiveSetting.Polite);
-        CommandBindings.EnsureIconBeforeText(_watchersReload, "refresh-cw");
+        CommandBindings.EnsureIconBeforeText(_watchersReload, CardMenuIcons.Retry);
         CommandBindings.EnsureIconBeforeText(_resetCooldown, "skip-forward");
         _watchersReload.Click += async (_, _) => await _model.Watchers.RefreshAsync();
         _resetCooldown.Click += async (_, _) => await _model.Watchers.ResetProviderCooldownAsync();
@@ -852,7 +852,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
         Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, HorizontalAlignment = HorizontalAlignment.Left };
         load.Classes.Add("primary");
-        CommandBindings.EnsureIconBeforeText(load, cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load);
+        CommandBindings.ShowIconBeforeText(load, cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load);
         RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
             _resultWorkViewActions);
         load.IsEnabled = cancel || retry || row.CanLoad;

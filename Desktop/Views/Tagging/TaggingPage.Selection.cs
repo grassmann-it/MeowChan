@@ -21,7 +21,7 @@ public sealed partial class TaggingPage
     private readonly Button _selTag = new TaggingActivationButton() { Name = "TaggingSelectionTag", Classes = { "bar-button" } };
     private readonly Button _selDone = new TaggingActivationButton() { Name = "TaggingSelectionDone", Classes = { "bar-button" } };
     private readonly Button _selMore = new TaggingActivationButton() { Name = "TaggingSelectionMore", Classes = { "bar-button" } };
-    private readonly TextBlock _selMoreText = new() { VerticalAlignment = VerticalAlignment.Center };
+    private readonly TaggingControlRow _selectionRow = new() { Name = "TaggingSelectionRow" };
     private readonly Button _selClear = new TaggingActivationButton() { Name = "TaggingSelectionClear", Classes = { "bar-button" } };
     private ContextMenuHost? _selectionMenuHost;
 
@@ -40,8 +40,8 @@ public sealed partial class TaggingPage
         _selDone.Click += (_, _) => OpenActions.Start(() => ExecuteRowCommandAsync(TaggingCommands.MarkDone), "tagging.selection.done");
         _selectionMenuHost = new ContextMenuHost(_selMore, ComposeSelectionMenu, fallbackFocus: () => FocusContent());
         _selMore.Click += (_, _) => ShowSelectionMenu();
-        _selMore.Content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8,
-            Children = { _selMoreText, WorkspaceIcons.Create(WorkspaceIcons.ChevronDown) } };
+        CommandBindings.ShowIconBeforeText(_selMore, CommandCatalog.Get("menu.context-open").Icon,
+            showLabel: _selectionRow.GetObservable(TaggingControlRow.ShowActionLabelsProperty));
         _selClear.Click += (_, _) => ClearSelection();
         _selectionBar.KeyDown += (_, e) =>
         {
@@ -52,8 +52,10 @@ public sealed partial class TaggingPage
 
         StackPanel actions = new() { Name = "TaggingSelectionActions", Orientation = Orientation.Horizontal, Spacing = 8,
             Children = { _selTag, _selDone, _selMore } };
-        TaggingControlRow bar = new() { Name = "TaggingSelectionRow", Children = { _selectionText, actions, _selClear }, TrailingChild = _selClear };
-        _selectionBar.Child = bar;
+        _selectionRow.Children.AddRange([_selectionText, actions, _selClear]);
+        _selectionRow.CompactActions = actions;
+        _selectionRow.TrailingChild = _selClear;
+        _selectionBar.Child = _selectionRow;
         CommandBindings.ObservePresentation(_selectionBar, UpdateSelectionBar);
         return _selectionBar;
     }
@@ -61,11 +63,11 @@ public sealed partial class TaggingPage
     private void LocalizeSelection()
     {
         AutomationProperties.SetName(_selectionBar, Texts.T("tagging.page.selection.name"));
-        _selMoreText.Text = Texts.T("workview.more");
-        string name = Texts.T("tagging.page.selection.name");
-        ToolTip.SetTip(_selMore, name);
-        AutomationProperties.SetName(_selMore, _selMoreText.Text);
-        AutomationProperties.SetHelpText(_selMore, name);
+        string more = Texts.T("workview.more");
+        _selMore.Content = more;
+        ToolTip.SetTip(_selMore, more);
+        AutomationProperties.SetName(_selMore, more);
+        AutomationProperties.SetHelpText(_selMore, Texts.T("tagging.page.selection.name"));
         string clear = Texts.T("media.selection.clear");
         WorkspaceIcons.MakeSquare(_selClear, WorkspaceIcons.CloseSmall, clear);
         string tip = clear + " · Esc";
@@ -105,12 +107,15 @@ public sealed partial class TaggingPage
         _selClear.IsEnabled = count > 0;
     }
 
-    private static void SetSelectionAction(Button button, string id, TaggingCommandContext context)
+    private void SetSelectionAction(Button button, string id, TaggingCommandContext context)
     {
         TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);
         string label = CommandCatalog.Label(id);
         string tip = CommandBindings.Tooltip(id, state.Reason, keyContext: "tagging");
         button.Content = label;
+        string icon = CommandCatalog.Get(id).Icon;
+        if (IconButtons.KeyOf(button) != icon)
+            CommandBindings.ShowIconBeforeText(button, icon, showLabel: _selectionRow.GetObservable(TaggingControlRow.ShowActionLabelsProperty));
         button.IsEnabled = state.Available;
         ToolTip.SetTip(button, tip);
         ToolTip.SetShowOnDisabled(button, true);
