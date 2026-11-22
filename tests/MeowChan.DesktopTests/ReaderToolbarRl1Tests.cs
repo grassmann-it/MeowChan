@@ -99,15 +99,15 @@ public sealed class ReaderToolbarRl1Tests : IDisposable
     [Fact]
     public void ReadAndTheListsPostsReadAreOneThingInTheLabelsOfBothLanguages()
     {
-        Assert.Equal("Large reader", CommandCatalog.Label("reader.expand"));
-        Assert.Equal("Large reader", Texts.T("command.reader.expand.compact"));
+        Assert.Equal("Reader", CommandCatalog.Label("reader.expand"));
+        Assert.Equal("Reader", Texts.T("command.reader.expand.compact"));
         Assert.Equal("Thread tags…", CommandCatalog.Label("thread.tags"));
         Assert.Equal("Find", Texts.T("readerFind.open"));
         Assert.Equal("Settings", Texts.T("reader.settings.button"));
         Assert.Equal("A view filter is on", Texts.T("reader.settings.active"));
         Texts.SetLanguage("de");
-        Assert.Equal("Großer Reader", CommandCatalog.Label("reader.expand"));
-        Assert.Equal("Großer Reader", Texts.T("command.reader.expand.compact"));
+        Assert.Equal("Reader", CommandCatalog.Label("reader.expand"));
+        Assert.Equal("Reader", Texts.T("command.reader.expand.compact"));
         Assert.Equal("Thread-Tags…", CommandCatalog.Label("thread.tags"));
         Assert.Equal("Suchen", Texts.T("readerFind.open"));
         Assert.Equal("Einstellungen", Texts.T("reader.settings.button"));

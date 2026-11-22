@@ -97,7 +97,7 @@ internal static class CommandLabelCatalog
         ("command.archive.back-to-list", "Back to thread list", "Zurück zur Threadliste"),
         ("command.archive.capture-toggle", "Start / stop post capture", "Post-Erfassung starten / stoppen"),
         ("command.reader.close", "Close reader", "Reader schließen"),
-        ("command.reader.expand", "Large reader", "Großer Reader"),
+        ("command.reader.expand", "Reader", "Reader"),
         ("command.reader.history-back", "Back to last read", "Zurück zum Lesestand"),
         ("command.reader.previous-thread", "Previous thread", "Voriger Thread"),
         ("command.reader.next-thread", "Next thread", "Nächster Thread"),
@@ -252,7 +252,7 @@ internal static class CommandLabelCatalog
 
         // Short visible labels; full titles remain the tooltip/accessibility labels.
         ("command.reader.close.compact", "Close", "Schließen"),
-        ("command.reader.expand.compact", "Large reader", "Großer Reader"),
+        ("command.reader.expand.compact", "Reader", "Reader"),
         ("command.gallery.open.compact", "Gallery", "Galerie"),
         ("command.window.fullscreen.compact", "Full screen", "Vollbild"),
     };
