@@ -172,6 +172,7 @@ public sealed class VideoScrubPreviewTests
     {
         using TempDirectory temp = new();
         var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
+        IoManualClock clock = new(DateTimeOffset.UnixEpoch);
         FakeDecoder decoder = new() { Hold = new(TaskCreationOptions.RunContinuationsAsynchronously) };
         TaskCompletionSource readStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource releaseRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -186,12 +187,19 @@ public sealed class VideoScrubPreviewTests
             return null;
         };
         VideoScrubPreviewOptions options = new(16, TimeSpan.FromMilliseconds(100));
-        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, options: options, readOverride: read)
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, options: options, readOverride: read,
+            testSeam: new() { DecodeClock = clock })
             .OpenSession(manifest, asset)!;
 
         Task<VideoScrubFrame?> request = session.GetSlotAsync(3, Duration, CancellationToken.None);
         await readStarted.Task.WaitAsync(Patience);
-        releaseRead.TrySetResult();
+        try
+        {
+            clock.Advance(options.DecodeTimeout + options.DecodeTimeout);
+            Assert.Equal(0, clock.ActiveTimers);
+            Assert.Empty(decoder.Calls);
+        }
+        finally { releaseRead.TrySetResult(); }
         CancellationToken decodeToken = await decoder.DecodeToken.Task.WaitAsync(Patience);
         Assert.False(decodeToken.IsCancellationRequested);
         decoder.Hold!.TrySetResult();
@@ -206,21 +214,22 @@ public sealed class VideoScrubPreviewTests
         using TempDirectory temp = new();
         var (manifest, asset) = await ManifestAsync(temp.Path, "clip.webm", new byte[] { 1, 2, 3, 4 });
         FakeDecoder decoder = new();
-        TaskCompletionSource storeStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        IoManualClock clock = new(DateTimeOffset.UnixEpoch);
         VideoScrubPreviewOptions options = new(16, TimeSpan.FromMilliseconds(50));
-        Func<VideoScrubFrameKey, byte[], CancellationToken, Task> store = async (_, _, _) =>
+        int stores = 0;
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task> store = (_, _, token) =>
         {
-            storeStarted.TrySetResult();
-            // This is the one deliberately bounded timeout fixture. The store crosses the native deadline,
-            // but receives the unbounded work token and therefore remains optional.
-            await Task.Delay(options.DecodeTimeout + options.DecodeTimeout, CancellationToken.None);
+            clock.Advance(options.DecodeTimeout + options.DecodeTimeout);
+            token.ThrowIfCancellationRequested();
+            stores++;
+            return Task.CompletedTask;
         };
-        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, options: options, storeOverride: store)
+        await using VideoScrubPreviewSession session = Cache(temp.Path, decoder, options: options, storeOverride: store,
+            testSeam: new() { DecodeClock = clock })
             .OpenSession(manifest, asset)!;
-        Task<VideoScrubFrame?> request = session.GetSlotAsync(8, Duration, CancellationToken.None);
-        await storeStarted.Task.WaitAsync(Patience);
 
-        VideoScrubFrame frame = Assert.IsType<VideoScrubFrame>(await request.WaitAsync(Patience));
+        VideoScrubFrame frame = Assert.IsType<VideoScrubFrame>(await session.GetSlotAsync(8, Duration, CancellationToken.None).WaitAsync(Patience));
+        Assert.Equal(1, stores);
         Assert.Equal(8, frame.Slot);
         Assert.False(session.IsUnavailable);
     }
@@ -752,9 +761,9 @@ public sealed class VideoScrubPreviewTests
 
     private static VideoScrubPreviewCache Cache(string root, FakeDecoder decoder, SemaphoreSlim? gate = null, VideoScrubPreviewOptions? options = null,
         Func<VideoScrubFrameKey, CancellationToken, Task<byte[]?>>? readOverride = null,
-        Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? storeOverride = null) =>
+        Func<VideoScrubFrameKey, byte[], CancellationToken, Task>? storeOverride = null, VideoScrubPreviewCacheTestSeam? testSeam = null) =>
         new(Path.Combine(root, "scrub"), options ?? VideoScrubPreviewOptions.Default, decoder, gate ?? VideoPosterCache.NativeDecodeGate,
-            readOverride, storeOverride);
+            readOverride, storeOverride, testSeam);
 
     private static int WidthOf(int slot) => 100 + slot;
 

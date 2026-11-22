@@ -391,7 +391,7 @@ public sealed class MediaFilterGridTests : IDisposable
     public void ChipRowItemsShareOneHeightAndTheFlagsAreCentredOnTheDropdowns()
     {
         string chips = Source("Desktop/Controls/WorkspaceChips.cs"), row = Source("Desktop/Views/Media/MediaPage.FilterChips.cs"), grid = Source(Grid_);
-        Assert.Contains("internal const double RowHeight = 28;", chips);
+        Assert.Equal(MeowChan.Desktop.WorkspaceMetrics.FilterChipHeight, WorkspaceChips.MarkRowItem(new Button()).Height);
         Assert.Contains("control.Height = RowHeight;", chips);
         Assert.Contains("content.VerticalContentAlignment = VerticalAlignment.Center;", chips);
         Assert.Contains("MarkRowItem(tag);", chips); // every filter chip, both pages

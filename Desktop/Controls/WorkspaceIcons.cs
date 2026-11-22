@@ -1,11 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Shapes;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 
 namespace MeowChan.Desktop.Controls;
@@ -96,7 +98,7 @@ internal static class WorkspaceIcons
         [SeveritySuccess] = new("M14.2,8 A6.2,6.2 0 1 1 1.8,8 A6.2,6.2 0 1 1 14.2,8 Z M5.1,8.2 L7.1,10.2 L10.9,6")
     };
 
-    private static readonly Dictionary<string, Geometry> Built = new();
+    private static readonly ConditionalWeakTable<Dispatcher, Dictionary<string, Geometry>> Built = new();
 
     /// <summary>The icon keys, for tests and the lint of the style file.</summary>
     internal static IReadOnlyCollection<string> Keys => Definitions.Keys;
@@ -105,14 +107,12 @@ internal static class WorkspaceIcons
     internal static string DataOf(string key) =>
         Definitions.TryGetValue(key, out Definition? definition) ? definition.Data : throw new ArgumentOutOfRangeException(nameof(key), key, "Unknown icon.");
 
-    /// <summary>The geometry of an icon, parsed once on first use. Needs the render platform: call it from the UI path only.</summary>
+    /// <summary>The geometry of an icon, parsed once per UI dispatcher because the geometry belongs to its creating thread.</summary>
     internal static Geometry GeometryOf(string key)
     {
-        lock (Built)
-        {
-            if (!Built.TryGetValue(key, out Geometry? geometry)) Built.Add(key, geometry = Geometry.Parse(DataOf(key)));
-            return geometry;
-        }
+        Dictionary<string, Geometry> icons = Built.GetOrCreateValue(Dispatcher.CurrentDispatcher);
+        if (!icons.TryGetValue(key, out Geometry? geometry)) icons.Add(key, geometry = Geometry.Parse(DataOf(key)));
+        return geometry;
     }
 
     /// <summary>

@@ -23,6 +23,8 @@ public static class WorkspaceMetrics
 {
     public const double NormalRowHeight = 44;
     public const double CompactRowHeight = 32;
+    internal const double InputHeight = 32;
+    internal const double FilterChipHeight = 28;
     /// <summary>Code mirror of Workspace.Inset.Section for code-built side panels whose host may override individual edges.</summary>
     public const double SectionInset = 16;
     /// <summary>A list row with a title and a meta line (16 dip padding above and below them together, on the 8 dip grid).</summary>

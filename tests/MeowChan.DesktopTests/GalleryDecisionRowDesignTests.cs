@@ -5,9 +5,12 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Headless;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 
 namespace MeowChan.DesktopTests;
 
@@ -142,17 +145,38 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     }
 
     [Fact]
-    public void EveryStarWiresItsPointerToThePreviewAndTheRowForgetsItWhenItLeavesTheTree()
+    public void EveryStarWiresItsPointerToThePreviewAndTheRowForgetsItWhenItLeavesTheTree() => BooruComponentDispatcher.Run(() =>
     {
-        string row = File.ReadAllText(Root("Desktop/Controls/GalleryDecisionRow.cs"));
-        // The lease now owns enter/move admission AND all release paths, including
-        // native-window leaves and focus loss; keep checking both visual transitions.
-        Assert.Contains("new TransientHover(star, over =>", row);
-        Assert.Contains("if (over) Preview(number); else if (_preview == number) Preview(null);", row);
-        Assert.Contains("_preview = null; if (!_attached) return;", row);
-        Assert.Contains("FavoriteStar.Create(index < shown, StarGlyphSize, tinted: !previewing)", row);
-        Assert.Contains("private const int StarGlyphSize = 20;", row);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        GalleryDecisionRow row = new("DesignRow") { VerticalAlignment = Avalonia.Layout.VerticalAlignment.Top };
+        row.Show(View(2));
+        Window window = new() { Width = 480, Height = 240, Content = row, Classes = { MotionPolicy.OffClass } };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            Dispatcher.UIThread.RunJobs();
+            for (int index = 0; index < row.StarButtons.Count; index++)
+            {
+                ToggleButton star = row.StarButtons[index];
+                Point center = star.TranslatePoint(new Point(star.Bounds.Width / 2, star.Bounds.Height / 2), window)!.Value;
+                window.MouseMove(center);
+                Assert.Equal(index + 1, row.PreviewedStar);
+                Assert.Equal(Enumerable.Range(0, 5).Select(i => (bool?)(i <= index)), Marks(row));
+
+                window.MouseMove(new Point(10, 220));
+                Assert.Null(row.PreviewedStar);
+                Assert.Equal(new bool?[] { true, true, false, false, false }, Marks(row));
+            }
+
+            ToggleButton last = row.StarButtons[^1];
+            window.MouseMove(last.TranslatePoint(new Point(last.Bounds.Width / 2, last.Bounds.Height / 2), window)!.Value);
+            Assert.Equal(5, row.PreviewedStar);
+            window.Content = null;
+            Assert.Null(row.PreviewedStar);
+        }
+        finally { window.Close(); }
+    });
 
     // ---- tab stop ----------------------------------------------------------------------------------------------------------------
 

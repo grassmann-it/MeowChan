@@ -4,6 +4,8 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -77,14 +79,19 @@ public sealed partial class MediaPage
     // A check box has its text as label: its cell has no label above. F05: the cell keeps the field cells' shape (a label-high spacer, then a box as
     // high as the combo boxes, Workspace.Size.Input = 32 dip) and the check box stands vertically centred in that box, so it is level with the
     // dropdowns beside it instead of hanging at the bottom of the cell.
-    internal const double FilterFieldHeight = 32;
+    internal const double FilterFieldHeight = WorkspaceMetrics.InputHeight;
     private void AddFlagCell(CheckBox flag)
     {
         flag.VerticalAlignment = VerticalAlignment.Center;
         flag.MinHeight = 0;
         // The spacer is the height of a one-line field label; it is not read and takes no input.
         // It is no workspace-field-label itself: the labels are real text, the layout checks count them.
-        TextBlock spacer = new() { FontSize = 13, FontWeight = Avalonia.Media.FontWeight.Medium, Text = "\u00A0", Opacity = 0, IsHitTestVisible = false, Name = "MediaFilterFlagSpacer" };
+        TextBlock spacer = new()
+        {
+            [!TextBlock.FontSizeProperty] = new DynamicResourceExtension("Workspace.Text.Body"),
+            FontWeight = Avalonia.Media.FontWeight.Medium,
+            Text = "\u00A0", Opacity = 0, IsHitTestVisible = false, Name = "MediaFilterFlagSpacer"
+        };
         AutomationProperties.SetAccessibilityView(spacer, AccessibilityView.Raw);
         Avalonia.Controls.Grid box = new() { Name = "MediaFilterFlagBox", Height = FilterFieldHeight, Children = { flag } };
         StackPanel cell = new() { Classes = { "workspace-field" }, VerticalAlignment = VerticalAlignment.Bottom, ClipToBounds = true };

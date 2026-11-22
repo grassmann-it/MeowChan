@@ -1,9 +1,12 @@
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using Avalonia;
 using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Styling;
+using MeowChan.Desktop.Motion;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -705,25 +708,45 @@ public sealed class MediaBadgeTests : IDisposable
     // ---- look: no colour of its own ----
 
     [Fact]
-    public void TheComponentUsesTheColoursOfThePlayMarkAndNoColourOfItsOwn()
+    public void TheComponentUsesTheColoursOfThePlayMarkAndNoColourOfItsOwn() => BooruComponentDispatcher.Run(() =>
     {
-        string source = File.ReadAllText(Path.Combine(RepoRoot(), "Desktop", "Controls", "MediaBadges.cs"));
-        string code = Regex.Replace(Regex.Replace(source, @"//.*", ""), @"/\*.*?\*/", "", RegexOptions.Singleline);
-        Assert.DoesNotContain("Color.FromArgb", code);
-        Assert.DoesNotContain("Color.FromRgb", code);
-        Assert.DoesNotContain("Brushes.", code);
-        Assert.DoesNotContain("Colors.", code);
-        Assert.DoesNotContain("AccentSurface", code);
-        Assert.DoesNotContain("WarningSurface", code);
-        Assert.DoesNotContain("DynamicResource", code); // theme independent
-        Assert.DoesNotMatch(@"#[0-9A-Fa-f]{3,8}\b", code);
-        // The colours: the dark disc and the white ring of the play mark, in both themes.
-        Avalonia.Media.Color disc = VideoPlayMark.DiscColor, ring = VideoPlayMark.RingColor;
-        Assert.True(disc.R < 40 && disc.G < 40 && disc.B < 40 && disc.A >= 180);
-        Assert.True(ring.R == 255 && ring.G == 255 && ring.B == 255 && ring.A >= 150);
-        Assert.Same(Avalonia.Media.Brushes.White, VideoPlayMark.GlyphBrush);
-        Assert.Equal(disc, ((Avalonia.Media.ISolidColorBrush)VideoPlayMark.DiscBrush).Color);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Application app = Application.Current!;
+        MediaBadgeView view = new() { Options = Everything };
+        Window window = new() { Content = view, Width = 160, Height = 120, Classes = { MotionPolicy.OffClass } };
+        try
+        {
+            window.Show();
+            Color disc = VideoPlayMark.DiscColor, ring = VideoPlayMark.RingColor;
+            Assert.True(disc.R < 40 && disc.G < 40 && disc.B < 40 && disc.A >= 180);
+            Assert.True(ring.R == 255 && ring.G == 255 && ring.B == 255 && ring.A >= 150);
+            foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+            {
+                app.RequestedThemeVariant = theme;
+                foreach (string color in MeowChan.Ratings.MediaLabelColors.All)
+                {
+                    Assert.True(app.TryFindResource("Workspace.MediaLabel." + color, theme, out object? token));
+                    Color label = Assert.IsType<Color>(token);
+                    Assert.Equal(byte.MaxValue, label.A);
+                    // The video and its label draw only geometry, so every fill can be inspected.
+                    view.Apply(new MediaBadgeState(Kind: MediaBadgeKind.Video, Label: color), new Size(160, 120));
+                    DrawingGroup drawing = new();
+                    using (DrawingContext context = drawing.Open()) view.Render(context);
+                    GeometryDrawing[] geometries = GeometryDrawings(drawing).ToArray();
+                    Assert.Contains(geometries, shape => shape.Brush is ISolidColorBrush b && b.Color == disc
+                        && shape.Pen?.Brush is ISolidColorBrush outline && outline.Color == ring);
+                    Assert.Contains(geometries, shape => shape.Brush is ISolidColorBrush b && b.Color == Brushes.White.Color);
+                    Assert.Contains(geometries, shape => shape.Brush is ISolidColorBrush b && b.Color == label);
+                    Assert.All(geometries.Select(shape => shape.Brush).OfType<ISolidColorBrush>(),
+                        brush => Assert.Contains(brush.Color, new[] { disc, Brushes.White.Color, label }));
+                }
+            }
+        }
+        finally { window.Close(); }
+    });
+
+    private static IEnumerable<GeometryDrawing> GeometryDrawings(DrawingGroup drawing) =>
+        drawing.Children.SelectMany(child => child is DrawingGroup group ? GeometryDrawings(group) : new[] { child }.OfType<GeometryDrawing>());
 
     // ---- settings: default, minimum, maximum ----
 

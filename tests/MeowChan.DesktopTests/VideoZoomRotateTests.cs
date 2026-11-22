@@ -475,8 +475,14 @@ public sealed class VideoZoomRotateTests : IDisposable
         EffectiveShortcutBindings bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
         Assert.Equal("Plus", CommandCatalog.Get("gallery.zoom-in").Shortcut);
         Assert.Equal("Minus", CommandCatalog.Get("gallery.zoom-out").Shortcut);
-        Assert.Equal("0", CommandCatalog.Get("gallery.fit").Shortcut);
-        Assert.Equal("1", CommandCatalog.Get("gallery.actual-size").Shortcut);
+        Assert.Equal("Primary+0", CommandCatalog.Get("gallery.fit").Shortcut);
+        Assert.Equal("Z", CommandCatalog.Get("gallery.actual-size").Shortcut);
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.D0, KeyModifiers = KeyModifiers.Control }, "gallery.fit"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.NumPad0 }, "gallery.fit"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Z }, "gallery.actual-size"));
+        Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.NumPad1 }, "gallery.actual-size"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.D0 }, "gallery.fit"));
+        Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.D1 }, "gallery.actual-size"));
         Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.Add }, "gallery.zoom-in"));
         Assert.False(bindings.Matches(new KeyEventArgs { Key = Key.R, KeyModifiers = KeyModifiers.Shift }, "gallery.zoom-in"));
     }

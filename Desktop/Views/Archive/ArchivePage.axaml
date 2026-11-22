@@ -682,7 +682,7 @@
                                         <TextBlock x:Name="ArchiveNoMedia" Tag="archive.noMedia" Classes="muted localized" TextWrapping="Wrap" Margin="8,32,8,8" />
                                     </Grid>
                                     <StackPanel x:Name="ArchiveMediaFooter" Grid.Row="2" Spacing="{StaticResource Workspace.Space.8}">
-                                        <TextBlock x:Name="ArchiveThreadMediaTotal" Classes="muted tnum" IsVisible="False" />
+                                        <controls:TrimTipTextBlock x:Name="ArchiveThreadMediaTotal" Classes="muted tnum" IsVisible="False" />
                                         <TextBlock x:Name="ArchiveRatingStatus" wv:WorkViewElement.Id="reader.media.rating-error" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" />
                                         <!-- T3: the selection status of the Media tab; shown from two selected files on. -->
                                         <WrapPanel x:Name="ArchiveMediaSelectionBar" ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.8}" IsVisible="False">
