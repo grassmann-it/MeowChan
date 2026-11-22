@@ -123,7 +123,7 @@ internal sealed class BooruGalleryToolbar : Border
         _openPost.IsVisible = BooruPostLinks.TryCanonical(row.Post, out string url);
         IconButtons.Apply(_openPost, "external-link", Texts.T("booru.ui.post.openFor", row.Post.PostId));
         if (_openPost.IsVisible) ToolTip.SetTip(_openPost, Texts.T("booru.ui.post.openTip", url));
-        IconButtons.Apply(_openWindow, "copy", Texts.T("booru.gallery.openWindow"));
+        IconButtons.Apply(_openWindow, "monitor", Texts.T("booru.gallery.openWindow"));
     }
 
     private static void PresentCommand(Button button, string id)

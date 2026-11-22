@@ -91,7 +91,6 @@ internal sealed partial class BooruWorkbenchView
 
     private WrapPanel BuildSearchTabActions()
     {
-        CommandBindings.EnsureIconBeforeText(_downloadAll, "download");
         CommandBindings.EnsureIconBeforeText(_alternateSubmit, "search");
         _alternateSubmit.Click += async (_, _) => await SubmitSearchAsync(alternate: true);
         CommandBindings.EnsureIconBeforeText(_openInNewTab, "copy");
@@ -407,7 +406,7 @@ internal sealed partial class BooruWorkbenchView
     // ---- render ----------------------------------------------------------------------------------------
 
     /// <summary>Tab titles, the buttons next to "Create watcher" and the bulk status; called with every render.</summary>
-    private void RenderSearchTabs(BooruSearchView view)
+    private void RenderSearchTabs(BooruSearchView view, BooruWatcherListView watchers)
     {
         if (_searchTabs is not { } tabs) return;
         RenderBottomStatus(view);
@@ -417,8 +416,14 @@ internal sealed partial class BooruWorkbenchView
             RenderTabHeader(tab.Item, tab.Header,
                 BooruSearchTabs.Title(tabs.ViewOf(id), Texts.T("booru.tabs.blank"), id => Texts.T("booru.tabs.post", id)));
         if (_watcherHeader is { } header)
-            RenderTabHeader(_watchersTab, header, Texts.T("booru.ui.tab.watchers", _model.Watchers.Count));
-        _openWatchers.Content = Texts.T("booru.tabs.watchers");
+            RenderTabHeader(_watchersTab, header, Texts.Count("booru.ui.tab.watchers", _model.Watchers.Count));
+        int activeWatchers = watchers.Rows.Count(row => row.Watcher.Status is not (BooruWatcherStatus.Paused or BooruWatcherStatus.Removed));
+        string watchersLabel = Texts.Count("booru.ui.tab.watchers", activeWatchers);
+        string watchersTip = Texts.Count("booru.tabs.watchersTip", activeWatchers);
+        _openWatchers.Content = watchersLabel;
+        AutomationProperties.SetName(_openWatchers, watchersLabel);
+        AutomationProperties.SetHelpText(_openWatchers, watchersTip);
+        ToolTip.SetTip(_openWatchers, watchersTip);
         RenderTabLimitNotice();
         string newName = Texts.T("booru.tabs.new");
         IconButtons.Apply(_newTabButton, "plus", newName);
@@ -437,6 +442,9 @@ internal sealed partial class BooruWorkbenchView
         BooruBulkView bulk = model.Bulk;
         bool belongsToTab = bulk.TabId == tabs.ActiveId;
         bool running = bulk.IsRunning && belongsToTab;
+        string downloadIcon = running ? "square" : "download";
+        if (IconButtons.KeyOf(_downloadAll) != downloadIcon)
+            CommandBindings.ShowIconBeforeText(_downloadAll, downloadIcon);
         string downloadName = Texts.T(running ? "booru.bulk.stop" : "booru.bulk.button");
         _downloadAll.Content = running ? downloadName : Texts.T("booru.tabs.downloadShort");
         _downloadAll.IsEnabled = running || model.CanDownloadAll;

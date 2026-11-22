@@ -157,7 +157,8 @@ internal static class BooruText
         foreach (string key in new[]
         {
             "booru.ui.title", "booru.ui.command.open", "booru.ui.intro", "booru.ui.provider", "booru.ui.noFilterNote",
-            "booru.ui.tab.search", "booru.ui.tab.watchers", "booru.ui.mode.label", "booru.ui.mode.tags", "booru.ui.mode.post",
+            "booru.ui.tab.search", "booru.ui.tab.watchers", "booru.ui.tab.watchers.one",
+            "booru.ui.mode.label", "booru.ui.mode.tags", "booru.ui.mode.post",
             "booru.ui.input.label", "booru.ui.input.placeholder.tags", "booru.ui.input.placeholder.post", "booru.ui.search",
             "booru.ui.lookup", "booru.ui.cancel", "booru.ui.query.sent", "booru.ui.query.hint", "booru.ui.post.sent",
             "booru.ui.page.info", "booru.ui.page.previous", "booru.ui.page.next", "booru.ui.page.limit",
