@@ -110,6 +110,7 @@ public sealed class ThemeTokenMapTests
             "CheckBoxPressedBorderBrush", "CheckBoxCardCheckedPressedBorderBrush",
             "RadioButtonUncheckIconPressedBorderBrush", "RadioButtonCardCheckPressedBorderBrush");
         Add(ThemeTokenVariation.PressedAccentText, "#8ABBFF", "#662F05", "BreadcrumbItemPressedForeground");
+        Add(ThemeTokenVariation.ToolbarToggleSurface, "#25344A", "#7D7367", "Workspace.ToolbarToggleSurface");
         Add(ThemeTokenVariation.AccentPreview, "#666AA7FF", "#66803B06",
             "GridSplitterPreviewBackground", "DataGridDropLocationIndicatorBackground");
         if (theme == ThemeTokenTheme.Light)

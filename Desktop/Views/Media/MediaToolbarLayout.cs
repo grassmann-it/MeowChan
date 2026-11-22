@@ -13,7 +13,7 @@ namespace MeowChan;
 /// UX review 17.11.2026 (Tom's screencast): the row depends on its width and stage only, never on the selection line under it (its counter, the
 /// "index is being built" reason) — the search used to end where that line ended and jumped when the index was ready.
 /// The stages: Wide shows everything; Reduced moves the focus mode, "Refresh" and "Shuffle again" under "More" (⋯); Compact moves the
-/// tag list switch and the Layout menu under More as well, drops the "Sort" prefix inside the criterion, and lets the criterion shrink to
+/// Layout menu under More as well, drops the "Sort" prefix inside the criterion, and lets the criterion shrink to
 /// its narrow minimum. The search keeps its minimum in every stage; the order, the search and the filter toggle never move. The widths are
 /// layout measures of the row in dip (the width of the row, not of the window), not limits of the user's data: each stage starts at the width
 /// its group of tools needs next to the search minimum; the media header stability smoke check sweeps 616 to 1896 over all 12 languages (the
@@ -23,7 +23,7 @@ internal static class MediaToolbarLayout
 {
     /// <summary>Below this width "Refresh" and "Shuffle again" move under More.</summary>
     internal const double ReducedWidth = 950;
-    /// <summary>Below this width the Booru mode switch moves under More too, the "Sort" prefix goes, and the criterion shrinks to <see cref="NarrowSortMinWidth"/>.</summary>
+    /// <summary>Below this width Layout moves under More too, the "Sort" prefix goes, and the criterion shrinks to <see cref="NarrowSortMinWidth"/>.</summary>
     internal const double CompactWidth = 870;
     internal const double SearchMinWidth = 240;
     /// <summary>The least width of the criterion's value area (the box without its "Sort" prefix; the prefix's room comes on top while it shows).</summary>
@@ -53,10 +53,8 @@ internal static class MediaToolbarLayout
     // The work-view ids of the tools that leave the row first, in the order they leave (the order they have under More follows the policy).
     // The focus mode (M4) leaves the row first: it stays a shortcut (Shift+F) and an entry under More, so nothing is lost.
     private static readonly string[] DemotableReduced = ["media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle"];
-    // N6: the Booru mode switch (a Direct tool from Simple on; since MP5 the "Tag list" switch, id media.toolbar.tag-list) is the last one to
-    // leave, with the Compact stage; under More it keeps its checked entry. MP5's "Layout" menu and the direct media-sidebar switch sit right
-    // behind the tag-list switch and leave with it, preserving the right-hand cluster as one unit on narrow rows.
-    private static readonly string[] DemotableCompact = [.. DemotableReduced, "media.toolbar.tag-list", "media.toolbar.layout", "media.toolbar.panel"];
+    // Compact keeps room for both sidebar icons by moving the Layout menu under More.
+    private static readonly string[] DemotableCompact = [.. DemotableReduced, "media.toolbar.layout"];
 
     /// <summary>Whether the width moves this tool (by its work-view id) under More. The order, search and filter toggle never move.</summary>
     internal static bool IsMovedUnderMore(Level level, string? id) =>

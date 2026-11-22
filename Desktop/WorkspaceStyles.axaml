@@ -19,6 +19,7 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#25344A</SolidColorBrush>
                     <!-- D0 surface tokens (design language 4.3): level 2 card with a 1-px CardEdge, level 4 overlay
                          (menu, flyout, filter surface, toast) with the app's only shadow, and the scrim behind blocking
                          in-window overlays. Overlay equals Panel today (separate key so it can be tinted later).
@@ -302,6 +303,7 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#7D7367</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
@@ -1870,7 +1872,7 @@
          ursa|ToolBar is the ActionToolBar (its style key is Ursa's ToolBar; the app has no other); items keep the toolbar as logical parent
          wherever their panel is, so the child selector reaches an item back from "More" too. Under "More" (:in-overflow) the popup's plain
          rows stay. Outlined bar-button (selection bars), primary, help-round, the joined segments and media-control keep their own look. -->
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), Button.bar-flat">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), ursa|ToolBar > ToggleButton:not(.toolbar-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), Button.bar-flat">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
@@ -1884,24 +1886,61 @@
         <Setter Property="Padding" Value="8,4" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.toolbar-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.toolbar-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):checked /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.toolbar-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.toolbar-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):checked /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.toolbar-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
     <!-- A disclosure (Tagging stamp block): the quiet section head that opens and closes a block - the turning arrow and the title, no fill
          and no outline at rest and when open (only the page's primary action is filled). Hover shows the Hover fill with the 1-px ControlBorder
          edge (the fill alone is 1.37:1 on the page), keyboard focus keeps the shared ring. -->
+    <!-- Archive, reader and Media toolbar toggles share an outline and a contrast-safe accent tint. -->
+    <Style Selector="ToggleButton.toolbar-toggle, Button.toolbar-toggle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:not(:disabled):not(:checked):pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle:not(:disabled):not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled) /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle:checked:not(:disabled):pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle:checked:not(:disabled):pressed /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.toolbar-toggle.menu-open /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.toolbar-toggle.menu-open:pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     Button.toolbar-toggle.menu-open:pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ToolbarToggleSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled) TextBlock:not(.chip-label), Button.toolbar-toggle.menu-open TextBlock">
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.segment-single">
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+    </Style>
+    <Style Selector=":is(Panel).compact-sidebar > ToggleButton.segment">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector=":is(Panel).compact-sidebar > ToggleButton.segment TextBlock">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+
     <Style Selector="ToggleButton.disclosure">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />

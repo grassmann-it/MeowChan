@@ -21,7 +21,7 @@ public sealed class MediaBooruOverflowRegistrationTests
         Assert.Equal(
             new[]
             {
-                "_booruMode", "_layoutButton", "_panelToggle", "_focus", "_refresh", "_shuffle",
+                "_layoutButton", "_focus", "_refresh", "_shuffle",
                 "_exportAll", "_manageRatings", "_booruOpen", "_queueWalk", "_taggingPageOpen", "_queueAll", "_mediaFolders"
             },
             Regex.Matches(overflow.Groups["controls"].Value, @"\b_[A-Za-z][A-Za-z0-9]*\b")
@@ -37,7 +37,7 @@ public sealed class MediaBooruOverflowRegistrationTests
         Assert.Contains("UpdateMore(_more, items);", opening.Value);
         Assert.Contains("FillMore((MenuFlyout)_more.Flyout!, items);", opening.Value);
         Assert.Contains("WorkViewGate.Apply(_booruOpen, view, stateVisible: _canOpenBooru?.Invoke() == true)", view);
-        Assert.Contains("WorkViewGate.Apply(_panelToggle, view, stateVisible: CanDisplayPanelToggle)", view);
+        Assert.Contains("WorkViewGate.Apply(_panelToggle, view, stateVisible: CanTogglePanel)", view);
         Assert.DoesNotContain("AddBooruOverflow", toolbar);
         Assert.DoesNotContain("flyout.Items.Insert", toolbar);
         Assert.All(WorkViewSetting.All, mode =>
@@ -52,7 +52,7 @@ public sealed class MediaBooruOverflowRegistrationTests
         Assert.Contains("_booruOpen.Click += (_, _) => InvokeBooruOverflow()", view);
         Assert.Contains("LocalizeBooruOverflow();", view);
         Assert.Contains("_exportAll, _manageRatings, _booruOpen,", source);
-        Assert.Contains("_layoutButton, _panelToggle, _focus", source);
+        Assert.Contains("_layoutButton, _focus, _sidebarToggles", source);
     }
 
     private static string Read(string file, [CallerFilePath] string caller = "") =>

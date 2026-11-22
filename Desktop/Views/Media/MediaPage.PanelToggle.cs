@@ -25,19 +25,6 @@ public sealed partial class MediaPage
         };
     }
 
-    private void LocalizePanelToggle()
-    {
-        _panelIconSide = null;
-        _panelToggle.Classes.Set("icon-square", true);
-        _panelToggle.Classes.Set("subtle", true);
-        string label = MeowChan.Desktop.Localization.Texts.T("command.media.panel.toggle");
-        string tip = MeowChan.Desktop.Commands.CommandBindings.Tooltip(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId);
-        Avalonia.Automation.AutomationProperties.SetName(_panelToggle, label);
-        Avalonia.Automation.AutomationProperties.SetHelpText(_panelToggle, tip);
-        Avalonia.Controls.ToolTip.SetTip(_panelToggle, tip);
-        SyncPanelToggle();
-    }
-
     private void SyncPanelToggle()
     {
         _panelToggleSyncing = true;
@@ -47,7 +34,7 @@ public sealed partial class MediaPage
             if (_panelIconSide != _layout.PanelSide)
             {
                 _panelIconSide = _layout.PanelSide;
-                _mediaLabelContent.SetIcon(MeowChan.Desktop.Commands.CommandBindings.Icon(MeowChan.Desktop.MediaPanelKeys.ToggleCommandId, state: _layout.PanelSide == MeowChan.Desktop.MediaPanelSide.Left ? "left" : "right"));
+                _mediaLabelContent.SetIcon(MeowChan.Desktop.Commands.CommandBindings.NamedIcon(PanelToggleIconKey));
                 _panelToggle.Content ??= _mediaLabelContent;
                 ReapplyToolbarLabels();
             }
@@ -59,7 +46,6 @@ public sealed partial class MediaPage
 
     /// <summary>Whether the switch can act now: the page is alive (the panel may still be hidden by a narrow page; the choice is kept then).</summary>
     internal bool CanTogglePanel => !_lifetime.IsCancellationRequested;
-    internal bool CanDisplayPanelToggle => CanTogglePanel && _panelDisplayCapable;
 
     /// <summary>The shortcut and the palette entry: the panel on or off in the layout (saved).</summary>
     internal void TogglePanelByShortcut()

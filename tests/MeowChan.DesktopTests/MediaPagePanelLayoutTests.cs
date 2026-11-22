@@ -12,7 +12,7 @@ namespace MeowChan.DesktopTests;
 public sealed class MediaPagePanelLayoutTests
 {
     [Fact]
-    public void PanelToggleAppearsOnlyWhenThePanelCanFitRegardlessOfSavedChoice()
+    public void PanelToggleStaysInTheToolbarWhenThePreviewCannotFit()
     {
         using IDisposable platform = AvaloniaTestPlatform.EnterSkia();
         MediaTileEnterTests.Run(fixture =>
@@ -33,14 +33,14 @@ public sealed class MediaPagePanelLayoutTests
             page.ApplyLayout(page.PageLayout with { Panel = true }, save: false);
             Layout(900);
             Assert.True(page.PageLayout.Panel);
-            Assert.False(page.PanelToggleButton.IsVisible);
+            Assert.True(page.PanelToggleButton.IsVisible);
             Layout(1300);
             Assert.True(page.PanelToggleButton.IsVisible);
 
             page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
             Layout(900);
             Assert.False(page.PageLayout.Panel);
-            Assert.False(page.PanelToggleButton.IsVisible);
+            Assert.True(page.PanelToggleButton.IsVisible);
             Layout(1300);
             Assert.True(page.PanelToggleButton.IsVisible);
         });

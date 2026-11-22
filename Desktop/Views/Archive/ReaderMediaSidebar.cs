@@ -243,8 +243,13 @@ internal sealed class ReaderMediaFollowThrottle
 /// </summary>
 internal sealed class ReaderMediaSidebar : Border
 {
-    // The header line: "No. 75 · file name · 880 KiB", trimmed with an ellipsis (the full text is its tip).
+    // The media facts; the reader wraps them when the post column needs more room.
     private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _sectionTitle = new() { Classes = { "section-title" }, IsVisible = false,
+        Margin = new Thickness(0, 0, 0, 4) };
+    private readonly Grid _headerText = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly StackPanel _headerActions = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _threadPosition = new TextBlock { Name = "ReaderMediaSidebarThreadPosition",
         IsVisible = false, VerticalAlignment = VerticalAlignment.Center, Classes = { "tnum" } }.MetaText();
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
@@ -271,7 +276,9 @@ internal sealed class ReaderMediaSidebar : Border
     // The card (Tom, 15.11.2026): the medium with, inside the same edge, the strip of a post with several files and the video's controls.
     // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", Height = HeaderLineHeight, ClipToBounds = true, ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto,Auto"), ColumnSpacing = 8 };
+    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", Height = HeaderLineHeight,
+        RowDefinitions = new RowDefinitions("*,Auto"), ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+    private const double StackedHeaderWidth = 360;
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly ArchiveFavoriteButton _favorite = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -331,6 +338,30 @@ internal sealed class ReaderMediaSidebar : Border
     internal const double HeaderGap = 8;
     /// <summary>The height of the header line when a host fixes it (the Media page's panel and the reader's sidebar: the 32 dip line of Workspace.Size.Control rows).</summary>
     internal const double HeaderLineHeight = 32;
+    /// <summary>Shows the reader's persistent section title and allows its metadata to wrap.</summary>
+    internal void ShowReaderHeader()
+    {
+        _sectionTitle.IsVisible = true;
+        _header.Height = double.NaN;
+        _header.MinHeight = HeaderLineHeight;
+        _header.RowDefinitions[0].Height = GridLength.Auto;
+        _headerText.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _title.TextWrapping = TextWrapping.Wrap;
+        _title.TextTrimming = TextTrimming.None;
+        _postLink.VerticalAlignment = VerticalAlignment.Top;
+        Grid.SetRow(_headerText, 1);
+        FitHeader(_header.Bounds.Width);
+        _header.SizeChanged += (_, e) => { if (e.WidthChanged) FitHeader(e.NewSize.Width); };
+        RefreshHeader();
+    }
+
+    private void FitHeader(double width)
+    {
+        bool stacked = width > 0 && width < StackedHeaderWidth;
+        Grid.SetColumnSpan(_headerText, stacked ? 2 : 1);
+        Grid.SetRow(_headerActions, stacked ? 0 : 1);
+    }
+
     /// <summary>A fixed height for the header line (NaN: its content's), so a host can centre it on a line of its own.</summary>
     internal double HeaderHeight { get => _header.Height; set => _header.Height = value; }
     internal Image Picture => _image;
@@ -409,18 +440,18 @@ internal sealed class ReaderMediaSidebar : Border
         Close.IsHitTestVisible = false;
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
-        // One compact row: the info line, thread position, favourite star, "Open in gallery" and the cross.
         Grid header = _header;
-        // Column 0: the post number as a link, then the rest of the line trimmed with an ellipsis.
-        Grid titleHost = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-            HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
-        titleHost.Children.Add(_postLink);
-        Grid.SetColumn(_title, 1); titleHost.Children.Add(_title);
-        header.Children.Add(titleHost);
-        Grid.SetColumn(_threadPosition, 1); header.Children.Add(_threadPosition);
-        Grid.SetColumn(_favorite, 2); header.Children.Add(_favorite);
-        Grid.SetColumn(Open, 3); header.Children.Add(Open);
-        Grid.SetColumn(Close, 4); header.Children.Add(Close);
+        _headerText.Children.Add(_postLink);
+        Grid.SetColumn(_title, 1);
+        _headerText.Children.Add(_title);
+        header.Children.Add(_headerText);
+        header.Children.Add(_sectionTitle);
+        _headerActions.Children.Add(_threadPosition);
+        _headerActions.Children.Add(_favorite);
+        _headerActions.Children.Add(Open);
+        _headerActions.Children.Add(Close);
+        Grid.SetColumn(_headerActions, 1);
+        header.Children.Add(_headerActions);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -482,6 +513,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal void Localize()
     {
         string title = Texts.T(TitleKey);
+        _sectionTitle.Text = Texts.T("reader.sidebar.compact");
         AutomationProperties.SetName(this, title);
         RefreshHeader();
         string stripName = Texts.T("reader.sidebar.strip");
@@ -584,7 +616,7 @@ internal sealed class ReaderMediaSidebar : Border
             ToolTip.SetTip(_title, text);
             return;
         }
-        _title.IsVisible = true;
+        _title.IsVisible = text.Length > 0 || !_sectionTitle.IsVisible;
         _title.Text = text.Length > 0 ? text : Texts.T(TitleKey);
         ToolTip.SetTip(_title, _title.Text);
     }
