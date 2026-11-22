@@ -1796,6 +1796,17 @@
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
     <Style Selector="ToolTip"><Setter Property="IsHitTestVisible" Value="False" /></Style>
     <Style Selector="Button.nav"><Setter Property="ToolTip.Placement" Value="Top" /><Setter Property="ToolTip.VerticalOffset" Value="-6" /></Style>
+    <Style Selector="StackPanel.gallery-footer-tips :is(Control)">
+        <Setter Property="ToolTip.Placement" Value="Top" />
+        <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        <Setter Property="ToolTip.ShouldUseOverlayLayer" Value="True" />
+    </Style>
+    <Style Selector="Button.gallery-toolbar-action, ToggleButton.gallery-toolbar-action">
+        <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <Style Selector="ToolTip ScrollViewer, ToolTip /template/ ScrollViewer"><Setter Property="HorizontalScrollBarVisibility" Value="Disabled" /></Style>
     <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
     <!-- HB1 help-round: the one help button (controls:HelpButton), flat like the other icon buttons (UX review 15.11.: the circled "?" was ugly).
