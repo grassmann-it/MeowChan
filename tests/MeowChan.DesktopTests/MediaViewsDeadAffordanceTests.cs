@@ -1,3 +1,4 @@
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -8,6 +9,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Rendering;
 using Avalonia.Threading;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -132,14 +134,18 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             window.Show();
             window.PlatformImpl!.Activated?.Invoke();
             Dispatcher.UIThread.RunJobs();
+            Assert.True(sidebar.Bounds.Width > 0);
             Assert.Equal(0, sidebar.Close.Opacity);
             Assert.False(sidebar.Close.IsHitTestVisible);
 
-            window.MouseMove(new Point(sidebar.Bounds.Width / 2, 20));
+            Point inside = sidebar.TranslatePoint(new Point(sidebar.Bounds.Width / 2, 20), window)!.Value;
+            window.MouseMove(inside);
+            Dispatcher.UIThread.RunJobs();
             Assert.Equal(1, sidebar.Close.Opacity);
             Assert.True(sidebar.Close.IsHitTestVisible);
 
-            window.MouseMove(new Point(550, 20));
+            window.MouseMove(new Point(window.ClientSize.Width - 1, inside.Y));
+            Dispatcher.UIThread.RunJobs();
             Assert.Equal(0, sidebar.Close.Opacity);
             Assert.False(sidebar.Close.IsHitTestVisible);
         }
@@ -245,14 +251,42 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Contains("panel.ConfigureFavorite(PanelFavoriteAvailable", Source("Desktop/Views/Media/MediaPage.Panel.cs"));
     }
 
-    [Fact]
-    public void TheArchivePageWiresTheNumberLinkToTheSameCopyAsThePostsOwnNumber()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void TheArchivePageWiresTheNumberLinkToTheSameCopyAsThePostsOwnNumber(bool hasMedia) => BooruComponentDispatcher.Run(() =>
     {
-        string page = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
-        Assert.Contains("sidebar.PostLinkClicked += (_, _) => { if (!_ended && ArchivePosts.SelectedItem is ArchivePostRow post) _ = CopyPostReferenceAsync(post); };", page);
-        Assert.Contains("sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, post.CopyNumberLabel);", page);
-        Assert.Contains("sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel);", page);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        ArchivePage page = new();
+        try
+        {
+            const BindingFlags privateInstance = BindingFlags.Instance | BindingFlags.NonPublic;
+            var sidebar = Assert.IsType<ReaderMediaSidebar>(
+                typeof(ArchivePage).GetMethod("EnsureMediaSidebar", privateInstance)!.Invoke(page, null));
+            typeof(ArchivePage).GetField("_mediaSidebarShown", privateInstance)!.SetValue(page, true);
+            ArchiveAttachmentRow[] attachments = hasMedia ? [new(new CapturedAttachment(0, "m", OriginalFileName: "cat.png"))] : [];
+            ArchivePostRow post = new("75", "", "", attachments);
+            var posts = page.FindControl<ListBox>("ArchivePosts")!;
+            posts.ItemsSource = new[] { post };
+            posts.SelectedItem = post;
+            typeof(ArchivePage).GetMethod("RefreshMediaSidebar", privateInstance)!.Invoke(page, null);
+
+            Control card = posts.ItemTemplate!.Build(post)!;
+            card.DataContext = post;
+            var number = Assert.Single(card.GetLogicalDescendants().OfType<Button>(), button => button.Classes.Contains("reader-post-number"));
+            Assert.True(sidebar.PostLink.IsVisible);
+            Assert.Equal(post.NumberLabel, sidebar.PostLink.Content);
+            Assert.Equal(ToolTip.GetTip(number), ToolTip.GetTip(sidebar.PostLink));
+            Assert.Equal(post.CopyNumberLabel, ToolTip.GetTip(sidebar.PostLink));
+
+            List<string> copied = new();
+            page.CopyPostReference = text => { copied.Add(text); return Task.CompletedTask; };
+            number.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            sidebar.PostLink.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(new[] { ">>75", ">>75" }, copied);
+        }
+        finally { page.EndLifetime(); }
+    });
 
     // ---- the media tile ----------------------------------------------------------------------------------------------------------
 

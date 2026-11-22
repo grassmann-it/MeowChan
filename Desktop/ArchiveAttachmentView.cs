@@ -789,7 +789,8 @@ public sealed class ArchiveAttachmentView : UserControl
         finally
         {
             if (ReferenceEquals(_loading, loading)) _loading = null;
-            if (_reloadAfterDrain && _visible && !GetLoadingSuspended(this)) _ = LoadAsync();
+            if (_reloadAfterDrain && _visible && !GetLoadingSuspended(this))
+                OpenActions.Start(LoadAsync, "reader.preview.reload");
         }
     }
 

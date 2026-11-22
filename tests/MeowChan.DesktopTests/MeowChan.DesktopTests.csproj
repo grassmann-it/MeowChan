@@ -19,6 +19,8 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../MeowChan.csproj" />
+    <Reference Include="Microsoft.CodeAnalysis" HintPath="$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.dll" />
+    <Reference Include="Microsoft.CodeAnalysis.CSharp" HintPath="$(MSBuildToolsPath)/Roslyn/bincore/Microsoft.CodeAnalysis.CSharp.dll" />
     <Compile Include="../../Shared/TemporaryWorkspacePaths.cs" Link="TestSupport/TemporaryWorkspacePaths.cs" />
     <Compile Include="../MeowChan.Tests/PersistenceCorruption/DamageVariants.cs" Link="TestSupport/DamageVariants.cs" />
     <Compile Include="../Shared/BooruCompositionFixture.cs" Link="TestSupport/BooruCompositionFixture.cs" />

@@ -1,7 +1,9 @@
 using System.Reflection;
 using Avalonia.Threading;
+using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
+using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
 
@@ -14,6 +16,30 @@ public sealed class BooruComponentDispatcherTests
         TaskCompletionSource<int> completion = new();
         Dispatcher.UIThread.Post(() => completion.SetResult(42));
         Assert.Equal(42, BooruComponentDispatcher.Wait(completion.Task));
+    });
+
+    [Fact]
+    public void WorkbenchModelNotificationsRenderOnTheViewsDispatcher() => BooruComponentDispatcher.Run(() =>
+    {
+        BooruUiHarness harness = new();
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        Dispatcher owner = Dispatcher.UIThread;
+        int renders = 0;
+        view.ChromeChanged += () =>
+        {
+            owner.VerifyAccess();
+            renders++;
+        };
+
+        BooruComponentDispatcher.Run(() =>
+        {
+            Assert.NotSame(owner, Dispatcher.UIThread);
+            model.Search.SetMode(BooruInputMode.Post);
+        });
+        Assert.Equal(0, renders);
+        owner.RunJobs();
+        Assert.Equal(1, renders);
     });
 
     [Theory]

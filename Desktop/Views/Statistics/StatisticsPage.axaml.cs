@@ -343,9 +343,9 @@ public partial class StatisticsPage : UserControl
         OverlayFrame.TryHandleEscape(e, () => CloseConfirmation(focusReset: true));
     }
 
-    private async void OnConfirmResetClick(object? sender, RoutedEventArgs e)
+    private void OnConfirmResetClick(object? sender, RoutedEventArgs e)
     {
-        if (ResetConfirmation.IsOpen) await ResetStatisticsAsync();
+        if (ResetConfirmation.IsOpen) OpenActions.Start(ResetStatisticsAsync, "stats.reset");
     }
 
     internal async Task ResetStatisticsAsync()

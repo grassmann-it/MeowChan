@@ -154,7 +154,9 @@ public sealed class NarrowContentLayoutTests
 
             var sidebar = new MediaTagSidebar();
             var title = sidebar.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTagSidebarTitle");
-            AssertTrimmedTip(title, title.Text!, 10);
+            Assert.False(string.IsNullOrWhiteSpace(title.Text));
+            title.Text = longLabel;
+            AssertTrimmedTip(title, longLabel, 80);
 
             using TempDirectory temp = new();
             DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
@@ -164,7 +166,9 @@ public sealed class NarrowContentLayoutTests
                 Control[] controls = ((ILogical)page).GetLogicalDescendants().OfType<Control>().ToArray();
                 Grid columnHeader = Assert.IsType<Grid>(controls.Single(control => control.Name == "TaggingColumns"));
                 TextBlock header = columnHeader.Children.OfType<TextBlock>().Single(text => Grid.GetColumn(text) == 3);
-                AssertTrimmedTip(header, header.Text!, 10);
+                Assert.False(string.IsNullOrWhiteSpace(header.Text));
+                header.Text = longLabel;
+                AssertTrimmedTip(header, longLabel, 80);
                 Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingEmptyActions"));
                 StackPanel progress = Assert.IsType<StackPanel>(controls.Single(control => control.Name == "TaggingProgress"));
                 WrapPanel meter = Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingProgressMeter"));

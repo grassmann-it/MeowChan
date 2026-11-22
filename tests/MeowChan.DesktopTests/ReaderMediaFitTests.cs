@@ -262,6 +262,7 @@ public sealed class ReaderMediaFitTests : IDisposable
     [Fact]
     public void EnlargedPortraitFrameFitsTheVisibleHeightWhenMeasured() => OnPlatform(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         ArchiveAttachmentView view = new()
         {
             DataContext = new ArchiveAttachmentRow(new CapturedAttachment(0, "m-portrait", OriginalFileName: "tall.png", ExpectedSize: 1000))

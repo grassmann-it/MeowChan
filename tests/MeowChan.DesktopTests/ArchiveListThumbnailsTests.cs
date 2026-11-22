@@ -4,6 +4,9 @@ using System.Text.Json;
 using MeowChan.Desktop;
 using MeowChan.Gallery;
 using MeowChan.Storage;
+using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 using SkiaSharp;
 
 namespace MeowChan.DesktopTests;
@@ -68,38 +71,52 @@ public sealed class ArchiveListThumbnailsTests
     [Fact]
     public void ListWiringUsesTheSharedLoaderAndVerifiesBeforeAcquiringAMemoryPoster()
     {
-        string root = RepositoryRoot();
-        string page = File.ReadAllText(Path.Combine(root, "Desktop/Views/Archive/ArchivePage.axaml.cs"));
-        string load = page[page.IndexOf("private Task<Bitmap?> LoadListThumbnailAsync", StringComparison.Ordinal)..];
-        load = load[..load.IndexOf("internal static ArchiveAssetRow? FindMatchingAsset", StringComparison.Ordinal)];
-        Assert.Contains("ArchiveListThumbnails.LoadAsync", load);
-        Assert.Contains("MediaAttachmentResolver.Resolve", load);
-        // The gate is handed to the loader, which takes a slot only for a real decode (a memory hit never waits).
-        Assert.Contains("loading.Token, _thumbnailGate)", load);
-        Assert.DoesNotContain("_thumbnailGate.WaitAsync", load);
-        Assert.DoesNotContain("!= SavedMediaKind.Image", load);
-        string loader = File.ReadAllText(Path.Combine(root, "Desktop/ArchiveListThumbnails.cs"));
-        Assert.Contains("MediaTileThumbnails.LoadPosterAsync", loader);
-        string reader = page[page.IndexOf("private ArchiveAttachmentRow CreateAttachmentRow", StringComparison.Ordinal)..];
-        reader = reader[..reader.IndexOf("private ArchiveAttachmentRow CreateListAttachmentRow", StringComparison.Ordinal)];
-        Assert.Contains("MediaTileThumbnails.LoadPosterAsync", reader);
-        Assert.DoesNotContain("VideoPosterCache.LoadAsync", reader);
-        Assert.True(reader.IndexOf("MediaTileThumbnails.LoadPosterAsync", StringComparison.Ordinal)
-            < reader.IndexOf("MediaTileThumbnails.KeepGatedAsync", StringComparison.Ordinal));
-        Assert.DoesNotContain("_thumbnailGate.WaitAsync", reader); // the cache lookup precedes the gate; only decodes take a slot
-        Assert.DoesNotContain("MediaTileThumbnails.KeepAsync(", reader);
-        string tiles = File.ReadAllText(Path.Combine(root, "Desktop/ArchiveMediaTileView.cs"));
-        Assert.Contains("MediaTileThumbnails.LoadPosterAsync", tiles);
-        Assert.Contains("ReferenceEquals(decode, DefaultThumbnailDecoder) && !UsesVideoPoster(row)", tiles);
-        string media = File.ReadAllText(Path.Combine(root, "Desktop/Views/Media/MediaPage.cs"));
-        Assert.Contains("MediaTileThumbnails.LoadAsync(tile, OpenManifestAsync, PosterCacheDirectory, token)", media);
-        Assert.DoesNotContain("MediaTileThumbnails.Remember", media); // one lease, not a second Add of the same bitmap
-        string shared = File.ReadAllText(Path.Combine(root, "Desktop/MediaTileThumbnails.cs"));
-        Assert.Contains("tile.Entry.Kind == SavedMediaKind.Image &&", shared); // no synchronous poster shortcut
-        Assert.Contains("LoadLibraryPosterAsync", shared);
-        Assert.Contains("cancellation, Verified)", shared); // changed identity rehashes, unchanged originals do not
+        var page = Source("Views/Archive/ArchivePage.axaml.cs");
+        var list = page.Method("LoadListThumbnailAsync");
+        Assert.Single(list.Calls(nameof(ArchivePage.SelectListPreview)));
+        Assert.Single(page.Method(nameof(ArchivePage.SelectListPreview)).Calls("Resolve", "MediaAttachmentResolver"));
+        var loadList = Assert.Single(list.Calls(nameof(ArchiveListThumbnails.LoadAsync), nameof(ArchiveListThumbnails)));
+        Assert.Contains(loadList.ArgumentList.Arguments, argument => argument.Expression is IdentifierNameSyntax { Identifier.ValueText: "_thumbnailGate" });
+        Assert.Empty(list.Calls("WaitAsync", "_thumbnailGate"));
+        Assert.Single(Source("ArchiveListThumbnails.cs").Method(nameof(ArchiveListThumbnails.LoadAsync))
+            .Calls(nameof(MediaTileThumbnails.LoadPosterAsync), nameof(MediaTileThumbnails)));
 
+        var reader = page.Method("CreateAttachmentRow");
+        var readerPoster = Assert.Single(reader.Calls(nameof(MediaTileThumbnails.LoadPosterAsync), nameof(MediaTileThumbnails)));
+        var returnPoster = Assert.IsType<ReturnStatementSyntax>(readerPoster.FirstAncestorOrSelf<ReturnStatementSyntax>());
+        Assert.Contains(returnPoster.Ancestors().OfType<IfStatementSyntax>(), branch =>
+            branch.Condition is IdentifierNameSyntax { Identifier.ValueText: "video" } && branch.Statement.Span.Contains(returnPoster.Span));
+        Assert.Single(reader.Calls(nameof(MediaTileThumbnails.KeepGatedAsync), nameof(MediaTileThumbnails)));
+        Assert.Empty(reader.Calls("WaitAsync", "_thumbnailGate"));
+        Assert.Empty(reader.Calls(nameof(MediaTileThumbnails.KeepAsync), nameof(MediaTileThumbnails)));
+        Assert.Empty(reader.Calls("LoadAsync", nameof(VideoPosterCache)));
+
+        var tiles = Source("ArchiveMediaTileView.cs");
+        Assert.Single(tiles.Method(nameof(ArchiveMediaTileView.DecodeAsync))
+            .Calls(nameof(MediaTileThumbnails.LoadPosterAsync), nameof(MediaTileThumbnails)));
+        var tileCacheKey = Assert.Single(tiles.Method("LoadAsync").DescendantNodes().OfType<ConditionalExpressionSyntax>(),
+            conditional => conditional.WhenTrue.Calls(nameof(MediaTileThumbnails.ByteKey), nameof(MediaTileThumbnails)).Any());
+        Assert.Contains(tileCacheKey.Condition.DescendantNodes().OfType<PrefixUnaryExpressionSyntax>(),
+            guard => guard.IsKind(SyntaxKind.LogicalNotExpression)
+                && guard.Operand is InvocationExpressionSyntax { Expression: IdentifierNameSyntax { Identifier.ValueText: "UsesVideoPoster" } });
+        Assert.True(tileCacheKey.Condition.IsKind(SyntaxKind.LogicalAndExpression));
+        var decoderCheck = Assert.Single(tileCacheKey.Condition.Calls("ReferenceEquals"));
+        Assert.Contains(decoderCheck.ArgumentList.Arguments,
+            argument => argument.Expression is IdentifierNameSyntax { Identifier.ValueText: "DefaultThumbnailDecoder" });
+
+        var media = Source("Views/Media/MediaPage.cs").Method("LoadThumbnailAsync");
+        Assert.Single(media.Calls(nameof(MediaTileThumbnails.LoadAsync), nameof(MediaTileThumbnails)));
+        var shared = Source("MediaTileThumbnails.cs");
+        var posterLoader = shared.Method(nameof(MediaTileThumbnails.LoadPosterAsync));
+        Assert.Single(posterLoader.Calls(nameof(MediaTileThumbnails.KeepVerifiedPosterAsync)));
+        AssertUsesVerifiedMemo(Assert.Single(posterLoader.Calls("GetPngAsync", nameof(VideoPosterCache))));
+        Assert.Single(shared.Method("LoadLibraryPosterAsync").Calls(nameof(MediaTileThumbnails.KeepVerifiedPosterAsync)));
+        AssertUsesVerifiedMemo(Assert.Single(shared.Method(nameof(MediaTileThumbnails.PosterPngAsync)).Calls("GetPngAsync", nameof(VideoPosterCache))));
     }
+
+    private static void AssertUsesVerifiedMemo(InvocationExpressionSyntax poster) =>
+        Assert.Contains(poster.ArgumentList.Arguments,
+            argument => argument.Expression is IdentifierNameSyntax { Identifier.ValueText: nameof(MediaTileThumbnails.Verified) });
 
     private sealed class Preview : IDisposable
     {
@@ -218,6 +235,9 @@ public sealed class ArchiveListThumbnailsTests
 
     private static string RepositoryRoot([CallerFilePath] string path = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, "../.."));
+
+    private static SyntaxNode Source(string file) =>
+        CSharpSource.Parse(File.ReadAllText(Path.Combine(RepositoryRoot(), "Desktop", file)));
 
     private static async Task<(ArchiveAssetRow Row, string Cache, byte[] Png)> FixtureAsync(string root, string extension)
     {

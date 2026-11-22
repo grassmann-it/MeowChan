@@ -403,7 +403,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         });
     }
 
-    private void OnLocalStatesChanged() => _ = RefreshLocalStatesAsync();
+    private void OnLocalStatesChanged() => OpenActions.Start(RefreshLocalStatesAsync, "booru.search.local-states");
 
     internal Task RefreshLocalStatesAsync()
     {
@@ -670,7 +670,8 @@ internal sealed partial class BooruSearchModel : IDisposable
             _originalActionVersions.Clear();
         }
         _queue.LocalStatesChanged -= OnLocalStatesChanged;
-        _ = _lifetime.RetireAsync();
+        Task retirement = _lifetime.RetireAsync();
+        OpenActions.Start(() => retirement, "booru.search.retire");
         Changed = null;
     }
 }
