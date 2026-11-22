@@ -9,7 +9,7 @@ public sealed record ValidationIssue(string Path, string Code, string Message);
 /// every worker response against its expected request before passing it to host services.
 /// Cross-plugin conflicts are reported separately; ordering never selects a winner.
 /// </summary>
-public static class SdkValidation
+public static partial class SdkValidation
 {
     private const int MaximumAggregateSources = 256;
     private const int MaximumAggregateRoutes = 1024;
@@ -546,7 +546,7 @@ public static class SdkValidation
 
     private static bool IsDotSegment(string value) => Uri.UnescapeDataString(value) is "." or "..";
 
-    private sealed class Checks
+    private sealed partial class Checks
     {
         private readonly List<ValidationIssue> _issues = new List<ValidationIssue>();
         internal IReadOnlyList<ValidationIssue> Issues => _issues.AsReadOnly();
@@ -624,11 +624,12 @@ public static class SdkValidation
             if (SdkContract.IsSupported(description.SdkVersion) && description.SdkVersion != SdkContract.Version
                 && description.Sources?.Any(source => source is not null && source.Capabilities.HasFlag(SourceCapabilities.PostSearch)) == true)
                 Add(path + ".sdkVersion", "incompatible_sdk", $"Post search requires SDK {SdkContract.Version}.");
-            bool hasCapability = description.Sources?.Count > 0 || description.Filters?.Count > 0;
+            Taggers(description, path);
+            bool hasCapability = description.Sources?.Count > 0 || description.Filters?.Count > 0 || description.Taggers?.Count > 0;
             if (!hasCapability && description.DeclarationStatus != PluginDeclarationStatus.Blocked)
-                Add(path, "missing_capability", "A plugin must declare a source or filter capability unless it is explicitly blocked.");
+                Add(path, "missing_capability", "A plugin must declare a source, filter or tagger capability unless it is explicitly blocked.");
             if (description.DeclarationStatus == PluginDeclarationStatus.Blocked && hasCapability)
-                Add(path + ".declarationStatus", "blocked_capability", "A blocked plugin declaration must not expose executable source or filter capabilities.");
+                Add(path + ".declarationStatus", "blocked_capability", "A blocked plugin declaration must not expose executable source, filter or tagger capabilities.");
             HashSet<string> informationKeys = new HashSet<string>(StringComparer.Ordinal);
             List(description.Information, path + ".information", (entry, itemPath) =>
             {

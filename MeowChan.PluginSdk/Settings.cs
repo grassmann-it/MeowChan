@@ -1,7 +1,7 @@
 namespace MeowChan.PluginSdk;
 
 public enum SettingKind { Text, Integer, Boolean, Enum, Uri }
-public enum SettingScope { Plugin, Source, FilterRule }
+public enum SettingScope { Plugin, Source, FilterRule, Tagger }
 
 public sealed record SettingsSchema(string Version, IReadOnlyList<SettingDefinition> Fields);
 
