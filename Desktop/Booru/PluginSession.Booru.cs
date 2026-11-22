@@ -23,27 +23,50 @@ namespace MeowChan.Desktop;
 internal sealed partial class PluginSession
 {
     private readonly Dictionary<string, BooruHostServices> _booruServices = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, BooruProviderBinding> _booruSources = new(StringComparer.Ordinal);
     private BooruProviderBinding? _booru;
-    private string? _booruPluginId;
 
     /// <summary>The Danbooru binding, when an active plugin declares the Danbooru post-search source; otherwise null.</summary>
     internal BooruProviderBinding? Booru { get { lock (_state) return _booru; } }
+
+    /// <summary>
+    /// Every composed post-search source by source id (Danbooru included). Each plugin's sources share one booru host
+    /// services instance: one job registry and one bounded metadata transport with per-source pacing and cooldown. Only
+    /// Danbooru has a desktop composition (catalog, watcher, pages) so far; the others are host-side only.
+    /// </summary>
+    internal IReadOnlyDictionary<string, BooruProviderBinding> BooruSources
+    {
+        get { lock (_state) return new Dictionary<string, BooruProviderBinding>(_booruSources, StringComparer.Ordinal); }
+    }
 
     // Called from StartCoreAsync for each declared post-search source, in activation order.
     private void RegisterBooruSource(PluginActivationSnapshot activation, PluginDescription description, SourceDescription source,
         IReadOnlyList<(PluginActivationSnapshot Activation, PluginDescription Description)> descriptions, PluginProfileSnapshot activated)
     {
-        // Only the Danbooru composition exists; other post-search sources stay without a host composition.
-        if (!string.Equals(source.SourceId, DanbooruPostReference.ProviderId, StringComparison.Ordinal)) return;
         string[] owners = descriptions.Where(item => item.Description.Sources.Any(value => value.SourceId == source.SourceId))
             .Select(item => item.Activation.PluginId).Distinct(StringComparer.Ordinal).ToArray();
         if (owners.Length > 1 && (!activated.SelectedSourceOwners.TryGetValue(source.SourceId, out string? selected)
             || selected != activation.PluginId)) return;
         string pluginId = activation.PluginId;
-        lock (_state) if (_booru != null) return;
-        BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
-            maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours));
-        BooruHostServices services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp);
+        bool danbooru = string.Equals(source.SourceId, DanbooruPostReference.ProviderId, StringComparison.Ordinal);
+        BooruHostServices? services;
+        lock (_state)
+        {
+            if (_booruSources.ContainsKey(source.SourceId) || danbooru && _booru != null) return;
+            _booruServices.TryGetValue(pluginId, out services);
+        }
+        if (services is null)
+        {
+            // One transport per plugin over all of its post-search sources; pacing and cooldown stay per source.
+            BooruHostHttp booruHttp = new(_transport, _httpPolicy, description.Sources,
+                maximumCooldownProvider: () => TimeSpan.FromHours(_config.BooruRetryAfterCooldownHours));
+            services = new(new HostServices(GetPluginHttp(description), _filterStages, pluginId), booruHttp);
+            lock (_state)
+            {
+                _services.Add(booruHttp);
+                _booruServices[pluginId] = services;
+            }
+        }
         BooruProviderBinding binding = new(source, services, _transport, _httpPolicy,
             token => ResolveBooruWorkerAsync(pluginId, token), () => IsBooruPluginEnabled(pluginId), _logger)
         {
@@ -52,10 +75,8 @@ internal sealed partial class PluginSession
         };
         lock (_state)
         {
-            _services.Add(booruHttp);
-            _booruServices[pluginId] = services;
-            _booruPluginId = pluginId;
-            _booru = binding;
+            _booruSources[source.SourceId] = binding;
+            if (danbooru) _booru = binding;
         }
     }
 
@@ -96,7 +117,7 @@ internal sealed partial class PluginSession
         catch (Exception exception) when (exception is PluginWorkerException or OperationCanceledException or InvalidOperationException
             or IOException or UnauthorizedAccessException or ObjectDisposedException or System.ComponentModel.Win32Exception)
         {
-            _logger.Warning(exception, "The Danbooru plugin worker is not available");
+            _logger.Warning(exception, "The booru plugin worker {Plugin} is not available", pluginId);
             return null;
         }
     }
@@ -104,10 +125,12 @@ internal sealed partial class PluginSession
     // Called after OnLifecycleChanged applied the new state, outside _state.
     private void NotifyBooruLifecycle(string pluginId)
     {
-        BooruProviderBinding? binding;
-        lock (_state) binding = _booruPluginId == pluginId ? _booru : null;
-        if (binding == null) return;
-        try { binding.RaiseAvailabilityChanged(); }
-        catch (Exception exception) { _logger.Error(exception, "Danbooru availability observer failed"); }
+        BooruProviderBinding[] bindings;
+        lock (_state) bindings = _booruSources.Values.Where(binding => binding.PluginId == pluginId).ToArray();
+        foreach (BooruProviderBinding binding in bindings)
+        {
+            try { binding.RaiseAvailabilityChanged(); }
+            catch (Exception exception) { _logger.Error(exception, "Booru availability observer failed for {Source}", binding.Source.SourceId); }
+        }
     }
 }
