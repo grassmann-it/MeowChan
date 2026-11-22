@@ -9,6 +9,7 @@ using MeowChan.PluginHost.Compilation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Installation;
+using MeowChan.PluginHost.Taggers;
 using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Plugins;
@@ -36,6 +37,7 @@ internal sealed class PluginManagementServices
     internal IPluginCompilationService Compiler { get; }
     internal IPluginInstallationInventory Inventory { get; }
     internal string PluginDirectory { get; }
+    internal LocalTaggerModelStore? LocalTaggerModels { get; init; }
     internal Func<IReadOnlyList<PluginWorkerSnapshot>>? GetWorkerSnapshots { get; init; }
     internal Func<IReadOnlyList<PluginProductionWorkerSnapshot>>? GetProductionWorkerSnapshots { get; init; }
     internal Func<IReadOnlyList<MeowChan.Rules.MediaRuleScope>>? GetRuleScopes { get; init; }

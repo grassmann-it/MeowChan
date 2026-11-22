@@ -189,7 +189,9 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
             services.Close();
         }
         cancellationToken.ThrowIfCancellationRequested();
-        if (SdkValidation.ValidateTaggerResult(request, result, tagger).Count != 0) return new BatchOutcome(null, Invalid: true);
+        if (SdkValidation.ValidateTaggerResult(request, result, tagger).Count != 0
+            || registration.Binding.RequireVerifiedModelHash && result.Provenance.ModelSha256 is null)
+            return new BatchOutcome(null, Invalid: true);
 
         TagSuggestionProvenance provenance = new(registration.PluginId, tagger.Key, registration.PluginVersion,
             result.Provenance.ModelId, result.Provenance.ModelRevision, result.Provenance.ModelSha256?.ToLowerInvariant());
@@ -214,6 +216,11 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
             return snapshot.Runs.Any(run => run.Outcome == TagSuggestionStore.TaggedOutcome
                 && string.Equals(run.MediaSha256, mediaSha256, StringComparison.Ordinal) && run.Provenance.PluginId == registration.PluginId
                 && run.Provenance.TaggerKey == tagger.Key && run.Provenance.PluginVersion == registration.PluginVersion);
+        if (registration.Binding.RequireVerifiedModelHash)
+            return snapshot.Runs.Any(run => run.Outcome == TagSuggestionStore.TaggedOutcome && run.MediaSha256 == mediaSha256
+                && run.Provenance.PluginId == registration.PluginId && run.Provenance.TaggerKey == tagger.Key
+                && tagger.Models.Any(model => model.ModelId == run.Provenance.ModelId && model.Revision == run.Provenance.ModelRevision
+                    && model.Sha256 is not null && string.Equals(model.Sha256, run.Provenance.ModelSha256, StringComparison.OrdinalIgnoreCase)));
         return tagger.Models.Any(model => snapshot.HasCompletedRun(mediaSha256, new TagSuggestionProvenance(registration.PluginId,
             tagger.Key, registration.PluginVersion, model.ModelId, model.Revision)));
     }
