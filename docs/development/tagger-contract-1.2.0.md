@@ -1,9 +1,8 @@
 # Tagger contract 1.0.0 (MeowChan 1.2.0, package P10)
 
-Status: **implemented as contract, store and host runner; not reachable from the
-product yet.** Base `1.2.0` at `85dec6896`, branch `p10-tagger-contract`. No UI,
-no worker protocol route, no model download, no bundled model. Decisions marked
-*open* below are proposals until Tom confirms them.
+Status: **contract, store, host runner and AP11 review domain implemented**.
+Desktop integration, the worker protocol route and model installation are
+pending. Decisions marked *open* below are proposals until Tom confirms them.
 
 Sources: `.architecture-sparring/1.2.0-marketplace-editionen-ki-planung-2026-11-20.md`
 (§4, §5, §10, §11, §13), `release-zuordnung-1.1.1-1.2.0-2.0.0.md` (P10 before P8
@@ -92,14 +91,15 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
    installed (`ITaggerModelCatalog`; the default reports none). Download, hash
    pinning, licence and size display belong to the marketplace `model-pack`
    type (§2/§10 of the planning note).
-4. No direct writes: the runner writes only to the suggestion store; confirmed
-   tags change only through the user's accept on the tagging page.
+4. The runner writes proposals only. The review domain applies a confirmed
+   AP06 preview to the private tag store using the journal protocol in §7.
 5. Results are untrusted input: validated against the request before storage;
    diagnostics stay constant and never echo content.
 
 ## 5. Persistence (`libmeowchan/Tags/TagSuggestionStore.cs`, internal, `tag-suggestions.json`)
 
-- Format `meowchan-tag-suggestions`, version 1, with its own revision. A writer
+- Format `meowchan-tag-suggestions`, version 1 for suggestion-only profiles
+  and version 2 after the first journal write, with its own revision. A writer
   uses one fixed sibling staging file under the profile lease and store-writer
   admission. The primary is the commit record. Each file is bounded by the
   configured size during normal writes. Run commits leave a configurable share
@@ -109,9 +109,10 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
   tagger, plugin version, model id, model revision, model hash), never to an
   archive occurrence: accepting applies the tag to the occurrence the user is
   looking at.
-- States: `Pending → Accepted | Rejected`, undo back to `Pending`; `Superseded`
-  when a newer model revision of the same tagger ran. Every transition is an
-  append-only review event (sequence, id, from, to, time).
+- States are `Pending → Accepted | Rejected`, with undo back to `Pending` and
+  `Superseded` from a successful rerun. Each transition appends a review event
+  with its sequence, suggestion ID, previous and new state, and timestamp.
+  AP11 events also reference the journal operation ID.
 - Reruns supersede the previous pending suggestions for the medium and tagger,
   including same-revision reruns. Superseded rows and events keep their
   identities. A decision to accept or reject the same tag for these bytes
@@ -153,22 +154,64 @@ tagging-page package and must then follow the settings checklist: EN/DE texts,
   wired into AP10. Target address restrictions and host-verified model
   selection, provenance and revision ordering remain open.
 - Keep legacy `.corrupt-*` copies until a migration can identify and handle them.
-  Full store recovery and history validation, output bounds during
-  serialization, a per-medium index and platform crash-durability tests belong
-  with the store and review design. The review reserve is finite.
+  Bounds during serialization, a per-medium index, pruning policy and
+  platform crash-durability tests remain open. The review reserve is finite.
 - Keep the settings in the domain until an executable tagger is wired to the
   desktop. That integration supplies EN/DE and the ten bundled packs together
   with the localization audit updates.
 
-## 7. Connection to the tagging page (next package, not implemented)
+## 7. AP11 review journal
+
+- `AcceptReview` confirms one model proposal from an AP06 preview at one exact
+  bound attachment or local occurrence. It checks the suggestion revision and
+  the private revision and fingerprint under the same profile lease. The
+  journal records the operation ID, proposal ID, occurrence, mapped tag names
+  and which assignments existed before the write. The caller revalidates the
+  observed media before confirming the preview.
+- Acceptance and undo of an acceptance first persist a `Prepared` operation
+  in `tag-suggestions.json`. A second atomic write publishes the private
+  assignments and a receipt with the operation ID and new private revision in
+  `private-tags.json` (version 4, with versions 1–3 still readable). Finalization
+  records `Completed` and the review event in one suggestion-store write.
+  Each terminal operation advances the suggestion revision once. Review
+  preflight checks both possible terminal documents against the existing
+  suggestion file limit. Private changes use the existing private tag limits.
+- The host calls `RecoverReview` before showing reviews after restart. It
+  finalizes a prepared operation when the private receipt matches its ID and
+  expected new revision, even if manual edits have advanced the private store
+  since. An absent receipt leaves the proposal state as it was and records
+  `Interrupted`. A fresh ID and a fresh confirmation are then required to
+  apply the requested change. New journal requests recover first. Run writes
+  and legacy decision writes wait for recovery by returning
+  `ReviewRecoveryRequired`. An identical retry returns the original outcome
+  and the current snapshot. A different request with the same profile-local
+  ID is refused.
+- Rejection and its undo complete in a single suggestion-store write.
+  Suppression spans taggers for the same content (SHA-256 and length) and raw
+  name, category and time range. Undo reopens the original proposal and ends
+  suppression from that decision. A later run may propose other rows.
+- `UndoReview` names the original decision and works after restart while that
+  decision is current. It removes only exact assignment rows still owned by
+  that acceptance. Pre-existing assignments, later additions and manually
+  reasserted or re-added assignments stay. A later review of an already
+  assigned tag releases earlier ownership, as do renames and merges for
+  affected tag definitions. Vocabulary, occurrence registrations and tags at
+  other occurrences stay. Undo records which owned names were actually removed
+  and carries no whole-file rollback.
+- The three atomic writes cover process interruption under the profile
+  lease. Independently restoring an older copy of either file can break their
+  correspondence. Receipt and assignment ownership data are private to the
+  profile.
+
+### Desktop integration
 
 - A "Suggested" group next to provider and own tags for the current medium:
   `PendingFor(sha, threshold)`, sorted by score, with category, score and model
   shown; accept/reject per chip and for all shown; existing `Alt+1–9` slots can
   take the top suggestions (check macOS collisions).
-- Accept: write the own tag through the existing private tag session for the
-  current target first, then `Decide(..., Accepted, revision)`; on a store
-  conflict reload and show again. Undo uses `Pending` plus the existing tag undo.
+- Use the journal for accept, reject and undo. Supply the profile's configured
+  private tag store. After a revision conflict, reload the preview and ask the
+  user to confirm the current occurrence.
 - Job UI: run for selection/queue, progress, cancel, resume, "re-run with new
   model revision". Model and consent prompts come from the marketplace/model
   pack UI.
@@ -181,8 +224,8 @@ tagging-page package and must then follow the settings checklist: EN/DE texts,
    versioned on its own), or bump to `1.2.0` at release (changes a shipped
    constant: release review entry).
 2. Persist network consent (per profile file) or keep it per session as now?
-3. Should a rejected suggestion stay hidden for all taggers (current rule) or
-   only for the tagger/model that proposed it?
+3. The AP11 domain keeps the existing cross-tagger rejection scope. A future
+   per-tagger policy would need a migration.
 4. Target of accepted `Rating` suggestions: map to a content-rating field, a
    private tag, or ignore the category for now?
 5. Mapping of tagger names to own tags: keep model vocabulary (`long_hair`) or
@@ -208,6 +251,10 @@ tagging-page package and must then follow the settings checklist: EN/DE texts,
   persistence, run outcomes, decisions with history and undo, stale revision,
   supersede vs. decisions, rerun replace, per-item cap, invalid input, damaged
   and newer files, size limit, settings ranges.
+- `tests/MeowChan.Tests/Tags/TagReviewJournalTests.cs`: deterministic model output
+  and failures at the private write boundary, recovery after reopening the
+  profile, duplicate requests, rejection scope, and ownership-limited undo for
+  bound and loose media.
 - `tests/MeowChan.PluginRuntime.Tests/TaggerContractRunnerTests.cs` with
   `ReferenceTagger`: full job with progress and provenance, resume and rerun,
   cancel and resume, failed/invalid batches, exclusions, missing models,

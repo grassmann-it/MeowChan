@@ -249,10 +249,10 @@ public sealed class TagSuggestionStoreTests : IDisposable
             Assert.Throws<TagSuggestionStoreException>(() => store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))])).Error);
         Assert.Equal("{broken", File.ReadAllText(store.FilePath));
 
-        File.WriteAllText(store.FilePath, """{"format":"meowchan-tag-suggestions","version":2,"revision":7}""");
+        File.WriteAllText(store.FilePath, """{"format":"meowchan-tag-suggestions","version":3,"revision":7}""");
         Assert.Equal(TagSuggestionStoreState.Unsupported, store.Load().State);
         Assert.Throws<TagSuggestionStoreException>(() => store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]));
-        Assert.Contains("\"version\":2", File.ReadAllText(store.FilePath));
+        Assert.Contains("\"version\":3", File.ReadAllText(store.FilePath));
     }
 
     [Fact]
