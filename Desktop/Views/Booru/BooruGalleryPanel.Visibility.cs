@@ -10,7 +10,7 @@ internal sealed partial class BooruGalleryPanel
 {
     private readonly List<Visual> _visibilityAncestors = new();
 
-    private bool CanShowSample => _visibilityAncestors.Count > 0 && IsEffectivelyVisible;
+    private bool CanShowSample => !_samplesSuspended && _visibilityAncestors.Count > 0 && IsEffectivelyVisible;
 
     private void ObserveVisibility()
     {
@@ -27,14 +27,14 @@ internal sealed partial class BooruGalleryPanel
     {
         foreach (Visual ancestor in _visibilityAncestors) ancestor.PropertyChanged -= OnAncestorVisibilityChanged;
         _visibilityAncestors.Clear();
-        PauseSample();
+        _sample.Pause();
     }
 
     private void OnAncestorVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs change)
     {
         if (change.Property != IsVisibleProperty) return;
         if (change.GetNewValue<bool>()) ResumeWhenVisible();
-        else PauseSample();
+        else _sample.Pause();
     }
 
     private void ResumeWhenVisible()

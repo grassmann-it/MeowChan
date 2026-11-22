@@ -1,3 +1,5 @@
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -5,6 +7,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
@@ -43,6 +46,24 @@ internal static class BooruResultViewerChecks
                 "Local-original gallery tools leaked into the Booru preview.");
             Require(h.Queue.Loads.Count == 0 && h.Search.Requests == 1 && h.Previews.Requests == 2,
                 "Opening the preview fetched an original or repeated a provider request.");
+            Require(Find<TextBlock>(viewer, "BooruViewerPosition").Text == "1 of 3"
+                && Find<Button>(viewer, "BooruViewerOpenPost").IsVisible
+                && Find<Button>(viewer, "BooruViewerFullscreen").IsVisible
+                && Find<BooruGalleryTags>(viewer, "BooruGalleryTags").GetVisualDescendants()
+                    .OfType<SelectableTextBlock>().Any(tags => tags.Text!.Contains("cat")
+                        && AutomationProperties.GetName(tags)!.Contains(Texts.T("booru.ui.tagCategory.General"))),
+                "The popout is missing the shared position, actions or read-only source tags.");
+            Send(image, Key.F);
+            Require(viewer.WindowState == WindowState.Normal, "Plain F must retain its gallery meaning.");
+            Send(image, Key.F11);
+            await Program.WaitUntilAsync(() => viewer.WindowState == WindowState.FullScreen);
+            Send(image, Key.F11);
+            await Program.WaitUntilAsync(() => viewer.WindowState == WindowState.Normal);
+            await SmokeDispatcher.SettleAsync();
+            viewer.Width = Math.Max(viewer.MinWidth, viewer.Width - 64);
+            viewer.Height = Math.Max(viewer.MinHeight, viewer.Height - 48);
+            viewer.Position += new PixelPoint(-16, -16);
+            await SmokeDispatcher.SettleAsync();
 
             Send(image, Key.Space);
             Require(Find<CheckBox>(viewer, "BooruViewerSelect").IsChecked == true, "Space did not select the image.");
@@ -55,14 +76,15 @@ internal static class BooruResultViewerChecks
                 "Selection was not retained when returning to the first image.");
             Send(image, Key.Left);
             Require(viewer.CurrentPostId == "701", "Previous wrapped past the first result.");
-            Send(image, Key.Right);
+            Send(image, Key.Home);
+            Send(image, Key.Down);
             Send(image, Key.E, OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
             await Program.WaitUntilAsync(() => h.Queue.Loads.Count == 1);
             Require(h.Queue.Loads.Single().PostId == "702", "The download key targeted a different image or the whole selection.");
             await Program.WaitUntilAsync(() => !Find<Button>(viewer, "BooruViewerDownload").IsEnabled);
             Send(image, Key.E, OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control);
             Require(h.Queue.Loads.Count == 1, "Queued original was admitted twice.");
-            Send(image, Key.Right);
+            Send(image, Key.End);
             Require(viewer.CurrentPostId == "703" && !Find<Button>(viewer, "BooruViewerDownload").IsEnabled,
                 "Restricted original was downloadable.");
             Send(image, Key.Right);
@@ -77,10 +99,14 @@ internal static class BooruResultViewerChecks
                 "Escape did not close or selection was lost from the result cards.");
             Require(host.FocusManager?.GetFocusedElement() is Control { Name: "BooruResult:703" },
                 "Closing did not restore focus to the browsed result.");
+            var remembered = viewer.NormalBounds;
             Send(Find<Border>(view, "BooruResult:701"), Key.Enter);
             Require(view.ResultView == BooruResultView.Gallery && view.Gallery.CurrentPostId == "701", "Card Enter did not open the inline gallery.");
             Click(Find<Button>(view, "BooruGalleryOpenWindow"));
             viewer = host.OwnedWindows.OfType<BooruResultViewerWindow>().Single();
+            await SmokeDispatcher.SettleAsync();
+            Require(remembered is not null && viewer.NormalBounds == remembered,
+                $"Reopening lost the popout's normal bounds. Saved {remembered}, restored {viewer.NormalBounds}.");
             Require(Find<CheckBox>(viewer, "BooruViewerSelect").IsChecked == true, "Card Enter did not reopen with per-image selection.");
             Click(Find<Button>(viewer, "BooruViewerDownload"));
             await Program.WaitUntilAsync(() => h.Queue.Loads.Count == 2);

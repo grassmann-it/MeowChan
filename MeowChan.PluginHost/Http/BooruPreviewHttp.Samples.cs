@@ -4,7 +4,7 @@ namespace MeowChan.PluginHost.Http;
 internal readonly record struct BooruSampleResult(byte[]? Bytes, bool TimedOut = false);
 
 /// <summary>
-/// The reduced-size version (sample) of a post, for the inline gallery only. It is the same bounded path as the thumbnails (declared preview
+/// The reduced-size version (sample) of a post, for the gallery. It is the same bounded path as the thumbnails (declared preview
 /// host, GET, no redirects, identity encoding, image signature, the same request gate of <see cref="MaximumConcurrentRequests"/>), with two
 /// differences the caller sets: the largest body it accepts and how many bytes of samples are kept in memory. Both come from settings, so the
 /// 1 MiB thumbnail limit stays what it was. A user action asks for exactly one sample at a time; nothing here fetches a page ahead.

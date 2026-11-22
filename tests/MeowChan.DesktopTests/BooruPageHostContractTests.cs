@@ -1,8 +1,10 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Tests.Shared;
@@ -63,18 +65,21 @@ public sealed class BooruPageHostContractTests
         TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
         Assert.Equal(BooruWorkbenchView.WatchersTabName, watchersTab.Name);
         Control watchers = Assert.IsAssignableFrom<Control>(watchersTab.Content);
-        string?[] names = search.GetVisualDescendants().Concat(watchers.GetVisualDescendants())
-            .Concat(page.View.Footer.GetVisualDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
+        string?[] names = search.GetLogicalDescendants().Concat(watchers.GetLogicalDescendants())
+            .Concat(page.View.Footer.GetLogicalDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
         // Actual content, not aliases to a replacement/placeholder. Dynamic result and watcher
         // cards remain the view's responsibility and are covered by the existing workbench checks.
         foreach (string name in new[] { BooruWorkbenchView.ModeName, BooruWorkbenchView.InputName,
             BooruWorkbenchView.SubmitName, BooruWorkbenchView.CancelName, BooruWorkbenchView.RetryName,
             BooruWorkbenchView.QueryName, BooruWorkbenchView.StatusName, BooruWorkbenchView.PreviousName,
             BooruWorkbenchView.NextName, BooruWorkbenchView.CreateWatcherName, BooruWorkbenchView.ResultsName,
-            BooruWorkbenchView.WatchersName, BooruWorkbenchView.RemoveNoteName, BooruWorkbenchView.NoFilterNoteName,
+            BooruWorkbenchView.WatchersName, BooruWorkbenchView.RemoveNoteName,
             BooruWorkbenchView.LinkNoteName, BooruWorkbenchView.InputIssueName, BooruWorkbenchView.NoticeName,
             BooruWorkbenchView.WatcherNoticeName, BooruWorkbenchView.ResetCooldownName, BooruWorkbenchView.CatalogStorageName })
             Assert.Contains(name, names);
+        var input = Assert.Single(search.GetVisualDescendants().OfType<TextBox>(), box => box.Name == BooruWorkbenchView.InputName);
+        Assert.Contains(MeowChan.Desktop.Localization.Texts.T("booru.ui.noFilterNote"), AutomationProperties.GetHelpText(input));
+        Assert.Equal(AutomationProperties.GetHelpText(input), ToolTip.GetTip(input));
         AssertNoRemoteWork(ports);
     }
 

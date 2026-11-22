@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -21,6 +22,9 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
 
     private readonly HashSet<string> _selectedResults = new(StringComparer.Ordinal);
     private BooruResultViewerWindow? _resultViewer;
+    private (Size Size, PixelPoint Position)? _viewerBounds;
+    internal Func<(Size Size, PixelPoint Position)?>? RestoreViewerBounds { get; set; }
+    internal Action<(Size Size, PixelPoint Position)>? SaveViewerBounds { get; set; }
 
     private void DismissResultViewer() => _resultViewer?.Close();
 
@@ -29,17 +33,32 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         if (_closed || TopLevel.GetTopLevel(this) is not Window owner
             || !_model.Search.View.Rows.Any(row => row.Post.PostId == postId)) return false;
         _resultViewer?.Close();
-        BooruResultViewerWindow viewer = new(_model.Search, postId, _selectedResults, () => Render(force: true));
+        BooruResultViewerWindow viewer = new(_model.Search, postId, _selectedResults, () => Render(force: true),
+            openPost: url => OpenActions.Start(() => OpenLinkAsync(url), "booru.viewer.openPost"),
+            sampleSettings: ReadGallerySampleSettings);
+        if ((_viewerBounds ??= RestoreViewerBounds?.Invoke()) is { } bounds) viewer.RestoreNormalBounds(owner, bounds);
         _resultViewer = viewer;
+        _gallery.SuspendSamples(true);
         viewer.Closed += (_, _) =>
         {
-            if (ReferenceEquals(_resultViewer, viewer)) _resultViewer = null;
+            if (!ReferenceEquals(_resultViewer, viewer)) return;
+            _resultViewer = null;
+            if (viewer.NormalBounds is { } saved && _viewerBounds != saved)
+            {
+                _viewerBounds = saved;
+                SaveViewerBounds?.Invoke(saved);
+            }
             if (_closed) return;
             // The cursor follows the post the popup ended on; the inline gallery (when shown) moves there too.
             BooruSearchView current = _model.Search.View;
-            if (!current.Rows.Any(row => row.Post.PostId == viewer.CurrentPostId)) return;
+            if (!current.Rows.Any(row => row.Post.PostId == viewer.CurrentPostId))
+            {
+                _gallery.SuspendSamples(false);
+                return;
+            }
             SetCursor(viewer.CurrentPostId);
             if (_resultView == BooruResultView.Gallery) ShowInGallery(current);
+            _gallery.SuspendSamples(false);
             if (_attached && IsEffectivelyVisible && IsSearchItem(_tabs.SelectedItem)) FocusHit(viewer.CurrentPostId);
         };
         viewer.Show(owner);

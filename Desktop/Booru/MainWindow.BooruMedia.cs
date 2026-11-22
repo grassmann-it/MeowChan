@@ -46,6 +46,13 @@ public partial class MainWindow
         BooruWorkbenchView view = page.View;
         view.SaveResultView = mode => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruPageView = mode.ToString()), "booru.saveResultView");
         view.SaveTileSize = size => OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.BooruTileSize = size.ToString()), "booru.saveTileSize");
+        view.RestoreViewerBounds = () => _session.Config.ReadBooruViewerBounds();
+        view.SaveViewerBounds = bounds =>
+        {
+            if (!_isClosing)
+                OpenActions.Start(() => _session.SaveViewPreferencesAsync(config => config.WriteBooruViewerBounds(bounds)),
+                    "booru.saveViewerBounds");
+        };
         view.RestoreResultView(BooruResultViews.Parse(_session.Config.BooruPageView), MediaTileSizes.Parse(_session.Config.BooruTileSize));
     }
 

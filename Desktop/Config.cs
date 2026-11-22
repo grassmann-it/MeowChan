@@ -2219,6 +2219,7 @@ namespace MeowChan
                 WindowPositionX = WindowPositionX,
                 WindowPositionY = WindowPositionY,
                 WindowMaximized = WindowMaximized,
+                BooruViewerPlacement = BooruViewerPlacement,
                 ColumnWidths = ColumnWidths,
                 LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
@@ -2480,6 +2481,7 @@ namespace MeowChan
             WindowPositionX = source.WindowPositionX;
             WindowPositionY = source.WindowPositionY;
             WindowMaximized = source.WindowMaximized;
+            BooruViewerPlacement = source.BooruViewerPlacement;
             ColumnWidths = source.ColumnWidths;
             LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;

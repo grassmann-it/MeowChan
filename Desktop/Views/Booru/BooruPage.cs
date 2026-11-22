@@ -101,7 +101,8 @@ internal sealed class BooruPage : UserControl, IDisposable
             Name = "BooruPageBody", Child = scroll, Margin = new Thickness(12, 0, 12, 8),
             Classes = { "workspace-section-flush" }
         };
-        Border notes = new() { Name = "BooruPageNotes", Child = footer, Margin = new Thickness(12, 0, 12, 8) };
+        footer.Margin = new Thickness(12, 0, 12, 8);
+        Border notes = new() { Name = "BooruPageNotes", Child = footer };
         layout.Children.Add(heading);
         Grid.SetRow(surface, 1); layout.Children.Add(surface);
         Grid.SetRow(notes, 2); layout.Children.Add(notes);

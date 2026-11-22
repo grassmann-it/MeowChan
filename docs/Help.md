@@ -390,8 +390,9 @@ Choose **Tag search**, enter up to two tags and one optional `rating:` term, and
 press **Search**. Positive and negative (`-tag`) occurrences both count toward the
 two-tag limit. MeowChan normalizes separators to spaces but adds no hidden terms
 or automatic `g,s` filter. A search is limited to at most 5 pages of 20 posts;
-use **Previous page** and **Next page**, or refine the query. The displayed sent
-query belongs to those results, not to an unsubmitted edit in the input.
+use **Previous page** and **Next page**, or refine the query. In Gallery, the
+pager's tooltip and accessible status name the query for the current results.
+The search field's tooltip explains the query syntax and how originals are queued.
 
 Choose **Post link or ID** and **Look up post** for a single Danbooru post.
 Looking it up shows provider metadata and previews; it does not create a watcher
@@ -421,24 +422,26 @@ one-shot and watcher findings retain their provenance.
 
 #### Browse result previews
 
-Choose **Open in gallery** on a Booru result card to open a larger, preview-only
-viewer. Enter or a double-click on an unsaved card's body opens the same viewer;
-on a result with a saved original, those primary gestures still use **Show in
-Media**. Buttons, tags and text inside a card keep their own actions.
+Choose **Gallery** above the results or **Open in gallery** on a result card.
+Enter or a double-click on the body of an unsaved result opens the gallery. For
+saved results, those gestures use **Show in Media**. **Open in new window** uses
+the same navigation and remembers its last normal size and position. The side
+panel shows copyable Danbooru tags grouped by category.
 
-The viewer enlarges the bounded preview already fetched by the search, not the
-original. Its quality depends on the provider's preview; a missing or restricted
-preview shows its status instead of keeping the previous picture. Opening the
-viewer, moving between results and selecting them do not download originals or
-request another result page.
+Both viewers show the available preview first. The provider's larger, reduced-size
+sample replaces it when the sample fits the configured gallery limits. Moving to
+another result or closing the viewer cancels the previous sample request. To
+download an original, use **Download original**.
 
 | Key or action | In the Booru result viewer |
 | --- | --- |
-| Left / Right, Previous / Next | Move within the current result page; stop at either end without wrapping |
+| Left / Right, Up / Down, Previous / Next | Move within the current result page and stop at either end |
+| Home / End | Jump to the first or last result on the page |
 | Space / Enter on the picture | Select or deselect the displayed result |
 | Selection checkbox | Share the same per-image selection with the result card; closing and reopening on the same result page keeps it |
-| **Load original**, Ctrl+E (Command+E on macOS) | Queue or retry only the displayed original, not every selected result |
-| Escape / Close | Close the viewer and return focus to the last browsed result card |
+| **Download original**, Ctrl+E (Command+E on macOS) | Queue or retry the displayed original |
+| F11 (also Control+Command+F on macOS) | Toggle fullscreen |
+| Escape / Close | Return to the previous results view or close the popout |
 
 The download key follows your customized **Export** shortcut for originals. Availability,
 restrictions and queue deduplication still apply; selection alone never starts a

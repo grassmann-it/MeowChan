@@ -118,7 +118,7 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>The page is wide enough for the words "List" and "Grid" beside the icons of the view switch (dip).</summary>
     private const double ViewToggleLabelsMinimumWidth = 720;
 
-    /// <summary>The result line ("20 results on page 1 for ...") and the pager, in this order, under the result list.</summary>
+    /// <summary>The result status and pager under the results. In the gallery the pager announces successful searches.</summary>
     private Control BuildBottomBar()
     {
         _bottomStatusHost.Child = _bottomStatusText;
@@ -136,8 +136,13 @@ internal sealed partial class BooruWorkbenchView
     private void RenderBottomStatus(BooruSearchView view)
     {
         bool below = view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && !_retry.IsVisible;
-        _bottomStatusHost.IsVisible = below;
+        bool compact = below && view.Status == BooruSearchStatus.Results && _pager.IsVisible
+            && _resultView == BooruResultView.Gallery;
+        _bottomStatusHost.IsVisible = below && !compact;
         WorkViewElement.SetStateVisible(_statusHost, !below);
+        ToolTip.SetTip(_pageInfo, compact ? _statusText.Text : null);
+        AutomationProperties.SetLiveSetting(_pageInfo, compact ? AutomationLiveSetting.Polite : AutomationLiveSetting.Off);
+        AutomationProperties.SetName(_pageInfo, compact ? $"{_pageInfo.Text} · {_statusText.Text}" : null);
         if (!below) return;
         _bottomStatusText.Text = _statusText.Text;
         AutomationProperties.SetName(_bottomStatusText, _statusText.Text);
@@ -295,6 +300,7 @@ internal sealed partial class BooruWorkbenchView
         if (selected is not TabItem item) return;
         ClearTabLimitNotice();
         _lastRealTab = item;
+        UpdateGalleryScroll();
         if (item.Tag is not int searchId) return;
         AttachSearchContent(item);
         _searchTabs?.Select(searchId);
@@ -405,6 +411,7 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_searchTabs is not { } tabs) return;
         RenderBottomStatus(view);
+        UpdateGalleryScroll();
         RenderViewToggleLabels();
         foreach (var (id, tab) in _extraTabs)
             RenderTabHeader(tab.Item, tab.Header,

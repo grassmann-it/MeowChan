@@ -195,7 +195,7 @@ internal sealed partial class BooruWorkbenchView
             if (view == BooruResultView.Gallery) ShowInGallery(_model.Search.View, requestSample: true);
         }
         if (focused is not null) FocusHit(focused["BooruResult:".Length..]);
-        else if (view == BooruResultView.Gallery && _results.IsKeyboardFocusWithin) FocusGalleryStage();
+        else if (view == BooruResultView.Gallery) FocusGalleryStage();
     }
 
     /// <summary>Sets the tile size (shown at once, saved once); false when it is the current one.</summary>
