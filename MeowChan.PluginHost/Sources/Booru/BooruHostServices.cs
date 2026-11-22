@@ -44,6 +44,9 @@ public sealed class BooruHostServices : IPluginHostServices
         return _booruHttp.SendAsync(request, source, job, cancellationToken);
     }
 
+    /// <summary>The enforced post-search profile of a declared source; null when it has none.</summary>
+    internal BooruSourceProfile? ProfileOf(string sourceId) => _booruHttp.ProfileOf(sourceId);
+
     internal BooruJob OpenJob() => _jobs.Open();
 
     internal void CloseJob(BooruJob job) => _jobs.Close(job);

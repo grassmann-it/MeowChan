@@ -17,7 +17,9 @@ public sealed class BooruHostHttp : IDisposable
     public const int MaximumWireBytes = 2 * 1024 * 1024;
     public const int MaximumDecodedBytes = 4 * 1024 * 1024;
     public const int MaximumSendsPerJob = BooruJob.MaximumSends;
+    /// <summary>Host ceiling for numbered pages of every source; a source profile can only lower it.</summary>
     public const int MaximumSearchPage = MeowChan.Booru.DanbooruTagQuery.MaximumSearchPages;
+    /// <summary>Host ceiling for the page size of every source; a source profile can only lower it.</summary>
     public const int MaximumSearchLimit = MeowChan.Booru.DanbooruTagQuery.MaximumSearchPageSize;
     public static readonly TimeSpan MinimumStartSpacing = TimeSpan.FromSeconds(1);
     public static readonly TimeSpan RetryDelay = TimeSpan.FromSeconds(2);
@@ -29,14 +31,12 @@ public sealed class BooruHostHttp : IDisposable
     internal static readonly TimeSpan DefaultMaximumCooldown = TimeSpan.FromHours(24);
     internal static readonly TimeSpan MinimumConfiguredCooldown = TimeSpan.FromHours(1);
     internal static readonly TimeSpan MaximumConfiguredCooldown = TimeSpan.FromHours(168);
-    /// <summary>Danbooru post ids fit a signed 64-bit integer: at most 18 canonical decimal digits are accepted.</summary>
-    private const int MaximumPostIdDigits = 18;
-
     private readonly HttpClient _transport;
     private readonly bool _disposeTransport;
     private readonly TimeProvider _clock;
     private readonly string _userAgent;
     private readonly IReadOnlyDictionary<string, SourceDescription> _sources;
+    private readonly Dictionary<string, BooruSourceProfile> _profiles;
     private readonly Func<TimeSpan>? _maximumCooldownProvider;
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, SourceState> _states = new(StringComparer.Ordinal);
 
@@ -60,10 +60,19 @@ public sealed class BooruHostHttp : IDisposable
         _sources = (sources ?? throw new ArgumentNullException(nameof(sources)))
             .Where(source => source is not null)
             .ToDictionary(source => source.SourceId, StringComparer.Ordinal);
+        // Resolved once: a post-search source sends only through the profile the host validated at composition.
+        Dictionary<string, BooruSourceProfile> profiles = new(StringComparer.Ordinal);
+        foreach (SourceDescription source in _sources.Values)
+            if (BooruEndpointPolicy.Resolve(source) is BooruSourceProfile profile) profiles[source.SourceId] = profile;
+        _profiles = profiles;
         _userAgent = BooruUserAgent.Build(productVersion ?? BooruUserAgent.ProductVersion(), danbooruUserId);
     }
 
     internal IReadOnlyDictionary<string, SourceDescription> Sources => _sources;
+
+    /// <summary>The enforced post-search profile of a declared source; null when it has none (fail closed).</summary>
+    internal BooruSourceProfile? ProfileOf(string sourceId) =>
+        sourceId is not null && _profiles.TryGetValue(sourceId, out BooruSourceProfile? profile) ? profile : null;
     internal TimeProvider TimeProvider => _clock;
 
     internal async Task<HostHttpResult> SendAsync(HostHttpRequest request, SourceDescription source,
@@ -80,7 +89,7 @@ public sealed class BooruHostHttp : IDisposable
         if (issues.Count > 0) return Failure("http-request", issues[0].Message);
         if (request.Method != HostHttpMethod.Get)
             return Failure("http-request", "Booru metadata accepts GET requests only.");
-        if (!IsAllowedEndpoint(request.Url, source))
+        if (!BooruEndpointPolicy.IsAllowed(request.Url, source, ProfileOf(source.SourceId)))
             return Failure("http-request", "The booru endpoint is not on the provider allowlist.");
         if (HasForbiddenTransportDefaults() || HasForbiddenRequestHeaders(request.Headers))
             return Failure("http-request", "The booru transport contains host-owned credentials.");
@@ -136,7 +145,7 @@ public sealed class BooruHostHttp : IDisposable
 
                 if (!job.TryReserveSend())
                     return JobEnded(job) ?? Failure("booru-budget", "The booru job send budget is exhausted.");
-                state.NextStart = AddSaturating(_clock.GetUtcNow(), MinimumStartSpacing);
+                state.NextStart = AddSaturating(_clock.GetUtcNow(), SpacingOf(source));
                 return await SendWithRetryAsync(request, source, job, state, cancellationToken, token).ConfigureAwait(false);
             }
         }
@@ -306,7 +315,7 @@ public sealed class BooruHostHttp : IDisposable
                     if (JobEnded(job, status) is HostHttpFailure ended) return ended;
                     if (!job.TryReserveSend())
                         return JobEnded(job, status) ?? Failure("booru-budget", "The booru job send budget is exhausted.", status);
-                    state.NextStart = AddSaturating(_clock.GetUtcNow(), MinimumStartSpacing);
+                    state.NextStart = AddSaturating(_clock.GetUtcNow(), SpacingOf(source));
                     continue;
                 }
 
@@ -351,7 +360,7 @@ public sealed class BooruHostHttp : IDisposable
             catch (HttpRequestException) when (!retried && !IsTerminalStatus(response))
             {
                 retried = true;
-                if (await DelayTransportRetryAsync(job, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
+                if (await DelayTransportRetryAsync(job, source, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
                     return stop;
                 continue;
             }
@@ -362,7 +371,7 @@ public sealed class BooruHostHttp : IDisposable
             catch (IOException) when (!retried && !IsTerminalStatus(response))
             {
                 retried = true;
-                if (await DelayTransportRetryAsync(job, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
+                if (await DelayTransportRetryAsync(job, source, state, abort).ConfigureAwait(false) is HostHttpFailure stop)
                     return stop;
                 continue;
             }
@@ -378,7 +387,8 @@ public sealed class BooruHostHttp : IDisposable
     }
 
     /// <summary>Waits for the single transport retry; returns the stop failure when the job cannot send again.</summary>
-    private async Task<HostHttpFailure?> DelayTransportRetryAsync(BooruJob job, SourceState state, CancellationToken abort)
+    private async Task<HostHttpFailure?> DelayTransportRetryAsync(BooruJob job, SourceDescription source, SourceState state,
+        CancellationToken abort)
     {
         DateTimeOffset retryAt = AddSaturating(_clock.GetUtcNow(), RetryDelay);
         if (retryAt >= job.Deadline || job.IsExpired)
@@ -388,7 +398,7 @@ public sealed class BooruHostHttp : IDisposable
         if (JobEnded(job) is HostHttpFailure ended) return ended;
         if (!job.TryReserveSend())
             return JobEnded(job) ?? Failure("booru-budget", "The booru job budget is exhausted.");
-        state.NextStart = AddSaturating(_clock.GetUtcNow(), MinimumStartSpacing);
+        state.NextStart = AddSaturating(_clock.GetUtcNow(), SpacingOf(source));
         return null;
     }
 
@@ -487,68 +497,12 @@ public sealed class BooruHostHttp : IDisposable
         }
     }
 
-    private static bool IsAllowedEndpoint(Uri uri, SourceDescription source)
-    {
-        if (!uri.IsAbsoluteUri || uri.Scheme != Uri.UriSchemeHttps || uri.UserInfo.Length != 0
-            || uri.Fragment.Length != 0 || !uri.IsDefaultPort) return false;
-        // Fail closed: only a source with a host-owned endpoint profile may send. A PostSearch source
-        // without one (a new or third-party plugin) is refused until its profile exists here.
-        if (!string.Equals(source.SourceId, "danbooru", StringComparison.Ordinal)) return false;
-
-        string path = uri.AbsolutePath;
-        if (path == "/posts.json") return IsValidSearchQuery(uri.Query);
-        if (!path.StartsWith("/posts/", StringComparison.Ordinal) || !path.EndsWith(".json", StringComparison.Ordinal)
-            || uri.Query.Length != 0) return false;
-        return IsCanonicalPostId(path[7..^5]);
-    }
-
-    private static bool IsCanonicalPostId(string id) =>
-        id.Length is > 0 and <= MaximumPostIdDigits && id[0] != '0' && id.All(char.IsAsciiDigit);
+    /// <summary>Per-source spacing between two request starts: the profile's value, never below the host floor.</summary>
+    private TimeSpan SpacingOf(SourceDescription source) =>
+        BooruEndpointPolicy.Spacing(ProfileOf(source.SourceId), MinimumStartSpacing);
 
     private static bool IsConditional(HostHttpRequest request) =>
         request.Validators?.EntityTag is not null || request.Validators?.LastModified is not null;
-
-    private static bool IsValidSearchQuery(string query)
-    {
-        if (query.Length == 0) return true;
-        HashSet<string> names = new(StringComparer.Ordinal);
-        foreach (string part in query[1..].Split('&'))
-        {
-            int equals = part.IndexOf('=');
-            if (equals <= 0) return false;
-            string name, value;
-            try
-            {
-                name = Uri.UnescapeDataString(part[..equals]);
-                value = Uri.UnescapeDataString(part[(equals + 1)..]);
-            }
-            catch (UriFormatException) { return false; }
-            if (!names.Add(name) || name is not ("tags" or "page" or "limit")) return false;
-            switch (name)
-            {
-                case "tags":
-                    if (!MeowChan.Booru.DanbooruTagQuery.TryParse(value, out _, out _)) return false;
-                    break;
-                case "page":
-                    // Either a page number 1..5 or Danbooru's before-id cursor "b<post id>" (posts below
-                    // that id), checked on the raw text so no escaped form slips through.
-                    if (IsBeforeIdPage(part[(equals + 1)..])) break;
-                    if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int page)
-                        || page is < 1 or > MaximumSearchPage) return false;
-                    break;
-                default:
-                    if (!int.TryParse(value, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int limit)
-                        || limit is < 1 or > MaximumSearchLimit) return false;
-                    break;
-            }
-        }
-        return true;
-    }
-
-    /// <summary>Exactly <c>b</c> followed by a canonical Danbooru post id (1 to 18 digits, no leading zero).</summary>
-    private static bool IsBeforeIdPage(string raw) =>
-        raw.Length is >= 2 and <= 19 && raw[0] == 'b' && raw[1] is >= '1' and <= '9'
-        && raw.AsSpan(2).IndexOfAnyExceptInRange('0', '9') < 0;
 
     private bool HasForbiddenTransportDefaults() =>
         _transport.DefaultRequestHeaders.Authorization is not null

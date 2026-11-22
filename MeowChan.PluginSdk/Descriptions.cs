@@ -66,6 +66,15 @@ public sealed record SourceDescription(string SourceId, string Name, Uri BaseUri
     PostOrderKind PostOrder = PostOrderKind.StableOrdinal)
 {
     public SourceMaturity Maturity { get; init; }
+
+    /// <summary>
+    /// Post-search profile of a <see cref="SourceCapabilities.PostSearch"/> source; null for every other source.
+    /// A post-search source without a profile cannot send metadata requests through the booru host, except a
+    /// source the host ships its own profile for. Omitted from JSON while null, so earlier declarations keep
+    /// their exact serialized form.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BooruSourceProfile? BooruProfile { get; init; }
 }
 
 /// <summary>Exact DNS host, without scheme, port, wildcard, credentials or path.</summary>

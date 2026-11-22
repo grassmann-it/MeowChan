@@ -14,6 +14,7 @@ public sealed class BooruSearchService
     public const string InvalidPostIdMessage = "The booru post id is not accepted.";
     public const string InvalidCursorCode = "invalid_cursor";
     public const string InvalidCursorMessage = "The booru cursor is not accepted.";
+    /// <summary>The page size of a Danbooru search (the host ceiling); another source uses at most its profile's limit.</summary>
     public const int SearchLimit = BooruHostHttp.MaximumSearchLimit;
 
     /// <summary>
@@ -99,24 +100,23 @@ public sealed class BooruSearchService
         ArgumentNullException.ThrowIfNull(scope);
         if (!TryGetSource(sourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruSearchFailure(sourceId, sourceFailure!);
-        if (page is < 1 or > BooruHostHttp.MaximumSearchPage)
-            return new BooruSearchFailure(sourceId, new FailureDetail("invalid_page", "The booru page must be between 1 and 5."));
+        if (!TryGetProfile(sourceId, out BooruSourceProfile? profile, out FailureDetail? profileFailure))
+            return new BooruSearchFailure(sourceId, profileFailure!);
+        int maximumPage = BooruEndpointPolicy.MaximumPage(profile!);
+        if (page < 1 || page > maximumPage)
+            return new BooruSearchFailure(sourceId, new FailureDetail("invalid_page",
+                "The booru page must be between 1 and " + maximumPage.ToString(System.Globalization.CultureInfo.InvariantCulture) + "."));
         if (beforePostId is not null && (source!.PostOrder != PostOrderKind.DecimalPostId
                 || !IsValidPostId(new BooruPostId(sourceId, beforePostId), source)))
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidCursorCode, InvalidCursorMessage));
         if (userQuery is null)
             return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
 
-        string providerQuery = userQuery;
-        if (string.Equals(sourceId, "danbooru", StringComparison.Ordinal))
-        {
-            if (!DanbooruTagQuery.TryParse(userQuery, out DanbooruTagQuery? parsed, out _)
-                || parsed is null)
-                return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
-            providerQuery = parsed.ProviderQuery;
-        }
+        // Danbooru keeps its own restricted syntax; every other source is checked against its declared rules.
+        if (!BooruEndpointPolicy.TryNormalizeQuery(sourceId, profile!, userQuery, out string providerQuery))
+            return new BooruSearchFailure(sourceId, new FailureDetail(InvalidQueryCode, InvalidQueryMessage));
 
-        BooruSearchRequest request = new(sourceId, providerQuery, page, SearchLimit, beforePostId);
+        BooruSearchRequest request = new(sourceId, providerQuery, page, PageSize(profile!), beforePostId);
         IReadOnlyList<ValidationIssue> requestIssues = SdkValidation.ValidateBooruSearchRequest(request, source!);
         if (requestIssues.Count > 0)
             return new BooruSearchFailure(sourceId, PublicFailure(requestIssues[0]));
@@ -176,6 +176,8 @@ public sealed class BooruSearchService
             return new BooruPostFailure(new BooruPostId(string.Empty, string.Empty), new FailureDetail("invalid_post", InvalidPostIdMessage));
         if (!TryGetSource(post.SourceId, out SourceDescription? source, out FailureDetail? sourceFailure))
             return new BooruPostFailure(post, sourceFailure!);
+        if (!TryGetProfile(post.SourceId, out _, out FailureDetail? profileFailure))
+            return new BooruPostFailure(post, profileFailure!);
         if (!IsValidPostId(post, source!))
             return new BooruPostFailure(post, new FailureDetail(InvalidPostIdCode, InvalidPostIdMessage));
         if (_services.TryGetCooldown(post.SourceId, out DateTimeOffset retryAt))
@@ -294,10 +296,27 @@ public sealed class BooruSearchService
         return false;
     }
 
+    /// <summary>
+    /// The page size the host requests from a source: the host ceiling, lowered by the source's profile. The watcher
+    /// port reads <see cref="SearchLimit"/> for Danbooru, whose profile keeps the ceiling.
+    /// </summary>
+    internal int PageSize(string sourceId) =>
+        _services.ProfileOf(sourceId) is BooruSourceProfile profile ? PageSize(profile) : SearchLimit;
+
+    private static int PageSize(BooruSourceProfile profile) => BooruEndpointPolicy.MaximumLimit(profile);
+
+    private bool TryGetProfile(string sourceId, out BooruSourceProfile? profile, out FailureDetail? failure)
+    {
+        profile = _services.ProfileOf(sourceId);
+        failure = profile is null ? new FailureDetail("capability", "The source declares no usable booru endpoint profile.") : null;
+        return profile is not null;
+    }
+
     private static bool IsValidPostId(BooruPostId post, SourceDescription source)
     {
-        if (string.Equals(source.SourceId, "danbooru", StringComparison.Ordinal))
-            return post.PostId.Length is > 0 and <= 18 && post.PostId[0] != '0' && post.PostId.All(char.IsAsciiDigit);
+        // Every endpoint profile names post ids as canonical decimals (at most 18 digits), in the path or a parameter.
+        if (BooruEndpointPolicy.IsDanbooru(source.SourceId) || source.PostOrder == PostOrderKind.DecimalPostId)
+            return BooruEndpointPolicy.IsCanonicalPostId(post.PostId);
         return post.PostId.Length is > 0 and <= 256 && post.PostId.All(character => !char.IsControl(character) && !char.IsWhiteSpace(character));
     }
 

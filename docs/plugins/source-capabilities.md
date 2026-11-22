@@ -45,3 +45,6 @@ snapshots (see [live results 2026-10-24](live-sources-2026-10-24.md)).
 
 Copy a row, set every column and put the date and evidence into the last column.
 A column that cannot be answered yet is written as *not verified (date)*.
+A booru post-search source also declares its endpoints, tag syntax, paging limits,
+access mode and request spacing in its source profile; see the
+[booru source contract](booru-source-contract.md).

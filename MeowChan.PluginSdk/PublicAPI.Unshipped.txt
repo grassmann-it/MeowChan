@@ -1,9 +1,70 @@
 #nullable enable
+MeowChan.PluginSdk.BooruAuthentication
+MeowChan.PluginSdk.BooruAuthentication.None = 0 -> MeowChan.PluginSdk.BooruAuthentication
+MeowChan.PluginSdk.BooruEndpoint
+MeowChan.PluginSdk.BooruEndpoint.BooruEndpoint(MeowChan.PluginSdk.BooruEndpointKind Kind, string! PathTemplate, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruQueryParameter!>! Parameters) -> void
+MeowChan.PluginSdk.BooruEndpoint.Kind.get -> MeowChan.PluginSdk.BooruEndpointKind
+MeowChan.PluginSdk.BooruEndpoint.Kind.init -> void
+MeowChan.PluginSdk.BooruEndpoint.Parameters.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruQueryParameter!>!
+MeowChan.PluginSdk.BooruEndpoint.Parameters.init -> void
+MeowChan.PluginSdk.BooruEndpoint.PathTemplate.get -> string!
+MeowChan.PluginSdk.BooruEndpoint.PathTemplate.init -> void
+MeowChan.PluginSdk.BooruEndpointKind
+MeowChan.PluginSdk.BooruEndpointKind.Post = 1 -> MeowChan.PluginSdk.BooruEndpointKind
+MeowChan.PluginSdk.BooruEndpointKind.Search = 0 -> MeowChan.PluginSdk.BooruEndpointKind
+MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruParameterKind.Fixed = 0 -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruParameterKind.Limit = 5 -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruParameterKind.PageIndex = 3 -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruParameterKind.PageNumber = 2 -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruParameterKind.PageOrBeforeCursor = 4 -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruParameterKind.PostId = 6 -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruParameterKind.TagQuery = 1 -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruQueryParameter
+MeowChan.PluginSdk.BooruQueryParameter.BooruQueryParameter(string! Name, MeowChan.PluginSdk.BooruParameterKind Kind, bool Required = false, string? FixedValue = null) -> void
+MeowChan.PluginSdk.BooruQueryParameter.FixedValue.get -> string?
+MeowChan.PluginSdk.BooruQueryParameter.FixedValue.init -> void
+MeowChan.PluginSdk.BooruQueryParameter.Kind.get -> MeowChan.PluginSdk.BooruParameterKind
+MeowChan.PluginSdk.BooruQueryParameter.Kind.init -> void
+MeowChan.PluginSdk.BooruQueryParameter.Name.get -> string!
+MeowChan.PluginSdk.BooruQueryParameter.Name.init -> void
+MeowChan.PluginSdk.BooruQueryParameter.Required.get -> bool
+MeowChan.PluginSdk.BooruQueryParameter.Required.init -> void
+MeowChan.PluginSdk.BooruQueryRules
+MeowChan.PluginSdk.BooruQueryRules.AllowsExclusion.get -> bool
+MeowChan.PluginSdk.BooruQueryRules.AllowsExclusion.init -> void
+MeowChan.PluginSdk.BooruQueryRules.BeforeCursorPrefix.get -> string?
+MeowChan.PluginSdk.BooruQueryRules.BeforeCursorPrefix.init -> void
+MeowChan.PluginSdk.BooruQueryRules.BooruQueryRules(int MaximumTagTerms, System.Collections.Generic.IReadOnlyList<string!>! RatingValues, bool AllowsExclusion = true, string? BeforeCursorPrefix = null) -> void
+MeowChan.PluginSdk.BooruQueryRules.MaximumTagTerms.get -> int
+MeowChan.PluginSdk.BooruQueryRules.MaximumTagTerms.init -> void
+MeowChan.PluginSdk.BooruQueryRules.RatingValues.get -> System.Collections.Generic.IReadOnlyList<string!>!
+MeowChan.PluginSdk.BooruQueryRules.RatingValues.init -> void
+MeowChan.PluginSdk.BooruSourceProfile
+MeowChan.PluginSdk.BooruSourceProfile.Authentication.get -> MeowChan.PluginSdk.BooruAuthentication
+MeowChan.PluginSdk.BooruSourceProfile.Authentication.init -> void
+MeowChan.PluginSdk.BooruSourceProfile.BooruSourceProfile(System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruEndpoint!>! Endpoints, MeowChan.PluginSdk.BooruQueryRules! Query, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruTagCategory>! TagCategories, System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruRating>! Ratings, int MaximumPage, int MaximumLimit, MeowChan.PluginSdk.BooruAuthentication Authentication = MeowChan.PluginSdk.BooruAuthentication.None, int MinimumRequestSpacingMilliseconds = 1000) -> void
+MeowChan.PluginSdk.BooruSourceProfile.Endpoints.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruEndpoint!>!
+MeowChan.PluginSdk.BooruSourceProfile.Endpoints.init -> void
+MeowChan.PluginSdk.BooruSourceProfile.MaximumLimit.get -> int
+MeowChan.PluginSdk.BooruSourceProfile.MaximumLimit.init -> void
+MeowChan.PluginSdk.BooruSourceProfile.MaximumPage.get -> int
+MeowChan.PluginSdk.BooruSourceProfile.MaximumPage.init -> void
+MeowChan.PluginSdk.BooruSourceProfile.MinimumRequestSpacingMilliseconds.get -> int
+MeowChan.PluginSdk.BooruSourceProfile.MinimumRequestSpacingMilliseconds.init -> void
+MeowChan.PluginSdk.BooruSourceProfile.Query.get -> MeowChan.PluginSdk.BooruQueryRules!
+MeowChan.PluginSdk.BooruSourceProfile.Query.init -> void
+MeowChan.PluginSdk.BooruSourceProfile.Ratings.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruRating>!
+MeowChan.PluginSdk.BooruSourceProfile.Ratings.init -> void
+MeowChan.PluginSdk.BooruSourceProfile.TagCategories.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.BooruTagCategory>!
+MeowChan.PluginSdk.BooruSourceProfile.TagCategories.init -> void
 MeowChan.PluginSdk.ITaggerPlugin
 MeowChan.PluginSdk.ITaggerPlugin.TagAsync(MeowChan.PluginSdk.TaggerBatchRequest! request, MeowChan.PluginSdk.PluginCallContext! context, System.IProgress<MeowChan.PluginSdk.TaggerBatchProgress!>? progress = null, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.PluginSdk.TaggerBatchResult!>!
 MeowChan.PluginSdk.PluginDescription.Taggers.get -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.TaggerDescription!>?
 MeowChan.PluginSdk.PluginDescription.Taggers.init -> void
 MeowChan.PluginSdk.SettingScope.Tagger = 3 -> MeowChan.PluginSdk.SettingScope
+MeowChan.PluginSdk.SourceDescription.BooruProfile.get -> MeowChan.PluginSdk.BooruSourceProfile?
+MeowChan.PluginSdk.SourceDescription.BooruProfile.init -> void
 MeowChan.PluginSdk.TaggerBatchProgress
 MeowChan.PluginSdk.TaggerBatchProgress.CompletedItems.get -> int
 MeowChan.PluginSdk.TaggerBatchProgress.CompletedItems.init -> void
@@ -161,6 +222,7 @@ const MeowChan.PluginSdk.TaggerLimits.MaximumSuggestionsPerItem = 512 -> int
 const MeowChan.PluginSdk.TaggerLimits.MaximumTagNameBytes = 256 -> int
 const MeowChan.PluginSdk.TaggerLimits.MaximumTaggersPerPlugin = 16 -> int
 const MeowChan.PluginSdk.TaggerLimits.MaximumTimeRangeMilliseconds = 86400000 -> long
+static MeowChan.PluginSdk.SdkValidation.ValidateBooruProfile(MeowChan.PluginSdk.SourceDescription! source) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
 static MeowChan.PluginSdk.SdkValidation.ValidateTaggerRequest(MeowChan.PluginSdk.TaggerBatchRequest! request, MeowChan.PluginSdk.TaggerDescription! tagger) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
 static MeowChan.PluginSdk.SdkValidation.ValidateTaggerResult(MeowChan.PluginSdk.TaggerBatchRequest! request, MeowChan.PluginSdk.TaggerBatchResult! result, MeowChan.PluginSdk.TaggerDescription! tagger) -> System.Collections.Generic.IReadOnlyList<MeowChan.PluginSdk.ValidationIssue!>!
 static MeowChan.PluginSdk.TaggerContract.IsSupported(string? version) -> bool
