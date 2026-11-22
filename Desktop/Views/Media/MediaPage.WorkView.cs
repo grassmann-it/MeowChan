@@ -130,6 +130,7 @@ public sealed partial class MediaPage
     private void LocalizeWorkView()
     {
         _moreFilters.Content = Texts.T("workview.moreFilters");
+        CommandBindings.EnsureIconBeforeText(_moreFilters, "filter");
         LocalizeBooruOverflow();
         RefreshWorkView(); // UpdateMore sets name and tooltip of both "More" buttons in the current language.
     }
@@ -263,6 +264,8 @@ public sealed partial class MediaPage
                 AutomationProperties.SetHelpText(item, tip);
             }
             if (ReferenceEquals(control, _booruOpen)) item.Name = "MediaBooruOpen";
+            if (control is Button tool && IconButtons.KeyOf(tool) is { } icon)
+                item.Icon = CommandBindings.NamedIcon(icon);
             flyout.Items.Add(item);
         }
     }

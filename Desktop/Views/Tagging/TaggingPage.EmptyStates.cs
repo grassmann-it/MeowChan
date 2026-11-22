@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Tags;
@@ -33,6 +34,11 @@ public sealed partial class TaggingPage
 
     private void InitializeEmptyStates()
     {
+        CommandBindings.EnsureIconBeforeText(_emptyMedia, CommandCatalog.Get("navigation.media").Icon);
+        CommandBindings.EnsureIconBeforeText(_emptyHow, "help-circle");
+        CommandBindings.EnsureIconBeforeText(_emptyDeleteGroup, CommandCatalog.Get("reader-groups.delete").Icon);
+        CommandBindings.EnsureIconBeforeText(_emptyClearDone, CommandCatalog.Get("tagging.clear-done").Icon);
+        CommandBindings.EnsureIconBeforeText(_emptyReopen, CommandCatalog.Get(TaggingCommands.MarkOpen).Icon);
         _emptyMedia.Click += (_, _) => AddRequested?.Invoke();
         _emptyHow.Click += (_, _) => _help.Popover.ShowAt(_emptyHow);
         _emptyDeleteGroup.Click += (_, _) => OpenActions.Start(DeleteGroupAsync, "tagging.empty.delete-group");
@@ -85,6 +91,9 @@ public sealed partial class TaggingPage
         _emptyClearDone.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Done > 0;
         _emptyReopen.IsVisible = _emptyKind == TaggingEmptyKind.AllDone && selectedCounts.Skipped > 0;
         _emptyShowAll.Content = _emptyKind == TaggingEmptyKind.GroupEmpty ? Texts.T("tagging.page.empty.group.assign") : Texts.T("tagging.page.empty.showAll");
+        string showAllIcon = _emptyKind == TaggingEmptyKind.GroupEmpty ? "arrow-left" : CommandCatalog.Get("media.filter.reset-all").Icon;
+        if (IconButtons.KeyOf(_emptyShowAll) != showAllIcon)
+            CommandBindings.ShowIconBeforeText(_emptyShowAll, showAllIcon);
         _emptyShowAll.IsVisible = _emptyKind is TaggingEmptyKind.FilterNoHits or TaggingEmptyKind.GroupEmpty;
         // Empty-state recommendations own the accent; GroupEmpty recommends returning to the queue to assign entries.
         _start.Classes.Set("primary", _emptyKind == TaggingEmptyKind.None);

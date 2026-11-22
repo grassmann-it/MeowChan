@@ -97,7 +97,12 @@ public sealed class IconButtonConversionTests
             Assert.Contains(kind, new[] { "Button", "ToggleButton" });
             AssertIconExists(icon);
         }
-        Assert.Equal(["ArchiveAddBoard", "ArchiveAddSource", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveMediaLayoutTable", "ArchiveMediaLayoutTiles", "ArchiveTagManage", "ArchiveUseDeviceZone", "ReaderTagManage"],
+        Assert.Equal(new[] { "ArchiveAddBoard", "ArchiveAddSource", "ArchiveEditRatingButton", "ArchiveEmptySearchInMedia", "ArchiveFavoritesFilter",
+            "ArchiveFilterApply", "ArchiveFilterClose", "ArchiveLayoutList", "ArchiveLayoutTable", "ArchiveManageRatingsButton",
+            "ArchiveMediaLayoutTable", "ArchiveMediaLayoutTiles",
+            "ArchiveMediaSelectionClear", "ArchiveMediaSelectionExport", "ArchiveMediaSelectionGallery", "ArchiveMediaSelectionQueue",
+            "ArchiveMediaSelectionTag", "ArchiveResetFilters", "ArchiveRetrySearch", "ArchiveRetrySuggestions", "ArchiveTagManage",
+            "ArchiveUseDeviceZone", "PreviewArchiveMediaButton", "ReaderFindRetry", "ReaderFindSearch", "ReaderTagAdd", "ReaderTagManage" },
             ArchivePage.ToolButtonIcons.Select(entry => entry.Name).Order(StringComparer.Ordinal).ToArray());
         Assert.Contains("InitializeToolButtonIcons();", ReadSource("Desktop/Views/Archive/ArchivePage.axaml.cs"));
         Assert.Contains("EnsureIconBeforeText(Control<Button>(name), icon)", ReadSource("Desktop/Views/Archive/ArchivePage.ToolIcons.cs"));
@@ -132,7 +137,7 @@ public sealed class IconButtonConversionTests
         { "Desktop/Views/Booru/BooruWorkbenchView.cs", "IconButtons.Apply(_next, \"chevron-right\", Texts.T(\"booru.ui.page.next\"))", "chevron-right" },
         { "Desktop/Views/Booru/BooruWorkbenchView.cs", "ShowIconBeforeText(open, \"external-link\")", "external-link" },
         { "Desktop/Views/Booru/BooruWorkbenchView.cs", "ShowIconBeforeText(copy, \"copy\")", "copy" },
-        { "Desktop/Views/Booru/BooruWorkbenchView.cs", "ShowIconBeforeText(load, \"download-cloud\")", "download-cloud" },
+        { "Desktop/Views/Booru/BooruWorkbenchView.cs", "ShowIconBeforeText(load, cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load)", "download-cloud" },
         { "Desktop/Views/Media/BooruMediaDetailsDialog.cs", "ShowIconBeforeText(open, \"external-link\")", "external-link" },
         { "Desktop/Views/Media/BooruMediaDetailsDialog.cs", "ShowIconBeforeText(copy, \"copy\")", "copy" },
         { "Desktop/GalleryViewer.cs", "\"GalleryActual\" => Texts.T(\"gallery.actual\")", "crosshair" },

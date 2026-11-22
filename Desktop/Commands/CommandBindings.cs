@@ -346,12 +346,13 @@ public static class CommandBindings
     /// action of a toolbar carries an icon (the Reader toolbar rule) whatever sets its label. A button that holds a control as
     /// content (a button of <see cref="ApplyLabeled"/>) is not templated.
     /// </summary>
-    internal static void ShowIconBeforeText(Button button, string icon, int size = 16, bool closeWhenChecked = false)
+    internal static void ShowIconBeforeText(Button button, string icon, int size = 16, bool closeWhenChecked = false, IObservable<bool>? showLabel = null)
     {
         MeowChan.Desktop.Controls.IconButtons.Record(button, icon);
         button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
         {
             TextBlock text = new() { Text = content?.ToString(), VerticalAlignment = VerticalAlignment.Center };
+            if (showLabel != null) text.Bind(Visual.IsVisibleProperty, showLabel);
             StackPanel panel = new()
             {
                 Orientation = Orientation.Horizontal,

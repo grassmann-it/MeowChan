@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 
@@ -38,6 +39,7 @@ public partial class PluginsPage
         {
             settings.Children.Add(Label(Texts.T("plugins.removedSettings") + "\n" + string.Join("\n", draft.RemovedSettings.Select(issue => issue.Path))));
             Button acknowledge = new() { Content = Texts.T("plugins.acceptSchema") };
+            CommandBindings.ShowIconBeforeText(acknowledge, "check");
             AutomationProperties.SetAutomationId(acknowledge, "PluginSchemaAcknowledgement:" + Uri.EscapeDataString(entry.Key));
             _pluginSchemaAcknowledgement = acknowledge;
             acknowledge.Click += (_, _) =>

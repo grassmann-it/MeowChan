@@ -62,7 +62,7 @@ internal sealed class BooruGalleryToolbar : Border
         Download.AttachedToVisualTree += (_, _) =>
         {
             if (_downloadContent is not null) return;
-            _downloadContent = new GalleryToolbarActionContent(CommandBindings.NamedIcon("download-cloud"), _downloadLabel);
+            _downloadContent = new GalleryToolbarActionContent(CommandBindings.NamedIcon(IconButtons.KeyOf(Download) ?? "download-cloud"), _downloadLabel);
             Download.Content = _downloadContent;
         };
     }
@@ -109,7 +109,14 @@ internal sealed class BooruGalleryToolbar : Border
         AutomationProperties.SetHelpText(Select, selectionKeys);
 
         _downloadLabel = row.CanRetry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
-        if (_downloadContent is { } content) content.Text = _downloadLabel;
+        string downloadIcon = row.CanRetry ? "refresh-cw" : "download-cloud";
+        bool iconChanged = downloadIcon != IconButtons.KeyOf(Download);
+        IconButtons.Record(Download, downloadIcon);
+        if (_downloadContent is { } content)
+        {
+            content.Text = _downloadLabel;
+            if (iconChanged) content.Icon = CommandBindings.NamedIcon(downloadIcon);
+        }
         else Download.Content = _downloadLabel;
         Download.IsEnabled = row.CanLoad || row.CanRetry;
         string action = row.CanRetry ? _downloadLabel + ": " + title : Texts.T("booru.ui.loadFor", row.Post.PostId);

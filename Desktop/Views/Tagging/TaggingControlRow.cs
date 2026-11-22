@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
@@ -24,11 +25,36 @@ internal sealed class TaggingControlRow : Panel
     public double GroupSpacing { get => GetValue(GroupSpacingProperty); set => SetValue(GroupSpacingProperty, value); }
     public double LineSpacing { get => GetValue(LineSpacingProperty); set => SetValue(LineSpacingProperty, value); }
     public Control? TrailingChild { get; set; }
+
+    internal static readonly StyledProperty<bool> ShowActionLabelsProperty =
+        AvaloniaProperty.Register<TaggingControlRow, bool>("ShowActionLabels", true);
+    internal Control? CompactActions { get; set; }
     protected override Size MeasureOverride(Size availableSize)
     {
         Size constraint = new(availableSize.Width, double.PositiveInfinity);
+        if (CompactActions is { } actions)
+        {
+            SetActionLabels(true, actions);
+            foreach (Control child in Children) child.Measure(Size.Infinity);
+            double preferredWidth = 0;
+            foreach (Control child in Children)
+                if (child.IsVisible) preferredWidth += child.DesiredSize.Width + GroupSpacing;
+            if (preferredWidth - GroupSpacing > availableSize.Width)
+                SetActionLabels(false, actions);
+        }
         foreach (Control child in Children) child.Measure(constraint);
         return Place(availableSize.Width);
+    }
+
+    private void SetActionLabels(bool visible, Control actions)
+    {
+        if (visible == GetValue(ShowActionLabelsProperty)) return;
+        SetValue(ShowActionLabelsProperty, visible);
+        foreach (TextBlock label in actions.GetVisualDescendants().OfType<TextBlock>())
+        {
+            for (Visual? visual = label; visual is Layoutable layout && visual != this; visual = visual.GetVisualParent())
+                layout.InvalidateMeasure();
+        }
     }
 
     protected override Size ArrangeOverride(Size finalSize)
