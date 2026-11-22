@@ -10,6 +10,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class ArchiveDeletionHostTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
@@ -36,7 +37,7 @@ public sealed class ArchiveDeletionHostTests
 
         using CatalogTransport firstTransport = new();
         using HttpClient firstClient = new(firstTransport);
-        await using (DesktopSessionHost first = new(temp.Path, [new ObservedCatalogProvider(firstClient)]))
+        await using (DesktopSessionHost first = OwnedUiDispatcher.CreateHost(() => new(temp.Path, [new ObservedCatalogProvider(firstClient)])))
         {
             await first.StartAsync().WaitAsync(Timeout);
             await first.AddAsync("https://boards.4chan.org/g/").WaitAsync(Timeout);
@@ -60,7 +61,7 @@ public sealed class ArchiveDeletionHostTests
         using CatalogTransport restoredTransport = new();
         using HttpClient restoredClient = new(restoredTransport);
         ObservedCatalogProvider restoredProvider = new(restoredClient);
-        await using DesktopSessionHost restored = new(temp.Path, [restoredProvider]);
+        await using DesktopSessionHost restored = OwnedUiDispatcher.CreateHost(() => new(temp.Path, [restoredProvider]));
         await restored.StartAsync().WaitAsync(Timeout);
         Assert.Empty(restored.GetView().Threads);
         await restored.SetPausedAsync(false).WaitAsync(Timeout);
@@ -95,7 +96,7 @@ public sealed class ArchiveDeletionHostTests
             Assert.True(favorites.SetFavorite(Favorite(exclusive), true));
         }
 
-        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync();
         await host.SetPausedAsync(true);
         ArchivePermanentDeletionPlan plan = await host.PrepareArchiveDeletionAsync(new[] { shared, exclusive });
@@ -121,7 +122,7 @@ public sealed class ArchiveDeletionHostTests
         await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease))
             await catalog.RegisterThreadAsync(Registration(id, Path.Combine(temp.Path, "initial")));
 
-        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync();
         ArchivePermanentDeletionPlan plan = await host.PrepareArchiveDeletionAsync(new[] { id });
         // A second writer cannot open the leased profile, but the host's catalog may change

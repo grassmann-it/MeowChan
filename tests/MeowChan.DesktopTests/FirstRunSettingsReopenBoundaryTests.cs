@@ -1,4 +1,5 @@
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
@@ -6,6 +7,7 @@ namespace MeowChan.DesktopTests;
 // Persistence/runtime boundary only. Real SettingsEditor constructor/control/draft
 // assertions live in DesktopSmoke/FirstRunSettingsReopenChecks.cs, where the
 // native application supplies Avalonia assets and UI-thread resources.
+[Collection("Avalonia global state")]
 public sealed class FirstRunSettingsReopenBoundaryTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(15);
@@ -31,7 +33,7 @@ public sealed class FirstRunSettingsReopenBoundaryTests
             MinimumFreeSpaceGiB = 0
         }.SaveConfig(profile);
 
-        await using (DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile, Array.Empty<IImageBoard>())))
         {
             await host.StartAsync().WaitAsync(Timeout);
             Assert.Equal(DesktopSessionState.Ready, host.State);
@@ -69,7 +71,7 @@ public sealed class FirstRunSettingsReopenBoundaryTests
         Assert.Equal(2_621_440, reopened.BandwidthLimiter);
         Assert.Equal(committedBytes, File.ReadAllBytes(settingsFile));
 
-        await using DesktopSessionHost restarted = new(profile, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost restarted = OwnedUiDispatcher.CreateHost(() => new(profile, Array.Empty<IImageBoard>()));
         await restarted.StartAsync().WaitAsync(Timeout);
         await restarted.CaptureProjectionAsync().WaitAsync(Timeout);
         Assert.Equal(chosen, restarted.Config.DownloadPath);
@@ -80,5 +82,34 @@ public sealed class FirstRunSettingsReopenBoundaryTests
         Assert.Equal(committedBytes, File.ReadAllBytes(settingsFile));
         Assert.Equal((requested, effective, 0, queuedByCap), restarted.Projection.MediaConcurrency);
         Assert.False(FirstRunSetupCoordinator.CanOffer(restarted.Config, restarted.State));
+    }
+
+    [Fact]
+    public async Task FixtureHostDoesNotRefreshOtherTestsShortcutPresentations()
+    {
+        using TempDirectory directory = new();
+        using ShortcutTestState shortcuts = new();
+        DesktopSessionHost? host = null;
+        try
+        {
+            OwnedUiDispatcher.Run(() =>
+            {
+                int refreshes = 0;
+                Action refresh = () => refreshes++;
+                ShortcutService.Observe(refresh);
+                long revision = ShortcutService.Revision;
+
+                host = OwnedUiDispatcher.CreateHost(() => new(directory.Path, Array.Empty<IImageBoard>()));
+
+                Assert.Equal(0, refreshes);
+                Assert.Equal(revision, ShortcutService.Revision);
+                Assert.Equal(1, ShortcutService.ObserverCount);
+                GC.KeepAlive(refresh);
+            });
+        }
+        finally
+        {
+            if (host != null) await host.DisposeAsync();
+        }
     }
 }

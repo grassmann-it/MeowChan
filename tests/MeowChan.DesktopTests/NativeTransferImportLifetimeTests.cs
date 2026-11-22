@@ -11,6 +11,7 @@ namespace MeowChan.DesktopTests;
 
 // Real host startup, package writer, retained stage, read-only planner and admitted
 // consumer. No reflection, replacement outcomes, private Ready setters or tokens.
+[Collection("Avalonia global state")]
 public sealed class NativeTransferImportLifetimeTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
@@ -563,14 +564,15 @@ public sealed class NativeTransferImportLifetimeTests
 
     private sealed class Fixture : IAsyncDisposable
     {
-        internal TempDirectory Root { get; } = new();
+        internal TempDirectory Root { get; }
         internal string Profile { get; }
         internal string Work { get; }
         internal string Media { get; }
         internal DesktopSessionHost Host { get; }
 
-        private Fixture()
+        private Fixture(TempDirectory root)
         {
+            Root = root;
             Profile = Directory.CreateDirectory(Path.Combine(Root.Path, "profile")).FullName;
             Work = Directory.CreateDirectory(Path.Combine(Root.Path, "trusted-work")).FullName;
             Media = Path.Combine(Root.Path, "media");
@@ -579,12 +581,15 @@ public sealed class NativeTransferImportLifetimeTests
                 AutomaticUpdateChecks = false, SaveUrlsOnExit = false, DownloadsPaused = true,
                 FirstRunSetupPending = true, DownloadPath = Media
             }.SaveConfig(Profile);
-            Host = new(Profile, Array.Empty<IImageBoard>());
+            Host = OwnedUiDispatcher.CreateHost(() => new(Profile, Array.Empty<IImageBoard>()));
         }
 
         internal static async Task<Fixture> StartAsync()
         {
-            Fixture f = new();
+            TempDirectory root = new();
+            Fixture f;
+            try { f = new(root); }
+            catch { root.Dispose(); throw; }
             try
             {
                 await f.Host.StartAsync().WaitAsync(Deadline);
