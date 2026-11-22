@@ -19,7 +19,7 @@ internal abstract record TagRuleOrigin
 
     internal sealed record Provider(string? PluginId = null) : TagRuleOrigin;
     internal sealed record Private : TagRuleOrigin;
-    internal sealed record Model(TagSuggestion Suggestion, long Revision) : TagRuleOrigin;
+    internal sealed record Model(StoredTagSuggestion Suggestion, long Revision) : TagRuleOrigin;
 }
 
 internal sealed record TagRuleInput(string OriginalName, MediaTagSubject Subject, TagRuleOrigin Origin)
