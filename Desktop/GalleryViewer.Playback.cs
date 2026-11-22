@@ -310,7 +310,12 @@ internal sealed partial class GalleryViewer
             AutomationProperties.SetName(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.mode"));
             ToolTip.SetTip(_playbackMode, GalleryPlaybackCatalog.Get("viewer.playback.modeHelp"));
             RefreshSlideshowNumbers();
-            SetToggleLabel(_slideshowToggle, _slideshow.IsRunning ? GalleryPlaybackCatalog.Get("viewer.playback.pause") : GalleryPlaybackCatalog.Get("viewer.playback.start"));
+            string slideshowLabel = GalleryPlaybackCatalog.Get(_slideshow.IsRunning ? "viewer.playback.pause" : "viewer.playback.start");
+            // The split button owns its icon and label. Replacing it with plain text on every refresh
+            // rebuilds the hovered content even when the visible state has not changed.
+            if (_slideshowToggle.Tag is OverflowItem) SetButtonLabel(_slideshowToggle, slideshowLabel);
+            AutomationProperties.SetName(_slideshowToggle, slideshowLabel);
+            ToolTip.SetTip(_slideshowToggle, slideshowLabel);
             PresentSlideshowIcon();
             _slideshowToggle.IsChecked = _slideshow.IsRunning;
             _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;

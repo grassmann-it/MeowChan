@@ -60,7 +60,7 @@ public sealed class BooruCompositionHostTests
         // Disabling again hides the window; the search reports "unavailable" without a request.
         binding.SetEnabled(false);
         Assert.Null(host.BooruServices);
-        BooruCallResult<BooruResultPage> search = await host.BooruComposition.Services.Search.SearchAsync("cat_ears", 1, CancellationToken.None);
+        BooruCallResult<BooruResultPage> search = await host.BooruComposition.Services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None);
         Assert.Equal(BooruCallStatus.Unavailable, search.Status);
         Assert.Empty(stub.Requests);
     }
@@ -274,7 +274,7 @@ public sealed class BooruCompositionHostTests
         int changes = 0;
         services.Queue.LocalStatesChanged += () => Interlocked.Increment(ref changes);
 
-        BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, CancellationToken.None).WaitAsync(Deadline);
+        BooruCallResult<BooruResultPage> result = await services.Search.SearchAsync("cat_ears", 1, BooruSearchModel.PageSize, CancellationToken.None).WaitAsync(Deadline);
         Assert.Equal(BooruCallStatus.Ok, result.Status);
         BooruResultPage page = result.Value!;
         Assert.Equal(new[] { "4003", "4002", "4001" }, page.Posts.Select(post => post.PostId));

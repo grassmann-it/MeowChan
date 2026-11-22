@@ -651,6 +651,7 @@ public sealed partial class MediaPage
         finally { _localizing = localizing; }
         _nameFilter.PlaceholderText = Texts.T("media.filter.name");
         _filterRetry.Content = Texts.T("media.filter.retry");
+        CommandBindings.EnsureIconBeforeText(_filterRetry, "refresh-cw");
         AutomationProperties.SetName(_filterRetry, Texts.T("media.filter.retry"));
         _queryAliases = null; // the aliases follow the language
         _queryScopeAliases = null;

@@ -338,7 +338,7 @@ public partial class MainWindow
         CommandBindings.EnsureIconBeforeText(DownloadSearchClear, "x");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeAdvanced, "eye");
         CommandBindings.EnsureIconBeforeText(WorkViewNoticeDismiss, "check");
-        CommandBindings.ApplyLabeled(ShellFeedbackDiagnosticsButton, "navigation.diagnostics", Texts.T("feedback.open"));
+        LocalizeShellFeedbackAction();
         RefreshShellCommands();
         RefreshSpeedLabel();
         ShowStoreLimitWarning();
@@ -603,7 +603,7 @@ public partial class MainWindow
             double rowHeight = barebones || _config.CompactDensity ? 32 : 44;
             // The grid's actual header+first-row footprint includes the row spacing already; the extra
             // four-DIP gap used here previously let the intake child overlap the content grid by two DIP at 640×480.
-            double tableMinimum = Math.Max(38, DownloadsTabs.Bounds.Height) + 32 + rowHeight + 2;
+            double tableMinimum = Math.Max(40, DownloadsListHeader.Bounds.Height) + 32 + rowHeight + 2;
             bool reserveTable = retainedErrorLayout || compactIntake;
             content.MinHeight = reserveTable ? tableMinimum : 0;
             WorkspaceIntakeScroll.MaxHeight = reserveTable

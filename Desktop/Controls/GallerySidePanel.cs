@@ -17,10 +17,8 @@ namespace MeowChan.Desktop.Controls;
 internal enum GallerySidePanelSegment { Post, Tags }
 
 /// <summary>
-/// V2 (PLAN-MEDIEN-VIEWER-UND-SEITE §1.1): the host of the gallery side panel. Header: the segment "Post | Tags" on the left (two
-/// toggle buttons, ←/→ switch while one has the focus), the live medium counter centered between the tabs and the close button (one line, trimmed or hidden when narrow),
-/// at least 24 dip of space before the close button (×) alone at the right edge. Below
-/// it the two content slots <see cref="PostContent"/> and <see cref="TagContent"/>; only the one of <see cref="Segment"/> is visible.
+/// The gallery side panel shows the medium counter at the left above the Post and Tags switches, with the close button at the right.
+/// Below the header, only the content slot for <see cref="Segment"/> is visible.
 /// A 6-dip grip on the left edge drags the width (<see cref="Config.GalleryPanelWidthMinimum"/>–<see cref="Config.GalleryPanelWidthMaximum"/>).
 /// The host only shows state and raises requests: which segment may be shown, what closing does and where the width is kept is
 /// the viewer's (GalleryViewer.SidePanel.cs). Focus order: segment, content, close.
@@ -30,22 +28,16 @@ internal sealed class GallerySidePanel : Grid
     /// <summary>The key of the preferred width in the layout profile's view preferences.</summary>
     internal const string WidthPreferenceKey = "gallery.panelWidth";
     internal const double GripWidth = 6;
-    // Gap on each side of the counter; the star column holding it keeps at least CounterClearance between the tabs and the close button.
-    private const double CounterGap = 8;
-    private const double CounterClearance = 24;
-    // The narrowest trimmed counter worth showing; with less room it is hidden (its long text stays on the filmstrip and the status line).
-    private const double CounterMinWidth = 40;
     // The grip lies on the outer edge of the bordered slot (workspace-section, inset 16), not on the content.
     private const double SlotInset = 16;
     private readonly ToggleButton _post = new() { Name = "GalleryPanelPost", Classes = { "media-control" } };
     private readonly ToggleButton _tags = new() { Name = "GalleryPanelTags", Classes = { "media-control" } };
     private readonly WrapPanel _segment = new() { Name = "GalleryPanelSegment", ItemSpacing = 4, LineSpacing = 4,
-        VerticalAlignment = VerticalAlignment.Center };
+        ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
-        VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center,
-        HorizontalContentAlignment = HorizontalAlignment.Center, Margin = new Thickness(CounterGap, 0, CounterGap, 0) };
-    private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false };
-    private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false };
+        HorizontalContentAlignment = HorizontalAlignment.Left };
+    private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false, Margin = new Thickness(0, 12, 0, 0) };
+    private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,
         HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Stretch };
     private GallerySidePanelSegment _shown = GallerySidePanelSegment.Post;
@@ -58,27 +50,21 @@ internal sealed class GallerySidePanel : Grid
     {
         CloseButton = close ?? throw new ArgumentNullException(nameof(close));
         Name = "GallerySidePanel";
-        RowDefinitions = new RowDefinitions("Auto,*");
-        RowSpacing = 12;
-        ColumnDefinitions = new ColumnDefinitions
-        {
-            new(GridLength.Auto),
-            new(new GridLength(1, GridUnitType.Star)) { MinWidth = CounterClearance },
-            new(GridLength.Auto)
-        };
+        RowDefinitions = new RowDefinitions("Auto,Auto,*");
+        ColumnDefinitions = new ColumnDefinitions("*,Auto");
         _segment.Children.Add(_post);
         _segment.Children.Add(_tags);
-        _segment.HorizontalAlignment = HorizontalAlignment.Left;
+        _segment.Margin = new Thickness(0, 0, 24, 0);
         close.HorizontalAlignment = HorizontalAlignment.Right;
         close.VerticalAlignment = VerticalAlignment.Center;
         // Child order is the focus order: segment, the shown content, then the close button.
-        Children.Add(_segment);
-        Children.Add(_headerCounter); SetColumn(_headerCounter, 1);
-        Children.Add(_postSlot); SetRow(_postSlot, 1); SetColumnSpan(_postSlot, 3);
-        Children.Add(_tagSlot); SetRow(_tagSlot, 1); SetColumnSpan(_tagSlot, 3);
-        Children.Add(close); SetColumn(close, 2);
+        Children.Add(_segment); SetRow(_segment, 1);
+        Children.Add(_headerCounter); SetColumnSpan(_headerCounter, 2);
+        Children.Add(_postSlot); SetRow(_postSlot, 2); SetColumnSpan(_postSlot, 2);
+        Children.Add(_tagSlot); SetRow(_tagSlot, 2); SetColumnSpan(_tagSlot, 2);
+        Children.Add(close); SetRow(close, 1); SetColumn(close, 1);
         _grip.Margin = new Thickness(-SlotInset, -SlotInset, 0, -SlotInset);
-        Children.Add(_grip); SetRowSpan(_grip, 2);
+        Children.Add(_grip); SetRowSpan(_grip, 3);
         _post.Click += (_, _) => OnSegmentClick(GallerySidePanelSegment.Post);
         _tags.Click += (_, _) => OnSegmentClick(GallerySidePanelSegment.Tags);
         _grip.PointerPressed += OnGripPressed;
@@ -98,23 +84,11 @@ internal sealed class GallerySidePanel : Grid
     internal ContentControl PostSlot => _postSlot;
     internal ContentControl TagSlot => _tagSlot;
 
-    /// <summary>The live medium counter between the Post / Tags segment and the close button.</summary>
+    /// <summary>The live medium counter above the Post and Tags switches.</summary>
     internal Control? HeaderCounter
     {
         get => _headerCounter.Content as Control;
         set => _headerCounter.Content = value;
-    }
-
-    protected override Size MeasureOverride(Size availableSize)
-    {
-        // Measure the current labels before deciding whether the counter fits, including after a language change.
-        CloseButton.Measure(Size.Infinity);
-        double tabsWidth = Math.Max(0, availableSize.Width - CloseButton.DesiredSize.Width - CounterClearance);
-        ColumnDefinitions[0].MaxWidth = tabsWidth;
-        _segment.Measure(new Size(tabsWidth, double.PositiveInfinity));
-        double room = availableSize.Width - _segment.DesiredSize.Width - CloseButton.DesiredSize.Width - 2 * CounterGap;
-        _headerCounter.IsVisible = room >= CounterMinWidth;
-        return base.MeasureOverride(availableSize);
     }
 
     /// <summary>The post card (built and kept by the viewer).</summary>

@@ -28,6 +28,10 @@ public partial class SettingsEditor
     public int BooruResultTagsShownMaximum => Config.BooruResultTagsShownMaximum;
     public int BooruSearchTabsMinimum => Config.BooruSearchTabsMinimum;
     public int BooruSearchTabsMaximum => Config.BooruSearchTabsMaximum;
+    public int BooruSavedTabsMinimum => Config.BooruSavedTabsMinimum;
+    public int BooruSavedTabsMaximum => Config.BooruSavedTabsMaximum;
+    public int BooruSavedResultsPerTabMinimum => Config.BooruSavedResultsPerTabMinimum;
+    public int BooruSavedResultsPerTabMaximum => Config.BooruSavedResultsPerTabMaximum;
     public int BooruGallerySampleMiBMinimum => Config.BooruGallerySampleMiBMinimum;
     public int BooruGallerySampleMiBMaximum => Config.BooruGallerySampleMiBMaximum;
     public int BooruGalleryCacheMiBMinimum => Config.BooruGalleryCacheMiBMinimum;
@@ -89,12 +93,24 @@ public partial class SettingsEditor
     public string BooruResultTagsShownHint => Texts.T("settings.limits.booruResultTagsShown.hint") + " " + Texts.T("settings.reader.range", Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum);
     public string BooruResultTagsShownHelp => FieldHelp(nameof(BooruResultTagsShownInput), BooruResultTagsShownHint);
 
-    // Danbooru search tabs: how many extra tabs the page may hold (they live for the session only).
+    // Danbooru search tabs: how many extra tabs the page may hold.
     private decimal? _booruSearchTabs;
     public decimal? BooruSearchTabs { get => _booruSearchTabs; set => SetField(ref _booruSearchTabs, value, nameof(BooruSearchTabs)); }
     public string BooruSearchTabsLabel => Texts.T("settings.limits.booruSearchTabs");
     public string BooruSearchTabsHint => Texts.T("settings.limits.booruSearchTabs.hint") + " " + Texts.T("settings.reader.range", Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
     public string BooruSearchTabsHelp => FieldHelp(nameof(BooruSearchTabsInput), BooruSearchTabsHint);
+
+    private decimal? _booruSavedTabs;
+    public decimal? BooruSavedTabs { get => _booruSavedTabs; set => SetField(ref _booruSavedTabs, value, nameof(BooruSavedTabs)); }
+    public string BooruSavedTabsLabel => Texts.T("settings.limits.booruSavedTabs");
+    public string BooruSavedTabsHint => Texts.T("settings.limits.booruSavedTabs.hint") + " " + Texts.T("settings.reader.range", Config.BooruSavedTabsMinimum, Config.BooruSavedTabsMaximum);
+    public string BooruSavedTabsHelp => FieldHelp(nameof(BooruSavedTabsInput), BooruSavedTabsHint);
+
+    private decimal? _booruSavedResultsPerTab;
+    public decimal? BooruSavedResultsPerTab { get => _booruSavedResultsPerTab; set => SetField(ref _booruSavedResultsPerTab, value, nameof(BooruSavedResultsPerTab)); }
+    public string BooruSavedResultsPerTabLabel => Texts.T("settings.limits.booruSavedResultsPerTab");
+    public string BooruSavedResultsPerTabHint => Texts.T("settings.limits.booruSavedResultsPerTab.hint") + " " + Texts.T("settings.reader.range", Config.BooruSavedResultsPerTabMinimum, Config.BooruSavedResultsPerTabMaximum);
+    public string BooruSavedResultsPerTabHelp => FieldHelp(nameof(BooruSavedResultsPerTabInput), BooruSavedResultsPerTabHint);
 
     // Danbooru gallery: largest image (MiB).
     private decimal? _booruGallerySampleMiB;
@@ -160,6 +176,10 @@ public partial class SettingsEditor
         ResetNumber(BooruResultTagsShownInput, BooruResultTagsShown.Value);
         BooruSearchTabs = config.BooruSearchTabs;
         ResetNumber(BooruSearchTabsInput, BooruSearchTabs.Value);
+        BooruSavedTabs = config.BooruSavedTabs;
+        ResetNumber(BooruSavedTabsInput, BooruSavedTabs.Value);
+        BooruSavedResultsPerTab = config.BooruSavedResultsPerTab;
+        ResetNumber(BooruSavedResultsPerTabInput, BooruSavedResultsPerTab.Value);
         BooruGallerySampleMiB = config.BooruGallerySampleMiB;
         ResetNumber(BooruGallerySampleMiBInput, BooruGallerySampleMiB.Value);
         BooruGalleryCacheMiB = config.BooruGalleryCacheMiB;
@@ -189,6 +209,8 @@ public partial class SettingsEditor
         candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         candidate.BooruResultTagsShown = GetInteger(BooruResultTagsShown, BooruResultTagsShownLabel, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum);
         candidate.BooruSearchTabs = GetInteger(BooruSearchTabs, BooruSearchTabsLabel, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
+        candidate.BooruSavedTabs = GetInteger(BooruSavedTabs, BooruSavedTabsLabel, Config.BooruSavedTabsMinimum, Config.BooruSavedTabsMaximum);
+        candidate.BooruSavedResultsPerTab = GetInteger(BooruSavedResultsPerTab, BooruSavedResultsPerTabLabel, Config.BooruSavedResultsPerTabMinimum, Config.BooruSavedResultsPerTabMaximum);
         candidate.BooruGallerySampleMiB = GetInteger(BooruGallerySampleMiB, BooruGallerySampleMiBLabel, Config.BooruGallerySampleMiBMinimum, Config.BooruGallerySampleMiBMaximum);
         candidate.BooruGalleryCacheMiB = GetInteger(BooruGalleryCacheMiB, BooruGalleryCacheMiBLabel, Config.BooruGalleryCacheMiBMinimum, Config.BooruGalleryCacheMiBMaximum);
         int tagListWidth = GetInteger(MediaTagListWidth, MediaTagListWidthLabel, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
@@ -211,6 +233,8 @@ public partial class SettingsEditor
         yield return (MediaTagListTopInput, MediaTagListTop, MediaTagListTopLabel, string.Empty, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum, true);
         yield return (BooruResultTagsShownInput, BooruResultTagsShown, BooruResultTagsShownLabel, string.Empty, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum, true);
         yield return (BooruSearchTabsInput, BooruSearchTabs, BooruSearchTabsLabel, string.Empty, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum, true);
+        yield return (BooruSavedTabsInput, BooruSavedTabs, BooruSavedTabsLabel, string.Empty, Config.BooruSavedTabsMinimum, Config.BooruSavedTabsMaximum, true);
+        yield return (BooruSavedResultsPerTabInput, BooruSavedResultsPerTab, BooruSavedResultsPerTabLabel, string.Empty, Config.BooruSavedResultsPerTabMinimum, Config.BooruSavedResultsPerTabMaximum, true);
         yield return (BooruGallerySampleMiBInput, BooruGallerySampleMiB, BooruGallerySampleMiBLabel, string.Empty, Config.BooruGallerySampleMiBMinimum, Config.BooruGallerySampleMiBMaximum, true);
         yield return (BooruGalleryCacheMiBInput, BooruGalleryCacheMiB, BooruGalleryCacheMiBLabel, string.Empty, Config.BooruGalleryCacheMiBMinimum, Config.BooruGalleryCacheMiBMaximum, true);
         yield return (MediaTagListWidthInput, MediaTagListWidth, MediaTagListWidthLabel, string.Empty, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum, true);
@@ -233,6 +257,8 @@ public partial class SettingsEditor
         nameof(MediaTagListTopLabel), nameof(MediaTagListTopHint), nameof(MediaTagListTopHelp),
         nameof(BooruResultTagsShownLabel), nameof(BooruResultTagsShownHint), nameof(BooruResultTagsShownHelp),
         nameof(BooruSearchTabsLabel), nameof(BooruSearchTabsHint), nameof(BooruSearchTabsHelp),
+        nameof(BooruSavedTabsLabel), nameof(BooruSavedTabsHint), nameof(BooruSavedTabsHelp),
+        nameof(BooruSavedResultsPerTabLabel), nameof(BooruSavedResultsPerTabHint), nameof(BooruSavedResultsPerTabHelp),
         nameof(BooruGallerySampleMiBLabel), nameof(BooruGallerySampleMiBHint), nameof(BooruGallerySampleMiBHelp),
         nameof(BooruGalleryCacheMiBLabel), nameof(BooruGalleryCacheMiBHint), nameof(BooruGalleryCacheMiBHelp),
         nameof(MediaTagListWidthLabel), nameof(MediaTagListWidthHint), nameof(MediaTagListWidthHelp),
@@ -243,6 +269,7 @@ public partial class SettingsEditor
     {
         nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp),
         nameof(TagQueueGroupLimitHelp), nameof(TagQueueGroupNameLimitHelp), nameof(TagQueueConfirmAboveHelp),
-        nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(BooruSearchTabsHelp), nameof(BooruGallerySampleMiBHelp), nameof(BooruGalleryCacheMiBHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
+        nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(BooruSearchTabsHelp), nameof(BooruSavedTabsHelp), nameof(BooruSavedResultsPerTabHelp),
+        nameof(BooruGallerySampleMiBHelp), nameof(BooruGalleryCacheMiBHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
     };
 }

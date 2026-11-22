@@ -252,7 +252,7 @@ public partial class MainWindow
         host.Content = _gallery;
         host.IsVisible = true;
         HideFeedbackForGallery();
-        UpdateGalleryFullscreenPresentation();
+        UpdateGalleryPresentation();
         _gallery.Focus();
         UpdateGalleryInteractionAvailability();
         UpdateGalleryScope();
@@ -544,7 +544,7 @@ public partial class MainWindow
         _gallerySuspended = true;
         _galleryVisitedReader = true;
         GalleryHost.IsVisible = false;
-        UpdateGalleryFullscreenPresentation();
+        UpdateGalleryPresentation();
         ArchivePage.GalleryReturn = ReturnToGallery;
         ArchivePage.ShowGalleryReturn(true);
         UpdateMediaReturn();
@@ -558,7 +558,7 @@ public partial class MainWindow
         ArchivePage.ShowGalleryReturn(false);
         GalleryHost.IsVisible = true;
         HideFeedbackForGallery();
-        UpdateGalleryFullscreenPresentation();
+        UpdateGalleryPresentation();
         if (_galleryReturnState != null) _gallery.RestoreState(_galleryReturnState);
         TrackGalleryCleanup(_gallery.ResumeMediaAsync());
         UpdateGalleryInteractionAvailability();
@@ -593,7 +593,7 @@ public partial class MainWindow
         _gallery = null;
         ContentControl? host = this.FindControl<ContentControl>("GalleryHost");
         if (host != null) host.IsVisible = false;
-        UpdateGalleryFullscreenPresentation();
+        UpdateGalleryPresentation();
         if (cancelPendingOpen) _playbackGate.ExitGallery();
         if (retiring != null) TrackNativeGalleryCleanup(StopAndDetachGalleryAsync(retiring, host));
         if (_isClosing) TrackGalleryCleanup(DisposeGalleryScrubPreviewAsync());
@@ -646,17 +646,10 @@ public partial class MainWindow
         MediaReturnTask = OpenActions.StartObserved(() => page.ReturnToAsync(point), operation);
     }
 
-    private void UpdateGalleryFullscreenPresentation()
+    private void UpdateGalleryPresentation()
     {
         ContentControl host = GalleryHost;
-        bool immersive = WindowState == WindowState.FullScreen
-            && _gallery != null && !_gallerySuspended && host.IsVisible;
-        // The shell caption is client content, so native fullscreen cannot hide it.
-        // Span its existing row without changing the underlying page/reader layout.
-        _galleryImmersive = immersive;
-        UpdateMediaFocusChrome(); // the media focus mode gives the chrome back while a gallery is open (it applies the title bar as well)
-        Grid.SetRow(host, immersive ? 0 : 1);
-        Grid.SetRowSpan(host, immersive ? 4 : 3);
+        UpdateMediaFocusChrome();
         RefreshReadingResumePresentation();
         SetGalleryCoversWorkspace(_gallery != null && !_gallerySuspended && host.IsVisible);
     }

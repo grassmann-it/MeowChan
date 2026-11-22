@@ -86,7 +86,7 @@ internal sealed class FakeBooruSearchPort : IBooruSearchPort
 
     internal int Requests { get { lock (_gate) return Searches.Count + PostReads.Count; } }
 
-    public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken)
+    public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken)
     {
         lock (_gate) Searches.Add((canonicalQuery, page));
         return OnSearch?.Invoke(canonicalQuery, page, cancellationToken)
@@ -168,6 +168,7 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
     internal BooruCatalogUsageView? CatalogUsage { get; set; }
     internal Func<string, BooruWatcherCommandResult>? OnCheck { get; set; }
     internal Func<string, BooruWatcherCommandResult>? OnCreate { get; set; }
+    internal Task? CreateGate { get; set; }
     internal Func<IReadOnlyList<BooruWatcherView>>? OnList { get; set; }
     internal Func<string, BooruWatcherCommandResult>? OnRemove { get; set; }
 
@@ -196,17 +197,18 @@ internal sealed class FakeBooruWatcherPort : IBooruWatcherPort
         lock (_gate) return Task.FromResult(OnList?.Invoke() ?? (IReadOnlyList<BooruWatcherView>)_watchers.ToArray());
     }
 
-    public Task<BooruWatcherCommandResult> CreateAsync(string canonicalQuery, CancellationToken cancellationToken)
+    public async Task<BooruWatcherCommandResult> CreateAsync(string canonicalQuery, CancellationToken cancellationToken)
     {
         Record("create:" + canonicalQuery);
-        if (OnCreate?.Invoke(canonicalQuery) is { } custom) return Task.FromResult(custom);
+        if (CreateGate is { } pending) await pending.WaitAsync(cancellationToken).ConfigureAwait(false);
+        if (OnCreate?.Invoke(canonicalQuery) is { } custom) return custom;
         lock (_gate)
         {
             // New watchers start "from now": no check has happened, no backfill, no hits.
             _watchers.Add(new BooruWatcherView("w" + _next++, canonicalQuery, BooruWatcherStatus.Active, _clock.GetUtcNow(),
                 null, _clock.GetUtcNow() + TimeSpan.FromMinutes(30), null, null, 0, 0, false));
         }
-        return Task.FromResult(BooruWatcherCommandResult.Success());
+        return BooruWatcherCommandResult.Success();
     }
 
     public Task<BooruWatcherCommandResult> CheckNowAsync(string watcherId, CancellationToken cancellationToken)

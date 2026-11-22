@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
@@ -41,8 +42,10 @@ internal static class BooruCompositionChecks
         Directory.CreateDirectory(shots);
         string profile = TemporaryWorkspacePaths.CreateDirectory("booru-composition-");
         string media = Path.Combine(profile, "media");
+        // This scenario checks the in-memory page lifetime. Persisted tabs are covered separately.
         new Config { DownloadPath = media, AutomaticUpdateChecks = false, SaveUrlsOnExit = false, FirstRunSetupVersion = 1,
-            MinimumFreeSpaceGiB = 0, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced", MaxParallelDownloads = 1 }
+            MinimumFreeSpaceGiB = 0, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced", MaxParallelDownloads = 1,
+            RestoreBooruSearchTabs = false }
             .SaveConfig(profile);
         Directory.CreateDirectory(media);
         using DanbooruStub stub = new();
@@ -111,10 +114,8 @@ internal static class BooruCompositionChecks
                 "Ordinary navigation replaced the page or discarded its draft.");
             page = await OpenAsync(shell, menu);
             Require(ReferenceEquals(page, retainedPage), "Returning to Booru replaced the same-service page.");
-            // F1: the footer check box is gone; the switch is "Show Booru actions" in Settings (Config.ShowBooruTools), and the page's entry
-            // of the footer is the More menu (Booru is hidden from the footer buttons by default).
-            Require(shell.SessionHost.Config.ShowBooruTools && SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: true },
-                "Booru actions are not on, or the More menu offers no Booru entry, while the page is open.");
+            Require(shell.SessionHost.Config.ShowBooruTools && SmokeNavigation.Route(shell, MainWindow.WorkspacePage.Booru) is "footer" or "more",
+                "Booru actions or its navigation entry are missing while the page is open.");
             Require(shell.FindControl<CheckBox>("ShowBooruToolsToggle") == null, "The footer still has the Show Booru check box.");
             await SetBooruActionsAsync(shell, false);
             SmokeNavigation.GoTo(shell, MainWindow.WorkspacePage.Downloads);
@@ -122,12 +123,12 @@ internal static class BooruCompositionChecks
                 && !shell.FindControl<ContentControl>("BooruPageHost")!.IsVisible
                 && ReferenceEquals(shell.BooruPageForTests, page)
                 && !shell.SessionHost.Config.ShowBooruTools
-                && SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: false }, () => "hiding Booru did not retain the hosted page");
+                && SmokeNavigation.Route(shell, MainWindow.WorkspacePage.Booru) is not ("footer" or "more"), () => "hiding Booru did not retain the hosted page");
             Require(page.Model.Search.View.Input == "draft_kept_across_hide",
                 "Hiding Booru discarded the draft from the same page composition.");
             await SetBooruActionsAsync(shell, true);
             await Program.WaitUntilAsync(() => shell.SessionHost.Config.ShowBooruTools, () => "showing Booru did not restore the setting");
-            Require(SmokeNavigation.MoreEntry(shell, MainWindow.WorkspacePage.Booru) is { IsVisible: true }, "showing Booru did not restore its More entry");
+            Require(SmokeNavigation.Route(shell, MainWindow.WorkspacePage.Booru) is "footer" or "more", "showing Booru did not restore its navigation entry");
             await RequireEntryVisibleAsync(menu, visible: true);
             page = await OpenAsync(shell, menu);
             Require(ReferenceEquals(page, retainedPage), "Showing Booru replaced the same-service page.");
@@ -184,9 +185,10 @@ internal static class BooruCompositionChecks
                 "Navigation, hide/show, replacement or service loss submitted work.");
 
             // ---- search through the real adapter, worker and bounded transport ----------------------------------------------
-            Find<TextBox>(page, BooruWorkbenchView.InputName).Text = "cat_ears";
-            await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text == "Query sent to Danbooru: cat_ears",
-                () => "query line: " + Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text);
+            TextBox searchInput = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            searchInput.Text = "cat_ears";
+            await Program.WaitUntilAsync(() => AutomationProperties.GetHelpText(searchInput)!.Contains("Draft: cat_ears"),
+                () => "the composed workbench did not show the unsent query as a draft");
             int previousSearchTab = page.View.SearchTabs.ActiveId;
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             Require(page.View.SearchTabs.ActiveId != previousSearchTab && page.View.SearchTabs.ExtraCount == 1,

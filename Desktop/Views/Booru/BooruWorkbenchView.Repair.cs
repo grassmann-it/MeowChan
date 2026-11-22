@@ -137,6 +137,7 @@ internal sealed partial class BooruWorkbenchView
         controls.Review.Click += async (_, _) => await ReviewCurrentBuildAsync(controls);
         controls.Open.Click += async (_, _) => await OpenPluginDetailsAsync(controls);
         CommandBindings.EnsureIconBeforeText(controls.Review, "check");
+        CommandBindings.EnsureIconBeforeText(controls.Open, CommandCatalog.Get("navigation.plugins").Icon);
         host.Children.Add(controls.Review);
         host.Children.Add(controls.Open);
         host.Children.Add(controls.Note);

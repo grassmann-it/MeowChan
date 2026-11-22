@@ -24,7 +24,7 @@ namespace MeowChan;
 // Ctrl+Plus / Minus / 0 over the grid change that one setting (the same input as on the media page), so both pages always show the same size.
 public sealed partial class TaggingPage
 {
-    private readonly ListBox _grid = new() { Name = "TaggingGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" }, IsVisible = false };
+    private readonly ListBox _grid = new TaggingResultList() { Name = "TaggingGrid", SelectionMode = SelectionMode.Multiple, Classes = { "workspace-selection-bar" }, IsVisible = false };
     private readonly TwoWayToggle _viewToggle = new() { Name = "TaggingViewToggle" };
     private TaggingViewMode _viewMode = TaggingViewMode.List;
     private ContextMenuHost? _gridMenuHost;
@@ -127,7 +127,7 @@ public sealed partial class TaggingPage
 
     private void LocalizeView()
     {
-        _viewToggle.SetIconItems("list", Texts.T("tagging.page.view.list"), Texts.T("tagging.page.view.list.hint"),
+        _viewToggle.SetLabeledIconItems("list", Texts.T("tagging.page.view.list"), Texts.T("tagging.page.view.list.hint"),
             "grid", Texts.T("tagging.page.view.grid"), Texts.T("tagging.page.view.grid.hint"));
         AutomationProperties.SetName(_viewToggle, Texts.T("tagging.page.view"));
         AutomationProperties.SetName(_grid, Texts.T("tagging.page.listName"));
@@ -150,6 +150,7 @@ public sealed partial class TaggingPage
         TagQueueKey[] keys = SelectedKeys();
         TagQueueKey? lead = Lead?.Key;
         bool focus = ActiveList.IsKeyboardFocusWithin;
+        TagQueueKey? focused = FocusedResultKey();
         _viewMode = mode;
         Render(keys, lead);
         RefreshWorkView();
@@ -159,7 +160,7 @@ public sealed partial class TaggingPage
             {
                 if (_queueWork.Ended || !IsEffectivelyVisible) return;
                 if (lead is { } key && _rows.FirstOrDefault(row => row.Key == key) is { } row) ActiveList.ScrollIntoView(row);
-                if (focus) FocusContent();
+                if (focus) FocusContent(focused);
             }, DispatcherPriority.Input);
     }
 

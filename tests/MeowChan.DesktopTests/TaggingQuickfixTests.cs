@@ -1,9 +1,11 @@
 using System.Reflection;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Platform;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -167,6 +169,8 @@ public sealed class TaggingQuickfixTests : IDisposable
         page.ReadUserData = () => UserData(Bound(1, K1));
         Render(page, Queue(0, Bound(1, K1)), TaggingQueueFilter.Untagged);
         Assert.Equal(TaggingEmptyKind.FilterNoHits, page.EmptyKind);
+        Assert.Empty(page.Rows);
+        Assert.Equal("0 of 1 result", page.ProgressText.Text);
         Assert.Equal("No entry without tags.", page.EmptyText.Text);
         Assert.Equal("Kein Eintrag ohne Tags.", WithLanguage("de", () => Texts.T("tagging.page.filterEmpty.untagged")));
         Render(page, Queue(0, Item(1, TagQueueState.Open)), TaggingQueueFilter.Done);
@@ -192,22 +196,44 @@ public sealed class TaggingQuickfixTests : IDisposable
     public void ProgressAndStartSayWhatTheyCountAndTheLongSentenceIsTheTooltip() => WithPage(page =>
     {
         TagQueueSnapshot queue = Queue(2, Item(1, TagQueueState.Done), Item(2, TagQueueState.Skipped), Item(3), Item(4), Item(5));
-        Assert.Equal("2 of 5 done", TaggingQueueView.DoneText(queue, null, false));
+        Assert.Equal(("2 of 5 results", "2 of 5 done"), TaggingQueueView.ProgressCount(queue, null, false));
         Assert.Equal("Continue tagging (no. 3)", TaggingQueueView.StartLabel(queue));
         Render(page, queue);
-        Assert.Equal("2 of 5 done", page.ProgressText.Text);
+        Assert.Equal("2 of 5 results", page.ProgressText.Text);
+        Assert.Equal("2 of 5 done", AutomationProperties.GetName(page.ProgressText));
         Assert.Equal("Open: 3 · Finished: 1 · Skipped: 1", ToolTip.GetTip(page.ProgressText));
-        Assert.Equal("2 von 5 erledigt", WithLanguage("de", () => TaggingQueueView.DoneText(queue, null, false)));
+        Assert.Equal(("2 von 5 Treffern", "2 von 5 erledigt"), WithLanguage("de", () => TaggingQueueView.ProgressCount(queue, null, false)));
         Assert.Equal("Weiter taggen (Nr. 3)", WithLanguage("de", () => TaggingQueueView.StartLabel(queue)));
     });
 
     [Fact]
-    public void ABrowseHintStandsWithTheWalkOnlyWhenOneIsUnderWay() => WithPage(page =>
+    public void TheStartButtonCarriesTheResumeContextAndTheBrowseHintLivesInHelp() => WithPage(page =>
     {
         Render(page, Queue(0, Item(1), Item(2)));
-        Assert.False(page.BrowseHint.IsVisible); // fresh queue: nothing was shown yet
-        Render(page, Queue(1, Item(1), Item(2), Item(3)));
-        Assert.Contains("nothing as finished", page.BrowseHint.Text, StringComparison.Ordinal);
+        Assert.Equal("Start tagging", AutomationProperties.GetName(page.StartButton));
+        Render(page, Queue(37, Enumerable.Range(1, 201).Select(n => Item(n)).ToArray()));
+        Assert.Equal("Continue tagging (no. 38)", AutomationProperties.GetName(page.StartButton));
+        Assert.Equal("0 of 201 results", page.ProgressText.Text);
+        const string context = "Last shown: file-38.png · position 38 of 201";
+        Assert.Contains(context, AutomationProperties.GetHelpText(page.StartButton));
+        Assert.Contains(context, Assert.IsType<string>(ToolTip.GetTip(page.StartButton)));
+        const string command = "tags.queue.done-next";
+        Assert.Contains(Texts.T("tagging.strip.browseHint", CommandCatalog.ShortcutDisplay(command) ?? CommandCatalog.Label(command)),
+            page.HelpButton.Resolve()!.Paragraphs);
+    });
+
+    [Fact]
+    public void LanguageSwitchRefreshesTheProgressCountAndClearsOldFeedback() => WithPage(page =>
+    {
+        Render(page, Queue(0, Item(1), Item(2)));
+        typeof(TaggingPage).GetMethod("ShowStatus", Private)!.Invoke(page, ["Marked as finished: 1."]);
+        Assert.True(page.StatusText.IsVisible);
+        Assert.Equal("0 of 2 results", page.ProgressText.Text);
+        Texts.SetLanguage("de");
+        Avalonia.Threading.Dispatcher.UIThread.RunJobs();
+        Assert.False(page.StatusText.IsVisible);
+        Assert.Equal("0 von 2 Treffern", page.ProgressText.Text);
+        Assert.Equal("Alle Gruppen", ((TaggingGroupChoice)page.GroupBox.SelectedItem!).Label);
     });
 
     [Fact]

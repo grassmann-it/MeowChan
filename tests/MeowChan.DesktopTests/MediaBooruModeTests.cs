@@ -1,6 +1,9 @@
 using System.Runtime.CompilerServices;
 using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.LogicalTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Gallery;
@@ -85,24 +88,42 @@ public sealed class MediaBooruModeTests : IDisposable
     }
 
     [Fact]
-    public void TheWorkViewsPutTheSwitchUnderMoreInBarebonesAndTheWaysToTaggingAlwaysThere()
+    public void TheWorkViewsKeepTheSidebarSwitchesInTheBarAndTheWaysToTaggingUnderMore() => BooruComponentDispatcher.Run(() =>
     {
-        Assert.Equal([Presence.Overflow, Presence.Direct, Presence.Direct],
-            new[] { WorkView.Barebones, WorkView.Simple, WorkView.Advanced }.Select(view => WorkViewPolicy.Resolve("media.toolbar.tag-list", view)));
-        foreach (WorkView view in Enum.GetValues<WorkView>())
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        MediaPage page = new(_ => throw new InvalidOperationException("This test does not read the media library."))
         {
-            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("media.toolbar.queue-walk", view));
-            Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("media.toolbar.tagging-page", view));
+            OpenTagQueueWalk = () => Task.CompletedTask,
+            OpenTaggingPage = () => true
+        };
+        try
+        {
+            const string tags = "media.toolbar.tag-list", panel = "media.toolbar.panel";
+            const string walk = "media.toolbar.queue-walk", tagging = "media.toolbar.tagging-page";
+            var group = Assert.IsType<SidebarToggleGroup>(page.BooruModeButton.Parent);
+            Assert.Same(group, page.PanelToggleButton.Parent);
+            foreach (WorkView view in WorkViewSetting.All)
+            {
+                page.ApplyWorkView(view, viewChanged: true);
+                Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(tags, view));
+                Assert.Equal(Presence.Required, WorkViewPolicy.Resolve(panel, view));
+                Assert.True(page.BooruModeButton.IsVisible);
+                Assert.True(page.PanelToggleButton.IsVisible);
+                string[] overflow = page.HeaderMoreIds.ToArray();
+                Assert.DoesNotContain(tags, overflow);
+                Assert.DoesNotContain(panel, overflow);
+                Assert.Contains(walk, overflow);
+                Assert.Equal(Array.IndexOf(overflow, walk) + 1, Array.IndexOf(overflow, tagging));
+            }
+
+            Assert.True(WorkViewPolicy.Get("media.selection.queue").OverflowOrder < WorkViewPolicy.Get("media.selection.tag").OverflowOrder);
+            Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("media.selection.queue", WorkView.Simple));
+            StackPanel selection = Assert.Single(page.GetLogicalDescendants().OfType<StackPanel>(), row => row.Name == "MediaSelectionActions");
+            Assert.Equal(["media.selection.queue", "media.selection.tag"],
+                selection.Children.Select(WorkViewElement.GetId).Where(id => id is "media.selection.queue" or "media.selection.tag"));
         }
-        // The queue walk and the Tagging page stand side by side under More.
-        Assert.Equal(2, WorkViewPolicy.Get("media.toolbar.tagging-page").OverflowOrder - WorkViewPolicy.Get("media.toolbar.queue-walk").OverflowOrder);
-        // MP2: the queue before tagging together, in the bar from Simple on and under the bar's More.
-        Assert.True(WorkViewPolicy.Get("media.selection.queue").OverflowOrder < WorkViewPolicy.Get("media.selection.tag").OverflowOrder);
-        Assert.Equal(Presence.Direct, WorkViewPolicy.Resolve("media.selection.queue", WorkView.Simple));
-        Assert.Contains("new Control[] { _selectionText, _selQueue, _selTag, _selGallery, _selExport, _selMore, _selClear }", Read("Desktop/Views/Media/MediaPage.Selection.cs"));
-        // A switch under More keeps its state as a checked entry.
-        Assert.Contains("if (control is ToggleButton check)", Read("Desktop/Views/Media/MediaPage.WorkView.cs"));
-    }
+        finally { page.EndLifetime(); }
+    });
 
     [Fact]
     public void TheTileShowsTheQueueMarkAndFollowsAQueueChangeWithoutARebuild()

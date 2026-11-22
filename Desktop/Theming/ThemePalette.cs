@@ -77,6 +77,8 @@ internal sealed class ThemePalette
         new(ThemeTokenVariation.PressedAccentBorder, ["Workspace.AccentHover"], seed => seed("Workspace.AccentHover"), "AccentHover"),
         new(ThemeTokenVariation.PressedAccentText, ["Workspace.AccentHover"], seed => seed("Workspace.AccentHover"), "AccentHover"),
         new(ThemeTokenVariation.AccentPreview, ["Workspace.Accent"], seed => WithAlpha(seed("Workspace.Accent"), PreviewAlpha), "Accent at 40 % alpha"),
+        new(ThemeTokenVariation.ToolbarToggleSurface, ["Workspace.AccentSurface"],
+            seed => ToolbarToggleSurface(seed("Workspace.AccentSurface")), "AccentSurface darkened for white text"),
     }.ToFrozenDictionary(rule => rule.Variation);
 
     private static readonly FrozenDictionary<ThemeTokenVariation, ThemeVariationRule> LightRules = new ThemeVariationRule[]
@@ -87,6 +89,8 @@ internal sealed class ThemePalette
         new(ThemeTokenVariation.PressedAccentBorder, ["Workspace.Accent"], seed => Scale(seed("Workspace.Accent"), PressedStep), "Accent × 0.8 (pressed accent)"),
         new(ThemeTokenVariation.PressedAccentText, ["Workspace.Accent"], seed => Scale(seed("Workspace.Accent"), PressedStep), "Accent × 0.8 (pressed accent)"),
         new(ThemeTokenVariation.AccentPreview, ["Workspace.Accent"], seed => WithAlpha(seed("Workspace.Accent"), PreviewAlpha), "Accent at 40 % alpha"),
+        new(ThemeTokenVariation.ToolbarToggleSurface, ["Workspace.AccentSurface"],
+            seed => ToolbarToggleSurface(seed("Workspace.AccentSurface")), "AccentSurface darkened for white text"),
         // Pinned exception: the hovered scroll thumb is one pressed step darker than the thumb (ControlBorder). The rule gives
         // #5B5346 for the base; today's value is #575148, which only happens to equal Muted (not a text role).
         new(ThemeTokenVariation.ScrollBarHover, ["Workspace.ControlBorder"],
@@ -205,6 +209,26 @@ internal sealed class ThemePalette
     internal static Color Mix(Color top, Color under, double amount) =>
         Color.FromArgb(top.A, Channel(top.R * amount + under.R * (1 - amount)), Channel(top.G * amount + under.G * (1 - amount)),
             Channel(top.B * amount + under.B * (1 - amount)));
+
+    private static Color ToolbarToggleSurface(Color surface)
+    {
+        // Keep invalid input available to the preview's contrast gate, which reports the seed that must be opaque.
+        if (surface.A != byte.MaxValue) return surface;
+
+        // White has a relative luminance of 1. Convert the contrast target to a luminance limit for the fill.
+        const double maximumLuminance = (1 + 0.05) / 4.6 - 0.05;
+        if (ContrastRules.Luminance(Hex(surface)) <= maximumLuminance) return surface;
+
+        // Keep the accent tint while finding the brightest fill that supports white text.
+        double low = 0, high = 1;
+        for (int i = 0; i < 8; i++)
+        {
+            double mid = (low + high) / 2;
+            if (ContrastRules.Luminance(Hex(Scale(surface, mid))) <= maximumLuminance) low = mid;
+            else high = mid;
+        }
+        return Scale(surface, low);
+    }
 
     internal static Color WithAlpha(Color color, byte alpha) => Color.FromArgb(alpha, color.R, color.G, color.B);
 

@@ -285,14 +285,14 @@ public sealed class ReaderMultiMediaTests : IDisposable
     }
 
     // The strip and grid are content of the sidebar the user turned on, like the inline video: no reader work-view row can reduce or hide them.
-    // The sidebar toggle itself is deliberately a direct reader work-view action.
+    // The sidebar toggle stays in the toolbar group in every work view.
     [Fact]
-    public void TheMediaSidebarToggleIsDirectAndNoReaderWorkViewRowCanReduceItsContent()
+    public void TheMediaSidebarToggleIsRequiredAndNoReaderWorkViewRowCanReduceItsContent()
     {
         WorkViewEntry sidebar = WorkViewPolicy.Get("reader.toolbar.media-sidebar");
-        Assert.Equal(Presence.Direct, sidebar.Barebones);
-        Assert.Equal(Presence.Direct, sidebar.Simple);
-        Assert.Equal(Presence.Direct, sidebar.Advanced);
+        Assert.Equal(Presence.Required, sidebar.Barebones);
+        Assert.Equal(Presence.Required, sidebar.Simple);
+        Assert.Equal(Presence.Required, sidebar.Advanced);
         Assert.DoesNotContain(WorkViewPolicy.Entries, entry => entry.Page == WorkViewPage.Reader
             && (entry.Id.Contains("strip", StringComparison.Ordinal) || entry.Id.Contains("grid", StringComparison.Ordinal)));
     }

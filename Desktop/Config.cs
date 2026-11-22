@@ -9,6 +9,7 @@ using System.Text.RegularExpressions;
 using MeowChan.Models;
 using MeowChan.Desktop;
 using MeowChan.Persistence;
+using MeowChan.PluginHost.Taggers;
 using Serilog;
 
 namespace MeowChan
@@ -131,9 +132,10 @@ namespace MeowChan
         public bool ShowBooruTools { get; set; } = true;
         /// <summary>
         /// The footer of this profile (Settings › Appearance › Footer): the main pages in footer order, a leading "-" marking a page whose button is
-        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer (today's order, Booru off).
+        /// not shown directly (it stays in More, the ⋯ menu and under its shortcut). Empty is the default footer.
         /// Read and written through <see cref="Desktop.Commands.FooterLayout"/>: unknown ids and repeats are dropped, a page the list does not know
-        /// takes its default place, Downloads is always shown. <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
+        /// takes its default place, Downloads is always shown. The empty 1.1.0 layout follows the new default; a stored "-booru" stays hidden.
+        /// <see cref="ShowBooruTools"/> stays the master for Booru: while it is off the Booru
         /// page is unavailable whatever this list says.
         /// </summary>
         [JsonConverter(typeof(DesktopPreferenceNameListConverter))]
@@ -193,6 +195,19 @@ namespace MeowChan
         public int PluginWorkerIdleMinutes { get; set; } = 5;
         public int PluginSourceHeapMiB { get; set; } = 256;
         public int PluginFilterHeapMiB { get; set; } = 512;
+        [JsonInclude]
+        internal int LocalTaggerManifestKiB { get; set; } = LocalTaggerModelSettings.ManifestKiBRange.Default;
+        [JsonInclude]
+        internal int LocalTaggerWeightsMiB { get; set; } = LocalTaggerModelSettings.WeightsMiBRange.Default;
+        [JsonInclude]
+        internal int LocalTaggerInputTensorMiB { get; set; } = LocalTaggerModelSettings.InputTensorMiBRange.Default;
+
+        internal LocalTaggerModelSettings LocalTaggerSettings() => new()
+        {
+            MaximumManifestKiB = LocalTaggerManifestKiB,
+            MaximumWeightsMiB = LocalTaggerWeightsMiB,
+            MaximumInputTensorMiB = LocalTaggerInputTensorMiB,
+        };
         /// <summary>
         /// Write limit of the local Danbooru catalog (provider claims, findings, watchers) in MiB. Lowering it below the
         /// current size keeps the catalog readable and only stops it from growing.
@@ -331,6 +346,24 @@ namespace MeowChan
         internal const int BooruSearchTabsDefault = 8;
         internal const int BooruSearchTabsMinimum = 1;
         internal const int BooruSearchTabsMaximum = 32;
+        public bool RestoreBooruSearchTabs { get; set; } = true;
+        public int BooruSearchPages { get; set; } = BooruSearchPagesDefault;
+        internal const int BooruSearchPagesDefault = BooruSearchPagesMaximum;
+        internal const int BooruSearchPagesMinimum = 1;
+        internal const int BooruSearchPagesMaximum = Desktop.Booru.BooruSearchModel.MaximumPage;
+        public int BooruSearchPostsPerPage { get; set; } = BooruSearchPostsPerPageDefault;
+        internal const int BooruSearchPostsPerPageDefault = BooruSearchPostsPerPageMaximum;
+        internal const int BooruSearchPostsPerPageMinimum = 1;
+        internal const int BooruSearchPostsPerPageMaximum = Desktop.Booru.BooruSearchModel.PageSize;
+        public int BooruSavedTabs { get; set; } = BooruSavedTabsDefault;
+        internal const int BooruSavedTabsDefault = BooruSearchTabsDefault + 1;
+        internal const int BooruSavedTabsMinimum = 2;
+        internal const int BooruSavedTabsMaximum = BooruSearchTabsMaximum + 1;
+        public int BooruSavedResultsPerTab { get; set; } = BooruSavedResultsPerTabDefault;
+        internal const int BooruSavedResultsPerTabDefault = BooruSavedResultsPerTabMaximum;
+        internal const int BooruSavedResultsPerTabMinimum = 0;
+        internal const int BooruSavedResultsPerTabMaximum = Desktop.Booru.BooruSearchModel.PageSize;
+
         /// <summary>The largest reduced-size image (sample) the inline Danbooru gallery loads for display, in MiB; a larger one is refused and the preview stays.</summary>
         public int BooruGallerySampleMiB { get; set; } = BooruGallerySampleMiBDefault;
         internal const int BooruGallerySampleMiBDefault = 8;
@@ -1669,6 +1702,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(PluginSourceHeapMiB), "The plugin limit must be between 128 and 1024.");
             if (PluginFilterHeapMiB is < 256 or > 2048)
                 throw new ArgumentOutOfRangeException(nameof(PluginFilterHeapMiB), "The plugin limit must be between 256 and 2048.");
+            if (!LocalTaggerModelSettings.ManifestKiBRange.Contains(LocalTaggerManifestKiB))
+                throw new ArgumentOutOfRangeException(nameof(LocalTaggerManifestKiB));
+            if (!LocalTaggerModelSettings.WeightsMiBRange.Contains(LocalTaggerWeightsMiB))
+                throw new ArgumentOutOfRangeException(nameof(LocalTaggerWeightsMiB));
+            if (!LocalTaggerModelSettings.InputTensorMiBRange.Contains(LocalTaggerInputTensorMiB))
+                throw new ArgumentOutOfRangeException(nameof(LocalTaggerInputTensorMiB));
             if (MinimumFreeSpaceGiB is < MinimumFreeSpaceGiBMinimum or > MinimumFreeSpaceGiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MinimumFreeSpaceGiB), "Free-space reserve must be between " + MinimumFreeSpaceGiBMinimum + " and " + MinimumFreeSpaceGiBMaximum + " GiB.");
             if (BooruCatalogLimitMiB is < BooruCatalogMinimumLimitMiB or > BooruCatalogMaximumLimitMiB)
@@ -1723,6 +1762,14 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
+            if (BooruSearchPages is < BooruSearchPagesMinimum or > BooruSearchPagesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchPages));
+            if (BooruSearchPostsPerPage is < BooruSearchPostsPerPageMinimum or > BooruSearchPostsPerPageMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSearchPostsPerPage));
+            if (BooruSavedTabs is < BooruSavedTabsMinimum or > BooruSavedTabsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSavedTabs));
+            if (BooruSavedResultsPerTab is < BooruSavedResultsPerTabMinimum or > BooruSavedResultsPerTabMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSavedResultsPerTab));
             if (BooruGallerySampleMiB is < BooruGallerySampleMiBMinimum or > BooruGallerySampleMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruGallerySampleMiB), "BooruGallerySampleMiB is outside its supported range (" + BooruGallerySampleMiBMinimum + " to " + BooruGallerySampleMiBMaximum + ").");
             if (BooruGalleryCacheMiB is < BooruGalleryCacheMiBMinimum or > BooruGalleryCacheMiBMaximum)
@@ -1968,6 +2015,9 @@ namespace MeowChan
                 PluginWorkerIdleMinutes = PluginWorkerIdleMinutes,
                 PluginSourceHeapMiB = PluginSourceHeapMiB,
                 PluginFilterHeapMiB = PluginFilterHeapMiB,
+                LocalTaggerManifestKiB = LocalTaggerManifestKiB,
+                LocalTaggerWeightsMiB = LocalTaggerWeightsMiB,
+                LocalTaggerInputTensorMiB = LocalTaggerInputTensorMiB,
                 BooruCatalogLimitMiB = BooruCatalogLimitMiB,
                 BooruRetryAfterCooldownHours = BooruRetryAfterCooldownHours,
                 ArchiveTagFilterTagsPerList = ArchiveTagFilterTagsPerList,
@@ -1995,6 +2045,11 @@ namespace MeowChan
                 BooruResultTagsShown = BooruResultTagsShown,
                 BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
+                RestoreBooruSearchTabs = RestoreBooruSearchTabs,
+                BooruSearchPages = BooruSearchPages,
+                BooruSearchPostsPerPage = BooruSearchPostsPerPage,
+                BooruSavedTabs = BooruSavedTabs,
+                BooruSavedResultsPerTab = BooruSavedResultsPerTab,
                 BooruGallerySampleMiB = BooruGallerySampleMiB,
                 BooruGalleryCacheMiB = BooruGalleryCacheMiB,
                 BooruGalleryMaximumPixels = BooruGalleryMaximumPixels,
@@ -2187,6 +2242,7 @@ namespace MeowChan
                 WindowPositionX = WindowPositionX,
                 WindowPositionY = WindowPositionY,
                 WindowMaximized = WindowMaximized,
+                BooruViewerPlacement = BooruViewerPlacement,
                 ColumnWidths = ColumnWidths,
                 LayoutProfiles = _layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal),
                 LastExportDirectory = LastExportDirectory,
@@ -2254,6 +2310,9 @@ namespace MeowChan
             PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+            LocalTaggerManifestKiB = source.LocalTaggerManifestKiB;
+            LocalTaggerWeightsMiB = source.LocalTaggerWeightsMiB;
+            LocalTaggerInputTensorMiB = source.LocalTaggerInputTensorMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
@@ -2281,6 +2340,11 @@ namespace MeowChan
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
+            RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSearchPages = source.BooruSearchPages;
+            BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
+            BooruSavedTabs = source.BooruSavedTabs;
+            BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
             CopyBooruGalleryLimitsFrom(source);
@@ -2443,6 +2507,7 @@ namespace MeowChan
             WindowPositionX = source.WindowPositionX;
             WindowPositionY = source.WindowPositionY;
             WindowMaximized = source.WindowMaximized;
+            BooruViewerPlacement = source.BooruViewerPlacement;
             ColumnWidths = source.ColumnWidths;
             LayoutProfiles = source._layoutProfiles.ToDictionary(pair => pair.Key, pair => pair.Value.Clone(), StringComparer.Ordinal);
             LastExportDirectory = source.LastExportDirectory;
@@ -2492,6 +2557,9 @@ namespace MeowChan
             PluginWorkerIdleMinutes = source.PluginWorkerIdleMinutes;
             PluginSourceHeapMiB = source.PluginSourceHeapMiB;
             PluginFilterHeapMiB = source.PluginFilterHeapMiB;
+            LocalTaggerManifestKiB = source.LocalTaggerManifestKiB;
+            LocalTaggerWeightsMiB = source.LocalTaggerWeightsMiB;
+            LocalTaggerInputTensorMiB = source.LocalTaggerInputTensorMiB;
             BooruCatalogLimitMiB = source.BooruCatalogLimitMiB;
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
@@ -2519,6 +2587,11 @@ namespace MeowChan
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
+            RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSearchPages = source.BooruSearchPages;
+            BooruSearchPostsPerPage = source.BooruSearchPostsPerPage;
+            BooruSavedTabs = source.BooruSavedTabs;
+            BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
             CopyBooruGalleryLimitsFrom(source);

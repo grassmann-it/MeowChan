@@ -571,9 +571,9 @@ internal static class QuickTagNativeTypingChecks
         catch (TimeoutException) { return [Fail("tagging", "R", "picture", "the Tagging page shows no row")]; }
         await Settle(window);
 
-        // The stamp field: a text box of the page itself.
+        // The stamp field inside the queue header’s flyout.
         TextBox stamp = tagging!.StampInput;
-        if (!tagging.StampOpen) { await input.ClickAsync(tagging.StampToggle); await Settle(window); }
+        if (!tagging.StampOpen) { await input.ClickAsync(tagging.StampButton); await Settle(window); }
         stamp.Text = "";
         await input.ClickAsync(stamp, requireHitTest: false);
         await Settle(window);
@@ -587,6 +587,8 @@ internal static class QuickTagNativeTypingChecks
         cases.Add(new Case("tagging", "stamp-field", "-", "", "", Describe(window.FocusManager?.GetFocusedElement()), stamped, true, handled, inputs,
             stamped == Word ? null : $"'{Word}' typed into the stamp field gave '{stamped}' (first handled at {handled}; text inputs {inputs})"));
         stamp.Text = "";
+
+        tagging.CloseStamp();
 
         // R on the selected row: the same popover.
         ListBox? rows = tagging.GetVisualDescendants().OfType<ListBox>().FirstOrDefault(list => list.IsEffectivelyVisible && list.ItemCount > 0);

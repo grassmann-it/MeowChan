@@ -489,7 +489,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         Header.Children.Remove(_counter);
         _counter.Margin = default;
-        // One line, trimmed with an ellipsis: the host's tab row never grows and the chip never needs more than the room it is given.
+        // Keep the position badge on one line within the width given by the host.
         _counterLabel.TextWrapping = TextWrapping.NoWrap;
         _counterLabel.TextAlignment = TextAlignment.Center;
         _counterLabel.TextTrimming = TextTrimming.CharacterEllipsis;

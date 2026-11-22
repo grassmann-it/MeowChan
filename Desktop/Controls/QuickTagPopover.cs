@@ -134,7 +134,7 @@ internal sealed class QuickTagPopover
     /// constant, not a setting; <see cref="WidthFor"/> narrows it where the window is narrower.
     /// </summary>
     internal const double Width = 440;
-    /// <summary>The narrowest the popover gets in a very narrow window, in dip: the stars (5 x 24) and the remove button still fit with room to spare.</summary>
+    /// <summary>The narrowest the popover gets in dip, with room for five 40-dip stars and the remove button.</summary>
     internal const double MinimumWidth = 280;
     /// <summary>Air kept between the popover and each edge of the window it opens in, in dip.</summary>
     internal const double HostMargin = 16;

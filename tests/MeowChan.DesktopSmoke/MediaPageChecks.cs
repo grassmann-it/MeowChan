@@ -71,10 +71,7 @@ internal static partial class MediaPageChecks
             new Config().SaveConfig(profile);
             await SeedAsync(profile);
             await PageJourneyAsync(owner, profile);
-            string panelProfile = TemporaryWorkspacePaths.CreateDirectory("media-page-panel-");
-            new Config().SaveConfig(panelProfile);
-            await SeedAsync(panelProfile);
-            await PanelFollowsSelectionAsync(owner, panelProfile); // the media panel follows the selection (MediaPageChecks.Panel.cs)
+            await RunPanelSelectionAsync(owner);
             await RatingsManagerEntryAsync(owner, profile);
             await FilterJourneyAsync(owner, profile);
             await BackgroundPresentRacesAsync(owner, TemporaryWorkspacePaths.CreateDirectory("media-page-present-races-"));

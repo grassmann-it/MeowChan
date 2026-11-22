@@ -9,8 +9,9 @@ internal static class ProtocolVersion
     public const int Major = 1;
     public const int MaximumFrameBytes = 16 * 1024 * 1024;
     internal const string TaggerBatch = "tagger.batch";
+    internal const string VerifiedAssemblyLoad = "verified-assembly-load";
     public static readonly string[] Operations = ["describe", "catalog", "thread", "booru.search", "booru.post", "filter", "settings", "http", "image", "cancel"];
-    internal static readonly string[] SupportedOperations = [.. Operations, TaggerBatch];
+    internal static readonly string[] SupportedOperations = [.. Operations, TaggerBatch, VerifiedAssemblyLoad];
 }
 
 internal sealed record WireEnvelope(int Version, string Direction, string Operation, string RequestId,
@@ -20,7 +21,7 @@ internal sealed record WireEnvelope(int Version, string Direction, string Operat
 internal sealed record HelloRequest(string[] RequiredOperations);
 internal sealed record HelloResponse(string[] Operations);
 internal sealed record InitializeRequest(string AssemblyPath, Dictionary<string, string> ResourcePaths,
-    PluginConfiguration Configuration, bool ValidateConfiguration = true);
+    PluginConfiguration Configuration, bool ValidateConfiguration = true, string? RequiredAssemblySha256 = null);
 internal sealed record WireFailure(string Code, string Message);
 internal sealed record ImageReadRequest(string AssetToken, long Offset, int Count);
 

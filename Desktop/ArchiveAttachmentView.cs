@@ -71,8 +71,9 @@ public sealed class ArchiveAttachmentView : UserControl
 
     private readonly MediaFramePanel _slot = new();
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false };
-    private readonly TextBlock _status = new TextBlock { TextWrapping = TextWrapping.Wrap,
+    private readonly TextBlock _status = new TextBlock { TextWrapping = TextWrapping.Wrap, IsHitTestVisible = false,
         VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center }.MetaText();
+    private readonly Button _retry = new() { HorizontalAlignment = HorizontalAlignment.Center, IsVisible = false };
     // MB1b: the shared media badges lie over exactly the shown picture (the frame panel gives the view its size on every layout): the play
     // mark of a video (scaled to the picture, 20 to 44 dip, centred, dark in both themes: the archive-play fix, now drawn by the badge view),
     // the GIF chip and a missing file (no favourite star here: the file line's own toggle is the one star of a reader post). Not hit-testable, not in the accessibility tree: the picture button stays the
@@ -427,7 +428,7 @@ public sealed class ArchiveAttachmentView : UserControl
         // Flat: no raised box around the thumbnail. Semi's hover/pressed tint and the shared focus adorner remain the interaction
         // feedback of the native button; the button is the frame, so both run around the drawn picture and nothing else.
         Grid surface = new();
-        surface.Children.Add(_placeholder); surface.Children.Add(_image); surface.Children.Add(_status);
+        surface.Children.Add(_placeholder); surface.Children.Add(_image);
         _button = new MediumButton(this) { Content = surface, Padding = new Thickness(0), Background = Brushes.Transparent,
             BorderThickness = new Thickness(0), HorizontalAlignment = HorizontalAlignment.Stretch, VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Stretch, VerticalContentAlignment = VerticalAlignment.Stretch };
@@ -443,7 +444,14 @@ public sealed class ArchiveAttachmentView : UserControl
         // The file name is a click target of the same medium: it does what a click on the thumbnail does (a double click opens the gallery).
         ConfigureFileNameClick();
         // The play mark is not part of the click target; it is arranged on the same rectangle as the picture, so it is centred on it.
-        _slot.Children.Add(_button); _slot.Children.Add(_badges); _slot.Children.Add(_edge);
+        StackPanel status = new() { VerticalAlignment = VerticalAlignment.Center, Spacing = 4, Children = { _status, _retry } };
+        _retry.Click += (_, _) =>
+        {
+            if (!_visible || GetLoadingSuspended(this) || DataContext is not ArchiveAttachmentRow row) return;
+            row.RetryMediaRead?.Invoke();
+            _ = LoadAsync();
+        };
+        _slot.Children.Add(_button); _slot.Children.Add(status); _slot.Children.Add(_badges); _slot.Children.Add(_edge);
         _slot.SizeChanged += (_, e) =>
         {
             if (e.HeightChanged && FocusFactor() > 1) RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(FocusedFrameChangedEvent));
@@ -724,6 +732,7 @@ public sealed class ArchiveAttachmentView : UserControl
             return;
         }
         _reloadAfterDrain = false;
+        ClearPreviewStatus();
         int request = _request;
         using CancellationTokenSource loading = new();
         _loading = loading;
@@ -746,8 +755,10 @@ public sealed class ArchiveAttachmentView : UserControl
             _image.IsVisible = bitmap != null;
             if (bitmap != null && WantsEnlarged) _ = EnlargeAsync();
             _status.IsVisible = bitmap == null;
-            _status.Text = Texts.T(MeowChan.Gallery.SavedMediaTypes.Classify(row.Shown.OriginalFileName ?? string.Empty)
-                == MeowChan.Gallery.SavedMediaKind.Video ? "reader.video" : "archive.inlineUnsupported");
+            bool video = MeowChan.Gallery.SavedMediaTypes.Classify(row.Shown.OriginalFileName ?? string.Empty)
+                == MeowChan.Gallery.SavedMediaKind.Video;
+            _status.Text = Texts.T(video ? "reader.video" : "archive.inlineUnsupported");
+            if (bitmap == null && video && row.RetryMediaRead != null) ShowRetry();
         }
         catch (OperationCanceledException) when (loading.IsCancellationRequested)
         {
@@ -763,17 +774,23 @@ public sealed class ArchiveAttachmentView : UserControl
                 _missing = ArchiveMediaBadges.IsMissingFile(exception);
                 UpdateLabel();
                 // Report the timeout now; draining a noncancelable codec can take longer.
-                _status.Text = exception is OperationCanceledException or TimeoutException
-                    ? Texts.T("archive.previewLoadFailed")
-                    : Texts.T("archive.previewLoadFailedDetail", exception.Message);
+                _status.Text = exception switch
+                {
+                    OperationCanceledException or TimeoutException => Texts.T("archive.previewLoadFailed"),
+                    ArchiveAttachmentNotSavedException => exception.Message,
+                    _ when _missing && row.RetryMediaRead != null => Texts.T("archive.notSaved"),
+                    _ => Texts.T("archive.previewLoadFailedDetail", exception.Message)
+                };
                 _status.IsVisible = true;
+                if (row.RetryMediaRead != null && exception is not ArchiveAttachmentNotSavedException) ShowRetry();
             }
             if (pending != null) await DisposeLateAsync(pending);
         }
         finally
         {
             if (ReferenceEquals(_loading, loading)) _loading = null;
-            if (_reloadAfterDrain && _visible && !GetLoadingSuspended(this)) _ = LoadAsync();
+            if (_reloadAfterDrain && _visible && !GetLoadingSuspended(this))
+                OpenActions.Start(LoadAsync, "reader.preview.reload");
         }
     }
 
@@ -800,6 +817,20 @@ public sealed class ArchiveAttachmentView : UserControl
         if (_enlarged != null) MediaTileThumbnails.Release(_enlarged); _enlarged = null; _enlargedWidth = 0;
         if (_bitmap != null) MediaTileThumbnails.Release(_bitmap); _bitmap = null;
         GetValue(HoverEnlargeProperty)?.Leave(this);
+        ClearPreviewStatus();
+    }
+
+    private void ClearPreviewStatus()
+    {
+        if (_missing) { _missing = false; UpdateLabel(); }
+        _status.Text = string.Empty;
         _status.IsVisible = true;
+        _retry.IsVisible = false;
+    }
+
+    private void ShowRetry()
+    {
+        _retry.Content = Texts.T("action.retry");
+        _retry.IsVisible = true;
     }
 }

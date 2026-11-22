@@ -76,7 +76,7 @@ public sealed class IconMaskCatalogGuardTests
         Assert.True(stateMissing.Count == 0, "State icons without a mask: " + string.Join(", ", stateMissing));
     }
 
-    // The chevrons of the Tagging page's selection state and the sibling that points the other way.
+    // The stamp dropdown's chevron and the other directions in the same mask family.
     [Theory]
     [InlineData("chevron-down")]
     [InlineData("chevron-up")]
@@ -114,8 +114,16 @@ public sealed class IconMaskCatalogGuardTests
     }
 
     [Fact]
-    public void ThePageThatCrashedUsesTheMaskThatNowExists() =>
-        Assert.Contains("NamedIcon(\"chevron-down\", 12)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs")), StringComparison.Ordinal);
+    public void TheTaggingSelectionMoreButtonUsesTheContextMenuIcon()
+    {
+        string selection = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Selection.cs"));
+        Assert.Contains("ShowIconBeforeText(_selMore, CommandCatalog.Get(\"menu.context-open\").Icon", selection, StringComparison.Ordinal);
+        Assert.True(MaskExists(CommandCatalog.Get("menu.context-open").Icon));
+    }
+
+    [Fact]
+    public void TheStampDropdownUsesTheGuardedChevronMask() =>
+        Assert.Contains("NamedIcon(\"chevron-down\", 12)", File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.Stamp.cs")), StringComparison.Ordinal);
 
     private static string Root(string relative, [CallerFilePath] string sourcePath = "") =>
         Path.GetFullPath(Path.Combine(Path.GetDirectoryName(sourcePath)!, "../..", relative));

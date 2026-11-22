@@ -13,6 +13,7 @@ public sealed class DialogFitCoverageTests
 {
     /// <summary>The smallest opening height the audit fitted (About, 660 dip): from here on a window needs fitting.</summary>
     private const double FittedFromHeight = 660;
+    private const string BooruResultViewer = "Desktop/Views/Booru/BooruResultViewerWindow.cs";
 
     private static readonly string[] Fitted =
     {
@@ -20,6 +21,7 @@ public sealed class DialogFitCoverageTests
         "Desktop/Views/Settings/SettingsWindow.axaml.cs",
         "Desktop/Views/Settings/FirstRunSetupWindow.axaml.cs",
         "Desktop/Views/Booru/BooruWorkbenchWindow.cs",
+        BooruResultViewer,
         "Desktop/Views/Media/BooruMediaDetailsDialog.cs",
         "Desktop/Views/Media/MediaSelectionTagDialog.cs",
         "Desktop/ArchiveCleanupDialog.cs",
@@ -37,6 +39,7 @@ public sealed class DialogFitCoverageTests
     [InlineData("Desktop/Views/Settings/SettingsWindow.axaml.cs")]
     [InlineData("Desktop/Views/Settings/FirstRunSetupWindow.axaml.cs")]
     [InlineData("Desktop/Views/Booru/BooruWorkbenchWindow.cs")]
+    [InlineData(BooruResultViewer)]
     [InlineData("Desktop/Views/Media/BooruMediaDetailsDialog.cs")]
     [InlineData("Desktop/Views/Media/MediaSelectionTagDialog.cs")]
     [InlineData("Desktop/ArchiveCleanupDialog.cs")]
@@ -56,9 +59,16 @@ public sealed class DialogFitCoverageTests
             Assert.Single(Regex.Matches(source, @"DialogFit\.OnOpen\(|DialogWindow\.Configure\(this"));
             Assert.DoesNotContain("DialogFit.Apply(", source); // Opening is the moment; later calls would fight the user.
         }
-        // Nobody else in the product calls the computation directly.
+        // The Booru viewer also clamps persisted bounds to the saved monitor before Show chooses where to open it.
+        string viewer = File.ReadAllText(Source(BooruResultViewer));
+        Assert.Single(Regex.Matches(viewer, @"DialogFit\.Compute\("));
+        Assert.Matches(@"(?ms)^    internal void RestoreNormalBounds\([^\r\n]*\)\s*\{(?:(?!^    \}).)*DialogFit\.Compute\(", viewer);
+        Assert.Matches(@"(?s)viewer\.RestoreNormalBounds\(owner, bounds\);.*?viewer\.Show\(owner\);",
+            File.ReadAllText(Source("Desktop/Views/Booru/BooruWorkbenchView.Viewer.cs")));
+        string viewerPath = Source(BooruResultViewer);
         Assert.Empty(Directory.EnumerateFiles(Source("Desktop"), "*.cs", SearchOption.AllDirectories)
-            .Where(file => Path.GetFileName(file) != "DialogFit.cs" && File.ReadAllText(file).Contains("DialogFit.Compute(", StringComparison.Ordinal)));
+            .Where(file => file != viewerPath && Path.GetFileName(file) != "DialogFit.cs"
+                && File.ReadAllText(file).Contains("DialogFit.Compute(", StringComparison.Ordinal)));
     }
 
     [Fact]

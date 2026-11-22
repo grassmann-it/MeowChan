@@ -18,13 +18,12 @@ public sealed class FooterLayoutTests
     private static readonly string[] Pages = MainPageOrder.CommandIds.ToArray();
 
     [Fact]
-    public void TheDefaultLayoutIsTodaysFooterWithBooruHiddenAndStoresNothing()
+    public void TheDefaultLayoutShowsBooruAndStoresNothing()
     {
         FooterLayout layout = FooterLayout.Default;
         Assert.Equal(Pages, layout.Order);
-        Assert.Equal(Pages.Where(id => id != "navigation.booru"), layout.VisibleOrder);
-        Assert.Equal(new[] { "navigation.booru" }, layout.HiddenOrder);
-        Assert.False(layout.IsVisible("navigation.booru"));
+        Assert.Equal(Pages, layout.VisibleOrder);
+        Assert.Empty(layout.HiddenOrder);
         Assert.All(layout.VisibleOrder, id => Assert.True(layout.IsVisible(id)));
         Assert.True(layout.IsDefault);
         Assert.Empty(layout.ToStored());
@@ -63,10 +62,10 @@ public sealed class FooterLayoutTests
         Assert.Equal(Pages.Order(), layout.Order.Order());
         Assert.True(layout.IndexOf("navigation.status") < layout.IndexOf("navigation.archive"));
         Assert.True(layout.IndexOf("navigation.archive") < layout.IndexOf("navigation.downloads"));
-        // Media follows Archive in the default order; Tagging follows Media; Rules follows Booru (hidden by default, so it is placed behind Tagging's place).
+        // Media follows Archive in the default order; Tagging follows Media; Booru follows Tagging.
         Assert.Equal(layout.IndexOf("navigation.archive") + 1, layout.IndexOf("navigation.media"));
         Assert.Equal(layout.IndexOf("navigation.media") + 1, layout.IndexOf("navigation.tagging"));
-        Assert.False(layout.IsVisible("navigation.booru"));
+        Assert.True(layout.IsVisible("navigation.booru"));
         Assert.True(layout.IsVisible("navigation.media"));
     }
 
@@ -77,7 +76,7 @@ public sealed class FooterLayoutTests
         FooterLayout layout = FooterLayout.FromStored(["status", "downloads", "archive", "media", "rules", "sources"]);
         Assert.Equal(new[] { "navigation.status", "navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging", "navigation.booru",
             "navigation.rules", "navigation.sources" }, layout.Order);
-        Assert.Equal(new[] { "navigation.booru" }, layout.HiddenOrder); // Booru stays off until switched on
+        Assert.True(layout.IsVisible("navigation.booru"));
         Assert.True(layout.IsVisible("navigation.tagging"));
         // A list that knows no page at all is the default.
         Assert.True(FooterLayout.FromStored(["nothing", "-more"]).IsDefault);
@@ -121,7 +120,8 @@ public sealed class FooterLayoutTests
         Assert.Equal(FooterLayout.Default.Order, FooterLayout.FromStored(shown).Order); // it sits at its default position
         Assert.Equal(shown, FooterLayout.SetPageVisible(shown, "navigation.booru", true));
         string[] hiddenAgain = FooterLayout.SetPageVisible(shown, "booru", false);
-        Assert.Empty(hiddenAgain); // back to the default: nothing stored
+        Assert.Contains("-booru", hiddenAgain);
+        Assert.False(FooterLayout.FromStored(hiddenAgain).IsVisible("navigation.booru"));
         Assert.Equal(Array.Empty<string>(), FooterLayout.SetPageVisible(null, "bogus", true));
         Assert.Empty(FooterLayout.SetPageVisible(null, "downloads", false));
         string[] custom = FooterLayout.Default.Move("navigation.media", -1).ToStored();
@@ -162,8 +162,8 @@ public sealed class FooterLayoutTests
         FooterLayout layout = FooterLayout.Default;
         string[] barebones = ["navigation.downloads", "navigation.archive", "navigation.media"];
         Assert.Equal(barebones, layout.DirectOrder(WorkView.Barebones));
-        Assert.Equal([.. barebones, "navigation.tagging", "navigation.status"], layout.DirectOrder(WorkView.Simple));
-        Assert.Equal([.. barebones, "navigation.tagging", "navigation.rules", "navigation.sources", "navigation.status"], layout.DirectOrder(WorkView.Advanced));
+        Assert.Equal([.. barebones, "navigation.tagging", "navigation.booru", "navigation.status"], layout.DirectOrder(WorkView.Simple));
+        Assert.Equal([.. barebones, "navigation.tagging", "navigation.booru", "navigation.rules", "navigation.sources", "navigation.status"], layout.DirectOrder(WorkView.Advanced));
         // Barebones digits equal the button order: Downloads 1, Archive 2, Media 3 (the digits follow the layout, which the work view never reorders).
         Assert.Equal(barebones, layout.Numbering.Take(3));
         // The work view is the upper bound; the footer setting still hides a page it allows (Media in Barebones, Status in Simple).
@@ -317,9 +317,9 @@ public sealed class FooterLayoutTests
 
         // Tom 15.11.: the digits count the buttons effectively shown (F1 setting AND work view), then the pages under More; the width never enters.
         [Theory]
-        [InlineData(WorkView.Barebones, "downloads,archive,media,tagging,rules,sources,status,booru")]
-        [InlineData(WorkView.Simple, "downloads,archive,media,tagging,status,rules,sources,booru")]
-        [InlineData(WorkView.Advanced, "downloads,archive,media,tagging,rules,sources,status,booru")]
+        [InlineData(WorkView.Barebones, "downloads,archive,media,tagging,booru,rules,sources,status")]
+        [InlineData(WorkView.Simple, "downloads,archive,media,tagging,booru,status,rules,sources")]
+        [InlineData(WorkView.Advanced, "downloads,archive,media,tagging,booru,rules,sources,status")]
         public void CtrlDigitsFollowTheButtonsTheWorkViewShowsThenThePagesUnderMore(WorkView view, string expected)
         {
             string[] order = expected.Split(',').Select(FooterLayout.CommandId).ToArray();
@@ -339,15 +339,15 @@ public sealed class FooterLayoutTests
         [Fact]
         public void TheNumberingPerWorkViewFollowsTheSettingTheShownGroupThenTheReducedThenTheHiddenOnes()
         {
-            // Simple shows Downloads, Archive, Media, Tagging, Status: Status is the fifth button and owns Ctrl+5; Rules and Plugins (under More) follow.
-            Assert.Equal(5, FooterLayout.Default.NumberingFor(WorkView.Simple).ToList().IndexOf("navigation.status") + 1);
+            // In Simple, Booru is fifth and Status is sixth. Rules and Plugins follow under More.
+            Assert.Equal(6, FooterLayout.Default.NumberingFor(WorkView.Simple).ToList().IndexOf("navigation.status") + 1);
             // Hiding Media in F1 closes the gap in every view and puts Media behind the pages the view moved under More.
             FooterLayout noMedia = FooterLayout.Default.WithVisible("navigation.media", false);
             Assert.Equal(["navigation.downloads", "navigation.archive"], noMedia.NumberingFor(WorkView.Barebones).Take(2));
-            Assert.Equal("navigation.media", noMedia.NumberingFor(WorkView.Barebones)[^2]); // the pages the setting hides come last, in footer order (Media, then Booru)
-            Assert.Equal(["navigation.downloads", "navigation.archive", "navigation.tagging", "navigation.status"], noMedia.NumberingFor(WorkView.Simple).Take(4));
-            // Showing Booru in F1: it is shown directly from Simple on, but not in Barebones where it is under More (reduced, still before hidden pages).
-            FooterLayout withBooru = FooterLayout.Default.WithVisible("navigation.booru", true);
+            Assert.Equal("navigation.media", noMedia.NumberingFor(WorkView.Barebones)[^1]); // the hidden page comes last
+            Assert.Equal(["navigation.downloads", "navigation.archive", "navigation.tagging", "navigation.booru"], noMedia.NumberingFor(WorkView.Simple).Take(4));
+            // Booru is direct from Simple on and goes under More in Barebones.
+            FooterLayout withBooru = FooterLayout.Default;
             Assert.Equal(["navigation.downloads", "navigation.archive", "navigation.media", "navigation.tagging", "navigation.booru", "navigation.status"],
                 withBooru.NumberingFor(WorkView.Simple).Take(6));
             Assert.Equal("navigation.tagging", withBooru.NumberingFor(WorkView.Barebones)[3]);
@@ -367,16 +367,18 @@ public sealed class FooterLayoutTests
         [Fact]
         public void ChangingTheNumberingReachesTheBuiltBindingsAndTheDefaultComesBack()
         {
+            MainPageOrder.SetNumbering(MainPageOrder.DefaultNumbering);
             Assert.Equal(1, MainPageOrder.Digit("navigation.downloads"));
             EffectiveShortcutBindings before = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
-            Assert.Equal("Ctrl+7 / Ctrl+Shift+S", before.Display("navigation.status"));
-            Assert.True(MainPageOrder.SetNumbering(FooterLayout.Default.WithVisible("navigation.booru", true).Numbering));
+            Assert.Equal("Ctrl+8 / Ctrl+Shift+S", before.Display("navigation.status"));
+            FooterLayout hidden = FooterLayout.Default.WithVisible("navigation.booru", false);
+            Assert.True(MainPageOrder.SetNumbering(hidden.Numbering));
             EffectiveShortcutBindings shown = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
-            Assert.Equal("Ctrl+5 / Ctrl+Shift+B", shown.Display("navigation.booru"));
-            Assert.Equal("Ctrl+8 / Ctrl+Shift+S", shown.Display("navigation.status"));
-            Assert.False(MainPageOrder.SetNumbering(FooterLayout.Default.WithVisible("navigation.booru", true).Numbering)); // unchanged
+            Assert.Equal("Ctrl+8 / Ctrl+Shift+B", shown.Display("navigation.booru"));
+            Assert.Equal("Ctrl+7 / Ctrl+Shift+S", shown.Display("navigation.status"));
+            Assert.False(MainPageOrder.SetNumbering(hidden.Numbering)); // unchanged
             Assert.True(MainPageOrder.SetNumbering(MainPageOrder.DefaultNumbering));
-            Assert.Equal("Ctrl+7 / Ctrl+Shift+S", EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux).Display("navigation.status"));
+            Assert.Equal("Ctrl+8 / Ctrl+Shift+S", EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux).Display("navigation.status"));
         }
 
         [Theory]
@@ -484,12 +486,15 @@ public sealed class FooterLayoutTests
                 // The row shows "digit / fixed letter" since revision 15 (FooterLayoutEditor.ShortcutText); the digit is the part before the slash.
                 string Digit(string id) => ShortcutTextOf(editor, id)!.Split(" / ")[0];
                 string Expected(int digit) => ShortcutGesture.Parse("Primary+" + digit).Display(EffectiveShortcutBindings.CurrentPlatform);
-                Assert.Equal(Expected(7), Digit("navigation.status")); // Barebones: Downloads, Archive, Media, then the pages under More in footer order
+                Assert.Equal(Expected(8), Digit("navigation.status")); // Barebones: Downloads, Archive, Media, then the pages under More in footer order
                 editor.SetNumberingContext(WorkView.Simple, booruAvailable: true);
-                Assert.Equal(Expected(5), Digit("navigation.status")); // Simple shows Status as its fifth button
-                Assert.Equal(Expected(6), Digit("navigation.rules"));
+                Assert.Equal(Expected(6), Digit("navigation.status"));
+                Assert.Equal(Expected(7), Digit("navigation.rules"));
                 Assert.Equal(Expected(4), Digit("navigation.tagging"));
-                editor.Load(FooterLayout.Default.WithVisible("navigation.booru", true));
+                editor.Load(FooterLayout.Default.WithVisible("navigation.booru", false));
+                Assert.Equal(Expected(8), Digit("navigation.booru"));
+                Assert.Equal(Expected(5), Digit("navigation.status"));
+                editor.Load(FooterLayout.Default);
                 Assert.Equal(Expected(5), Digit("navigation.booru"));
                 Assert.Equal(Expected(6), Digit("navigation.status"));
                 editor.SetNumberingContext(WorkView.Simple, booruAvailable: false); // "Show Booru actions" off in the draft: Booru is no shown button
@@ -554,10 +559,10 @@ public sealed class FooterLayoutTests
                 Assert.Equal(2, raised);
                 Assert.Equal(FooterLayout.Default.IndexOf("navigation.status") - 1, editor.Layout.IndexOf("navigation.status"));
                 Assert.Contains(CommandCatalog.Label("navigation.status"), editor.StatusText.Text, StringComparison.Ordinal);
-                editor.SwitchOf("navigation.booru")!.IsChecked = true;
-                Assert.True(editor.Layout.IsVisible("navigation.booru"));
+                editor.SwitchOf("navigation.booru")!.IsChecked = false;
+                Assert.False(editor.Layout.IsVisible("navigation.booru"));
                 // The digit of the draft is shown next to the page and moves with it.
-                Assert.Contains("5", ShortcutTextOf(editor, "navigation.booru"));
+                Assert.Equal(FooterLayoutEditor.ShortcutText("navigation.booru", 7), ShortcutTextOf(editor, "navigation.booru"));
                 editor.ResetButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
                 Assert.True(editor.Layout.IsDefault);
                 Assert.Equal(4, raised);

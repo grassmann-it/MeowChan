@@ -80,10 +80,14 @@ public static class CommandBindings
     private sealed record ButtonContent(string Id, int Size, bool WithLabel, Control Root, TextBlock? Label);
 
     public static MenuItem CreateMenuItem(string id, Action execute, Func<bool>? canExecute = null,
-        Func<string?>? unavailableReason = null, Func<string>? label = null, bool showShortcut = true)
+        Func<string?>? unavailableReason = null, Func<string>? label = null, bool showShortcut = true) =>
+        CreateMenuItem(id, execute, canExecute, unavailableReason, label, showShortcut, null);
+
+    internal static MenuItem CreateMenuItem(string id, Action execute, Func<bool>? canExecute,
+        Func<string?>? unavailableReason, Func<string>? label, bool showShortcut, string? keyContext)
     {
         var item = new MenuItem { Command = new DelegateCommand(execute, canExecute) };
-        Apply(item, id, unavailableReason, label, showShortcut);
+        Apply(item, id, unavailableReason, label, showShortcut, keyContext);
         item.IsEnabled = canExecute?.Invoke() ?? true;
         return item;
     }
@@ -108,17 +112,24 @@ public static class CommandBindings
     /// <param name="showShortcut">False for a menu whose surface does not run the command's default gesture (the reader's
     /// "Thread" menu offers commands whose shortcuts act in the lists): no gesture column and no shortcut in the tip.</param>
     public static void Apply(MenuItem item, string id, Func<string?>? unavailableReason = null, Func<string>? label = null,
-        bool showShortcut = true)
+        bool showShortcut = true) =>
+        Apply(item, id, unavailableReason, label, showShortcut, null);
+
+    private static void Apply(MenuItem item, string id, Func<string?>? unavailableReason, Func<string>? label,
+        bool showShortcut, string? keyContext)
     {
         Track(item, id);
-        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut));
+        Observe(item, () => Apply(item, id, unavailableReason, label, showShortcut, keyContext));
         var definition = CommandCatalog.Get(id);
         string visibleLabel = label?.Invoke() ?? CommandCatalog.Label(id);
         item.Header = visibleLabel;
         item.Icon = Icon(id);
-        item.InputGesture = showShortcut ? Gesture(definition) : null;
+        EffectiveShortcutBindings bindings = ShortcutService.Current;
+        item.InputGesture = showShortcut
+            ? bindings.For(definition.Id).FirstOrDefault(gesture => keyContext == null || ShortcutHelp.ActsHere(id, gesture, keyContext, bindings))?.Resolve(bindings.Platform)
+            : null;
         string? reason = unavailableReason?.Invoke();
-        var tip = showShortcut ? Tooltip(id, reason, visibleLabel)
+        var tip = showShortcut ? Tooltip(id, reason, visibleLabel, keyContext)
             : string.IsNullOrWhiteSpace(reason) ? visibleLabel : visibleLabel + " · " + reason;
         ToolTip.SetTip(item, tip);
         // A disabled entry explains itself: the reason is part of its tip and help text, so it must show while disabled.
@@ -168,14 +179,19 @@ public static class CommandBindings
     }
 
     /// <summary>Uses a context-specific visible label while retaining the catalog icon and shortcut.</summary>
-    public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16)
+    public static void ApplyLabeled(Button button, string id, string visibleLabel, int iconSize = 16) =>
+        ApplyLabeled(button, id, visibleLabel, null, iconSize);
+
+    internal static void ApplyLabeled(Button button, string id, string visibleLabel, Func<string, string>? describe,
+        int iconSize = 16, string? keyContext = null)
     {
         Track(button, id);
-        Observe(button, () => ApplyLabeled(button, id, visibleLabel, iconSize));
+        Observe(button, () => ApplyLabeled(button, id, visibleLabel, describe, iconSize, keyContext));
         button.Classes.Set("command-icon", true);
         ApplyButtonContent(button, id, iconSize, visibleLabel);
-        string tip = CommandCatalog.ShortcutTooltipDisplay(id) is string shortcut
+        string tip = CommandCatalog.ShortcutTooltipDisplay(id, keyContext) is string shortcut
             ? visibleLabel + " · " + shortcut : visibleLabel;
+        tip = describe?.Invoke(tip) ?? tip;
         ToolTip.SetTip(button, tip);
         AutomationProperties.SetName(button, visibleLabel);
         AutomationProperties.SetHelpText(button, tip);
@@ -196,13 +212,17 @@ public static class CommandBindings
             ? new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center } : null;
         Control content = ButtonIcon(id, iconSize, text);
         if (text != null)
-            content = new StackPanel
+        {
+            StackPanel panel = new()
             {
                 Orientation = Orientation.Horizontal,
-                Spacing = 4,
+                Classes = { "command-icon-label" },
                 VerticalAlignment = VerticalAlignment.Center,
                 Children = { content, text }
             };
+            panel.SetValue(StackPanel.SpacingProperty, 4, Avalonia.Data.BindingPriority.Style);
+            content = panel;
+        }
         button.Content = content;
         ButtonContents.Remove(button);
         ButtonContents.Add(button, new ButtonContent(id, iconSize, withLabel, content, text));
@@ -240,7 +260,7 @@ public static class CommandBindings
     public static void Refresh(NativeMenuItem item) => (item.Command as DelegateCommand)?.RaiseCanExecuteChanged();
 
     /// <summary>
-    /// The tooltip of a command: line 1 is "Label · shortcut" (the label alone without a key), line 2 the hint where it applies and the
+    /// The tooltip of a command: line 1 is "Label · shortcut" (the label alone without a key), line 2 the page description or specific scope and the
     /// reason it is unavailable, joined by " · " (HB1: no more row of four middle dots). The tooltip style wraps a line that is still too
     /// long at 360 dip; a command without a hint or reason has one line. The shortcut names every effective gesture; <paramref name="keyContext"/> is the execution context
     /// of the control that shows the tip, for a command that runs in several (a default that gave way there is not named).
@@ -251,7 +271,10 @@ public static class CommandBindings
         string? shortcut = CommandCatalog.ShortcutTooltipDisplay(id, keyContext);
         string headline = shortcut is null ? label : label + " · " + shortcut;
         List<string> notes = [];
-        if (CommandCatalog.ScopeHint(id) is string scope) notes.Add(scope);
+        if (MainPageOrder.Contains(id) || id == "navigation.settings")
+            notes.Add(Localization.Texts.T("command." + id + ".tip"));
+        else if (!CommandCatalog.HasGenericScope(id) && CommandCatalog.ScopeHint(id) is string scope)
+            notes.Add(scope);
         if (CommandCatalog.DialogHint(id) is string dialog) notes.Add(dialog);
         if (!string.IsNullOrWhiteSpace(unavailableReason)) notes.Add(unavailableReason);
         return notes.Count == 0 ? headline : headline + "\n" + string.Join(" · ", notes);
@@ -323,12 +346,13 @@ public static class CommandBindings
     /// action of a toolbar carries an icon (the Reader toolbar rule) whatever sets its label. A button that holds a control as
     /// content (a button of <see cref="ApplyLabeled"/>) is not templated.
     /// </summary>
-    internal static void ShowIconBeforeText(Button button, string icon, int size = 16, bool closeWhenChecked = false)
+    internal static void ShowIconBeforeText(Button button, string icon, int size = 16, bool closeWhenChecked = false, IObservable<bool>? showLabel = null)
     {
         MeowChan.Desktop.Controls.IconButtons.Record(button, icon);
         button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
         {
             TextBlock text = new() { Text = content?.ToString(), VerticalAlignment = VerticalAlignment.Center };
+            if (showLabel != null) text.Bind(Visual.IsVisibleProperty, showLabel);
             StackPanel panel = new()
             {
                 Orientation = Orientation.Horizontal,

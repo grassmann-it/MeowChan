@@ -16,25 +16,20 @@ public sealed partial class TaggingPage
     {
         WorkViewElement.SetId(_progress, "tagging.progress");
         WorkViewElement.SetId(_start, "tagging.start");
-        WorkViewElement.SetId(_lastShown, "tagging.last-shown");
         WorkViewElement.SetId(_list, "tagging.list");
         WorkViewElement.SetId(_error, "tagging.error");
-        WorkViewElement.SetId(_filterPanel, "tagging.filter");
-        WorkViewElement.SetId(_groupPanel, "tagging.group");
+        WorkViewElement.SetId(_filter, "tagging.filter");
+        WorkViewElement.SetId(_group, "tagging.group");
         WorkViewElement.SetId(_help, "tagging.help");
         WorkViewElement.SetId(_viewToggle, "tagging.view-toggle");
         WorkViewElement.SetId(_selectionBar, "tagging.selection-bar");
         WorkViewElement.SetId(_selectionText, "tagging.selection.status");
         WorkViewElement.SetId(_selTag, "tagging.selection.tag");
-        WorkViewElement.SetId(_selStamp, "tagging.selection.stamp");
         WorkViewElement.SetId(_selDone, "tagging.selection.done");
-        WorkViewElement.SetId(_selSkipped, "tagging.selection.skipped");
-        WorkViewElement.SetId(_selState, "tagging.selection.state");
-        WorkViewElement.SetId(_selContinue, "tagging.selection.continue");
-        WorkViewElement.SetId(_selGroup, "tagging.selection.group");
-        WorkViewElement.SetId(_selRemove, "tagging.selection.remove");
+        WorkViewElement.SetId(_selMore, "tagging.selection.more");
         WorkViewElement.SetId(_selClear, "tagging.selection.clear");
         WorkViewElement.SetId(_add, "tagging.toolbar.add");
+        WorkViewElement.SetId(_groupManage, "tagging.toolbar.groups");
         WorkViewElement.SetId(_clearDone, "tagging.toolbar.clear-done");
         WorkViewElement.SetId(_clear, "tagging.toolbar.clear");
     }
@@ -50,19 +45,16 @@ public sealed partial class TaggingPage
     private void RefreshWorkView()
     {
         if (_queueWork.Ended) return;
-        WorkViewPresenter.ApplyToolBar(_actions, _workView, nonDefaultState: item => ReferenceEquals(item, _filterPanel) && Filter != TaggingQueueFilter.All);
+        WorkViewPresenter.ApplyToolBar(_addAndHelp, _workView);
+        WorkViewPresenter.ApplyToolBar(_actions, _workView);
         WorkViewPresenter.ApplyToolBar(_listPresentation, _workView);
-        WorkViewPresenter.ApplyToolBar(_selectionActions, _workView);
         ApplyToolbarIcons();
-        ShowStampBlock();
         ApplyDensity();
         _actions.RefreshOverflowLabel();
         WorkViewGate.Apply(_selectionBar, _workView, stateVisible: SelectedCount > 0);
-        WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0);
-        WorkViewGate.Apply(_lastShown, _workView, stateVisible: TaggingQueueView.LastShownIndex(_queueWork.Queue) != null);
-        _browseHint.IsVisible = _lastShown.IsVisible && !string.IsNullOrEmpty(_browseHint.Text);
+        WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0 || _queueWork.Loaded && _queueWork.ErrorText == null);
         WorkViewGate.Apply(_error, _workView, stateVisible: !string.IsNullOrEmpty(_errorText.Text));
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: _clearConfirm.IsVisible);
-        WorkViewGate.Apply(_stampPanel, _workView);
+        WorkViewGate.Apply(_stampButton, _workView);
     }
 }

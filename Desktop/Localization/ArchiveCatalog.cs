@@ -251,6 +251,7 @@ internal static class ArchiveCatalog
         ("archive.tilePreviewUnavailable", "No preview for this file type.", "Keine Vorschau für diesen Dateityp."),
         ("archive.previewLoadFailed", "The preview could not be loaded.", "Die Vorschau konnte nicht geladen werden."),
         ("archive.previewLoadFailedDetail", "The preview could not be loaded. The saved file is unchanged. Details: {0}", "Die Vorschau konnte nicht geladen werden. Die gespeicherte Datei ist unverändert. Details: {0}"),
+        ("archive.previewMediaReadFailed", "Saved media could not be checked.", "Die gespeicherten Medien konnten nicht geprüft werden."),
         ("archive.invalidImage", "The saved file could not be decoded as an image.", "Die gespeicherte Datei konnte nicht als Bild gelesen werden."),
         ("archive.tooLarge", "This image is too large for the built-in preview.", "Dieses Bild ist zu groß für die integrierte Vorschau."),
         ("archive.deletedAttachment", "Attachment removed at source", "Anhang an der Quelle entfernt"),

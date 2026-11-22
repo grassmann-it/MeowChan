@@ -1,8 +1,10 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.LogicalTree;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
 using MeowChan.Tests.Shared;
@@ -40,7 +42,7 @@ public sealed class BooruPageHostContractTests
         ScrollViewer scroll = Assert.IsType<ScrollViewer>(surface.Child);
         Assert.Same(view.Body, scroll.Content);
         Assert.Equal(ScrollBarVisibility.Disabled, scroll.HorizontalScrollBarVisibility);
-        Assert.Equal(ScrollBarVisibility.Auto, scroll.VerticalScrollBarVisibility);
+        Assert.Equal(ScrollBarVisibility.Disabled, scroll.VerticalScrollBarVisibility);
         Assert.Same(view.Footer, notes.Child);
         Assert.Equal(0, Grid.GetRow(heading));
         Assert.Equal(1, Grid.GetRow(surface));
@@ -57,24 +59,27 @@ public sealed class BooruPageHostContractTests
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
         Assert.Equal(BooruWorkbenchView.TabsName, tabs.Name);
         TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        Assert.Equal(2, segments.Length);
+        Assert.Single(segments);
         Control search = Assert.IsAssignableFrom<Control>(Assert.Single(segments, tab => tab.Tag is BooruSearchTabs.PrimaryId).Content);
         page.View.ShowWatchers();
         TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
         Assert.Equal(BooruWorkbenchView.WatchersTabName, watchersTab.Name);
         Control watchers = Assert.IsAssignableFrom<Control>(watchersTab.Content);
-        string?[] names = search.GetVisualDescendants().Concat(watchers.GetVisualDescendants())
-            .Concat(page.View.Footer.GetVisualDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
+        string?[] names = search.GetLogicalDescendants().Concat(watchers.GetLogicalDescendants())
+            .Concat(page.View.Footer.GetLogicalDescendants()).OfType<Control>().Select(control => control.Name).ToArray();
         // Actual content, not aliases to a replacement/placeholder. Dynamic result and watcher
         // cards remain the view's responsibility and are covered by the existing workbench checks.
         foreach (string name in new[] { BooruWorkbenchView.ModeName, BooruWorkbenchView.InputName,
             BooruWorkbenchView.SubmitName, BooruWorkbenchView.CancelName, BooruWorkbenchView.RetryName,
-            BooruWorkbenchView.QueryName, BooruWorkbenchView.StatusName, BooruWorkbenchView.PreviousName,
+            BooruWorkbenchView.StatusName, BooruWorkbenchView.PreviousName,
             BooruWorkbenchView.NextName, BooruWorkbenchView.CreateWatcherName, BooruWorkbenchView.ResultsName,
-            BooruWorkbenchView.WatchersName, BooruWorkbenchView.RemoveNoteName, BooruWorkbenchView.NoFilterNoteName,
+            BooruWorkbenchView.WatchersName, BooruWorkbenchView.RemoveNoteName,
             BooruWorkbenchView.LinkNoteName, BooruWorkbenchView.InputIssueName, BooruWorkbenchView.NoticeName,
             BooruWorkbenchView.WatcherNoticeName, BooruWorkbenchView.ResetCooldownName, BooruWorkbenchView.CatalogStorageName })
             Assert.Contains(name, names);
+        var input = Assert.Single(search.GetVisualDescendants().OfType<TextBox>(), box => box.Name == BooruWorkbenchView.InputName);
+        Assert.Contains(MeowChan.Desktop.Localization.Texts.T("booru.ui.noFilterNote"), AutomationProperties.GetHelpText(input));
+        Assert.Equal(AutomationProperties.GetHelpText(input), ToolTip.GetTip(input));
         AssertNoRemoteWork(ports);
     }
 
@@ -350,7 +355,7 @@ public sealed class BooruPageHostContractTests
             CatalogReads++;
             return Task.FromResult<BooruCatalogUsageView?>(null);
         }
-        public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken)
+        public Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken)
         {
             SearchReads++; SearchToken = cancellationToken;
             return SearchResult ?? throw new InvalidOperationException("No search was expected.");

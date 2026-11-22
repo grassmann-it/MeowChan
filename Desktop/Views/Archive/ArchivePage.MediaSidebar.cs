@@ -182,9 +182,6 @@ public partial class ArchivePage
         splitter.DragCompleted += (_, _) => SaveMediaSidebarWidth();
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
-        // UX-LEDGER-26 / protocol 1.9e: only the stable title consumes height;
-        // the media gets the remainder of its host, independently of the posts box.
-        sidebar.HeaderHeight = ReaderMediaSidebar.HeaderLineHeight;
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -484,26 +481,20 @@ public partial class ArchivePage
     {
         if (ReaderMediaSidebarToggle is not { } button) return;
         ReaderMediaPreferences media = ReaderMedia;
-        double width = (_largeReader ? _largeReaderFrame?.Bounds.Width : ArchiveReaderPane.Bounds.Width) ?? 0;
-        bool available = !ReaderMediaSidebarRules.IsCollapsedByWidth(media, width);
-        bool enabled = CanToggleMediaSidebar && available;
+        bool enabled = CanToggleMediaSidebar;
         bool on = ReaderMediaSidebarRules.IsOn(media, _largeReader);
         string content = Texts.T("reader.sidebar.compact");
         string icon = CommandCatalog.IconForState("reader.sidebar.toggle", media.SidebarRight ? "right" : "left");
-        string name = CommandCatalog.Label("reader.sidebar.toggle") + ": " + Texts.T(on ? "window.fullscreen.on" : "window.fullscreen.off");
+        string name = CommandCatalog.Label("reader.sidebar.toggle");
         string tip = CommandBindings.Tooltip("reader.sidebar.toggle", MediaSidebarHint());
         var presentation = (enabled, content, icon, name, tip);
         if (button.IsChecked != on) button.IsChecked = on;
-        var overflow = available ? Ursa.Controls.OverflowMode.AsNeeded : Ursa.Controls.OverflowMode.Always;
-        if (Ursa.Controls.ToolBar.GetOverflowMode(button) != overflow) Ursa.Controls.ToolBar.SetOverflowMode(button, overflow);
         if (_mediaSidebarTogglePresentation == presentation) return;
         if (_mediaSidebarTogglePresentation?.Icon != icon) CommandBindings.ShowIconBeforeText(button, icon);
         _mediaSidebarTogglePresentation = presentation;
         button.IsEnabled = enabled;
         button.Content = content;
-        ToolTip.SetTip(button, tip);
-        Avalonia.Automation.AutomationProperties.SetName(button, name);
-        Avalonia.Automation.AutomationProperties.SetHelpText(button, tip);
+        ReaderSidebarToggles.Describe(button, name, tip);
     }
 
     private string? MediaSidebarHint()
@@ -670,10 +661,11 @@ public partial class ArchivePage
         OnMediaSidebarSelectionChanged(selectionChanged: false);
     }
 
-    /// <summary>The gallery uncovered the reader: a selection that changed meanwhile is shown now.</summary>
+    /// <summary>The gallery uncovered the reader: show a changed selection or retry an unanswered preview.</summary>
     internal void ResumeMediaSidebar()
     {
-        if (_mediaSidebarDirty && _mediaSidebarShown) RefreshMediaSidebar();
+        if (_mediaSidebarShown && (_mediaSidebarDirty || _mediaSidebar is { Load.HasPicture: false, Load.Awaiting: false }))
+            RefreshMediaSidebar();
     }
 
     private void CancelMediaSidebarLoad()

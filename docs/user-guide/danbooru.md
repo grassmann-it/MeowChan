@@ -1,18 +1,17 @@
-# Danbooru-Suche und Suchbeobachtungen (MeowChan 1.1.0)
+# Danbooru-Suche und Suchbeobachtungen (MeowChan 1.1.1)
 
 MeowChan behandelt Danbooru in der 1.1-Linie als **öffentliche,
 schreibgeschützte Quelle**. Die Oberfläche zeigt Treffer und Provider-Metadaten;
 ein Original kommt erst durch **Original laden** oder einen anderen ausdrücklichen
 Downloadauftrag in die normale MeowChan-Downloadwarteschlange. Das Markieren eines
 Treffers allein startet keinen Download. Es gibt keine Provider-Anmeldung und keine
-Provider-Credentials in MeowChan. Die beschriebene 1.1.0-Entwicklungslinie ist noch
-nicht als fertiges Release abgenommen.
+Provider-Credentials in MeowChan. Für Änderungen an Tabs, gespeicherten Suchen und
+Galerie siehe die [deutschen Release Notes für 1.1.1](../releases/v1.1.1.md#deutsch).
 
-Das Danbooru-Plugin muss unter **Plugins → Alle Plugins** aktiviert und
-für das Profil verfügbar sein. Die Standard-Fußleiste zeigt **keinen** Booru-Knopf.
-Öffne die Hauptseite **Booru** über **Mehr**, über **Danbooru-Suche und
-Suchbeobachtungen…** im ⋯-Appmenü (dieselbe Seite, kein separates Fenster), über
-**Medien → Mehr → Booru öffnen** oder per Tastenkürzel (Tabelle unten). Das
+Das mitgelieferte Danbooru-Plugin ist standardmäßig aktiv. Öffne **Booru** in der
+Fußleiste, unter **Mehr**, über **Danbooru-Suche und Suchbeobachtungen…** im
+⋯-Appmenü, über **Medien → Mehr → Booru öffnen** oder per Tastenkürzel (Tabelle
+unten). Das
 Erkennen einer Danbooru-Adresse und
 das Öffnen der Booru-Seite fragt noch nichts ab. Auf der Seite senden erst
 **Suchen** oder **Post abrufen** eine begrenzte Anfrage; bereits aktive Suchbeobachtungen laufen unabhängig davon nach
@@ -23,10 +22,10 @@ und reiht das Original in einem Schritt als One-Shot ein.
 
 Die Fußleiste und das Mehr-Menü ordnen die Hauptseiten als **Downloads, Archiv,
 Medien, Taggen, Booru | Regeln, Plugins | Status**; die kontextbezogene F1-Hilfe
-folgt derselben Reihenfolge. Die Standard-Fußleiste blendet Booru aus; wer einen
-Booru-Knopf möchte, schaltet ihn unter **Einstellungen → Oberfläche → Fußleiste**
-in der Fußleistenliste ein. Der Knopf erscheint nur, solange **Booru-Aktionen anzeigen**
-(derselbe Einstellungsbereich) eingeschaltet ist. Unter Minimal bleibt Booru auch dann
+folgt derselben Reihenfolge. Seit 1.1.1 zeigt die Standard-Fußleiste Booru auch
+für Profile, die bisher die alte Standard-Fußleiste verwendet haben. Gespeicherte
+Ausblendungen bleiben wirksam. Den Knopf kannst du unter **Einstellungen →
+Oberfläche → Fußleiste** in der Liste ausblenden. Unter Minimal bleibt Booru auch dann
 unter **Mehr**; ab Einfach steht der Knopf bei ausreichender Breite direkt in der
 Fußleiste, bei Platzmangel wandert er nach Mehr. Mehr enthält nur aus der Fußleiste
 ausgelagerte Ziele, keine doppelten Einträge für Downloads oder Einstellungen. Das
@@ -45,15 +44,14 @@ Standard-Fußleiste gilt:
 | Archiv | Strg+Umschalt+A | Strg+2 | Strg+2 |
 | Medien | Strg+Umschalt+E | Strg+3 | Strg+3 |
 | Taggen | Strg+Umschalt+K | Strg+4 | Strg+4 |
-| Status | Strg+Umschalt+S | Strg+5 | Strg+7 |
-| Regeln | Strg+Umschalt+U | Strg+6 | Strg+5 |
-| Plugins | Strg+Umschalt+X | Strg+7 | Strg+6 |
-| Booru | Strg+Umschalt+B | Strg+8 | Strg+8 |
+| Booru | Strg+Umschalt+B | Strg+5 | Strg+5 |
+| Status | Strg+Umschalt+S | Strg+6 | Strg+8 |
+| Regeln | Strg+Umschalt+U | Strg+7 | Strg+6 |
+| Plugins | Strg+Umschalt+X | Strg+8 | Strg+7 |
 
-Weil die Standard-Fußleiste Booru ausblendet, hat Booru die letzte Ziffer, **Strg+8**
-(⌘+8 auf macOS). Zeigst du Booru in der Fußleiste, belegt es **Strg+5** und die
-Seiten dahinter rücken um eins nach oben (unter Minimal bleibt der Knopf unter Mehr,
-die Ziffer ändert sich trotzdem). Die Tabelle steht auch in der
+Mit der Standard-Fußleiste hat Booru **Strg+5** (⌘+5 auf macOS). Wenn du den
+Fußleistenknopf ausblendest, bleibt die Seite unter **Mehr** und erhält
+**Strg+8**. Die Tabelle steht auch in der
 [Hilfe](../Help.md#page-shortcuts-and-footer-numbering). Eine gespeicherte Belegung
 eines anderen Befehls, etwa Plugins auf Strg+6 oder Strg+8, hat Vorrang vor dem
 Booru-Standard und behält ihre Bedeutung; eine gespeicherte Plugins-Belegung öffnet

@@ -6,15 +6,26 @@ using MeowChan.Tags;
 
 namespace MeowChan.PluginHost.Taggers;
 
-/// <summary>Runs an explicitly paired CPU adapter and approved package through a real worker. Callers pin the complete manifest.</summary>
-internal sealed class LocalTaggerWorker(LocalTaggerModelStore models, TagSuggestionStore suggestions, PluginWorkerManager workers, PluginWorkerLaunch launch)
+/// <summary>A host-reviewed pair, with a digest of the evidence covering both licenses. Model imports cannot supply approval.</summary>
+internal sealed record LocalTaggerExecutionApproval(string ManifestSha256, string AdapterSha256, string ModelLicense,
+    string AdapterLicense, string LicenseEvidenceSha256)
+{
+    internal bool Matches(LocalTaggerModelPackage package, PluginArtifact adapter) =>
+        package.ManifestSha256 == ManifestSha256 && package.Manifest.License == ModelLicense
+        && CompilerWire.IsHash(AdapterSha256) && string.Equals(adapter.AssemblySha256, AdapterSha256, StringComparison.OrdinalIgnoreCase)
+        && LocalTaggerModelManifest.IsIdentity(AdapterLicense) && CompilerWire.IsHash(LicenseEvidenceSha256);
+}
+
+/// <summary>Runs a host-approved CPU adapter and model through a real worker.</summary>
+internal sealed class LocalTaggerWorker(LocalTaggerModelStore models, TagSuggestionStore suggestions, PluginWorkerManager workers,
+    PluginWorkerLaunch launch, LocalTaggerExecutionApproval approval)
 {
     internal Task<TaggerJobResult> RunAsync(PluginArtifact adapter, PluginConfiguration configuration, string taggerKey,
         string approvedManifestSha256, IReadOnlyList<TaggerJobItem> items, SettingsSnapshot settings,
         IProgress<TaggerJobProgress>? progress = null, CancellationToken cancellationToken = default)
         => models.WithVerifiedModelAsync(async package =>
         {
-            if (package is null || package.ManifestSha256 != approvedManifestSha256)
+            if (package is null || package.ManifestSha256 != approvedManifestSha256 || !approval.Matches(package, adapter))
                 return new TaggerJobResult(TaggerJobStatus.ModelUnavailable, items.Count, 0, 0, 0, 0, 0, 0);
 
             if (adapter.Resources.Count != 0)
@@ -22,7 +33,9 @@ internal sealed class LocalTaggerWorker(LocalTaggerModelStore models, TagSuggest
 
             PluginArtifact bound = adapter with
             {
-                ExecutionRevision = CompilerWire.HashParts(adapter.ExecutionRevision, package.ManifestSha256),
+                ExecutionRevision = CompilerWire.HashParts(adapter.ExecutionRevision, approval.ManifestSha256,
+                    approval.AdapterSha256, approval.LicenseEvidenceSha256),
+                VerifyAssemblyOnLoad = true,
                 ResourceRootPath = package.DirectoryPath,
                 Resources =
                 [

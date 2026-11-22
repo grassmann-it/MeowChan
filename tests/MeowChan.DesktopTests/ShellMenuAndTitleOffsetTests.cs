@@ -129,11 +129,7 @@ public sealed class ShellMenuAndTitleOffsetTests
     [Fact]
     public void TheTaggingPageHeadStartsAtTheOneOffsetFromTheConstant()
     {
-        // Built in code; it used to start at 8 (title at 60). Media builds its head the same way (its owner changes it, see the report).
         string code = File.ReadAllText(Root("Desktop/Views/Tagging/TaggingPage.cs"));
-        XElement tokens = XDocument.Load(Root("Desktop/WorkspaceStyles.axaml")).Root!;
-        string side = tokens.Descendants().Single(e => (string?)e.Attribute(X + "Key") == "Workspace.Space.12").Value;
-        string section = tokens.Descendants().Single(e => (string?)e.Attribute(X + "Key") == "Workspace.Space.16").Value;
-        Assert.Contains("Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16)", code);
+        Assert.Contains("Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8)", code);
     }
 }

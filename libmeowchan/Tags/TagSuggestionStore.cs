@@ -34,8 +34,8 @@ internal sealed record TagSuggestionRunInput(string MediaSha256, long MediaLengt
     string Outcome, IReadOnlyList<TagSuggestionCandidate> Candidates);
 
 internal sealed record StoredTagSuggestion(long Id, string MediaSha256, long MediaLength, string Name, string Category,
-    double Confidence, long? StartMilliseconds, long? EndMilliseconds, TagSuggestionProvenance Provenance,
-    TagSuggestionState State, DateTimeOffset CreatedAt, DateTimeOffset? DecidedAt = null)
+    double Confidence, TagSuggestionProvenance Provenance, TagSuggestionState State, DateTimeOffset CreatedAt,
+    long? StartMilliseconds = null, long? EndMilliseconds = null, DateTimeOffset? DecidedAt = null)
 {
     internal (string MediaSha256, long MediaLength, string Name, string Category, long? Start, long? End) TagKey
         => (MediaSha256, MediaLength, Name, Category, StartMilliseconds, EndMilliseconds);
@@ -205,11 +205,10 @@ internal sealed partial class TagSuggestionStore
                 if (index < 0) throw new TagSuggestionStoreException(TagSuggestionStoreError.UnknownSuggestion);
                 StoredTagSuggestion current = document.Suggestions[index];
                 bool allowed = target == TagSuggestionState.Pending
-                    ? current.IsDecided
-                    : current.State == TagSuggestionState.Pending;
-                if (!allowed) throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);
-                if (target == TagSuggestionState.Pending
-                    && document.Events.FindLast(review => review.SuggestionId == id)?.OperationId is not null)
+                    ? current.IsDecided && document.Events.FindLast(review => review.SuggestionId == id)?.OperationId is null
+                    : current.State == TagSuggestionState.Pending
+                        && !document.Suggestions.Any(value => value.IsDecided && value.TagKey == current.TagKey);
+                if (!allowed)
                     throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidTransition);
                 document.Suggestions[index] = current with { State = target, DecidedAt = target == TagSuggestionState.Pending ? null : now };
                 document.AddEvent(id, current.State, target, now);
@@ -257,8 +256,8 @@ internal sealed partial class TagSuggestionStore
             long id = document.NextId;
             document.NextId = checked(id + 1);
             document.Suggestions.Add(new StoredTagSuggestion(id, run.MediaSha256, run.MediaLength, candidate.Name,
-                candidate.Category, candidate.Confidence, candidate.StartMilliseconds, candidate.EndMilliseconds, provenance,
-                TagSuggestionState.Pending, now));
+                candidate.Category, candidate.Confidence, provenance, TagSuggestionState.Pending, now,
+                candidate.StartMilliseconds, candidate.EndMilliseconds));
         }
     }
 
@@ -325,16 +324,22 @@ internal sealed partial class TagSuggestionStore
     private static void ValidateRun(TagSuggestionRunInput run)
     {
         if (run is null || run.Provenance is null || run.Candidates is null || !IsSha256(run.MediaSha256) || run.MediaLength <= 0
-            || string.IsNullOrWhiteSpace(run.Outcome) || !IsIdentity(run.Provenance.PluginId) || !IsIdentity(run.Provenance.TaggerKey)
-            || !IsIdentity(run.Provenance.PluginVersion) || !IsIdentity(run.Provenance.ModelId) || !IsIdentity(run.Provenance.ModelRevision)
-            || (run.Provenance.ModelSha256 is not null && !IsSha256(run.Provenance.ModelSha256)))
+            || string.IsNullOrWhiteSpace(run.Outcome) || !IsValidProvenance(run.Provenance))
             throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidInput);
         foreach (TagSuggestionCandidate candidate in run.Candidates)
-            if (candidate is null || !IsTagName(candidate.Name) || !IsIdentity(candidate.Category) || !double.IsFinite(candidate.Confidence)
-                || candidate.Confidence is < 0 or > 1 || (candidate.StartMilliseconds is null) != (candidate.EndMilliseconds is null)
-                || candidate.StartMilliseconds < 0 || candidate.EndMilliseconds <= candidate.StartMilliseconds)
+            if (candidate is null || !IsValidTag(candidate.Name, candidate.Category, candidate.Confidence,
+                candidate.StartMilliseconds, candidate.EndMilliseconds))
                 throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidInput);
     }
+
+    private static bool IsValidProvenance(TagSuggestionProvenance? value) => value is not null
+        && IsIdentity(value.PluginId) && IsIdentity(value.TaggerKey) && IsIdentity(value.PluginVersion)
+        && IsIdentity(value.ModelId) && IsIdentity(value.ModelRevision)
+        && (value.ModelSha256 is null || IsSha256(value.ModelSha256));
+
+    private static bool IsValidTag(string? name, string? category, double confidence, long? start, long? end) =>
+        IsTagName(name) && IsIdentity(category) && double.IsFinite(confidence) && confidence is >= 0 and <= 1
+        && (start is null && end is null || start is >= 0 && end > start);
 
     private static bool IsSha256(string? value) => value is { Length: 64 } && value.All(c => c is (>= '0' and <= '9') or (>= 'a' and <= 'f'));
 
@@ -353,6 +358,8 @@ internal sealed partial class TagSuggestionStore
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
             IncludeFields = false,
+            RespectRequiredConstructorParameters = true,
+            AllowDuplicateProperties = false,
             MaxDepth = 16
         };
         options.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
@@ -365,8 +372,8 @@ internal sealed partial class TagSuggestionStore
         public string? Format { get; init; }
         public int? Version { get; set; }
         public long Revision { get; set; } = -1;
-        public long NextId { get; set; } = 1;
-        public long NextSequence { get; set; } = 1;
+        public long NextId { get; set; }
+        public long NextSequence { get; set; }
         // Check rejects omitted or null lists on read. From always supplies all three on write.
         public List<StoredTagSuggestion> Suggestions { get; init; } = null!;
         public List<TagSuggestionRun> Runs { get; init; } = null!;
@@ -395,21 +402,56 @@ internal sealed partial class TagSuggestionStore
 
         internal void Check()
         {
-            if (Revision < 0 || Suggestions is null || Runs is null || Events is null
-                || Suggestions.Any(value => value is null || value.Provenance is null || value.Id <= 0 || !IsSha256(value.MediaSha256) || !IsTagName(value.Name))
+            if (Revision < 0 || NextId <= 0 || NextSequence <= 0 || Suggestions is null || Runs is null || Events is null
+                || Suggestions.Any(value => value is null || value.Id <= 0 || value.MediaLength <= 0
+                    || !IsSha256(value.MediaSha256) || !IsValidProvenance(value.Provenance)
+                    || !IsValidTag(value.Name, value.Category, value.Confidence, value.StartMilliseconds, value.EndMilliseconds)
+                    || (value.State == TagSuggestionState.Pending) != (value.DecidedAt is null))
                 || Suggestions.Select(value => value.Id).Distinct().Count() != Suggestions.Count
-                || Runs.Any(value => value is null || value.Provenance is null || !IsSha256(value.MediaSha256))
-                || Events.Any(value => value is null))
+                || Runs.Any(value => value is null || !IsValidProvenance(value.Provenance) || !IsSha256(value.MediaSha256)
+                    || string.IsNullOrWhiteSpace(value.Outcome) || value.SuggestionCount < 0
+                    || value.SuggestionCount > TagSuggestionSettings.MaximumSuggestionsPerItemRange.Maximum
+                    || (value.Outcome != TaggedOutcome && value.SuggestionCount != 0)))
                 throw new InvalidDataException("The tag suggestion file is inconsistent.");
+            long lastSequence = CheckEvents();
             CheckReviewJournal(this);
 
             // Old writers could reset NextId after deleting a superseded pending suggestion.
             // The greatest identifier in surviving records or review events is still occupied.
             long lastId = Math.Max(Suggestions.Select(value => value.Id).DefaultIfEmpty().Max(),
                 Events.Select(value => value.SuggestionId).DefaultIfEmpty().Max());
-            long lastSequence = Events.Select(value => value.Sequence).DefaultIfEmpty().Max();
             NextId = Math.Max(NextId, checked(lastId + 1));
             NextSequence = Math.Max(NextSequence, checked(lastSequence + 1));
+        }
+
+        private long CheckEvents()
+        {
+            const string invalid = "The tag suggestion history is inconsistent.";
+            Dictionary<long, TagSuggestionReviewEvent> latest = new();
+            long sequence = 0;
+            foreach (TagSuggestionReviewEvent item in Events)
+            {
+                if (item is null || item.Sequence <= sequence || item.SuggestionId <= 0)
+                    throw new InvalidDataException(invalid);
+                TagSuggestionState previous = latest.GetValueOrDefault(item.SuggestionId)?.To ?? TagSuggestionState.Pending;
+                bool allowed = previous switch
+                {
+                    TagSuggestionState.Pending => item.To is TagSuggestionState.Accepted or TagSuggestionState.Rejected or TagSuggestionState.Superseded,
+                    TagSuggestionState.Accepted or TagSuggestionState.Rejected => item.To == TagSuggestionState.Pending,
+                    _ => false
+                };
+                if (!allowed || item.From != previous) throw new InvalidDataException(invalid);
+                latest[item.SuggestionId] = item;
+                sequence = item.Sequence;
+            }
+            foreach (StoredTagSuggestion value in Suggestions)
+            {
+                TagSuggestionReviewEvent? last = latest.GetValueOrDefault(value.Id);
+                if ((last?.To ?? TagSuggestionState.Pending) != value.State
+                    || value.State != TagSuggestionState.Pending && last?.At != value.DecidedAt)
+                    throw new InvalidDataException(invalid);
+            }
+            return sequence;
         }
 
         internal TagSuggestionSnapshot ToSnapshot() => new(Revision, Suggestions.ToArray(), Runs.ToArray(), Events.ToArray(),

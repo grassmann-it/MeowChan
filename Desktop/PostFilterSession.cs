@@ -43,6 +43,7 @@ internal sealed class PostFilterSession
     /// <summary>Null until the first successful load.</summary>
     internal PostFilterSnapshot? Current { get; private set; }
     internal string? LoadError { get; private set; }
+    internal PostFilterSnapshot? CurrentForSettings => LoadError is null ? Current : null;
     internal event EventHandler? Changed;
 
     /// <summary>Loads (or reloads) the store. A failure keeps the previous snapshot and is kept in <see cref="LoadError"/>.</summary>

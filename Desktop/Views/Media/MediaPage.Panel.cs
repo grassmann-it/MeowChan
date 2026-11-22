@@ -35,7 +35,7 @@ public sealed partial class MediaPage
     private ReaderMediaSidebar? _panel;
     private ReaderInlineVideoSlot? _panelVideo;
     private readonly ReaderInlineVideoController _panelVideoController = new();
-    private bool _panelShown, _panelCollapsed, _panelDisplayCapable = true;
+    private bool _panelShown, _panelCollapsed;
     private MediaLibraryTileRow? _panelRow, _panelWanted;
     private string _panelSizeText = string.Empty, _panelDimensions = string.Empty;
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();
@@ -97,13 +97,12 @@ public sealed partial class MediaPage
         ReaderMediaSidebar panel = _panel = new ReaderMediaSidebar
         {
             Name = "MediaPanel", IsVisible = false, UseGalleryCursor = true, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
-            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle"
+            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
-        // Flush with the grid card (MediaPage.PanelAlignment.cs): no inset above or below the card; the header line has the page header's line height.
+        // The full-height panel owns the header and card, with a horizontal inset from both edges.
         panel.Padding = new Thickness(16, 0, 16, 0);
-        panel.HeaderHeight = PanelHeaderLineHeight;
         panel.Localize();
         panel.ShowEmpty();
         // The drag handle's name and tip exist from the start, not only after the first language change.
@@ -337,9 +336,8 @@ public sealed partial class MediaPage
         // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
         if (!same)
         {
-            int? threadNumber = ThreadMediaNumberOf(entry);
-            ScheduleAnnouncement(Texts.T("media.panel.region", threadNumber ?? row.Index + 1,
-                threadNumber.HasValue ? _threadMedia!.Count : _tiles.Count,
+            (int number, int total) = PanelPositionOf(row);
+            ScheduleAnnouncement(Texts.T("media.panel.region", number, total,
                 ReaderMediaSidebarRules.FileText(new CapturedAttachmentText(row.Name, entry.Length))));
         }
         if (ticket.UpToDate)
@@ -368,7 +366,7 @@ public sealed partial class MediaPage
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
             : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
         panel.Describe(postLine, row.Name, PanelDetail(), OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
-            threadPosition: ThreadPositionOf(entry));
+            threadPosition: PanelPositionText(row));
         // The star reads the panel's row when it is asked, so a new presentation (own state changed) needs no new wiring.
         panel.ConfigureFavorite(PanelFavoriteAvailable, () => _panelRow?.State?.Favorite == MediaLibraryFlag.Yes,
             () => _panelRow is { } current ? ToggleTileFavoriteAsync(current.Entry) : Task.CompletedTask);

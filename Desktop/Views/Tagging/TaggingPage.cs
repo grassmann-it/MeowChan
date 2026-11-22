@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Templates;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Markup.Xaml.MarkupExtensions;
@@ -25,44 +26,35 @@ namespace MeowChan;
 /// The tagging page (PT2, PLAN-POWER-TAGGEN §1.3): a thin working page over the tagging queue. It shows the progress, edits the
 /// stamp set, lists the entries with their state (open, finished, skipped) and lets the user reorder, remove and clear them;
 /// "Start tagging" hands over to the gallery (<see cref="StartTagging"/>, the seam of the tagging mode). The queue work itself is
-/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: queue actions, stamp, list controls, selection, list.
+/// <see cref="TaggingQueueController"/>; this class only shows it. Tab order: start, add and help, filters, overflow, view controls, selection, list.
 /// </summary>
 public sealed partial class TaggingPage : UserControl, IDisposable
 {
     private readonly DesktopSessionHost _host;
     private readonly TaggingQueueController _queueWork;
     private readonly TextBlock _title = new() { Name = "TaggingTitle", Classes = { "page-title" } };
-    // Queue mutations and feedback share a measured row; visible-result controls live directly above the list.
-    private readonly ActionToolBar _actions = new() { Name = "TaggingActions", HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly TaggingControlRow _listControls = new() { Name = "TaggingListControls" };
+    private readonly ActionToolBar _addAndHelp = new() { Name = "TaggingAddAndHelp" };
+    private readonly ActionToolBar _actions = new() { Name = "TaggingActions" };
+    private readonly TaggingHeader _header;
     private readonly ActionToolBar _listPresentation = new() { Name = "TaggingListPresentation" };
     private readonly Border _error = new() { Name = "TaggingError", Classes = { "workspace-error" }, IsVisible = false };
     private readonly TextBlock _errorText = new() { Name = "TaggingErrorText", TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _errorSource = new() { Name = "TaggingErrorSource", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _retryLoad = new() { Name = "TaggingRetryLoad", Classes = { "subtle" } };
-    // Counters, mini bar and percentage are supporting feedback in the queue-action row.
-    private readonly StackPanel _progress = new() { Name = "TaggingProgress", Spacing = 2 };
-    private readonly TextBlock _progressText = (new TextBlock { Name = "TaggingProgressText", Classes = { "tnum" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center }).MetaText();
-    internal const double MiniBarWidth = 96;
-    private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100, Width = MiniBarWidth, Height = 6, MinHeight = 0, MaxHeight = 6 };
-    private readonly TextBlock _percent = (new TextBlock { Name = "TaggingPercent", Classes = { "muted", "tnum" }, VerticalAlignment = VerticalAlignment.Center }).MetaText();
-    private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
-    // Passive supporting context for Start: never a second spatially separated continue action.
-    private readonly TextBlock _lastShown = new() { Name = "TaggingLastShown", Classes = { "muted", "tnum" }, MaxWidth = 280,
-        TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false };
-    private readonly StackPanel _startContext = new() { Name = "TaggingStartContext", Spacing = 4 };
-    // TQ3: browsing the gallery marks nothing as finished; said once, quietly, while a walk is under way.
-    private readonly TextBlock _browseHint = new() { Name = "TaggingBrowseHint", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap, MaxWidth = 480, IsVisible = false };
-    private readonly TaggingControlRow _queueActionRow = new() { Name = "TaggingQueueActionRow" };
-    private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
-    private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
-    private readonly ComboBox _filter = new() { Name = "TaggingFilter", MinWidth = 160 };
+    private readonly Grid _progress = new() { Name = "TaggingProgress", ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+        [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.4") };
+    private readonly TextBlock _progressText = (new TextBlock { Name = "TaggingProgressText", Classes = { "tnum" },
+        VerticalAlignment = VerticalAlignment.Center }).MetaText();
+    private readonly ProgressBar _bar = new TaggingProgressTrack() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100,
+        MinWidth = TaggingHeaderSettings.ProgressMinWidth, Height = 4, MinHeight = 0, MaxHeight = 4, VerticalAlignment = VerticalAlignment.Center };
+    private readonly Button _start = new TaggingActivationButton() { Name = "TaggingStart", Classes = { "primary" } };
+    private readonly ComboBox _filter = new() { Name = "TaggingFilter", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly HelpButton _help = new() { Name = "TaggingHelp", HelpKey = "help.taggingPage" };
     private readonly Grid _columnHeader = new() { Name = "TaggingColumns", ColumnDefinitions = TaggingQueueRowView.BuildColumns(true), ColumnSpacing = TaggingQueueRowView.ColumnGap, Margin = new Thickness(12, 0, 12, 0),
         // A right-click between the header words has to find the header too (it carries the column menu), so it takes a transparent fill.
         Background = Brushes.Transparent };
     private readonly Border _columnHeaderSurface = new() { Name = "TaggingColumnHeaderSurface", Classes = { "workspace-table-header" } };
-    private readonly ListBox _list = new() { Name = "TaggingList", Classes = { "tagging-table" }, SelectionMode = SelectionMode.Multiple };
+    private readonly ListBox _list = new TaggingResultList() { Name = "TaggingList", Classes = { "tagging-table" }, SelectionMode = SelectionMode.Multiple };
     private readonly TextBlock _empty = new() { Name = "TaggingEmpty" };
     private readonly WorkspaceEmptyState _emptyState = new() { Name = "TaggingEmptyState", IsVisible = false };
     // Empty-state actions side by side, centred; they wrap to a second line on a narrow page instead of running off both edges (like the Media page's).
@@ -84,6 +76,8 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private bool _showKindColumn = true, _showGroupColumn = true;
     private IReadOnlyList<TaggingQueueRow> _rows = Array.Empty<TaggingQueueRow>();
     private bool _localizing, _refreshPosted;
+    private bool _keyboardStartFocus;
+    private string? _startContext;
 
     internal TaggingPage(DesktopSessionHost host)
     {
@@ -94,7 +88,19 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         // Every key of the page runs in the "tagging" context, as the commands of its queue list are declared (tagging.remove, media.tile-size.*): a default
         // that a saved binding took away only elsewhere (a partial yield) stays active here (EffectiveShortcutBindings.EnterKeyContext).
         _keyContext = MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "tagging");
+        _header = BuildHeader();
         Content = BuildLayout();
+        _start.GotFocus += (_, e) =>
+        {
+            _keyboardStartFocus = e.NavigationMethod != NavigationMethod.Pointer;
+            UpdateStart();
+        };
+        _start.LostFocus += (_, _) =>
+        {
+            _keyboardStartFocus = false;
+            UpdateStart();
+        };
+        ToolTip.SetShowOnDisabled(_start, true);
         _start.Click += (_, _) => OpenActions.Start(() => StartAsync(null), "tagging.start");
         _filter.SelectionChanged += (_, _) => { if (!_localizing) { Render(); RefreshWorkView(); } };
         InitializeGrid();
@@ -134,8 +140,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     internal ComboBox FilterBox => _filter;
     internal TextBlock StatusText => _status;
     internal TextBlock ProgressText => _progressText;
-    internal TextBlock LastShownContext => _lastShown;
-    internal TextBlock BrowseHint => _browseHint;
     internal Border ErrorPanel => _error;
     internal TextBlock ErrorSourceText => _errorSource;
     internal Button RetryLoadButton => _retryLoad;
@@ -147,50 +151,61 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         set => _filter.SelectedIndex = (int)value;
     }
 
-    private Control BuildLayout()
+    private TaggingHeader BuildHeader()
     {
-        StackPanel heading = new() { Name = "TaggingHeading", Classes = { "workspace-page-header" },
-            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _title } };
+        Grid.SetColumn(_progressText, 1);
+        _progress.Children.Add(_bar);
+        _progress.Children.Add(_progressText);
+        Grid walk = new() { Name = "TaggingWalk", ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"),
+            [!Grid.ColumnSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
+            Children = { _title, _start, _progress } };
+        _title.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(_start, 1);
+        Grid.SetColumn(_progress, 2);
 
+        _filter.ItemTemplate = new FuncDataTemplate<string>((value, _) => new TrimTipTextBlock { Text = value });
+        ColumnDefinition groupColumn = new(1, GridUnitType.Star) { MinWidth = TaggingHeaderSettings.GroupMinWidth, MaxWidth = TaggingHeaderSettings.GroupMaxWidth };
+        ColumnDefinition filterColumn = new(1, GridUnitType.Star) { MinWidth = TaggingHeaderSettings.FilterMinWidth, MaxWidth = TaggingHeaderSettings.FilterMaxWidth };
+        // Bound the templates during the natural-width probe as well. Otherwise a
+        // long selection can put Semi's chevron outside the arranged grid column.
+        _group.MaxWidth = groupColumn.MaxWidth;
+        _filter.MaxWidth = filterColumn.MaxWidth;
+        Grid filters = new() { Name = "TaggingResultFilters", ColumnDefinitions = new ColumnDefinitions { groupColumn, filterColumn },
+            ColumnSpacing = 8, Children = { _group, _filter } };
+        filters.MinWidth = groupColumn.MinWidth + filterColumn.MinWidth + filters.ColumnSpacing;
+        Grid.SetColumn(_filter, 1);
+        return new TaggingHeader(walk, _addAndHelp, BuildStamp(), filters, _actions, _listPresentation,
+            SetStampCompact, SetViewCompact, TrimStartLabel) { Name = "TaggingHeader" };
+    }
+
+    // At fallback widths the resume label yields space to the track and counter.
+    // CommandBindings keeps the full label in the tooltip and accessible name.
+    private void TrimStartLabel(double excess)
+    {
+        if (_start.Content is not StackPanel { Children: [_, TextBlock label] }) return;
+        double limit = excess > 0 ? Math.Max(0, label.DesiredSize.Width - excess) : double.PositiveInfinity;
+        if (label.MaxWidth == limit) return;
+        label.MaxWidth = limit;
+        label.TextTrimming = TextTrimming.CharacterEllipsis;
+        TaggingHeader.InvalidateGroupMeasure(label);
+    }
+
+    private Grid BuildLayout()
+    {
         _error.Child = new StackPanel { [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"), Children = { _errorText, _errorSource, _retryLoad } };
         AutomationProperties.SetLiveSetting(_errorText, AutomationLiveSetting.Assertive);
         AutomationProperties.SetLiveSetting(_errorSource, AutomationLiveSetting.Polite);
 
-        foreach (TaggingControlRow row in new[] { _queueActionRow, _listControls })
-        {
-            row[!TaggingControlRow.GroupSpacingProperty] = new DynamicResourceExtension("Workspace.Space.16");
-            row[!TaggingControlRow.LineSpacingProperty] = new DynamicResourceExtension("Workspace.Space.8");
-        }
-        _listControls.Margin = new Thickness(0, 0, 0, 8);
-        _bar.VerticalAlignment = VerticalAlignment.Center;
-        WrapPanel meter = new() { Name = "TaggingProgressMeter", ItemSpacing = 8, LineSpacing = 2, Children = { _bar, _percent } };
-        _progress.Children.Add(_progressText);
-        _progress.Children.Add(meter);
-        _progress.VerticalAlignment = VerticalAlignment.Center;
-        // TQ2: the progress stands beside the one primary action (Start / Continue), not at the far edge of the page; the passive
-        // "last shown" line and the browse hint stand under both.
-        StackPanel startLine = new() { Name = "TaggingStartLine", Orientation = Orientation.Horizontal,
-            [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"), Children = { _start, _progress } };
-        _startContext.Children.Add(startLine);
-        _startContext.Children.Add(_lastShown);
-        _startContext.Children.Add(_browseHint);
-        _queueActionRow.Children.Add(_actions);
-
-        _filterPanel.Children.Add(_filterLabel);
-        _filterPanel.Children.Add(_filter);
-
-        // The title starts where every page title starts (PageHeader.PageTopOffset, LY-03); the page has no margin of its own.
+        // The first row uses the shared page-title inset (LY-03).
         StackPanel header = new() { Name = "TaggingSections",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.16"),
-            Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 16) };
-        header.Children.Add(heading);
-        header.Children.Add(_error);
+            Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8) };
         // A confirmation belongs immediately after its trigger row, before the next major section.
         StackPanel queueControls = new() { Name = "TaggingQueueControls",
             [!StackPanel.SpacingProperty] = new DynamicResourceExtension("Workspace.Space.8"),
-            Children = { _queueActionRow, _status, BuildClearConfirmation() } };
+            Children = { _header, _status, BuildClearConfirmation() } };
         header.Children.Add(queueControls);
-        header.Children.Add(BuildStamp());
+        header.Children.Add(_error);
         SizeChanged += (_, _) =>
         {
             UpdateTableLayout();
@@ -222,18 +237,14 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         body.Children.Add(_list);
         body.Children.Add(_grid);
         body.Children.Add(_emptyState);
-        // The selection bar (only with a selection) stands above the column header; the toolbar above it never moves.
-        Grid listArea = new() { Name = "TaggingListArea", RowDefinitions = new RowDefinitions("Auto,Auto,*"), RowSpacing = 0 };
-        listArea.Children.Add(_listControls);
-        Control selection = BuildSelectionBar();
-        Grid.SetRow(selection, 1);
-        listArea.Children.Add(selection);
+        Grid listArea = new() { Name = "TaggingListArea", RowDefinitions = new RowDefinitions("Auto,*"),
+            Children = { BuildSelectionBar() } };
         _columnHeaderSurface.Child = _columnHeader;
         Grid table = new() { Name = "TaggingTable", RowDefinitions = new RowDefinitions("Auto,*"), Children = { _columnHeaderSurface } };
         Grid.SetRow(body, 1);
         table.Children.Add(body);
         Border surface = new() { Name = "TaggingListSurface", Child = table, Classes = { "workspace-section-flush" } };
-        Grid.SetRow(surface, 2);
+        Grid.SetRow(surface, 1);
         listArea.Children.Add(surface);
 
         Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
@@ -370,22 +381,30 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         if (_queueWork.Ended || !IsEffectivelyVisible) return;
         if (_rows.Count > 0 && ActiveList.IsEffectivelyVisible && ActiveList.SelectedIndex >= 0)
             (ActiveList.ContainerFromIndex(ActiveList.SelectedIndex) as Control ?? ActiveList).Focus();
+        else if (PrimaryEmptyAction is { IsEffectivelyEnabled: true } recommendation) recommendation.Focus();
         else if (_start.IsEffectivelyEnabled) _start.Focus();
         else if (_rows.Count > 0 && ActiveList.IsEffectivelyVisible) ActiveList.Focus();
+        else if (_retryLoad.IsEffectivelyVisible && _retryLoad.IsEffectivelyEnabled) _retryLoad.Focus();
+        else _filter.Focus();
     }
 
-    // Returning the keyboard to the content after a command or a closed menu: the list keeps a place to stand (the next open row).
-    internal void FocusContent()
+    // A focus fallback has no effect on the result selection.
+    internal void FocusContent(TagQueueKey? preferred = null)
     {
         if (_queueWork.Ended || !IsEffectivelyVisible) return;
-        if (_rows.Count > 0 && ActiveList.IsEffectivelyVisible)
+        if (_rows.Count == 0 || !ActiveList.IsEffectivelyVisible)
         {
-            if (ActiveList.SelectedIndex < 0)
-                ActiveList.SelectedIndex = Math.Max(0, _rows.ToList().FindIndex(row => row.Next));
-            (ActiveList.ContainerFromIndex(Math.Max(0, ActiveList.SelectedIndex)) as Control ?? ActiveList).Focus();
+            _filter.Focus();
+            return;
         }
-        else if (_start.IsEffectivelyEnabled) _start.Focus();
+        TaggingQueueRow row = _rows.FirstOrDefault(result => result.Key == preferred)
+            ?? Lead ?? _rows.FirstOrDefault(result => result.Next) ?? _rows[0];
+        ActiveList.ScrollIntoView(row);
+        (ActiveList.ContainerFromItem(row) ?? ActiveList).Focus();
     }
+
+    private TagQueueKey? FocusedResultKey() =>
+        ResultItem(TopLevel.GetTopLevel(ActiveList)?.FocusManager?.GetFocusedElement())?.DataContext is TaggingQueueRow row ? row.Key : null;
 
     // The queue changed (loaded, refreshed or written): the list, the progress, the stamp and the view placement follow it.
     private void Show()
@@ -394,7 +413,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         ApplyTileAppearance();
         ApplyDensity();
         Render();
-        RenderStamp();
         RefreshWorkView();
         ApplyPendingSelect();
     }
@@ -403,6 +421,9 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private void Render(TagQueueKey[]? carry = null, TagQueueKey? carryLead = null)
     {
         TagQueueSnapshot queue = _queueWork.Queue;
+        bool hadResultFocus = ActiveList.IsKeyboardFocusWithin;
+        bool hadSelectionFocus = _selectionBar.IsKeyboardFocusWithin || OpenSelectionMenu != null;
+        TagQueueKey? focused = FocusedResultKey();
         TagQueueKey[] selected = carry ?? SelectedKeys();
         TagQueueKey? lead = carry != null ? carryLead : Lead?.Key;
         _rendering = true;
@@ -433,14 +454,22 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             }
         }
         finally { _rendering = false; }
-        _progressText.Text = TaggingQueueView.DoneText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        var count = TaggingQueueView.ProgressCount(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        _progressText.Text = count.Text;
+        AutomationProperties.SetName(_progressText, count.Description);
         // The short sentence says how far the queue is; the open / finished / skipped breakdown is its tooltip and help text.
         string breakdown = TaggingQueueView.ProgressText(queue, _selectedGroupId, _ungroupedSelected, Scope);
         ToolTip.SetTip(_progressText, breakdown);
+        AutomationProperties.SetHelpText(_progressText, breakdown);
         _bar.Value = TaggingQueueView.Share(queue, _selectedGroupId, _ungroupedSelected, Scope) * 100;
-        _percent.Text = TaggingQueueView.PercentText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        string percent = TaggingQueueView.PercentText(queue, _selectedGroupId, _ungroupedSelected, Scope);
+        ToolTip.SetTip(_bar, percent + " · " + breakdown);
         AutomationProperties.SetName(_bar, Texts.T("tagging.page.progressName"));
-        AutomationProperties.SetHelpText(_bar, _progressText.Text + " · " + _percent.Text + " · " + breakdown);
+        AutomationProperties.SetHelpText(_bar, count.Description + " · " + percent + " · " + breakdown);
+        string filter = TaggingQueueView.FilterText(Filter);
+        ToolTip.SetTip(_filter, filter);
+        AutomationProperties.SetHelpText(_filter, filter);
+        _header.InvalidateMeasure();
         bool empty = _rows.Count == 0;
         _emptyState.IsVisible = empty && _queueWork.Loaded && _queueWork.ErrorText == null;
         _list.IsVisible = !empty && _viewMode == TaggingViewMode.List;
@@ -451,6 +480,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         // toolbar's own omission of the item; a hidden item takes no width and no group line).
         _columnsButton.IsVisible = _viewMode == TaggingViewMode.List;
         RenderEmptyState(queue);
+        RenderStamp();
         _errorText.Text = _queueWork.ErrorText;
         _errorSource.Text = _queueWork.ErrorSource;
         _retryLoad.IsVisible = _queueWork.ErrorText != null;
@@ -459,21 +489,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         // Error visibility is work-view gated, so refresh it after the text has been replaced.
         RefreshWorkView();
         UpdateSelectionBar();
-    }
-
-    // The work-view gate controls supporting context; the only activation target is Start.
-    private void RenderLastShown(TagQueueSnapshot queue)
-    {
-        string? text = TaggingQueueView.LastShownText(queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
-        _lastShown.Text = text; // its visibility is the work-view gate's (RefreshWorkView)
-        string? done = CommandCatalog.ShortcutDisplay("tags.queue.done-next");
-        _browseHint.Text = text == null ? null : Texts.T("tagging.strip.browseHint", done ?? CommandCatalog.Label("tags.queue.done-next"));
-        if (text != null)
-        {
-            AutomationProperties.SetName(_lastShown, text);
-            AutomationProperties.SetHelpText(_lastShown, Texts.T("tagging.page.lastShown.help"));
-            ToolTip.SetTip(_lastShown, text);
-        }
+        if (hadResultFocus || hadSelectionFocus && SelectedCount == 0) FocusContent(focused);
     }
 
     private TagQueueKey[] SelectedKeys() => ActiveList.SelectedItems?.OfType<TaggingQueueRow>().Select(row => row.Key).ToArray() ?? Array.Empty<TagQueueKey>();
@@ -485,14 +501,32 @@ public sealed partial class TaggingPage : UserControl, IDisposable
 
     private void UpdateActions()
     {
-        string? label = TaggingQueueView.StartLabel(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
-        CommandBindings.ApplyLabeled(_start, "tagging.start", label ?? Texts.T("command.tagging.start"));
-        _start.IsEnabled = label != null && CanStart;
-        if (label == null)
-            ToolTip.SetTip(_start, Texts.T(_queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone"));
-        RenderLastShown(_queueWork.Queue);
-        AutomationProperties.SetHelpText(_start, _lastShown.Text);
+        _startContext = TaggingQueueView.LastShown(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, _effectiveScope)?.Description;
+        UpdateStart();
         RefreshCommandStates();
+    }
+
+    private void UpdateStart()
+    {
+        string? label = TaggingQueueView.StartLabel(_queueWork.Queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
+        _start.IsEnabled = label != null && CanStart;
+        CommandBindings.ApplyLabeled(_start, "tagging.start", label ?? Texts.T("command.tagging.start"), tip =>
+        {
+            if (_startContext != null) tip += " · " + _startContext;
+            if (_keyboardStartFocus && _start.IsEnabled) tip += " · " + Texts.T("tagging.page.start.space");
+            if (!_start.IsEnabled)
+            {
+                string reason = (_queueWork.ErrorText != null || IsBusy || label != null, _emptyKind) switch
+                {
+                    (true, _) => Texts.T("tagging.menu.reason.notReady"),
+                    (false, TaggingEmptyKind.GroupEmpty) => _empty.Text ?? Texts.T("queue.empty"),
+                    (false, TaggingEmptyKind.FilterNoHits) when Filter == TaggingQueueFilter.Untagged => Texts.T("tagging.page.filterEmpty.untagged"),
+                    _ => Texts.T(_queueWork.Queue.Count == 0 ? "queue.empty" : "queue.allDone")
+                };
+                tip += " · " + reason;
+            }
+            return tip;
+        }, keyContext: "tagging");
     }
 
     private void ShowStatus(string? text)
@@ -504,7 +538,13 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     private void OnLanguageChanged(object? sender, EventArgs e)
     {
         if (_queueWork.Ended) return;
-        Dispatcher.UIThread.Post(() => { if (!_queueWork.Ended) { Localize(); Show(); } });
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_queueWork.Ended) return;
+            ShowStatus(null);
+            Localize();
+            Show();
+        });
     }
 
     private void Localize()
@@ -513,7 +553,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         try
         {
             _title.Text = Texts.T("tagging.page.title");
-            _filterLabel.Text = Texts.T("tagging.page.filter");
             int filter = Math.Max(0, _filter.SelectedIndex);
             _filter.ItemsSource = Enum.GetValues<TaggingQueueFilter>().Select(TaggingQueueView.FilterText).ToArray();
             _filter.SelectedIndex = filter;
@@ -521,6 +560,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             AutomationProperties.SetName(_list, Texts.T("tagging.page.listName"));
             LocalizeEmptyStates();
             _retryLoad.Content = Texts.T("action.retry");
+            CommandBindings.EnsureIconBeforeText(_retryLoad, "refresh-cw");
             AutomationProperties.SetName(_retryLoad, Texts.T("action.retry"));
             LocalizeGroups();
             CommandBindings.Apply(_columnsButton, "tagging.preview-column", iconWithLabel: true);
@@ -569,6 +609,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     public void Dispose()
     {
         if (_queueWork.Ended) return;
+        CloseStamp();
         _queueWork.End();
         _keyContext.Dispose();
         EndTagging();
@@ -577,12 +618,21 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _tagDialog?.Dispose();
         _tagDialog = null;
         EndColumns();
-        _stateMenuHost?.Dispose();
-        _groupMenuHost?.Dispose();
+        _selectionMenuHost?.Dispose();
         _groupManageHost?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
         Texts.Changed -= OnLanguageChanged;
         _host.StateChanged -= OnHostChanged;
+    }
+
+    private sealed class TaggingProgressTrack : ProgressBar
+    {
+        protected override Type StyleKeyOverride => typeof(ProgressBar);
+
+        // Semi sizes the indicator from the last arranged width. Keep the
+        // track's requested width independent of that drawing and of its value.
+        protected override Size MeasureOverride(Size availableSize) =>
+            base.MeasureOverride(new Size(MinWidth, availableSize.Height));
     }
 }

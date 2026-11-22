@@ -1,8 +1,10 @@
 using System.Reflection;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan;
@@ -59,15 +61,15 @@ public sealed class BooruGalleryInlineTests
     }
 
     [Fact]
-    public void TheStatusLineNamesPositionRatingPictureSampleAndOriginal() => OnDispatcher(() =>
+    public void TheStatusLineNamesRatingPictureSampleAndOriginal() => OnDispatcher(() =>
     {
         BooruResultRowView row = new(BooruUiFixtures.Post("55", sample: true, rating: BooruRating.Questionable), Preview: BooruPreviewState.Ready);
-        string loading = BooruGalleryStatus.Line(row, 2, 20, BooruGalleryPicture.Preview, BooruGallerySampleState.Loading, 8);
-        Assert.Equal("Post #55 · 3 of 20 · Danbooru rating: Questionable · Shown: preview · Larger version loading… · Original available", loading);
-        Assert.Contains("Shown: reduced-size version (sample)", BooruGalleryStatus.Line(row, 0, 1, BooruGalleryPicture.Sample, BooruGallerySampleState.Shown, 8));
-        Assert.Contains("larger than 8 MiB", BooruGalleryStatus.Line(row, 0, 1, BooruGalleryPicture.Preview, BooruGallerySampleState.Failed, 8));
-        Assert.Contains("offers no reduced-size version", BooruGalleryStatus.Line(row, 0, 1, BooruGalleryPicture.Preview, BooruGallerySampleState.NotOffered, 8));
-        Assert.Contains("Loading preview", BooruGalleryStatus.Line(row with { Preview = BooruPreviewState.Loading }, 0, 1, BooruGalleryPicture.None, BooruGallerySampleState.Loading, 8));
+        string loading = BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.Loading, 8);
+        Assert.Equal("Post #55 · Danbooru rating: Questionable · Shown: preview · Larger version loading… · Original available", loading);
+        Assert.Contains("Shown: reduced-size version (sample)", BooruGalleryStatus.Line(row, BooruGalleryPicture.Sample, BooruGallerySampleState.Shown, 8));
+        Assert.Contains("larger than 8 MiB", BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.Failed, 8));
+        Assert.Contains("offers no reduced-size version", BooruGalleryStatus.Line(row, BooruGalleryPicture.Preview, BooruGallerySampleState.NotOffered, 8));
+        Assert.Contains("Loading preview", BooruGalleryStatus.Line(row with { Preview = BooruPreviewState.Loading }, BooruGalleryPicture.None, BooruGallerySampleState.Loading, 8));
         return Task.CompletedTask;
     });
 
@@ -116,7 +118,10 @@ public sealed class BooruGalleryInlineTests
                 Assert.Equal("101", view.CursorPostId);
                 Assert.Same(gallery, Results(view).Children.Single());
                 Assert.Equal(BooruGalleryPicture.Preview, gallery.Picture);
-                Assert.Contains("1 of 3", gallery.StatusText);
+                TextBlock position = GalleryPosition(gallery);
+                Assert.Equal("1 of 3", position.Text);
+                Assert.False(gallery.PreviousButton.IsEnabled);
+                Assert.True(gallery.NextButton.IsEnabled);
 
                 await BooruTestSupport.WaitAsync(() => gallery.Picture == BooruGalleryPicture.Sample, "the sample of 101");
                 Assert.Equal(BooruGallerySampleState.Shown, gallery.SampleState);
@@ -130,11 +135,13 @@ public sealed class BooruGalleryInlineTests
                 gallery.Stage.RaiseEvent(right);
                 Assert.True(right.Handled);
                 Assert.Equal("102", gallery.CurrentPostId);
+                Assert.Equal("2 of 3", position.Text);
                 Assert.Equal(BooruGalleryPicture.Preview, gallery.Picture);
                 await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 2, "the request of 102");
                 Assert.Equal(BooruGallerySampleState.Loading, gallery.SampleState);
                 gallery.Stage.RaiseEvent(Press(Key.Right, gallery.Stage));
                 Assert.Equal("103", gallery.CurrentPostId);
+                Assert.Equal("3 of 3", position.Text);
                 await BooruTestSupport.WaitAsync(() => secondCanceled, "the cancellation of the sample of 102");
                 Assert.Equal(BooruGallerySampleState.NotOffered, gallery.SampleState);
                 Assert.Contains("offers no reduced-size version", gallery.StatusText);
@@ -224,6 +231,66 @@ public sealed class BooruGalleryInlineTests
             }
             await BooruTestSupport.WaitAsync(() => !popup.IsVisible && view.Gallery.CurrentPostId is null, "the empty gallery and closed popup");
             Assert.Empty(model.Search.View.Rows);
+        }
+    });
+
+    [Fact]
+    public void PopoutReplacesThePreviewWithOneBoundedSampleAndCancelsWhenBrowsingAway() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope window = new(view))
+        {
+            TaskCompletionSource<byte[]?> firstSample = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101", tags: [], sample: true),
+                    BooruUiFixtures.Post("102", tags: [], sample: true), BooruUiFixtures.Post("103", tags: []))));
+            int canceledSamples = 0;
+            harness.Previews.OnSample = async (post, token) =>
+            {
+                if (post.PostId == "101") return await firstSample.Task.WaitAsync(token);
+                try { await Task.Delay(Timeout.Infinite, token); }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { Interlocked.Increment(ref canceledSamples); throw; }
+                return null;
+            };
+            view.GallerySampleMiB = () => 2;
+            view.GalleryCacheMiB = () => 16;
+            view.GalleryMaximumWidth = () => 300;
+            await SearchAsync(harness, model, view);
+            Assert.Empty(harness.Previews.SampleRequests);
+            Assert.True(view.OpenResultViewer("101"));
+            Window host = Assert.IsType<Window>(TopLevel.GetTopLevel(view));
+            BooruResultViewerWindow popup = Assert.Single(host.OwnedWindows.OfType<BooruResultViewerWindow>());
+            Image image = popup.GetVisualDescendants().OfType<Image>().Single(picture => picture.Name == "GalleryImage");
+            TextBlock caption = popup.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "BooruViewerCaption");
+            await BooruTestSupport.WaitAsync(() => image.Source is Bitmap && harness.Previews.SampleRequests.Count == 1, "the preview and one sample request");
+            Bitmap preview = Assert.IsType<Bitmap>(image.Source);
+            Assert.Contains(Texts.T("booru.gallery.shown.preview"), caption.Text);
+
+            using SKBitmap source = new(640, 320);
+            using SKImage pixels = SKImage.FromBitmap(source);
+            using SKData bytes = pixels.Encode(SKEncodedImageFormat.Png, 100);
+            firstSample.SetResult(bytes.ToArray());
+            await BooruTestSupport.WaitAsync(() => caption.Text!.Contains(Texts.T("booru.gallery.shown.sample")), "the sample caption");
+            Assert.NotSame(preview, image.Source);
+            Assert.Equal(300, Assert.IsType<Bitmap>(image.Source).PixelSize.Width);
+            Assert.Equal(new[] { "101" }, harness.Previews.SampleRequests);
+            Assert.Equal((2 * MiB, 16L * MiB), harness.Previews.SampleLimits[0]);
+
+            image.RaiseEvent(Press(Key.Right, image));
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 2, "the next post's sample request");
+            image.RaiseEvent(Press(Key.Right, image));
+            await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 1, "cancellation after leaving the next post");
+            Assert.Equal("103", popup.CurrentPostId);
+            Assert.Equal(new[] { "101", "102" }, harness.Previews.SampleRequests);
+            Assert.Empty(harness.Queue.Loads);
+            image.RaiseEvent(Press(Key.Left, image));
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 3, "the revisited post's sample request");
+            popup.Close();
+            await popup.Cleanup;
+            await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 2, "cancellation after closing the popout");
         }
     });
 
@@ -367,7 +434,7 @@ public sealed class BooruGalleryInlineTests
     });
 
     [Fact]
-    public void TheGallerySelectionUsesTheLocalizedSpaceKeyName() => OnDispatcher(async () =>
+    public void GalleryToolbarUpdatesThePositionAndSelectionHintWhenTheLanguageChanges() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model)
@@ -376,12 +443,28 @@ public sealed class BooruGalleryInlineTests
             await SearchAsync(harness, model, view);
             Texts.SetLanguage("de");
             Assert.True(view.OpenGallery("101"));
-            Assert.EndsWith(" · Leertaste", Assert.IsType<string>(view.Gallery.SelectBox.Content));
+            CheckBox selection = view.Gallery.SelectBox;
+            StackPanel content = Assert.IsType<StackPanel>(selection.Content);
+            TextBlock label = Assert.IsType<TextBlock>(content.Children[0]);
+            Border keycap = Assert.IsType<Border>(content.Children[1]);
+            Assert.Contains(KeyCapText.CapClass, keycap.Classes);
+            TextBlock key = Assert.IsType<TextBlock>(keycap.Child);
+            TextBlock position = GalleryPosition(view.Gallery);
+            Assert.Equal("1 von 3", position.Text);
+            Assert.Equal("Ausgewählt", label.Text);
+            Assert.Equal("Leertaste", key.Text);
+            Assert.Equal(key.Text, AutomationProperties.GetAcceleratorKey(selection));
+
             Texts.SetLanguage("ja");
-            view.OpenGallery("102");
-            Assert.EndsWith(" · " + Texts.Own("key.space"), Assert.IsType<string>(view.Gallery.SelectBox.Content));
+            await BooruTestSupport.WaitAsync(() => key.Text == Texts.Own("key.space"), "the localized gallery shortcut");
+            Assert.Equal(Texts.T("booru.gallery.position", 1, 3), position.Text);
+            Assert.Equal(Texts.Own("media.tile.selected"), label.Text);
+            Assert.Equal(key.Text, AutomationProperties.GetAcceleratorKey(selection));
         }
     });
+
+    private static TextBlock GalleryPosition(BooruGalleryPanel gallery) => gallery.GetLogicalDescendants().OfType<TextBlock>()
+        .Single(block => block.Name == "BooruGalleryPosition");
 
     private static T ControlField<T>(Control owner, string name) where T : Control =>
         Assert.IsType<T>(owner.GetType().GetField(name, Private)!.GetValue(owner));

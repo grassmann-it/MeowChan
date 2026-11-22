@@ -1,4 +1,6 @@
 using System.Text.Json;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -7,6 +9,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Tests.Shared;
 
@@ -15,6 +18,97 @@ namespace MeowChan.DesktopTests;
 [Collection("Booru exact navigation")]
 public sealed class BooruSearchDestinationTests
 {
+    [Fact]
+    public void WatchersButtonCountsActiveLocalWatchersAndFollowsLanguageChanges() => BooruComponentDispatcher.Run(() =>
+    {
+        BooruUiHarness harness = new();
+        DateTimeOffset now = harness.Clock.GetUtcNow();
+        harness.Watchers.Seed(Enumerable.Range(1, 12)
+            .Select(number => new BooruWatcherView($"watcher-{number}", $"tag_{number}", BooruWatcherStatus.Active, now)).ToArray());
+        harness.Watchers.Seed(new BooruWatcherView("paused", "dog", BooruWatcherStatus.Paused, now),
+            new BooruWatcherView("removed", "sky", BooruWatcherStatus.Removed, now));
+        using BooruPage page = new(harness.Services);
+        Button button = FindWatchersButton(page);
+        Assert.Equal("eye", IconButtons.KeyOf(button));
+        AssertLabel("Watchers (0)", "0 active watchers");
+
+        BooruComponentDispatcher.Wait(page.ActivateAsync());
+        Dispatcher.UIThread.RunJobs();
+        AssertLabel("Watchers (12)", "12 active watchers");
+
+        BooruComponentDispatcher.Wait(page.Model.Watchers.PauseAsync("watcher-1"));
+        Dispatcher.UIThread.RunJobs();
+        AssertLabel("Watchers (11)", "11 active watchers");
+
+        Texts.SetLanguage("de");
+        Dispatcher.UIThread.RunJobs();
+        AssertLabel("Suchbeobachtungen (11)", "11 aktive Suchbeobachtungen");
+        Assert.Equal(0, harness.ProviderRequests);
+
+        void AssertLabel(string label, string tip)
+        {
+            Assert.Equal(label, button.Content);
+            Assert.Equal(label, AutomationProperties.GetName(button));
+            Assert.Contains(tip, Assert.IsType<string>(ToolTip.GetTip(button)));
+            Assert.Equal(ToolTip.GetTip(button), AutomationProperties.GetHelpText(button));
+        }
+    });
+
+    [Fact]
+    public void HeaderActionsAlignAboveTheBrowserAndStackBeneathTheTitle() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = new();
+        using BooruPage page = new(harness.Services);
+        Window window = new() { Content = page, Width = 1360, Height = 600 };
+        try
+        {
+            window.Show();
+            Button button = FindWatchersButton(page);
+            HelpButton help = page.View.Header.GetVisualDescendants().OfType<HelpButton>()
+                .Single(control => control.Name == BooruWorkbenchView.SearchHelpName);
+            TextBlock title = page.View.Header.GetVisualDescendants().OfType<TextBlock>()
+                .Single(text => text.Classes.Contains("page-title"));
+            WrapPanel actions = Assert.IsType<WrapPanel>(button.GetVisualParent());
+            Border browser = page.GetVisualDescendants().OfType<Border>().Single(border => border.Name == "BooruPageBody");
+            foreach (string language in new[] { "en", "de", "pl", "ja" })
+            {
+                Texts.SetLanguage(language);
+                CheckAtWidth(1360, stacked: false);
+                // Fit both actions plus the page insets, with too little room for the title beside them.
+                double pageInsets = page.Bounds.Width - browser.Bounds.Width;
+                CheckAtWidth(Math.Ceiling(actions.Bounds.Width + pageInsets) + 4, stacked: true);
+            }
+
+            void CheckAtWidth(double width, bool stacked)
+            {
+                BooruReviewTestPlatform.Resize(window, width);
+                Rect buttonBox = InPage(button);
+                Rect helpBox = InPage(help);
+                Rect titleBox = InPage(title);
+                Rect actionsBox = InPage(actions);
+                Rect browserBox = InPage(browser);
+                Assert.True(buttonBox.Width > 0 && helpBox.Width > 0);
+                Assert.True(buttonBox.Right <= helpBox.Left);
+                Assert.Equal(browserBox.Right, helpBox.Right, 0);
+                Assert.Equal(4, browserBox.Top - actionsBox.Bottom, 0);
+                if (stacked)
+                    Assert.True(actionsBox.Top >= titleBox.Bottom + 7.5);
+                else
+                {
+                    Assert.Equal(titleBox.Bottom, actionsBox.Bottom, 0);
+                    Assert.True(actionsBox.Left >= titleBox.Right);
+                }
+            }
+
+            Rect InPage(Control control) => new(control.TranslatePoint(default, page)!.Value, control.Bounds.Size);
+        }
+        finally { window.Close(); }
+    });
+
+    private static Button FindWatchersButton(BooruPage page) => page.View.Header.GetVisualDescendants().OfType<Button>()
+        .Single(button => button.Name == BooruWorkbenchView.OpenWatchersName);
+
     [Fact]
     public void PreferenceDefaultsForOldProfilesAndSurvivesCopyAndTransfer()
     {

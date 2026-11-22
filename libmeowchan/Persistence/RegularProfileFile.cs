@@ -32,6 +32,9 @@ internal static partial class RegularProfileFile
         return OperatingSystem.IsWindows() ? OpenWindows(path) : OpenUnix(path);
     }
 
+    internal static bool IsUnixRegularHandle(SafeFileHandle handle) => UnixFStat(handle, out FileStatus status) == 0
+        && (status.Mode & UnixSpecialFileMask) == UnixRegularFileMode;
+
     internal static string? ReadBoundedText(string path, int maximumBytes)
     {
         try

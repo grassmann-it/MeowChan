@@ -35,9 +35,6 @@ public class SearchBox : TextBox
 
     public static readonly StyledProperty<string?> ResultTextProperty = AvaloniaProperty.Register<SearchBox, string?>(nameof(ResultText));
 
-    private static readonly Lazy<Geometry> Magnifier = new(() => Geometry.Parse("M 11,6.5 A 4.5,4.5 0 1 1 2,6.5 A 4.5,4.5 0 1 1 11,6.5 Z M 10,10 L 14.5,14.5"));
-    private static readonly Lazy<Geometry> Cross = new(() => Geometry.Parse("M 3,3 L 11,11 M 11,3 L 3,11"));
-
     private readonly Path _icon = new() { Width = 16, Height = 16, Stretch = Stretch.None, StrokeThickness = 1.5, StrokeLineCap = PenLineCap.Round, StrokeJoin = PenLineJoin.Round,
         IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 4, 0) };
     private readonly Path _cross = new() { Width = 14, Height = 14, Stretch = Stretch.None, StrokeThickness = 1.5, StrokeLineCap = PenLineCap.Round, IsHitTestVisible = false };
@@ -48,7 +45,7 @@ public class SearchBox : TextBox
         TextTrimming = TextTrimming.CharacterEllipsis, IsVisible = false }.MetaText();
     private readonly StackPanel _tail = new() { Orientation = Orientation.Horizontal, Spacing = 2 };
     private QueryDebounce? _debounce;
-    private bool _silent, _geometryApplied;
+    private bool _silent;
     private string? _automatedName;
 
     public SearchBox()
@@ -191,13 +188,9 @@ public class SearchBox : TextBox
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (!_geometryApplied)
-        {
-            // Geometry needs the rendering platform: build it when the field is shown, not when it is constructed.
-            _icon.Data = Magnifier.Value;
-            _cross.Data = Cross.Value;
-            _geometryApplied = true;
-        }
+        // Geometry needs the render platform and belongs to the field's UI dispatcher.
+        _icon.Data ??= Geometry.Parse("M 11,6.5 A 4.5,4.5 0 1 1 2,6.5 A 4.5,4.5 0 1 1 11,6.5 Z M 10,10 L 14.5,14.5");
+        _cross.Data ??= Geometry.Parse("M 3,3 L 11,11 M 11,3 L 3,11");
         Texts.Changed += OnTextsChanged;
         ApplyTexts();
     }

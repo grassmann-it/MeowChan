@@ -221,6 +221,12 @@ namespace MeowChan
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
             InitializeResetIcons();
+            CommandBindings.EnsureIconBeforeText(ThemeColorsButton, "sliders");
+            CommandBindings.EnsureIconBeforeText(GalleryLayoutResetButton, "rotate-ccw");
+            CommandBindings.EnsureIconBeforeText(ForgetReadingPositionButton, "x-circle");
+            CommandBindings.EnsureIconBeforeText(CheckDestinationButton, "check");
+            CommandBindings.EnsureIconBeforeText(ProfileFolderOpenButton, CommandCatalog.Get("location.open-folder").Icon);
+            CommandBindings.EnsureIconBeforeText(CancelDestinationCheckButton, "x");
             WorkspaceModeHelpButton.Source = HelpSources.WorkViews;
             _config = config;
             ShortcutsEditor.Load(config.ShortcutBindings);
@@ -909,6 +915,7 @@ namespace MeowChan
                     nameof(WorkViewSwitchNoticeSecondsHelp), nameof(ReserveLabel), nameof(ReserveHint), nameof(AdvancedBudgetsLabel), nameof(StorageLimitsLabel), nameof(StorageLimitsIntro), nameof(ParallelEffectiveText),
                     nameof(BudgetRestartHint), nameof(ProductionWorkersLabel), nameof(WorkerIdleMinutesLabel), nameof(SourceHeapMiBLabel),
                     nameof(FilterHeapMiBLabel), nameof(BooruCatalogMiBLabel), nameof(BooruCatalogMiBHint), nameof(BooruCatalogMiBHelp),
+                    nameof(LocalTaggerManifestKiBLabel), nameof(LocalTaggerWeightsMiBLabel), nameof(LocalTaggerInputTensorMiBLabel),
                     nameof(BooruRetryAfterCooldownHoursLabel), nameof(BooruRetryAfterCooldownHoursHint), nameof(BooruRetryAfterCooldownHoursHelp),
                     nameof(PrivateTagLimitLabel), nameof(PrivateTagLimitHint), nameof(PrivateTagLimitHelp),
                     nameof(ProfileRegistryLimitLabel), nameof(ProfileRegistryLimitHint), nameof(ProfileRegistryLimitHelp), nameof(ProfileFolderLabel), nameof(ProfileFolderHint), nameof(ProfileFolderOpenLabel),
@@ -1206,6 +1213,7 @@ namespace MeowChan
                 candidate.PluginWorkerIdleMinutes = GetInteger(WorkerIdleMinutes, WorkerIdleMinutesLabel, 1, 30);
                 candidate.PluginSourceHeapMiB = GetInteger(SourceHeapMiB, SourceHeapMiBLabel, 128, 1024);
                 candidate.PluginFilterHeapMiB = GetInteger(FilterHeapMiB, FilterHeapMiBLabel, 256, 2048);
+                SaveLocalTaggerLimits(candidate);
                 candidate.BooruCatalogLimitMiB = GetInteger(BooruCatalogMiB, BooruCatalogMiBLabel, Config.BooruCatalogMinimumLimitMiB, Config.BooruCatalogMaximumLimitMiB);
                 candidate.BooruRetryAfterCooldownHours = GetInteger(BooruRetryAfterCooldownHours, BooruRetryAfterCooldownHoursLabel, Config.BooruRetryAfterCooldownMinimumHours, Config.BooruRetryAfterCooldownMaximumHours);
                 candidate.PrivateTagLimit = GetInteger(PrivateTagLimit, PrivateTagLimitLabel, Config.PrivateTagMinimumLimit, Config.PrivateTagMaximumLimit);
@@ -1249,7 +1257,7 @@ namespace MeowChan
                 candidate.ImportCatalogLimitMiB = GetInteger(ImportCatalogLimitMiB, ImportCatalogLimitMiBLabel, Config.ImportCatalogLimitMiBMinimum, Config.ImportCatalogLimitMiBMaximum);
                 ApplyStatisticsDraft(candidate, _config);
                 ApplyReaderDraft(candidate);
-                candidate.BooruNewSearchTarget = SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget;
+                ApplyBooruSearchDraft(candidate);
                 ApplyTagQueueDraft(candidate);
                 ApplyBooruGalleryDraft(candidate);
                 ApplyViewerDraft(candidate);

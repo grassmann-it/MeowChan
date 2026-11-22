@@ -44,7 +44,7 @@ internal sealed record TagRuleProjection(TagRuleInput Input, PrivateTagName? Can
 }
 
 /// <summary>The occurrence the reviewer saw, with the same identities used by the rule projection.</summary>
-internal sealed record TagReviewTarget(string Sha256, TagReviewBoundTarget? Bound, TagReviewLocalTarget? Local)
+internal sealed record TagReviewTarget(string Sha256, TagReviewBoundTarget? Bound = null, TagReviewLocalTarget? Local = null)
 {
     internal static TagReviewTarget From(MediaTagSubject subject) => subject switch
     {
@@ -72,7 +72,7 @@ internal sealed record TagReviewTarget(string Sha256, TagReviewBoundTarget? Boun
 }
 
 internal sealed record TagReviewBoundTarget(AttachmentRevisionReference Reference, string MediaId, string Variant, TransferMediaRole Role);
-internal sealed record TagReviewLocalTarget(LocalMediaLocator Locator, string AssetId, long Length, Guid? Occurrence, Guid? Revision);
+internal sealed record TagReviewLocalTarget(LocalMediaLocator Locator, string AssetId, long Length, Guid? Occurrence = null, Guid? Revision = null);
 
 internal enum TagRuleError { InvalidRule, InvalidName, AmbiguousMapping, Cycle, UnassignedPrivateTag }
 

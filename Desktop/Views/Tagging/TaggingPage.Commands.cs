@@ -32,6 +32,7 @@ public sealed partial class TaggingPage
     private readonly Button _clearYes = new() { Name = "TaggingClearYes", Classes = { "danger" } };
     private readonly Button _clearNo = new() { Name = "TaggingClearNo" };
     private ContextMenuHost? _menuHost;
+    private ListBoxItem? _spaceRow;
 
     internal bool ClearQuestionOpen => _clearConfirm.IsVisible;
     internal Button ClearButton => _clear;
@@ -64,28 +65,22 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        // Queue actions stay together; visible-result controls have their own measured row above the list.
-        (Control Item, int Group)[] items =
-        {
-            (_startContext, 0), (_add, 0), (_clearDone, 2), (_clear, 2), (_help, 4)
-        };
-        foreach ((Control item, int group) in items)
-        {
-            ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
-            ActionToolBar.SetGroup(item, group);
+        _addAndHelp.Items.Add(_add);
+        _addAndHelp.Items.Add(_help);
+        foreach (Control item in new Control[] { _groupManage, _clearDone, _clear })
             _actions.Items.Add(item);
-        }
-        // Help stays at the trailing edge of the queue actions; list presentation docks on the list-controls row.
-        ActionToolBar.SetEnd(_help, true);
-        _listControls.Children.Add(_groupPanel);
-        _listControls.Children.Add(_filterPanel);
-        _listControls.Children.Add(_listPresentation);
-        _listControls.TrailingChild = _listPresentation;
-        foreach (Control item in new Control[] { _columnsButton, _viewToggle })
+        _listPresentation.Items.Add(_columnsButton);
+        _listPresentation.Items.Add(_viewToggle);
+
+        // Ursa's More toggle precedes its items in the visual tree. Keep tab
+        // order local to the header and follow the visual order across lines.
+        KeyboardNavigation.SetTabNavigation(_header, KeyboardNavigationMode.Local);
+        Control[] stops = [_start, _add, _help, _stampButton, _group, _filter, _columnsButton, _viewToggle.First, _viewToggle.Second];
+        for (int i = 0; i < stops.Length; i++) stops[i].TabIndex = 2 * i;
+        _actions.TemplateApplied += (_, _) =>
         {
-            ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
-            _listPresentation.Items.Add(item);
-        }
+            if (_actions.More is { } more) more.TabIndex = _filter.TabIndex + 1;
+        };
         // The error banner's "Retry" reads the queue file again (RetryLoadAsync is a no-op unless the page may reload now).
         _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
         _clearYes.Click += async (_, _) => await ClearAllAsync();
@@ -95,6 +90,7 @@ public sealed partial class TaggingPage
         _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
         _list.AddHandler(PointerPressedEvent, OnContextPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
+        AddHandler(KeyUpEvent, OnResultSpaceUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         // A double-click on an entry runs "Continue here" like Enter; one that cannot (a finished entry, a busy queue) says why in the status line
         // instead of doing nothing (the gate used to sit here, so the sentence of ExecuteRowCommandAsync was never reached).
         _list.DoubleTapped += (_, e) =>
@@ -104,6 +100,21 @@ public sealed partial class TaggingPage
         };
         _list.SelectionChanged += OnSelectionChanged;
         InstallMiddleClick(_list);
+    }
+
+    private void SetViewCompact(bool compact)
+    {
+        bool visible = !compact;
+        if (_columnsButton.Content is StackPanel { Children: [_, Control thumbnails] } && thumbnails.IsVisible != visible)
+        {
+            thumbnails.IsVisible = visible;
+            TaggingHeader.InvalidateGroupMeasure(thumbnails);
+        }
+        if (_viewToggle.First.Content is not StackPanel { Children: [_, Control label] } || label.IsVisible == visible) return;
+        _viewToggle.SetLabelsVisible(visible);
+        TaggingHeader.InvalidateGroupMeasure(label);
+        if (_viewToggle.Second.Content is StackPanel { Children: [_, Control second] })
+            TaggingHeader.InvalidateGroupMeasure(second);
     }
 
     // Dead-affordance audit: the middle click on an entry runs "Show in folder", as on the Media page's tiles and the other lists. It acts on the
@@ -185,12 +196,13 @@ public sealed partial class TaggingPage
         _help.Source = () =>
         {
             HelpContent content = HelpContent.FromKeys("help.taggingPage");
-            return content with { Paragraphs = content.Paragraphs.Append(Texts.T("tagging.page.keys",
+            return content with { Paragraphs = content.Paragraphs
+                .Append(Texts.T("tagging.strip.browseHint", Shortcut("tags.queue.done-next")))
+                .Append(Texts.T("tagging.page.keys",
                 Shortcut("tagging.continue-here"), Shortcut("tagging.remove"),
                 Shortcut("tagging.move-up"), Shortcut("tagging.move-down"))).ToArray() };
         };
         _actions.RefreshOverflowLabel();
-        _listPresentation.RefreshOverflowLabel();
     }
 
     // "Add…" and "Remove finished" always show their icon with their word (U06: removing the finished entries is a named action, not a
@@ -237,10 +249,14 @@ public sealed partial class TaggingPage
             ShowStatus(Texts.T("tagging.page.continue.notOpen"));
             return Task.CompletedTask;
         }
-        if (id == TaggingCommands.GroupNew) return CreateGroupDialogAsync();
-        if (id == TaggingCommands.GroupRemove) return AssignSelectionToGroupAsync(null);
-        if (id.StartsWith(TaggingCommands.GroupPrefix, StringComparison.Ordinal))
-            return AssignSelectionToGroupAsync(id[TaggingCommands.GroupPrefix.Length..]);
+        if (id is TaggingCommands.GroupNew or TaggingCommands.GroupRemove || id.StartsWith(TaggingCommands.GroupPrefix, StringComparison.Ordinal))
+        {
+            if (SelectedCount == 0 || !CanChange) return Task.CompletedTask;
+            if (id == TaggingCommands.GroupNew) return CreateGroupDialogAsync();
+            if (id == TaggingCommands.GroupRemove) return AssignSelectionToGroupAsync(null);
+            string groupId = id[TaggingCommands.GroupPrefix.Length..];
+            return Queue.Group(groupId) != null ? AssignSelectionToGroupAsync(groupId) : Task.CompletedTask;
+        }
         if (!CanRowCommand(id) || Lead is not { } lead)
         {
             if (explain && !_queueWork.Ended && TaggingRowCommands.Evaluate(id, CommandContext()).Reason is { Length: > 0 } reason) ShowStatus(reason);
@@ -306,8 +322,7 @@ public sealed partial class TaggingPage
         if (ShortcutService.Current.Matches(e, "media.rating.edit"))
         {
             e.Handled = true;
-            ListBoxItem? item = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
-                .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), ActiveList));
+            ListBoxItem? item = ResultItem(e.Source);
             if (item?.DataContext is TaggingQueueRow row && !ActiveList.Selection.SelectedItems.Contains(row)) ActiveList.SelectedItem = row;
             OpenActions.Start(() => RateAndTagByKeyAsync(item), "tagging.list.rateAndTag");
             return;
@@ -318,9 +333,43 @@ public sealed partial class TaggingPage
             e.Handled = true;
             // The Tag key over several entries is "Tag together…" (the entry of one medium is off for a selection).
             string command = id == TaggingCommands.Tag && Selected.Count > 1 ? TaggingCommands.TagTogether : id;
-            OpenActions.Start(() => ExecuteRowCommandAsync(command, explain: true), "tagging.list.key");
+            if (id == TaggingCommands.ContinueHere && Lead == null && ResultItem(e.Source)?.DataContext is TaggingQueueRow focused)
+            {
+                if (focused.Item.State == TagQueueState.Open)
+                    OpenActions.Start(() => StartAsync(focused.Index), "tagging.list.key");
+                else ShowStatus(Texts.T("tagging.page.continue.notOpen"));
+            }
+            else OpenActions.Start(() => ExecuteRowCommandAsync(command, explain: true), "tagging.list.key");
             return;
         }
+        // Claim only plain Space on a focused item, after all configurable shortcuts.
+        if (e.Key == Key.Space && e.KeyModifiers == KeyModifiers.None && ResultItem(e.Source) is { IsFocused: true } result)
+        {
+            if (MeowChan.Desktop.MediaActions.MediaMenuPresenter.IsContextKey(e)
+                || CommandBindings.RouteVisibleActions(this, e)) return;
+            _spaceRow = result;
+            e.Handled = true;
+        }
+    }
+
+    private ListBoxItem? ResultItem(object? source) =>
+        (source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
+            .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), ActiveList));
+
+    private void OnResultSpaceUp(object? sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Space) return;
+        ListBoxItem? pressed = _spaceRow;
+        _spaceRow = null;
+        if (e.Handled || pressed == null || e.KeyModifiers != KeyModifiers.None || !pressed.IsFocused
+            || ShortcutService.IsCapturing || !ReferenceEquals(ResultItem(e.Source), pressed)
+            || !MainWindow.IsListCommandSource(e.Source, ActiveList)) return;
+
+        int index = ActiveList.IndexFromContainer(pressed);
+        if (index < 0) return;
+        e.Handled = true;
+        if (ActiveList.Selection.IsSelected(index)) ActiveList.Selection.Deselect(index);
+        else ActiveList.Selection.Select(index);
     }
 
     /// <summary>Moves the cursor to <paramref name="index"/> (an entry the user picked) and hands over to the gallery.</summary>
@@ -372,7 +421,7 @@ public sealed partial class TaggingPage
     /// <summary>Waits for one controller command, then shows the queue it committed (or kept) and the sentence it left.</summary>
     private async Task AfterAsync(Task<bool> command, TagQueueKey? select = null)
     {
-        bool hadFocus = ActiveList.IsKeyboardFocusWithin;
+        bool hadFocus = ActiveList.IsKeyboardFocusWithin || _selectionBar.IsKeyboardFocusWithin;
         UpdateActions();
         bool done = await command;
         if (_queueWork.Ended) return;

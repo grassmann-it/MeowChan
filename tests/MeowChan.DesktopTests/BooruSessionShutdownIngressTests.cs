@@ -76,7 +76,7 @@ public sealed class BooruSessionShutdownIngressTests
             // already cut every mutation path synchronously; the accepted first job is not a reason to reject or
             // cancel this assertion window.
             Task<BooruCallResult<BooruResultPage>> searchAfterCut = search.SearchAsync(
-                "shutdown_ingress", 1, CancellationToken.None);
+                "shutdown_ingress", 1, BooruSearchModel.PageSize, CancellationToken.None);
             Task<BooruCallResult<BooruPostView>> postAfterCut = search.ReadPostAsync(
                 rejectedPost.PostId, CancellationToken.None);
             Task<BooruLoadResult> originalAfterCut = originals.LoadOriginalAsync(

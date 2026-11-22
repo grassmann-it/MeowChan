@@ -14,7 +14,7 @@ namespace MeowChan.Desktop.Commands;
 /// <remarks>
 /// Stored form (<see cref="ToStored"/>): the page ids without the "navigation." prefix in footer order, a leading "-" marking a hidden
 /// page, e.g. <c>downloads, archive, media, tagging, -booru, rules, sources, status</c>. An empty list is the default layout (today's
-/// footer, Booru off). Reading is forgiving: unknown ids and repeats are ignored, a page the list does not know (one added by a later
+/// footer). Reading is forgiving: unknown ids and repeats are ignored, a page the list does not know (one added by a later
 /// version) takes its default place right behind the page that precedes it in the default order, and Downloads is always visible.
 /// </remarks>
 public sealed class FooterLayout : IEquatable<FooterLayout>
@@ -31,7 +31,7 @@ public sealed class FooterLayout : IEquatable<FooterLayout>
         _hidden = hidden;
     }
 
-    /// <summary>The footer as it shipped: every page in <see cref="MainPageOrder.CommandIds"/> order, Booru hidden.</summary>
+    /// <summary>Every page in <see cref="MainPageOrder.CommandIds"/> order, including Booru by default since 1.1.1.</summary>
     public static FooterLayout Default { get; } = Normalize(Array.Empty<(string, bool)>());
 
     /// <summary>Every main page once, in footer order (the hidden ones keep their place so that showing one again puts it back).</summary>

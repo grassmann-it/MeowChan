@@ -19,6 +19,7 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#A4ADB8</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#6AA7FF</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#25344A</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#25344A</SolidColorBrush>
                     <!-- D0 surface tokens (design language 4.3): level 2 card with a 1-px CardEdge, level 4 overlay
                          (menu, flyout, filter surface, toast) with the app's only shadow, and the scrim behind blocking
                          in-window overlays. Overlay equals Panel today (separate key so it can be tinted later).
@@ -302,6 +303,7 @@
                     <SolidColorBrush x:Key="Workspace.Muted">#575148</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.Accent">#803B06</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.AccentSurface">#E7D4BE</SolidColorBrush>
+                    <SolidColorBrush x:Key="Workspace.ToolbarToggleSurface">#7D7367</SolidColorBrush>
                     <!-- D0 surface tokens (see the Dark block). Light CardEdge equals ControlBorder; Overlay equals Panel. -->
                     <SolidColorBrush x:Key="Workspace.Card">#FAF7F1</SolidColorBrush>
                     <SolidColorBrush x:Key="Workspace.CardEdge">#726858</SolidColorBrush>
@@ -959,10 +961,12 @@
     <Style Selector="DataGridRow:selected /template/ Border#BackgroundBorder">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,0,0,0" />
     </Style>
-    <!-- Tom's review 21.11.: the keyboard focus ring belongs around the whole row, not around the one cell that holds the current cell (it cut
-         the selected row in two). The cell's own focus rectangle is off; the focused grid's selected row gets the ring on its background layer. -->
-    <Style Selector="DataGridCell /template/ Rectangle#FocusVisual"><Setter Property="IsVisible" Value="False" /></Style>
-    <Style Selector="DataGrid:focus-within DataGridRow:selected /template/ Border#BackgroundBorder">
+    <!-- Semi draws separate outlines for the current cell and for cell focus. Row tables use the row border. -->
+    <Style Selector="DataGrid.row-focus DataGridCell /template/ Rectangle#CurrencyVisual,
+                     DataGrid.row-focus DataGridCell /template/ Panel#FocusVisual">
+        <Setter Property="Opacity" Value="0" />
+    </Style>
+    <Style Selector="DataGrid.row-focus:focus-within DataGridRow.current-cell-row /template/ Border#BackgroundBorder">
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" /><Setter Property="BorderThickness" Value="3,1,1,1" />
     </Style>
     <Style Selector="ListBox.workspace-selection-bar ListBoxItem:selected /template/ ContentPresenter">
@@ -1025,6 +1029,17 @@
     <!-- AX-05 (a11y package): ToggleSwitch and TabItem are listed explicitly; a type selector does not match derived types, so the ToggleButton entry never reached ToggleSwitch, and TabItem was never listed. -->
     <Style Selector="Button, ToggleButton, ToggleSwitch, TabItem, TextBox, ComboBox, NumericUpDown, CheckBox, RadioButton, Slider, ListBoxItem, SelectableTextBlock">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="Button.row-action">
+        <Setter Property="FocusAdorner">
+            <Template>
+                <Border BorderBrush="{DynamicResource Workspace.Accent}" BorderThickness="2"
+                        CornerRadius="{StaticResource Workspace.Radius.Control}" IsHitTestVisible="False">
+                    <Border BorderBrush="{DynamicResource Workspace.Background}" BorderThickness="1"
+                            CornerRadius="{StaticResource Workspace.Radius.Badge}" IsHitTestVisible="False" />
+                </Border>
+            </Template>
+        </Setter>
     </Style>
     <!-- An inline link: accent text only, no outline and no fill (the default button outline made About links look like boxes). -->
     <Style Selector="Button.link">
@@ -1098,6 +1113,16 @@
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Message}" />
     </Style>
     <!-- DS-P3: information and success complete the message surface (WorkspaceBanner maps a severity to one of the four). -->
+    <Style Selector="Border.tagging-selection">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="2,0,0,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+        <Setter Property="Padding" Value="12,4" />
+    </Style>
+    <Style Selector="MenuItem.danger">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Error}" />
+    </Style>
     <Style Selector="Border.workspace-info">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Padding" Value="{StaticResource Workspace.Inset.Message}" />
@@ -1331,6 +1356,9 @@
     </Style>
     <Style Selector="Button.media-control"><Setter Property="Padding" Value="9,4" /></Style>
     <Style Selector="ToggleButton.media-control"><Setter Property="Padding" Value="11,0" /></Style>
+    <Style Selector="ToggleButton#GalleryPanelTags">
+        <Setter Property="ToolTip.ShowOnDisabled" Value="True" />
+    </Style>
     <!-- Gallery "⋯" menu: the rare toolbar commands as full-width rows (lead mark, label, shortcut). The check of the two
          overlay choices is drawn by the row itself, so the toggle's own checked fill is switched off here. -->
     <Style Selector="FlyoutPresenter.gallery-overflow">
@@ -1520,15 +1548,16 @@
         </Setter>
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid RowDefinitions="Auto,*">
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,Auto">
+                    <ScrollViewer Name="BooruTabStrip" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                         <Grid>
                             <Border Background="{DynamicResource Workspace.Background}" BorderBrush="{DynamicResource Workspace.Border}"
                                     BorderThickness="0,0,0,1" />
                             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
                         </Grid>
                     </ScrollViewer>
-                    <ContentPresenter Grid.Row="1" Name="PART_SelectedContentHost"
+                    <ContentControl Grid.Column="1" Name="BooruAddTabHost" VerticalAlignment="Top" />
+                    <ContentPresenter Grid.Row="1" Grid.ColumnSpan="2" Name="PART_SelectedContentHost"
                                       Background="{DynamicResource Workspace.Panel}"
                                       Content="{TemplateBinding SelectedContent}" ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
                 </Grid>
@@ -1548,24 +1577,26 @@
                 <Border Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
                         BorderThickness="{TemplateBinding BorderThickness}" CornerRadius="{TemplateBinding CornerRadius}"
                         Padding="{TemplateBinding Padding}">
-                    <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
-                                      ContentTemplate="{TemplateBinding HeaderTemplate}" VerticalContentAlignment="Center" />
+                    <Grid>
+                        <ContentPresenter Name="PART_ContentPresenter" Content="{TemplateBinding Header}"
+                                          ContentTemplate="{TemplateBinding HeaderTemplate}" VerticalContentAlignment="Center" />
+                        <Border Name="BooruTabSelection" Height="4" VerticalAlignment="Top" IsHitTestVisible="False"
+                                Background="{DynamicResource Workspace.Accent}" IsVisible="False" />
+                    </Grid>
                 </Border>
             </ControlTemplate>
         </Setter>
     </Style>
-    <Style Selector="TabItem.booru-tab:pointerover:not(:selected):not(.booru-add-tab)">
+    <Style Selector="TabItem.booru-tab:pointerover:not(:selected)">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
-    <Style Selector="TabItem.booru-tab:selected:not(.booru-add-tab)">
+    <Style Selector="TabItem.booru-tab:selected">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
         <Setter Property="BorderThickness" Value="1,1,1,0" />
     </Style>
-    <Style Selector="TabItem.booru-add-tab">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="0" />
+    <Style Selector="TabItem.booru-tab:selected /template/ Border#BooruTabSelection">
+        <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="Button.booru-add-tab-button">
         <Setter Property="Width" Value="44" />
@@ -1796,6 +1827,17 @@
     <Style Selector="ToolTip"><Setter Property="MaxWidth" Value="360" /></Style>
     <Style Selector="ToolTip"><Setter Property="IsHitTestVisible" Value="False" /></Style>
     <Style Selector="Button.nav"><Setter Property="ToolTip.Placement" Value="Top" /><Setter Property="ToolTip.VerticalOffset" Value="-6" /></Style>
+    <Style Selector="StackPanel.gallery-footer-tips :is(Control)">
+        <Setter Property="ToolTip.Placement" Value="Top" />
+        <Setter Property="ToolTip.VerticalOffset" Value="-8" />
+        <Setter Property="ToolTip.ShouldUseOverlayLayer" Value="True" />
+    </Style>
+    <Style Selector="Button.gallery-toolbar-action, ToggleButton.gallery-toolbar-action">
+        <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Padding" Value="8,0" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
     <Style Selector="ToolTip ScrollViewer, ToolTip /template/ ScrollViewer"><Setter Property="HorizontalScrollBarVisibility" Value="Disabled" /></Style>
     <Style Selector="ToolTip TextBlock"><Setter Property="TextWrapping" Value="Wrap" /><Setter Property="LineSpacing" Value="{StaticResource Workspace.Space.2}" /></Style>
     <!-- HB1 help-round: the one help button (controls:HelpButton), flat like the other icon buttons (UX review 15.11.: the circled "?" was ugly).
@@ -1855,13 +1897,16 @@
          height 32 give back about 4 dip per item against the 8-dip gaps ActionToolBarPanel puts between them.
          ursa|ToolBar is the ActionToolBar (its style key is Ursa's ToolBar; the app has no other); items keep the toolbar as logical parent
          wherever their panel is, so the child selector reaches an item back from "More" too. Under "More" (:in-overflow) the popup's plain
-         rows stay. Outlined bar-button (selection bars), primary, help-round, the joined segments and media-control keep their own look. -->
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), Button.bar-flat">
+         rows stay. Outlined bar-button (selection bars), primary, help-round, filter controls, joined segments and media-control keep their own look. -->
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), ursa|ToolBar > ToggleButton:not(.filter-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow), :is(Button).bar-flat:not(:in-overflow)">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="Padding" Value="8,4" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="VerticalAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.bar-flat.icon-square:not(:in-overflow)">
+        <Setter Property="Padding" Value="0" />
     </Style>
     <Style Selector="ursa|ToolBar > SplitButton:not(:in-overflow)">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
@@ -1870,24 +1915,73 @@
         <Setter Property="Padding" Value="8,4" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.filter-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, :is(Button).bar-flat:not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.filter-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, :is(Button).bar-flat:not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pointerover /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):checked /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.filter-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.toolbar-toggle):not(.filter-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):checked /template/ ContentPresenter#PART_ContentPresenter, :is(Button).bar-flat:not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:pressed /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
     </Style>
-    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, Button.bar-flat:disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Style Selector="ursa|ToolBar > Button:not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > ToggleButton:not(.filter-toggle):not(.bar-button):not(.primary):not(.help-round):not(.segment):not(.media-control):not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, :is(Button).bar-flat:not(:in-overflow):disabled /template/ ContentPresenter#PART_ContentPresenter, ursa|ToolBar > SplitButton:not(:in-overflow) /template/ Button:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
-    <!-- A disclosure (Tagging stamp block): the quiet section head that opens and closes a block - the turning arrow and the title, no fill
-         and no outline at rest and when open (only the page's primary action is filled). Hover shows the Hover fill with the 1-px ControlBorder
-         edge (the fill alone is 1.37:1 on the page), keyboard focus keeps the shared ring. -->
+    <!-- Segmented switches and filter controls keep their frame. Standalone toolbar switches share the flat action styles
+         until checked. The checked tint tracks the visible surface or selected mode. -->
+    <Style Selector="ToggleButton.toolbar-toggle.segment, ToggleButton.toolbar-toggle.filter-toggle">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="BorderThickness" Value="1" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle.filter-toggle:not(:checked):pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow) /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow):pointerover /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow):pressed /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ToolbarToggleSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:checked:not(:disabled):not(:in-overflow) TextBlock:not(.chip-label)">
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:disabled">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+        <Setter Property="Opacity" Value="0.75" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle:disabled:not(:in-overflow):not(.segment):not(.filter-toggle) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.toolbar-toggle.segment:disabled:not(:checked) /template/ ContentPresenter#PART_ContentPresenter,
+                     ToggleButton.toolbar-toggle.filter-toggle:disabled:not(:checked) /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
+    <Style Selector="ToggleButton.segment-single">
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+    </Style>
+    <Style Selector=":is(Panel).compact-sidebar > ToggleButton.segment">
+        <Setter Property="Width" Value="{StaticResource Workspace.Size.Input}" />
+        <Setter Property="Padding" Value="0" />
+    </Style>
+    <Style Selector=":is(Panel).compact-sidebar > ToggleButton.segment TextBlock">
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+
+    <!-- A disclosure (Tagging stamp block) uses the turning arrow and title for state. Hover adds the Hover fill and ControlBorder edge.
+         Keyboard focus uses the shared ring. -->
     <Style Selector="ToggleButton.disclosure">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
@@ -2344,6 +2438,14 @@
     <!-- A card the keyboard reaches (Booru hit): the shared double focus ring, drawn only for keyboard focus (Avalonia shows the adorner for Tab and arrow focus). -->
     <Style Selector="Border.workspace-card-focusable">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="Border.booru-stage-focus">
+        <Setter Property="IsVisible" Value="False" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.booru-stage:focus-visible Border.booru-stage-focus">
+        <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="Border.workspace-card.workspace-card-active">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />

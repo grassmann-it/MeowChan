@@ -79,7 +79,7 @@ public sealed class DataGridSelectionTests
     {
         string desktop = Path.Combine(SourceRoot(), "Desktop");
         string[] singles = Directory.EnumerateFiles(desktop, "*.axaml", SearchOption.AllDirectories)
-            .SelectMany(file => Regex.Matches(File.ReadAllText(file), "<DataGrid\\b[^>]*>", RegexOptions.Singleline).Select(m => m.Value))
+            .SelectMany(file => Regex.Matches(File.ReadAllText(file), "<(?:DataGrid|controls:RowFocusDataGrid)\\b[^>]*>", RegexOptions.Singleline).Select(m => m.Value))
             .Where(tag => tag.Contains("SelectionMode=\"Single\""))
             .Select(tag => Regex.Match(tag, "x:Name=\"([^\"]+)\"")).Where(m => m.Success).Select(m => m.Groups[1].Value).ToArray();
         Assert.Contains("PlatformGrid", singles);

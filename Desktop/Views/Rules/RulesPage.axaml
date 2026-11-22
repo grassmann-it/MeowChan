@@ -47,7 +47,7 @@
              starts where every page title starts, PageHeader.PageTopOffset; LY-03) and 16 to the content, the gap between the overview's
              sections, so the first section title does not read as part of the header. -->
         <StackPanel x:Name="RulesHeader" Margin="0,0,0,16" MaxWidth="880" HorizontalAlignment="Center">
-            <!-- The shared page head (PageHeader): Create rule and the help top right while they leave the title its room, else under it. -->
+            <!-- The shared page head keeps help at the right edge when Create rule moves below the title. -->
             <controls:PageHeader x:Name="RulesHeaderRow">
                 <StackPanel Classes="workspace-page-header">
                     <TextBlock x:Name="RulesTitle" Text="{Binding Title}" Classes="page-title" />
@@ -55,13 +55,12 @@
                 </StackPanel>
                 <!-- One primary "Create rule" at a time: while the empty state shows, its button is the page's primary action and this one
                      hides (IsHeaderCreateVisible); with rules or drafts listed it is the overview's primary action here. HB2: the precedence
-                     line stays as the subtitle; the popover adds what the line cannot say. Last in the row, as on Plugins, so it keeps the
-                     right edge while Create rule is hidden (the stack adds no spacing for a hidden child). -->
-                <StackPanel x:Name="RulesHeaderActions" controls:PageHeader.Role="Actions" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.12}" VerticalAlignment="Top">
+                     line stays as the subtitle; the popover adds what the line cannot say. -->
+                <WrapPanel x:Name="RulesHeaderActions" controls:PageHeader.Role="Actions" VerticalAlignment="Top">
                     <Button x:Name="CreateRuleButton" wv:WorkViewElement.Id="rules.overview.create" Classes="primary" VerticalAlignment="Top"
                             IsVisible="{Binding IsHeaderCreateVisible}" IsEnabled="{Binding IsEditable}" Click="OnCreateRule" />
-                    <controls:HelpButton x:Name="RulesHelpButton" HelpKey="help.rules" VerticalAlignment="Top" />
-                </StackPanel>
+                </WrapPanel>
+                <controls:HelpButton x:Name="RulesHelpButton" controls:PageHeader.Role="Help" HelpKey="help.rules" />
             </controls:PageHeader>
         </StackPanel>
         <ScrollViewer x:Name="RulesScroll" Grid.Row="1" HorizontalScrollBarVisibility="Disabled">

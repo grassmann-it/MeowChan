@@ -39,10 +39,10 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         // The n-th main page from the left is Primary+n (the first gesture).
         for (int index = 0; index < Pages.Length; index++)
             Assert.Equal("D" + MainPageOrder.Digit(Pages[index])!.Value, bindings.For(Pages[index])[0].Key);
-        // Default layout: Tagging owns 4 behind Media, so Rules and Sources take 5 and 6 and Status keeps 7 (Booru is hidden and numbered last).
-        Assert.Equal("D6", bindings.For("navigation.sources")[0].Key);
+        // Booru takes 5. Rules, Sources and Status follow.
+        Assert.Equal("D7", bindings.For("navigation.sources")[0].Key);
         Assert.Null(bindings.Display("navigation.plugins"));
-        Assert.Equal("D7", bindings.For("navigation.status")[0].Key);
+        Assert.Equal("D8", bindings.For("navigation.status")[0].Key);
     }
 
     [Theory]
@@ -73,7 +73,7 @@ public sealed class NavigationMediaShortcutTests : IDisposable
         Assert.Equal("Ctrl+3 / Ctrl+9", bindings.Display("navigation.rules"));
         Assert.Equal("Ctrl+5", bindings.Display("navigation.diagnostics"));
         Assert.Equal(new[] { PageKeyScheme.Letter("navigation.media") }, bindings.For("navigation.media").Select(g => g.Key));   // Ctrl+3 stays with Rules; Media keeps its letter
-        Assert.Equal("Ctrl+6 / Ctrl+Shift+X", bindings.Display("navigation.sources")); // Sources has its own digit now; Ctrl+5 stays with Diagnostics
+        Assert.Equal("Ctrl+7 / Ctrl+Shift+X", bindings.Display("navigation.sources")); // Sources has its own digit now; Ctrl+5 stays with Diagnostics
         Assert.DoesNotContain(bindings.Issues, issue => issue.BlocksSave);
         Assert.Equal(before, section.Raw.GetRawText());
     }
@@ -140,16 +140,31 @@ public sealed class NavigationMediaShortcutTests : IDisposable
     }
 
     [Fact]
-    public void EveryFooterPageButtonTooltipShowsItsShortcut()
+    public void EveryFooterButtonHasItsOwnLocalizedDescriptionAndEffectiveShortcut()
     {
         OwnedUiDispatcher.Run(() =>
         {
-            SetBindings(EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux));
-            foreach (string page in Pages)
+            SetBindings(EffectiveShortcutBindings.Build());
+            foreach (string language in new[] { "en", "de" }.Concat(Texts.BundledPackCodes()))
             {
-                Button footer = new();
-                CommandBindings.Apply(footer, page);
-                Assert.Contains(CommandCatalog.ShortcutDisplay(page)!, Assert.IsType<string>(ToolTip.GetTip(footer)));
+                Texts.SetLanguage(language);
+                HashSet<string> descriptions = new(StringComparer.Ordinal);
+                foreach (string page in MainPageOrder.CommandIds.Append("navigation.settings"))
+                {
+                    Button footer = new();
+                    CommandBindings.Apply(footer, page);
+                    string tip = Assert.IsType<string>(ToolTip.GetTip(footer));
+                    string[] lines = tip.Split('\n');
+                    Assert.Equal(2, lines.Length);
+                    Assert.Equal(CommandCatalog.Label(page) + " · " + ShortcutService.Current.Display(page), lines[0]);
+                    string key = "command." + page + ".tip";
+                    Assert.Equal(Texts.T(key), lines[1]);
+                    Assert.NotEqual(key, lines[1]);
+                    Assert.InRange(lines[1].Length, 1, 60);
+                    Assert.True(descriptions.Add(lines[1]), "Duplicate footer description in " + language + ": " + lines[1]);
+                    Assert.DoesNotContain(Texts.T("command.scope.navigation.generic"), tip, StringComparison.Ordinal);
+                    if (language != "en") Assert.NotEqual(BuiltInCatalog.English[key], lines[1]);
+                }
             }
         });
     }

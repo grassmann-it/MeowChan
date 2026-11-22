@@ -18,7 +18,7 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class ReaderPreviewChecks
 {
-    internal static async Task RunAsync(MainWindow owner)
+    internal static async Task RunAsync(MainWindow owner, bool returnOnly = false)
     {
         string profile = Path.Combine(Path.GetTempPath(), "meowchan-reader-preview-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(profile);
@@ -41,6 +41,7 @@ internal static class ReaderPreviewChecks
             MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(media);
             MediaAssetReference asset = manifest.GetPage().Single();
             ResourceId id = new("4chan", "dpt", "110125031");
+            ResourceId other = new("4chan", "dpt", "110125040");
             MediaProviderMetadata provider = new("image", "original", "https://offline.invalid/image.png", "image.png",
                 png.Length, Convert.ToBase64String(MD5.HashData(png)), Convert.ToHexString(SHA256.HashData(png)).ToLowerInvariant());
             MediaActualIntegrity actual = new(asset.Length, asset.Md5, asset.Sha256);
@@ -72,6 +73,10 @@ internal static class ReaderPreviewChecks
             {
                 await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/dpt/thread/110125031", "Reader preview regression",
                     ThreadSourceState.Archived, DateTimeOffset.UtcNow, media, captured));
+                if (returnOnly)
+                    await catalog.CaptureAsync(new CapturedThreadSnapshot(other, "https://boards.4chan.org/dpt/thread/110125040", "Unsaved attachment",
+                        ThreadSourceState.Archived, DateTimeOffset.UtcNow, Path.Combine(profile, "unsaved"),
+                        [captured[0] with { PostId = other.Thread! }]));
                 await using ArchiveReader reader = await ArchiveReader.OpenAsync(profile);
                 ArchivedThreadView observed = (await reader.ReadThreadAsync(id))!;
                 Require(observed.PostCount == 5, "The reader preview fixture lost captured observations.");
@@ -84,12 +89,8 @@ internal static class ReaderPreviewChecks
                         "A new reader preview observation has no exact strict saved-media binding: " + post.PostId);
                 }
             }
-            TaskCompletionSource mediaGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
-            page = new ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { }, async (directory, token) =>
-            {
-                await mediaGate.Task.WaitAsync(token);
-                return await MediaAssetReader.OpenAsync(directory, token);
-            });
+            GatedMediaReader mediaReader = new(media);
+            page = new ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { }, mediaReader.OpenAsync);
             Control pane = page.DetachReader();
             window = new Window { Width = 1120, Height = 820, Content = pane, Title = "Private reader regression" };
             window.Show(owner); page.IsAvailable = true;
@@ -97,6 +98,11 @@ internal static class ReaderPreviewChecks
             await page.FocusPostAsync("110125033");
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             await SmokeDispatcher.SettleAsync();
+            if (returnOnly)
+            {
+                await CheckPreviewReturnsAsync(page, posts, id, other, mediaReader);
+                return;
+            }
             object? rows = posts.ItemsSource;
             await page.FocusPostAsync("110125033");
             Require(ReferenceEquals(rows, posts.ItemsSource), "Same-page navigation replaced live attachment loaders.");
@@ -106,7 +112,7 @@ internal static class ReaderPreviewChecks
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "110125033", "An older deferred focus replaced the latest post navigation.");
             await SmokeDispatcher.SettleAsync();
             double before = PostTop(posts, "110125033");
-            mediaGate.SetResult(); await page.MediaLoadTask;
+            mediaReader.Gate.SetResult(); await page.MediaLoadTask;
             await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
             // Stable previews: the header pass reserves every post of the page at its picture's size (1800 x 1000), not only the visible ones.
             await page.PreviewSizePassTask; await SmokeDispatcher.SettleAsync();
@@ -126,7 +132,7 @@ internal static class ReaderPreviewChecks
             scroll.Offset = new Vector(scroll.Offset.X, scroll.Offset.Y + 208);
             await SmokeDispatcher.SettleAsync();
             Require(PostTop(posts, "110125033") < -100, "Refresh regression did not start inside a partially scrolled post.");
-            mediaGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            mediaReader.Hold();
             double refreshTop = PostTop(posts, "110125033");
             string refreshBefore = DescribeRefreshAnchor("before", window, pane, page, posts, refreshTop);
             await page.LoadThreadAsync(id, resetPage: false);
@@ -140,7 +146,7 @@ internal static class ReaderPreviewChecks
             Console.WriteLine("SMOKE reader refresh anchor: " + DescribeRefreshAnchor("after", window, pane, page, posts, refreshedTop));
             Require(Math.Abs(refreshedTop - refreshTop) <= 2,
                 $"Same-thread refresh lost the scroll anchor before media completed: {refreshTop:R} → {refreshedTop:R}.");
-            mediaGate.SetResult(); await page.MediaLoadTask; await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
+            mediaReader.Gate.SetResult(); await page.MediaLoadTask; await WaitPreviewAsync(posts, "110125033"); await SmokeDispatcher.SettleAsync();
             Require(Math.Abs(PostTop(posts, "110125033") - refreshTop) <= 2, "Refreshed previews moved the retained post.");
             Require(Math.Abs(PostHeight(posts, "110125033") - refreshedHeight) <= 0.5,
                 $"The post's height changed when its preview arrived: {refreshedHeight:R} → {PostHeight(posts, "110125033"):R}.");
@@ -157,6 +163,96 @@ internal static class ReaderPreviewChecks
             page?.EndLifetime(); if (window != null) { window.Content = null; window.Close(); }
             if (Directory.Exists(profile)) Directory.Delete(profile, true);
         }
+    }
+
+    private sealed class GatedMediaReader(string savedDirectory)
+    {
+        private int _reads;
+        private TaskCompletionSource _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal TaskCompletionSource Gate => Volatile.Read(ref _gate);
+        internal int Reads => Volatile.Read(ref _reads);
+        internal volatile bool Unavailable;
+        internal void Hold() => Volatile.Write(ref _gate, new(TaskCreationOptions.RunContinuationsAsynchronously));
+
+        internal async Task<MediaAssetSnapshot> OpenAsync(string directory, CancellationToken token)
+        {
+            if (directory == savedDirectory)
+            {
+                Task gate = Gate.Task;
+                Interlocked.Increment(ref _reads);
+                await gate.WaitAsync(token);
+                if (Unavailable) throw new IOException("Fixture manifest temporarily unreadable");
+            }
+            return await MediaAssetReader.OpenAsync(directory, token);
+        }
+    }
+
+    private static async Task CheckPreviewReturnsAsync(ArchivePage page, ListBox posts, ResourceId original, ResourceId other, GatedMediaReader media)
+    {
+        const string target = "110125033";
+        ArchiveAttachmentView? PreviewFor(string id) => posts.Items.OfType<ArchivePostRow>().FirstOrDefault(post => post.Id == id) is { } row
+            ? posts.ContainerFromItem(row)?.GetVisualDescendants().OfType<ArchiveAttachmentView>().FirstOrDefault() : null;
+
+        await Program.WaitUntilAsync(() => media.Reads == 1);
+        Require(page.IsMediaLoading, "The origin must be captured before its saved-media scan completes.");
+        Task firstScan = page.MediaLoadTask;
+        ArchivedThreadView? origin = page.CurrentThread;
+        Action restore = page.CaptureGalleryOrigin();
+        page.SetObscuredByGallery(true);
+        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        tabs.SelectedItem = page.FindControl<TabItem>("ArchiveMediaTab");
+        await SmokeDispatcher.SettleAsync();
+        page.SetObscuredByGallery(false);
+        restore();
+        media.Gate.SetResult();
+        await page.MediaLoadTask;
+        await Program.WaitUntilAsync(() => PreviewFor(target) is { } view && (view.Thumbnail.Source is Bitmap || !string.IsNullOrEmpty(view.PreviewStatus)));
+        Require(PreviewFor(target)?.Thumbnail.Source is Bitmap, "Returning from Media used an empty saved-media inventory: " + PreviewFor(target)?.PreviewStatus);
+        Require(media.Reads == 1 && ReferenceEquals(firstScan, page.MediaLoadTask) && ReferenceEquals(origin, page.CurrentThread),
+            "Returning to the current reader replaced its running manifest scan or re-read its thread.");
+
+        restore = page.CaptureGalleryOrigin();
+        await page.LoadThreadAsync(other);
+        await page.MediaLoadTask;
+        restore();
+        await WaitPreviewAsync(posts, target);
+        Require(media.Reads == 1 && ReferenceEquals(origin, page.CurrentThread), "A complete origin inventory was scanned again after a thread jump.");
+
+        media.Hold();
+        await page.LoadThreadAsync(original);
+        await page.FocusPostAsync(target);
+        await Program.WaitUntilAsync(() => media.Reads == 2);
+        Task interrupted = page.MediaLoadTask;
+        restore = page.CaptureGalleryOrigin();
+        await page.LoadThreadAsync(other);
+        await interrupted;
+        restore();
+        await Program.WaitUntilAsync(() => media.Reads == 3);
+        Require(page.IsMediaLoading && page.CurrentThread?.Summary.Id == original, "Returning from another thread did not restart the cancelled origin scan.");
+        media.Gate.SetResult();
+        await page.MediaLoadTask;
+        await WaitPreviewAsync(posts, target);
+
+        media.Unavailable = true;
+        await page.LoadThreadAsync(original);
+        await page.FocusPostAsync(target);
+        await page.MediaLoadTask;
+        await Program.WaitUntilAsync(() => !string.IsNullOrEmpty(PreviewFor(target)?.PreviewStatus));
+        ArchiveAttachmentView failed = PreviewFor(target)!;
+        Require(failed.PreviewStatus!.Contains(Texts.T("archive.previewMediaReadFailed"), StringComparison.Ordinal),
+            "An unreadable manifest was reported as an unsaved attachment: " + failed.PreviewStatus);
+        Button retry = failed.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, Texts.T("action.retry")));
+        Require(retry.IsEffectivelyVisible, "The failed preview did not offer Retry.");
+        object? rows = posts.ItemsSource;
+        media.Unavailable = false;
+        retry.RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => failed.Thumbnail.Source is Bitmap);
+        Require(media.Reads == 5 && ReferenceEquals(rows, posts.ItemsSource), "Retry did not recover the preview in its existing post row.");
+
+        await page.LoadThreadAsync(other);
+        await page.MediaLoadTask;
+        await Program.WaitUntilAsync(() => PreviewFor(other.Thread!)?.PreviewStatus == Texts.T("archive.notSaved"));
+        Console.WriteLine("SMOKE reader previews keep a pending scan on return from Media. Gallery restoration reuses a complete scan or restarts a cancelled one. A transient read retries in place and an unsaved attachment is identified.");
     }
 
     // A preview whose size is known before its pixels (header read, size memory) is measured at its final height and does not move.

@@ -4,13 +4,12 @@ using Avalonia;
 using Avalonia.Platform;
 using Avalonia.Skia;
 using Avalonia.Threading;
-using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
-// Used only by the nonparallel "Booru exact navigation" collection. Constructed controls
-// must neither refresh another test's thread-owned controls nor outlive their dispatcher.
+// Used by nonparallel collections. Constructed controls must neither refresh another
+// test's thread-owned controls nor outlive their dispatcher.
 internal static class BooruComponentDispatcher
 {
     private const BindingFlags StaticPrivate = BindingFlags.Static | BindingFlags.NonPublic;
@@ -35,6 +34,18 @@ internal static class BooruComponentDispatcher
     // lifetime and bounds a genuinely stuck component.
     internal static T Wait<T>(Task<T> task)
     {
+        PumpUntilCompleted(task);
+        return task.GetAwaiter().GetResult();
+    }
+
+    internal static void Wait(Task task)
+    {
+        PumpUntilCompleted(task);
+        task.GetAwaiter().GetResult();
+    }
+
+    private static void PumpUntilCompleted(Task task)
+    {
         ArgumentNullException.ThrowIfNull(task);
         Dispatcher owner = Dispatcher.UIThread;
         owner.VerifyAccess();
@@ -43,32 +54,31 @@ internal static class BooruComponentDispatcher
             owner.RunJobs();
             Thread.Yield();
         }
-        return task.GetAwaiter().GetResult();
     }
 
     private static void RunOnOwnedDispatcher(Action test)
     {
         FieldInfo primary = Field(typeof(Dispatcher), "s_uiThread");
         FieldInfo languageHandlers = Field(typeof(Texts), "Changed");
-        FieldInfo pruneCounter = Field(typeof(ShortcutService), "_observersUntilPrune");
-        var refreshers = (List<WeakReference<Action>>)Field(typeof(ShortcutService), "Refreshers").GetValue(null)!;
         object? previousDispatcher = primary.GetValue(null);
         object? previousHandlers = languageHandlers.GetValue(null);
-        object? previousPruneCounter = pruneCounter.GetValue(null);
-        WeakReference<Action>[] previousRefreshers = refreshers.ToArray();
         string language = Texts.Language;
         Dispatcher owner = Dispatcher.CurrentDispatcher;
         using IDisposable scope = AvaloniaLocator.EnterScope();
-        AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
-        SkiaPlatform.Initialize(); // Compiled bitmap icons, without native windows.
+        using ShortcutTestState shortcuts = new();
         try
         {
             // A fresh dispatcher is intentional: another test may have left a language-change
             // callback queued on the xunit worker's dispatcher. Running that stale callback here
             // would mutate controls owned by its original thread during fixture cleanup.
-            refreshers.Clear();
             languageHandlers.SetValue(null, null);
             primary.SetValue(null, owner);
+            // EnterScope alone inherits the parent's MediaContext and its animation clock.
+            // Rendering and transitions must resolve services owned by this dispatcher.
+            AvaloniaLocator.Current = AvaloniaLocator.CurrentMutable = new AvaloniaLocator();
+            AvaloniaLocator.CurrentMutable.Bind<IAssetLoader>().ToConstant(new StandardAssetLoader());
+            SkiaPlatform.Initialize(); // Compiled bitmap icons, without native windows.
+            BooruReviewTestPlatform.BindTextShaper();
             owner.Invoke(() =>
             {
                 Texts.Initialize();
@@ -92,9 +102,6 @@ internal static class BooruComponentDispatcher
                 try { Texts.SetLanguage(language); }
                 finally
                 {
-                    refreshers.Clear();
-                    refreshers.AddRange(previousRefreshers);
-                    pruneCounter.SetValue(null, previousPruneCounter);
                     languageHandlers.SetValue(null, previousHandlers);
                     primary.SetValue(null, previousDispatcher);
                 }

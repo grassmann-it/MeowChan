@@ -8,14 +8,20 @@ using MeowChan.Persistence;
 namespace MeowChan.DesktopTests;
 
 /// <summary>PF01 admission, coalesced final writers and the actual shutdown publication/ownership barrier.</summary>
+[Collection("Avalonia global state")]
 public sealed class DesktopSessionAdmissionTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(10);
     private static DesktopSessionHost CreateHost(string path, bool reading = false)
     {
         new Config { SaveUrlsOnExit = false, RememberReadingPosition = reading, AutomaticUpdateChecks = false }.SaveConfig(path);
-        return new(path, Array.Empty<IImageBoard>());
+        return OwnedUiDispatcher.CreateHost(() => new(path, Array.Empty<IImageBoard>()));
     }
+
+    // Settings publishes shortcuts from a worker. Keep the dispatcher and its observers scoped until the save has settled.
+    private static void RunWithShortcutDispatcher(Func<Task> test) =>
+        BooruComponentDispatcher.Run(() => BooruComponentDispatcher.Wait(test()));
+
     private static SemaphoreSlim Commands(DesktopSessionHost host) => (SemaphoreSlim)typeof(DesktopSessionHost)
         .GetField("_commands", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(host)!;
 
@@ -27,7 +33,7 @@ public sealed class DesktopSessionAdmissionTests
         using BlockingSessionStore store = new();
         // Paused watches do not send network requests; only the injected owner store is exercised.
         using HttpClient client = new(new NoNetwork());
-        DesktopSessionHost host = new(directory.Path, [new FourChanImageBoard(client)], (_, _) => store);
+        DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(directory.Path, [new FourChanImageBoard(client)], (_, _) => store));
         try
         {
             await host.StartAsync().WaitAsync(Deadline);
@@ -69,7 +75,7 @@ public sealed class DesktopSessionAdmissionTests
         using NoNetwork transport = new();
         using HttpClient client = new(transport);
         FixedBoardProvider provider = new(client);
-        await using (DesktopSessionHost host = new(directory.Path, [provider, new EightKunImageBoard(client)]))
+        await using (DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(directory.Path, [provider, new EightKunImageBoard(client)])))
         {
             await host.StartAsync().WaitAsync(Deadline);
             Assert.True(provider.SyntheticThreadProbes > 0); // The former throwing path really ran.
@@ -94,7 +100,7 @@ public sealed class DesktopSessionAdmissionTests
             }
             Assert.Equal(initialProbes, provider.SyntheticThreadProbes); // Rejected probes are not retried every frame.
         }
-        await using (DesktopSessionHost restored = new(directory.Path, [new FixedBoardProvider(client), new EightKunImageBoard(client)]))
+        await using (DesktopSessionHost restored = OwnedUiDispatcher.CreateHost(() => new(directory.Path, [new FixedBoardProvider(client), new EightKunImageBoard(client)])))
         {
             await restored.StartAsync().WaitAsync(Deadline);
             Assert.Null(restored.Projection.CaptureError);
@@ -112,7 +118,7 @@ public sealed class DesktopSessionAdmissionTests
             DownloadPath = Path.Combine(directory.Path, "media") }.SaveConfig(directory.Path);
         using HttpClient client = new(new NoNetwork());
         FixedBoardProvider provider = new(client);
-        await using DesktopSessionHost host = new(directory.Path, [provider]);
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(directory.Path, [provider]));
         await host.StartAsync().WaitAsync(Deadline);
         await host.AddAsync("https://boards.4chan.org/g/thread/123").WaitAsync(Deadline);
         DesktopThreadEntry complete = Assert.Single(host.Projection.View.Threads);
@@ -282,7 +288,7 @@ public sealed class DesktopSessionAdmissionTests
     }
 
     [Fact]
-    public async Task ExplicitSettingsSaveWaitsForAllEarlierAutomaticPreferenceDeltas()
+    public void ExplicitSettingsSaveWaitsForAllEarlierAutomaticPreferenceDeltas() => RunWithShortcutDispatcher(async () =>
     {
         using TempDirectory directory = new();
         await using DesktopSessionHost host = CreateHost(directory.Path);
@@ -297,10 +303,10 @@ public sealed class DesktopSessionAdmissionTests
         await Task.WhenAll(view, settings).WaitAsync(Deadline);
         Config saved = Config.LoadConfig(directory.Path);
         Assert.Equal(120, saved.RecheckTimer); Assert.True(saved.GalleryContextOpen);
-    }
+    });
 
     [Fact]
-    public async Task FrozenSettingsKeepTheFilmstripBaselineSoOnlyAChangedBoxMovesTheGalleryLayout()
+    public void FrozenSettingsKeepTheFilmstripBaselineSoOnlyAChangedBoxMovesTheGalleryLayout() => RunWithShortcutDispatcher(async () =>
     {
         // H1 through admission: ApplySettingsAsync freezes the draft with Clone(), which must not replace the page's baseline of the box.
         using TempDirectory directory = new();
@@ -326,10 +332,10 @@ public sealed class DesktopSessionAdmissionTests
         GalleryLayoutPreferences result = GalleryLayoutPreferences.FromConfig(Config.LoadConfig(directory.Path));
         Assert.False(result.View.Filmstrip);
         Assert.Equal(tag with { Filmstrip = false }, result.Tag);
-    }
+    });
 
     [Fact]
-    public async Task FrozenSettingsKeepTheTagListWidthBaselineSoOnlyAChangedBoxMovesTheWidth()
+    public void FrozenSettingsKeepTheTagListWidthBaselineSoOnlyAChangedBoxMovesTheWidth() => RunWithShortcutDispatcher(async () =>
     {
         // M1 through admission: the draft is frozen with Clone(), which must keep the page's baseline of the box; a stale draft never rolls a dragged width back.
         static int WidthOf(Config config) => MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode).TagListWidth;
@@ -352,12 +358,12 @@ public sealed class DesktopSessionAdmissionTests
         Assert.Equal(200, WidthOf(host.Config));
         Assert.Equal(90, host.Config.RecheckTimer);
         Assert.Equal(200, WidthOf(Config.LoadConfig(directory.Path)));
-    }
+    });
 
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public async Task FrozenSettingsRetainsOriginalPresentationBaselineAndIndependentLivePreferences(bool withBaseline)
+    public void FrozenSettingsRetainsOriginalPresentationBaselineAndIndependentLivePreferences(bool withBaseline) => RunWithShortcutDispatcher(async () =>
     {
         using TempDirectory directory = new();
         await using DesktopSessionHost host = CreateHost(directory.Path);
@@ -410,7 +416,7 @@ public sealed class DesktopSessionAdmissionTests
         // Fields untouched in the draft retain newer automatic preference writes.
         Assert.True(saved.GetLayoutProfile("Barebones").CompactDensity);
         Assert.Equal("Small", saved.GetLayoutProfile("Barebones").ReadingFontSize);
-    }
+    });
 
     [Fact]
     public async Task ForcedCaptureBurstUsesAtMostOneActiveAndOnePendingCompletion()

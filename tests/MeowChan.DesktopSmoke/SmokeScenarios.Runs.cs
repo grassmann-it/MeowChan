@@ -81,6 +81,7 @@ internal static partial class SmokeScenarios
             Seed = ReaderPostStarChecks.SeedAsync,
             Configure = config => { config.DownloadsPaused = true; config.SaveUrlsOnExit = false; }
         },
+        ["reader-preview-return"] = new(SmokeStage.Ready, mainWindow => ReaderPreviewChecks.RunAsync(mainWindow, returnOnly: true)),
         ["tag-autocomplete-commit"] = new(SmokeStage.Ready, mainWindow => TagAutocompleteCommitChecks.RunAsync(mainWindow)),
         ["quick-tag-native-typing"] = new(SmokeStage.Ready, mainWindow => QuickTagNativeTypingChecks.RunAsync(mainWindow))
         {
@@ -94,6 +95,7 @@ internal static partial class SmokeScenarios
             await MediaMenuCompositionChecks.RunAsync(mainWindow);
             await MediaPageChecks.RunAsync(mainWindow);
         }),
+        ["media-panel-selection"] = new(SmokeStage.Ready, mainWindow => MediaPageChecks.RunPanelSelectionAsync(mainWindow)),
         ["gallery-exif-orientation"] = new(SmokeStage.Ready, mainWindow => GalleryExifOrientationChecks.RunAsync(mainWindow))
         {
             Seed = ExifOrientationFixture.SeedAsync,
@@ -117,9 +119,11 @@ internal static partial class SmokeScenarios
         ["theme-colors"] = new(SmokeStage.Ready, mainWindow => ThemeColorsChecks.RunAsync(mainWindow)),
         ["tagging-page"] = new(SmokeStage.Ready, mainWindow => TaggingPageChecks.RunAsync(mainWindow))
         {
-            Seed = MediaPageChecks.SeedAsync
+            Seed = MediaPageChecks.SeedAsync,
+            Configure = config => { config.Theme = "Light"; config.WorkViewSwitchNoticeSeconds = 0; }
         },
         ["gallery-media-tags"] = new(SmokeStage.Ready, mainWindow => GalleryMediaTagChecks.RunAsync(mainWindow)),
+        ["reader-live"] = new(SmokeStage.Ready, mainWindow => ReaderLiveChecks.RunAsync(mainWindow)),
         ["tagging-mode"] = new(SmokeStage.Ready, mainWindow => TaggingModeChecks.RunAsync(mainWindow)),
         ["tagging-cards"] = new(SmokeStage.Ready, mainWindow => TaggingCardsChecks.RunAsync(mainWindow)),
         ["local-media-tags"] = new(SmokeStage.Ready, mainWindow => LocalMediaTagChecks.RunAsync(mainWindow)),
@@ -316,6 +320,10 @@ internal static partial class SmokeScenarios
         ["sources-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SourcesChecks.RunAsync(mainWindow)),
         ["pause-controls"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PauseChecks.RunAsync(mainWindow)),
         ["rules-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => RulesPageChecks.RunAsync(mainWindow)),
+        ["page-header-help"] = new(SmokeStage.AfterCommandRefresh, mainWindow => PageHeaderHelpChecks.RunAsync(mainWindow))
+        {
+            Configure = config => config.WorkspaceMode = "Barebones"
+        },
         ["settings-core"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsChecks.RunAsync(mainWindow)),
         ["page-refresh"] = new(SmokeStage.AfterCommandRefresh, async mainWindow =>
         {

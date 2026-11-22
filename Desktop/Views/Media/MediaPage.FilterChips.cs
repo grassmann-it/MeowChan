@@ -9,6 +9,7 @@ using Avalonia.Layout;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
@@ -80,6 +81,7 @@ public sealed partial class MediaPage
             string name = _nameFilter.Text ?? string.Empty;
             if (!_lifetime.IsCancellationRequested && name.Length > 0) SearchInArchiveRequested?.Invoke(name);
         };
+        CommandBindings.EnsureIconBeforeText(_emptySearchInArchive, CommandCatalog.Get("archive.search").Icon);
         _emptyActions.Children.Add(_emptySearchInArchive);
         _filterAdd.Snapshot = () => _userData.TagSnapshot;
         _filterAdd.Used = UsedTags;
@@ -196,9 +198,11 @@ public sealed partial class MediaPage
     {
         UpdateScopeChip(); // the chip in the search field names the scope of the text (MediaPage.Breakdown.cs)
         _filterResetAll.Content = Texts.T("media.filter.resetAll");
+        CommandBindings.EnsureIconBeforeText(_filterResetAll, CommandCatalog.Get("media.filter.reset-all").Icon);
         ToolTip.SetTip(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         AutomationProperties.SetName(_filterResetAll, Texts.T("media.filter.resetAllHint"));
         _emptyReset.Content = Texts.T("media.filter.reset");
+        CommandBindings.EnsureIconBeforeText(_emptyReset, CommandCatalog.Get("media.filter.reset-all").Icon);
         List<FilterChip> chips = ActiveFilterChips();
         ActiveFilterCount = chips.Count;
         _filterAdd.IsVisible = chips.Count > 0; // the work view re-applies it below (media.filter.add)

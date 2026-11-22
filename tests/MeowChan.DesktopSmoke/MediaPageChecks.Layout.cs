@@ -26,8 +26,8 @@ internal static partial class MediaPageChecks
         Texts.SetLanguage(code);
         window.Width = 1400; window.Height = 900;
         await UntilAsync(() => AutomationProperties.GetName(page.LayoutButton) == Texts.T("media.layout.name")
-            && AutomationProperties.GetName(page.BooruModeButton) == Texts.T("media.tagList")
-            && AutomationProperties.GetName(page.PanelToggleButton) == Texts.T("command.media.panel.toggle"));
+            && AutomationProperties.GetName(page.BooruModeButton)?.StartsWith(Texts.T("media.tagList") + ": ", StringComparison.Ordinal) == true
+            && AutomationProperties.GetName(page.PanelToggleButton)?.StartsWith(Texts.T("command.media.panel.toggle") + ": ", StringComparison.Ordinal) == true);
         MediaTagSidebar sidebar = page.TagSidebar;
         Control surface = C<Control>(page, "MediaGridSurface");
         Control chipRow = C<Control>(page, "MediaFilterChipRow"), statusRow = (Control)C<TextBlock>(page, "MediaStatus").Parent!;

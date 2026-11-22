@@ -85,6 +85,7 @@ internal static class BooruText
         string query = view.ExecutedQuery ?? string.Empty;
         return view.Status switch
         {
+            BooruSearchStatus.Idle when view.NeedsLoad => Texts.T("booru.tabs.restore.load"),
             BooruSearchStatus.Idle => Texts.T(view.Mode == BooruInputMode.Post ? "booru.ui.status.idlePost" : "booru.ui.status.idle"),
             BooruSearchStatus.Searching => view.IsPostResult
                 ? Texts.T("booru.ui.status.lookingUp", view.ExecutedPostId)
@@ -156,16 +157,18 @@ internal static class BooruText
         foreach (string key in new[]
         {
             "booru.ui.title", "booru.ui.command.open", "booru.ui.intro", "booru.ui.provider", "booru.ui.noFilterNote",
-            "booru.ui.tab.search", "booru.ui.tab.watchers", "booru.ui.mode.label", "booru.ui.mode.tags", "booru.ui.mode.post",
+            "booru.ui.tab.search", "booru.ui.tab.watchers", "booru.ui.tab.watchers.one",
+            "booru.ui.mode.label", "booru.ui.mode.tags", "booru.ui.mode.post",
             "booru.ui.input.label", "booru.ui.input.placeholder.tags", "booru.ui.input.placeholder.post", "booru.ui.search",
-            "booru.ui.lookup", "booru.ui.cancel", "booru.ui.query.sent", "booru.ui.query.hint", "booru.ui.post.sent",
+            "booru.ui.lookup", "booru.ui.cancel", "booru.ui.query.sent", "booru.ui.query.draft", "booru.ui.query.hint", "booru.ui.post.sent",
             "booru.ui.page.info", "booru.ui.page.previous", "booru.ui.page.next", "booru.ui.page.limit",
             "booru.ui.status.idle", "booru.ui.status.idlePost", "booru.ui.status.searching", "booru.ui.status.lookingUp",
             "booru.ui.status.results", "booru.ui.status.post", "booru.ui.status.empty", "booru.ui.status.offline",
             "booru.ui.status.rateLimited", "booru.ui.status.cooldown", "booru.ui.status.pauseOver", "booru.ui.status.denied",
             "booru.ui.status.notFound", "booru.ui.status.unavailable", "booru.ui.status.failed", "booru.ui.status.pluginMismatch", "booru.ui.status.retry",
             "booru.ui.repair.releasesPin", "booru.ui.repair.confirmed", "booru.ui.repair.confirmedHint", "booru.ui.repair.blocked",
-            "booru.ui.repair.nothing", "booru.ui.repair.openPlugin", "booru.ui.repair.notReady", "booru.ui.repair.busy", "booru.ui.repair.notOpened",
+            "booru.ui.repair.nothing", "booru.ui.repair.openPlugin", "booru.ui.repair.notReady", "booru.ui.repair.startup",
+            "booru.ui.repair.busy", "booru.ui.repair.notOpened",
             "booru.ui.post.title", "booru.ui.post.rating", "booru.ui.post.score", "booru.ui.post.favorites",
             "booru.ui.post.created", "booru.ui.post.urlLabel", "booru.ui.post.noPreview", "booru.ui.post.previewLoading",
             "booru.ui.post.previewUnavailable", "booru.ui.tags.label", "booru.ui.tags.none", "booru.ui.tags.more",
@@ -177,7 +180,7 @@ internal static class BooruText
             "booru.ui.result.hitName", "booru.ui.result.localYes", "booru.ui.result.localNo",
             "booru.ui.view.listHint", "booru.ui.view.gridHint", "booru.ui.tile.sizeName", "booru.ui.tile.local", "booru.ui.tile.listName",
             "booru.ui.watcher.create", "booru.ui.watcher.createHint", "booru.ui.watcher.created", "booru.ui.watcher.duplicate",
-            "booru.ui.watcher.createNeedsTags", "booru.ui.watcher.createFailed",
+            "booru.ui.watcher.createNeedsTags", "booru.ui.watcher.createInvalidTags", "booru.ui.watcher.creating", "booru.ui.watcher.createFailed",
             "booru.ui.watchers.intro", "booru.ui.watchers.removeNote", "booru.ui.watchers.empty", "booru.ui.watchers.loading",
             "booru.ui.watchers.loadFailed", "booru.ui.watchers.retry", "booru.ui.watchers.resetCooldown", "booru.ui.watchers.resetCooldownHint",
             "booru.ui.watcher.lastCheck", "booru.ui.watcher.nextCheck", "booru.ui.watcher.never", "booru.ui.watcher.notScheduled",

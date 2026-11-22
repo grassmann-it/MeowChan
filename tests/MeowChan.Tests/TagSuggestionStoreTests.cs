@@ -175,6 +175,32 @@ public sealed class TagSuggestionStoreTests : IDisposable
     }
 
     [Fact]
+    public void ADecisionCannotTargetTwoTaggerDuplicatesInOneBatchOrByHiddenId()
+    {
+        TagSuggestionStore store = Store();
+        TagSuggestionSnapshot pending = store.CommitRuns([Run(MediaA, R1, ("cat", 0.9)),
+            Run(MediaA, R1 with { PluginId = "other" }, ("cat", 0.8))]);
+        long[] ids = pending.PendingFor(MediaA, 0.35).Select(suggestion => suggestion.Id).ToArray();
+        Assert.Equal(2, ids.Length);
+        byte[] before = File.ReadAllBytes(store.FilePath);
+
+        Assert.Equal(TagSuggestionStoreError.InvalidTransition, Assert.Throws<TagSuggestionStoreException>(() =>
+            store.Decide(ids, TagSuggestionState.Accepted, pending.Revision)).Error);
+        Assert.Equal(before, File.ReadAllBytes(store.FilePath));
+
+        TagSuggestionSnapshot accepted = store.Decide([ids[0]], TagSuggestionState.Accepted, pending.Revision);
+        Assert.Empty(accepted.PendingFor(MediaA, 0.35));
+        byte[] decision = File.ReadAllBytes(store.FilePath);
+        Assert.Equal(TagSuggestionStoreError.InvalidTransition, Assert.Throws<TagSuggestionStoreException>(() =>
+            store.Decide([ids[1]], TagSuggestionState.Rejected, accepted.Revision)).Error);
+        Assert.Equal(decision, File.ReadAllBytes(store.FilePath));
+
+        TagSuggestionSnapshot undone = store.Decide([ids[0]], TagSuggestionState.Pending, accepted.Revision);
+        TagSuggestionSnapshot rejected = store.Decide([ids[1]], TagSuggestionState.Rejected, undone.Revision);
+        Assert.Equal(ids[1], Assert.Single(rejected.Suggestions.Where(suggestion => suggestion.IsDecided)).Id);
+    }
+
+    [Fact]
     public void RepeatedWritesReuseOneStagingFileAndDoNotCreateSnapshots()
     {
         TagSuggestionStore store = Store();
@@ -280,6 +306,49 @@ public sealed class TagSuggestionStoreTests : IDisposable
     {
         TagSuggestionStore store = Store();
         File.WriteAllText(store.FilePath, json);
+        AssertStoredDocumentIsReadOnly(store);
+    }
+
+    [Theory]
+    [InlineData(1, "suggestions", "state", null)]
+    [InlineData(1, "suggestions", "confidence", null)]
+    [InlineData(1, "suggestions", "confidence", "1.01")]
+    [InlineData(1, "suggestions", "mediaLength", "0")]
+    [InlineData(1, "suggestions", "createdAt", null)]
+    [InlineData(1, "suggestions", "decidedAt", null)]
+    [InlineData(1, "suggestions", "startMilliseconds", "1")]
+    [InlineData(1, "suggestions", "provenance", "{}")]
+    [InlineData(1, "runs", "provenance", "{}")]
+    [InlineData(1, "runs", "suggestionCount", null)]
+    [InlineData(1, "runs", "suggestionCount", "-1")]
+    [InlineData(1, "events", "from", null)]
+    [InlineData(1, "events", "sequence", "0")]
+    [InlineData(2, "suggestions", "state", null)]
+    [InlineData(2, "reviews", "status", null)]
+    [InlineData(2, "reviews", "kind", null)]
+    [InlineData(2, "reviews", "reviewRevision", "-1")]
+    [InlineData(2, "events", "operationId", null)]
+    public void AnExistingDocumentWithAnInvalidEntryIsPreservedByteForByte(int version, string list,
+        string property, string? replacement)
+    {
+        TagSuggestionStore store = Store();
+        TagSuggestionSnapshot pending = store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]);
+        long id = Assert.Single(pending.Suggestions).Id;
+        if (version == 1) store.Decide([id], TagSuggestionState.Rejected, pending.Revision);
+        else store.RejectReview(Guid.NewGuid(), id, pending.Revision);
+        Assert.True(store.Load().CanWrite);
+
+        JsonNode document = JsonNode.Parse(File.ReadAllText(store.FilePath))!;
+        Assert.Equal(version, document["version"]!.GetValue<int>());
+        JsonObject entry = document[list]![0]!.AsObject();
+        if (replacement is null) Assert.True(entry.Remove(property));
+        else entry[property] = JsonNode.Parse(replacement);
+        File.WriteAllText(store.FilePath, document.ToJsonString());
+        AssertStoredDocumentIsReadOnly(store);
+    }
+
+    private static void AssertStoredDocumentIsReadOnly(TagSuggestionStore store)
+    {
         byte[] original = File.ReadAllBytes(store.FilePath);
 
         TagSuggestionSnapshot snapshot = store.Load();
@@ -288,6 +357,8 @@ public sealed class TagSuggestionStoreTests : IDisposable
             Assert.Throws<TagSuggestionStoreException>(() => store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))])).Error);
         Assert.Equal(TagSuggestionStoreError.NotWritable,
             Assert.Throws<TagSuggestionStoreException>(() => store.Decide([1L], TagSuggestionState.Rejected, snapshot.Revision)).Error);
+        Assert.Equal(TagSuggestionStoreError.NotWritable,
+            Assert.Throws<TagSuggestionStoreException>(() => store.RecoverReview()).Error);
         Assert.Equal(original, File.ReadAllBytes(store.FilePath));
     }
 

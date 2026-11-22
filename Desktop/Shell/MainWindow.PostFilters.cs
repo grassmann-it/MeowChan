@@ -34,7 +34,7 @@ public partial class MainWindow
 
     private void RefreshSettingsPostFilters()
     {
-        if (!_isClosing) _settingsEditor?.UpdatePostFilterRules(_postFilterSession?.Current);
+        if (!_isClosing) _settingsEditor?.UpdatePostFilterRules(_postFilterSession?.CurrentForSettings);
     }
 
     private void OnPostFilterSessionStateChanged() => Dispatcher.UIThread.Post(LoadPostFiltersWhenReady);

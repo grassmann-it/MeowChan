@@ -69,7 +69,7 @@ public sealed class TaggingPageTests : IDisposable
         Assert.Equal(new TaggingQueueCounts(1, 1, 1), TaggingQueueView.Counts(queue, group.Id));
         Assert.Equal("Open: 1 · Finished: 1 · Skipped: 1", TaggingQueueView.ProgressText(queue, group.Id, false));
         Assert.Equal("Continue tagging (no. 2)", TaggingQueueView.StartLabel(queue, group.Id, false));
-        Assert.Equal(new[] { "All entries", "Without group", "Review" }, TaggingQueueView.GroupChoices(queue).Select(choice => choice.Label));
+        Assert.Equal(new[] { "All groups", "Without group", "Review" }, TaggingQueueView.GroupChoices(queue).Select(choice => choice.Label));
         Assert.Equal(new[] { 3, 5 }, TaggingQueueView.Rows(queue, TaggingQueueFilter.All, null, null, true).Select(row => row.Number));
     }
 
@@ -116,8 +116,8 @@ public sealed class TaggingPageTests : IDisposable
     {
         IDataTemplate template = TaggingPage.GroupChoiceTemplate();
         // The selection box builds the template without an item while the source is replaced: no exception, empty text.
-        Assert.Equal(string.Empty, Assert.IsType<TextBlock>(template.Build(null)!).Text ?? string.Empty);
-        Assert.Equal("Review", Assert.IsType<TextBlock>(template.Build(new TaggingGroupChoice("g", false, "Review"))!).Text);
+        Assert.Equal(string.Empty, Assert.IsAssignableFrom<TextBlock>(template.Build(null)!).Text ?? string.Empty);
+        Assert.Equal("Review", Assert.IsAssignableFrom<TextBlock>(template.Build(new TaggingGroupChoice("g", false, "Review"))!).Text);
 
         TagQueueGroup group = new("group-1", "Review", 0, new[] { "common" });
         TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { Item(1) with { GroupId = group.Id } }, TagQueueLoadState.Ready, new[] { group });
@@ -145,7 +145,7 @@ public sealed class TaggingPageTests : IDisposable
         box.SelectedItem = second[2];
         box.ItemsSource = TaggingQueueView.GroupChoices(TagQueueSnapshot.Empty);
         box.SelectedItem = ((IReadOnlyList<TaggingGroupChoice>)box.ItemsSource)[0];
-        Assert.Equal("All entries", ((TaggingGroupChoice)box.SelectedItem!).Label);
+        Assert.Equal("All groups", ((TaggingGroupChoice)box.SelectedItem!).Label);
     }
 
     [Fact]
@@ -225,7 +225,7 @@ public sealed class TaggingPageTests : IDisposable
         {
             foreach (string id in new[] { "tagging.progress", "tagging.start", "tagging.list", "tagging.error", "tagging.stamp", "tagging.filter" })
                 Assert.True(WorkViewPolicy.OnSurface(WorkViewPolicy.Resolve(id, view)), id + " in " + view);
-            Assert.Equal(view == WorkView.Barebones ? Presence.Overflow : Presence.Direct, WorkViewPolicy.Resolve("tagging.help", view));
+            Assert.Equal(Presence.Required, WorkViewPolicy.Resolve("tagging.help", view));
         }
         Assert.Equal(Presence.Overflow, WorkViewPolicy.Resolve("tagging.toolbar.clear-done", WorkView.Barebones));
         // TQ2: the destructive queue actions stand under "More" in every view, not beside "Add…".

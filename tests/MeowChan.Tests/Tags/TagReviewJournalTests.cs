@@ -172,6 +172,83 @@ public sealed class TagReviewJournalTests
         }
     }
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void UndoingAMergeOrRuleRestoresReviewOwnershipForBoundAndLocalMedia(bool mergeTags)
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        var tags = new PrivateTagStore(temp.Path, lease);
+        var suggestions = new TagSuggestionStore(lease, privateTags: tags);
+        MediaTagSubject.Bound bound = Bound("100");
+        string localHash = new('b', 64);
+        Assert.True(LocalMediaObservation.TryCreate(Thread, "media", "image.png", new string('c', 64), 100, localHash, out var observation));
+        var local = new MediaTagSubject.Local(observation!, null);
+        TagId destination = tags.Define("destination").Tag;
+        tags.DefineAndSetMediaSubjects("manual", [bound, local]);
+
+        var pending = suggestions.CommitRuns([
+            new(Hash, 100, Model, TagSuggestionStore.TaggedOutcome, [new("raw", "General", 0.8)]),
+            new(localHash, 100, Model, TagSuggestionStore.TaggedOutcome, [new("raw", "General", 0.8)])]);
+        var boundReview = suggestions.AcceptReview(Guid.NewGuid(), Preview(tags, pending, bound));
+        var localReview = suggestions.AcceptReview(Guid.NewGuid(), Preview(tags, boundReview.Snapshot, local));
+        PrivateTagStoreSnapshot before = tags.ReadSnapshot();
+        if (mergeTags)
+        {
+            TagId canonical = before.Tags.Single(tag => tag.Name.Display == "canonical").Id;
+            tags.UndoMerge(tags.Merge(destination, [canonical]).Undo);
+        }
+        else
+        {
+            var rule = tags.PreviewTagRules(new([new(TagRuleKind.Alias, "canonical", "destination")]),
+                [new("canonical", bound, new TagRuleOrigin.Private()), new("canonical", local, new TagRuleOrigin.Private())], before.Revision);
+            tags.UndoTagRules(Assert.IsType<TagRuleUndo>(tags.ApplyTagRules(rule).Undo));
+        }
+
+        var boundUndo = suggestions.UndoReview(Guid.NewGuid(), boundReview.Operation.OperationId, localReview.Snapshot.Revision);
+        Assert.Equal("canonical", Assert.Single(boundUndo.Operation.PrivateChange!.Tags).Name);
+        var localUndo = suggestions.UndoReview(Guid.NewGuid(), localReview.Operation.OperationId, boundUndo.Snapshot.Revision);
+        Assert.Equal("canonical", Assert.Single(localUndo.Operation.PrivateChange!.Tags).Name);
+        PrivateTagStoreSnapshot saved = tags.ReadSnapshot();
+        Assert.Equal(["manual"], Names(saved, bound));
+        Assert.Equal(saved.Tags.Single(tag => tag.Name.Display == "manual").Id, Assert.Single(saved.LocalAssignments).TagId);
+    }
+
+    [Fact]
+    public void AcceptingAReviewRequiresTheProfileStoreAndHonorsItsCurrentFileLimit()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        byte[] original = PrivateTagScaleDocument.Create(new(100, 30_000, 20_000, 0, 0));
+        string privatePath = Path.Combine(temp.Path, PrivateTagStore.FileName);
+        File.WriteAllBytes(privatePath, original);
+        Assert.InRange(original.Length, PrivateTagLimits.MinimumDocumentLimitBytes, PrivateTagLimits.DefaultDocumentLimitBytes);
+        var limits = new PrivateTagLimits();
+        var tags = new PrivateTagStore(temp.Path, lease, limits);
+        var suggestions = new TagSuggestionStore(lease, privateTags: tags);
+        var pending = RunDouble(suggestions, "raw");
+        var subject = Bound("100");
+        var preview = Preview(tags, pending, subject);
+        byte[] journal = File.ReadAllBytes(suggestions.FilePath);
+        Guid operation = Guid.NewGuid();
+
+        limits.DocumentLimitBytes = original.Length;
+        var unconfigured = new TagSuggestionStore(lease);
+        Assert.Equal(TagSuggestionStoreError.InvalidInput, Assert.Throws<TagSuggestionStoreException>(() =>
+            unconfigured.AcceptReview(operation, preview)).Error);
+        Assert.Equal(PrivateTagStoreError.DocumentLimitReached, Assert.Throws<PrivateTagStoreException>(() =>
+            suggestions.AcceptReview(operation, preview)).Error);
+        Assert.Equal(original, File.ReadAllBytes(privatePath));
+        Assert.Equal(journal, File.ReadAllBytes(suggestions.FilePath));
+
+        limits.DocumentLimitBytes = PrivateTagLimits.MaximumDocumentLimitBytes;
+        var accepted = suggestions.AcceptReview(operation, preview);
+        Assert.Equal(TagReviewStatus.Completed, accepted.Operation.Status);
+        Assert.Equal(operation, tags.LastReviewReceipt()!.OperationId);
+        Assert.Equal(["canonical"], Names(tags.ReadSnapshot(), subject));
+    }
+
     [Fact]
     public void RejectionAndItsUndoAreJournalledWithoutPrivateWrites()
     {

@@ -7,6 +7,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopSmoke;
 
@@ -86,10 +87,15 @@ internal static class ReaderMediaSidebarChecks
             await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
             await page.MediaSidebarTask;
             Require(sidebar.Shown != null || sidebar.StatusText.Length > 0, "The sidebar shows neither the medium nor a reason.");
-            // The header is one compact row (post, file, size; the star, "Open in gallery" and the cross beside it); it replaces the old title and info box.
+            // The post number starts the header, and the actions end it.
             Require(sidebar.HeaderLine.Contains(withMedia!.Id, StringComparison.Ordinal) && !sidebar.HeaderLine.Contains('\n', StringComparison.Ordinal),
-                "The sidebar header is not one line naming the post.");
+                "The sidebar header does not name the post.");
             Require(sidebar.Open.IsEffectivelyVisible && sidebar.Close.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
+            await Flush();
+            double postLeft = sidebar.PostLink.TranslatePoint(default, sidebar.HeaderRow)!.Value.X;
+            double closeRight = sidebar.Close.TranslatePoint(new Point(sidebar.Close.Bounds.Width, 0), sidebar.HeaderRow)!.Value.X;
+            Require(Math.Abs(postLeft) <= 1 && Math.Abs(closeRight - sidebar.HeaderRow.Bounds.Width) <= 1,
+                "The post number and header actions must sit at opposite edges.");
             await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia!.Id, StringComparison.Ordinal));
 
             // Held ↓: many selection changes, at most one decode start per interval; the sidebar ends on the last selected post.
@@ -162,8 +168,8 @@ internal static class ReaderMediaSidebarChecks
             });
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
-            Require(!toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.Always,
-                "The unavailable narrow-width sidebar toggle stayed active in the direct toolbar.");
+            Require(toggle.IsEnabled && toggle.Parent is SidebarToggleGroup group && Ursa.Controls.ToolBar.GetOverflowMode(group) == Ursa.Controls.OverflowMode.Never,
+                "The narrow reader lost its sidebar switch.");
             page.ApplyReaderMediaPreferences(page.ReaderMedia with
             {
                 SidebarWidth = widthPreferences.SidebarWidth,
@@ -200,8 +206,25 @@ internal static class ReaderMediaSidebarChecks
         Require(pane.Parent == page.FindControl<Grid>("ArchiveSplit") && Grid.GetColumn(pane) == embeddedColumn,
             "The pane did not return to its archive split column.");
         await CheckArchiveViewAsync(page, pane, posts);
+        CheckDisabledGalleryTagsTooltip(window);
         await ReaderSettingsProbe.CheckDisposalAsync(window);
         Console.WriteLine("SMOKE reader media sidebar: on by default, compact header with the gallery button, no overlay arrows or counter (strip for several media), framed large reader, View-menu switch, follow with throttle, live region, several-file strip with counter, grid layout, discovery hint, right side, narrow-width overflow, Escape and return, archive view (Always) passed.");
+    }
+
+    private static void CheckDisabledGalleryTagsTooltip(Window owner)
+    {
+        GallerySidePanel panel = new(new Button());
+        Window fixture = new() { Content = panel, Width = 400, Height = 240, ShowInTaskbar = false };
+        string reason = Texts.T("archive.notSaved");
+        try
+        {
+            fixture.Show(owner);
+            panel.SetTagsAvailable(false, reason);
+            ToggleButton tags = panel.TagsButton;
+            Require(tags.IsEffectivelyVisible && !tags.IsEffectivelyEnabled && ToolTip.GetShowOnDisabled(tags)
+                && ToolTip.GetTip(tags) as string == reason, "The disabled Gallery Tags segment does not expose its reason on hover.");
+        }
+        finally { fixture.Close(); }
     }
 
     // "Always": the archive view shows the full-height sidebar beside the posts and their header, with the same following and width rules;
@@ -243,8 +266,8 @@ internal static class ReaderMediaSidebarChecks
             });
             await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
             ToggleButton toggle = page.FindControl<ToggleButton>("ReaderMediaSidebarToggle")!;
-            Require(!toggle.IsEnabled && Ursa.Controls.ToolBar.GetOverflowMode(toggle) == Ursa.Controls.OverflowMode.Always,
-                "The narrow archive-view sidebar toggle stayed active in the direct toolbar.");
+            Require(toggle.IsEnabled && toggle.Parent is SidebarToggleGroup group && Ursa.Controls.ToolBar.GetOverflowMode(group) == Ursa.Controls.OverflowMode.Never,
+                "The narrow archive view lost its sidebar switch.");
             page.ApplyReaderMediaPreferences(page.ReaderMedia with { SidebarWidth = ReaderDisplayPreferences.MediaSidebarWidthMinimum });
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
             page.ToggleMediaSidebar();
@@ -265,8 +288,8 @@ internal static class ReaderMediaSidebarChecks
             && Math.Abs(sidebar.Bounds.Height - host.Bounds.Height) <= 1);
         await Flush();
         Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
-        Require(sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 7 and <= 9 }, "The sidebar header is missing its top inset.");
-        Require(sidebar.HeaderRow.Bounds.Height == ReaderMediaSidebar.HeaderLineHeight, "The media title lost its stable height.");
+        Require(sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 15 and <= 17 }, "The sidebar header is missing its top inset.");
+        Require(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight, "The sidebar header is shorter than a control row.");
         Require(sidebar.Padding.Top == 0 && sidebar.Padding.Bottom == 0, "Neighbour alignment reclaimed media height as padding.");
         Require(Math.Abs(sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height - sidebar.Bounds.Height) <= 1,
             "There is unused height below the media card.");

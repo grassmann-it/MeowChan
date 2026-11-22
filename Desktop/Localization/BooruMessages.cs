@@ -17,6 +17,7 @@ internal static class BooruMessages
     {
         ["invalid_query"] = "booru.failure.invalid_query",
         ["invalid_page"] = "booru.failure.invalid_page",
+        ["invalid_limit"] = "booru.failure.invalid_limit",
         ["capability"] = "booru.failure.capability",
         ["booru-source"] = "booru.failure.booru-source",
         ["booru-job"] = "booru.failure.booru-job",

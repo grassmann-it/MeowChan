@@ -11,12 +11,12 @@ public sealed class PowerUserCommandTests
     [InlineData("navigation.downloads", "1")]
     [InlineData("navigation.archive", "2")]
     [InlineData("navigation.media", "3")]
-    [InlineData("navigation.booru", "8")]
-    [InlineData("navigation.rules", "5")]
-    [InlineData("navigation.sources", "6")]
+    [InlineData("navigation.booru", "5")]
+    [InlineData("navigation.rules", "6")]
+    [InlineData("navigation.sources", "7")]
     [InlineData("navigation.tagging", "4")]
     [InlineData("navigation.plugins", null)]
-    [InlineData("navigation.status", "7")]
+    [InlineData("navigation.status", "8")]
     [InlineData("session.pause", "Shift+P")]
     public void PlatformGesturesUseTheDeclaredShortcut(string id, string? suffix)
     {
@@ -64,7 +64,7 @@ public sealed class PowerUserCommandTests
         Assert.Equal(MainWindow.WorkspacePage.Sources, MainWindow.PageFor("navigation.plugins"));
         Assert.DoesNotContain("navigation.plugins", MainPageOrder.CommandIds);
         Assert.Null(MainPageOrder.Digit("navigation.plugins"));
-        Assert.Equal(7, MainPageOrder.Digit("navigation.status"));
+        Assert.Equal(8, MainPageOrder.Digit("navigation.status"));
     }
 
     [Fact]

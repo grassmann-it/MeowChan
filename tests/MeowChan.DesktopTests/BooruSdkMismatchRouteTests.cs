@@ -3,6 +3,7 @@ using System.Text.Json;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using MeowChan.Booru;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
@@ -37,6 +38,17 @@ public sealed class BooruSdkMismatchRouteTests : IDisposable
     public void Dispose() => Texts.SetLanguage("en");
 
     // ---- the derived stage ---------------------------------------------------------------------------------
+
+    [Fact]
+    public void AnUnavailableStartupSelectionHasARepairRouteEvenWithoutABooruPage()
+    {
+        var missing = Plugin(active: null) with { Candidates = [Candidate(Old) with { IsPresent = false }] };
+        Assert.True(PluginSession.NeedsDanbooruStartupRepair(missing));
+        Assert.False(PluginSession.NeedsDanbooruStartupRepair(missing with { Enabled = false }));
+        Assert.False(PluginSession.NeedsDanbooruStartupRepair(missing with { Active = Release(Current) }));
+        Assert.True(PluginSession.NeedsDanbooruStartupRepair(Plugin(active: null, problem: PluginActivationProblems.ExecutableChanged)));
+        Assert.False(PluginSession.NeedsDanbooruStartupRepair(Plugin(active: null) with { SelectedCandidateId = "other" }));
+    }
 
     [Fact]
     public void APinnedSameBundleRebuildIsReviewableAndSaysThatConfirmingReleasesThePin()

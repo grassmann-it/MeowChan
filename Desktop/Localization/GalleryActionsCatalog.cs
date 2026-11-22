@@ -39,13 +39,16 @@ internal static class GalleryActionsCatalog
         ("gallery.mode.tag", "Tag", "Taggen"),
         ("gallery.mode.announce.tag", "Tag mode: favorite, rating and tags are in the tag panel.", "Modus Taggen: Favorit, Bewertung und Tags stehen im Tag-Panel."),
         ("gallery.mode.announce.view", "View mode.", "Modus Ansehen."),
+        ("gallery.toolbar.label.info", "Info", "Info"),
+        ("gallery.toolbar.label.edit", "Edit", "Bearbeiten"),
+        ("gallery.toolbar.label.help", "Help", "Hilfe"),
         ("gallery.overflow.label", "More gallery actions", "Weitere Galerieaktionen"),
         ("gallery.overflow.help", "Zoom, rating, tags, export, playback, view options and shortcut help", "Zoom, Bewertung, Tags, Export, Wiedergabe, Ansichtsoptionen und Tastaturhilfe"),
         // V2: the gallery side panel host (segment "Post | Tags", the isolated close button and the drag edge).
         ("gallery.panel.post", "Post", "Post"),
         ("gallery.panel.tags", "Tags", "Tags"),
         ("gallery.panel.segments", "Panel content", "Panelinhalt"),
-        ("gallery.panel.segmentHelp", "The left and right arrow keys switch between post and tags.", "Die Pfeiltasten links und rechts wechseln zwischen Post und Tags."),
+        ("gallery.panel.segmentHelp", "The left and right arrow keys switch between post and tags. When shown, the media position is centered above the tabs.", "Die Pfeiltasten links und rechts wechseln zwischen Post und Tags. Wenn die Medienposition angezeigt wird, steht sie mittig über den Tabs."),
         ("gallery.panel.close", "Close panel", "Panel schließen"),
         ("gallery.panel.resize", "Panel width: drag to change ({0}–{1})", "Panelbreite: zum Ändern ziehen ({0}–{1})")
     };

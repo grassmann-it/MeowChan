@@ -4,6 +4,7 @@ using System.Collections.Immutable;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Booru;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -50,7 +51,7 @@ internal interface IBooruSearchPort
     string InstanceId => BooruPostKey.DefaultInstance;
 
     /// <summary>One bounded search page for an already canonical query. Page is 1-based, at most 5.</summary>
-    Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, CancellationToken cancellationToken);
+    Task<BooruCallResult<BooruResultPage>> SearchAsync(string canonicalQuery, int page, int limit, CancellationToken cancellationToken);
 
     /// <summary>One post read for the one-shot flow.</summary>
     Task<BooruCallResult<BooruPostView>> ReadPostAsync(string postId, CancellationToken cancellationToken);
@@ -188,4 +189,5 @@ internal sealed class BooruWorkbenchServices
     internal IBooruPreviewPort Previews { get; }
     internal TimeProvider Clock { get; }
     internal BooruLinkActions Links { get; }
+    internal SourceDescription? Source { get; init; }
 }

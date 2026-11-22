@@ -11,6 +11,7 @@ using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 
@@ -129,6 +130,7 @@ public partial class StatisticsPage : UserControl
         SourcesEmpty.Text = Texts.T("stats.sources.empty");
         StatisticsHelpButton.HelpTextOverride = Texts.T("stats.footnote");
         ResetStatisticsButton.Content = Texts.T("stats.reset");
+        CommandBindings.EnsureIconBeforeText(ResetStatisticsButton, "rotate-ccw");
         StatisticsActions.RefreshOverflowLabel();
         ResetConfirmTitle.Text = Texts.T("stats.reset");
         OverlayFrame.MakeClose(ResetConfirmClose, Texts.T("stats.reset.cancel"));
@@ -343,9 +345,9 @@ public partial class StatisticsPage : UserControl
         OverlayFrame.TryHandleEscape(e, () => CloseConfirmation(focusReset: true));
     }
 
-    private async void OnConfirmResetClick(object? sender, RoutedEventArgs e)
+    private void OnConfirmResetClick(object? sender, RoutedEventArgs e)
     {
-        if (ResetConfirmation.IsOpen) await ResetStatisticsAsync();
+        if (ResetConfirmation.IsOpen) OpenActions.Start(ResetStatisticsAsync, "stats.reset");
     }
 
     internal async Task ResetStatisticsAsync()

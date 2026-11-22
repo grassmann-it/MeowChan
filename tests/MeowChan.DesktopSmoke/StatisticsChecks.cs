@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media;
@@ -535,7 +536,26 @@ internal static class StatisticsChecks
         Button link = FindErrorLink(page, row)!;
         Require(AutomationProperties.GetName(link) == row.ErrorsLinkText && row.ErrorsLinkText.Contains(row.Name, StringComparison.Ordinal),
             "The error link does not name where it leads.");
-        SmokeActionClick.Execute(link);
+        DataGrid grid = page.RowsGrid;
+        grid.SelectedItem = row;
+        grid.CurrentColumn = grid.Columns[^2];
+        Require(grid.Focus(NavigationMethod.Tab), "The statistics table did not take keyboard focus.");
+        grid.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Right });
+        DataGridCell cell = link.GetVisualAncestors().OfType<DataGridCell>().Single();
+        ((Control)window.FocusManager!.GetFocusedElement()!).RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Tab });
+        window.UpdateLayout();
+        Require(cell.Classes.Contains(":current") && new[] { "CurrencyVisual", "FocusVisual" }.All(part =>
+                cell.GetVisualDescendants().OfType<Control>().Single(control => control.Name == part).Opacity == 0),
+            "The statistics diagnostics cell shows a cell indicator.");
+        Require(cell.GetVisualAncestors().OfType<DataGridRow>().Single().GetVisualDescendants().OfType<Border>()
+                .Single(border => border.Name == "BackgroundBorder").BorderThickness == new Thickness(3, 1, 1, 1),
+            "The focused statistics row lacks a border.");
+        Require(link.IsFocused && link.Focusable && window.GetVisualDescendants().OfType<Border>().Any(border =>
+                ReferenceEquals(border.GetValue(AdornerLayer.AdornedElementProperty), link)
+                && border.BorderThickness == new Thickness(2) && border.IsEffectivelyVisible),
+            "The statistics diagnostics link did not take Tab focus with its own visible ring.");
+        link.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Enter });
+        link.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Enter });
         await Program.WaitUntilAsync(() => window.DiagnosticsSegmentShown && window.DiagnosticsPageHost.Content is DiagnosticsPage { SourceFilter: SecondFixture, ProblemsOnly: true },
             () => "segment " + window.StatusSegmentSelected + ", filter " + (window.DiagnosticsPageHost.Content as DiagnosticsPage)?.SourceFilter);
         // Back to the statistics for what follows.

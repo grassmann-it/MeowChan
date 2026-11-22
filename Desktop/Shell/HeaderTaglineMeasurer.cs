@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
@@ -7,37 +8,50 @@ using Avalonia.Media.TextFormatting;
 namespace MeowChan.Desktop;
 
 /// <summary>
-/// Measures how wide a tagline text is in the font of the header's text block, with a <see cref="TextLayout"/> that does not trim or wrap
-/// (so a cut-off text is impossible to mistake for a fitting one). A width is measured once per (text, font, size) and then served from the
-/// cache: the header asks again only after a width change of its column, a language change or a new quip, never in a layout pass.
+/// Shapes each form without a width constraint, using the header text block's typography and font fallbacks.
+/// The cached metrics include glyph ink beyond the advances. Only the pixel rounding depends on the monitor scale.
 /// </summary>
 internal sealed class HeaderTaglineMeasurer
 {
-    // Texts × the two forms × a handful of languages; far above anything a session produces, so the cap is never hit in practice.
     private const int MaximumEntries = 256;
 
-    private readonly record struct Key(string Text, string Family, double Size, FontStyle Style, FontWeight Weight, FontStretch Stretch);
+    private readonly record struct Key(string Text, Typeface Typeface, double Size, FlowDirection Direction,
+        double LetterSpacing, FontFeatureCollection? Features);
 
-    private readonly Dictionary<Key, double> _cache = [];
+    private readonly record struct Metrics(double RightEdge, double LeadingBearing);
+    internal readonly record struct Footprint(double Width, double LeftInset);
 
-    /// <summary>How many widths were really measured (not served from the cache); for tests and diagnostics.</summary>
-    internal int Measurements { get; private set; }
+    private readonly Dictionary<Key, Metrics> _cache = [];
 
-    /// <summary>The width in dip of <paramref name="text"/> in the font, size and style of <paramref name="reference"/>, rounded up to whole dip.</summary>
-    internal double Width(string text, TextBlock reference) =>
-        Width(text, new Typeface(reference.FontFamily, reference.FontStyle, reference.FontWeight, reference.FontStretch), reference.FontSize);
-
-    internal double Width(string text, Typeface typeface, double fontSize)
+    internal Footprint Measure(string text, TextBlock reference, double scale)
     {
-        if (string.IsNullOrEmpty(text)) return 0;
-        Key key = new(text, typeface.FontFamily.ToString(), fontSize, typeface.Style, typeface.Weight, typeface.Stretch);
-        if (_cache.TryGetValue(key, out double known)) return known;
-        TextLayout layout = new(text, typeface, fontSize, null, TextAlignment.Left, TextWrapping.NoWrap, TextTrimming.None);
-        double width = Math.Ceiling(layout.WidthIncludingTrailingWhitespace);
-        layout.Dispose();
-        Measurements++;
-        if (_cache.Count >= MaximumEntries) _cache.Clear();
-        _cache[key] = width;
-        return width;
+        if (string.IsNullOrEmpty(text)) return default;
+        Typeface typeface = new(reference.FontFamily, reference.FontStyle, reference.FontWeight, reference.FontStretch);
+        Key key = new(text, typeface, reference.FontSize, reference.FlowDirection, reference.LetterSpacing, reference.FontFeatures);
+        if (!_cache.TryGetValue(key, out Metrics metrics))
+        {
+            metrics = Shape(key);
+            if (_cache.Count >= MaximumEntries) _cache.Clear();
+            _cache[key] = metrics;
+        }
+
+        if (metrics.RightEdge <= 0) return default;
+        // Keep one physical pixel clear at the leading clip edge, including any negative bearing.
+        double leftInset = Math.Ceiling(Math.Max(0, 1 - metrics.LeadingBearing * scale)) / scale;
+        double width = Math.Ceiling(metrics.RightEdge * scale) / scale + leftInset;
+        return new Footprint(width, leftInset);
+    }
+
+    private static Metrics Shape(Key key)
+    {
+        using TextLayout layout = new(key.Text, key.Typeface, key.Size, textAlignment: TextAlignment.Left,
+            textWrapping: TextWrapping.NoWrap, textTrimming: TextTrimming.None, flowDirection: key.Direction,
+            letterSpacing: key.LetterSpacing, fontFeatures: key.Features);
+        if (layout.TextLines.Count != 1) return default;
+
+        TextLine line = layout.TextLines[0];
+        // Avalonia reports negative bearings when ink extends beyond the logical line.
+        double rightEdge = line.WidthIncludingTrailingWhitespace - Math.Min(0, line.OverhangTrailing);
+        return new Metrics(rightEdge, line.OverhangLeading);
     }
 }

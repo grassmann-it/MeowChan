@@ -16,7 +16,7 @@ internal static class TaggingViewModes
 }
 
 /// <summary>
-/// The saved state of the page's stamp block: "Auto" (never chosen) follows the work view, "Open" and "Closed" are the person's choice
+/// The saved state of the page's stamp block: "Auto" (never chosen) starts collapsed, "Open" and "Closed" are the person's choice
 /// for this profile.
 /// </summary>
 internal enum TaggingStampBlockState { Auto, Open, Closed }
@@ -25,12 +25,4 @@ internal static class TaggingStampBlocks
 {
     internal static TaggingStampBlockState Parse(string? text) =>
         Enum.TryParse(text?.Trim(), ignoreCase: true, out TaggingStampBlockState state) && Enum.IsDefined(state) ? state : TaggingStampBlockState.Auto;
-
-    /// <summary>Whether the block is open: the choice when there is one, else open everywhere but in Barebones (<paramref name="compactView"/>).</summary>
-    internal static bool IsOpen(TaggingStampBlockState state, bool compactView) => state switch
-    {
-        TaggingStampBlockState.Open => true,
-        TaggingStampBlockState.Closed => false,
-        _ => !compactView
-    };
 }

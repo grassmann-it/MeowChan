@@ -1,5 +1,8 @@
 using System.Collections.Immutable;
+using System.IO;
 using System.Linq;
+using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginSdk;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -14,15 +17,41 @@ internal sealed partial class BooruSearchModel
     private static bool MatchesView(BooruPostView post, BooruSearchView view) =>
         post.SourceId == view.ProviderId && post.Identity.InstanceId == view.InstanceId;
 
-    internal BooruSearchView ViewFromTarget(BooruSearchTabTarget target)
+    internal BooruSearchView ViewFromTarget(BooruSearchTabTarget target, int resultLimit, SourceDescription? source)
     {
         bool bound = IsBound(target.Source, target.Instance);
-        BooruInputMode mode = target.PostId is null ? BooruInputMode.Tags : BooruInputMode.Post;
-        string input = target.PostId ?? target.Query ?? string.Empty;
+        BooruInputMode mode = target.Mode ?? (target.PostId is null ? BooruInputMode.Tags : BooruInputMode.Post);
+        string input = target.Input ?? target.PostId ?? target.Query ?? string.Empty;
+        ImmutableArray<BooruResultRowView> rows = bound && target.Rows is { } cached
+            ? cached.Take(resultLimit).Where(row => IsValidCachedPost(row.Post, target, source)).Select(row =>
+            {
+                BooruPostView post = BooruPostView.From(row.Post, target.Instance);
+                BooruPreviewState preview = row.Preview is not null ? BooruPreviewState.Ready
+                    : post.PreviewUrl is not null ? BooruPreviewState.Unavailable : BooruPreviewState.None;
+                return new BooruResultRowView(post, Preview: preview, PreviewBytes: row.Preview);
+            }).ToImmutableArray()
+            : ImmutableArray<BooruResultRowView>.Empty;
+        BooruSearchStatus status = !bound ? BooruSearchStatus.Unavailable
+            : !rows.IsEmpty ? BooruSearchStatus.Results : target.Empty ? BooruSearchStatus.Empty : BooruSearchStatus.Idle;
         return new BooruSearchView(target.Source, bound ? _search.ProviderName : target.Source, mode, input,
-            BooruInput.Parse(mode, input), bound ? BooruSearchStatus.Idle : BooruSearchStatus.Unavailable,
-            target.Query, target.PostId, target.Page, true, ImmutableArray<BooruResultRowView>.Empty,
-            null, bound ? null : BooruCodes.SourceUnavailable, null, InstanceId: target.Instance);
+            BooruInput.Parse(mode, input), status, target.Query, target.PostId, target.Page, target.IsEnd, rows,
+            null, bound ? null : BooruCodes.SourceUnavailable, null, InstanceId: target.Instance,
+            NeedsLoad: status == BooruSearchStatus.Idle
+                && (!string.IsNullOrWhiteSpace(input) || target.Query is not null || target.PostId is not null))
+        { PagerLimits = new(target.MaximumPage, target.PostsPerPage) };
+    }
+
+    private static bool IsValidCachedPost(BooruPost post, BooruSearchTabTarget target, SourceDescription? source)
+    {
+        if (source is not null)
+            return SdkValidation.ValidateBooruPostResult(new BooruPostRequest(post.Id), new BooruPostSnapshot(post), source).Count == 0;
+        try
+        {
+            // The SDK allows signed scores, while the archive claim mapper requires nonnegative counters.
+            _ = BooruClaimMapper.Map(post with { Score = null }, target.Source, target.Instance);
+            return true;
+        }
+        catch (InvalidDataException) { return false; }
     }
 
     /// <summary>

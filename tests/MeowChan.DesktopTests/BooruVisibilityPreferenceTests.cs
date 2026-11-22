@@ -18,6 +18,24 @@ public sealed class BooruVisibilityPreferenceTests
     }
 
     [Theory]
+    [InlineData("{}", true, true)]
+    [InlineData("""{"FooterPages":[],"ShowBooruTools":true}""", true, true)]
+    [InlineData("""{"FooterPages":["-booru","archive"]}""", false, true)]
+    [InlineData("""{"FooterPages":[],"ShowBooruTools":false}""", true, false)]
+    public void LegacyProfilesInheritTheDefaultUnlessAHideChoiceIsStored(string settings, bool footer, bool page)
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(Path.Combine(directory.Path, "settings.json"), settings);
+        Config loaded = Config.LoadConfig(directory.Path);
+        Assert.Equal(footer, loaded.FooterLayout.IsVisible("navigation.booru"));
+        Assert.Equal(page, loaded.ShowBooruTools);
+        loaded.SaveConfig(directory.Path);
+        Config restored = Config.LoadConfig(directory.Path);
+        Assert.Equal(footer, restored.FooterLayout.IsVisible("navigation.booru"));
+        Assert.Equal(page, restored.ShowBooruTools);
+    }
+
+    [Theory]
     [InlineData(true)]
     [InlineData(false)]
     public void EveryCopyAndPersistencePathKeepsThePreference(bool visible)

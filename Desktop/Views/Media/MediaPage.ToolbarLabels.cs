@@ -1,11 +1,12 @@
 using Avalonia.Controls;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// F10: the labels of the toolbar's switches follow the width of the row (MediaToolbarLabels). Only the presentation changes; the buttons, their
-// names, tooltips, shortcuts and the stage rules of MediaToolbarLayout stay as they are.
+// The toolbar switches trade their short labels for icons as the row narrows. Their names and hints stay available.
 public sealed partial class MediaPage
 {
     private readonly MediaToolbarLabels.SidebarContent _tagsLabelContent = new();
@@ -36,10 +37,21 @@ public sealed partial class MediaPage
     private void ReapplyToolbarLabels(bool force = true)
     {
         _sidebarLabelsShown = MediaToolbarLabels.ShowsSidebarLabels(_labelRowWidth);
-        string key = (_sidebarLabelsShown ? "1" : "0") + _layout.PanelSide + _layout.TagListSide;
+        _sidebarToggles.ShowLabels = _sidebarLabelsShown;
+        _sidebarToggles.Describe(_booruMode, Texts.T("media.tagList"), Texts.T("media.tagList.tip", PlatformKeyNames.Alt()));
+        _sidebarToggles.Describe(_panelToggle, CommandCatalog.Label(MediaPanelKeys.ToggleCommandId),
+            CommandBindings.Tooltip(MediaPanelKeys.ToggleCommandId, PanelHint()));
+        string key = _layout.PanelSide.ToString() + _layout.TagListSide;
         if (!force && key == _labelsKey) return;
         _labelsKey = key;
-        _tagsLabelContent.Apply(_booruMode, _sidebarLabelsShown, Texts.T("media.toolbar.tagsLabel"), _layout.TagListSide == MediaTagListSide.Right);
-        _mediaLabelContent.Apply(_panelToggle, _sidebarLabelsShown, Texts.T("media.toolbar.mediaLabel"), _layout.PanelSide == MediaPanelSide.Right);
+        bool tagsRight = _layout.TagListSide == MediaTagListSide.Right;
+        string tagsIcon = tagsRight ? "panel-right" : "panel-left";
+        if (IconButtons.KeyOf(_booruMode) != tagsIcon)
+        {
+            IconButtons.Record(_booruMode, tagsIcon);
+            _tagsLabelContent.SetIcon(CommandBindings.NamedIcon(tagsIcon));
+        }
+        _tagsLabelContent.Apply(Texts.T("media.toolbar.tagsLabel"), tagsRight);
+        _mediaLabelContent.Apply(Texts.T("media.toolbar.mediaLabel"), _layout.PanelSide == MediaPanelSide.Right);
     }
 }

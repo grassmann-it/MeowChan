@@ -278,6 +278,16 @@ internal static class CommandLabelCatalog
 
     internal static readonly (string Key, string English, string German)[] PresentationEntries =
     {
+        ("command.navigation.downloads.tip", "Manage watched threads and downloads", "Beobachtete Threads und Downloads verwalten"),
+        ("command.navigation.archive.tip", "Find archived threads and read their posts", "Archivierte Threads finden und Beiträge lesen"),
+        ("command.navigation.media.tip", "Browse media saved from threads", "Gespeicherte Medien aus Threads durchstöbern"),
+        ("command.navigation.tagging.tip", "Tag media in a guided queue", "Medien in einer geführten Warteschlange taggen"),
+        ("command.navigation.booru.tip", "Search Danbooru and manage watched searches", "Danbooru durchsuchen und Suchbeobachtungen verwalten"),
+        ("command.navigation.rules.tip", "Manage rules for saving and filtering media", "Regeln zum Speichern und Filtern von Medien verwalten"),
+        ("command.navigation.sources.tip", "Manage source plugins and their permissions", "Quellen-Plugins und ihre Berechtigungen verwalten"),
+        ("command.navigation.status.tip", "View transfer statistics and diagnose problems", "Transferstatistik ansehen und Probleme untersuchen"),
+        ("command.navigation.settings.tip", "Configure MeowChan", "MeowChan konfigurieren"),
+
         ("command.gallery.close.compact", "Close", "Schließen"),
         // MEDIA103-NAV P1: the same gallery.close, when the gallery was opened from the Medien page and closes back to it.
         ("command.gallery.close.media", "Back to media", "Zurück zu Medien"),

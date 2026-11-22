@@ -59,7 +59,7 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 
 ## From a package to an offline picture
 
-1. For the published 1.1.0 build, choose the package for your OS and CPU on the [1.1.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md). The 1.1.0 development line has no published package yet.
+1. For the published 1.1.0 build, choose the package for your OS and CPU on the [1.1.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0). Extract the **whole** archive, including native libraries and notices. Start `MeowChan.exe` on Windows, `MeowChan` from a Linux archive, or the executable Linux AppImage. On macOS, open the DMG, drag `MeowChan.app` to Applications, and launch it there. Desktop packages include .NET; source builds require the pinned .NET 10 SDK. Linux requires glibc and X11/XWayland with native graphics/font dependencies. The macOS apps are ad-hoc signed and not notarized; see [macOS first-launch guidance](macos-signing.md) for manual approval in Privacy & Security. See [platform requirements](platform-support.md).
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Plugins lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
@@ -90,15 +90,10 @@ The footer groups destinations as **Work** (Downloads, Archive, Media, Tagging, 
 **More** (German: **Mehr**) and **Settings**. The current work view and available
 width decide which destinations stay directly in the footer. **More** contains
 only destinations moved out of the footer; it does not duplicate Downloads or
-Settings. Advanced shows all main destinations directly when there is enough room,
-except Booru, which the default footer leaves out (see below); a narrow window moves
-the extra destinations into More. The ⋯ app menu does not list the pages: it holds
-tools such as Import files…, Reader groups, Pause, Settings, Keyboard shortcuts and
-About, and **Danbooru search and watchers…** while Booru is available. **Booru** is
-not in the footer by default. You reach it through **More**, through that app-menu
-entry, through **Media → More → Open Booru** or with its shortcut, and you can give it
-a footer button under Settings → **Interface → Footer** (German: **Oberfläche →
-Fußleiste**). **Tagging** (German: **Taggen**) is a numbered footer page right
+Settings. Booru has a footer button by default in Simple and Advanced when there
+is room. Barebones and narrow windows can move it under **More**. The ⋯ app menu
+includes **Danbooru search and watchers…** while Booru is available. You can also
+open it from **Media → More → Open Booru** or with its shortcut. **Tagging** (German: **Taggen**) is a numbered footer page right
 after Media; it is under More in Barebones. How the Ctrl/Cmd+digit keys number these
 pages is described once under [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering).
 In German the destination order is
@@ -331,28 +326,24 @@ persist independently of Save URLs on exit.
 ### Danbooru search and watchers
 
 Danbooru is a public, read-only post-search source, not a board source. Open
-the **Booru** main page from **More** (or from the footer, once you have added it
-there), with Ctrl+Shift+B (Command+Shift+B on macOS) or its digit, or use **Danbooru
+the **Booru** main page from the footer or **More**, with Ctrl+Shift+B (Command+Shift+B on macOS) or its digit, or use **Danbooru
 search and watchers…** in the ⋯ app menu to reach the same page. Its plugin must be enabled
 and available under **Plugins → All plugins**. Merely opening the page sends no new search;
 previously saved active watchers still follow their schedule.
 
 #### Booru page and display switch
 
-**English:** Booru is a main page after Media in the Work group, not a separate
-window or a Status segment, and has no page-specific Back/Close button. The
-footer, F1 help and the More menu follow that main-page order. **The default
-footer does not show a Booru button.** Booru stays reachable from **More**, from
-**Danbooru search and watchers…** in the ⋯ app menu, from **Media → More → Open
-Booru** and from its shortcuts: Ctrl+Shift+B (Command+Shift+B on macOS), which never
-changes, and a Ctrl/Cmd+digit. Because the default footer hides Booru, its digit is
-the last one, **Ctrl+8**; if you show it in the footer, it takes **Ctrl+5** and the
-pages behind it move up by one. The numbers for every page are in the table under
-[Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering). A
-saved binding of another command, for example a saved Plugins binding on Ctrl+6 or
-Ctrl+8, takes precedence over the Booru default and keeps its meaning; F1 and tooltips
-show effective bindings, not an extra default that overrides your saved choice. F1 can
-still list a hidden or unavailable page binding; it does not make that destination available.
+**English:** Booru is a main page after Tagging in the Work group. The footer, F1
+help and **More** follow that order. From 1.1.1, Booru is shown by default for new
+profiles and profiles that used the old default footer. Saved hide choices stay in
+effect. You can also use **Danbooru search and watchers…** in the ⋯ app menu or
+**Media → More → Open Booru**. Ctrl+Shift+B (Command+Shift+B on macOS) stays
+fixed. With the default footer, Booru takes **Ctrl+5**. If you hide its footer
+button in the layout, it moves to **More** and takes **Ctrl+8**.
+[Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering) lists
+the other digits. A saved binding of another command, for example a saved Plugins
+binding on Ctrl+6 or Ctrl+8, takes precedence over the Booru default and keeps its meaning.
+F1 can still list a hidden or unavailable page binding. Availability controls whether the shortcut opens the page.
 
 **Show Booru actions** (Settings → **Interface → Footer**, on by default) is a saved,
 profile-wide display switch for the Booru page and the Danbooru tools. It is offered
@@ -361,28 +352,23 @@ absent. The switch has no footer check box and no app-menu twin any more. Turnin
 hides the Booru entries in the footer, More and app menu, as well as Media → More →
 **Open Booru**; its page shortcut does not open the hidden page. If Booru is selected,
 the shell returns to Downloads. Turning it back on makes the page reachable again and
-keeps the unsent draft while the same source composition remains. To put a Booru button
-into the footer, show it in the footer list above the switch; the button only appears while the switch is on. This is
+keeps the unsent draft while the same source composition remains. To hide only the footer button, use the footer list above the switch. This is
 display only, not source authorization, plugin activation or a watcher pause. Sources,
 watchers and downloads keep running under their existing pause, cooldown and
 availability rules. Showing Booru does not automatically resume a paused watcher,
 submit a search or bypass those rules.
 
-**Deutsch:** **Booru** ist eine Hauptseite hinter Medien in der Gruppe Arbeit,
-kein separates Fenster und kein Status-Bereich; sie hat keinen eigenen
-Zurück-/Schließen-Knopf. Fußleiste, F1-Hilfe und das Menü **Mehr** folgen
-dieser Seitenreihenfolge. **Die Standard-Fußleiste zeigt keinen Booru-Knopf.** Booru
-bleibt erreichbar über **Mehr**, über **Danbooru-Suche und Suchbeobachtungen…** im
-⋯-Appmenü, über **Medien → Mehr → Booru öffnen** und über die Tastenkürzel:
-Strg+Umschalt+B (⌘⇧B auf macOS), das sich nie ändert, und eine Strg/⌘+Ziffer.
-Weil die Standard-Fußleiste Booru ausblendet, hat Booru die letzte Ziffer,
-**Strg+8**; zeigst du Booru in der Fußleiste, belegt es **Strg+5** und die Seiten
-dahinter rücken um eins nach oben. Die Zuordnung aller Seiten steht in der Tabelle unter
-[Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering). Eine gespeicherte
-Belegung eines anderen Befehls, etwa Plugins auf Strg+6 oder Strg+8, hat Vorrang vor dem
-Booru-Standard und behält ihre Bedeutung. F1 und Tooltips zeigen die wirksamen Belegungen.
-F1 kann auch ein ausgeblendetes oder nicht verfügbares Seitenkürzel weiter auflisten;
-das schaltet die Seite nicht frei.
+**Deutsch:** **Booru** ist eine Hauptseite hinter Taggen in der Gruppe Arbeit.
+Fußleiste, F1-Hilfe und **Mehr** folgen dieser Reihenfolge. Seit 1.1.1 wird Booru
+in neuen Profilen und in Profilen mit der alten Standard-Fußleiste angezeigt.
+Gespeicherte Ausblendungen bleiben wirksam. Du kannst die Seite auch über
+**Danbooru-Suche und Suchbeobachtungen…** im ⋯-Appmenü oder über **Medien → Mehr →
+Booru öffnen** öffnen. Strg+Umschalt+B (⌘⇧B auf macOS) bleibt fest. In der
+Standard-Fußleiste hat Booru **Strg+5**. Blendest du den Fußleistenknopf in der
+Liste aus, wandert Booru nach **Mehr** und erhält **Strg+8**. Die anderen Ziffern
+stehen unter [Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering).
+Eine gespeicherte Belegung eines anderen Befehls, etwa Plugins auf Strg+6
+oder Strg+8, hat Vorrang vor dem Booru-Standard und behält ihre Bedeutung.
 
 **Booru-Aktionen anzeigen** (Einstellungen → **Oberfläche → Fußleiste**, standardmäßig
 an) ist ein gespeicherter, profilweiter Anzeigeschalter für die Booru-Seite und die
@@ -392,8 +378,7 @@ blendet die Booru-Einträge in Fußleiste, Mehr und Appmenü sowie Medien → Me
 **Booru öffnen** aus; das Seitenkürzel öffnet keine ausgeblendete Seite. Von der
 gewählten Booru-Seite geht es zu Downloads zurück. Wiederanzeigen macht sie erneut
 erreichbar und bewahrt den ungesendeten Entwurf, solange dieselbe Quelleneinbindung
-besteht. Einen Booru-Knopf in der Fußleiste schaltest du in der Fußleistenliste über
-dem Schalter ein; der Knopf erscheint nur bei eingeschaltetem Schalter. Das ist nur Anzeige, keine
+besteht. Wenn du nur den Fußleistenknopf ausblenden möchtest, nutze die Liste über dem Schalter. Das ist nur Anzeige, keine
 Quellenautorisierung, Plugin-Aktivierung oder Suchbeobachtungspause. Quellen,
 Suchbeobachtungen und Downloads laufen nach ihren bisherigen Pausen-, Cooldown- und
 Verfügbarkeitsregeln weiter. Anzeigen setzt keine pausierte Suchbeobachtung automatisch
@@ -405,8 +390,9 @@ Choose **Tag search**, enter up to two tags and one optional `rating:` term, and
 press **Search**. Positive and negative (`-tag`) occurrences both count toward the
 two-tag limit. MeowChan normalizes separators to spaces but adds no hidden terms
 or automatic `g,s` filter. A search is limited to at most 5 pages of 20 posts;
-use **Previous page** and **Next page**, or refine the query. The displayed sent
-query belongs to those results, not to an unsubmitted edit in the input.
+use **Previous page** and **Next page**, or refine the query. In Gallery, the
+pager's tooltip and accessible status name the query for the current results.
+The search field's tooltip explains the query syntax and how originals are queued.
 
 Choose **Post link or ID** and **Look up post** for a single Danbooru post.
 Looking it up shows provider metadata and previews; it does not create a watcher
@@ -436,24 +422,26 @@ one-shot and watcher findings retain their provenance.
 
 #### Browse result previews
 
-Choose **Open in gallery** on a Booru result card to open a larger, preview-only
-viewer. Enter or a double-click on an unsaved card's body opens the same viewer;
-on a result with a saved original, those primary gestures still use **Show in
-Media**. Buttons, tags and text inside a card keep their own actions.
+Choose **Gallery** above the results or **Open in gallery** on a result card.
+Enter or a double-click on the body of an unsaved result opens the gallery. For
+saved results, those gestures use **Show in Media**. **Open in new window** uses
+the same navigation and remembers its last normal size and position. The side
+panel shows copyable Danbooru tags grouped by category.
 
-The viewer enlarges the bounded preview already fetched by the search, not the
-original. Its quality depends on the provider's preview; a missing or restricted
-preview shows its status instead of keeping the previous picture. Opening the
-viewer, moving between results and selecting them do not download originals or
-request another result page.
+Both viewers show the available preview first. The provider's larger, reduced-size
+sample replaces it when the sample fits the configured gallery limits. Moving to
+another result or closing the viewer cancels the previous sample request. To
+download an original, use **Download original**.
 
 | Key or action | In the Booru result viewer |
 | --- | --- |
-| Left / Right, Previous / Next | Move within the current result page; stop at either end without wrapping |
+| Left / Right, Up / Down, Previous / Next | Move within the current result page and stop at either end |
+| Home / End | Jump to the first or last result on the page |
 | Space / Enter on the picture | Select or deselect the displayed result |
 | Selection checkbox | Share the same per-image selection with the result card; closing and reopening on the same result page keeps it |
-| **Load original**, Ctrl+E (Command+E on macOS) | Queue or retry only the displayed original, not every selected result |
-| Escape / Close | Close the viewer and return focus to the last browsed result card |
+| **Download original**, Ctrl+E (Command+E on macOS) | Queue or retry the displayed original |
+| F11 (also Control+Command+F on macOS) | Toggle fullscreen |
+| Escape / Close | Return to the previous results view or close the popout |
 
 The download key follows your customized **Export** shortcut for originals. Availability,
 restrictions and queue deduplication still apply; selection alone never starts a
@@ -734,8 +722,7 @@ that thread instead.
 
 Every main page has two default keys. The **digit** is Ctrl+digit (Command+digit on
 macOS). It counts the footer buttons your work view shows, from left to right; the pages
-under **More** follow in footer order, and Booru, which the default footer hides, comes
-last. A page's digit therefore moves when you reorder or hide footer pages or switch the
+under **More** follow in footer order, then come the pages you hid from the footer. A page's digit therefore moves when you reorder or hide footer pages or switch the
 work view. The **letter** never moves: Ctrl+Shift+letter (⇧⌘letter on macOS) opens the
 same page whatever the footer looks like. Footer tooltips, the F1 window and
 Settings → **Interface → Footer** show both keys, and both can be rebound.
@@ -746,16 +733,15 @@ Settings → **Interface → Footer** show both keys, and both can be rebound.
 | Archive | Ctrl+Shift+A | Ctrl+2 | Ctrl+2 |
 | Media | Ctrl+Shift+E | Ctrl+3 | Ctrl+3 |
 | Tagging | Ctrl+Shift+K | Ctrl+4 | Ctrl+4 |
-| Status | Ctrl+Shift+S | Ctrl+5 | Ctrl+7 |
-| Rules | Ctrl+Shift+U | Ctrl+6 | Ctrl+5 |
-| Plugins | Ctrl+Shift+X | Ctrl+7 | Ctrl+6 |
-| Booru | Ctrl+Shift+B | Ctrl+8 | Ctrl+8 |
+| Booru | Ctrl+Shift+B | Ctrl+5 | Ctrl+5 |
+| Status | Ctrl+Shift+S | Ctrl+6 | Ctrl+8 |
+| Rules | Ctrl+Shift+U | Ctrl+7 | Ctrl+6 |
+| Plugins | Ctrl+Shift+X | Ctrl+8 | Ctrl+7 |
 
 The table lists the pages in the order of the digits in Simple. These are the numbers
-with the default footer, which has no Booru button; Simple also moves Rules and Plugins
-under More, so Status comes before them. If you add Booru to the footer, it takes digit 5
-in every work view (in Barebones the button stays under More, the digit does not change)
-and the pages behind it move up by one. Ctrl+, opens **Settings** on
+with the default footer. Simple moves Rules and Plugins under More, so Status
+comes before them. Booru takes digit 5 in every work view. In Barebones it sits
+under More. Ctrl+, opens **Settings** on
 every platform. Diagnostics and Statistics are segments of Status, not pages: they have no
 default key, and the Status digit opens the last-used segment. Ctrl+9 is unassigned by
 default. Use Command instead of Ctrl on macOS. In German, tooltips and the F1 window write
@@ -1276,14 +1262,14 @@ The shared status line counts active transfers, waiting transfers and current
 problems; while sampling is active it also shows download and disk-write rates.
 Without fresh sampling it omits the rates, rather than presenting stale numbers.
 The Diagnostics tab names the current problem count. The footer button and
-the Status shortcut (Ctrl+Shift+S, and a digit that follows the footer: Ctrl+7 in Barebones and Advanced,
-Ctrl+5 in Simple; Command instead of Ctrl on macOS) open the last-used segment; the header graph and tray
+the Status shortcut (Ctrl+Shift+S, and a digit that follows the footer: Ctrl+8 in Barebones and Advanced,
+Ctrl+6 in Simple; Command instead of Ctrl on macOS) open the last-used segment; the header graph and tray
 open Statistics. A source's Diagnostics action opens Status → Diagnostics with
 that source selected. Recovery failure opens Diagnostics; Statistics becomes
 available after session recovery. You can assign each segment a shortcut, and
 previously saved segment shortcuts keep working. Booru is a separate main page,
-not a Status segment. For the digits of Status, Plugins and Booru, and for what changes when
-Booru is shown in the footer, see [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering);
+not a Status segment. For the digits of Status, Plugins and Booru, and for how those digits follow
+the footer, see [Page shortcuts and footer numbering](#page-shortcuts-and-footer-numbering);
 for Booru visibility and the saved Plugins shortcut override, see
 [Booru page and display switch](#booru-page-and-display-switch).
 
@@ -1292,14 +1278,14 @@ Die gemeinsame Statuszeile zählt aktive und wartende Übertragungen und aktuell
 Probleme. Solange gemessen wird, zeigt sie auch Download- und Schreibrate; ohne
 frische Messung lässt sie die Raten weg. Der Diagnose-Reiter nennt die Zahl der
 aktuellen Probleme. Der Fußleistenknopf und das Status-Kürzel (Strg+Umschalt+S sowie eine Ziffer, die der
-Fußleiste folgt: in Minimal und Erweitert Strg+7, in Einfach Strg+5; ⌘ statt Strg auf macOS) öffnen den zuletzt
+Fußleiste folgt: in Minimal und Erweitert Strg+8, in Einfach Strg+6; ⌘ statt Strg auf macOS) öffnen den zuletzt
 benutzten Bereich; Kopfleisten-Graph und Tray öffnen Statistik. Die Diagnose-Aktion
 einer Quelle öffnet Status → Diagnose mit dieser Quelle als Filter. Nach einer
 fehlgeschlagenen Wiederherstellung öffnet sich Diagnose; Statistik ist nach der
 Sitzungswiederherstellung verfügbar. Du kannst jedem Bereich ein Kürzel zuweisen;
 früher gespeicherte Bereichskürzel funktionieren weiter. Booru ist eine eigene
-Hauptseite, kein Status-Bereich. Die Ziffern von Status, Plugins und Booru und was sich
-ändert, wenn Booru in der Fußleiste steht, stehen in der Tabelle unter
+Hauptseite, kein Status-Bereich. Die Ziffern von Status, Plugins und Booru und wie sie
+der Fußleiste folgen, stehen in der Tabelle unter
 [Seitentasten und Fußleistenzählung](#page-shortcuts-and-footer-numbering). Der
 [Booru-Anzeigeschalter und der gespeicherte Plugins-Kürzelvorrang](#booru-page-and-display-switch)
 sind davon getrennt; der Schalter pausiert keine Suchbeobachtungen.
@@ -2155,12 +2141,24 @@ in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open t
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
 command, **Esc** or its close button closes it; **Shift+P** switches to the post panel.
-The side panel has **Post | Tags** at the top left, the live medium counter
-immediately beside it, and × alone at the right. The counter updates as you navigate,
-with localized position text and polite accessibility announcements. When the
-switch has focus, Left/Right selects the segment. Closing returns focus to
+The live medium counter is at the top left of the side panel when shown. Below it,
+**Post | Tags** are on the left and × is on the right. The tabs wrap onto two lines
+when space is tight. The counter updates as you navigate, with localized position
+text and polite accessibility announcements. In the Tags panel, the media title
+is left-aligned above the favorite and rating controls. In the Post panel, the line
+with the source, board and thread is left-aligned above those controls and includes
+the post number when available. When the switch has focus, Left/Right selects
+the segment. Closing returns focus to
 the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
 layout profile. Below 900 DIP it overlays the picture.
+
+**Deutsch:** Wenn der Positionszähler angezeigt wird, steht er oben links im Galerie-Seitenpanel. Darunter
+stehen **Post | Tags** links und × rechts. Bei wenig Platz werden die Tabs auf zwei
+Zeilen verteilt. Beim Blättern aktualisiert sich der Zähler in der gewählten
+Sprache. Screenreader lesen die neue Position bei der nächsten Sprechpause vor.
+Im Tag-Panel steht der Medientitel linksbündig über den Favoriten- und Bewertungsfunktionen.
+Im Post-Panel ist dort die Zeile mit Quelle, Board und Thread linksbündig. Ist eine
+Post-Nummer verfügbar, steht sie ebenfalls in dieser Zeile.
 
 **Safe flow.** Nothing is assigned automatically. Type a name and press Enter to
 give your own tag to the shown medium; a new name creates a local own tag. With an

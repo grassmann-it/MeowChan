@@ -10,10 +10,16 @@ using static MeowChan.DesktopTests.ArchiveCleanupFixtures;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class ArchiveCleanupPreviewHostTests
 {
+    // Host construction publishes the profile's shortcuts. Keep that publish and its
+    // dispatcher queue isolated from controls created by other test collections.
+    private static void OnHostDispatcher(Func<Task> test) =>
+        BooruComponentDispatcher.Run(() => BooruComponentDispatcher.Wait(test()));
+
     [Fact]
-    public async Task ReadsEveryCatalogPageAndPreservesOptionalFilesAndMedia()
+    public void ReadsEveryCatalogPageAndPreservesOptionalFilesAndMedia() => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -36,10 +42,10 @@ public sealed class ArchiveCleanupPreviewHostTests
         Assert.All(preview.Rows, row => { Assert.Equal(ArchiveCleanupEligibility.Candidate, row.Eligibility); Assert.Equal(0, row.Media.SavedAssetCount); });
         Assert.Equal(preview.EvidenceToken, again.EvidenceToken);
         AssertSnapshot(before, Snapshot(profile, root));
-    }
+    });
 
     [Fact]
-    public async Task EveryProtectionSourceProtectsItsExactThreadIncludingMissingHistoricalMedia()
+    public void EveryProtectionSourceProtectsItsExactThreadIncludingMissingHistoricalMedia() => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -77,11 +83,11 @@ public sealed class ArchiveCleanupPreviewHostTests
         }
         Assert.Equal(ArchiveCleanupEligibility.Candidate, Assert.Single(preview.Rows, row => row.Id == ids[7]).Eligibility);
         AssertSnapshot(before, Snapshot(profile, root));
-    }
+    });
 
     [Theory]
     [InlineData(1, 1)] [InlineData(1, 2)] [InlineData(2, 1)] [InlineData(2, 2)]
-    public async Task MediaFavoriteV1AndV2PrimaryAndBackupProtectWithoutReadMigration(int primaryVersion, int backupVersion)
+    public void MediaFavoriteV1AndV2PrimaryAndBackupProtectWithoutReadMigration(int primaryVersion, int backupVersion) => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -103,7 +109,7 @@ public sealed class ArchiveCleanupPreviewHostTests
         Assert.Equal(ArchiveCleanupEligibility.Protected, row.Eligibility);
         Assert.Contains(ArchiveCleanupReason.MediaFavorite, row.Reasons);
         AssertSnapshot(before, Snapshot(profile, root));
-    }
+    });
 
     [Theory]
     [InlineData("{\"Version\":99,\"Entries\":[]}")]
@@ -112,7 +118,7 @@ public sealed class ArchiveCleanupPreviewHostTests
     [InlineData("{\"Version\":2,\"Entries\":[],\"InstanceId\":\"4e71f7e1-b614-484f-a395-4b76f21fd9bb\",\"Revision\":0}")]
     [InlineData("{\"Version\":1,\"Entries\":[],\"unknown\":true}")]
     [InlineData("{\"Version\":1,\"Entries\":[],\"Entries\":[]}")]
-    public async Task InvalidMediaFavoriteBackupKeepsCleanupUnknownAndRetainsEvidence(string backup)
+    public void InvalidMediaFavoriteBackupKeepsCleanupUnknownAndRetainsEvidence(string backup) => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -130,13 +136,13 @@ public sealed class ArchiveCleanupPreviewHostTests
         Assert.Equal(ArchiveCleanupEligibility.Unknown, row.Eligibility);
         Assert.Contains(ArchiveCleanupReason.ProtectionUnknown, row.Reasons);
         AssertSnapshot(before, Snapshot(profile, root));
-    }
+    });
 
     [Theory]
     [InlineData("2")]
     [InlineData("2147483648")]
     [InlineData("1.5")]
-    public async Task InvalidOrFutureProtectionVersionBlocksWithoutRecoveryOrWrites(string version)
+    public void InvalidOrFutureProtectionVersionBlocksWithoutRecoveryOrWrites(string version) => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -153,7 +159,7 @@ public sealed class ArchiveCleanupPreviewHostTests
         var row = Assert.Single(preview.Rows); Assert.Equal(ArchiveCleanupEligibility.Unknown, row.Eligibility);
         Assert.Contains(ArchiveCleanupReason.ProtectionUnknown, row.Reasons);
         AssertSnapshot(before, Snapshot(profile, root));
-    }
+    });
 
     [Theory]
     [InlineData(WorkIntent.Completed, MediaWorkStatus.Expired, false, false, "Candidate")]
@@ -167,8 +173,8 @@ public sealed class ArchiveCleanupPreviewHostTests
     [InlineData(WorkIntent.Completed, MediaWorkStatus.NeedsIntervention, false, false, "Active")]
     [InlineData(WorkIntent.Completed, MediaWorkStatus.Succeeded, false, false, "Unknown")]
     [InlineData(WorkIntent.Completed, MediaWorkStatus.Expired, false, true, "Active")]
-    public async Task AuthoritativeWorkJournalDistinguishesTerminalAndUnfinishedWork(
-        WorkIntent intent, MediaWorkStatus status, bool capturePending, bool manualAttempt, string expected)
+    public void AuthoritativeWorkJournalDistinguishesTerminalAndUnfinishedWork(
+        WorkIntent intent, MediaWorkStatus status, bool capturePending, bool manualAttempt, string expected) => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -195,10 +201,10 @@ public sealed class ArchiveCleanupPreviewHostTests
         Assert.True(preview.Complete); Assert.False(preview.IsStale);
         Assert.Equal(Enum.Parse<ArchiveCleanupEligibility>(expected), Assert.Single(preview.Rows).Eligibility);
         AssertSnapshot(before, Snapshot(profile, root));
-    }
+    });
 
     [Fact]
-    public async Task CatalogBoundSiblingProvesMissingZeroButUnconfirmedHistoryAndSharedOwnershipBlock()
+    public void CatalogBoundSiblingProvesMissingZeroButUnconfirmedHistoryAndSharedOwnershipBlock() => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -230,10 +236,10 @@ public sealed class ArchiveCleanupPreviewHostTests
             var row = Assert.Single(preview.Rows, row => row.Id == id);
             Assert.Equal(ArchiveCleanupEligibility.Protected, row.Eligibility); Assert.Contains(ArchiveCleanupReason.SharedDirectory, row.Reasons);
         }
-    }
+    });
 
     [Fact]
-    public async Task MediaProtectionAndHostLifetimeChangeEvidenceAndCancellationDoesNotWrite()
+    public void MediaProtectionAndHostLifetimeChangeEvidenceAndCancellationDoesNotWrite() => OnHostDispatcher(async () =>
     {
         using TempDirectory temp = new();
         string profile = Path.Combine(temp.Path, "profile"), root = Path.Combine(temp.Path, "downloads");
@@ -257,7 +263,7 @@ public sealed class ArchiveCleanupPreviewHostTests
         await using DesktopSessionHost restarted = new(profile, Array.Empty<IImageBoard>());
         await restarted.StartAsync();
         Assert.NotEqual(binding, (await restarted.PrepareArchiveCleanupAsync()).ProfileBinding);
-    }
+    });
 
     // This test exercises preview paging, not 501 independent durable registrations.
     // Keep the real catalog schema, admission and FULL-synchronous commit, but seed

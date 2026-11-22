@@ -108,7 +108,7 @@ internal static class GalleryTagPanelCommands
         return marked ? Texts.T("tags.quick.marked.counter", text) : text;
     }
 
-    /// <summary>The short form of <see cref="CounterText"/> for the narrow tab row: "No. 4 / 27", "No. 4 / 27+" while threads resolve (the long text is its tooltip).</summary>
+    /// <summary>The short form of <see cref="CounterText"/> for the panel header: "No. 4 / 27", "No. 4 / 27+" while threads resolve (the long text is its tooltip).</summary>
     internal static string? ShortCounterText(GalleryTagPanelPosition? position, bool marked = false)
     {
         if (position is not { } value) return null;

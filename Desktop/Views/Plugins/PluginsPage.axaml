@@ -7,7 +7,7 @@
       <!-- The shared page head (PageHeader): the title and subtitle on the left, the action row top right and the count right-aligned under
            it. When the action row would leave the title less than its minimum room (it is long in German and in the Advanced view), and in any
            case below 900 dip of page (876 dip of header), the count and the actions move under the title (count first, then the actions,
-           wrapping), so the title and description keep the full width. "Show" and its dropdown are one WrapPanel child: they never wrap apart. -->
+           wrapping), so the title and description keep the full width. Help keeps the right edge. "Show" and its dropdown are one WrapPanel child. -->
       <controls:PageHeader x:Name="PluginsPageHeader" StackBelowWidth="876">
         <StackPanel x:Name="PluginsTitleStack" Classes="workspace-page-header">
           <TextBlock x:Name="PluginsTitle" Classes="page-title" />
@@ -23,11 +23,11 @@
           <Button x:Name="PluginsRefresh" wv:WorkViewElement.Id="plugins.header.refresh" Click="OnRefreshClick" />
           <Button x:Name="PluginsFolder" wv:WorkViewElement.Id="plugins.header.folder" Click="OnFolderClick" />
           <Button x:Name="PluginsReviewRepairs" wv:WorkViewElement.Id="plugins.header.review-repairs" Click="OnReviewBundledRepairsClick" />
-          <!-- HB2: trust, when a change applies and what an image filter may access. -->
-          <controls:HelpButton x:Name="PluginsHelpButton" HelpKey="help.plugins" />
           <!-- What the work view moved off this row (add file, plugin folder): shown only when something is there. -->
           <Button x:Name="PluginsMoreButton" Classes="subtle icon-square" IsVisible="False" Click="OnPluginsMoreClick" />
         </WrapPanel>
+        <!-- HB2: trust, when a change applies and what an image filter may access. -->
+        <controls:HelpButton x:Name="PluginsHelpButton" controls:PageHeader.Role="Help" HelpKey="help.plugins" IsEnabled="{Binding #PluginsHeaderActions.IsEnabled}" />
         <!-- The count is a statement about the list, not an action: muted, outside the button row (as the Status line). -->
         <TextBlock x:Name="PluginsCount" controls:PageHeader.Role="Aside" AutomationProperties.LiveSetting="Polite" Classes="muted tnum" TextWrapping="Wrap" Margin="0,4,0,0" />
       </controls:PageHeader>

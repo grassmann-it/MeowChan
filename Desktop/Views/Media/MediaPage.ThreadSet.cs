@@ -72,7 +72,7 @@ public sealed partial class MediaPage
         if (token.IsCancellationRequested) return;
         _threadMedia = media;
         UpdateStatusText();
-        if (_panel is { } panel && _panelRow is { } row) panel.SetThreadPosition(ThreadPositionOf(row.Entry));
+        if (_panel is { } panel && _panelRow is { } row) panel.SetThreadPosition(PanelPositionText(row));
     }
 
     private string? ThreadMediaSummary() => _threadMedia is { Count: > 0 } media
@@ -88,8 +88,14 @@ public sealed partial class MediaPage
         return number;
     }
 
-    private string? ThreadPositionOf(MediaLibraryEntry entry) => ThreadMediaNumberOf(entry) is int number
-        ? Texts.T("reader.sidebar.position", number, _threadMedia!.Count) : null;
+    private (int Number, int Total) PanelPositionOf(MediaLibraryTileRow row) => ThreadMediaNumberOf(row.Entry) is int number
+        ? (number, _threadMedia!.Count) : (row.Index + 1, _tiles.Count);
+
+    private string PanelPositionText(MediaLibraryTileRow row)
+    {
+        (int number, int total) = PanelPositionOf(row);
+        return Texts.T("reader.sidebar.position", number, total);
+    }
 
     private bool IsUnfilteredThreadMedia => _mediaCountThread != null
         && _terms.All(term => term.Field is MediaFilterField.Thread or MediaFilterField.Threads or MediaFilterField.Missing)
