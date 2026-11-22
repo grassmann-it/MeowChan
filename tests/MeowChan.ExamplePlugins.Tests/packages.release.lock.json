@@ -96,79 +96,79 @@
       "meowchan.animationformatfilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.anonimageboards": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.bbwchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.capybarachan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.dvach": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.eightchanmoe": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.endchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.fchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.gurocx": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.jschanfamily": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.kohlchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.sevenchan": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.plugin.vichanfamily": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       },
       "meowchan.pluginsdk": {
@@ -177,7 +177,7 @@
       "meowchan.pngmetadatafilter": {
         "type": "Project",
         "dependencies": {
-          "MeowChan.PluginSdk": "[1.0.2, )"
+          "MeowChan.PluginSdk": "[1.1.1, )"
         }
       }
     }
