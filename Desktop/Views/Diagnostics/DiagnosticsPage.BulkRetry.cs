@@ -26,8 +26,7 @@ public partial class DiagnosticsPage
 
     private DiagnosticEntry[] SelectedDiagnostics()
     {
-        HashSet<string> keys = this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItems
-            .OfType<DiagnosticEntry>().Select(entry => entry.Key).ToHashSet(StringComparer.Ordinal);
+        HashSet<string> keys = DiagnosticSelectionKeys();
         return _visibleDiagnostics.Where(entry => keys.Contains(entry.Key)).ToArray();
     }
 
@@ -85,26 +84,21 @@ public partial class DiagnosticsPage
 
     private void ApplyDiagnosticFilters()
     {
-        DataGrid grid = this.FindControl<DataGrid>("DiagnosticsGrid")!;
         string? query = this.FindControl<TextBox>("DiagnosticTextFilter")!.Text;
         bool problems = this.FindControl<CheckBox>("DiagnosticProblemsOnly")!.IsChecked == true;
         bool includeWaiting = this.FindControl<CheckBox>("DiagnosticIncludeWaiting")!.IsChecked == true;
         DiagnosticEntry[] matching = _entries.Where(entry => DiagnosticRetryScope.Matches(entry, _diagnosticSourceId, query, problems, includeWaiting)).ToArray();
         DiagnosticEntry[] visible = matching.Where(entry => entry.Kind != DiagnosticKind.Information).ToArray();
-        if (!_visibleDiagnostics.SequenceEqual(visible))
+        if (!_visibleDiagnostics.SequenceEqual(visible) || _diagnosticGroupLanguage != Texts.Language)
         {
-            string? lead = (grid.SelectedItem as DiagnosticEntry)?.Key;
-            HashSet<string> selected = grid.SelectedItems.OfType<DiagnosticEntry>().Select(entry => entry.Key).ToHashSet(StringComparer.Ordinal);
+            DiagnosticEntry? current = CurrentDiagnosticLead;
+            HashSet<string> selected = DiagnosticSelectionKeys();
             DiagnosticEntry[] retained = visible.Where(entry => selected.Contains(entry.Key)).ToArray();
             if (selected.Count > retained.Length) _diagnosticSelectionRemoved = true;
-            _refreshingDiagnostics = true;
-            try
-            {
-                _visibleDiagnostics = visible;
-                grid.ItemsSource = visible;
-                DataGridSelection.Select(grid, retained, retained.FirstOrDefault(entry => entry.Key == lead));
-            }
-            finally { _refreshingDiagnostics = false; }
+            _diagnosticSelection = retained;
+            _diagnosticLead = retained.FirstOrDefault(entry => entry.Key == current?.Key) ?? retained.FirstOrDefault();
+            _visibleDiagnostics = visible;
+            RefreshDiagnosticGroups();
         }
         ApplyPlatformEntries(matching.Where(entry => entry.Kind == DiagnosticKind.Information).ToArray());
         RefreshEmptyState();
@@ -128,12 +122,11 @@ public partial class DiagnosticsPage
         RefreshPlatformHeader();
     }
 
-    // "Platform (2)": the group's header carries the count of its rows; with no row (a filter hides them) the group is not shown.
     private void RefreshPlatformHeader()
     {
         Expander section = this.FindControl<Expander>("DiagnosticPlatformSection")!;
         section.IsVisible = _visiblePlatform.Count > 0;
-        section.Header = Texts.T("diagnostics.platform") + " (" + _visiblePlatform.Count + ")";
+        section.Header = DiagnosticGroupHeading(Texts.T("diagnostics.platform"), _visiblePlatform.Count);
     }
 
     // The table is empty when nothing is current (the healthy state) or when the filters hide everything; the text says which.
@@ -216,7 +209,7 @@ public partial class DiagnosticsPage
         summary.IsVisible = ActiveDiagnosticFilterCount > 0 || _visibleDiagnostics.Count > 0;
         summary.Text = summary.IsVisible
             ? Texts.T("diagnostics.filterCount", _visibleDiagnostics.Count, _entries.Count(entry => entry.Kind != DiagnosticKind.Information), selected.Length)
-                + " · " + Texts.T("diagnostics.retryableTargets", filteredCount)
+                + " · " + Texts.Count("diagnostics.retryableTargets", filteredCount)
             : string.Empty;
     }
 

@@ -44,7 +44,7 @@ public partial class DiagnosticsPage : UserControl
         // Every key of the Status page's diagnostics segment runs in the "diagnostics" context (S3 P2-4): a default that a saved binding took away only
         // elsewhere (a partial yield, Shift+F10 after a saved archive command) stays active here (EffectiveShortcutBindings.EnterKeyContext).
         MeowChan.Desktop.Controls.KeyContextHost.Install(this, _ => "diagnostics");
-        InitializeComponent(); InitializeContextMenu(); InitializeRowInteraction(); _diagnosticFiltersReady = true;
+        InitializeComponent(); InitializeContextMenu(); InitializeRowInteraction(); InitializeDiagnosticGroups(); _diagnosticFiltersReady = true;
         // A page that is shown before its first session refresh still carries its labels and headers.
         ApplyStaticLabels();
         RefreshSelection();
@@ -102,20 +102,28 @@ public partial class DiagnosticsPage : UserControl
     }
 
     // One selection across the two tables: the platform facts (own group) and the requests and problems never both hold a row.
-    private DiagnosticEntry? Selected => this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem as DiagnosticEntry
+    private DiagnosticEntry? Selected => CurrentDiagnosticLead
         ?? this.FindControl<DataGrid>("PlatformGrid")!.SelectedItem as DiagnosticEntry;
     private bool _syncingSelection;
     private void OnSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!_refreshingDiagnostics) _diagnosticSelectionRemoved = false;
-        if (!_syncingSelection && this.FindControl<DataGrid>("DiagnosticsGrid")!.SelectedItem != null)
+        if (_refreshingDiagnostics || _changingDiagnosticGrid) return;
+        _diagnosticSelectionRemoved = false;
+        DataGrid grid = DiagnosticGrid;
+        _diagnosticSelection = grid.SelectedItems.OfType<DiagnosticEntry>().ToArray();
+        _diagnosticLead = grid.SelectedItem as DiagnosticEntry;
+        if (!_syncingSelection && _diagnosticLead != null)
             ClearOtherSelection(this.FindControl<DataGrid>("PlatformGrid")!);
         RefreshSelection();
     }
     private void OnPlatformSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (!_syncingSelection && this.FindControl<DataGrid>("PlatformGrid")!.SelectedItem != null)
-            ClearOtherSelection(this.FindControl<DataGrid>("DiagnosticsGrid")!);
+        {
+            _diagnosticSelection = [];
+            _diagnosticLead = null;
+            ClearOtherSelection(DiagnosticGrid);
+        }
         RefreshSelection();
     }
     private void ClearOtherSelection(DataGrid other)

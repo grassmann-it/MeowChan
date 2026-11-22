@@ -9,6 +9,8 @@ internal static class CountCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("diagnostics.groupEntries.one", "{0} entry", "{0} Eintrag"),
+        ("diagnostics.retryableTargets.one", "{0} retry target", "{0} erneut anstoßbares Ziel"),
         ("archive.postsCount.one", "{0} captured post", "{0} erfasster Post"),
         ("reader.unreadLine.one", "{0} new post since your last visit", "{0} neuer Post seit deinem letzten Besuch"),
         ("reader.foldMore.one", "Show more ({0} line)", "Mehr anzeigen ({0} Zeile)"),

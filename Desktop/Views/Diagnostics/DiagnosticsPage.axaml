@@ -4,10 +4,30 @@
              xmlns:controls="clr-namespace:MeowChan.Desktop.Controls"
              xmlns:feedback="clr-namespace:MeowChan.Desktop.Feedback"
              xmlns:wv="using:MeowChan.Desktop.WorkViews"
+             xmlns:collections="clr-namespace:Avalonia.Collections;assembly=Avalonia.Controls.DataGrid"
              x:Class="MeowChan.DiagnosticsPage" SizeChanged="OnDiagnosticPageSizeChanged">
+    <UserControl.Resources>
+        <ControlTheme x:Key="DiagnosticRowGroupTheme" TargetType="DataGridRowGroupHeader">
+            <Setter Property="Template">
+                <ControlTemplate x:DataType="collections:DataGridCollectionViewGroup">
+                    <Button Classes="diagnostic-group-toggle" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left"
+                            AutomationProperties.Name="{Binding Key}" Click="OnDiagnosticGroupClick">
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                            <PathIcon Classes="diagnostic-group-chevron" Width="{StaticResource Workspace.Size.Icon}" Height="{StaticResource Workspace.Size.Icon}" />
+                            <TextBlock Grid.Column="1" Text="{Binding Key}" TextWrapping="Wrap" />
+                        </Grid>
+                    </Button>
+                </ControlTemplate>
+            </Setter>
+        </ControlTheme>
+    </UserControl.Resources>
     <UserControl.Styles>
         <Style Selector="DataGridCell TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
         <Style Selector="DataGridColumnHeader TextBlock"><Setter Property="TextWrapping" Value="NoWrap" /></Style>
+        <Style Selector="PathIcon.diagnostic-group-chevron"><Setter Property="Data" Value="M 0,0 L 4,4 L 0,8 Z" /></Style>
+        <Style Selector="DataGridRowGroupHeader:expanded /template/ PathIcon.diagnostic-group-chevron">
+            <Setter Property="Data" Value="M 0,0 L 8,0 L 4,4 Z" />
+        </Style>
     </UserControl.Styles>
     <!-- Hosted by the Status page: no page header, hint or summary of its own (the Status head carries them). The page inset is
          the one the Status head and segment bar use, so the sides line up at 12 dip, not 24. -->
@@ -60,6 +80,7 @@
                         <Grid>
                             <DataGrid x:Name="DiagnosticsGrid" AutoGenerateColumns="False" IsReadOnly="True" MinHeight="120"
                                       GridLinesVisibility="None" SelectionMode="Extended" RowHeight="44"
+                                      RowGroupTheme="{StaticResource DiagnosticRowGroupTheme}"
                                       CanUserReorderColumns="False" SelectionChanged="OnSelectionChanged">
                                 <DataGrid.Columns>
                                     <DataGridTextColumn MinWidth="110" Width="130" Binding="{Binding Category, DataType=desktop:DiagnosticEntry}" />
