@@ -59,7 +59,7 @@ public partial class ArchivePage
             CloseTagBar(focusOpen: true);
             return true;
         }
-        if (!_ended && ReaderToolsRow.IsVisible && IsThreadToolsCloseSource(source))
+        if (!_ended && (ReaderFindBar.IsVisible || ReaderTagBar.IsVisible) && IsThreadToolsCloseSource(source))
         {
             CloseThreadTools();
             return true;

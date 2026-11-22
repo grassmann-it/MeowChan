@@ -891,8 +891,9 @@ at the far right, after the row's own actions: the Downloads search bar
 (**Close**, a labelled button with a chevron instead of a second ×, so it cannot be
 mistaken for the × that clears the search text; **Esc** clears the text first and then
 closes the bar), details panel (**Hide details**, German: **Details ausblenden**),
-reader find bar (**Close find**, **Suche schließen**), tag row (**Close tags**,
-**Tags schließen**) and Archive preview (**Close preview**, **Vorschau schließen**).
+and Archive preview (**Close preview**, **Vorschau schließen**). In the reader toolbar,
+**Find** and **Tags** are toggles instead: highlighted with a small × inside while their
+bar is open, and clicking the button again (or **Esc**) closes the bar.
 The gallery keeps **Back to {target}** at the far left with the favorite star
 directly to its right. Tooltips and screen-reader names keep the full action and
 target, including in narrow rows. Esc closes as before.

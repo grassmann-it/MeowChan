@@ -43,6 +43,42 @@ public sealed class ReaderThreadFindUiTests
     }
 
     [Fact]
+    public void FindAndTagsAreToggleButtonsWithActiveStateAndAnEmbeddedClose()
+    {
+        string xaml = Source("Desktop/Views/Archive/ArchivePage.axaml");
+        Assert.Contains("<ToggleButton x:Name=\"ReaderFindOpen\"", xaml);
+        Assert.Contains("<ToggleButton x:Name=\"ReaderTagsOpen\"", xaml);
+        Assert.DoesNotContain("ReaderToolsClose", xaml);
+        string find = Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs");
+        Assert.Contains("ReaderFindOpen.IsChecked = find;", find);
+        Assert.Contains("ReaderTagsOpen.IsChecked = tags;", find);
+        Assert.Contains("readerTool.stateOpen", find);
+        Assert.Contains("OnThreadFindToggleClick", xaml);
+        string page = Source("Desktop/Views/Archive/ArchivePage.axaml.cs");
+        Assert.Contains("ReaderFindOpen, CommandCatalog.Get(\"reader.find\").Icon, closeWhenChecked: true", page);
+        Assert.Contains("ReaderTagsOpen, CommandCatalog.Get(\"thread.tags\").Icon, closeWhenChecked: true", page);
+        string empty = Source("Desktop/Views/Archive/ArchivePage.EmptyState.cs");
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(empty, "readerTool\\.closeHint").Count);
+        // Export opens a card, not the shared row: it keeps its plain button.
+        Assert.Contains("<Button x:Name=\"ExportArchiveButton\"", xaml);
+    }
+
+    [Fact]
+    public void ToggleStateTextsExistInBothLanguages()
+    {
+        Texts.Initialize();
+        try
+        {
+            Texts.SetLanguage("en");
+            Assert.Equal("open", Texts.T("readerTool.stateOpen"));
+            Assert.Contains("close", Texts.T("readerTool.closeHint"));
+            Texts.SetLanguage("de");
+            Assert.Equal("offen", Texts.T("readerTool.stateOpen"));
+        }
+        finally { Texts.SetLanguage("en"); }
+    }
+
+    [Fact]
     public void DedicatedBarOwnsKeysAndDoesNotInstallGlobalFindShortcut()
     {
         string xaml = Source("Desktop/Views/Archive/ArchivePage.axaml");
@@ -52,7 +88,7 @@ public sealed class ReaderThreadFindUiTests
         Assert.DoesNotContain("MaxLength=", queryElement);
         Assert.DoesNotContain("KeyDown=\"OnThreadFindKeyDown\"", xaml);
         foreach (string name in new[] { "ReaderFindOpen", "ReaderFindQuery", "ReaderFindStatus",
-                     "ReaderFindExcerpt", "ReaderFindPrevious", "ReaderFindNext", "ReaderToolsClose" })
+                     "ReaderFindExcerpt", "ReaderFindPrevious", "ReaderFindNext" })
             Assert.Contains("x:Name=\"" + name + "\"", xaml);
         string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
         Assert.Contains("if (IsThreadFindSource(e.Source)) return;", reader);
@@ -83,9 +119,9 @@ public sealed class ReaderThreadFindUiTests
     {
         string find = Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs");
         Assert.Contains("case \"ReaderFindPrevious\": MoveThreadFind(false)", find);
-        // F02: the shared x sits outside the find group; it closes every open group natively and on Escape.
+        // F17: Find and Tags are toggles in the toolbar (active state, x inside); Escape on either closes every open group.
         Assert.Contains("CloseThreadTools()", find);
-        Assert.DoesNotContain("case \"ReaderToolsClose\"", find);
+        Assert.DoesNotContain("ReaderToolsClose", find);
         Assert.Contains("case \"ReaderFindRetry\"", find);
     }
 
@@ -165,11 +201,13 @@ public sealed class ReaderThreadFindUiTests
     public void BarTunnelReplacesBubbleAndHandlesBeforeAnyNativeButtonClick()
     {
         string find = Source("Desktop/Views/Archive/ArchivePage.ThreadFind.cs");
-        // F02: the shared thread-tools row adds its own tunnel for the one close; the find bar keeps exactly one.
+        // F17: the two toolbar toggles add their own tunnel for Escape; the find bar keeps exactly one.
         Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(find,
             @"ReaderFindBar\.AddHandler\(KeyDownEvent").Count);
         Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(find,
-            @"ReaderToolsRow\.AddHandler\(KeyDownEvent").Count);
+            @"ReaderFindOpen\.AddHandler\(KeyDownEvent").Count);
+        Assert.Equal(1, System.Text.RegularExpressions.Regex.Matches(find,
+            @"ReaderTagsOpen\.AddHandler\(KeyDownEvent").Count);
         Assert.Contains("OnThreadFindKeyDown, RoutingStrategies.Tunnel)", find);
         Assert.DoesNotContain("KeyDown=\"OnThreadFindKeyDown\"", Source("Desktop/Views/Archive/ArchivePage.axaml"));
         Assert.Contains("InitializeComponent(); InitializeThreadFind();", Source("Desktop/Views/Archive/ArchivePage.axaml.cs"));

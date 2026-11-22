@@ -348,7 +348,7 @@ internal static partial class PrivateTagBarChecks
         Require(f.Chips().SequenceEqual(new[] { "my_tag", "/sdg/" }), "The bar does not show the tags of the chosen thread: " + string.Join("|", f.Chips()));
 
         // Another thread: the bar follows it and shows its own (empty) tags.
-        f.Click("ReaderToolsClose");
+        f.Click("ReaderTagsOpen");
         Require(!bar.IsVisible, "The bar did not close.");
         await ChooseTagsAsync(await OpenMenuAsync(plainRow), Plain);
         Require(f.Chips().Length == 0, "The bar did not open for the untagged thread.");

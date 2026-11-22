@@ -145,7 +145,7 @@ internal static class ReaderSidebarShortcutChecks
                 TextBox find = page.FindControl<TextBox>("ReaderFindQuery")!;
                 await Program.WaitUntilAsync(() => find.IsEffectivelyVisible);
                 await EditorLetters(window, page, find, () => opens, mode + "-find-editor");
-                SmokeActionClick.Execute(page.FindControl<Button>("ReaderToolsClose")!);
+                SmokeActionClick.Execute(page.FindControl<Button>("ReaderFindOpen")!);
             }
 
             // Effective-binding check: old media command yields to the list; saved K preempts typeahead.
@@ -190,7 +190,7 @@ internal static class ReaderSidebarShortcutChecks
             TextBox remappedEditor = page.FindControl<TextBox>("ReaderFindQuery")!;
             await Program.WaitUntilAsync(() => remappedEditor.IsEffectivelyVisible);
             await EditorLetters(window, page, remappedEditor, () => opens, "embedded-remapped-find-editor");
-            SmokeActionClick.Execute(page.FindControl<Button>("ReaderToolsClose")!);
+            SmokeActionClick.Execute(page.FindControl<Button>("ReaderFindOpen")!);
             Program.CaptureWindow(window, "smoke-reader-sidebar-shortcuts.png");
             Console.WriteLine("SMOKE reader sidebar shortcuts PASS: large/embedded materialized post and thumbnail R -> one production popover callback/open; J view toggle; media step once; popup/pane editors retain rjk; saved K preempts typeahead and old command yields to local list routing. Synthetic Avalonia routed key/text events, not native keyboard input.");
         }

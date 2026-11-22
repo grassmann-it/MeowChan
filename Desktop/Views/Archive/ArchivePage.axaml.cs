@@ -1144,8 +1144,8 @@ public partial class ArchivePage : UserControl
     // get theirs from CommandBindings in Localize.
     private void InitializeReaderToolbarIcons()
     {
-        CommandBindings.ShowIconBeforeText(ReaderTagsOpen, CommandCatalog.Get("thread.tags").Icon);
-        CommandBindings.ShowIconBeforeText(ReaderFindOpen, CommandCatalog.Get("reader.find").Icon);
+        CommandBindings.ShowIconBeforeText(ReaderTagsOpen, CommandCatalog.Get("thread.tags").Icon, closeWhenChecked: true);
+        CommandBindings.ShowIconBeforeText(ReaderFindOpen, CommandCatalog.Get("reader.find").Icon, closeWhenChecked: true);
         // RL1: "Thread" is file-text (it is "in the thread" everywhere), the gear has the accent dot for an active view filter; the eye is Read's.
         CommandBindings.ShowIconBeforeText(ReaderThreadOpen, "file-text");
         InitializeReaderSettingsButton();
