@@ -21,7 +21,7 @@ namespace MeowChan;
 /// <summary>TG2's named queue scopes: the page keeps the existing state-filter seam and narrows it with this selection.</summary>
 public sealed partial class TaggingPage
 {
-    private readonly ComboBox _group = new() { Name = "TaggingGroup", Width = 160 };
+    private readonly ComboBox _group = new() { Name = "TaggingGroup", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Button _groupManage = new() { Name = "TaggingGroupManage" };
     private ContextMenuHost? _groupManageHost;
     private string? _selectedGroupId;

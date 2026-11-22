@@ -168,8 +168,15 @@ public sealed partial class TaggingPage
 
     private void SetStampCompact(bool compact)
     {
+        if (_compactStamp == compact) return;
         _compactStamp = compact;
+        bool hadPreview = _stampPreview.IsVisible;
         UpdateStampSummary(_queueWork.StampNames.Count);
+        if (_stampPreview.IsVisible != hadPreview)
+        {
+            TaggingHeader.InvalidateGroupMeasure(_stampPreview);
+            _stampSummary.InvalidateMeasure();
+        }
     }
 
     private void UpdateStampSummary(int count)

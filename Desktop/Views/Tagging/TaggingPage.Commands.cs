@@ -65,22 +65,29 @@ public sealed partial class TaggingPage
         _clearDone.Command = new DelegateCommand(() => _ = ClearFinishedAsync(), () => CanChange && _queueWork.Queue.Done > 0);
         _clear.Command = new DelegateCommand(AskClear, () => !_queueWork.Ended && !_queueWork.Busy && !_queueWork.Loading && _queueWork.Loaded
             && (_queueWork.Queue.Count > 0 && _queueWork.Queue.CanWrite || _queueWork.LoadError != null));
-        // Queue actions stay together; visible-result controls have their own measured row above the list.
         foreach (Control item in new Control[] { _add, _help, _groupManage, _clearDone, _clear })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
             _actions.Items.Add(item);
         }
-        _listControls.Children.Add(_filterPanel);
-        _listControls.Children.Add(_listPresentation);
-        _listControls.TrailingChild = _listPresentation;
-        _listControls.SetTrailingCompact = compact =>
-            _viewToggle.SetLabelsVisible(!compact || ToolBar.GetOverflowMode(_viewToggle) == OverflowMode.Always);
         foreach (Control item in new Control[] { _columnsButton, _viewToggle })
         {
             ToolBar.SetOverflowMode(item, OverflowMode.AsNeeded);
             _listPresentation.Items.Add(item);
         }
+        // Ursa's More toggles precede the items in the visual tree. Keep tab
+        // order local to the header and follow the order in which it reads.
+        KeyboardNavigation.SetTabNavigation(_header, KeyboardNavigationMode.Local);
+        Control[] stops = [_start, _stampButton, _group, _filter, _columnsButton, _viewToggle.First, _viewToggle.Second, _add, _help];
+        for (int i = 0; i < stops.Length; i++) stops[i].TabIndex = 2 * i;
+        _listPresentation.TemplateApplied += (_, _) =>
+        {
+            if (_listPresentation.More is { } more) more.TabIndex = _viewToggle.Second.TabIndex + 1;
+        };
+        _actions.TemplateApplied += (_, _) =>
+        {
+            if (_actions.More is { } more) more.TabIndex = _help.TabIndex + 1;
+        };
         // The error banner's "Retry" reads the queue file again (RetryLoadAsync is a no-op unless the page may reload now).
         _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
         _clearYes.Click += async (_, _) => await ClearAllAsync();
@@ -100,6 +107,16 @@ public sealed partial class TaggingPage
         };
         _list.SelectionChanged += OnSelectionChanged;
         InstallMiddleClick(_list);
+    }
+
+    private void SetViewCompact(bool compact)
+    {
+        bool visible = !compact || ToolBar.GetOverflowMode(_viewToggle) == OverflowMode.Always;
+        if (_viewToggle.First.Content is not StackPanel { Children: [_, Control label] } || label.IsVisible == visible) return;
+        _viewToggle.SetLabelsVisible(visible);
+        TaggingHeader.InvalidateGroupMeasure(label);
+        if (_viewToggle.Second.Content is StackPanel { Children: [_, Control second] })
+            TaggingHeader.InvalidateGroupMeasure(second);
     }
 
     // Dead-affordance audit: the middle click on an entry runs "Show in folder", as on the Media page's tiles and the other lists. It acts on the
