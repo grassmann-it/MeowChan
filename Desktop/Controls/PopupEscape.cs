@@ -37,5 +37,6 @@ internal static class PopupEscape
 
     /// <summary>A plain Esc nothing inside the popup took closes an open light-dismiss popup.</summary>
     internal static bool ClosesOnEscape(KeyEventArgs e, bool open, bool lightDismiss) =>
-        !e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && open && lightDismiss;
+        !e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None && open && lightDismiss
+        && !QuickTagPopover.IsCompositionKey(e);
 }

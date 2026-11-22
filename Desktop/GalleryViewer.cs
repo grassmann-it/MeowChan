@@ -1669,6 +1669,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
 
     private void RouteAdmittedKey(Control routingOwner, KeyEventArgs e)
     {
+        if (QuickTagFieldOwnsKey(e)) return;
         if (RevealForKeyboard(e)) return;
         if (CommandBindings.Matches(e, "window.fullscreen")) { FullscreenRequested?.Invoke(); e.Handled = true; return; }
         if (CommandBindings.Matches(e, "viewer.shortcut-help"))
@@ -1687,7 +1688,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         if (RouteDecisionRowKey(e)) return; // the stars of the panel rove with the arrows and Esc returns to the picture
         // The tagging mode's card keys are the bare digits 1 to 5 while the cards are shown: they come before the rating's 1 to 5 (Lightroom keys).
         if (_tagging != null && _cardsOn && _tagSurface?.IsKeyboardFocusWithin != true && RouteCardKey(e)) return;
-        if ((ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
+        if (_tagSurface?.Input.IsKeyboardFocusWithin != true
+            && (ReferenceEquals(routingOwner, _nativeVideoOverlay) ? _nativeRatingRouter : _ratingRouter)?.Route(e) == true) return;
         if (_contextOpen && _sidePanel.RouteSegmentKey(e)) return;
         if (_tagging != null && RouteTaggingKey(e)) return; // the tagging mode's keys come first (PT3)
         if (_tagPanelOpen && RouteTagPanelKey(e)) return;

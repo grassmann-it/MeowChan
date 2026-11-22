@@ -2104,8 +2104,9 @@ on macOS), to open its own-tag editor beside the posts. The inline editor follow
 the open thread until you close it. **Tag…** (German: **Tag…**, Ctrl+Shift+T /
 Command+Shift+T) opens a small
 anchored tag popover on Media, reader attachments and Archive media tiles; in the
-gallery it opens the [tag panel](#gallery-tag-panel). The popover uses the same
-suggestions, Alt+1–9 toggles, stamp and Ctrl+Z undo; Esc closes it. **Open tag editor**
+gallery it opens the [tag panel](#gallery-tag-panel). The popover shares the panel’s
+suggestion shortcuts, stamp and undo. Esc closes it after any draft or open list
+has been dismissed. **Open tag editor**
 (German: **Tag-Editor öffnen**) in either surface opens the full tag dialog. That dialog has a search field,
 selection counts for
 group tagging, and **Undo** for the last dialog edit. Tag-name suggestions put your
@@ -2171,15 +2172,18 @@ to remove it. A medium that cannot be tagged, for example without a bound versio
 or while the tag index is unavailable, shows the reason with a disabled field
 instead of writing to the previous medium.
 
-**Keys.** The numbered chips 1 to 9 toggle with Alt+1 to Alt+9 (Command+1 to
-Command+9 on macOS) wherever the focus is in the panel; bare number or letter keys
-work only while focus is in the suggestion strip, so names such as `2girls` stay
-typeable. Page Down and Page Up show the next or previous medium and keep the
+**Keys.** In the suggestion strip, Alt+1 through Alt+9 (Option+1 through Option+9
+on macOS) toggle the numbered suggestions by default. The letter shown on a chip
+also toggles it while focus is in the strip. On Windows and Linux, Alt+number also
+works in the tag field. On macOS, Option+number in the tag field goes to text input.
+Page Down and Page Up show the next or previous medium and keep the
 field focused; the counter reads “Medium 4 of 27” or “Medium 4 of at least 27” while
 more threads are still being resolved. Ctrl+Enter (Command+Enter) adds the typed
 tag and moves to the next medium. Undo is the **Undo** button or Ctrl+Z
 (Command+Z); with text in the field Ctrl+Z edits that text instead. These
-shortcuts are rebindable. **Shift+Page Down** marks the shown medium and advances;
+shortcuts are rebindable. While an input method is composing in the tag field,
+it gets the keys for committing, stamping, closing or moving focus.
+**Shift+Page Down** marks the shown medium and advances;
 **Shift+Page Up** goes back and removes the mark from the medium it reaches.
 With marks present, tag changes apply to all marked media, not an unmarked shown
 medium. A tag carried by only some is under **On some**; one click gives it to
@@ -2195,10 +2199,10 @@ acts on the shown medium or all marked media. In both this panel and **Rate and 
 the larger **Favorite** control spans the width of the five rating stars (not the
 remove-rating gutter), with the rating caption on its own line below. **1** through **5** set
 a rating and **0** removes it, as in Lightroom (**Shift+1** to **Shift+5** and **Shift+0** work too);
-**R** still opens the rating dialog. The bare digits never act while a text field or list has the focus
-(in the tag field they start a tag name), and while the tagging cards are shown **1** to **5** choose a card.
-The shifted digits also work in an empty tag field with its suggestion list closed; with text
-present they type normally. In the gallery **Fit** now uses **Ctrl+0** (or the number pad's 0) and **1:1** the
+**R** opens **Rate and tag**. In the tag field, digits and Shift+digits go to
+text input from the first character, according to your keyboard layout. While the
+tagging cards are shown, **1** to **5** choose a card when focus is outside the tag panel.
+In the gallery **Fit** now uses **Ctrl+0** (or the number pad's 0) and **1:1** the
 number pad's 1, because the bare 0 and 1 belong to the rating.
 Ctrl+Z undoes the newest tag, favorite or rating change made through the panel.
 Tags, favorites and ratings remain distinct: adding a tag never changes a rating

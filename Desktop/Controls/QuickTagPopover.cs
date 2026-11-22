@@ -148,7 +148,8 @@ internal sealed class QuickTagPopover
     internal const double MaximumHeight = 520;
     private static readonly TimeSpan GuardInterval = TimeSpan.FromMilliseconds(250);
 
-    private readonly Flyout _flyout = new() { Placement = PlacementMode.BottomEdgeAlignedLeft, ShowMode = FlyoutShowMode.Standard };
+    private readonly Flyout _flyout = new QuickTagFlyout() { Placement = PlacementMode.BottomEdgeAlignedLeft, ShowMode = FlyoutShowMode.Standard };
+    private KeyEventArgs? _compositionKey;
     private readonly Control _anchor;
     private readonly QuickTagPopoverOptions _options;
     private readonly TaskCompletionSource<QuickTagPopoverCloseReason> _result = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -612,11 +613,12 @@ internal sealed class QuickTagPopover
         else BlockedClose?.Focus(NavigationMethod.Tab);
     }
 
-    // The last stop of a key inside the popover: a plain Esc that nothing inside took (a control outside the surface's own routing) still closes it, so
-    // Esc closes from every element; text typed into the field passes (the platform makes text only of an unhandled KeyDown), text typed on the stars or
-    // another part goes into the field; any other key nothing took is consumed here.
+    // A plain Esc left by the content closes the popover. Composition keys and text typed into the field pass through.
+    // Text typed on the stars or elsewhere goes into the field. Other unhandled keys stop here.
     private void OnFrameKeyUnhandled(object? sender, KeyEventArgs e)
     {
+        // The editor can end preedit during the key route. Honor the tunnel's decision for this same key.
+        if (ReferenceEquals(e, _compositionKey)) return;
         switch (UnhandledKey(e, Surface != null))
         {
             case UnhandledKeyAction.Pass:
@@ -647,9 +649,10 @@ internal sealed class QuickTagPopover
     internal static UnhandledKeyAction UnhandledKey(KeyEventArgs e, bool hasField)
     {
         if (e.Handled || e.Key == Key.Tab || IsModifierKey(e.Key)) return UnhandledKeyAction.Pass;
+        if (TextEntryKeys.IsTextEditor(e.Source) && QuickTagKeys.FieldOwnsCharacter(e, EffectiveShortcutBindings.CurrentPlatform))
+            return UnhandledKeyAction.Pass;
         if (TextEntryKeys.TypesText(e))
         {
-            if (TextEntryKeys.IsTextEditor(e.Source)) return UnhandledKeyAction.Pass;
             if (hasField && TextEntryKeys.TextOf(e) != null) return UnhandledKeyAction.TypeIntoField;
         }
         if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None) return UnhandledKeyAction.Close;
@@ -746,7 +749,13 @@ internal sealed class QuickTagPopover
 
     private void OnFrameKey(object? sender, KeyEventArgs e)
     {
+        _compositionKey = null;
         if (e.Handled) return;
+        if (Surface?.FieldHasComposition == true)
+        {
+            _compositionKey = e;
+            return;
+        }
         // Left, Right, Home and End rove along a focused star group (never read as moving the caret or the list).
         if (_decisionRow is { IsRatingFocused: true } stars && stars.RouteStarKey(e)) { e.Handled = true; return; }
         if (!ShortcutService.IsCapturing && TryRouteDecisionKey(e, ShortcutService.Current)) { e.Handled = true; return; }
@@ -759,17 +768,36 @@ internal sealed class QuickTagPopover
         if (!ShortcutService.IsCapturing && TryRouteCommand(Surface, e, ShortcutService.Current)) e.Handled = true;
     }
 
+    internal static bool IsCompositionKey(KeyEventArgs e) => ReferenceEquals(Current?._compositionKey, e);
+
+    private sealed class QuickTagFlyout : Flyout
+    {
+        protected override Control CreatePresenter() => new QuickTagFlyoutPresenter
+        {
+            [!ContentControl.ContentProperty] = this[!ContentProperty],
+            [!ContentControl.ContentTemplateProperty] = this[!ContentTemplateProperty]
+        };
+    }
+
+    private sealed class QuickTagFlyoutPresenter : FlyoutPresenter
+    {
+        protected override Type StyleKeyOverride => typeof(FlyoutPresenter);
+
+        protected override void OnKeyDown(KeyEventArgs e)
+        {
+            // Avalonia's presenter would close on an Escape left unhandled for the input method.
+            if (e.Key == Key.Escape && IsCompositionKey(e)) return;
+            base.OnKeyDown(e);
+        }
+    }
+
     /// <summary>
-    /// The keys the row's tooltips name: Shift+1 to Shift+5 rate, Shift+0 removes the rating (as in the gallery's tag panel: not while the field holds
-    /// text or its list is open, where a typed "!" or ")" stays typing) and, with the keyboard on the row itself, M adds, U removes and F toggles the
-    /// favourite. Without these the popover showed "Rating: 3 of 5 · Shift+3" and ignored the key. True when the row took the key.
+    /// Rating shortcuts act outside the tag field. The favourite shortcuts require focus on the decision row.
     /// </summary>
     internal bool TryRouteDecisionKey(KeyEventArgs e, EffectiveShortcutBindings bindings)
     {
         if (_decisionRow is not { } row || _options.Decision == null) return false;
-        if (Surface is { } surface && surface.Input.IsKeyboardFocusWithin && (!string.IsNullOrEmpty(surface.Input.Text) || surface.Input.IsDropDownOpen)) return false;
-        // A bare digit (the Lightroom rating keys) in the tag field starts a tag name; it rates only from the row itself.
-        if (TextEntryKeys.IsBareDigit(e) && (Surface?.Input.IsKeyboardFocusWithin == true || TextEntryKeys.IsTextEditor(e.Source))) return false;
+        if (Surface?.Input.IsKeyboardFocusWithin == true || TextEntryKeys.IsTextEditor(e.Source)) return false;
         for (int value = 1; value <= 5; value++)
             if (bindings.Matches(e, "media.rating.set-" + value)) return row.RequestRating(value);
         if (bindings.Matches(e, "media.rating.clear")) return row.RequestRating(null);
@@ -779,24 +807,16 @@ internal sealed class QuickTagPopover
     }
 
     /// <summary>
-    /// The wired quick tag commands (<see cref="QuickTagCommands.Undo"/> and the nine suggestion toggles) by the gesture the user
-    /// configured for them. The defaults (Ctrl+Z, Alt+1…9) are also the surface's own keys; this makes a rebinding count inside the
-    /// text field too. A Ctrl+Z over typed text stays the field's own undo. True when a command took the key.
+    /// Route the same commands and respect the same text input as the surface, including from controls in the frame around it.
     /// </summary>
     internal static bool TryRouteCommand(QuickTagSurface surface, KeyEventArgs e, EffectiveShortcutBindings bindings)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(e);
         ArgumentNullException.ThrowIfNull(bindings);
-        for (int number = 1; number <= QuickTagCommands.SuggestionCount; number++)
-            if (bindings.Matches(e, QuickTagCommands.Suggestion(number)))
-                return surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.ToggleSuggestion, number - 1));
-        if (bindings.Matches(e, QuickTagCommands.StampApply)) return surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.ApplyStamp));
-        if (bindings.Matches(e, QuickTagCommands.Undo))
-        {
-            if (surface.FocusZone() == QuickTagFocus.Field && !string.IsNullOrEmpty(surface.Input.Text)) return false;
-            return surface.Execute(new QuickTagKeyRoute(QuickTagKeyAction.Undo));
-        }
-        return false;
+        if (surface.FieldHasComposition) return false;
+        QuickTagFocus focus = TextEntryKeys.IsTextEditor(e.Source) ? QuickTagFocus.Field : surface.FocusZone();
+        return surface.Execute(QuickTagKeys.RouteCommand(e, focus, surface.Input.IsDropDownOpen,
+            string.IsNullOrEmpty(surface.Input.Text), navigation: false, bindings));
     }
 }
