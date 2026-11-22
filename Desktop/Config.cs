@@ -331,6 +331,16 @@ namespace MeowChan
         internal const int BooruSearchTabsDefault = 8;
         internal const int BooruSearchTabsMinimum = 1;
         internal const int BooruSearchTabsMaximum = 32;
+        public bool RestoreBooruSearchTabs { get; set; } = true;
+        public int BooruSavedTabs { get; set; } = BooruSavedTabsDefault;
+        internal const int BooruSavedTabsDefault = BooruSearchTabsDefault + 1;
+        internal const int BooruSavedTabsMinimum = 2;
+        internal const int BooruSavedTabsMaximum = BooruSearchTabsMaximum + 1;
+        public int BooruSavedResultsPerTab { get; set; } = BooruSavedResultsPerTabDefault;
+        internal const int BooruSavedResultsPerTabDefault = BooruSavedResultsPerTabMaximum;
+        internal const int BooruSavedResultsPerTabMinimum = 0;
+        internal const int BooruSavedResultsPerTabMaximum = Desktop.Booru.BooruSearchModel.PageSize;
+
         /// <summary>The largest reduced-size image (sample) the inline Danbooru gallery loads for display, in MiB; a larger one is refused and the preview stays.</summary>
         public int BooruGallerySampleMiB { get; set; } = BooruGallerySampleMiBDefault;
         internal const int BooruGallerySampleMiBDefault = 8;
@@ -1723,6 +1733,10 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
+            if (BooruSavedTabs is < BooruSavedTabsMinimum or > BooruSavedTabsMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSavedTabs));
+            if (BooruSavedResultsPerTab is < BooruSavedResultsPerTabMinimum or > BooruSavedResultsPerTabMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruSavedResultsPerTab));
             if (BooruGallerySampleMiB is < BooruGallerySampleMiBMinimum or > BooruGallerySampleMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruGallerySampleMiB), "BooruGallerySampleMiB is outside its supported range (" + BooruGallerySampleMiBMinimum + " to " + BooruGallerySampleMiBMaximum + ").");
             if (BooruGalleryCacheMiB is < BooruGalleryCacheMiBMinimum or > BooruGalleryCacheMiBMaximum)
@@ -1995,6 +2009,9 @@ namespace MeowChan
                 BooruResultTagsShown = BooruResultTagsShown,
                 BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
+                RestoreBooruSearchTabs = RestoreBooruSearchTabs,
+                BooruSavedTabs = BooruSavedTabs,
+                BooruSavedResultsPerTab = BooruSavedResultsPerTab,
                 BooruGallerySampleMiB = BooruGallerySampleMiB,
                 BooruGalleryCacheMiB = BooruGalleryCacheMiB,
                 BooruGalleryMaximumPixels = BooruGalleryMaximumPixels,
@@ -2281,6 +2298,9 @@ namespace MeowChan
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
+            RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSavedTabs = source.BooruSavedTabs;
+            BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
             CopyBooruGalleryLimitsFrom(source);
@@ -2519,6 +2539,9 @@ namespace MeowChan
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
+            RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
+            BooruSavedTabs = source.BooruSavedTabs;
+            BooruSavedResultsPerTab = source.BooruSavedResultsPerTab;
             BooruGallerySampleMiB = source.BooruGallerySampleMiB;
             BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
             CopyBooruGalleryLimitsFrom(source);

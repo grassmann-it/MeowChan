@@ -213,11 +213,13 @@ public partial class MainWindow
             // submitted now, while nothing is closing yet. The session takes these writes until it seals its final writes, so they join
             // the final preferences below instead of being dropped with "the window is closing".
             Task quickSettings = Task.CompletedTask;
+            Task booruSearchTabs = Task.CompletedTask;
             budget.Run("input-flush", () =>
             {
                 _archivePage?.FlushReadingPositionInput();
                 quickSettings = _archivePage?.FlushQuickSettingsAsync() ?? Task.CompletedTask;
             });
+            budget.Run("booru-tabs-flush", () => booruSearchTabs = FlushBooruSearchTabsAsync());
             _isClosing = true;
             _shutdownRunning = true;
             budget.Run("clipboard-monitor", StopClipboardMonitor);
@@ -259,6 +261,7 @@ public partial class MainWindow
             await Task.WhenAll(
                 budget.RunAsync("engine-drain", engineDrain),
                 budget.RunAsync("final-preferences", finalPreferences),
+                budget.RunAsync("booru-tabs-save", booruSearchTabs),
                 budget.RunAsync("gallery-cleanup", _galleryCleanupTask),
                 budget.RunAsync("inline-videos", inlineVideos),
                 budget.RunAsync("session-restore", _restoreTask));

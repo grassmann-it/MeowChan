@@ -1,12 +1,13 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MeowChan.Desktop.Booru;
 
 /// <summary>
 /// The extra tabs next to the permanent search. Slot 0 is the permanent Search tab (it cannot be closed and does not count
 /// against the limit); every other slot is one opened search. The tabs share the one <see cref="BooruSearchModel"/>: leaving a tab stores
-/// the model's immutable view in it, entering a tab puts that view back (never sending a request). Tabs live for the session only.
+/// the model's immutable view in it, entering a tab puts that view back (never sending a request).
 /// </summary>
 internal sealed class BooruSearchTabs
 {
@@ -41,6 +42,34 @@ internal sealed class BooruSearchTabs
     internal int Limit => Math.Clamp(_limit(), MeowChan.Config.BooruSearchTabsMinimum, MeowChan.Config.BooruSearchTabsMaximum);
     internal int ExtraCount => _slots.Count - 1;
     internal bool CanAdd => ExtraCount < Limit;
+
+    /// <summary>Keep the permanent and active tabs when trimming, without changing their order.</summary>
+    internal static int[] RetainedIndices(int count, int activeIndex, int limit)
+    {
+        if (activeIndex < limit) return Enumerable.Range(0, Math.Min(count, limit)).ToArray();
+        return Enumerable.Range(0, limit - 1).Append(activeIndex).ToArray();
+    }
+
+    internal BooruTabSnapshot Capture(int limit)
+    {
+        int activeIndex = _slots.FindIndex(slot => slot.Id == _activeId);
+        int[] indices = RetainedIndices(_slots.Count, activeIndex, limit);
+        BooruSearchView current = _search.View;
+        return new BooruTabSnapshot(current.ProviderId, Array.IndexOf(indices, activeIndex),
+            indices.Select(index => index == activeIndex ? current : _slots[index].Snapshot).ToArray());
+    }
+
+    /// <summary>Initializes the strip before it is shown. IDs here belong to the new session.</summary>
+    internal void Restore(BooruTabSnapshot snapshot)
+    {
+        _slots.Clear();
+        for (int index = 0; index < snapshot.Tabs.Length; index++)
+            _slots.Add(new Slot(index == 0 ? PrimaryId : _nextId++) { Snapshot = snapshot.Tabs[index] });
+        Slot active = _slots[snapshot.ActiveIndex];
+        _activeId = active.Id;
+        _search.Restore(active.Snapshot, _activeId);
+        Changed?.Invoke();
+    }
 
     /// <summary>The view a tab shows: the live one for the active tab, else the stored one (null: a blank search).</summary>
     internal BooruSearchView? ViewOf(int id)

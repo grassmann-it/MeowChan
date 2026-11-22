@@ -29,7 +29,8 @@ internal sealed record BooruSearchView(
     DateTimeOffset? RetryAt,
     string? Code,
     BooruNotice? Notice,
-    bool Restored = false)
+    bool Restored = false,
+    bool NeedsLoad = false)
 {
     internal bool IsPostResult => ExecutedPostId is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
@@ -331,7 +332,8 @@ internal sealed partial class BooruSearchModel : IDisposable
             _view = _view with
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
-                Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null, Restored = false
+                Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null,
+                Restored = false, NeedsLoad = false
             };
             return (_requestId, request.Acquire());
         }

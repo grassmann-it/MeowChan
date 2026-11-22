@@ -334,7 +334,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             if (_applying || _mode.SelectedItem is not ComboBoxItem { Tag: BooruInputMode mode }) return;
             _model.Search.SetMode(mode);
         };
-        _input.TextChanged += (_, _) =>
+        // SearchBox raises this synchronously, so closing can capture the latest keystroke.
+        _input.QueryChanged += (_, _) =>
         {
             if (!_applying) _model.Search.SetInput(_input.Text);
         };

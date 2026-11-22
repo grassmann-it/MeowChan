@@ -7,6 +7,16 @@ namespace MeowChan;
 public partial class SettingsEditor
 {
     private SettingsChoice? _selectedBooruNewSearchTarget;
+    private bool _restoreBooruSearchTabs;
+
+    public bool RestoreBooruSearchTabs
+    {
+        get => _restoreBooruSearchTabs;
+        set => SetField(ref _restoreBooruSearchTabs, value, nameof(RestoreBooruSearchTabs));
+    }
+
+    public string RestoreBooruSearchTabsLabel => Texts.T("settings.booru.restoreSearchTabs");
+    public string RestoreBooruSearchTabsHint => Texts.T("settings.booru.restoreSearchTabs.hint");
 
     public SettingsChoice? SelectedBooruNewSearchTarget
     {
@@ -18,7 +28,11 @@ public partial class SettingsEditor
     public string BooruNewSearchTargetLabel => Texts.T("settings.booru.newSearchTarget");
     public string BooruNewSearchTargetHint => Texts.T("settings.booru.newSearchTarget.hint");
 
-    private void LoadBooruSearchDraft(Config config) => RefreshBooruSearchChoices(config.BooruNewSearchTarget);
+    private void LoadBooruSearchDraft(Config config)
+    {
+        RestoreBooruSearchTabs = config.RestoreBooruSearchTabs;
+        RefreshBooruSearchChoices(config.BooruNewSearchTarget);
+    }
 
     private void RefreshBooruSearchChoices(string selected)
     {
@@ -27,7 +41,8 @@ public partial class SettingsEditor
             new(Config.BooruSearchTargetNewTab, Texts.T("settings.booru.newSearchTarget.new")),
             new(Config.BooruSearchTargetCurrentTab, Texts.T("settings.booru.newSearchTarget.current"))
         };
-        Raise([nameof(BooruSearchTargetChoices), nameof(BooruNewSearchTargetLabel), nameof(BooruNewSearchTargetHint)]);
+        Raise([nameof(BooruSearchTargetChoices), nameof(BooruNewSearchTargetLabel), nameof(BooruNewSearchTargetHint),
+            nameof(RestoreBooruSearchTabsLabel), nameof(RestoreBooruSearchTabsHint)]);
         SelectedBooruNewSearchTarget = Choice(BooruSearchTargetChoices, selected);
     }
 }
