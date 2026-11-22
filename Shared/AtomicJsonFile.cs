@@ -25,15 +25,15 @@ internal static class AtomicJsonFile
     {
         cancellationToken.ThrowIfCancellationRequested();
         Write(filePath, Encoding.UTF8.GetBytes(contents.Replace("\r\n", "\n", StringComparison.Ordinal)),
-            backupCurrentFile, useFixedStage: false, checkAuthority: null, cancellationToken);
+            previousFile, useFixedStage: false, checkAuthority: null, cancellationToken);
     }
 
     // The caller serializes writers across processes. One fixed staging file bounds crash residue
     // and is safe to discard before a retried write because the primary is the commit record.
     internal static void ReplaceUnderLease(string filePath, byte[] bytes, Action? checkAuthority, CancellationToken cancellationToken)
-        => Write(filePath, bytes, backupCurrentFile: false, useFixedStage: true, checkAuthority, cancellationToken);
+        => Write(filePath, bytes, PreviousFile.Replace, useFixedStage: true, checkAuthority, cancellationToken);
 
-    private static void Write(string filePath, byte[] bytes, bool backupCurrentFile, bool useFixedStage,
+    private static void Write(string filePath, byte[] bytes, PreviousFile previousFile, bool useFixedStage,
         Action? checkAuthority, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
