@@ -24,21 +24,12 @@ namespace MeowChan.Desktop;
 internal readonly record struct GalleryOverlayActivity(bool Overlay, bool AutoHide, bool Available,
     bool ActiveWindow, bool Focused, bool Captured, bool Popup, bool Reading, bool Notice = false, bool Hovered = false)
 {
-    private bool Held => !Available || !ActiveWindow || Focused || Captured || Popup || Reading || Hovered;
-
     /// <summary>Whether the overlay controls may hide after <paramref name="idle"/> without activity; they wait the
     /// "Hide controls after" setting (<see cref="Config.ControlsIdleHideMs"/>, clamped to its range).</summary>
-    internal bool CanHide(TimeSpan idle, int hideAfterMs = Config.ControlsIdleHideMsDefault) => Overlay && AutoHide && !Held
+    internal bool CanHide(TimeSpan idle, int hideAfterMs = Config.ControlsIdleHideMsDefault) => Overlay && AutoHide && Available && ActiveWindow
         // Notice is retained as a source-compatible observation, never an interaction hold.
+        && !Focused && !Captured && !Popup && !Reading && !Hovered
         && idle >= TimeSpan.FromMilliseconds(Math.Clamp(hideAfterMs, Config.ControlsIdleHideMsMinimum, Config.ControlsIdleHideMsMaximum));
-
-    internal bool CanHideAfterHold(long now, int hideAfterMs, ref long lastActivity, ref bool wasHeld)
-    {
-        // The first idle observation starts a full delay, even when a menu or focus held the footer for minutes.
-        if (Held || wasHeld) lastActivity = now;
-        wasHeld = Held;
-        return CanHide(Stopwatch.GetElapsedTime(lastActivity, now), hideAfterMs);
-    }
 }
 
 internal readonly record struct GalleryOverlayPlacement(bool Controls, bool PostContext)
@@ -51,13 +42,12 @@ internal readonly record struct GalleryOverlayPlacement(bool Controls, bool Post
 internal sealed partial class GalleryViewer
 {
     private readonly StackPanel _overlayFooter = new() { Name = "GalleryOverlayFooter", VerticalAlignment = VerticalAlignment.Bottom,
-        HorizontalAlignment = HorizontalAlignment.Stretch, Classes = { "gallery-footer-tips" }, IsVisible = false };
+        HorizontalAlignment = HorizontalAlignment.Stretch, IsVisible = false };
     private readonly StackPanel _overlayTransportHost = new() { Name = "GalleryOverlayTransportHost", Margin = new Thickness(8, 4, 8, 4) };
     private readonly List<PointerFocusReclaim> _pointerFocusReclaims = new();
     private readonly HashSet<IPointer> _pressedPointers = new();
     private IPointer? _lastPointer;
     private long _lastOverlayActivity = Stopwatch.GetTimestamp();
-    private bool _overlayActivityHeld;
     private bool _overlayHidden;
     private long? _lastIndicatorMotion;
     private DispatcherTimer? _indicatorExpiryTimer;
@@ -84,18 +74,7 @@ internal sealed partial class GalleryViewer
     private Panel OverlayHost => _nativeOverlayActive ? _nativeVideoOverlay : _visualRoot;
 
     private bool HasGalleryPopup => Commands.CommandRouter.HasOpenPopup((Control?)TopLevel.GetTopLevel(this) ?? this)
-        || Commands.CommandRouter.HasOpenPopup((Control?)TopLevel.GetTopLevel(_nativeVideoOverlay) ?? _nativeVideoOverlay)
-        || HasAnchoredGalleryPopup(includeToolTips: false);
-
-    private bool HasAnchoredGalleryPopup(bool includeToolTips) => HasAnchoredPopup(this, includeToolTips)
-        || _nativeOverlayActive && HasAnchoredPopup(_nativeVideoOverlay, includeToolTips);
-
-    private static bool HasAnchoredPopup(Control root, bool includeToolTips) => TopLevel.GetTopLevel(root)?.OpenedPopups
-        .Any(popup => (includeToolTips || popup.Child is not ToolTip) && popup.PlacementTarget is Control anchor
-            && (root == anchor || root.IsVisualAncestorOf(anchor))) == true;
-
-    private bool HasGalleryCapture => _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured is Visual captured
-        && (captured == this || this.IsVisualAncestorOf(captured) || captured == _nativeVideoOverlay || _nativeVideoOverlay.IsVisualAncestorOf(captured));
+        || Commands.CommandRouter.HasOpenPopup((Control?)TopLevel.GetTopLevel(_nativeVideoOverlay) ?? _nativeVideoOverlay);
 
     private bool HasGalleryDialog => TopLevel.GetTopLevel(this) is Window host
         && host.OwnedWindows.Any(window => window.IsVisible && !OwnsOverlayWindow(window) && !Views.Shortcuts.ShortcutsWindow.IsPassive(window));
@@ -334,7 +313,7 @@ internal sealed partial class GalleryViewer
             }, RoutingStrategies.Bubble, handledEventsToo: true);
             surface.AddHandler(PointerPressedEvent, OnOverlayPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
             surface.AddHandler(PointerReleasedEvent, OnOverlayPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true);
-            surface.AddHandler(PointerCaptureLostEvent, OnOverlayPointerCaptureLost, RoutingStrategies.Direct, handledEventsToo: true);
+            surface.AddHandler(PointerCaptureLostEvent, OnOverlayPointerCaptureLost, RoutingStrategies.Bubble, handledEventsToo: true);
             // A click on any chrome control (toolbar, badges, fit and zoom, layout and "More") gives the keys back to the picture, never to the button.
             _pointerFocusReclaims.Add(PointerFocusReclaim.Attach(surface, ReclaimGallerySurface));
             surface.AddHandler(PointerWheelChangedEvent, OnOverlayPointerWheel, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -546,12 +525,6 @@ internal sealed partial class GalleryViewer
         UpdateViewerInteractionTimer();
     }
 
-    private void OnHostWindowActivated(object? sender, EventArgs e)
-    {
-        _lastOverlayActivity = Stopwatch.GetTimestamp();
-        UpdateViewerInteractionTimer();
-    }
-
     /// <summary>
     /// For a command that opens something at a control of the footer (speed and layout menus, a button-only command): the controls come
     /// first, laid out, so the command never depends on whether they were hidden.
@@ -574,8 +547,7 @@ internal sealed partial class GalleryViewer
     private bool RevealForKeyboard(KeyEventArgs e)
     {
         _keyboardInteraction = true;
-        if (_hoverContextOpen && !_contextPanel.IsKeyboardFocusWithin && !HasGalleryPopup)
-            SetContextOpen(false, notify: false, hover: true);
+        if (_lastPointerScreen != null || _hoverContextOpen) ReleaseTransientOverlays(keepKeyboard: true);
         // This is an observation, never an input gate. The first command and every
         // repeat must reach the existing gallery/native-control routing immediately.
         // Escape likewise stays entirely with the shell/help/context hierarchy.
@@ -639,9 +611,7 @@ internal sealed partial class GalleryViewer
 
     private void ReleaseTransientOverlays(bool keepKeyboard = false)
     {
-        if (_controlsHot || _pointerInControls || _pointerOnControlsIndicator || _pointerInFilmstrip)
-            _lastOverlayActivity = Stopwatch.GetTimestamp();
-        if (!HasCurrentGalleryPointer) _lastPointerScreen = null;
+        _lastPointerScreen = null;
         _decisionRow?.Preview(null);
         _postDecision?.Preview(null);
         _lastCornerMotion = _lastFavoriteFlash = null;
@@ -652,6 +622,12 @@ internal sealed partial class GalleryViewer
         _indicatorExpiryTimer?.Stop();
         if (_hoverContextOpen && !(keepKeyboard && _contextPanel.IsKeyboardFocusWithin)) SetContextOpen(false, notify: false, hover: true);
         if (_filmstripPeek) { _filmstripPeek = false; UpdateFilmstripPlacement(); }
+        if (OverlayControlsEffective && _playbackPreferences.AutoHideControls && _tagging == null && !(keepKeyboard && KeyboardPanelFocus))
+        {
+            _overlayHidden = true;
+            _overlayFooter.IsVisible = false;
+            _overlayFooter.IsHitTestVisible = false;
+        }
         foreach (Button indicator in new[] { _controlsEdgeIndicator, _postEdgeIndicator })
         {
             ToolTip.SetIsOpen(indicator, false);
@@ -673,7 +649,7 @@ internal sealed partial class GalleryViewer
         // The guards come first: motion over a gallery that is not the active, usable surface (another window has the focus, a dialog or popup is over it,
         // a drag or a selection is under way) is not activity of the controls, so it neither shows them nor renews the clock that hides them again.
         bool mayReveal = GalleryEdgeHover.MotionMayReveal(IsGalleryWindowActive, _interactionAvailable, HasGalleryDialog || HasGalleryPopup,
-            HasGalleryCapture,
+            _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null,
             HasSelectedPostText || HasSelectedControlsText, KeyboardPanelFocus, _helpOpen);
         switch (GalleryEdgeHover.MotionEffect(mayReveal, _overlayHidden))
         {
@@ -690,8 +666,9 @@ internal sealed partial class GalleryViewer
         bool post = _postHot || _pointerOnPostIndicator && !_contextOpen && !_pointerInControls;
         if (!controls && !post) { UpdateViewerInteractionTimer(); return; }
         if (!IsGalleryWindowActive || !_interactionAvailable || HasGalleryDialog || HasGalleryPopup) return;
-        // A pan/seek drag or focused keyboard task is not a request to open another panel.
-        if (!GalleryEdgeHover.CanReveal(HasGalleryCapture,
+        // A pan/seek drag or focused keyboard task is not a request to open another
+        // panel. Pointer focus alone deliberately does not pin the controls.
+        if (!GalleryEdgeHover.CanReveal(_dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null,
             HasSelectedPostText || HasSelectedControlsText, KeyboardPanelFocus, _helpOpen)) return;
         if (controls && OverlayControlsEffective) RevealOverlayControls();
         if (post && PostOverlayEffective && !_contextOpen && !_suppressPostHoverUntilExit && _entry != null)
@@ -743,9 +720,7 @@ internal sealed partial class GalleryViewer
         // the gallery (which made a bottom-edge reveal immediately disappear again).
         if (!HasCurrentGalleryPointer)
         {
-            _pressedPointers.RemoveWhere(pointer => pointer.Captured == null);
-            if (!HasGalleryPopup && !HasAnchoredGalleryPopup(includeToolTips: true))
-                ReleaseTransientOverlays(keepKeyboard: IsGalleryWindowActive && _keyboardInteraction);
+            ReleaseTransientOverlays(keepKeyboard: IsGalleryWindowActive && _keyboardInteraction);
             UpdateViewerInteractionTimer();
             return;
         }
@@ -773,7 +748,6 @@ internal sealed partial class GalleryViewer
     {
         if (_terminalRetirement || _viewerInteractionStopped) return;
         _pressedPointers.Remove(e.Pointer);
-        _lastOverlayActivity = Stopwatch.GetTimestamp();
         if (_revealPointerId != e.Pointer.Id) return;
         e.Handled = true;
         Dispatcher.UIThread.Post(() => { _revealPointerId = null; _swallowRevealTap = false; }, DispatcherPriority.Background);
@@ -781,11 +755,7 @@ internal sealed partial class GalleryViewer
     private void OnOverlayPointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
     {
         if (_terminalRetirement || _viewerInteractionStopped) return;
-        if (_pressedPointers.Remove(e.Pointer) && _revealPointerId == e.Pointer.Id)
-        {
-            _revealPointerId = null;
-            _swallowRevealTap = false;
-        }
+        _pressedPointers.Remove(e.Pointer);
         _lastOverlayActivity = _lastPostActivity = Stopwatch.GetTimestamp();
         UpdateViewerInteractionTimer();
     }
@@ -810,9 +780,8 @@ internal sealed partial class GalleryViewer
         bool active = IsGalleryWindowActive;
         if (!active) _pressedPointers.Clear();
         bool popup = HasGalleryPopup || HasGalleryDialog || _helpOpen;
-        bool footerPopup = popup || HasAnchoredGalleryPopup(includeToolTips: true) || _video?.IsVolumePopupOpen == true;
-        if (!footerPopup && (!active || !HasCurrentGalleryPointer && !_keyboardInteraction)) ReleaseTransientOverlays();
-        bool captured = HasGalleryCapture;
+        if (!active || popup || !HasCurrentGalleryPointer && !_keyboardInteraction) ReleaseTransientOverlays();
+        bool captured = _dragging || _pressedPointers.Count != 0 || _lastPointer?.Captured != null;
         // In the tagging mode the tag panel does not stop the slideshow; it holds it while it is worked in (UpdateTaggingHold renews the
         // shown medium's period when that ends, so the medium just tagged is never skipped).
         bool tagHold = UpdateTaggingHold();
@@ -824,6 +793,7 @@ internal sealed partial class GalleryViewer
             || _video?.TransportControl.IsKeyboardFocusWithin == true
             || _close.IsKeyboardFocusWithin || _favoriteIndicator.IsKeyboardFocusWithin || _nativeFavoriteIndicator.IsKeyboardFocusWithin
             || _overlayFooter.IsKeyboardFocusWithin; // the whole footer, the bottom filmstrip included: a hidden subtree must not hold the focus
+        bool focused = _keyboardInteraction && controlHasFocus;
         bool selectedPostText = HasSelectedPostText;
         if (_hoverContextOpen && !_postHot && !_pointerInPost && !_pointerOnPostIndicator && !captured && !popup
             && !(_keyboardInteraction && _contextPanel.IsKeyboardFocusWithin) && !selectedPostText
@@ -836,12 +806,12 @@ internal sealed partial class GalleryViewer
         _slideshowToggle.IsEnabled = _slideshow.IsRunning || CanRunSlideshow && !_navigationPending;
         var activity = new GalleryOverlayActivity(OverlayControlsEffective, _playbackPreferences.AutoHideControls,
             // The tagging mode holds the controls: its decision strip is never auto-hidden (PT3).
-            _interactionAvailable, active, controlHasFocus, captured, footerPopup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText || _tagging != null,
+            _interactionAvailable, active, focused, captured, popup, _helpOpen || IsFavoriteConfirmOpen || selectedPostText || HasSelectedControlsText || _tagging != null,
             Hovered: _controlsHot || _pointerInControls || _pointerOnControlsIndicator || FilmstripHolds
                 || _close.IsPointerOver || _favoriteIndicator.IsPointerOver || _nativeFavoriteIndicator.IsPointerOver);
-        if (!_overlayHidden && activity.CanHideAfterHold(Stopwatch.GetTimestamp(), _controlsIdleHideMs,
-            ref _lastOverlayActivity, ref _overlayActivityHeld))
+        if (activity.CanHide(Stopwatch.GetElapsedTime(_lastOverlayActivity), _controlsIdleHideMs))
         {
+            if (controlHasFocus) { FocusGallerySurface(); _keyboardInteraction = false; }
             _overlayHidden = true;
             _overlayFooter.IsVisible = false;
             _overlayFooter.IsHitTestVisible = false;

@@ -9,7 +9,7 @@ namespace MeowChan.Desktop.Controls;
 /// rather than in the space left over by unequal edge regions. If the requested width cannot
 /// fit, the middle region yields to the two edge regions and is constrained to their real gap.
 /// </summary>
-internal class GeometricCenterPanel : Panel
+internal sealed class GeometricCenterPanel : Panel
 {
     protected override Size MeasureOverride(Size availableSize)
     {

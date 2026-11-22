@@ -106,7 +106,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     // GL1+GL2: the docked dock below the picture, without a gap to it: [filmstrip (when at the bottom)] [_chrome: video bar row
     // (GalleryDockTransportHost, GL2), tools] [info line]. The floating footer (_overlayFooter) has the same order: [filmstrip]
     // [GalleryOverlayTransportHost] [_chrome] [info]. The Windows transparency fallback keeps the video bar under the picture.
-    private readonly StackPanel _dockStack = new() { Name = "GalleryDock", Classes = { "gallery-footer-tips" }, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly StackPanel _dockStack = new() { Name = "GalleryDock", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Border _infoOverlay = new() { Name = "GalleryOverlayInfo", Classes = { "workspace-media-caption" },
         Margin = new Thickness(8, 0, 8, 8), Padding = new Thickness(8, 2), HorizontalAlignment = HorizontalAlignment.Stretch }; // GL5b: one 20 dip line (it grows with a safety line)
     private readonly Border _statusPlate = new() { Classes = { "workspace-media-caption" },
@@ -368,7 +368,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         Grid root = _visualRoot;
         // One non-wrapping line with a true window-centred navigation group. Unequal action groups at the edges must not move the
         // previous/position/next group away from the picture's centre; at constrained widths the centre yields to the real edge gap.
-        GalleryToolbarPanel toolbar = new() { Name = "GalleryToolbar", VerticalAlignment = VerticalAlignment.Center };
+        GeometricCenterPanel toolbar = new() { Name = "GalleryToolbar", VerticalAlignment = VerticalAlignment.Center };
         StackPanel Side(string name, HorizontalAlignment align)
         {
             StackPanel side = new() { Name = name, Orientation = Orientation.Horizontal, Spacing = 12, HorizontalAlignment = align, VerticalAlignment = VerticalAlignment.Center };
@@ -560,11 +560,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             if (_scaleOwner != null) _scaleOwner.ScalingChanged += OnScaleOwnerChanged;
             // The key-up of F must reach the viewer wherever the focus is (or is not): a latch that waits for it would swallow every later F.
             _scaleOwner?.AddHandler(KeyUpEvent, OnFavoriteKeyUp, RoutingStrategies.Tunnel, handledEventsToo: true);
-            if (_scaleOwner is Window hostWindow)
-            {
-                hostWindow.Activated += OnHostWindowActivated;
-                hostWindow.Deactivated += OnHostWindowDeactivated;
-            }
+            if (_scaleOwner is Window hostWindow) hostWindow.Deactivated += OnHostWindowDeactivated;
             ApplyOverlayPlacement();
             UpdateViewerInteractionTimer();
         };
@@ -574,11 +570,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             ShortcutService.Changed -= OnShortcutBindingsChanged;
             if (_scaleOwner != null) _scaleOwner.ScalingChanged -= OnScaleOwnerChanged;
             _scaleOwner?.RemoveHandler(KeyUpEvent, OnFavoriteKeyUp);
-            if (_scaleOwner is Window hostWindow)
-            {
-                hostWindow.Activated -= OnHostWindowActivated;
-                hostWindow.Deactivated -= OnHostWindowDeactivated;
-            }
+            if (_scaleOwner is Window hostWindow) hostWindow.Deactivated -= OnHostWindowDeactivated;
             _favoriteGestureKey = null;
             _scaleOwner = null;
             StopViewerInteraction();
@@ -634,8 +626,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         {
             if (button.Name != null && CommandId(button.Name) is { } id)
             {
-                if (!PresentToolbarAction(button, button.Name, id))
-                    CommandBindings.Apply(button, id, iconOnly: IsIconOnly(button.Name) && button.Tag is not OverflowItem);
+                CommandBindings.Apply(button, id, iconOnly: IsIconOnly(button.Name) && button.Tag is not OverflowItem);
+                ApplyCompactLabel(button, button.Name);
             }
             else if (button.Name != null && labels.TryGetValue(button.Name, out string? key))
             { button.Content = Texts.T(key); AutomationProperties.SetName(button, Texts.T(key)); }
@@ -667,7 +659,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         "GalleryActual" or "GalleryActualMenu" => "gallery.actual-size", "GalleryMinus" => "gallery.zoom-out",
         "GalleryPlus" => "gallery.zoom-in", "GalleryRotate" => "gallery.rotate", "GalleryToggleContext" => "gallery.context-toggle",
         "GalleryReadPosts" => "thread.read", "GalleryFullscreen" => "window.fullscreen",
-        "GalleryHelp" => "viewer.shortcut-help", "GalleryFavorite" => "favorites.toggle", "GalleryTags" => "media.tags.edit",
+        "GalleryHelp" => "viewer.shortcut-help", "GalleryFavorite" => "favorites.toggle",
         "GalleryExportOriginal" => "media.export-original", "GallerySaveFrame" => "video.snapshot",
         "GalleryOpenExternal" => "media.open-external", "GalleryFileOnlyFolder" => "media.show-in-folder",
         "GalleryToolsToggle" => "gallery.tools-toggle",
@@ -679,15 +671,16 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         "GalleryMinus" or "GalleryPlus" or "GalleryHelp" or
         "GalleryToggleContext" or "GalleryFavorite" or "GalleryToolsToggle";
 
+    /// <summary>GL5d: the tools that show only their icon at every width (the tooltip, name and shortcut stay on the control).</summary>
+    private static bool AlwaysIconOnly(string name) => name is "GalleryFit" or "GalleryToggleContext" or "GalleryFavorite";
+
     internal static string? CompactLabelFor(string name) => name switch
     {
         "GalleryClose" => Texts.T("command.gallery.close.compact"),
         "GalleryFit" => Texts.T("gallery.fit"),
         "GalleryActual" => Texts.T("gallery.actual"), // I1b: "1:1" gets its catalog icon like its neighbour "Fit".
-        "GalleryToggleContext" => Texts.T("gallery.toolbar.label.info"),
+        "GalleryToggleContext" => Texts.T("gallery.context"),
         "GalleryFavorite" => Texts.T("command.gallery.favorite.compact"),
-        "GalleryTags" => Texts.T("gallery.toolbar.label.edit"),
-        "GalleryHelp" => Texts.T("gallery.toolbar.label.help"),
         "GalleryExportOriginal" => Texts.T("command.gallery.export-original.compact"),
         // Reuse the already shared fullscreen compact label; the full command title remains unchanged.
         "GalleryFullscreen" => Texts.T("command.window.fullscreen.compact"),
@@ -866,34 +859,39 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         UpdateViewerInteractionTimer();
     }
 
-    private bool PresentToolbarAction(Button button, string name, string id)
+    private void ApplyCompactLabel(Button button, string name, string? visibleLabel = null)
     {
-        if (button.Tag is OverflowItem || name is not ("GalleryFit" or "GalleryActual" or "GalleryToggleContext"
-            or "GalleryFavorite" or "GalleryTags" or "GalleryHelp")) return false;
-
-        string label = CompactLabelFor(name)!;
-        bool favorite = id == "favorites.toggle";
-        if (button.Content is GalleryToolbarActionContent content)
+        string? label = visibleLabel ?? CompactLabelFor(name);
+        if (label == null || CommandId(name) is not { } id) return;
+        if (name == "GalleryClose") return; // The way back is a corner control, not a toolbar tool: ApplyCloseLabel decides its form by its measured label.
+        if (button.Tag is OverflowItem) return; // A menu row shows its own text.
+        // The favourite button draws the app's one favourite mark for its state (outline or filled); the other icons follow the foreground.
+        // Untinted here: the marked toggle already shows its checked fill, and the gold tint on that fill fell to 1.5:1 (Light) and
+        // 1.7:1 (Dark), below the 3:1 of an icon (video-contrast smoke, wave 3). The filled shape keeps the state readable.
+        Border Icon(int size)
         {
-            content.Text = label;
-            if (favorite && FavoriteStar.MarkOf(content.Icon) != _favoriteSelected)
-                content.Icon = FavoriteStar.Create(_favoriteSelected, tinted: false);
+            if (id == "favorites.toggle") return MeowChan.Desktop.Controls.FavoriteStar.Create(_favoriteSelected, size, tinted: false);
+            Border plain = (Border)CommandBindings.Icon(id, size);
+            // Semi sets the checked/pressed/disabled foreground on the content
+            // presenter; inherit that same foreground for the icon and label.
+            plain.Bind(Border.BackgroundProperty, plain.GetObservable(TextElement.ForegroundProperty));
+            return plain;
         }
-        else
+        if (_compactToolbar || AlwaysIconOnly(name))
         {
-            Border icon = favorite ? FavoriteStar.Create(_favoriteSelected, tinted: false) : (Border)CommandBindings.Icon(id, 16);
-            if (!favorite) icon.Bind(Border.BackgroundProperty, icon.GetObservable(TextElement.ForegroundProperty));
-            button.Content = new GalleryToolbarActionContent(icon, label);
-            button.Classes.Set("icon-only", false);
+            // GL5d (S1): Fit, the post panel and the favourite are icons with a tooltip at every width; a narrow viewer (below
+            // CompactToolbarWidth) shows the labelled controls that remain as icons too. The name, tooltip and shortcut stay on the control.
             button.Classes.Set("command-icon", true);
-            button.Classes.Set("gallery-toolbar-action", true);
+            button.Classes.Set("icon-only", true); // GL5d: the square of the input height (WorkspaceStyles .icon-only)
+            button.Content = Icon(16);
+            return;
         }
-        CommandBindings.BindExisting(button, id);
-        string tip = CommandBindings.Tooltip(id);
-        ToolTip.SetTip(button, tip);
-        AutomationProperties.SetName(button, CommandCatalog.Label(id));
-        AutomationProperties.SetHelpText(button, tip);
-        return true;
+        button.Classes.Set("icon-only", false);
+        StackPanel content = new() { Orientation = Orientation.Horizontal, Spacing = 4 };
+        Border icon = Icon(14);
+        content.Children.Add(icon);
+        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
+        button.Content = content;
     }
 
     private Button Command(Panel panel, string name, string label, Action action, bool overflow = false, bool keepOpen = false)
@@ -903,8 +901,11 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             ? new ToggleButton { Name = name }
             : new Button { Name = name };
         if (id == null) { button.Content = label; AutomationProperties.SetName(button, label); }
-        else if (overflow || !PresentToolbarAction(button, name, id))
+        else
+        {
             CommandBindings.Apply(button, id, iconOnly: IsIconOnly(name) && !overflow);
+            if (!overflow) ApplyCompactLabel(button, name);
+        }
         button.Click += (_, _) => action();
         if (overflow)
         {
@@ -1043,6 +1044,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private void ToggleFavorite()
     {
         _favorite.IsChecked = _favoriteSelected;
+        ApplyCompactLabel(_favorite, "GalleryFavorite");
         if (!CanRequestFavorite || _entry == null) return;
         FlashFavoriteBadge();
         FavoriteToggleRequested?.Invoke(_entry);
@@ -1052,7 +1054,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         string label = Texts.T(_favoriteSelected ? "viewer.favorite.remove" : "viewer.favorite.add");
         _favorite.IsChecked = _favoriteSelected;
-        PresentToolbarAction(_favorite, "GalleryFavorite", "favorites.toggle");
+        ApplyCompactLabel(_favorite, "GalleryFavorite");
         AutomationProperties.SetName(_favorite, label);
         string tip = FavoriteKeys.Tooltip(_favoriteSelected, "gallery");
         ToolTip.SetTip(_favorite, tip);

@@ -52,29 +52,11 @@ public sealed class GalleryOverlayActivityTests
     }
 
     [Fact]
-    public void HoverAndFocusEachHoldTheFooter()
+    public void HoverProtectsOnlyItsPanelAndMouseFocusAloneIsNotKeyboardOwnership()
     {
         Assert.False((Idle with { Hovered = true }).CanHide(TimeSpan.FromSeconds(9)));
-        Assert.True(Idle.CanHide(TimeSpan.FromSeconds(2)));
+        Assert.True(Idle.CanHide(TimeSpan.FromSeconds(2))); // caller maps pointer focus to Focused=false
         Assert.False((Idle with { Focused = true }).CanHide(TimeSpan.FromSeconds(9)));
-    }
-
-    [Fact]
-    public void TheIdleDelayStartsAfterTheLastInteractionEnds()
-    {
-        const int delay = 500;
-        long start = System.Diagnostics.Stopwatch.GetTimestamp();
-        long last = start;
-        bool held = false;
-        bool CanHide(GalleryOverlayActivity activity, int seconds) => activity.CanHideAfterHold(
-            start + seconds * System.Diagnostics.Stopwatch.Frequency, delay, ref last, ref held);
-
-        Assert.False(CanHide(Idle with { Hovered = true }, 10));
-        Assert.False(CanHide(Idle with { Captured = true }, 20));
-        Assert.False(CanHide(Idle with { Popup = true }, 30));
-        Assert.False(CanHide(Idle with { Focused = true }, 40));
-        Assert.False(CanHide(Idle, 50)); // The previous activity ended between polls.
-        Assert.True(CanHide(Idle, 51));
     }
 
     [Theory]
@@ -396,7 +378,7 @@ public sealed class GalleryOverlayActivityTests
     }
 
     [Fact]
-    public void PointerLeaveClearsEdgeHintsButKeepsTheFooterUntilItsIdleDelay()
+    public void ReleaseHidesTheRealOverlayAndRemovesHitOwnershipWithoutForgettingKeyboardModality()
     {
         var viewer = (GalleryViewer)RuntimeHelpers.GetUninitializedObject(typeof(GalleryViewer));
         var footer = new StackPanel { IsVisible = true, IsHitTestVisible = true };
@@ -412,9 +394,9 @@ public sealed class GalleryOverlayActivityTests
         SetField(viewer, "_pointerInPost", true);
         SetField(viewer, "_keyboardInteraction", true);
         Invoke(viewer, "ReleaseTransientOverlays", false);
-        Assert.False((bool)GetField(viewer, "_overlayHidden")!);
-        Assert.True(footer.IsVisible);
-        Assert.True(footer.IsHitTestVisible);
+        Assert.True((bool)GetField(viewer, "_overlayHidden")!);
+        Assert.False(footer.IsVisible);
+        Assert.False(footer.IsHitTestVisible);
         Assert.False((bool)GetField(viewer, "_pointerInPost")!);
         Assert.Null(GetField(viewer, "_lastPointerScreen"));
         Assert.Null(GetField(viewer, "_lastIndicatorMotion"));

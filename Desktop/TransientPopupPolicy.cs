@@ -40,9 +40,8 @@ internal static class TransientPopupPolicy
         Popup.IsOpenProperty.Changed.AddClassHandler<Popup>((popup, change) =>
         {
             if (Popups.TryGetValue(popup, out var previous)) { Popups.Remove(popup); previous.Dispose(); }
-            if (!change.GetNewValue<bool>()) return;
-            if (popup.ShouldUseOverlayLayer && popup.Child is ToolTip) popup.IsHitTestVisible = false;
-            if (popup.PlacementTarget is Control anchor) Popups.Add(popup, new PopupLease(popup, anchor));
+            if (change.GetNewValue<bool>() && popup.PlacementTarget is Control anchor)
+                Popups.Add(popup, new PopupLease(popup, anchor));
         });
     }
 
