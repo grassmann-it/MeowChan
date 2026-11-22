@@ -66,9 +66,7 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(Orientation.Horizontal, progress.Orientation);
         StackPanel error = Assert.IsType<StackPanel>(page.ErrorPanel.Child);
         Assert.Equal(Token(error, "Workspace.Space.8"), error.Spacing);
-        StackPanel stamp = Find<StackPanel>(page, "TaggingStamp");
-        Assert.Equal(Token(stamp, "Workspace.Space.8"), stamp.Spacing);
-        Assert.Equal(new[] { "TaggingStampRow", "TaggingStampChips" }, stamp.Children.Select(c => c.Name));
+        Assert.Contains(page.StampButton, heading.Children);
         // Hidden feedback/secondary rows must not add phantom spacing.
         Assert.False(page.ErrorPanel.IsVisible);
         Assert.Equal(new[] { "TaggingGroupPanel", "TaggingFilterPanel", "TaggingListPresentation" }, page.ListControls.Children.Select(c => c.Name));
@@ -223,46 +221,39 @@ public sealed class TaggingLayoutRhythmTests
     });
 
     private static string Source([System.Runtime.CompilerServices.CallerFilePath] string path = "") => path;
-    [Fact]
-    public void StampTitleChangesWeightOnlyAtTheBodyTextSize() => WithPage(page =>
-    {
-        TextBlock heading = Find<TextBlock>(page, "TaggingStampHeading");
-        Assert.Equal(Token(heading, "Workspace.Text.Body"), heading.FontSize);
-        Assert.Equal(Avalonia.Media.FontWeight.SemiBold, heading.FontWeight);
-        Assert.DoesNotContain("section-title", heading.Classes);
-    });
     [Theory]
     [InlineData("en")]
     [InlineData("de")]
-    public void StampStartsCollapsedAndExpandsToRevealTheEditorAndChips(string language) => WithPage(page =>
+    public void ClosedStampShowsCountOrUpToTwoChipsAndKeepsTheEditorInTheFlyout(string language) => WithPage(page =>
     {
         Texts.SetLanguage(language);
         typeof(TaggingPage).GetMethod("Localize", Private)!.Invoke(page, null);
         RenderSnapshot(page, TagQueueSnapshot.Empty);
-        TaggingControlRow editor = Find<TaggingControlRow>(page, "TaggingStampEditor");
-        Assert.Equal(Token(editor, "Workspace.Space.8"), editor.GroupSpacing);
-        Assert.Equal(Token(page.StampChips, "Workspace.Space.8"), page.StampChips.ItemSpacing);
-        Assert.Equal(Token(page.StampChips, "Workspace.Space.8"), page.StampChips.LineSpacing);
-        Assert.Equal(new[] { "TaggingStampInput", "TaggingStampAdd" }, editor.Children.Select(c => c.Name));
+        Assert.IsType<Flyout>(page.StampButton.Flyout);
+        Assert.DoesNotContain(page.StampInput, ((ILogical)page).GetLogicalDescendants());
         Assert.Equal(Texts.T("tagging.page.stamp.empty"), ToolTip.GetTip(page.StampInput));
+        TextBlock summary = Find<TextBlock>(page, "TaggingStampSummary");
+        StackPanel preview = Find<StackPanel>(page, "TaggingStampPreview");
+        Assert.Equal(Texts.T("tagging.page.stamp.summary", 0), summary.Text);
+        Assert.False(preview.IsVisible);
         foreach (WorkView view in WorkViewSetting.All)
         {
             page.ApplyWorkView(view);
             Assert.False(page.StampOpen);
+            Assert.True(page.StampButton.IsVisible);
         }
-        Assert.False(page.StampChips.IsVisible);
-        RenderSnapshot(page, new TagQueueSnapshot(1, 0, new[] { "review", "later" }, Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready));
-        Assert.Null(ToolTip.GetTip(page.StampInput));
-        Assert.Contains("review", Assert.IsType<string>(ToolTip.GetTip(page.StampToggle)), StringComparison.Ordinal);
-        Assert.False(page.StampChips.IsVisible);
-        page.RestoreStampBlock(TaggingStampBlockState.Open);
-        page.ApplyWorkView(WorkView.Barebones);
-        Assert.True(page.StampOpen);
-        Assert.True(page.StampChips.IsVisible);
-        Assert.Equal(2, page.StampChips.Children.Count);
-        page.RestoreStampBlock(TaggingStampBlockState.Closed);
-        Assert.False(page.StampOpen);
+        RenderSnapshot(page, new TagQueueSnapshot(1, 0, new[] { "review" }, Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready));
+        Assert.Single(preview.Children);
+        RenderSnapshot(page, new TagQueueSnapshot(1, 0, new[] { "review", "later", "third" }, Array.Empty<TagQueueItem>(), TagQueueLoadState.Ready));
+        Assert.True(preview.IsVisible);
+        Assert.Equal(2, preview.Children.OfType<Border>().Count());
+        Assert.Equal("+1", Assert.Single(preview.Children.OfType<TextBlock>()).Text);
+        Assert.Contains("review", Assert.IsType<string>(ToolTip.GetTip(page.StampButton)), StringComparison.Ordinal);
+        Find<TaggingControlRow>(page, "TaggingQueueActionRow").CompactGroups[0].SetCompact(true);
+        Assert.False(preview.IsVisible);
+        Assert.Equal(Texts.T("tagging.page.stamp.summary", 3), summary.Text);
     });
+
     [Fact]
     public void TheStampEditorShowsTheNewGroupsTagsImmediately() => WithPage(page =>
     {
@@ -270,13 +261,13 @@ public sealed class TaggingLayoutRhythmTests
         TagQueueGroup second = new("second", "Second", new[] { "later", "keep" });
         RenderSnapshot(page, new TagQueueSnapshot(1, 0, Array.Empty<string>(), Array.Empty<TagQueueItem>(),
             TagQueueLoadState.Ready, new[] { first, second }), group: first.Id);
-        page.RestoreStampBlock(TaggingStampBlockState.Open);
         Assert.Single(page.StampChips.Children);
+        Assert.Contains(first.Name, AutomationProperties.GetName(page.StampButton));
         page.GroupBox.SelectedItem = page.GroupBox.Items.OfType<TaggingGroupChoice>().Single(choice => choice.Id == second.Id);
         Assert.Equal(second.Id, page.SelectedGroupId);
         Assert.Equal(2, page.StampChips.Children.Count);
-        page.RestoreStampBlock(TaggingStampBlockState.Closed);
-        Assert.Contains("later", Assert.IsType<string>(ToolTip.GetTip(page.StampToggle)), StringComparison.Ordinal);
+        Assert.Contains(second.Name, AutomationProperties.GetName(page.StampButton));
+        Assert.Contains("later", Assert.IsType<string>(ToolTip.GetTip(page.StampButton)), StringComparison.Ordinal);
     });
 
     [Fact]

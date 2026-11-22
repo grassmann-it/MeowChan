@@ -75,7 +75,6 @@ public sealed partial class TaggingPage
             _ungroupedSelected = choice.Ungrouped;
             _queueWork.SelectGroup(_selectedGroupId, _ungroupedSelected);
             Render();
-            RenderStamp();
         };
         _groupManage.Classes.Add("bar-button"); // outlined like the group box beside it, also inside the toolbar
         _groupManageHost = new ContextMenuHost(_groupManage, ComposeGroupManageMenu, fallbackFocus: () => FocusContent());

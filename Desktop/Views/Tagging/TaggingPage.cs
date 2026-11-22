@@ -45,7 +45,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     internal const double MiniBarWidth = 96;
     private readonly ProgressBar _bar = new() { Name = "TaggingProgressBar", Minimum = 0, Maximum = 100,
         Width = MiniBarWidth, MinWidth = 0, Height = 4, MinHeight = 0, MaxHeight = 4 };
-    private readonly Button _start = new() { Name = "TaggingStart", Classes = { "primary" } };
+    private readonly Button _start = new TaggingActivationButton() { Name = "TaggingStart", Classes = { "primary" } };
     private readonly TaggingControlRow _queueActionRow = new() { Name = "TaggingQueueActionRow" };
     private readonly StackPanel _filterPanel = new() { Name = "TaggingFilterPanel", Orientation = Orientation.Horizontal, Spacing = 8 };
     private readonly TextBlock _filterLabel = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -169,9 +169,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         _queueActionRow.Children.Add(_title);
         _queueActionRow.Children.Add(_start);
         _queueActionRow.Children.Add(_progress);
+        _queueActionRow.Children.Add(BuildStamp());
         _queueActionRow.Children.Add(_actions);
         _queueActionRow.TrailingChild = _actions;
-        _queueActionRow.CompactGroups = [(_progress, compact => _bar.IsVisible = !compact)];
+        _queueActionRow.CompactGroups = [(_stampButton, SetStampCompact), (_progress, compact => _bar.IsVisible = !compact)];
 
         _filterPanel.Children.Add(_filterLabel);
         _filterPanel.Children.Add(_filter);
@@ -186,7 +187,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
             Children = { _queueActionRow, _status, BuildClearConfirmation() } };
         header.Children.Add(queueControls);
         header.Children.Add(_error);
-        header.Children.Add(BuildStamp());
         SizeChanged += (_, _) =>
         {
             UpdateTableLayout();
@@ -393,7 +393,6 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         ApplyTileAppearance();
         ApplyDensity();
         Render();
-        RenderStamp();
         RefreshWorkView();
         ApplyPendingSelect();
     }
@@ -454,6 +453,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         // toolbar's own omission of the item; a hidden item takes no width and no group line).
         _columnsButton.IsVisible = _viewMode == TaggingViewMode.List;
         RenderEmptyState(queue);
+        RenderStamp();
         _errorText.Text = _queueWork.ErrorText;
         _errorSource.Text = _queueWork.ErrorSource;
         _retryLoad.IsVisible = _queueWork.ErrorText != null;
@@ -570,6 +570,7 @@ public sealed partial class TaggingPage : UserControl, IDisposable
     public void Dispose()
     {
         if (_queueWork.Ended) return;
+        CloseStamp();
         _queueWork.End();
         _keyContext.Dispose();
         EndTagging();

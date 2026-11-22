@@ -72,7 +72,6 @@ public partial class MainWindow
             ShowInMedia = ShowTaggingEntryInMediaAsync,
             ShowInFolder = ShowTaggingEntryInFolderAsync,
             CopyPath = CopyTaggingEntryPathAsync,
-            SaveStampBlock = state => _ = _session.SaveViewPreferencesAsync(config => config.TaggingStampBlock = state.ToString()),
             SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString()),
             SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
             ReadMediaTileAppearance = () =>
@@ -85,7 +84,6 @@ public partial class MainWindow
         };
         _taggingPage.RestoreViewMode(TaggingViewModes.Parse(_session.Config.TaggingPageView));
         _taggingPage.RestorePreviewColumn(_session.Config.TaggingPreviewColumn);
-        _taggingPage.RestoreStampBlock(TaggingStampBlocks.Parse(_session.Config.TaggingStampBlock));
         _taggingPage.ApplyWorkView(_workViews.Current);
         TaggingPageHost.Content = _taggingPage;
     }

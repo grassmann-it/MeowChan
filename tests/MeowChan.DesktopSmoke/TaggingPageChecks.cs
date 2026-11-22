@@ -36,6 +36,7 @@ internal static class TaggingPageChecks
         try
         {
             await FooterNavigationChecks.PersistLanguageAsync(window, "en");
+            await window.SessionHost.SaveViewPreferencesAsync(config => config.TaggingStampBlock = "Open");
             await window.SessionHost.EnqueueTagQueueAsync(new[] { Item(1), Item(2), Item(3) });
 
             // The page has a footer button behind Media (its digit follows the visible footer buttons: Ctrl+4 in the default footer) and an entry
@@ -70,8 +71,9 @@ internal static class TaggingPageChecks
             tagging.StartTagging = scope => { started = scope.Start; return Task.CompletedTask; };
             try
             {
-                Press(tagging.StartButton, Key.Space);
-                tagging.StartButton.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space });
+                PressSpace(tagging.StartButton, KeyModifiers.Meta);
+                Require(started == null, "A system Space chord started tagging.");
+                PressSpace(tagging.StartButton);
                 await Program.WaitUntilAsync(() => started == tagging.Rows[0].Key && tagging.SelectedCount == 0);
             }
             finally { tagging.StartTagging = originalStart; }
@@ -212,23 +214,7 @@ internal static class TaggingPageChecks
             Require(tagging.List.IsVisible && !tagging.TileGrid.IsVisible, "Back to the list failed.");
             await Program.WaitUntilAsync(() => Config.LoadConfig().TaggingPageView == "List", () => "saved view " + Config.LoadConfig().TaggingPageView);
 
-            // Stamp (wave3 glue e224cd02): Enter in the field adds the name to the window's shared stamp, which is saved in the settings
-            // (Config.TagStamp) and shown by the page; the stamp field of tag-queue.json stays unused.
-            Require(!tagging.StampOpen, "The stamp editor did not start collapsed.");
-            ToggleStamp(tagging.StampToggle);
-            await SettleAsync(window);
-            Require(tagging.StampOpen, "The stamp disclosure did not open the editor.");
-            tagging.StampInput.Text = "surface";
-            tagging.StampInput.Focus();
-            Press(tagging.StampInput, Key.Enter);
-            await Program.WaitUntilAsync(() => window.QuickTagStampSet.ToNames().SequenceEqual(new[] { "surface" })
-                && window.SessionHost.Config.TagStamp.SequenceEqual(new[] { "surface" }) && tagging.StampChips.Children.Count == 1,
-                () => "stamp " + string.Join(",", window.QuickTagStampSet.ToNames()) + ", saved " + string.Join(",", window.SessionHost.Config.TagStamp)
-                    + ", chips " + tagging.StampChips.Children.Count + ", input '" + tagging.StampInput.Text + "' enabled " + tagging.StampInput.IsEnabled + ", status " + tagging.StatusText.Text);
-            Require(window.SessionHost.GetTagQueue()!.Stamp.Count == 0, "The stamp must not be written into tag-queue.json any more.");
-            ToggleStamp(tagging.StampToggle);
-            await SettleAsync(window);
-            Require(!tagging.StampOpen, "The stamp disclosure did not close the editor.");
+            await CheckStampAsync(window, tagging);
 
             // Mark one finished, filter by state, then the work views.
             SelectOnly(tagging, tagging.Rows[0]);
@@ -278,6 +264,67 @@ internal static class TaggingPageChecks
             await PresentationChecks.SwitchModeAsync(window, mode);
             await FooterNavigationChecks.PersistLanguageAsync(window, language);
         }
+    }
+
+    private static async Task CheckStampAsync(MainWindow window, TaggingPage tagging)
+    {
+        Button trigger = tagging.StampButton;
+        TextBox input = tagging.StampInput;
+        Require(!tagging.StampOpen, "An old Open profile value opened the editor.");
+        trigger.Focus();
+        foreach (KeyModifiers modifiers in new[] { KeyModifiers.Meta, KeyModifiers.Control, KeyModifiers.Control | KeyModifiers.Alt })
+            PressSpace(trigger, modifiers);
+        Require(!tagging.StampOpen, "A system Space chord opened the stamp.");
+        PressSpace(trigger);
+        await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
+
+        if (!await ClipboardChecks.PasteFixtureTextAsync(input, "surface\nreview\nkeep"))
+            input.Text = "surface, review, keep";
+        await Program.WaitUntilAsync(() => input.Text == "surface, review, keep", () => "paste: '" + input.Text + "'");
+        Press(input, Key.Enter);
+        string[] expected = ["surface", "review", "keep"];
+        await Program.WaitUntilAsync(() => window.QuickTagStampSet.ToNames().SequenceEqual(expected)
+            && window.SessionHost.Config.TagStamp.SequenceEqual(expected) && tagging.StampChips.Children.Count == 3);
+        Require(tagging.StampOpen && input.IsFocused && string.IsNullOrEmpty(input.Text), "The stamp did not stay ready for another input.");
+        input.Text = "surface";
+        Press(input, Key.Enter);
+        TextBlock feedback = ((StackPanel)((Flyout)trigger.Flyout!).Content!).Children.OfType<TextBlock>()
+            .Single(text => text.Name == "TaggingStampFeedback");
+        await Program.WaitUntilAsync(() => feedback.Text == Texts.T("tagging.page.stamp.already", "surface"));
+        Require(window.SessionHost.GetTagQueue()!.Stamp.Count == 0, "The shared stamp went into tag-queue.json.");
+        Press(input, Key.Escape);
+        await Program.WaitUntilAsync(() => !tagging.StampOpen && trigger.IsFocused);
+        Require(Config.LoadConfig().TaggingStampBlock == "Open", "Toggling the flyout wrote a legacy view preference.");
+
+        string first = (await window.SessionHost.CreateTagQueueGroupAsync("Stamp A")).Groups[^1].Id;
+        string second = (await window.SessionHost.CreateTagQueueGroupAsync("Stamp B")).Groups[^1].Id;
+        await window.SessionHost.SetTagQueueGroupStampAsync(first, ["aaa"]);
+        await window.SessionHost.SetTagQueueGroupStampAsync(second, ["bbb", "ccc"]);
+        tagging.Refresh();
+        tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == first);
+        trigger.Focus();
+        Press(trigger, Key.Enter);
+        await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused && tagging.StampChips.Children.Count == 1);
+        input.Text = "uncommitted";
+        tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == second);
+        Require(!tagging.StampOpen && string.IsNullOrEmpty(input.Text) && tagging.StampChips.Children.Count == 2
+            && AutomationProperties.GetName(trigger)?.Contains("Stamp B", StringComparison.Ordinal) == true,
+            "Group A → B retained the old editor, draft or scope.");
+        trigger.Focus();
+        Press(trigger, Key.Enter);
+        await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused);
+        input.Text = "BBB";
+        Press(input, Key.Enter);
+        await Program.WaitUntilAsync(() => feedback.Text == Texts.T("tagging.page.stamp.already", "BBB"), () => $"stamp feedback = {feedback.Text}, input = {input.Text}");
+        Button remove = ((StackPanel)tagging.StampChips.Children[0]).Children.OfType<Button>().Single();
+        remove.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => tagging.StampOpen && input.IsFocused && tagging.StampChips.Children.Count == 1);
+        Require(tagging.Queue.Group(second)!.Stamp.SequenceEqual(new[] { "ccc" }), "Removing a group chip changed the wrong stamp tags.");
+        tagging.GroupBox.SelectedIndex = 0;
+        Require(tagging.StampChips.Children.Count == 3, "All groups did not restore the window stamp.");
+        await window.SessionHost.DeleteTagQueueGroupAsync(first);
+        await window.SessionHost.DeleteTagQueueGroupAsync(second);
+        tagging.Refresh();
     }
 
     private static void CheckProgress(TaggingPage tagging, int open, int finished)
@@ -529,11 +576,10 @@ internal static class TaggingPageChecks
     private static void Press(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None) =>
         target.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
 
-    private static void ToggleStamp(ToggleButton toggle)
+    private static void PressSpace(Control control, KeyModifiers modifiers = KeyModifiers.None)
     {
-        toggle.Focus();
-        Press(toggle, Key.Space);
-        toggle.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space });
+        Press(control, Key.Space, modifiers);
+        control.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.Space, KeyModifiers = modifiers });
     }
 
     private static async Task SetThemeAsync(MainWindow window, string theme)

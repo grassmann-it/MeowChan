@@ -51,11 +51,11 @@ public sealed class TaggingRowStructureTests
         Assert.Equal(2, root.RowDefinitions.Count);
         Assert.Equal(2, root.Children.Count);
         StackPanel sections = Find<StackPanel>(page, "TaggingSections");
-        Assert.Equal(new[] { "TaggingQueueControls", "TaggingError", "TaggingStamp" }, sections.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingQueueControls", "TaggingError" }, sections.Children.Select(c => c.Name));
         StackPanel queue = Find<StackPanel>(page, "TaggingQueueControls");
         Assert.Equal(new[] { "TaggingQueueActionRow", "TaggingStatus", "TaggingClearConfirm" }, queue.Children.Select(c => c.Name));
         TaggingControlRow actions = Find<TaggingControlRow>(page, "TaggingQueueActionRow");
-        Assert.Equal(new[] { "TaggingTitle", "TaggingStart", "TaggingProgress", "TaggingActions" }, actions.Children.Select(c => c.Name));
+        Assert.Equal(new[] { "TaggingTitle", "TaggingStart", "TaggingProgress", "TaggingStamp", "TaggingActions" }, actions.Children.Select(c => c.Name));
         Assert.Same(page.Actions, actions.TrailingChild);
         Assert.Equal(new[] { "TaggingProgressBar", "TaggingProgressText" }, Find<StackPanel>(page, "TaggingProgress").Children.Select(c => c.Name));
         Assert.Contains(page.ProgressText, ((ILogical)actions).GetLogicalDescendants());

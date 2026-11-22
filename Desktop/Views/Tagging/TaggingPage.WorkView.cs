@@ -53,13 +53,12 @@ public sealed partial class TaggingPage
         WorkViewPresenter.ApplyToolBar(_listPresentation, _workView);
         WorkViewPresenter.ApplyToolBar(_selectionActions, _workView);
         ApplyToolbarIcons();
-        ShowStampBlock();
         ApplyDensity();
         _actions.RefreshOverflowLabel();
         WorkViewGate.Apply(_selectionBar, _workView, stateVisible: SelectedCount > 0);
         WorkViewGate.Apply(_progress, _workView, stateVisible: _queueWork.Queue.Count > 0);
         WorkViewGate.Apply(_error, _workView, stateVisible: !string.IsNullOrEmpty(_errorText.Text));
         WorkViewGate.Apply(_clearConfirm, _workView, stateVisible: _clearConfirm.IsVisible);
-        WorkViewGate.Apply(_stampPanel, _workView);
+        WorkViewGate.Apply(_stampButton, _workView);
     }
 }
