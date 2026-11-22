@@ -23,6 +23,7 @@ internal interface IVideoScrubFrameDecoder
 /// <summary>Deterministic hooks for direct cache tests. Production callers pass none.</summary>
 internal sealed class VideoScrubPreviewCacheTestSeam
 {
+    internal TimeProvider DecodeClock { get; init; } = TimeProvider.System;
     // Runs after a stored thumbnail was read from disk and before it is validated and accounted, i.e. while no coordinator is held.
     internal Func<string, CancellationToken, Task>? AfterFileRead { get; init; }
     // Observes each complete pixel decode used for validation (warm hits must not perform one).
@@ -375,6 +376,7 @@ internal sealed class VideoScrubPreviewCache
     internal string Directory { get; }
     internal IVideoScrubFrameDecoder Decoder { get; }
     internal SemaphoreSlim DecodeGate { get; }
+    internal TimeProvider DecodeClock => _testSeam?.DecodeClock ?? TimeProvider.System;
     internal VideoScrubPreviewOptions Options => Volatile.Read(ref _options);
 
     /// <summary>

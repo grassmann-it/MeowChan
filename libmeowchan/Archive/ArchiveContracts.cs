@@ -131,6 +131,9 @@ public sealed class ArchivedThreadView
         return index;
     }
     internal IReadOnlyList<CapturedPost> Posts => _posts;
+    private ThreadMediaPositions? _mediaPositions;
+    internal ThreadMediaPositions MediaPositions => System.Threading.LazyInitializer.EnsureInitialized(
+        ref _mediaPositions, () => new ThreadMediaPositions(_posts));
 }
 
 /// <summary>

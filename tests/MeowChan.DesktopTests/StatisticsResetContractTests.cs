@@ -1,10 +1,69 @@
+using Avalonia;
+using Avalonia.Controls;
+using Avalonia.Platform;
+using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 using MeowChan.DesktopSmoke;
+using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class StatisticsResetContractTests
 {
+    [Fact]
+    public void FailedBackupDeleteReportsFailureAndResetCanBeRetriedAfterRestart() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable scope = AvaloniaLocator.EnterScope();
+        AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
+        TokenApplication.Bind();
+        using TempDirectory dir = new();
+        IoManualClock clock = new(new DateTimeOffset(2026, 11, 14, 12, 0, 0, TimeSpan.Zero));
+        IoStatsOptions options = new() { Persist = true };
+        StatisticsPage page = new();
+        string path = Path.Combine(dir.Path, IoStatsStore.FileName);
+        File.WriteAllText(path, """{"version":1,"days":[{"day":"2026-11-14","sources":{"fixture":{"down":456}}}]}""");
+        File.WriteAllText(path + ".bak", """{"version":1,"days":[{"day":"2026-11-14","sources":{"fixture":{"down":123}}}]}""");
+        try
+        {
+            using (ProfileLease lease = ProfileLease.Acquire(dir.Path))
+            using (IoStatsHub hub = new(new IoFakeSource(), clock, options))
+            {
+                IoStatsStore store = new(dir.Path, lease, file =>
+                {
+                    if (file == path + ".bak") throw new IOException("Backup in use");
+                    File.Delete(file);
+                });
+                using IDisposable attachment = hub.Attach(store, null);
+                page.Attach(hub, null);
+                Assert.Equal(Texts.T("stats.reset.failed"), BooruComponentDispatcher.Wait(ResetAndReadStatusAsync(page)));
+                Assert.Equal(456, hub.Snapshot().Total.Retained.NetDown);
+                Assert.True(File.Exists(path));
+                Assert.True(File.Exists(path + ".bak"));
+            }
+
+            using ProfileLease restarted = ProfileLease.Acquire(dir.Path);
+            IoStatsStore retryStore = new(dir.Path, restarted);
+            using IoStatsHub retryHub = new(new IoFakeSource(), clock, options);
+            using IDisposable retryAttachment = retryHub.Attach(retryStore, null);
+            Assert.Equal(456, retryHub.Snapshot().Total.Retained.NetDown);
+            page.Attach(retryHub, null);
+            Assert.Equal(Texts.T("stats.reset.done"), BooruComponentDispatcher.Wait(ResetAndReadStatusAsync(page)));
+            Assert.Equal(0, retryHub.Snapshot().Total.Retained.NetDown);
+            Assert.Empty(Directory.GetFiles(dir.Path, "io-stats*"));
+            IoStatsLoadResult saved = retryStore.Load(new DateOnly(2026, 11, 14), 30, 64);
+            Assert.Equal(IoStatsLoadStatus.Ok, saved.Status);
+            Assert.Empty(saved.Days.Days);
+        }
+        finally { page.EndLifetime(); }
+    });
+
+    private static async Task<string?> ResetAndReadStatusAsync(StatisticsPage page)
+    {
+        await page.ResetStatisticsAsync();
+        return page.FindControl<TextBlock>("StatisticsStatus")!.Text;
+    }
+
     [Fact]
     public void ResetClearsEveryMetricAndNewIdleSamplesAreNotLeftoverHistory()
     {

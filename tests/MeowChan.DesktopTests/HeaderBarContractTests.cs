@@ -197,7 +197,6 @@ public sealed class HeaderBarContractTests
 
     public static TheoryData<string, string> InlineCloses => new()
     {
-        { "Desktop/Views/Archive/ArchivePage.axaml", "ReaderToolsClose" },
         { "Desktop/Views/Archive/ArchivePage.axaml", "ClosePreviewButton" },
         { "Desktop/Shell/MainWindow.axaml", "DownloadSearchClose" },
         { "Desktop/Shell/MainWindow.axaml", "InspectorCloseButton" },
@@ -278,9 +277,9 @@ public sealed class HeaderBarContractTests
                 }
             }
         Assert.True(withBack >= 4, "Expected the reader, plugin, source and rule rows: " + withBack);
-        // The four inline tool rows (F02: find and tags share one thread-tools row) and the four XAML overlay cards
-        // (filter surface, link, reset, help) have only end buttons.
-        Assert.True(inline >= 8, "Expected the thread-tools, preview, search and details rows and the overlay cards: " + inline);
+        // The three inline tool rows (F17: the shared thread-tools row is no HeaderBar any more, its toggles sit in the toolbar) and the four
+        // XAML overlay cards (filter surface, link, reset, help) have only end buttons.
+        Assert.True(inline >= 7, "Expected the thread-tools, preview, search and details rows and the overlay cards: " + inline);
         Assert.Equal(bars, withBack + inline);
     }
 
@@ -353,8 +352,8 @@ public sealed class HeaderBarContractTests
         string tags = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.Tags.cs"));
         string presentation = File.ReadAllText(Root("Desktop/Shell/MainWindow.Presentation.cs"));
         string fullscreen = File.ReadAllText(Root("Desktop/Shell/MainWindow.Fullscreen.cs"));
-        Assert.DoesNotContain("ReaderToolsClose.Content", find);
-        Assert.Contains("HeaderBar.MakeClose(ReaderToolsClose", find);
+        // F17: no separate close button any more; the Find and Tags toggles carry the x.
+        Assert.DoesNotContain("ReaderToolsClose", find);
         // DL-07: the close of the Downloads search bar is a labelled "Close" with the chevron, never a second cross beside the field's clear button.
         Assert.DoesNotContain("HeaderBar.MakeClose(DownloadSearchClose", presentation);
         Assert.Contains("LocalizeDownloadSearchClose();", presentation);

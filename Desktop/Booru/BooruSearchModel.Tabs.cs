@@ -1,7 +1,5 @@
-using System;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Threading;
 
 namespace MeowChan.Desktop.Booru;
 
@@ -14,32 +12,31 @@ internal sealed partial class BooruSearchModel
     /// (the tab left behind shows "search again"), a "handing over" row becomes idle again (its answer would land in the wrong tab) and
     /// the local state of the restored rows is read again, which asks the queue only, never the provider.
     /// </summary>
-    internal void Restore(BooruSearchView? snapshot)
+    internal void Restore(BooruSearchView? snapshot, int tabId)
     {
-        bool follow;
-        long id;
-        CancellationToken token;
         lock (_gate)
         {
             if (_disposed) return;
-            _request?.Cancel();
+            _activeSearchTabId = tabId;
             BooruSearchView next = snapshot ?? new BooruSearchView(_search.ProviderId, _search.ProviderName, BooruInputMode.Tags,
                 string.Empty, new BooruParsedInput(BooruInputKind.Empty), BooruSearchStatus.Idle, null, null, 1, true,
                 ImmutableArray<BooruResultRowView>.Empty, null, null, null);
             ImmutableArray<BooruResultRowView> rows = next.Rows
-                .Select(row => row.Load == BooruRowLoad.Handing ? row with { Load = BooruRowLoad.Idle, LoadCode = null } : row)
+                .Select(row =>
+                {
+                    if (row.Load == BooruRowLoad.Handing) row = row with { Load = BooruRowLoad.Idle, LoadCode = null };
+                    if (row.Preview == BooruPreviewState.Loading) row = row with { Preview = BooruPreviewState.Unavailable };
+                    return row;
+                })
                 .ToImmutableArray();
             // A search that was still running when the tab was left has no rows; it is offered again, never resumed.
             BooruSearchStatus status = next.Status == BooruSearchStatus.Searching ? BooruSearchStatus.Idle : next.Status;
-            _view = next with { Rows = rows, Status = status, Notice = null };
+            _view = next with { Rows = rows, Status = status, Notice = null, Restored = true };
             _originalActions.Clear();
             _originalActionVersions.Clear();
-            _request = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-            id = ++_requestId;
-            token = _request.Token;
-            follow = !rows.IsEmpty;
+            ReplaceRequest(needsRequest: !rows.IsEmpty);
         }
         RaiseChanged();
-        if (follow) StartFollowUps(id, token);
+        OnLocalStatesChanged();
     }
 }

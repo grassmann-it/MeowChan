@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Xml.Linq;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -13,6 +14,9 @@ public sealed class SettingsLimitsUiTests
     [
         (nameof(Config.ArchiveTagFilterTagsPerList), Config.ArchiveTagFilterTagsPerListDefault, Config.ArchiveTagFilterTagsPerListMinimum, Config.ArchiveTagFilterTagsPerListMaximum),
         (nameof(Config.UrlTextExportLimitMiB), Config.UrlTextExportLimitMiBDefault, Config.UrlTextExportLimitMiBMinimum, Config.UrlTextExportLimitMiBMaximum),
+        (nameof(Config.ExportHistorySizeMiB), Config.ExportHistorySizeMiBDefault, Config.ExportHistorySizeMiBMinimum, Config.ExportHistorySizeMiBMaximum),
+        (nameof(Config.ExportHistoryEntryLimit), Config.ExportHistoryEntryLimitDefault, Config.ExportHistoryEntryLimitMinimum, Config.ExportHistoryEntryLimitMaximum),
+        (nameof(Config.BoardAdmissionSizeMiB), Config.BoardAdmissionSizeMiBDefault, Config.BoardAdmissionSizeMiBMinimum, Config.BoardAdmissionSizeMiBMaximum),
         (nameof(Config.SlashTagSuggestionCount), Config.SlashTagSuggestionCountDefault, Config.SlashTagSuggestionCountMinimum, Config.SlashTagSuggestionCountMaximum),
         (nameof(Config.VideoScrubCacheLimitMiB), Config.VideoScrubCacheLimitMiBDefault, Config.VideoScrubCacheLimitMiBMinimum, Config.VideoScrubCacheLimitMiBMaximum)
     ];
@@ -94,6 +98,9 @@ public sealed class SettingsLimitsUiTests
         {
             ArchiveTagFilterTagsPerList = Config.ArchiveTagFilterTagsPerListMaximum,
             UrlTextExportLimitMiB = Config.UrlTextExportLimitMiBMaximum,
+            ExportHistorySizeMiB = Config.ExportHistorySizeMiBMaximum,
+            ExportHistoryEntryLimit = Config.ExportHistoryEntryLimitMaximum,
+            BoardAdmissionSizeMiB = Config.BoardAdmissionSizeMiBMaximum,
             SlashTagSuggestionCount = Config.SlashTagSuggestionCountMaximum,
             VideoScrubCacheLimitMiB = Config.VideoScrubCacheLimitMiBMaximum,
             ShrinkWindowForBarebones = false
@@ -103,11 +110,39 @@ public sealed class SettingsLimitsUiTests
         Assert.False(json[nameof(Config.ShrinkWindowForBarebones)]!.GetValue<bool>());
     }
 
+    [Theory]
+    [InlineData(nameof(Config.ExportHistorySizeMiB))]
+    [InlineData(nameof(Config.ExportHistoryEntryLimit))]
+    [InlineData(nameof(Config.BoardAdmissionSizeMiB))]
+    public void ArchivePersistenceLimitSurvivesCopiesAndTransferAndRejectsOutOfRangeValues(string name)
+    {
+        var limit = Assert.Single(Limits, item => item.Name == name);
+        var property = typeof(Config).GetProperty(name)!;
+        Config source = new() { DownloadPath = Path.GetTempPath() };
+        Assert.Equal(limit.Default, property.GetValue(source));
+        property.SetValue(source, limit.Max);
+        source.Validate();
+
+        Config clone = source.Clone();
+        Config fullCopy = new();
+        fullCopy.CopyFrom(source);
+        Config settingsCopy = new();
+        settingsCopy.CopySettingsFieldsFrom(source);
+        Config transferred = JsonSerializer.Deserialize(SettingsTransfer.Export(source).ToJsonString(), ConfigJsonContext.Default.Config)!;
+        foreach (Config copy in new[] { clone, fullCopy, settingsCopy, transferred })
+            Assert.Equal(limit.Max, property.GetValue(copy));
+
+        property.SetValue(source, limit.Max + 1);
+        Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(source.Validate).ParamName);
+        property.SetValue(source, limit.Min - 1);
+        Assert.Equal(name, Assert.Throws<ArgumentOutOfRangeException>(source.Validate).ParamName);
+    }
+
     [Fact]
     public void CatalogHasUniqueBilingualLabelsAndConfigFormattedBounds()
     {
         var entries = SettingsLimitsCatalog.Entries;
-        Assert.Equal(10, entries.Length);
+        Assert.Equal(16, entries.Length);
         Assert.Equal(entries.Length, entries.Select(e => e.Key).Distinct().Count());
         Assert.All(entries, entry =>
         {

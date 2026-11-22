@@ -87,6 +87,7 @@ public sealed partial class MediaPage : UserControl
 
     /// <summary>Opens the gallery for a window of shown entries; the int is the chosen entry inside it.</summary>
     internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenGallery { get; set; }
+    internal Func<IReadOnlyList<MediaLibraryEntry>, int, Task>? OpenSelectionGallery { get; set; }
     /// <summary>Set by the shell: the footer destinations offered by the empty state.</summary>
     internal Action? GoToDownloadsRequested { get; set; }
     /// <summary>Set by the shell: "Import files…" of the empty state (the same dialog as the header's More and the shortcut). Null hides the button.</summary>
@@ -421,6 +422,7 @@ public sealed partial class MediaPage : UserControl
         // A query presentation that is still being computed is not turned into a data one by a refresh that replaces it.
         keepView = keepView && !(_presentPending && !_presentPendingKeepsView);
         PresentInputs inputs = CapturePresentInputs() with { KeepView = keepView };
+        RefreshThreadMedia(inputs.Filter);
         // Source tags read the Booru catalog: its first read (tens of MiB) never happens on the UI thread (see WarmBooruCatalog).
         if (inputs.All.Count < BackgroundPresentEntries && !(inputs.PageTerms?.NeedsSourceTags == true && ReadBooruCatalog != null && !_booruCatalogWarm))
         {
@@ -645,6 +647,7 @@ public sealed partial class MediaPage : UserControl
             : MediaLibrarySelection.Restore(SelectedTiles.Select(MediaLibraryTileKey.Of).ToArray(), result.Tiles);
         _tiles = result.Tiles;
         _shown = result.Shown;
+        _mediaViewRanks = null;
         PresentPositions = result.PresentPositions;
         _shownMissing = result.ShownMissing;
         _unfiltered = result.Unfiltered;
@@ -711,6 +714,7 @@ public sealed partial class MediaPage : UserControl
         if (_progress is { } progress && progress.ThreadsTotal > 0) parts.Add(Texts.Count("media.indexing", progress.ThreadsTotal, progress.ThreadsDone, progress.ThreadsTotal));
         if (_snapshot != null) parts.Add(_filterActive && !_filterFailed ? CountPhrases.MediaFilterSummary(_shown.Count, _unfiltered)
             : CountPhrases.MediaSummary(_shown.Count, threads, missing));
+        if (ThreadMediaSummary() is { } threadMedia) parts.Add(threadMedia);
         if (_snapshot != null && _providerEntries is > 0 and int provider)
             parts.Add(Texts.Count("booru.media.statusCount", provider));
         if (_snapshot != null && _queueOpen > 0) parts.Add(Texts.T("media.status.queue", _queueOpen.ToString("N0", Texts.Culture))); // MP3

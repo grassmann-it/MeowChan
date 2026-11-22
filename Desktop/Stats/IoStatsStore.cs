@@ -32,13 +32,15 @@ internal sealed class IoStatsStore
 
     private readonly ProfileLease _lease;
     private readonly string _path;
+    private readonly Action<string> _deleteFile;
 
-    internal IoStatsStore(string profileDirectory, ProfileLease lease)
+    internal IoStatsStore(string profileDirectory, ProfileLease lease, Action<string>? deleteFile = null)
     {
         ArgumentNullException.ThrowIfNull(lease);
         lease.EnsureMatches(profileDirectory);
         _lease = lease;
         _path = Path.Combine(lease.ProfileDirectory, FileName);
+        _deleteFile = deleteFile ?? File.Delete;
     }
 
     internal string FilePath => _path;
@@ -212,8 +214,10 @@ internal sealed class IoStatsStore
         {
             return _lease.RunExclusive(() =>
             {
-                foreach (string path in new[] { _path, _path + ".bak", _path + ".bad" })
-                    if (File.Exists(path)) File.Delete(path);
+                // Keep the loadable main file until the other copies are gone.
+                _deleteFile(_path + ".bad");
+                _deleteFile(_path + ".bak");
+                _deleteFile(_path);
                 return true;
             });
         }

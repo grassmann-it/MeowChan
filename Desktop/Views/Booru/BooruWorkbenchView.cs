@@ -11,8 +11,8 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
-using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
@@ -92,8 +92,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TextBlock _intro = new() { Classes = { "workspace-help" } };
     private readonly TextBlock _provider = new() { Classes = { "workspace-meta" } };
     private readonly TabControl _tabs = new() { Name = TabsName };
-    private readonly TabItem _searchTab = new();
-    private readonly TabItem _watchersTab = new();
+    private readonly TabItem _searchTab = new() { Tag = BooruSearchTabs.PrimaryId };
+    private readonly TabItem _watchersTab = new() { Name = WatchersTabName };
     private readonly ComboBox _mode = new() { Name = ModeName, MinWidth = 170 };
     // Escape empties the typed query first (SearchBox); in an empty field it closes the window as before. No debounce: a search goes out only on "Search".
     private readonly SearchBox _input = new() { Name = InputName, AcceptsReturn = false, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -173,6 +173,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _model.Search.Changed += OnModelChanged;
         _model.Watchers.Changed += OnModelChanged;
         Texts.Changed += OnTextsChanged;
+        ShortcutService.Changed += OnModelChanged;
         _clock.Tick += OnClockTick;
         RegisterWorkViewIds();
         InitializeHitList();
@@ -205,7 +206,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return Task.CompletedTask;
         _activated = true;
-        if (_attached) _clock.Start();
+        if (_attached)
+        {
+            _clock.Start();
+            RenderSearchActions(_model.Search.View);
+        }
         FocusSearchInput();
         return _initialization ??= _model.InitializeAsync();
     }
@@ -267,13 +272,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     }
 
     /// <summary>
-    /// Puts a query into the search field of the Search tab and brings that tab forward. The field itself is set (not only the
+    /// Puts a query into the active search tab and brings it forward. The field itself is set (not only the
     /// model), because a field that has not been laid out yet would otherwise report its initial empty text back and erase the
     /// query. Nothing is requested.
     /// </summary>
     internal void ShowQuery(string query)
     {
-        _tabs.SelectedItem = _searchTab;
+        if (_closed) return;
+        _tabs.SelectedItem = ActiveSearchItem;
         _model.Search.SetMode(BooruInputMode.Tags);
         _input.Text = query;
         _model.Search.SetInput(query);
@@ -285,14 +291,21 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Control BuildHeader()
     {
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
+        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), ColumnSpacing = 12 };
         StackPanel details = new() { Spacing = 4 };
         details.Children.Add(_title);
         details.Children.Add(_provider);
         details.Children.Add(_intro);
         header.Children.Add(details);
-        Grid.SetColumn(_more, 1);
-        header.Children.Add(_more);
+        _openWatchers.Click += (_, _) => ShowWatchers();
+        WrapPanel actions = new() { ItemSpacing = 8, LineSpacing = 4, Children = { _openWatchers, _more } };
+        Grid.SetColumn(actions, 1);
+        header.Children.Add(actions);
+        _tabLimitHost.Child = _tabLimitText;
+        AutomationProperties.SetLiveSetting(_tabLimitText, AutomationLiveSetting.Polite);
+        Grid.SetRow(_tabLimitHost, 1);
+        Grid.SetColumnSpan(_tabLimitHost, 2);
+        header.Children.Add(_tabLimitHost);
         return header;
     }
 
@@ -325,37 +338,31 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             if (!_applying) _model.Search.SetInput(_input.Text);
         };
-        _input.KeyDown += async (_, e) =>
+        _input.AddHandler(KeyDownEvent, async (_, e) =>
         {
-            if (e.Key != Key.Enter || e.Handled || ShortcutServiceCapturing()) return;
+            if (e.Handled || ShortcutServiceCapturing()) return;
+            EffectiveShortcutBindings bindings = ShortcutService.Current;
+            bool alternate = MatchesSearchShortcut(e, AlternateSubmitCommand, bindings);
+            if (!alternate && !MatchesSearchShortcut(e, SubmitCommand, bindings)) return;
             e.Handled = true;
-            _model.Search.SetInput(_input.Text); // the field is what is sent, even if its change event is still queued
-            await _model.Search.SubmitAsync();
-        };
+            await SubmitSearchAsync(alternate);
+        }, RoutingStrategies.Tunnel);
         _submit.Classes.Add("primary");
-        // I1b: the tool buttons of the page carry a catalog icon; the text stays the content (set again with every render) and the name.
         CommandBindings.EnsureIconBeforeText(_submit, "search");
         CommandBindings.EnsureIconBeforeText(_createWatcher, "plus");
-        _submit.Click += async (_, _) =>
-        {
-            _model.Search.SetInput(_input.Text);
-            await _model.Search.SubmitAsync();
-        };
+        _submit.Click += async (_, _) => await SubmitSearchAsync();
         _cancel.Click += (_, _) => _model.Search.Cancel();
         _retry.Click += async (_, _) => await _model.Search.RetryAsync();
         _previous.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page - 1);
         _next.Click += async (_, _) => await _model.Search.GoToPageAsync(_model.Search.View.Page + 1);
         _createWatcher.Click += async (_, _) => await _model.CreateWatcherAsync();
 
-        Border actionDivider = new() { Width = 1, Margin = new Thickness(4),
-            [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border") };
-        StackPanel searchActions = new() { Name = "BooruSearchActions", Orientation = Orientation.Horizontal, Spacing = 8,
-            VerticalAlignment = VerticalAlignment.Center, Children = { _submit, actionDivider, _createWatcher, _cancel } };
+        WrapPanel searchActions = new() { Name = "BooruSearchActions", ItemSpacing = 8, LineSpacing = 4,
+            Children = { _submit, _createWatcher, _cancel } };
         AddSearchTabActions(searchActions);
-        Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8 };
+        Grid inputRow = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8 };
         inputRow.Children.Add(_mode);
         Grid.SetColumn(_input, 1); inputRow.Children.Add(_input);
-        Grid.SetColumn(searchActions, 2); inputRow.Children.Add(searchActions);
 
         _queryLine.TextWrapping = TextWrapping.Wrap;
         StackPanel status = new() { Spacing = 8 };
@@ -375,6 +382,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         tab.Children.Add(inputRow);
+        tab.Children.Add(searchActions);
         AutomationProperties.SetLiveSetting(_inputIssue, AutomationLiveSetting.Polite);
         tab.Children.Add(_inputIssue);
         tab.Children.Add(_queryLine);
@@ -479,7 +487,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         {
             BooruSearchView search = _model.Search.View;
             BooruWatcherListView watchers = _model.Watchers.View;
-            RenderChrome(watchers);
+            RenderChrome();
             RenderSearch(search, force);
             RenderWatchers(watchers, force);
             RenderSearchTabs(search);
@@ -488,14 +496,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         finally { _applying = false; }
     }
 
-    private void RenderChrome(BooruWatcherListView watchers)
+    private void RenderChrome()
     {
         _title.Text = Texts.T("booru.ui.title");
         _provider.Text = Texts.T("booru.ui.provider", _model.Search.View.ProviderName);
         _intro.Text = Texts.T("booru.ui.intro");
         _searchTab.Header = Texts.T("booru.ui.tab.search");
-        _watchersTab.Header = Texts.T("booru.ui.tab.watchers", _model.Watchers.Count);
-        AutomationProperties.SetName(_watchersTab, Texts.T("booru.ui.tab.watchers", _model.Watchers.Count));
         _footerNote.Text = Texts.T("booru.ui.noFilterNote");
         _linkNote.IsVisible = _linkNoteState is not null;
         _linkNote.Text = _linkNoteState is { } note ? Texts.T(note.Key, note.Argument) : string.Empty;
@@ -528,13 +534,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _inputIssue.Text = issue;
         _inputIssue.IsVisible = invalid;
 
-        _submit.Content = Texts.T(view.Mode == BooruInputMode.Post ? "booru.ui.lookup" : "booru.ui.search");
-        _submit.IsEnabled = model.CanSubmit;
-        // A disabled Search names its reason (the input issue or the provider pause) to the mouse and to assistive technology.
-        string? submitWhy = model.CanSubmit ? null : invalid ? issue : paused ? BooruText.SearchStatus(view, paused) : null;
-        ToolTip.SetTip(_submit, submitWhy);
-        ToolTip.SetShowOnDisabled(_submit, true);
-        AutomationProperties.SetHelpText(_submit, submitWhy ?? string.Empty);
+        RenderSearchActions(view);
         _cancel.Content = Texts.T("booru.ui.cancel");
         _cancel.IsVisible = view.IsBusy;
 
@@ -749,7 +749,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded => BooruNoticeKind.Success,
         BooruRowLoad.Handing => BooruNoticeKind.Info,
-        BooruRowLoad.Failed => BooruNoticeKind.Error,
+        BooruRowLoad.Failed or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.RefusalPending
+            => BooruNoticeKind.Error,
         _ => BooruNoticeKind.Warning
     };
 
@@ -802,13 +803,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             info.Children.Add(CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
                 Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId));
 
-        bool cancel = row.CanCancel;
-        bool retry = !cancel && row.CanRetry;
+        bool retry = row.CanRetry;
+        bool cancel = row.CanCancel && !retry;
         string actionText = cancel ? Texts.T("booru.ui.cancel")
-            : retry ? Texts.T("booru.ui.status.retry") : Texts.T("booru.ui.load");
-        string actionName = cancel
-            ? $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}"
-            : retry ? $"{Texts.T("booru.ui.status.retry")}: {Texts.T("booru.ui.post.title", post.PostId)}"
+            : retry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
+        string actionName = cancel || retry ? $"{actionText}: {Texts.T("booru.ui.post.title", post.PostId)}"
             : Texts.T("booru.ui.loadFor", post.PostId);
         string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
         Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, HorizontalAlignment = HorizontalAlignment.Left };
@@ -830,6 +829,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
         WrapPanel actions = new() { Name = "BooruResultActions:" + post.PostId, Classes = { "workspace-toolbar" } };
         actions.Children.Add(load);
+        if (retry && row.CanCancel)
+        {
+            Button cancelPending = new() { Name = CancelLoadPrefix + post.PostId, Content = Texts.T("booru.ui.cancel") };
+            AutomationProperties.SetName(cancelPending, $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}");
+            cancelPending.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
+            RegisterWorkViewAction(cancelPending, "booru.result.cancel", _resultWorkViewActions);
+            actions.Children.Add(cancelPending);
+        }
         if (BooruPostLinks.TryCanonical(post, out string canonical))
             foreach (Button link in CreateLinkButtons(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
                 Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions, iconOnly: true))
@@ -843,7 +850,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             {
                 BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded => "workspace-status-success",
                 BooruRowLoad.Handing => "workspace-meta",
-                BooruRowLoad.Failed => "workspace-error",
+                BooruRowLoad.Failed or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.RefusalPending
+                    => "workspace-error",
                 _ => "workspace-warning"
             });
             // Announced through the persistent notice line (_noticeText); this rebuilt line would stay silent.
@@ -992,7 +1000,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         if (!IsCurrentLinkAction(revision)) return;
         _linkNoteState = state;
         _applying = true;
-        try { RenderChrome(_model.Watchers.View); }
+        try { RenderChrome(); }
         finally { _applying = false; }
     }
 
@@ -1427,6 +1435,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         if (_closed) return;
         _closed = true;
         DismissResultViewer();
+        _gallery.Dispose();
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;
@@ -1437,6 +1446,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ReviewUnavailableReason = null;
         OpenPluginDetails = null;
         Texts.Changed -= OnTextsChanged;
+        ShortcutService.Changed -= OnModelChanged;
         _model.Search.Changed -= OnModelChanged;
         _model.Watchers.Changed -= OnModelChanged;
         foreach (CachedBitmap cached in _bitmaps.Values) cached.Bitmap.Dispose();

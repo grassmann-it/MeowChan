@@ -169,7 +169,7 @@ Separately, **Scan clipboard for URLs** is an optional setting under Settings �
 
 Use **Copy URL** for a single row or **Copy all URLs** for every watched thread and board, regardless of the selected tab. The copied list contains one URL per line and can be imported again.
 
-Double-click a thread row to open the large reader. Shift+Enter or the context menu opens its gallery. Board rows open details; a double-click on a saved-media row or tile in Archive or on a tile of the Media page opens the gallery at that item. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
+Double-click a thread row to open the Reader. Shift+Enter or the context menu opens its gallery. Board rows open details; a double-click on a saved-media row or tile in Archive or on a tile of the Media page opens the gallery at that item. Use **Show details** or the row context menu to inspect a thread’s URL, assigned destination and current errors. Folder and browser actions remain available separately. Wide windows show details beside the table; narrow windows overlay them. **Escape** closes details and returns focus to the table.
 
 The header shows download speed from received media bytes, with a compact history graph in wider windows.
 
@@ -209,9 +209,9 @@ The Archive page lists locally registered threads and reads captured posts and m
 
 Choose List or Table for Archive threads; the layout and list/reader split are saved, with a separate-pane view in narrow windows. **Read posts** and Enter require exactly one selected thread in Downloads or Archive; Shift+Enter opens the lead thread’s gallery. Local posts remain readable without contacting the source. Search retained titles, text and identities, filter by source/board/state, and follow captured quotes or local backlinks. **Media from matching threads** takes a sequence from all matching threads across all pages in the current order; filters changed later do not replace that open sequence. Double-click a saved-media row/tile, or press Enter while it has focus, to start with that exact item and preserve the current media sort/version filter.
 
-A large reader fills the work area with readable posts and embedded media; Up/Down moves exactly one post. Left/Right moves to the previous/next thread in the frozen current list or search order, including across result pages, without wrapping. A thread opened without a list scope does not gain a global thread sequence. Text fields retain their normal arrow keys. F11 enters/exits fullscreen while preserving the active workspace; Escape dismisses active overlays before leaving fullscreen. F1 shows keyboard help. See the [shortcut guide](docs/Help.md#selection-and-shortcuts).
+The Reader fills the work area with readable posts and embedded media; Up/Down moves exactly one post. Left/Right moves to the previous/next thread in the frozen current list or search order, including across result pages, without wrapping. A thread opened without a list scope does not gain a global thread sequence. Text fields retain their normal arrow keys. F11 enters/exits fullscreen while preserving the active workspace; Escape dismisses active overlays before leaving fullscreen. F1 shows keyboard help. See the [shortcut guide](docs/Help.md#selection-and-shortcuts).
 
-In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the large reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
+In the gallery, Left/Right moves between media. Fit/1:1, +/− and wheel/touchpad gestures control zoom; fractional touchpad deltas produce finer changes. Zooming out stops at Fit, where the image is centered and pan resets. Drag a zoomed image to pan; double-click switches Fit/1:1 and Escape closes the gallery. Open from reader post A, navigate to media associated with saved post D, and close to return to the Reader at D. Without a saved post association, retain the prior reader anchor. Search/media-list origins instead restore their query, filters, page, scroll and focus.
 
 **M** adds the current medium to the favorites, **U** removes it and **F** toggles it; **Shift+P** toggles post context, **0** selects Fit and **1** selects 1:1. Stars also mark reader attachments and saved-media items. **Show favorites** offers current-thread, selected-thread, matching-thread and all-favorite scopes. **Export favorite originals…** copies verified originals by source/board/thread without overwriting existing files or fetching remote content; **Export original…** copies one item. Marks persist for the exact saved revision. See [favorites and original export](docs/Help.md#favorites-and-original-file-export).
 
@@ -278,6 +278,10 @@ The harness covers page navigation/drafts, presentation/settings, profile confli
 ## Support MeowChan
 
 If MeowChan helps you, you can voluntarily [support its development via PayPal](https://www.paypal.com/donate/?hosted_button_id=5BR4MK748PDSQ). The same link is available in the app's About window.
+
+## Use and sources
+
+MeowChan retrieves posts and media from the sources you choose and saves them in your local archive. Access rules and adapter request limits vary by source. You are responsible for respecting those rules and obtaining any permissions you need to download, store or share content. This information is not legal advice.
 
 ## License
 

@@ -37,11 +37,23 @@ public sealed partial class TaggingPage
     internal IReadOnlyList<TaggingGroupChoice> GroupChoices => TaggingQueueView.GroupChoices(_queueWork.Queue);
     internal Button GroupManageButton => _groupManage;
 
-    private bool InSelectedGroup(TagQueueItem item) => TaggingQueueView.InGroup(item, _selectedGroupId, _ungroupedSelected);
-    // "Without tags" (TQ5) narrows like a group does: the entries whose own tag count is known and zero (an unknown count never counts as none).
-    private Func<TagQueueItem, bool>? EffectiveScope => Scope == null && _selectedGroupId == null && !_ungroupedSelected && Filter != TaggingQueueFilter.Untagged
-        ? null
-        : item => InSelectedGroup(item) && (Scope == null || Scope(item)) && (Filter != TaggingQueueFilter.Untagged || TagCountOf(item) == 0);
+    private Func<TagQueueItem, bool>? _effectiveScope;
+
+    // Freeze membership once per render so the marker, commands and asynchronous gallery handoff share one scope.
+    private void CaptureScope(TagQueueSnapshot queue)
+    {
+        bool untagged = Filter == TaggingQueueFilter.Untagged;
+        if (!untagged && Scope == null && _selectedGroupId == null && !_ungroupedSelected)
+        {
+            _effectiveScope = null;
+            return;
+        }
+        var keys = queue.Items.Where(item => TaggingQueueView.InGroup(item, _selectedGroupId, _ungroupedSelected)
+            && (Scope == null || Scope(item))
+            && (!untagged || (_userData?.TagSnapshot != null && _userData.LacksMediaTags(EntryOf(item)))))
+            .Select(item => item.Key).ToHashSet();
+        _effectiveScope = item => keys.Contains(item.Key);
+    }
 
     // The combo box builds its selection box while ItemsSource is being swapped, and then the item is null for a moment:
     // the template must tolerate that (an exception here aborted Render and left the queue table empty).

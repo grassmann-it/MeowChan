@@ -1,14 +1,17 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.LogicalTree;
 using Avalonia.Media.Imaging;
 using Avalonia.Platform;
 using Avalonia.Rendering;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -118,20 +121,29 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     });
 
     [Fact]
-    public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible() => OnOwnDispatcher(() =>
+    public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible() => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar sidebar = new();
-        Assert.Equal(0, sidebar.Close.Opacity);
-        Assert.False(sidebar.Close.IsHitTestVisible);
-        // The pointer over the sidebar shows it, and then it is clickable; leaving hides it and takes the click away again.
-        sidebar.RaiseEvent(new PointerEventArgs(InputElement.PointerEnteredEvent, sidebar, new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), sidebar,
-            default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None));
-        Assert.Equal(1, sidebar.Close.Opacity);
-        Assert.True(sidebar.Close.IsHitTestVisible);
-        sidebar.RaiseEvent(new PointerEventArgs(InputElement.PointerExitedEvent, sidebar, new Pointer(Pointer.GetNextFreeId(), PointerType.Mouse, true), sidebar,
-            default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.Other), KeyModifiers.None));
-        Assert.Equal(0, sidebar.Close.Opacity);
-        Assert.False(sidebar.Close.IsHitTestVisible);
+        Grid root = new() { ColumnDefinitions = new ColumnDefinitions("*,*"), Children = { sidebar } };
+        Window window = new() { Width = 600, Height = 400, Content = root, Classes = { MotionPolicy.OffClass } };
+        try
+        {
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(0, sidebar.Close.Opacity);
+            Assert.False(sidebar.Close.IsHitTestVisible);
+
+            window.MouseMove(new Point(sidebar.Bounds.Width / 2, 20));
+            Assert.Equal(1, sidebar.Close.Opacity);
+            Assert.True(sidebar.Close.IsHitTestVisible);
+
+            window.MouseMove(new Point(550, 20));
+            Assert.Equal(0, sidebar.Close.Opacity);
+            Assert.False(sidebar.Close.IsHitTestVisible);
+        }
+        finally { window.Close(); }
     });
 
     [Fact]

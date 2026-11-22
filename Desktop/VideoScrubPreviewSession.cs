@@ -202,8 +202,8 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
             {
                 // Start the bounded token immediately before native decode. It must not include cache I/O, either
                 // before or after the decoder, and the unbounded work token remains the lifetime boundary.
-                using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token);
-                bounded.CancelAfter(options.DecodeTimeout);
+                using CancellationTokenSource deadline = new(options.DecodeTimeout, _cache.DecodeClock);
+                using CancellationTokenSource bounded = CancellationTokenSource.CreateLinkedTokenSource(token, deadline.Token);
                 // The decoder owns the verified handle from here on, including failures. One that throws before returning a
                 // task may not have taken it: release it here (a second dispose of the handle is harmless).
                 try
@@ -218,7 +218,7 @@ internal sealed class VideoScrubPreviewSession : IAsyncDisposable
                 }
                 try
                 {
-                    png = await decoding.WaitAsync(options.DecodeTimeout + NativeGrace, token).ConfigureAwait(false);
+                    png = await decoding.WaitAsync(options.DecodeTimeout + NativeGrace, _cache.DecodeClock, token).ConfigureAwait(false);
                     nativeTimedOut = bounded.IsCancellationRequested && !token.IsCancellationRequested;
                 }
                 finally

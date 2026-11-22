@@ -387,13 +387,17 @@ internal static class DanbooruParser
         string? base64Md5 = md5 is null ? null : Md5(md5);
         string? dotted = extension is { Length: > 0 and <= 32 } && extension.All(char.IsAsciiLetterOrDigit) ? "." + extension : null;
 
+        Uri? original = CdnUri(fileUrl);
         if (!string.IsNullOrEmpty(fileUrl) || dotted is not null || size is not null || width is not null || height is not null || base64Md5 is not null)
-            variants.Add(new BooruMediaVariant(BooruMediaRole.Original, CdnUri(fileUrl), dotted, size, width, height, base64Md5));
-        // Danbooru repeats the original address when a post has no sample: that is not a sample.
-        if (!string.IsNullOrEmpty(largeUrl) && !string.Equals(largeUrl, fileUrl, StringComparison.Ordinal))
-            variants.Add(new BooruMediaVariant(BooruMediaRole.Sample, CdnUri(largeUrl)));
-        if (!string.IsNullOrEmpty(previewUrl))
-            variants.Add(new BooruMediaVariant(BooruMediaRole.Preview, CdnUri(previewUrl)));
+            variants.Add(new BooruMediaVariant(BooruMediaRole.Original, original, dotted, size, width, height, base64Md5));
+        // Danbooru can repeat the original address in a display field.
+        Uri? sample = CdnUri(largeUrl);
+        if (!string.IsNullOrEmpty(largeUrl) && !string.Equals(largeUrl, fileUrl, StringComparison.Ordinal)
+            && (sample is null || sample != original))
+            variants.Add(new BooruMediaVariant(BooruMediaRole.Sample, sample));
+        Uri? preview = CdnUri(previewUrl);
+        if (!string.IsNullOrEmpty(previewUrl) && (preview is null || preview != original))
+            variants.Add(new BooruMediaVariant(BooruMediaRole.Preview, preview));
         return variants;
     }
 

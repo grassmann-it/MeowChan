@@ -42,6 +42,7 @@ internal sealed class GalleryFilmstrip : Border
     private readonly Button _forward = new() { Name = "GalleryFilmstripForward" };
     private readonly TextBlock _position = new() { Name = "GalleryFilmstripPosition", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(8, 0, 8, 0) };
     private readonly Dictionary<int, FilmstripTile> _live = new();
+    private ThreadGalleryPositions? _threadPositions;
     private readonly Stack<FilmstripTile> _pool = new();
     private readonly ThumbnailDecodeGate _gate = new(2);
     private FilmstripThumbnailWindow<Bitmap> _thumbnails;
@@ -189,10 +190,11 @@ internal sealed class GalleryFilmstrip : Border
     private int Slots => _count + (_hasMore ? 1 : 0);
 
     /// <summary>Gives the strip its list. The same list that grew keeps its thumbnails; another list starts empty.</summary>
-    internal void SetEntries(IReadOnlyList<GalleryEntry>? entries, int count, bool hasMore)
+    internal void SetEntries(IReadOnlyList<GalleryEntry>? entries, int count, bool hasMore, ThreadGalleryPositions? threadPositions = null)
     {
         bool same = ReferenceEquals(entries, _entries);
         _entries = entries;
+        _threadPositions = threadPositions;
         _count = entries == null ? 0 : Math.Clamp(count, 0, entries.Count);
         _hasMore = hasMore && entries != null;
         if (!same) { ClearTiles(); _thumbnails.Reset(); _durations.Clear(); _current = -1; _offset = 0; }
@@ -528,7 +530,9 @@ internal sealed class GalleryFilmstrip : Border
         string name = FileName(entry);
         MediaBadgeState badges = _flags.StateFor(entry, BadgeStateOf(name, _durations.TryGetValue(index, out TimeSpan length) ? length : null));
         MediaBadgeOptions options = _flags.Options;
-        tile.Bind(index, name, TileName(index + 1, _count, name, badges, options), badges, options, new Size(_tile, _tile), index + 1, Slots,
+        string label = _threadPositions is not { } positions ? TileName(index + 1, _count, name, badges, options)
+            : TileName(positions.NumberAt(index), positions.Count, name, badges, options);
+        tile.Bind(index, name, label, badges, options, new Size(_tile, _tile), index + 1, Slots,
             _thumbnails.TryGet(index), index == _current);
     }
 
@@ -615,10 +619,12 @@ internal sealed class GalleryFilmstrip : Border
         TileName(position, count, fileName, badges, MediaBadgeOptions.Filmstrip);
 
     /// <summary><see cref="TileName(int, int, string, in MediaBadgeState)"/> for the options the tile draws with (the flags say "Favorite · Rating 4 of 5 · No tags yet" too).</summary>
-    internal static string TileName(int position, int count, string fileName, in MediaBadgeState badges, in MediaBadgeOptions options)
+    internal static string TileName(int? position, int count, string fileName, in MediaBadgeState badges, in MediaBadgeOptions options)
     {
         string said = MediaBadgeText.Describe(badges, options);
-        return Texts.T("gallery.filmstrip.tile", position, count, fileName, said.Length > 0 ? said : KindText(KindOf(fileName)));
+        string kind = said.Length > 0 ? said : KindText(KindOf(fileName));
+        return position is int number ? Texts.T("gallery.filmstrip.tile", number, count, fileName, kind)
+            : string.Join(" · ", fileName, kind, Texts.T("thread.media.total", count));
     }
 
     internal static string KindText(FilmstripTileKind kind) => kind switch

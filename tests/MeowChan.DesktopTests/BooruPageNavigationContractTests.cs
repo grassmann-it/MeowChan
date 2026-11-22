@@ -152,7 +152,7 @@ public sealed class BooruPageNavigationContractTests
     {
         string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
         Assert.Contains("NavigateWorkspace(WorkspacePage.Booru)", booru, StringComparison.Ordinal);
-        Assert.Contains("page.ShowQuery(query)", booru, StringComparison.Ordinal);
+        Assert.Contains("page.View.TryShowQueryInNewTab(query)", booru, StringComparison.Ordinal);
         Assert.DoesNotContain("SearchAsync", booru, StringComparison.Ordinal);
         Assert.Contains("BooruPage", Read("Desktop/Booru/MainWindow.BooruNavigation.cs"), StringComparison.Ordinal);
     }

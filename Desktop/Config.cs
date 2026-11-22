@@ -58,7 +58,7 @@ namespace MeowChan
     internal enum SettingsLoadProblem { None, RecoveredFromBackup, DefaultsInUse }
     internal enum ProfileOrigin { Unbound, ConfirmedNew, ExistingValid, BackupRecovery, ExistingMissingSettings, Damaged, Unsupported }
 
-    public class Config : IJsonOnDeserializing, IJsonOnDeserialized
+    public partial class Config : IJsonOnDeserializing, IJsonOnDeserialized
     {
         private string? _profileDirectory;
         private ProfileLease? _writeLease;
@@ -216,6 +216,18 @@ namespace MeowChan
         internal const int UrlTextExportLimitMiBDefault = Desktop.UrlTextExportFileWriter.DefaultLimitMiB;
         internal const int UrlTextExportLimitMiBMinimum = Desktop.UrlTextExportFileWriter.MinimumLimitMiB;
         internal const int UrlTextExportLimitMiBMaximum = Desktop.UrlTextExportFileWriter.MaximumLimitMiB;
+        public int ExportHistorySizeMiB { get; set; } = ExportHistorySizeMiBDefault;
+        internal const int ExportHistorySizeMiBDefault = Persistence.ExportHistoryLimits.DefaultSizeMiB;
+        internal const int ExportHistorySizeMiBMinimum = Persistence.ExportHistoryLimits.MinimumSizeMiB;
+        internal const int ExportHistorySizeMiBMaximum = Persistence.ExportHistoryLimits.MaximumSizeMiB;
+        public int ExportHistoryEntryLimit { get; set; } = ExportHistoryEntryLimitDefault;
+        internal const int ExportHistoryEntryLimitDefault = Persistence.ExportHistoryLimits.DefaultEntries;
+        internal const int ExportHistoryEntryLimitMinimum = Persistence.ExportHistoryLimits.MinimumEntries;
+        internal const int ExportHistoryEntryLimitMaximum = Persistence.ExportHistoryLimits.MaximumEntries;
+        public int BoardAdmissionSizeMiB { get; set; } = BoardAdmissionSizeMiBDefault;
+        internal const int BoardAdmissionSizeMiBDefault = Admission.BoardAdmissionStore.DefaultSizeMiB;
+        internal const int BoardAdmissionSizeMiBMinimum = Admission.BoardAdmissionStore.MinimumSizeMiB;
+        internal const int BoardAdmissionSizeMiBMaximum = Admission.BoardAdmissionStore.MaximumSizeMiB;
         /// <summary>Most slash-marker suggestions offered, without changing the text/token scan ceilings.</summary>
         public int SlashTagSuggestionCount { get; set; } = SlashTagSuggestionCountDefault;
         internal const int SlashTagSuggestionCountDefault = Tags.SlashTagSuggestions.DefaultSuggestionCount;
@@ -309,11 +321,26 @@ namespace MeowChan
         internal const int BooruResultTagsShownDefault = 12;
         internal const int BooruResultTagsShownMinimum = 0;
         internal const int BooruResultTagsShownMaximum = 200;
-        /// <summary>How many extra search tabs the Danbooru page may hold next to "Search" and "Watchers" (the tabs live for the session only).</summary>
+        /// <summary>Destination used when submitting from the Booru search field.</summary>
+        public string BooruNewSearchTarget { get; set; } = BooruSearchTargetNewTab;
+        internal const string BooruSearchTargetNewTab = "NewTab";
+        internal const string BooruSearchTargetCurrentTab = "CurrentTab";
+
+        /// <summary>How many extra search tabs the Booru page may hold during the session.</summary>
         public int BooruSearchTabs { get; set; } = BooruSearchTabsDefault;
         internal const int BooruSearchTabsDefault = 8;
         internal const int BooruSearchTabsMinimum = 1;
         internal const int BooruSearchTabsMaximum = 32;
+        /// <summary>The largest reduced-size image (sample) the inline Danbooru gallery loads for display, in MiB; a larger one is refused and the preview stays.</summary>
+        public int BooruGallerySampleMiB { get; set; } = BooruGallerySampleMiBDefault;
+        internal const int BooruGallerySampleMiBDefault = 8;
+        internal const int BooruGallerySampleMiBMinimum = 1;
+        internal const int BooruGallerySampleMiBMaximum = 32;
+        /// <summary>How many MiB of loaded samples the inline Danbooru gallery keeps in memory so paging back does not fetch them again (never stored on disk).</summary>
+        public int BooruGalleryCacheMiB { get; set; } = BooruGalleryCacheMiBDefault;
+        internal const int BooruGalleryCacheMiBDefault = 32;
+        internal const int BooruGalleryCacheMiBMinimum = 8;
+        internal const int BooruGalleryCacheMiBMaximum = 256;
         /// <summary>MP5: the width of the media page's tag list in dip, set by dragging its edge (kept in <see cref="MediaLayout"/>, brought into this range when read).</summary>
         internal const int MediaTagListWidthDefault = 256;
         internal const int MediaTagListWidthMinimum = 180;
@@ -454,7 +481,7 @@ namespace MeowChan
         /// <summary>Use coloured network/disk direction icons instead of words in the header. Off by default; the accessible description is unchanged.</summary>
         [JsonConverter(typeof(DesktopPreferenceBooleanConverter))]
         public bool StatsHeaderIcons { get; set; }
-        /// <summary>What the header tagline does: "Off", "Fixed" (the quip of <see cref="HeaderTaglineFixedId"/>), "Daily" (one per day) or "PerStart" (a new one at every start, the default; see TaglinePicker).</summary>
+        /// <summary>What the header tagline does: "Off", "Fixed" (the quip of <see cref="HeaderTaglineFixedId"/>), "Daily" (one per day) or "PerStart" (a new one at every start, the default), "Interval" (a new one every <see cref="HeaderTaglineIntervalMinutes"/> minutes while the app runs); see TaglinePicker.</summary>
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string HeaderTagline
         {
@@ -470,6 +497,10 @@ namespace MeowChan
             set => _headerTaglineFixedId = Desktop.TaglineCatalog.NormalizeId(value);
         }
         private string _headerTaglineFixedId = Desktop.TaglineCatalog.DefaultId;
+        /// <summary>Minutes between two quips in the "Interval" mode of the header tagline (default 5, from 1 to 1440, one day).</summary>
+        [JsonConverter(typeof(DesktopPreferenceHeaderTaglineIntervalMinutesConverter))]
+        public int HeaderTaglineIntervalMinutes { get; set; } = HeaderTaglineIntervalMinutesDefault;
+        internal const int HeaderTaglineIntervalMinutesDefault = 5, HeaderTaglineIntervalMinutesMinimum = 1, HeaderTaglineIntervalMinutesMaximum = 1440;
         /// <summary>The version (major.minor.build) whose release quip this profile has had its chance to see; empty until the first start with a tagline.</summary>
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string LastTaglineVersion
@@ -1020,6 +1051,9 @@ namespace MeowChan
             VideoScrubCacheLimitMiB = Math.Clamp(VideoScrubCacheLimitMiB, VideoScrubCacheLimitMiBMinimum, VideoScrubCacheLimitMiBMaximum);
             ArchiveTagFilterTagsPerList = Math.Clamp(ArchiveTagFilterTagsPerList, ArchiveTagFilterTagsPerListMinimum, ArchiveTagFilterTagsPerListMaximum);
             UrlTextExportLimitMiB = Math.Clamp(UrlTextExportLimitMiB, UrlTextExportLimitMiBMinimum, UrlTextExportLimitMiBMaximum);
+            ExportHistorySizeMiB = Math.Clamp(ExportHistorySizeMiB, ExportHistorySizeMiBMinimum, ExportHistorySizeMiBMaximum);
+            ExportHistoryEntryLimit = Math.Clamp(ExportHistoryEntryLimit, ExportHistoryEntryLimitMinimum, ExportHistoryEntryLimitMaximum);
+            BoardAdmissionSizeMiB = Math.Clamp(BoardAdmissionSizeMiB, BoardAdmissionSizeMiBMinimum, BoardAdmissionSizeMiBMaximum);
             SlashTagSuggestionCount = Math.Clamp(SlashTagSuggestionCount, SlashTagSuggestionCountMinimum, SlashTagSuggestionCountMaximum);
             GalleryVideoSeekStepSeconds = Math.Clamp(GalleryVideoSeekStepSeconds, GalleryVideoSeekStepSecondsMinimum, GalleryVideoSeekStepSecondsMaximum);
             // A hand-edited file or a newer version with another range must not make the whole profile invalid (Validate throws): clamp like the seek step.
@@ -1645,6 +1679,12 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ArchiveTagFilterTagsPerList), "ArchiveTagFilterTagsPerList is outside its supported range (" + ArchiveTagFilterTagsPerListMinimum + " to " + ArchiveTagFilterTagsPerListMaximum + ").");
             if (UrlTextExportLimitMiB is < UrlTextExportLimitMiBMinimum or > UrlTextExportLimitMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(UrlTextExportLimitMiB), "UrlTextExportLimitMiB is outside its supported range (" + UrlTextExportLimitMiBMinimum + " to " + UrlTextExportLimitMiBMaximum + ").");
+            if (ExportHistorySizeMiB is < ExportHistorySizeMiBMinimum or > ExportHistorySizeMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ExportHistorySizeMiB), "ExportHistorySizeMiB is outside its supported range (" + ExportHistorySizeMiBMinimum + " to " + ExportHistorySizeMiBMaximum + ").");
+            if (ExportHistoryEntryLimit is < ExportHistoryEntryLimitMinimum or > ExportHistoryEntryLimitMaximum)
+                throw new ArgumentOutOfRangeException(nameof(ExportHistoryEntryLimit), "ExportHistoryEntryLimit is outside its supported range (" + ExportHistoryEntryLimitMinimum + " to " + ExportHistoryEntryLimitMaximum + ").");
+            if (BoardAdmissionSizeMiB is < BoardAdmissionSizeMiBMinimum or > BoardAdmissionSizeMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BoardAdmissionSizeMiB), "BoardAdmissionSizeMiB is outside its supported range (" + BoardAdmissionSizeMiBMinimum + " to " + BoardAdmissionSizeMiBMaximum + ").");
             if (SlashTagSuggestionCount is < SlashTagSuggestionCountMinimum or > SlashTagSuggestionCountMaximum)
                 throw new ArgumentOutOfRangeException(nameof(SlashTagSuggestionCount), "SlashTagSuggestionCount is outside its supported range (" + SlashTagSuggestionCountMinimum + " to " + SlashTagSuggestionCountMaximum + ").");
             if (PrivateTagLimit is < PrivateTagMinimumLimit or > PrivateTagMaximumLimit)
@@ -1679,8 +1719,15 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (BooruResultTagsShown is < BooruResultTagsShownMinimum or > BooruResultTagsShownMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
+            if (BooruNewSearchTarget is not (BooruSearchTargetNewTab or BooruSearchTargetCurrentTab))
+                throw new ArgumentOutOfRangeException(nameof(BooruNewSearchTarget));
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
+            if (BooruGallerySampleMiB is < BooruGallerySampleMiBMinimum or > BooruGallerySampleMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruGallerySampleMiB), "BooruGallerySampleMiB is outside its supported range (" + BooruGallerySampleMiBMinimum + " to " + BooruGallerySampleMiBMaximum + ").");
+            if (BooruGalleryCacheMiB is < BooruGalleryCacheMiBMinimum or > BooruGalleryCacheMiBMaximum)
+                throw new ArgumentOutOfRangeException(nameof(BooruGalleryCacheMiB), "BooruGalleryCacheMiB is outside its supported range (" + BooruGalleryCacheMiBMinimum + " to " + BooruGalleryCacheMiBMaximum + ").");
+            ValidateBooruGalleryLimits();
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
@@ -1717,6 +1764,8 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ControlsIdleHideMs), "ControlsIdleHideMs is outside its supported range (" + ControlsIdleHideMsMinimum + " to " + ControlsIdleHideMsMaximum + ").");
             if (GalleryStatusDwellMs is < GalleryStatusDwellMsMinimum or > GalleryStatusDwellMsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryStatusDwellMs), "GalleryStatusDwellMs is outside its supported range (" + GalleryStatusDwellMsMinimum + " to " + GalleryStatusDwellMsMaximum + ").");
+            if (HeaderTaglineIntervalMinutes is < HeaderTaglineIntervalMinutesMinimum or > HeaderTaglineIntervalMinutesMaximum)
+                throw new ArgumentOutOfRangeException(nameof(HeaderTaglineIntervalMinutes), "HeaderTaglineIntervalMinutes is outside its supported range (" + HeaderTaglineIntervalMinutesMinimum + " to " + HeaderTaglineIntervalMinutesMaximum + ").");
             if (GalleryPostTagChipLimit is < GalleryPostTagChipLimitMinimum or > GalleryPostTagChipLimitMaximum)
                 throw new ArgumentOutOfRangeException(nameof(GalleryPostTagChipLimit), "GalleryPostTagChipLimit is outside its supported range (" + GalleryPostTagChipLimitMinimum + " to " + GalleryPostTagChipLimitMaximum + ").");
             if (GalleryFilmstripHeight is < GalleryFilmstripHeightMinimum or > GalleryFilmstripHeightMaximum)
@@ -1923,6 +1972,9 @@ namespace MeowChan
                 BooruRetryAfterCooldownHours = BooruRetryAfterCooldownHours,
                 ArchiveTagFilterTagsPerList = ArchiveTagFilterTagsPerList,
                 UrlTextExportLimitMiB = UrlTextExportLimitMiB,
+                ExportHistorySizeMiB = ExportHistorySizeMiB,
+                ExportHistoryEntryLimit = ExportHistoryEntryLimit,
+                BoardAdmissionSizeMiB = BoardAdmissionSizeMiB,
                 SlashTagSuggestionCount = SlashTagSuggestionCount,
                 ShrinkWindowForBarebones = ShrinkWindowForBarebones,
                 PrivateTagLimit = PrivateTagLimit,
@@ -1941,7 +1993,13 @@ namespace MeowChan
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
+                BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
+                BooruGallerySampleMiB = BooruGallerySampleMiB,
+                BooruGalleryCacheMiB = BooruGalleryCacheMiB,
+                BooruGalleryMaximumPixels = BooruGalleryMaximumPixels,
+                BooruGalleryMaximumWidth = BooruGalleryMaximumWidth,
+                BooruGalleryTimeoutSeconds = BooruGalleryTimeoutSeconds,
                 MediaPanelMinimumPageWidth = MediaPanelMinimumPageWidth,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
@@ -1989,6 +2047,7 @@ namespace MeowChan
                 StatsHeaderIcons = StatsHeaderIcons,
                 HeaderTagline = HeaderTagline,
                 HeaderTaglineFixedId = HeaderTaglineFixedId,
+                HeaderTaglineIntervalMinutes = HeaderTaglineIntervalMinutes,
                 LastTaglineVersion = LastTaglineVersion,
                 GalleryImageCacheMiB = GalleryImageCacheMiB,
                 GalleryPreloadAhead = GalleryPreloadAhead,
@@ -2199,6 +2258,9 @@ namespace MeowChan
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
             UrlTextExportLimitMiB = source.UrlTextExportLimitMiB;
+            ExportHistorySizeMiB = source.ExportHistorySizeMiB;
+            ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
+            BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
@@ -2217,7 +2279,11 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
+            BooruGallerySampleMiB = source.BooruGallerySampleMiB;
+            BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
+            CopyBooruGalleryLimitsFrom(source);
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
@@ -2265,6 +2331,7 @@ namespace MeowChan
             StatsHeaderIcons = source.StatsHeaderIcons;
             HeaderTagline = source.HeaderTagline;
             HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            HeaderTaglineIntervalMinutes = source.HeaderTaglineIntervalMinutes;
             LastTaglineVersion = source.LastTaglineVersion;
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
@@ -2429,6 +2496,9 @@ namespace MeowChan
             BooruRetryAfterCooldownHours = source.BooruRetryAfterCooldownHours;
             ArchiveTagFilterTagsPerList = source.ArchiveTagFilterTagsPerList;
             UrlTextExportLimitMiB = source.UrlTextExportLimitMiB;
+            ExportHistorySizeMiB = source.ExportHistorySizeMiB;
+            ExportHistoryEntryLimit = source.ExportHistoryEntryLimit;
+            BoardAdmissionSizeMiB = source.BoardAdmissionSizeMiB;
             SlashTagSuggestionCount = source.SlashTagSuggestionCount;
             ShrinkWindowForBarebones = source.ShrinkWindowForBarebones;
             PrivateTagLimit = source.PrivateTagLimit;
@@ -2447,7 +2517,11 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
+            BooruGallerySampleMiB = source.BooruGallerySampleMiB;
+            BooruGalleryCacheMiB = source.BooruGalleryCacheMiB;
+            CopyBooruGalleryLimitsFrom(source);
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
@@ -2517,6 +2591,7 @@ namespace MeowChan
             StatsHeaderIcons = source.StatsHeaderIcons;
             HeaderTagline = source.HeaderTagline;
             HeaderTaglineFixedId = source.HeaderTaglineFixedId;
+            HeaderTaglineIntervalMinutes = source.HeaderTaglineIntervalMinutes;
             // LastTaglineVersion is a direct view preference (the window writes it), not edited in Settings.
             GalleryImageCacheMiB = source.GalleryImageCacheMiB;
             GalleryPreloadAhead = source.GalleryPreloadAhead;
@@ -2627,12 +2702,28 @@ namespace MeowChan
             MediaFocusHidesHeader = source.MediaFocusHidesHeader;
         }
 
-        // Compatibility settings host uses its existing isolated config owner.
         internal void ForgetReadingPositionFile()
         {
             string directory = _profileDirectory ?? GetConfigDirectory();
-            try { File.Delete(Path.Combine(directory, "reading-history.json")); }
-            finally { File.Delete(Path.Combine(directory, "reading-position.json")); }
+            string history = Path.Combine(directory, LocalReadingHistory.FileName);
+            // Try every copy even when one of the deletes fails.
+            try { File.Delete(history + LocalReadingHistory.CorruptSuffix); }
+            finally
+            {
+                try { File.Delete(history); }
+                finally { File.Delete(Path.Combine(directory, LocalReadingPosition.FileName)); }
+            }
+        }
+
+        internal bool TryCleanUpReadingPositionAfterOptOut()
+        {
+            if (RememberReadingPosition) return true;
+            try { ForgetReadingPositionFile(); return true; }
+            catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+            {
+                Log.Warning(error, "Could not remove all saved reading files after opting out.");
+                return false;
+            }
         }
 
         public void SaveConfig() => SaveConfig(_profileDirectory ?? GetConfigDirectory());

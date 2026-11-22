@@ -1,4 +1,5 @@
 using System;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
@@ -53,6 +54,11 @@ internal sealed class DanbooruWatcherQueueAdmission : IDanbooruWatcherAdmissionP
 
         BooruOriginalAdmission admission = await _originals.AdmitAsync(post, BooruFindingKind.Watcher, watcherId, query,
             cancellationToken).ConfigureAwait(false);
+        if (admission.Status == BooruOriginalAdmissionStatus.RefusalPending)
+        {
+            BooruOriginalDownloadOutcome outcome = await admission.Completion.ConfigureAwait(false);
+            throw new BooruCatalogPersistenceException(new IOException(outcome.Failure), refusalPending: true);
+        }
         return admission.Status switch
         {
             BooruOriginalAdmissionStatus.Queued => DanbooruWatcherAdmissionResult.Queued,

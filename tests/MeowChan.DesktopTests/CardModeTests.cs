@@ -69,9 +69,12 @@ public sealed class CardModeTests : IDisposable
     [Fact]
     public void TheCardsOwnContextKeepsTheGalleryZoomKeyAndTheRatingKeysAsTheyAre()
     {
-        // 1 is the gallery's actual size outside the mode; in the mode's own context the card key shares that gesture without a conflict.
+        // The gallery owns Z and NumPad1. The number row still selects cards in card mode.
         var bindings = EffectiveShortcutBindings.Build(platform: ShortcutPlatform.Linux);
-        Assert.StartsWith("1", bindings.Display("gallery.actual-size"));
+        Assert.Equal("Z / Num 1", bindings.Display("gallery.actual-size"));
+        Assert.True(bindings.Matches(Press(Key.Z), "gallery.actual-size"));
+        Assert.True(bindings.Matches(Press(Key.NumPad1), "gallery.actual-size"));
+        Assert.True(bindings.Matches(Press(Key.D1), TaggingCardCommands.Card(1)));
         foreach (string id in TaggingCardCommands.All)
             foreach (string other in new[] { "gallery.actual-size", "gallery.fit", "media.rating.set-1", "favorites.toggle", "gallery.next", "tags.quick.suggestion-1" })
                 Assert.False(EffectiveShortcutBindings.ContextsOverlap(id, other), id + " / " + other);

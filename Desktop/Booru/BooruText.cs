@@ -128,8 +128,12 @@ internal static class BooruText
     {
         BooruRowLoad.Idle => null,
         BooruRowLoad.Failed => Texts.T(Prefix + "load.Failed", Code(row.LoadCode)),
+        BooruRowLoad.RefusalPending => Texts.T(BooruCodes.Key(BooruCodes.RefusalPending)),
         _ => Texts.T(Prefix + "load." + row.Load)
     };
+
+    internal static string RetryOriginal(BooruResultRowView row) =>
+        Texts.T(row.Load == BooruRowLoad.RefusalPending ? Prefix + "load.saveRefusal" : Prefix + "status.retry");
 
     // ---- watchers -----------------------------------------------------------------------------------
 
@@ -169,7 +173,7 @@ internal static class BooruText
             "booru.ui.post.field.file", "booru.ui.tags.addFor", "booru.ui.tags.addedToSearch", "booru.ui.tags.alreadyInSearch",
             "booru.ui.tags.searchFull", "booru.ui.tags.unusable", "booru.ui.tags.menuAdd", "booru.ui.tags.menuExclude",
             "booru.ui.tags.copied", "booru.ui.tags.showAll",
-            "booru.ui.load", "booru.ui.loadFor",
+            "booru.ui.load", "booru.ui.loadFor", "booru.ui.load.saveRefusal",
             "booru.ui.result.hitName", "booru.ui.result.localYes", "booru.ui.result.localNo",
             "booru.ui.view.listHint", "booru.ui.view.gridHint", "booru.ui.tile.sizeName", "booru.ui.tile.local", "booru.ui.tile.listName",
             "booru.ui.watcher.create", "booru.ui.watcher.createHint", "booru.ui.watcher.created", "booru.ui.watcher.duplicate",
@@ -198,8 +202,9 @@ internal static class BooruText
             yield return Prefix + "tagCategory." + category;
         foreach (string access in new[] { "Available", "NotOffered", "Restricted", "Withdrawn" })
             yield return Prefix + "original." + access;
-        foreach (BooruRowLoad load in Enum.GetValues<BooruRowLoad>().Where(load => load != BooruRowLoad.Idle))
+        foreach (BooruRowLoad load in Enum.GetValues<BooruRowLoad>().Where(load => load is not (BooruRowLoad.Idle or BooruRowLoad.RefusalPending)))
             yield return Prefix + "load." + load;
+        yield return BooruCodes.Key(BooruCodes.RefusalPending);
         foreach (BooruWatcherStatus status in Enum.GetValues<BooruWatcherStatus>())
             yield return Prefix + "watcher.status." + status;
         yield return Prefix + "watcher.status.CooldownOver";

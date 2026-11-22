@@ -63,7 +63,7 @@ behaves as if it never happened. `MEOWCHAN_DISABLE_UPDATE_CHECK=1` still wins.
 2. Open Settings, choose your download folder and media rules, and Save. Changing the folder affects newly admitted watches; existing watches keep their assigned folders, including threads later found by an already watched board.
 3. Paste a thread or board URL into Downloads and choose Add. Commas and newlines separate multiple URLs. Enter imports; Shift+Enter inserts a newline. Each URL receives its own result. Plugins lists the registered adapters and their capabilities; registration does not prove the site is currently reachable.
 4. Let media download. Progress means **saved / selected media**, with rule exclusions separate. A living thread remains watched even at 100%. New watches capture posts by default; older restored watches can be media-only until capture is explicitly enabled. Pause now requests a full pause of source checks and active transfers. The Pausing state remains until cancellation has quiesced; Resume retries unfinished work.
-5. Open Archive. Select the thread to inspect it, double-click its card or row to open the large reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
+5. Open Archive. Select the thread to inspect it, double-click its card or row to open the Reader, or right-click for **Read posts**, **Open in gallery** and **Export as HTML**. Downloads thread rows also open the reader on double-click; use Shift+Enter or the context menu for the gallery; board rows retain their details action. Opening local content never initiates a download. Saved media remain usable offline; post reading requires captured posts.
 
 The header uses words beside the rates: **Down / Up** for network traffic and
 **Read / Write** for disk traffic (German: **Download / Upload**, **Lesen / Schreiben**),
@@ -690,12 +690,12 @@ Alt+Left (Command+Left on macOS) return to the same Media view with its filters,
 order, selection and scroll position. A tile that is no longer shown there is named
 in a note, not replaced by another one. A file without a post offers no jump.
 
-Favorites use the same keys everywhere (gallery, large reader and its media sidebar, the
+Favorites use the same keys everywhere (gallery, the Reader and its media sidebar, the
 Archive's media and the Media page's grid and panel): **M** adds the medium to the favorites,
 **U** removes it and **F** toggles it. In the gallery **Shift+D** starts or pauses the slideshow.
 In the gallery and on the Media page, **I** opens the media
 details, **R** the rating, **Ctrl+E** the export of the original and **Ctrl+O** the
-file in its folder. In the large reader, **F3** and
+file in its folder. In the Reader, **F3** and
 **Ctrl+G** find the next hit, **Shift+F3** and **Ctrl+Shift+G** the previous one.
 
 More defaults that are easy to miss (F1 lists every key of the current area):
@@ -714,7 +714,7 @@ More defaults that are easy to miss (F1 lists every key of the current area):
 | H | Reader: hide the selected post |
 | Alt+Left / Alt+Right | Video: back / forward 5 seconds; Ctrl+Shift+Left / Ctrl+Shift+Right seek 30 seconds |
 | Shift+Up / Shift+Down | Video: increase / decrease volume |
-| Ctrl+Alt+Enter | Open the embedded reader in the large reader |
+| Ctrl+Alt+Enter | Open the current thread in the Reader |
 | , / . | Video: back / forward by the seek step (default 5 seconds) |
 | Shift+. | Video: next frame |
 | [ / ] or X / C | Video: slower / faster; Shift+Backspace sets the normal speed |
@@ -778,7 +778,7 @@ reader. Modal dialogs retain their own input.
 
 **Pointer.** A single click on a Downloads row, Archive thread/media item, Media
 tile or Tagging entry selects it; Archive and Media also update their preview.
-A double-click on the item body opens the large reader for a thread in Downloads
+A double-click on the item body opens the Reader for a thread in Downloads
 or Archive (a board row opens its details), the **gallery** for a saved-media row
 or tile in Archive/Media or a media sidebar picture, or continues the walk for a
 Tagging entry. Nested buttons, tag chips, text editors, column headers and empty
@@ -891,8 +891,9 @@ at the far right, after the row's own actions: the Downloads search bar
 (**Close**, a labelled button with a chevron instead of a second ×, so it cannot be
 mistaken for the × that clears the search text; **Esc** clears the text first and then
 closes the bar), details panel (**Hide details**, German: **Details ausblenden**),
-reader find bar (**Close find**, **Suche schließen**), tag row (**Close tags**,
-**Tags schließen**) and Archive preview (**Close preview**, **Vorschau schließen**).
+and Archive preview (**Close preview**, **Vorschau schließen**). In the reader toolbar,
+**Find** and **Tags** are toggles instead: highlighted with a small × inside while their
+bar is open, and clicking the button again (or **Esc**) closes the bar.
 The gallery keeps **Back to {target}** at the far left with the favorite star
 directly to its right. Tooltips and screen-reader names keep the full action and
 target, including in narrow rows. Esc closes as before.
@@ -1507,7 +1508,7 @@ do not choose a parent. The conversation switch is session-only. **Maximum conve
 Settings controls indentation, not which posts are kept: deeper replies stay visible at the last indentation level.
 This only reorders locally captured posts for display; it is not a provider conversation function and sends no requests.
 
-The app header and window controls remain available above the large reader
+The app header and window controls remain available above the Reader
 and gallery.
 The gallery uses the window's remaining work area. Left/Right or its navigation buttons
 move between media. Use Fit, 1:1, +/− or wheel/touchpad gestures to zoom.
@@ -1641,7 +1642,7 @@ Settings controls default context visibility, shortcut hints, video autoplay,
 initial mute and volume.
 
 When you open from reader post A, navigate to a medium associated with saved post
-D and close the gallery, return to the large reader at D. If the current medium
+D and close the gallery, return to the Reader at D. If the current medium
 has no saved post association, keep the previous reader anchor; do not infer a
 post from its filename. Opening from a search/media list keeps a separate return
 path: closing restores its query, filters, page, scroll and focus.
@@ -1849,7 +1850,7 @@ thread's tab.
 | Maximum conversation indentation depth | 6 | 1 to 16 |
 
 Preview widths default to 240 pixels in the embedded reader and 360 pixels in the
-large reader, which uses 1.5 times the configured width. **Posts per reader page**
+Reader, which uses 1.5 times the configured width. **Posts per reader page**
 changes the reader's paging, not the archive thread-list page size. It keeps the
 current reading position in view; conversation subtrees can span pages.
 
@@ -1878,15 +1879,16 @@ sidebar and inline-video controls. The full Settings page still uses Save/Discar
 **Enlarge an image while the pointer rests on it** are also switches in View;
 their widths, scale and hover delay are under Settings → **Reading & media**.
 
-The reader toolbar has a **Media sidebar: On/Off** toggle beside the large-reader
+The reader toolbar has a **Media sidebar: On/Off** toggle beside the **Reader**
 and gallery actions; it stays out of overflow. It uses the same saved choice as
 View, Ctrl/Cmd+Shift+M and the sidebar's close button. Its On/Off state is the
 saved choice for the current host, not whether the window is currently wide
 enough to show the sidebar. A narrow window can hide an On sidebar without
 turning the preference off; it returns when space is available.
 
-**Media sidebar in the large reader** is on by default, with **Large reader only**
-scope, so a new profile's embedded Archive reader starts with the toggle Off.
+**Media sidebar** is on by default. Under **Show the media sidebar in**,
+**Reader only** is the default, so the sidebar toggle starts Off in the Archive view.
+Choose **Reader and Archive view** to show the sidebar in both.
 When enabled, it shows the selected post’s medium beside the posts, following
 Up/Down navigation. Choose left or right. A post with several media gets a thumbnail strip
 under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
@@ -1942,7 +1944,7 @@ the post's commands. There is no extra modifier key for this.
 
 - **Media actions work from both.** Favorite (**F**, **M**, **U**), rating and tags
   (**R**, **1** to **5**, **0**, **Ctrl+Shift+T**) act on the focused
-  medium or, from a post, on the post's medium. In the large reader the video keys do the
+  medium or, from a post, on the post's medium. In the Reader the video keys do the
   same: **Space**, **Shift+M** (mute), **L** (repeat), **,** and **.** (seek step),
   **X** and **C** (speed), **Shift+Backspace** (normal speed) and **Shift+.** (next frame).
   They need a medium and, apart from Space, a player that is already running.
@@ -2103,8 +2105,9 @@ on macOS), to open its own-tag editor beside the posts. The inline editor follow
 the open thread until you close it. **Tag…** (German: **Tag…**, Ctrl+Shift+T /
 Command+Shift+T) opens a small
 anchored tag popover on Media, reader attachments and Archive media tiles; in the
-gallery it opens the [tag panel](#gallery-tag-panel). The popover uses the same
-suggestions, Alt+1–9 toggles, stamp and Ctrl+Z undo; Esc closes it. **Open tag editor**
+gallery it opens the [tag panel](#gallery-tag-panel). The popover shares the panel’s
+suggestion shortcuts, stamp and undo. Esc closes it after any draft or open list
+has been dismissed. **Open tag editor**
 (German: **Tag-Editor öffnen**) in either surface opens the full tag dialog. That dialog has a search field,
 selection counts for
 group tagging, and **Undo** for the last dialog edit. Tag-name suggestions put your
@@ -2170,15 +2173,18 @@ to remove it. A medium that cannot be tagged, for example without a bound versio
 or while the tag index is unavailable, shows the reason with a disabled field
 instead of writing to the previous medium.
 
-**Keys.** The numbered chips 1 to 9 toggle with Alt+1 to Alt+9 (Command+1 to
-Command+9 on macOS) wherever the focus is in the panel; bare number or letter keys
-work only while focus is in the suggestion strip, so names such as `2girls` stay
-typeable. Page Down and Page Up show the next or previous medium and keep the
+**Keys.** In the suggestion strip, Alt+1 through Alt+9 (Option+1 through Option+9
+on macOS) toggle the numbered suggestions by default. The letter shown on a chip
+also toggles it while focus is in the strip. On Windows and Linux, Alt+number also
+works in the tag field. On macOS, Option+number in the tag field goes to text input.
+Page Down and Page Up show the next or previous medium and keep the
 field focused; the counter reads “Medium 4 of 27” or “Medium 4 of at least 27” while
 more threads are still being resolved. Ctrl+Enter (Command+Enter) adds the typed
 tag and moves to the next medium. Undo is the **Undo** button or Ctrl+Z
 (Command+Z); with text in the field Ctrl+Z edits that text instead. These
-shortcuts are rebindable. **Shift+Page Down** marks the shown medium and advances;
+shortcuts are rebindable. While an input method is composing in the tag field,
+it gets the keys for committing, stamping, closing or moving focus.
+**Shift+Page Down** marks the shown medium and advances;
 **Shift+Page Up** goes back and removes the mark from the medium it reaches.
 With marks present, tag changes apply to all marked media, not an unmarked shown
 medium. A tag carried by only some is under **On some**; one click gives it to
@@ -2194,10 +2200,10 @@ acts on the shown medium or all marked media. In both this panel and **Rate and 
 the larger **Favorite** control spans the width of the five rating stars (not the
 remove-rating gutter), with the rating caption on its own line below. **1** through **5** set
 a rating and **0** removes it, as in Lightroom (**Shift+1** to **Shift+5** and **Shift+0** work too);
-**R** still opens the rating dialog. The bare digits never act while a text field or list has the focus
-(in the tag field they start a tag name), and while the tagging cards are shown **1** to **5** choose a card.
-The shifted digits also work in an empty tag field with its suggestion list closed; with text
-present they type normally. In the gallery **Fit** now uses **Ctrl+0** (or the number pad's 0) and **1:1** the
+**R** opens **Rate and tag**. In the tag field, digits and Shift+digits go to
+text input from the first character, according to your keyboard layout. While the
+tagging cards are shown, **1** to **5** choose a card when focus is outside the tag panel.
+In the gallery **Fit** now uses **Ctrl+0** (or the number pad's 0) and **1:1** the
 number pad's 1, because the bare 0 and 1 belong to the rating.
 Ctrl+Z undoes the newest tag, favorite or rating change made through the panel.
 Tags, favorites and ratings remain distinct: adding a tag never changes a rating

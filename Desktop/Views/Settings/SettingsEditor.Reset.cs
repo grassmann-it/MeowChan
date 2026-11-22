@@ -213,6 +213,7 @@ public partial class SettingsEditor
         // The header tagline (mode and fixed quip) and the header monitor switch are shown in this section. The monitor switch and the
         // "Header graph" choice of the Behavior section are one stored setting, so the graph choice is reset here too.
         RefreshHeaderTaglineChoices(defaults.HeaderTagline, defaults.HeaderTaglineFixedId);
+        LoadHeaderTaglineIntervalDraft(defaults.HeaderTaglineIntervalMinutes);
         RefreshStatsHeaderGraphChoices(defaults.StatsHeaderGraph);
     }
 
@@ -229,6 +230,7 @@ public partial class SettingsEditor
         ShowShortcutHelp = defaults.ShowShortcutHelp;
 
         LoadReaderDraft(defaults);
+        LoadBooruSearchDraft(defaults);
         GalleryPlaybackPreferences playback = GalleryPlaybackPreferences.FromConfig(defaults);
         SelectedGalleryPlaybackMode = Choice(GalleryPlaybackModeChoices, playback.Mode.ToString());
         GallerySlideshowSeconds = playback.ImageSeconds;
@@ -273,6 +275,7 @@ public partial class SettingsEditor
         LoadLimitNumbersDraft(defaults);
         // The tagging queue limits and the media-page widths; the widths keep their loaded baseline (the merge on save compares with it).
         LoadTagQueueDraft(defaults, captureBaseline: false);
+        LoadBooruGalleryDraft(defaults);
     }
 
     private void ResetUpdatesDraft()

@@ -49,7 +49,8 @@ internal static class BooruWorkbenchViewChecks
                 "Adding a source tag must change only the draft.");
 
             TabControl tabs = Find<TabControl>(view, BooruWorkbenchView.TabsName);
-            tabs.SelectedIndex = 1;
+            object? searchTab = tabs.SelectedItem;
+            Find<Button>(view, BooruWorkbenchView.OpenWatchersName).RaiseEvent(new Avalonia.Interactivity.RoutedEventArgs(Button.ClickEvent));
             model.Watchers.RequestRemoval("bp1");
             await Program.WaitUntilAsync(() => Has(view, BooruWorkbenchView.RemoveCancelPrefix + "bp1"),
                 () => "Removal question did not render in the embedded host.");
@@ -57,7 +58,7 @@ internal static class BooruWorkbenchViewChecks
             await SettleAsync();
             Require(!Has(view, BooruWorkbenchView.RemoveConfirmPrefix + "bp1") && h.Watchers.Calls.SequenceEqual(new[] { "list" }),
                 "Cancelling a removal changed the watcher port.");
-            tabs.SelectedIndex = 0;
+            tabs.SelectedItem = searchTab;
 
             // A provider result arrives after detaching, while no Window owns the view. Reattaching
             // must preserve it, not dispose the model, repeat initialization or send another query.

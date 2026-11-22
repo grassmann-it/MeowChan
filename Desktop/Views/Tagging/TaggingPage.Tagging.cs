@@ -44,16 +44,16 @@ public sealed partial class TaggingPage
 
     private MediaSelectionTagSession? NewTagSession(IReadOnlyList<TaggingQueueRow> taggable, out IReadOnlyList<MediaLibraryTile> tiles)
     {
-        tiles = taggable.Select(row => TaggingThumbnails.TileOf(row.Item)).ToArray();
+        tiles = taggable.Select(row => TaggingThumbnails.TileOf(Effective(row.Item))).ToArray();
         if (TagServices is not { } services || tiles.Count == 0) return null;
         return new MediaSelectionTagSession(MediaLibraryTagging.Candidates(tiles), services.Load, services.DefineAndSetMany, services.SetMany);
     }
 
     private TagContext TagContextFor(TaggingQueueRow lead, bool selection)
     {
-        MediaLibraryEntry[] shown = _rows.Select(row => row.Item.ToLibraryEntry()).ToArray();
+        MediaLibraryEntry[] shown = _rows.Select(row => EntryOf(row.Item)).ToArray();
         int index = _rows.ToList().FindIndex(row => row.Key == lead.Key);
-        return QuickTagPopoverContext.ContextOf(lead.Item.ToLibraryEntry(), shown, index, selection);
+        return QuickTagPopoverContext.ContextOf(EntryOf(lead.Item), shown, index, selection);
     }
 
     /// <summary>
@@ -98,7 +98,7 @@ public sealed partial class TaggingPage
                 FocusFallback = FocusListNow,
                 Name = "TaggingTagPopover",
                 // R: the stars of the selected entries on top; the tag field takes focus (a Danbooru medium can be rated though it takes no own tags).
-                Decision = includeRating ? DecisionForEntries?.Invoke(Selected.Select(row => row.Item.ToLibraryEntry()).ToArray(), QuickTagInitialFocus.TagInput) : null
+                Decision = includeRating ? DecisionForEntries?.Invoke(Selected.Select(row => EntryOf(row.Item)).ToArray(), QuickTagInitialFocus.TagInput) : null
             };
             QuickTagPopover popover;
             try { popover = QuickTagPopover.Open(host, quick, label, openOptions); }

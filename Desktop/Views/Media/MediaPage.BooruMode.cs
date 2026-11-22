@@ -70,9 +70,17 @@ public sealed partial class MediaPage
     private void LocalizeBooruMode()
     {
         string tip = Texts.T("media.tagList.tip", PlatformKeyNames.Alt());
-        WorkspaceIcons.MakeSquare(_booruMode, WorkspaceIcons.TagList, Texts.T("media.tagList"), tip);
+        if (_booruMode.Content is null)
+        {
+            _tagsLabelContent.SetIcon(WorkspaceIcons.Create(WorkspaceIcons.TagList));
+            _booruMode.Content = _tagsLabelContent;
+        }
+        _booruMode.Classes.Set("subtle", true);
+        Avalonia.Automation.AutomationProperties.SetName(_booruMode, Texts.T("media.tagList"));
+        ToolTip.SetTip(_booruMode, tip);
         Avalonia.Automation.AutomationProperties.SetHelpText(_booruMode, tip);
         _tagSidebar.Localize();
+        ReapplyToolbarLabels();
     }
 
     /// <summary>The saved mode and order of the profile (the shell, once); nothing is saved back.</summary>

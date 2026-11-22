@@ -148,7 +148,7 @@ public sealed partial class TaggingPage
     internal Task ShowInFolderOfAsync(TaggingQueueRow row)
     {
         if (_queueWork.Ended) return Task.CompletedTask;
-        TaggingCommandContext context = new(_queueWork.Queue, Filter, new[] { row }, row, Capabilities, EffectiveScope);
+        TaggingCommandContext context = new(_queueWork.Queue, Filter, new[] { row }, row, Capabilities, _effectiveScope);
         return TaggingRowCommands.Evaluate(TaggingCommands.ShowInFolder, context).Available ? Leaving(ShowInFolder, row.Item) : Task.CompletedTask;
     }
 
@@ -166,7 +166,7 @@ public sealed partial class TaggingPage
     private TaggingCapabilities Capabilities => new(CanChange, StartTagging != null && CanChange, CanTag, _queueWork.StampNames.Count > 0,
         OpenGallery != null, ShowInThread != null, ShowInMedia != null, ShowInFolder != null, CopyPath != null);
 
-    private TaggingCommandContext CommandContext() => new(_queueWork.Queue, Filter, Selected, Lead, Capabilities, EffectiveScope);
+    private TaggingCommandContext CommandContext() => new(_queueWork.Queue, Filter, Selected, Lead, Capabilities, _effectiveScope);
 
     private Border BuildClearConfirmation()
     {
@@ -261,8 +261,8 @@ public sealed partial class TaggingPage
             TaggingCommands.ShowInMedia => Leaving(ShowInMedia, lead.Item),
             TaggingCommands.ShowInFolder => Leaving(ShowInFolder, lead.Item),
             TaggingCommands.CopyPath => Leaving(CopyPath, lead.Item),
-            TaggingCommands.MoveUp => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1, EffectiveScope), select: lead.Key),
-            TaggingCommands.MoveDown => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1, EffectiveScope), select: lead.Key),
+            TaggingCommands.MoveUp => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, -1, _effectiveScope), select: lead.Key),
+            TaggingCommands.MoveDown => AfterAsync(_queueWork.MoveAsync(lead.Key, Filter, 1, _effectiveScope), select: lead.Key),
             TaggingCommands.MoveFirst => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: false), select: lead.Key),
             TaggingCommands.MoveLast => AfterAsync(_queueWork.MoveToEdgeAsync(lead.Key, toEnd: true), select: lead.Key),
             TaggingCommands.Remove => AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(selected)?.Key),
@@ -276,9 +276,9 @@ public sealed partial class TaggingPage
     private Task OpenGalleryAsync(IReadOnlyList<TaggingQueueRow> selected, TaggingQueueRow lead)
     {
         if (OpenGallery is not { } open) return Task.CompletedTask;
-        if (selected.Count > 1) return open(selected.Select(row => row.Item).ToArray(), 0);
-        int start = _rows.ToList().FindIndex(row => row.Key == lead.Key);
-        return start < 0 ? Task.CompletedTask : open(_rows.Select(row => row.Item).ToArray(), start);
+        TagQueueItem[] window = (selected.Count > 1 ? selected : _rows).Select(row => row.Item).ToArray();
+        int start = Array.FindIndex(window, item => item.Key == lead.Key);
+        return start < 0 ? Task.CompletedTask : open(window, start);
     }
 
     // The row after the last removed one (else the one before the first) keeps the keyboard where the user was.
@@ -327,6 +327,9 @@ public sealed partial class TaggingPage
     internal async Task StartAsync(int? index)
     {
         if (StartTagging is not { } start || _queueWork.Ended) return;
+        int? target = index ?? TaggingQueueView.Resume(Queue, _selectedGroupId, _ungroupedSelected, _effectiveScope);
+        if (target is not { } position || position < 0 || position >= Queue.Count) return;
+        TaggingWalkScope walk = new(_selectedGroupId, _ungroupedSelected, _effectiveScope, Queue.Items[position].Key);
         if (index is { } at)
         {
             if (!CanChange) return;
@@ -337,7 +340,7 @@ public sealed partial class TaggingPage
             if (!done) { ShowStatus(_queueWork.Status); return; }
         }
         else if (!CanStart) return;
-        await start();
+        await start(walk);
     }
 
     internal Task ClearFinishedAsync() => AfterAsync(_queueWork.ClearFinishedAsync());

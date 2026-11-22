@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Admission;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
@@ -89,6 +90,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             // Fail closed: nothing may write into a profile whose settings were not read as they are. The startup
             // window explains the files and the way out (SettingsRecoveryRequiredException.LocalizedMessage).
             if (!Config.AllowsOrdinaryWrites) throw SettingsRecoveryRequiredException.For(Config, _profileLease.ProfileDirectory);
+            ApplyArchivePersistenceLimits();
+            _boardAdmission = OpenBoardAdmissionStore();
             _confirmedConfig = Config.Clone();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "config-done");
@@ -126,7 +129,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             _booruProducers = new MeowChan.Booru.BooruProducerLifecycle(_profileLease.Admission);
             _hostFinalWriteParticipant = new HostFinalWriteParticipant(this);
             _registry.RegisterProfileFinalWriteParticipant(_hostFinalWriteParticipant);
-            _registry.ConfigureBoardAdmission(new MeowChan.Admission.BoardAdmissionStore(_profileLease.ProfileDirectory, _profileLease));
+            _registry.ConfigureBoardAdmission(_boardAdmission);
             _registry.StateChanged += OnRegistryChanged;
             queue.MediaTagsCarriedOver += OnMediaTagsCarriedOver;
             Updates = updateSessionFactory?.Invoke(_profileLease.ProfileDirectory, Config)
@@ -531,7 +534,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         finally { _commands.Release(); }
     }
 
-    public Task ApplySettingsAsync(Config settings)
+    // False means the settings were committed and reading-file deletion can be retried.
+    public Task<bool> ApplySettingsAsync(Config settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
         Config frozen = settings.Clone();
@@ -551,16 +555,17 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         frozen.Validate();
         Commands.ShortcutService.ValidateForCommit(frozen.ShortcutBindings);
         var flush = new FinalWriteFlushRegistration(0);
-        return RunInteractiveWithAdmissionAsync(nameof(ApplySettingsAsync), "settings", admission => ApplySettingsAdmittedCoreAsync(frozen, admission, flush),
-            frozen.RememberReadingPosition ? null : InvalidateReadingPositionWrites, finalWriteFlush: flush);
+        return RunInteractiveWithAdmissionAsync<bool>(nameof(ApplySettingsAsync), "settings",
+            admission => ApplySettingsAdmittedCoreAsync(frozen, admission, flush), finalWriteFlush: flush);
     }
 
-    private async Task ApplySettingsAdmittedCoreAsync(Config settings, ProfileAdmissionToken admission, FinalWriteFlushRegistration flush)
+    private async Task<bool> ApplySettingsAdmittedCoreAsync(Config settings, ProfileAdmissionToken admission, FinalWriteFlushRegistration flush)
     {
         ArgumentNullException.ThrowIfNull(settings);
         await FlushCommandPreferencesAsync(flush).ConfigureAwait(false);
         settings.Validate();
         Commands.ShortcutService.ValidateForCommit(settings.ShortcutBindings);
+        bool readingFilesCleanedUp;
         await _commands.WaitAsync().ConfigureAwait(false);
         try
         {
@@ -571,7 +576,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             Config candidate = Config.Clone();
             candidate.CopySettingsFieldsFrom(settings);
             candidate.Validate();
-            if (!candidate.RememberReadingPosition) DeleteReadingPositionFile();
+            if (candidate.BoardAdmissionSizeMiB != Config.BoardAdmissionSizeMiB)
+                CheckBoardAdmissionSizeLimit(candidate.BoardAdmissionSizeMiB);
             SessionOptions options = new SessionOptions
             {
                 DownloadPath = candidate.DownloadPath,
@@ -583,17 +589,21 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
             await _registry.ApplyOptionsAdmittedAsync(options, candidate.SaveUrlsOnExit,
                 () => candidate.SaveConfigAdmitted(_profileLease.ProfileDirectory, admission), admission).ConfigureAwait(false);
             PublishConfig(candidate);
+            if (!candidate.RememberReadingPosition) InvalidateReadingPositionWrites();
+            readingFilesCleanedUp = candidate.TryCleanUpReadingPositionAfterOptOut();
             Commands.ShortcutService.Publish(Config.ShortcutBindings);
             _downloadQueue.UpdateMinimumFreeSpaceBytes((long)Config.MinimumFreeSpaceGiB * 1024 * 1024 * 1024);
             ApplyBooruCatalogLimit();
             ApplyPrivateTagLimits();
             ApplyStoreLimits();
+            ApplyArchivePersistenceLimits();
             ApplyIoStatsOptions();
             ApplyFolderSourceSettings();
             await Updates.ConfigureAsync(Config).ConfigureAwait(false);
         }
         finally { _commands.Release(); }
         SignalChanged();
+        return readingFilesCleanedUp;
     }
 
     internal Task<FirstRunSetupCommitResult> CompleteFirstRunSetupAsync(FirstRunSetupValues values)

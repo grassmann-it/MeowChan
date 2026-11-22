@@ -66,15 +66,20 @@ internal sealed class PluginWorkerClient : IPluginWorkerClient
             if (_hadFailure)
             {
                 DateTimeOffset now = DateTimeOffset.UtcNow;
-                while (_restarts.TryPeek(out DateTimeOffset first) && now - first > TimeSpan.FromMinutes(10)) _restarts.Dequeue();
-                if (_restarts.Count >= 3) { _state = "intervention-required"; throw new PluginWorkerException("restart-limit", "Three worker restarts failed within ten minutes. Explicit retry is required."); }
+                TimeSpan window = TimeSpan.FromMinutes(_options.RestartWindowMinutes);
+                while (_restarts.TryPeek(out DateTimeOffset first) && now - first > window) _restarts.Dequeue();
+                if (_restarts.Count >= _options.MaximumAutomaticRestarts)
+                {
+                    _state = "intervention-required";
+                    throw new PluginWorkerException("restart-limit", "Automatic worker restart limit reached. Explicit retry is required.");
+                }
                 int attempt = _restarts.Count;
-                _restarts.Enqueue(now);
                 _state = "restart-delay";
                 await Task.Delay(TimeSpan.FromSeconds(attempt == 0 ? 1 : attempt == 1 ? 5 : 30), token).ConfigureAwait(false);
             }
             _state = "waiting-for-worker";
-            _connection = await _manager.StartConnectionAsync(this, _launch, _artifact, _configuration, _services, _options, IsTestWorker, token).ConfigureAwait(false);
+            _connection = await _manager.StartConnectionAsync(this, _launch, _artifact, _configuration, _services, _options, IsTestWorker,
+                _hadFailure ? () => _restarts.Enqueue(DateTimeOffset.UtcNow) : null, token).ConfigureAwait(false);
             Description = _connection.Description; _identity = _connection.Identity;
             _state = "ready"; _hadFailure = false;
             return _connection;

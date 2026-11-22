@@ -111,16 +111,17 @@ public partial class ArchivePage
         _readingPositionStatus.Classes.Set("workspace-error", error);
     }
 
-    internal async Task ResumeReadingPositionAsync(LocalReadingPosition position, Func<bool>? stillRequested = null)
+    internal async Task ResumeReadingPositionAsync(LocalReadingPosition position, Func<bool>? stillOnVisit = null)
     {
         if (_ended || _busy || _resumingPosition || !_available || _openReader == null) return;
-        int request = _contentRequest;
+        Func<bool> contentCurrent = CaptureReadingRequestGuard();
+        bool Current() => contentCurrent() && stillOnVisit?.Invoke() != false;
         _resumingPosition = true;
         try
         {
             await using ArchiveReader reader = await _openReader(_lifetime.Token);
             ArchivedThreadView? view = await reader.ReadThreadAsync(position.ThreadId, _lifetime.Token);
-            if (_ended || request != _contentRequest || stillRequested?.Invoke() == false) return;
+            if (!Current()) return;
             if (view == null || view.PostCount == 0)
             {
                 ShowReadingPositionMessage(Texts.T("resume.missingThread"), true);
@@ -137,16 +138,27 @@ public partial class ArchivePage
             _unreadMark = ResumeUnreadMark(view, position, fallback);
             _history.Clear(); // F2: continue reading is a jump; "Back to last read" never flips to the thread shown before it
             ShowCapturedView(view, index / PageSize * PageSize, postId);
-            await RevealPostAsync(postId); // The saved place is shown even where the reader view hides it.
+            contentCurrent = CaptureReadingRequestGuard();
+            await RevealPostAsync(postId, Current); // The saved place is shown even where the reader view hides it.
+            if (!Current()) return;
+            int shownContent = _contentRequest;
             OpenReaderRequested?.Invoke(null);
+            if (shownContent != _contentRequest || stillOnVisit?.Invoke() == false) return;
+            contentCurrent = CaptureReadingRequestGuard();
             await RestoreReaderAnchorAsync(new ReaderAnchor(position.ThreadId, postId,
-                fallback ? 0 : position.Top, fallback ? postId : position.SelectedPostId));
-            // The landing post is marked briefly, as after a quote or bookmark jump.
-            _ = FlashPostAsync(postId);
-            ShowReadingPositionMessage(fallback ? Texts.T("resume.fallback") : string.Empty);
+                fallback ? 0 : position.Top, fallback ? postId : position.SelectedPostId),
+                stillRequested: stillOnVisit, onRestored: () =>
+                {
+                    // The landing post is marked briefly, as after a quote or bookmark jump.
+                    _ = FlashPostAsync(postId);
+                    ShowReadingPositionMessage(fallback ? Texts.T("resume.fallback") : string.Empty);
+                });
         }
         catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
-        catch (Exception error) { if (!_ended && stillRequested?.Invoke() != false) ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true); }
+        catch (Exception error)
+        {
+            if (Current()) ShowReadingPositionMessage(Texts.T("resume.readFailed", error.Message), true);
+        }
         finally { _resumingPosition = false; }
     }
 }

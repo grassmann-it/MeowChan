@@ -67,9 +67,8 @@ public partial class ArchivePage
         ReaderFindOpen.IsEnabled = shown && !_busy;
         ReaderThreadOpen.IsEnabled = shown;
         string? why = shown ? null : ReaderThreadActionsReason;
-        string? findWhy = ReaderFindOpen.IsEnabled ? null : why ?? Texts.T("archive.command.busy");
         string threadLabel = Texts.T("reader.thread.menu");
-        SetReaderActionTip(ReaderFindOpen, CommandBindings.Tooltip("reader.find", findWhy));
+        SetReaderActionTip(ReaderFindOpen, ReaderFindTip());
         SetReaderActionTip(ReaderThreadOpen, why == null ? threadLabel : threadLabel + " · " + why);
         SetReaderActionTip(ReaderTagsOpen, ReaderTagsTip());
         // Read, Gallery and Export are applied from their commands: the reason is theirs to name, and they are applied again only when it appears or goes.
@@ -82,7 +81,16 @@ public partial class ArchivePage
     }
 
     private string ReaderTagsTip() =>
-        CommandBindings.Tooltip("thread.tags", _thread == null ? ReaderThreadActionsReason : null) + Environment.NewLine + Texts.T("tags.openHint");
+        CommandBindings.Tooltip("thread.tags", _thread == null ? ReaderThreadActionsReason : null) + Environment.NewLine + Texts.T("tags.openHint")
+        + (ReaderTagBar.IsVisible ? Environment.NewLine + Texts.T("readerTool.closeHint") : "");
+
+    // F17: the tip of the Find toggle names its state: while the bar is open, the same click closes it.
+    private string ReaderFindTip()
+    {
+        string? why = !_ended && _thread != null ? null : ReaderThreadActionsReason;
+        string? findWhy = ReaderFindOpen.IsEnabled ? null : why ?? Texts.T("archive.command.busy");
+        return CommandBindings.Tooltip("reader.find", findWhy) + (ReaderFindBar.IsVisible ? Environment.NewLine + Texts.T("readerTool.closeHint") : "");
+    }
 
     private void ApplyThreadScopedCommands()
     {

@@ -4,10 +4,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.LogicalTree;
-using Avalonia.Platform;
 using MeowChan.Desktop;
 using MeowChan.Interfaces;
 using MeowChan.Desktop.Controls;
+using MeowChan.Gallery;
+using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
 
@@ -121,30 +122,50 @@ public sealed class NarrowContentLayoutTests
     [Fact]
     public void TrimmedLabelsOfTheScopeCarryTheirFullTextAsATooltip()
     {
-        // A negatable filter chip's own tooltip is its help, so its label is a TrimTipTextBlock; a plain chip's tooltip already names the label.
-        Assert.Contains("TextBlock text = negatable ? new TrimTipTextBlock { Text = label, MaxWidth = 320 }", Source("Desktop/Controls/WorkspaceChips.cs"));
-        string attachment = Source("Desktop/ArchiveAttachmentView.cs");
-        Assert.Contains("private readonly TrimTipTextBlock _label = new TrimTipTextBlock {", attachment);
-        Assert.Contains("_label.AlwaysTip = compact;", attachment);
-        Assert.Contains("private readonly TextBlock _status = new TrimTipTextBlock { TextWrapping = TextWrapping.Wrap, MaxLines = 2,",
-            Source("Desktop/Controls/QuickTagSurface.cs"));
-        Assert.Contains("private readonly TextBlock _title = new TrimTipTextBlock { Name = \"MediaTagSidebarTitle\"", Source("Desktop/Views/Media/MediaTagSidebar.cs"));
-        string tagging = Source("Desktop/Views/Tagging/TaggingPage.cs");
-        Assert.Contains("TextBlock header = new TrimTipTextBlock", tagging);
-        // Rows of buttons and counters that held text in a horizontal StackPanel (measured at full length, never wrapped) now wrap.
-        // Measuring the percent text needs a text shaper: the process-wide Skia platform (this collection is serialized).
-        using IDisposable platform = AvaloniaTestPlatform.EnterSkia();
         BooruComponentDispatcher.Run(() =>
         {
-            using IDisposable scope = AvaloniaLocator.EnterScope();
-            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-            TokenApplication.Bind();
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            string longLabel = new('w', 100);
+            var term = WorkspaceChips.CreateTermChip(longLabel, negatable: true, exclude: false, remove: () => { }, toggle: () => { });
+            var termLabel = Assert.Single(Assert.IsType<StackPanel>(term.Content).Children.OfType<TextBlock>());
+            AssertTrimmedTip(termLabel, longLabel, 80);
+            var plain = WorkspaceChips.CreateTermChip(longLabel, negatable: false, exclude: false, remove: () => { });
+            Assert.Contains(longLabel, Assert.IsType<string>(ToolTip.GetTip(plain)));
+
+            var attachment = new ArchiveAttachmentView();
+            var compact = new ArchiveAttachmentRow(new MeowChan.Archive.CapturedAttachment(0, "file", OriginalFileName: "file.png")) { Compact = true };
+            attachment.DataContext = compact;
+            var fileLine = attachment.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Text == compact.FileLine);
+            Layout(fileLine, 300);
+            Assert.Equal(compact.FileLine, ToolTip.GetTip(fileLine));
+            attachment.DataContext = compact with { Compact = false };
+            Layout(fileLine, 300);
+            Assert.Null(ToolTip.GetTip(fileLine));
+            Assert.Equal(2, fileLine.MaxLines);
+
+            MediaTagSession tags = new(new MediaTagSubject.Bound(MediaLibraryFilterEngine.TagTarget(QuickTagSurfaceTests.Entry("a", 'a'))!),
+                () => new PrivateTagLoadSnapshot(PrivateTagLoadState.Unavailable, null, null),
+                (_, _, _) => throw new InvalidOperationException(), (_, _, _, _) => throw new InvalidOperationException());
+            using QuickTagSession quickSession = new(QuickTagTarget.For(tags));
+            using QuickTagSurface quick = new(quickSession);
+            var status = quick.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "QuickTagStatus");
+            Assert.Equal(2, status.MaxLines);
+            AssertTrimmedTip(status, MeowChan.Desktop.Localization.Texts.T("tags.unavailable"), 80);
+
+            var sidebar = new MediaTagSidebar();
+            var title = sidebar.GetLogicalDescendants().OfType<TextBlock>().Single(text => text.Name == "MediaTagSidebarTitle");
+            AssertTrimmedTip(title, title.Text!, 10);
+
             using TempDirectory temp = new();
             DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
             try
             {
                 using TaggingPage page = new(host);
                 Control[] controls = ((ILogical)page).GetLogicalDescendants().OfType<Control>().ToArray();
+                Grid columnHeader = Assert.IsType<Grid>(controls.Single(control => control.Name == "TaggingColumns"));
+                TextBlock header = columnHeader.Children.OfType<TextBlock>().Single(text => Grid.GetColumn(text) == 3);
+                AssertTrimmedTip(header, header.Text!, 10);
+                Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingEmptyActions"));
                 StackPanel progress = Assert.IsType<StackPanel>(controls.Single(control => control.Name == "TaggingProgress"));
                 WrapPanel meter = Assert.IsType<WrapPanel>(controls.Single(control => control.Name == "TaggingProgressMeter"));
                 Assert.Equal(Orientation.Vertical, progress.Orientation);
@@ -161,7 +182,13 @@ public sealed class NarrowContentLayoutTests
             }
             finally { host.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
         });
-        Assert.Contains("private readonly WrapPanel _emptyActions = new() { Name = \"TaggingEmptyActions\"", tagging);
+    }
+
+    private static void AssertTrimmedTip(TextBlock text, string fullText, double width)
+    {
+        Assert.False(string.IsNullOrWhiteSpace(fullText));
+        Layout(text, width);
+        Assert.Equal(fullText, ToolTip.GetTip(text));
     }
 
     [Fact]

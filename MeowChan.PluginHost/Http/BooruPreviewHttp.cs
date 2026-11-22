@@ -21,7 +21,7 @@ namespace MeowChan.PluginHost.Http;
 /// </list>
 /// A small in-memory cache keeps paging back and forth from fetching the same thumbnail twice. Nothing is stored on disk.
 /// </summary>
-public sealed class BooruPreviewHttp : IDisposable
+public sealed partial class BooruPreviewHttp : IDisposable
 {
     public const int MaximumPreviewBytes = 1024 * 1024;
     public const int MaximumConcurrentRequests = 2;
@@ -83,7 +83,7 @@ public sealed class BooruPreviewHttp : IDisposable
             if (TryGetCached(key, out cached)) return cached;
             using CancellationTokenSource deadline = new(ResponseTimeout, _clock);
             using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, deadline.Token);
-            byte[]? bytes = await FetchAsync(url, linked.Token).ConfigureAwait(false);
+            byte[]? bytes = await FetchAsync(url, MaximumPreviewBytes, linked.Token).ConfigureAwait(false);
             if (bytes != null) Remember(key, bytes);
             return bytes;
         }
@@ -93,7 +93,7 @@ public sealed class BooruPreviewHttp : IDisposable
         finally { _gate.Release(); }
     }
 
-    private async Task<byte[]?> FetchAsync(Uri url, CancellationToken token)
+    private async Task<byte[]?> FetchAsync(Uri url, int maximumBytes, CancellationToken token)
     {
         using HttpRequestMessage request = new(HttpMethod.Get, url);
         request.Headers.TryAddWithoutValidation("User-Agent", _userAgent);
@@ -110,7 +110,7 @@ public sealed class BooruPreviewHttp : IDisposable
         if ((response.RequestMessage?.RequestUri ?? url) != url) return null; // the transport followed a redirect
         if (response.StatusCode != HttpStatusCode.OK) return null;
         HttpContent content = response.Content;
-        if (content.Headers.ContentLength is long length && (length <= 0 || length > MaximumPreviewBytes)) return null;
+        if (content.Headers.ContentLength is long length && (length <= 0 || length > maximumBytes)) return null;
         if (content.Headers.ContentEncoding.Any(encoding => !string.Equals(encoding, "identity", StringComparison.OrdinalIgnoreCase)))
             return null;
         await using Stream body = await content.ReadAsStreamAsync(token).ConfigureAwait(false);
@@ -120,7 +120,7 @@ public sealed class BooruPreviewHttp : IDisposable
         {
             int read = await body.ReadAsync(chunk, token).ConfigureAwait(false);
             if (read == 0) break;
-            if (buffer.Length + read > MaximumPreviewBytes) return null;
+            if (buffer.Length + read > maximumBytes) return null;
             buffer.Write(chunk, 0, read);
         }
         byte[] bytes = buffer.ToArray();
@@ -177,6 +177,7 @@ public sealed class BooruPreviewHttp : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        ClearSamples();
         lock (_cacheSync)
         {
             _cache.Clear();

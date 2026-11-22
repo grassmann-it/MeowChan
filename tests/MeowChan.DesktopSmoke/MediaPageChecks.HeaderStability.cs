@@ -136,12 +136,14 @@ internal static partial class MediaPageChecks
             // (e) The selection line is one line (counter and actions share one y) and the grid does not move when the selection starts: its card's top
             // is where it was with nothing selected (coordinator 17.11.: a wrap at the first selection is exactly the jump being removed).
             Panel actions = C<Panel>(page, "MediaSelectionActions");
+            Control reason = C<Control>(page, "MediaSelectionReason");
+            IEnumerable<Control> VisibleSelectionControls() => actions.Children.Append(reason).Where(child => child.IsVisible);
             Control gridCard = C<Control>(page, "MediaGridSurface");
             double GridTop() { page.UpdateLayout(); return gridCard.TranslatePoint(default, page)!.Value.Y; }
             void RequireOneLine(string cell, string state, double gridTopNone)
             {
                 page.UpdateLayout();
-                double[] ys = actions.Children.Concat(C<Panel>(page, "MediaSelectionState").Children).Where(child => child.IsVisible).Select(child => Math.Round(child.TranslatePoint(new Point(0, child.Bounds.Height / 2), page)!.Value.Y)).Distinct().ToArray();
+                double[] ys = VisibleSelectionControls().Select(child => Math.Round(child.TranslatePoint(new Point(0, child.Bounds.Height / 2), page)!.Value.Y)).Distinct().ToArray();
                 if (ys.Length != 1)
                     failures.Add("(e) " + cell + " " + state + ": the selection line wrapped onto " + ys.Length + " lines (Clear short: " + page.ClearLabelShortened + ", under More: "
                         + string.Join(",", page.SelectionActionsMovedByWidth.Select(control => control.Name)) + ")");
@@ -253,8 +255,7 @@ internal static partial class MediaPageChecks
                         string cell = code + "-counter-" + count + "-width-" + width;
                         Require(page.Grid.Selection.Count == count, cell + ": selection fixture did not select the requested count");
                         RequireOneLine(cell, count.ToString(CultureInfo.InvariantCulture), baseline.Y);
-                        Panel state = C<Panel>(page, "MediaSelectionState");
-                        Control[] visible = actions.Children.Concat(state.Children).Where(child => child.IsVisible).ToArray();
+                        Control[] visible = VisibleSelectionControls().ToArray();
                         int lines = visible.Select(child => Math.Round(child.TranslatePoint(new Point(0, child.Bounds.Height / 2), page)!.Value.Y)).Distinct().Count();
                         if (lines != 1) failures.Add(cell + ": actions and trailing state do not share one line");
                         Rect actual = GridBounds();

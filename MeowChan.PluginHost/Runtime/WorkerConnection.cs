@@ -63,7 +63,8 @@ internal sealed class WorkerConnection : IAsyncDisposable
 
     public static async Task<WorkerConnection> StartAsync(PluginWorkerLaunch launch, PluginArtifact artifact,
         PluginConfiguration configuration, IPluginHostServices services, PluginWorkerOptions options,
-        IDisposable processLease, CancellationToken token, bool describeOnly = false, Func<long>? temporaryBytes = null, FilterTemporaryBudget? sharedBudget = null, long workspaceQuota = 0)
+        IDisposable processLease, CancellationToken token, bool describeOnly = false, Func<long>? temporaryBytes = null,
+        FilterTemporaryBudget? sharedBudget = null, long workspaceQuota = 0, Action? onProcessStartAttempt = null)
     {
         Process? process = null;
         WorkerConnection? connection = null;
@@ -91,7 +92,9 @@ internal sealed class WorkerConnection : IAsyncDisposable
             start.Environment["DOTNET_GCHeapHardLimit"] = options.HeapLimitBytes.ToString("X");
             start.Environment["DOTNET_EnableDiagnostics"] = "0";
             start.Environment["MEOWCHAN_WORKSPACE_BYTE_QUOTA"] = workspaceQuota.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            token.ThrowIfCancellationRequested();
             span = PerformanceDiagnostics.Measure("plugin.worker.spawn", asset: artifact.ExecutionRevision);
+            onProcessStartAttempt?.Invoke();
             process = Process.Start(start) ?? throw new PluginWorkerException("start", "Worker process could not be started.");
             span.Dispose();
             try { process.PriorityClass = ProcessPriorityClass.BelowNormal; } catch (Exception exception) when (exception is System.ComponentModel.Win32Exception or InvalidOperationException or PlatformNotSupportedException) { }

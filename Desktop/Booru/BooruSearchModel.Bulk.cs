@@ -24,6 +24,7 @@ internal enum BooruBulkEnd
 internal sealed record BooruBulkView(BooruBulkPhase Phase, string? Query = null, int PagesRead = 0, int Found = 0, int Queued = 0,
     int AlreadyQueued = 0, int AlreadySaved = 0, int NoOriginal = 0, int Failed = 0, BooruBulkEnd End = BooruBulkEnd.None)
 {
+    internal int TabId { get; init; }
     internal bool IsRunning => Phase == BooruBulkPhase.Running;
 }
 
@@ -32,6 +33,7 @@ internal sealed record BooruBulkView(BooruBulkPhase Phase, string? Query = null,
 // The watcher only takes posts that are new after its creation; this is the explicit one-time backfill.
 internal sealed partial class BooruSearchModel
 {
+    private int _activeSearchTabId = BooruSearchTabs.PrimaryId;
     private BooruBulkView _bulk = new(BooruBulkPhase.Idle);
     // The cancel action of the running collection (its token source is a local of DownloadAllAsync, so this class owns no extra disposable field).
     private Action? _cancelBulk;
@@ -51,26 +53,31 @@ internal sealed partial class BooruSearchModel
         && _view.Status is BooruSearchStatus.Results or BooruSearchStatus.Empty && PauseEnd(_view) is null;
 
     /// <summary>Stops the running collection; what was queued before stays queued.</summary>
-    internal void CancelBulk()
+    internal void CancelBulk(int? tabId = null)
     {
-        lock (_gate) _cancelBulk?.Invoke();
+        lock (_gate)
+            if (_bulk.TabId == (tabId ?? _activeSearchTabId)) _cancelBulk?.Invoke();
     }
 
     internal async Task DownloadAllAsync()
     {
-        using CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        using RequestLifetime? lifetime = AcquireModelLifetime();
+        if (lifetime is null) return;
+        using CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         string query;
+        int tabId;
         lock (_gate)
         {
             if (!CanDownloadAllLocked()) return;
             query = _view.ExecutedQuery!;
+            tabId = _activeSearchTabId;
             _cancelBulk = source.Cancel;
-            _bulk = new BooruBulkView(BooruBulkPhase.Running, query);
+            _bulk = new BooruBulkView(BooruBulkPhase.Running, query) { TabId = tabId };
         }
         RaiseChanged();
         BooruBulkView state;
         BooruBulkEnd end;
-        try { (state, end) = await CollectAsync(query, source.Token).ConfigureAwait(false); }
+        try { (state, end) = await CollectAsync(query, tabId, source.Token).ConfigureAwait(false); }
         finally
         {
             lock (_gate) _cancelBulk = null;
@@ -83,9 +90,9 @@ internal sealed partial class BooruSearchModel
         RaiseChanged();
     }
 
-    private async Task<(BooruBulkView State, BooruBulkEnd End)> CollectAsync(string query, CancellationToken token)
+    private async Task<(BooruBulkView State, BooruBulkEnd End)> CollectAsync(string query, int tabId, CancellationToken token)
     {
-        BooruBulkView state = new(BooruBulkPhase.Running, query);
+        BooruBulkView state = new(BooruBulkPhase.Running, query) { TabId = tabId };
         BooruBulkEnd end = BooruBulkEnd.None;
         HashSet<string> seen = new(StringComparer.Ordinal);
         for (int page = 1; page <= MaximumPage && end == BooruBulkEnd.None; page++)

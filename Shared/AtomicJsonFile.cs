@@ -12,7 +12,16 @@ internal static class AtomicJsonFile
     // Do not fall back to delete/move: that would silently replace a user-controlled link.
     internal static bool CanAtomicallyReplaceSymbolicLink => !OperatingSystem.IsWindows();
 
-    public static void WriteAllText(string filePath, string contents, bool backupCurrentFile, CancellationToken cancellationToken = default)
+    private enum PreviousFile { RotateToBackup, PreserveForRecovery, Replace }
+
+    public static void WriteAllText(string filePath, string contents, bool backupCurrentFile, CancellationToken cancellationToken = default) =>
+        WriteAllText(filePath, contents, backupCurrentFile ? PreviousFile.RotateToBackup : PreviousFile.PreserveForRecovery, cancellationToken);
+
+    // The caller has already prepared a compatible backup of the previous snapshot.
+    internal static void ReplaceAllText(string filePath, string contents, CancellationToken cancellationToken) =>
+        WriteAllText(filePath, contents, PreviousFile.Replace, cancellationToken);
+
+    private static void WriteAllText(string filePath, string contents, PreviousFile previousFile, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         Write(filePath, Encoding.UTF8.GetBytes(contents.Replace("\r\n", "\n", StringComparison.Ordinal)),
@@ -75,14 +84,14 @@ internal static class AtomicJsonFile
                 PreserveDanglingLink(filePath);
                 File.Move(temporaryPath, filePath, overwrite: true);
             }
-            else if (backupCurrentFile)
+            else if (previousFile == PreviousFile.RotateToBackup)
             {
                 File.Replace(temporaryPath, filePath, filePath + ".bak");
             }
             else
             {
                 // A recovery save must not replace the last valid backup with damaged data.
-                PreserveFile(filePath);
+                if (previousFile == PreviousFile.PreserveForRecovery) PreserveFile(filePath);
                 cancellationToken.ThrowIfCancellationRequested();
                 File.Move(temporaryPath, filePath, overwrite: true);
             }

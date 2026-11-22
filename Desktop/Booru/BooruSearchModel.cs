@@ -28,7 +28,8 @@ internal sealed record BooruSearchView(
     ImmutableArray<BooruResultRowView> Rows,
     DateTimeOffset? RetryAt,
     string? Code,
-    BooruNotice? Notice)
+    BooruNotice? Notice,
+    bool Restored = false)
 {
     internal bool IsPostResult => ExecutedPostId is not null;
     internal bool IsBusy => Status == BooruSearchStatus.Searching;
@@ -63,14 +64,16 @@ internal sealed partial class BooruSearchModel : IDisposable
     private readonly IBooruQueuePort _queue;
     private readonly IBooruPreviewPort _previews;
     private readonly TimeProvider _clock;
-    private readonly CancellationTokenSource _lifetime = new();
+    private readonly RequestLifetime _lifetime = new();
     private readonly SemaphoreSlim _previewSlots = new(2);
-    private CancellationTokenSource? _request;
+    private RequestLifetime? _request;
     // Prevents a double click from issuing two lifecycle mutations while the row is rebuilt.
     private readonly HashSet<string> _originalActions = new(StringComparer.Ordinal);
     private readonly Dictionary<string, long> _originalActionVersions = new(StringComparer.Ordinal);
     private long _nextOriginalAction;
     private long _requestId;
+    private long _nextLocalStateRead;
+    private long _appliedLocalStateRead;
     private BooruSearchView _view;
     private bool _disposed;
 
@@ -222,8 +225,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         lock (_gate)
         {
             if (!_view.IsBusy) return;
-            _request?.Cancel();
-            _requestId++;
+            ReplaceRequest(needsRequest: false);
             _view = _view with { Status = BooruSearchStatus.Idle };
         }
         RaiseChanged();
@@ -231,8 +233,10 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     private async Task RunSearchAsync(string query, int page)
     {
-        (long id, CancellationToken token) = Begin(BooruSearchStatus.Searching, query, null, page);
-        if (id == 0) return;
+        (long id, RequestLifetime? lifetime) = Begin(BooruSearchStatus.Searching, query, null, page);
+        using RequestLifetime? request = lifetime;
+        if (request is null) return;
+        CancellationToken token = request.Token;
         RaiseChanged();
         BooruCallResult<BooruResultPage> result;
         try
@@ -274,13 +278,15 @@ internal sealed partial class BooruSearchModel : IDisposable
             else _view = ApplyFailure(_view, result);
         }
         RaiseChanged();
-        if (follow) StartFollowUps(id, token);
+        if (follow) StartFollowUps(id, request);
     }
 
     private async Task RunPostAsync(string postId)
     {
-        (long id, CancellationToken token) = Begin(BooruSearchStatus.Searching, null, postId, 1);
-        if (id == 0) return;
+        (long id, RequestLifetime? lifetime) = Begin(BooruSearchStatus.Searching, null, postId, 1);
+        using RequestLifetime? request = lifetime;
+        if (request is null) return;
+        CancellationToken token = request.Token;
         RaiseChanged();
         BooruCallResult<BooruPostView> result;
         try
@@ -313,23 +319,21 @@ internal sealed partial class BooruSearchModel : IDisposable
             else _view = ApplyFailure(_view, result);
         }
         RaiseChanged();
-        if (follow) StartFollowUps(id, token);
+        if (follow) StartFollowUps(id, request);
     }
 
-    private (long Id, CancellationToken Token) Begin(BooruSearchStatus status, string? query, string? postId, int page)
+    private (long Id, RequestLifetime? Lifetime) Begin(BooruSearchStatus status, string? query, string? postId, int page)
     {
         lock (_gate)
         {
             if (_disposed) return (0, default);
-            _request?.Cancel();
-            _request = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            RequestLifetime request = ReplaceRequest(needsRequest: true)!;
             _view = _view with
             {
                 Status = status, ExecutedQuery = query, ExecutedPostId = postId, Page = page,
-                Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null
+                Rows = ImmutableArray<BooruResultRowView>.Empty, Code = null, RetryAt = null, IsEnd = false, Notice = null, Restored = false
             };
-            long id = ++_requestId;
-            return (id, _request.Token);
+            return (_requestId, request.Acquire());
         }
     }
 
@@ -354,15 +358,25 @@ internal sealed partial class BooruSearchModel : IDisposable
 
     // ---- previews and local state (follow-ups of a displayed page only) ------------------------
 
-    private void StartFollowUps(long id, CancellationToken token)
+    private void StartFollowUps(long id, RequestLifetime request)
     {
-        ImmutableArray<BooruResultRowView> rows = View.Rows;
-        foreach (BooruResultRowView row in rows.Where(row => row.Preview == BooruPreviewState.Loading))
+        ImmutableArray<BooruResultRowView> rows;
+        lock (_gate)
         {
-            BooruPostView post = row.Post;
-            _ = Task.Run(() => LoadPreviewAsync(id, post, token), CancellationToken.None);
+            if (id != _requestId) return;
+            rows = _view.Rows;
+            request.Acquire();
         }
-        _ = Task.Run(() => RefreshLocalStatesAsync(id, token), CancellationToken.None);
+        _ = Task.Run(async () =>
+        {
+            using (request)
+            {
+                CancellationToken token = request.Token;
+                await Task.WhenAll(rows.Where(row => row.Preview == BooruPreviewState.Loading)
+                    .Select(row => LoadPreviewAsync(id, row.Post, token))
+                    .Append(RefreshLocalStatesAsync(id, token))).ConfigureAwait(false);
+            }
+        });
     }
 
     private async Task LoadPreviewAsync(long id, BooruPostView post, CancellationToken token)
@@ -373,6 +387,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         {
             await _previewSlots.WaitAsync(token).ConfigureAwait(false);
             entered = true;
+            token.ThrowIfCancellationRequested();
             bytes = await _previews.LoadPreviewAsync(post, token).ConfigureAwait(false);
         }
         catch (OperationCanceledException) { return; }
@@ -388,26 +403,33 @@ internal sealed partial class BooruSearchModel : IDisposable
         });
     }
 
-    private void OnLocalStatesChanged()
+    private void OnLocalStatesChanged() => _ = RefreshLocalStatesAsync();
+
+    internal Task RefreshLocalStatesAsync()
     {
         long id;
-        CancellationToken token;
+        RequestLifetime request;
         lock (_gate)
         {
-            if (_disposed || _request is null || _view.Rows.IsEmpty) return;
+            if (_disposed || _request is null || _view.Rows.IsEmpty) return Task.CompletedTask;
             id = _requestId;
-            token = _request.Token;
+            request = _request.Acquire();
         }
-        _ = Task.Run(() => RefreshLocalStatesAsync(id, token), CancellationToken.None);
+        return Task.Run(async () =>
+        {
+            using (request) await RefreshLocalStatesAsync(id, request.Token).ConfigureAwait(false);
+        });
     }
 
     private async Task RefreshLocalStatesAsync(long id, CancellationToken token)
     {
         string[] ids;
+        long version;
         lock (_gate)
         {
             if (id != _requestId) return;
             ids = _view.Rows.Select(row => row.Post.PostId).ToArray();
+            version = ++_nextLocalStateRead;
         }
         if (ids.Length == 0) return;
         IReadOnlyDictionary<string, BooruLocalState> states;
@@ -417,21 +439,29 @@ internal sealed partial class BooruSearchModel : IDisposable
         bool changed = false;
         lock (_gate)
         {
-            if (id != _requestId || _disposed) return;
+            if (id != _requestId || _disposed || version <= _appliedLocalStateRead) return;
+            _appliedLocalStateRead = version;
             ImmutableArray<BooruResultRowView>.Builder rows = _view.Rows.ToBuilder();
             for (int index = 0; index < rows.Count; index++)
             {
                 BooruResultRowView row = rows[index];
-                if (row.Load is not (BooruRowLoad.Idle or BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded)
-                    || !states.TryGetValue(row.Post.PostId, out BooruLocalState state)) continue;
-                BooruRowLoad load = state switch
+                if (row.Load == BooruRowLoad.Handing || !states.TryGetValue(row.Post.PostId, out BooruLocalState state)) continue;
+                (BooruRowLoad load, string? code) = state switch
                 {
-                    BooruLocalState.Loaded => BooruRowLoad.AlreadyLoaded,
-                    BooruLocalState.Queued => row.Load == BooruRowLoad.Queued ? BooruRowLoad.Queued : BooruRowLoad.AlreadyQueued,
-                    _ => row.Load is BooruRowLoad.AlreadyLoaded or BooruRowLoad.AlreadyQueued ? BooruRowLoad.Idle : row.Load
+                    BooruLocalState.Loaded => (BooruRowLoad.AlreadyLoaded, null),
+                    BooruLocalState.Queued => (row.Load == BooruRowLoad.Queued ? row.Load : BooruRowLoad.AlreadyQueued, null),
+                    BooruLocalState.DownloadFailed => (BooruRowLoad.DownloadFailed, null),
+                    BooruLocalState.LinkFailed => (BooruRowLoad.LinkFailed, null),
+                    BooruLocalState.Interrupted => (BooruRowLoad.Interrupted, null),
+                    BooruLocalState.RefusalPending => (BooruRowLoad.RefusalPending, null),
+                    BooruLocalState.Cancelled => (BooruRowLoad.Failed, BooruCodes.Cancelled),
+                    BooruLocalState.NotAdmitted => (BooruRowLoad.Failed, BooruCodes.NotAdmitted),
+                    BooruLocalState.NotLoaded when row.Load is BooruRowLoad.AlreadyLoaded or BooruRowLoad.AlreadyQueued
+                        => (BooruRowLoad.Idle, null),
+                    _ => (row.Load, row.LoadCode)
                 };
-                if (load == row.Load) continue;
-                rows[index] = row with { Load = load };
+                if (load == row.Load && code == row.LoadCode) continue;
+                rows[index] = row with { Load = load, LoadCode = code };
                 changed = true;
             }
             if (changed) _view = _view with { Rows = rows.ToImmutable() };
@@ -451,6 +481,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         BooruLoadOrigin origin;
         string? query = null;
         long actionVersion = 0;
+        RequestLifetime? lifetime = null;
         bool blocked = false;
         lock (_gate)
         {
@@ -472,13 +503,15 @@ internal sealed partial class BooruSearchModel : IDisposable
             else
             {
                 actionVersion = BeginOriginalAction(postId);
+                lifetime = _lifetime.Acquire();
                 SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
             }
         }
+        using RequestLifetime? operation = lifetime;
         RaiseChanged();
         if (blocked) return;
         BooruLoadResult result;
-        try { result = await _queue.LoadOriginalAsync(post, origin, query, _lifetime.Token).ConfigureAwait(false); }
+        try { result = await _queue.LoadOriginalAsync(post, origin, query, operation!.Token).ConfigureAwait(false); }
         catch (OperationCanceledException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "canceled"); }
         catch (Exception exception) when (exception is not OutOfMemoryException) { result = new BooruLoadResult(BooruLoadStatus.Failed, "exception"); }
         BooruRowLoad load = MapLoad(result);
@@ -488,16 +521,17 @@ internal sealed partial class BooruSearchModel : IDisposable
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == post.PostId);
             // A concurrent cancel/retry owns the newer version; never let this admission resurrect a cancelled row.
             if (index >= 0 && IsCurrentOriginalAction(post.PostId, actionVersion))
-                SetRow(index, _view.Rows[index] with { Load = load, LoadCode = result.Code });
+                SetOriginalResult(index, load, result.Code);
         }
         RaiseChanged();
+        OnLocalStatesChanged();
     }
 
     /// <summary>Durably cancels one queued or in-flight original through the queue port.</summary>
     internal async Task CancelOriginalAsync(string postId)
     {
-        bool started = false;
-        long actionVersion = 0;
+        RequestLifetime lifetime;
+        long actionVersion;
         lock (_gate)
         {
             if (_disposed) return;
@@ -507,15 +541,15 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (!row.CanCancel || !_originalActions.Add(postId)) return;
             actionVersion = BeginOriginalAction(postId);
             SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
-            started = true;
+            lifetime = _lifetime.Acquire();
         }
-        if (!started) return;
+        using RequestLifetime operation = lifetime;
         RaiseChanged();
         bool cancelled;
         string code;
         try
         {
-            cancelled = await _queue.CancelOriginalAsync(postId, _lifetime.Token).ConfigureAwait(false);
+            cancelled = await _queue.CancelOriginalAsync(postId, operation.Token).ConfigureAwait(false);
             code = cancelled ? BooruCodes.Cancelled : BooruCodes.CancelNotPending;
         }
         catch (OperationCanceledException) { cancelled = false; code = BooruCodes.Canceled; }
@@ -530,16 +564,19 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (_disposed) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
-                SetRow(index, _view.Rows[index] with { Load = BooruRowLoad.Failed, LoadCode = code });
+                SetOriginalResult(index, BooruRowLoad.Failed, code);
         }
         RaiseChanged();
+        OnLocalStatesChanged();
     }
 
-    /// <summary>Explicitly retries a stored claim after a cancellation or failed admission.</summary>
+    /// <summary>Saves an outstanding refusal or retries a stored claim after a failed or cancelled request.</summary>
     internal async Task RetryOriginalAsync(string postId)
     {
         BooruPostView post;
-        long actionVersion = 0;
+        RequestLifetime lifetime;
+        long actionVersion;
+        bool saveRefusal;
         lock (_gate)
         {
             if (_disposed) return;
@@ -549,11 +586,18 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (!row.CanRetry || !_originalActions.Add(postId)) return;
             actionVersion = BeginOriginalAction(postId);
             post = row.Post;
+            saveRefusal = row.Load == BooruRowLoad.RefusalPending;
             SetRow(index, row with { Load = BooruRowLoad.Handing, LoadCode = null });
+            lifetime = _lifetime.Acquire();
         }
+        using RequestLifetime operation = lifetime;
         RaiseChanged();
         BooruLoadResult result;
-        try { result = await _queue.RetryOriginalAsync(post.PostId, _lifetime.Token).ConfigureAwait(false); }
+        try
+        {
+            result = await (saveRefusal ? _queue.SaveOriginalRefusalAsync(post.PostId, operation.Token)
+                : _queue.RetryOriginalAsync(post.PostId, operation.Token)).ConfigureAwait(false);
+        }
         catch (OperationCanceledException) { result = new BooruLoadResult(BooruLoadStatus.Failed, BooruCodes.Canceled); }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         { result = new BooruLoadResult(BooruLoadStatus.Failed, "exception"); }
@@ -563,9 +607,17 @@ internal sealed partial class BooruSearchModel : IDisposable
             if (_disposed) return;
             int index = _view.Rows.IndexWhere(row => row.Post.PostId == postId);
             if (index >= 0 && IsCurrentOriginalAction(postId, actionVersion))
-                SetRow(index, _view.Rows[index] with { Load = MapLoad(result), LoadCode = result.Code });
+                SetOriginalResult(index, MapLoad(result), result.Code);
         }
         RaiseChanged();
+        OnLocalStatesChanged();
+    }
+
+    private void SetOriginalResult(int index, BooruRowLoad load, string? code)
+    {
+        // Reads started during the action may predate its result. The follow-up reads the new state.
+        _appliedLocalStateRead = _nextLocalStateRead;
+        SetRow(index, _view.Rows[index] with { Load = load, LoadCode = code });
     }
 
     private long BeginOriginalAction(string postId)
@@ -586,6 +638,7 @@ internal sealed partial class BooruSearchModel : IDisposable
         BooruLoadStatus.NoOriginal => BooruRowLoad.NoOriginal,
         BooruLoadStatus.Restricted => BooruRowLoad.Restricted,
         BooruLoadStatus.Offline => BooruRowLoad.Offline,
+        BooruLoadStatus.RefusalPending => BooruRowLoad.RefusalPending,
         _ => BooruRowLoad.Failed
     };
 
@@ -612,13 +665,12 @@ internal sealed partial class BooruSearchModel : IDisposable
         {
             if (_disposed) return;
             _disposed = true;
-            _requestId++;
-            _request?.Cancel();
+            ReplaceRequest(needsRequest: false);
             _originalActions.Clear();
             _originalActionVersions.Clear();
         }
         _queue.LocalStatesChanged -= OnLocalStatesChanged;
-        _lifetime.Cancel();
+        _ = _lifetime.RetireAsync();
         Changed = null;
     }
 }

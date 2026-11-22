@@ -245,6 +245,8 @@ internal sealed class ReaderMediaSidebar : Border
 {
     // The header line: "No. 75 · file name · 880 KiB", trimmed with an ellipsis (the full text is its tip).
     private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _threadPosition = new TextBlock { Name = "ReaderMediaSidebarThreadPosition",
+        IsVisible = false, VerticalAlignment = VerticalAlignment.Center, Classes = { "tnum" } }.MetaText();
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
     // The "No. 75" part of the header line as a link (the reader's sidebar: a click copies the post's reference, as the post's own "No." does). The hand shows while a click opens the medium.
     private readonly Button _postLink = new() { Name = "ReaderMediaSidebarPostLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
@@ -269,7 +271,7 @@ internal sealed class ReaderMediaSidebar : Border
     // The card (Tom, 15.11.2026): the medium with, inside the same edge, the strip of a post with several files and the video's controls.
     // The medium fills what the rows below it leave; nothing under the card keeps space, so a host can make it flush with a neighbour card.
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
-    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", Height = HeaderLineHeight, ClipToBounds = true, ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto"), ColumnSpacing = 8 };
+    private readonly Grid _header = new() { Name = "ReaderMediaSidebarHeaderRow", Height = HeaderLineHeight, ClipToBounds = true, ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto,Auto,Auto"), ColumnSpacing = 8 };
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
     private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly ArchiveFavoriteButton _favorite = new() { VerticalAlignment = VerticalAlignment.Center };
@@ -407,16 +409,17 @@ internal sealed class ReaderMediaSidebar : Border
         Close.IsHitTestVisible = false;
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
-        // One compact row: the info line, the favourite star, "Open in gallery" and the cross. It replaces the title and the info box.
+        // One compact row: the info line, thread position, favourite star, "Open in gallery" and the cross.
         Grid header = _header;
         // Column 0: the post number as a link, then the rest of the line trimmed with an ellipsis.
         Grid titleHost = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), VerticalAlignment = VerticalAlignment.Center };
         titleHost.Children.Add(_postLink);
         Grid.SetColumn(_title, 1); titleHost.Children.Add(_title);
         header.Children.Add(titleHost);
-        Grid.SetColumn(_favorite, 1); header.Children.Add(_favorite);
-        Grid.SetColumn(Open, 2); header.Children.Add(Open);
-        Grid.SetColumn(Close, 3); header.Children.Add(Close);
+        Grid.SetColumn(_threadPosition, 1); header.Children.Add(_threadPosition);
+        Grid.SetColumn(_favorite, 2); header.Children.Add(_favorite);
+        Grid.SetColumn(Open, 3); header.Children.Add(Open);
+        Grid.SetColumn(Close, 4); header.Children.Add(Close);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -530,14 +533,21 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null, string? threadPosition = null)
     {
         _postLine = postLine; _fileName = fileLine; _detail = detailLine; _postLinkTip = postLinkTip ?? string.Empty;
+        SetThreadPosition(threadPosition);
         RefreshHeader();
         Open.IsEnabled = canOpen;
         Open.IsVisible = true;
         AutomationProperties.SetName(_image, fileLine);
         UpdateFrameCursor();
+    }
+
+    internal void SetThreadPosition(string? text)
+    {
+        _threadPosition.Text = text;
+        _threadPosition.IsVisible = !string.IsNullOrEmpty(text);
     }
 
     /// <summary>The "No." of the header line was clicked (only while the host described the post with a tip, see <see cref="Describe"/>).</summary>

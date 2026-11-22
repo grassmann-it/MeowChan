@@ -693,7 +693,7 @@ internal sealed partial class MediaBadgeView : Control
             Rect target = new(x, bounds.Y + (bounds.Height - icon) / 2, icon, icon);
             if (badge.Icon == MediaBadgeIcons.Untagged) DrawUntagged(context, target);
             else if (badge.Icon.StartsWith(MediaBadgeIcons.LabelPrefix, StringComparison.Ordinal))
-                context.DrawEllipse(new SolidColorBrush(MeowChan.Desktop.MediaLabelText.Of(badge.Icon[MediaBadgeIcons.LabelPrefix.Length..])), null, target.Center, target.Width / 2, target.Height / 2);
+                context.DrawEllipse(new SolidColorBrush(MeowChan.Desktop.MediaLabelText.Of(this, badge.Icon[MediaBadgeIcons.LabelPrefix.Length..])), null, target.Center, target.Width / 2, target.Height / 2);
             else
             {
                 Bitmap mask = MediaBadgeIconBitmaps.Get(badge.Icon);

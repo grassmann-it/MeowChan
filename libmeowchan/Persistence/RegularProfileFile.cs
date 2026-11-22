@@ -1,9 +1,12 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Text;
 using Microsoft.Win32.SafeHandles;
 
 namespace MeowChan.Persistence;
+
+internal sealed class ProfileDocumentTooLargeException() : IOException("The profile document exceeds its size limit.");
 
 /// <summary>
 /// Opens a profile-owned read file without allowing a Unix special file to turn a
@@ -27,6 +30,26 @@ internal static partial class RegularProfileFile
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         return OperatingSystem.IsWindows() ? OpenWindows(path) : OpenUnix(path);
+    }
+
+    internal static string? ReadBoundedText(string path, int maximumBytes)
+    {
+        try
+        {
+            using FileStream file = OpenRead(path);
+            long length = file.Length;
+            if (length > maximumBytes) throw new ProfileDocumentTooLargeException();
+            byte[] bytes = new byte[checked((int)length)];
+            file.ReadExactly(bytes);
+            if (file.ReadByte() != -1 || file.Length != length)
+                throw new InvalidDataException("The profile document changed while it was being read.");
+            // Retain the BOM handling of File.ReadAllText for existing documents.
+            using MemoryStream input = new(bytes, writable: false);
+            using StreamReader reader = new(input, Encoding.UTF8);
+            return reader.ReadToEnd();
+        }
+        catch (FileNotFoundException) { return null; }
+        catch (DirectoryNotFoundException) { return null; }
     }
 
     /// <summary>
