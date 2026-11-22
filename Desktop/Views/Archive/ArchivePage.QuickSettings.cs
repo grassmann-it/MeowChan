@@ -122,7 +122,8 @@ public partial class ArchivePage
             Ellipse dot = new()
             {
                 Width = 7, Height = 7, HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Top,
-                RenderTransform = new TranslateTransform(4, -2), IsHitTestVisible = false, // over the gear's corner without a negative margin Name = "ReaderSettingsDot"
+                RenderTransform = new TranslateTransform(4, -2), IsHitTestVisible = false, // over the gear's corner without a negative margin
+                Name = "ReaderSettingsDot"
             };
             dot[!Shape.FillProperty] = new DynamicResourceExtension("Workspace.Accent");
             dot.Bind(Visual.IsVisibleProperty, new Binding(nameof(ReaderSettingsDot.Active)) { Source = _readerSettingsDot });
