@@ -238,6 +238,71 @@ public sealed class BooruSearchTabPersistenceTests
             Assert.False(File.Exists(path + ".bad"));
         });
 
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void SwitchingTabsUnderReducedLimitsPreservesDeferredTargetsAcrossRestart(bool reopenWithReducedLimits) =>
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            using TempDirectory profile = new();
+            Config config = new() { BooruSavedTabs = 4, BooruSearchTabs = 3 };
+            using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+            {
+                BooruSearchTabStore store = new(lease);
+                store.Write(new BooruSearchTabState(3,
+                [
+                    new(null, null, null, "primary"),
+                    new("danbooru", "test-instance", "42", null),
+                    new(null, null, null, "middle"),
+                    new(null, null, null, "active")
+                ]));
+            }
+
+            if (reopenWithReducedLimits) LowerLimits();
+            using (ProfileLease lease = ProfileLease.Acquire(profile.Path))
+            {
+                BooruSearchTabStore store = new(lease);
+                using BooruPage page = new(WithSource(new BooruUiHarness()));
+                page.View.SearchTabsLimit = () => config.BooruSearchTabs;
+                page.RestoreSearchTabs(store, config);
+                BooruSearchTabs tabs = page.View.SearchTabs;
+                Assert.Equal(reopenWithReducedLimits ? 2 : 4, tabs.Ids.Count);
+                Assert.Equal("active", page.Model.Search.View.ExecutedQuery);
+                LowerLimits();
+                Assert.True(tabs.Select(BooruSearchTabs.PrimaryId));
+                page.FlushSearchTabs();
+                BooruComponentDispatcher.Wait(store.PendingSave);
+            }
+
+            config.BooruSavedTabs = 4;
+            config.BooruSearchTabs = 3;
+            using ProfileLease reopened = ProfileLease.Acquire(profile.Path);
+            BooruSearchTabStore restored = new(reopened);
+            BooruUiHarness offline = new();
+            using BooruPage restoredPage = new(WithSource(offline));
+            restoredPage.View.SearchTabsLimit = () => config.BooruSearchTabs;
+            restoredPage.RestoreSearchTabs(restored, config);
+            BooruSearchTabs restoredTabs = restoredPage.View.SearchTabs;
+            Assert.Equal(BooruSearchTabs.PrimaryId, restoredTabs.ActiveId);
+            Assert.Collection(restoredTabs.Ids,
+                id => Assert.Equal("primary", restoredTabs.ViewOf(id)!.ExecutedQuery),
+                id => Assert.Equal("test-instance", restoredTabs.ViewOf(id)!.InstanceId),
+                id => Assert.Equal("middle", restoredTabs.ViewOf(id)!.ExecutedQuery),
+                id => Assert.Equal("active", restoredTabs.ViewOf(id)!.ExecutedQuery));
+            Assert.True(restoredTabs.Close(restoredTabs.Ids[1]));
+            restoredPage.FlushSearchTabs();
+            BooruComponentDispatcher.Wait(restored.PendingSave);
+            Assert.Equal(new[] { "primary", "middle", "active" }, restored.Read()!.Tabs.Select(tab => tab!.Query));
+            Assert.Equal(0, offline.ProviderRequests);
+
+            void LowerLimits()
+            {
+                config.BooruSavedTabs = 2;
+                config.BooruSearchTabs = 1;
+            }
+        });
+
     [Fact]
     public void TabEditsAreSavedAfterTheDebounceAndOptOutKeepsThePreviousCopy() => BooruComponentDispatcher.Run(() =>
     {

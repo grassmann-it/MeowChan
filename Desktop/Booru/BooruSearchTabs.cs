@@ -25,7 +25,9 @@ internal sealed class BooruSearchTabs
     {
         internal int Id { get; } = id;
         internal BooruSearchView? Snapshot { get; set; }
-        internal BooruSearchTabTarget? UnboundTarget { get; set; }
+        internal BooruSearchTabTarget? SavedTarget { get; init; }
+        internal bool IsDeferred { get; init; }
+        internal bool WasCaptured { get; set; }
     }
 
     internal BooruSearchTabs(BooruSearchModel search, Func<int>? limit = null)
@@ -39,11 +41,11 @@ internal sealed class BooruSearchTabs
 
     internal int ActiveId => _activeId;
     /// <summary>The ids in strip order, the permanent Search tab first.</summary>
-    internal IReadOnlyList<int> Ids { get { List<int> ids = new(_slots.Count); foreach (Slot slot in _slots) ids.Add(slot.Id); return ids; } }
+    internal IReadOnlyList<int> Ids => _slots.Where(slot => !slot.IsDeferred).Select(slot => slot.Id).ToArray();
 
     /// <summary>How many extra tabs may be open (the setting, clamped to its range; read at each use).</summary>
     internal int Limit => Math.Clamp(_limit(), MeowChan.Config.BooruSearchTabsMinimum, MeowChan.Config.BooruSearchTabsMaximum);
-    internal int ExtraCount => _slots.Count - 1;
+    internal int ExtraCount => _slots.Count(slot => !slot.IsDeferred) - 1;
     internal bool CanAdd => ExtraCount < Limit;
 
     /// <summary>The view a tab shows: the live one for the active tab, else the stored one (null: a blank search).</summary>
@@ -58,7 +60,7 @@ internal sealed class BooruSearchTabs
     internal int Add(bool copyCurrent)
     {
         if (!CanAdd) return -1;
-        Slot slot = new(_nextId++) { UnboundTarget = copyCurrent ? Find(_activeId)?.UnboundTarget : null };
+        Slot slot = new(_nextId++) { SavedTarget = copyCurrent ? Find(_activeId)?.SavedTarget : null };
         BooruSearchView? copy = copyCurrent ? _search.View : null;
         Store();
         _slots.Add(slot);
@@ -83,14 +85,14 @@ internal sealed class BooruSearchTabs
     /// <summary>Closes an extra tab; closing the active one activates its left neighbour. The permanent tab is never closed.</summary>
     internal bool Close(int id)
     {
-        int index = _slots.FindIndex(slot => slot.Id == id);
+        int index = _slots.FindIndex(slot => slot.Id == id && !slot.IsDeferred);
         if (id == PrimaryId || index < 0) return false;
         bool wasActive = id == _activeId;
         _search.CancelBulk(id);
         _slots.RemoveAt(index);
         if (wasActive)
         {
-            Slot next = _slots[Math.Max(0, index - 1)];
+            Slot next = _slots[_slots.FindLastIndex(index - 1, slot => !slot.IsDeferred)];
             _activeId = next.Id;
             _search.Restore(next.Snapshot, _activeId);
         }
@@ -101,10 +103,21 @@ internal sealed class BooruSearchTabs
     internal BooruSearchTabState CaptureTargets(int tabLimit = Config.BooruSavedTabsMaximum,
         int resultLimit = Config.BooruSavedResultsPerTabDefault)
     {
-        int activeIndex = _slots.FindIndex(slot => slot.Id == _activeId);
-        int[] indices = RetainedIndices(_slots.Count, activeIndex, Math.Min(tabLimit, Limit + 1));
-        BooruSearchTabTarget?[] targets = Array.ConvertAll(indices, index => CaptureTarget(_slots[index], resultLimit));
-        return new(Array.IndexOf(indices, activeIndex), targets);
+        Slot[] visible = _slots.Where(slot => !slot.IsDeferred).ToArray();
+        int activeIndex = Array.FindIndex(visible, slot => slot.Id == _activeId);
+        int deferredCount = _slots.Count - visible.Length;
+        int visibleLimit = Math.Min(tabLimit, Limit + 1) - deferredCount;
+        Slot[] previouslyCaptured = visible.Where(slot => slot.WasCaptured).ToArray();
+        // A lower limit can take effect while the existing strip is still open.
+        Slot[] retainedVisible = visibleLimit < Math.Max(2, previouslyCaptured.Length) ? previouslyCaptured
+            : Array.ConvertAll(RetainedIndices(visible.Length, activeIndex, visibleLimit), index => visible[index]);
+        HashSet<int> retained = retainedVisible.Select(slot => slot.Id).ToHashSet();
+        foreach (Slot slot in visible) slot.WasCaptured = retained.Contains(slot.Id);
+        // Deferred targets stay in their original order and do not need to be materialized in the search model.
+        Slot[] saved = _slots.Where(slot => slot.IsDeferred || retained.Contains(slot.Id)).ToArray();
+        BooruSearchTabTarget?[] targets = Array.ConvertAll(saved,
+            slot => slot.IsDeferred ? slot.SavedTarget : CaptureTarget(slot, resultLimit));
+        return new(Math.Max(0, Array.FindIndex(saved, slot => slot.Id == _activeId)), targets);
     }
 
     private BooruSearchTabTarget? CaptureTarget(Slot slot, int resultLimit)
@@ -112,7 +125,7 @@ internal sealed class BooruSearchTabs
         if (ViewOf(slot.Id) is not { } view) return null;
         string input = view.Input.Length <= BooruSearchTabTarget.MaximumDraftLength
             ? view.Input : view.Input[..BooruSearchTabTarget.MaximumDraftLength];
-        if (slot.UnboundTarget is { } unbound)
+        if (slot.SavedTarget is { } unbound)
             return unbound with { Mode = view.Mode, Input = input, Rows = unbound.Rows?.Take(resultLimit).ToArray() };
         if (input.Length == 0 && view.Mode == BooruInputMode.Tags && view.ExecutedQuery is null && view.ExecutedPostId is null)
             return null;
@@ -126,19 +139,23 @@ internal sealed class BooruSearchTabs
     internal void RestoreTargets(BooruSearchTabState state, int tabLimit = Config.BooruSavedTabsMaximum,
         int resultLimit = Config.BooruSavedResultsPerTabDefault, SourceDescription? source = null)
     {
-        int[] indices = RetainedIndices(state.Tabs.Length, state.ActiveIndex, Math.Min(tabLimit, Limit + 1));
+        HashSet<int> visible = RetainedIndices(state.Tabs.Length, state.ActiveIndex, Math.Min(tabLimit, Limit + 1))
+            .ToHashSet();
         _slots.Clear();
-        foreach (int index in indices)
+        for (int index = 0; index < state.Tabs.Length; index++)
         {
             BooruSearchTabTarget? target = state.Tabs[index];
-            BooruSearchView? view = target is null ? null : _search.ViewFromTarget(target, resultLimit, source);
+            bool deferred = !visible.Contains(index);
+            BooruSearchView? view = deferred || target is null ? null : _search.ViewFromTarget(target, resultLimit, source);
             _slots.Add(new Slot(index == 0 ? PrimaryId : _nextId++)
             {
+                IsDeferred = deferred,
+                WasCaptured = true,
                 Snapshot = view,
-                UnboundTarget = view?.Status == BooruSearchStatus.Unavailable ? target : null
+                SavedTarget = deferred || view?.Status == BooruSearchStatus.Unavailable ? target : null
             });
         }
-        Slot active = _slots[Array.IndexOf(indices, state.ActiveIndex)];
+        Slot active = _slots[state.ActiveIndex];
         _activeId = active.Id;
         _search.Restore(active.Snapshot, _activeId);
         Changed?.Invoke();
@@ -158,7 +175,7 @@ internal sealed class BooruSearchTabs
         return string.IsNullOrWhiteSpace(view.Input) ? blank : view.Input.Trim();
     }
 
-    private Slot? Find(int id) => _slots.Find(slot => slot.Id == id);
+    private Slot? Find(int id) => _slots.Find(slot => slot.Id == id && !slot.IsDeferred);
 
     private void Store()
     {
