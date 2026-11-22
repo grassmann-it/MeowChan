@@ -15,7 +15,7 @@ public sealed class BooruWorkbenchViewContractTests
         const BindingFlags flags = BindingFlags.Static | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
         FieldInfo[] viewNames = typeof(BooruWorkbenchView).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
         FieldInfo[] windowNames = typeof(BooruWorkbenchWindow).GetFields(flags).Where(field => field.IsLiteral && field.FieldType == typeof(string)).ToArray();
-        Assert.Equal(58, viewNames.Length); // Search guidance now belongs to the existing input selector.
+        Assert.Equal(58, viewNames.Length);
         Assert.Equal(viewNames.Select(field => field.Name).Order(), windowNames.Select(field => field.Name).Order());
         foreach (FieldInfo field in viewNames)
         {
@@ -146,10 +146,11 @@ public sealed class BooruWorkbenchViewContractTests
     public void FocusRecoveryAndPreviewBoundsSurviveTheNewVisualOwner()
     {
         string view = ViewSource();
-        Assert.Contains("TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement()", view);
+        Assert.Contains("var focusManager = TopLevel.GetTopLevel(this)?.FocusManager;", view);
+        Assert.Contains("focusManager?.GetFocusedElement()", view);
         Assert.Contains("ReferenceEquals(focused, TopLevel.GetTopLevel(this))", view);
         Assert.Contains("TopLevel.GetTopLevel(this)?.Clipboard", view);
-        Assert.Contains("if (_closed) return;\n            Control? target", view.Replace("\r\n", "\n"));
+        Assert.Contains("if (_closed || !ReferenceEquals(focusAfterRebuild, focusManager?.GetFocusedElement())) return;", view);
         Assert.Contains("bytes.Length > MaximumPreviewBytes", view);
         Assert.Contains("(long)codec.Info.Width * codec.Info.Height > 40_000_000", view);
         Assert.Contains("if (cached is not null) cached.Bitmap.Dispose();", view);

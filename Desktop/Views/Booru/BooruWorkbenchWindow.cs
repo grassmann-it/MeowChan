@@ -17,7 +17,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal const string SubmitName = BooruWorkbenchView.SubmitName;
     internal const string CancelName = BooruWorkbenchView.CancelName;
     internal const string RetryName = BooruWorkbenchView.RetryName;
-    internal const string QueryName = BooruWorkbenchView.QueryName;
+    internal const string SearchHelpName = BooruWorkbenchView.SearchHelpName;
     internal const string StatusName = BooruWorkbenchView.StatusName;
     internal const string PreviousName = BooruWorkbenchView.PreviousName;
     internal const string NextName = BooruWorkbenchView.NextName;
@@ -86,7 +86,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
 
         _view = new BooruWorkbenchView(model, ownsModel, (header, body, footer) =>
             DialogFrame.Build(header, new Border { Child = body, Classes = { "workspace-dialog-body" } },
-                BuildFooter(footer), DialogFrame.ErrorStrip(new TextBlock())));
+                BuildFooter(footer), DialogFrame.ErrorStrip(new TextBlock()), fillBody: true));
         DialogWindow.Frame(this, _view, modal: false);
         _view.ChromeChanged += OnChromeChanged;
         OnChromeChanged();

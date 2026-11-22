@@ -42,7 +42,7 @@ public sealed class BooruPageHostContractTests
         ScrollViewer scroll = Assert.IsType<ScrollViewer>(surface.Child);
         Assert.Same(view.Body, scroll.Content);
         Assert.Equal(ScrollBarVisibility.Disabled, scroll.HorizontalScrollBarVisibility);
-        Assert.Equal(ScrollBarVisibility.Auto, scroll.VerticalScrollBarVisibility);
+        Assert.Equal(ScrollBarVisibility.Disabled, scroll.VerticalScrollBarVisibility);
         Assert.Same(view.Footer, notes.Child);
         Assert.Equal(0, Grid.GetRow(heading));
         Assert.Equal(1, Grid.GetRow(surface));
@@ -59,7 +59,7 @@ public sealed class BooruPageHostContractTests
         TabControl tabs = Assert.IsType<TabControl>(page.View.Body);
         Assert.Equal(BooruWorkbenchView.TabsName, tabs.Name);
         TabItem[] segments = Assert.IsType<TabItem[]>(tabs.ItemsSource);
-        Assert.Equal(2, segments.Length);
+        Assert.Single(segments);
         Control search = Assert.IsAssignableFrom<Control>(Assert.Single(segments, tab => tab.Tag is BooruSearchTabs.PrimaryId).Content);
         page.View.ShowWatchers();
         TabItem watchersTab = Assert.IsType<TabItem>(tabs.SelectedItem);
@@ -71,7 +71,7 @@ public sealed class BooruPageHostContractTests
         // cards remain the view's responsibility and are covered by the existing workbench checks.
         foreach (string name in new[] { BooruWorkbenchView.ModeName, BooruWorkbenchView.InputName,
             BooruWorkbenchView.SubmitName, BooruWorkbenchView.CancelName, BooruWorkbenchView.RetryName,
-            BooruWorkbenchView.QueryName, BooruWorkbenchView.StatusName, BooruWorkbenchView.PreviousName,
+            BooruWorkbenchView.StatusName, BooruWorkbenchView.PreviousName,
             BooruWorkbenchView.NextName, BooruWorkbenchView.CreateWatcherName, BooruWorkbenchView.ResultsName,
             BooruWorkbenchView.WatchersName, BooruWorkbenchView.RemoveNoteName,
             BooruWorkbenchView.LinkNoteName, BooruWorkbenchView.InputIssueName, BooruWorkbenchView.NoticeName,

@@ -1,4 +1,5 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Interactivity;
@@ -184,9 +185,10 @@ internal static class BooruCompositionChecks
                 "Navigation, hide/show, replacement or service loss submitted work.");
 
             // ---- search through the real adapter, worker and bounded transport ----------------------------------------------
-            Find<TextBox>(page, BooruWorkbenchView.InputName).Text = "cat_ears";
-            await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text == "Query sent to Danbooru: cat_ears",
-                () => "query line: " + Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text);
+            TextBox searchInput = Find<TextBox>(page, BooruWorkbenchView.InputName);
+            searchInput.Text = "cat_ears";
+            await Program.WaitUntilAsync(() => AutomationProperties.GetHelpText(searchInput)!.Contains("Draft: cat_ears"),
+                () => "the composed workbench did not show the unsent query as a draft");
             int previousSearchTab = page.View.SearchTabs.ActiveId;
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             Require(page.View.SearchTabs.ActiveId != previousSearchTab && page.View.SearchTabs.ExtraCount == 1,

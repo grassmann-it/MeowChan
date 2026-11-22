@@ -101,18 +101,19 @@ internal static partial class BooruWorkbenchChecks
             // This state walkthrough deliberately reuses a single search tab.
             page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
             await CheckSearchRowResizeAsync(owner, h, shots);
+            await CheckLiveGalleryAsync(owner);
             await CheckTabStripAsync(owner, page, shots);
             await CheckInvalidInputAsync(page, input);
             input.Text = "cat blue_eyes";
-            await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text == "Query sent to Danbooru: cat blue_eyes",
-                () => "query line: " + Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text);
-            Require(Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).IsVisible, "The first query must be visible before submission.");
+            await Program.WaitUntilAsync(() => AutomationProperties.GetHelpText(input)!.Contains("Draft: cat blue_eyes"),
+                () => "the unsent query was not shown as a draft");
+            Require(!AutomationProperties.GetHelpText(input)!.Contains("Query sent to Danbooru"), "The draft was shown as a submitted query.");
             Require(h.Search.Requests == 0, "Typing into the field sent a request.");
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 3 && Previews(page) == 3,
                 () => "cards=" + Cards(page, "BooruResult:").Count + " previews=" + Previews(page));
             Require(h.Search.Searches.Single() == ("cat blue_eyes", 1), "The search did not send the exact query.");
-            Require(!Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).IsVisible
+            Require(!AutomationProperties.GetHelpText(input)!.Contains("Draft:")
                 && AutomationProperties.GetHelpText(input)!.Contains("Query sent to Danbooru: cat blue_eyes")
                 && AutomationProperties.GetHelpText(input)!.Contains(Texts.T("booru.ui.query.hint")),
                 "The submitted query and syntax guidance must remain in the search field's accessible help.");
@@ -176,6 +177,9 @@ internal static partial class BooruWorkbenchChecks
             Click(chips101[0]);
             Click(Find<Button>(page, BooruWorkbenchView.ResultTagPrefix + "101:cat"));
             await Program.WaitUntilAsync(() => input.Text == "sky cat" && page.Model.Search.View.Input == "sky cat", () => "chips did not fill the field: " + input.Text);
+            await Program.WaitUntilAsync(() => AutomationProperties.GetHelpText(input)!.Contains("Draft: sky cat")
+                && AutomationProperties.GetHelpText(input)!.Contains("Query sent to Danbooru: cat blue_eyes"),
+                () => "the draft replaced the executed query in search help");
             Click(Find<Button>(page, BooruWorkbenchView.ResultTagPrefix + "101:cat"));
             await Program.WaitUntilAsync(() => Text(page).Contains("cat is already in the search."), () => "duplicate note missing");
             Require(h.Search.Requests == 1, "A tag chip sent a request.");
@@ -246,11 +250,13 @@ internal static partial class BooruWorkbenchChecks
             // ---- one-shot by post link --------------------------------------------------------------------------------------
             h.Search.OnPost = null;
             input.Text = "https://danbooru.donmai.us/posts/4242";
-            await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text!.Contains("#4242"),
-                () => "post line missing");
+            await Program.WaitUntilAsync(() => AutomationProperties.GetHelpText(input)!.Contains("Draft: #4242"),
+                () => "the unsent post ID was not shown as a draft");
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 1 && Text(page).Contains("Post #4242"), () => "one-shot card missing");
             Require(h.Search.PostReads.Single() == "4242", "The post link was not read as a single post.");
+            Require(AutomationProperties.GetHelpText(input)!.Contains("Post requested from Danbooru: #4242"),
+                "The looked-up post was not shown as requested.");
             Button createWatcher = Find<Button>(page, BooruWorkbenchView.CreateWatcherName);
             RequireWatcherBlock(createWatcher, "booru.ui.watcher.createNeedsTags");
             Click(Find<Button>(page, BooruWorkbenchView.LoadPrefix + "4242"));
@@ -266,8 +272,8 @@ internal static partial class BooruWorkbenchChecks
             await Program.WaitUntilAsync(() => page.Model.Search.View.Mode == BooruInputMode.Tags,
                 () => "mode switch failed; before: " + before + "; after combo=" + modeBox.SelectedIndex + " model=" + page.Model.Search.View.Mode);
             input.Text = "solo moon";
-            await Program.WaitUntilAsync(() => Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text == "Query sent to Danbooru: solo moon",
-                () => "query line after the mode switch: " + Find<SelectableTextBlock>(page, BooruWorkbenchView.QueryName).Text);
+            await Program.WaitUntilAsync(() => AutomationProperties.GetHelpText(input)!.Contains("Draft: solo moon"),
+                () => "the unsent tag query was not shown after the mode switch");
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             await Program.WaitUntilAsync(() => Cards(page, "BooruResult:").Count == 2, () => "second search not shown: cards=" + Cards(page, "BooruResult:").Count + " status=" + BooruText.SearchStatus(page.Model.Search.View, false) + " model=" + page.Model.Search.View.Status + "/" + page.Model.Search.View.Mode + "/" + page.Model.Search.View.Input);
             TaskCompletionSource createGate = new(TaskCreationOptions.RunContinuationsAsynchronously);

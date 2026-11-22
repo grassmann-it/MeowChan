@@ -1538,15 +1538,16 @@
         </Setter>
         <Setter Property="Template">
             <ControlTemplate>
-                <Grid RowDefinitions="Auto,*">
-                    <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <Grid RowDefinitions="Auto,*" ColumnDefinitions="*,Auto">
+                    <ScrollViewer Name="BooruTabStrip" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                         <Grid>
                             <Border Background="{DynamicResource Workspace.Background}" BorderBrush="{DynamicResource Workspace.Border}"
                                     BorderThickness="0,0,0,1" />
                             <ItemsPresenter Name="PART_ItemsPresenter" ItemsPanel="{TemplateBinding ItemsPanel}" />
                         </Grid>
                     </ScrollViewer>
-                    <ContentPresenter Grid.Row="1" Name="PART_SelectedContentHost"
+                    <ContentControl Grid.Column="1" Name="BooruAddTabHost" VerticalAlignment="Top" />
+                    <ContentPresenter Grid.Row="1" Grid.ColumnSpan="2" Name="PART_SelectedContentHost"
                                       Background="{DynamicResource Workspace.Panel}"
                                       Content="{TemplateBinding SelectedContent}" ContentTemplate="{TemplateBinding SelectedContentTemplate}" />
                 </Grid>
@@ -1576,21 +1577,16 @@
             </ControlTemplate>
         </Setter>
     </Style>
-    <Style Selector="TabItem.booru-tab:pointerover:not(:selected):not(.booru-add-tab)">
+    <Style Selector="TabItem.booru-tab:pointerover:not(:selected)">
         <Setter Property="Background" Value="{DynamicResource Workspace.Hover}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
     </Style>
-    <Style Selector="TabItem.booru-tab:selected:not(.booru-add-tab)">
+    <Style Selector="TabItem.booru-tab:selected">
         <Setter Property="Background" Value="{DynamicResource Workspace.Panel}" />
         <Setter Property="BorderThickness" Value="1,1,1,0" />
     </Style>
-    <Style Selector="TabItem.booru-tab:selected:not(.booru-add-tab) /template/ Border#BooruTabSelection">
+    <Style Selector="TabItem.booru-tab:selected /template/ Border#BooruTabSelection">
         <Setter Property="IsVisible" Value="True" />
-    </Style>
-    <Style Selector="TabItem.booru-add-tab">
-        <Setter Property="Background" Value="Transparent" />
-        <Setter Property="BorderThickness" Value="0" />
-        <Setter Property="Padding" Value="0" />
     </Style>
     <Style Selector="Button.booru-add-tab-button">
         <Setter Property="Width" Value="44" />
@@ -2432,6 +2428,14 @@
     <!-- A card the keyboard reaches (Booru hit): the shared double focus ring, drawn only for keyboard focus (Avalonia shows the adorner for Tab and arrow focus). -->
     <Style Selector="Border.workspace-card-focusable">
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
+    </Style>
+    <Style Selector="Border.booru-stage-focus">
+        <Setter Property="IsVisible" Value="False" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="Border.booru-stage:focus-visible Border.booru-stage-focus">
+        <Setter Property="IsVisible" Value="True" />
     </Style>
     <Style Selector="Border.workspace-card.workspace-card-active">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" /><Setter Property="BorderBrush" Value="{DynamicResource Workspace.Accent}" />

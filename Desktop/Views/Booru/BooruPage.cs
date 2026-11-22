@@ -86,7 +86,7 @@ internal sealed class BooruPage : UserControl, IDisposable
     private static Control BuildPageLayout(Control header, Control body, Control footer)
     {
         // The existing parts retain every content name and action. Only the host layout changes:
-        // normal page insets, an independently scrolling body, and the workbench's notes below.
+        // normal page insets, a bounded body for the results viewport, and the workbench's notes below.
         Grid layout = new() { Name = "BooruPageLayout", RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         header.Classes.Add("workspace-page-header");
         Border heading = new() { Name = "BooruPageHeader", Child = header, Margin = new Thickness(12, 8, 12, 4) };
@@ -94,7 +94,7 @@ internal sealed class BooruPage : UserControl, IDisposable
         {
             Name = "BooruPageScroll", Content = body, Padding = new Thickness(12),
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         Border surface = new()
         {
