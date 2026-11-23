@@ -2929,7 +2929,7 @@
     "booru.ui.command.open": "Ricerca e monitoraggi Danbooru…",
     "booru.ui.intro": "Cerca su Danbooru, carica un singolo post o monitora una ricerca per i nuovi post. Non viene inviata alcuna richiesta finché non premi un pulsante.",
     "booru.ui.provider": "Provider: {0} (pubblico, sola lettura)",
-    "booru.ui.noFilterNote": "I risultati appaiono esattamente come Danbooru li restituisce per i tuoi tag. MeowChan non aggiunge filtri di classificazione né termini di ricerca extra. Gli originali che carichi usano la normale coda di download.",
+    "booru.ui.noFilterNote": "MeowChan non aggiunge termini di ricerca né filtri di classificazione alle richieste al fornitore. I filtri locali cambiano solo quali risultati caricati sono visibili. Gli originali usano la normale coda di download.",
     "booru.ui.tab.search": "Ricerca",
     "booru.ui.tab.watchers": "Monitoraggi ({0})",
     "booru.ui.mode.label": "Tipo di input",
@@ -5271,6 +5271,20 @@
     "booru.bulk.endLimit": "È stato raggiunto il limite di pagine della fonte; la ricerca può avere altri risultati che non si possono elencare.",
     "booru.bulk.endEnd": "La fonte non ha segnalato altri risultati dopo questi.",
     "booru.bulk.endBlocked": "La fonte ha smesso di rispondere (pausa, limite di frequenza, offline o errore); il resto non è stato elencato. Riprova più tardi.",
-    "booru.bulk.endCanceled": "Interrotto da te; il resto non è stato elencato. Ciò che è in coda resta in coda."
+    "booru.bulk.endCanceled": "Interrotto da te; il resto non è stato elencato. Ciò che è in coda resta in coda.",
+    "booru.filter.title": "Filtri locali",
+    "booru.filter.hint": "Viene filtrata solo la pagina caricata. Nessuna richiesta viene inviata al fornitore. I monitoraggi e «Scarica tutto da questa ricerca» continuano a usare la ricerca completa.",
+    "booru.filter.rating": "Classificazione",
+    "booru.filter.media": "Tipo di contenuto",
+    "booru.filter.all": "Tutti",
+    "booru.filter.score": "Punteggio minimo",
+    "booru.filter.tags": "Filtri per tag",
+    "booru.filter.tagsHint": "Selezionato: richiedi il tag. Vuoto: escludi il tag. Trattino: ignora il tag. Tutte le condizioni devono essere soddisfatte; un punteggio mancante non soddisfa il minimo.",
+    "booru.filter.count": "{0} di {1} visibili",
+    "booru.filter.empty": "Nessun risultato caricato corrisponde a questi filtri locali. Reimposta i filtri per mostrare la pagina caricata.",
+    "booru.filter.audio": "Suono",
+    "booru.filter.animation": "Animazioni",
+    "settings.booruPostFilterScore": "Booru: punteggio minimo iniziale",
+    "settings.booruPostFilterScore.hint": "Punteggio iniziale quando attivi un filtro locale per punteggio minimo. Predefinito: {0}. I filtri sono inizialmente disattivati e mantenuti separatamente per ogni scheda di ricerca durante la sessione."
   }
 }

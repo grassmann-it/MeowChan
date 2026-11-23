@@ -2942,7 +2942,7 @@
     "booru.ui.command.open": "Hledání a sledování Danbooru…",
     "booru.ui.intro": "Prohledávejte Danbooru, načtěte jeden příspěvek nebo sledujte hledání kvůli novým příspěvkům. Dokud nestisknete tlačítko, nic se nepožaduje.",
     "booru.ui.provider": "Poskytovatel: {0} (veřejný, jen pro čtení)",
-    "booru.ui.noFilterNote": "Výsledky se zobrazují přesně tak, jak je Danbooru pro vaše štítky vrací. MeowChan nepřidává žádný filtr hodnocení ani další výrazy hledání. Načtené originály používají běžnou frontu stahování.",
+    "booru.ui.noFilterNote": "MeowChan do požadavků poskytovateli nepřidává další hledané výrazy ani filtr hodnocení. Místní filtry mění pouze viditelnost načtených výsledků. Stahované originály používají běžnou frontu stahování.",
     "booru.ui.tab.search": "Hledání",
     "booru.ui.tab.watchers": "Sledování ({0})",
     "booru.ui.mode.label": "Typ vstupu",
@@ -5313,6 +5313,20 @@
     "booru.bulk.endLimit": "Bylo dosaženo limitu stránek zdroje; hledání může mít další výsledky, které nelze vypsat.",
     "booru.bulk.endEnd": "Zdroj po těchto nehlásil žádné další výsledky.",
     "booru.bulk.endBlocked": "Zdroj přestal odpovídat (pauza, limit četnosti, offline nebo chyba); zbytek nebyl vypsán. Zkuste to později.",
-    "booru.bulk.endCanceled": "Zastaveno vámi; zbytek nebyl vypsán. Co už je ve frontě, ve frontě zůstává."
+    "booru.bulk.endCanceled": "Zastaveno vámi; zbytek nebyl vypsán. Co už je ve frontě, ve frontě zůstává.",
+    "booru.filter.title": "Místní filtry",
+    "booru.filter.hint": "Filtruje se pouze načtená stránka. Poskytovateli se neodesílá žádný požadavek. Sledování a „Stáhnout vše z tohoto hledání“ nadále používají celé hledání.",
+    "booru.filter.rating": "Hodnocení obsahu",
+    "booru.filter.media": "Typ média",
+    "booru.filter.all": "Vše",
+    "booru.filter.score": "Minimální skóre",
+    "booru.filter.tags": "Filtry štítků",
+    "booru.filter.tagsHint": "Zaškrtnuto: vyžadovat štítek. Prázdné: vyloučit štítek. Pomlčka: ignorovat štítek. Musí platit všechny podmínky; chybějící skóre nesplňuje minimum.",
+    "booru.filter.count": "Zobrazeno {0} z {1}",
+    "booru.filter.empty": "Žádné načtené výsledky neodpovídají místním filtrům. Obnovte filtry pro zobrazení načtené stránky.",
+    "booru.filter.audio": "Zvuk",
+    "booru.filter.animation": "Animace",
+    "settings.booruPostFilterScore": "Booru: výchozí minimální skóre",
+    "settings.booruPostFilterScore.hint": "Počáteční skóre při zapnutí místního filtru minimálního skóre. Výchozí: {0}. Filtry jsou zpočátku vypnuté a v této relaci se uchovávají zvlášť pro každou kartu hledání."
   }
 }

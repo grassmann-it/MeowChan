@@ -140,6 +140,7 @@ public partial class SettingsEditor
         ResetNumber(MediaTagListTopInput, MediaTagListTop.Value);
         BooruResultTagsShown = config.BooruResultTagsShown;
         ResetNumber(BooruResultTagsShownInput, BooruResultTagsShown.Value);
+        LoadBooruPostFilterDraft(config);
         BooruSearchTabs = config.BooruSearchTabs;
         ResetNumber(BooruSearchTabsInput, BooruSearchTabs.Value);
         MediaPageLayout layout = MediaPageLayout.Parse(config.MediaLayout, config.MediaBooruMode);
@@ -166,6 +167,7 @@ public partial class SettingsEditor
         candidate.TagQueueConfirmAbove = GetInteger(TagQueueConfirmAbove, TagQueueConfirmAboveLabel, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum);
         candidate.MediaTagListTop = GetInteger(MediaTagListTop, MediaTagListTopLabel, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum);
         candidate.BooruResultTagsShown = GetInteger(BooruResultTagsShown, BooruResultTagsShownLabel, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum);
+        ApplyBooruPostFilterDraft(candidate);
         candidate.BooruSearchTabs = GetInteger(BooruSearchTabs, BooruSearchTabsLabel, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum);
         int tagListWidth = GetInteger(MediaTagListWidth, MediaTagListWidthLabel, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum);
         int panelWidth = GetInteger(MediaPanelWidth, MediaPanelWidthLabel, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum);
@@ -186,6 +188,7 @@ public partial class SettingsEditor
         yield return (TagQueueConfirmAboveInput, TagQueueConfirmAbove, TagQueueConfirmAboveLabel, string.Empty, Config.TagQueueConfirmAboveMinimum, Config.TagQueueConfirmAboveMaximum, true);
         yield return (MediaTagListTopInput, MediaTagListTop, MediaTagListTopLabel, string.Empty, Config.MediaTagListTopMinimum, Config.MediaTagListTopMaximum, true);
         yield return (BooruResultTagsShownInput, BooruResultTagsShown, BooruResultTagsShownLabel, string.Empty, Config.BooruResultTagsShownMinimum, Config.BooruResultTagsShownMaximum, true);
+        yield return (BooruPostFilterScoreInput, BooruPostFilterScore, BooruPostFilterScoreLabel, string.Empty, Config.BooruPostFilterScoreMinimum, Config.BooruPostFilterScoreMaximum, true);
         yield return (BooruSearchTabsInput, BooruSearchTabs, BooruSearchTabsLabel, string.Empty, Config.BooruSearchTabsMinimum, Config.BooruSearchTabsMaximum, true);
         yield return (MediaTagListWidthInput, MediaTagListWidth, MediaTagListWidthLabel, string.Empty, Config.MediaTagListWidthMinimum, Config.MediaTagListWidthMaximum, true);
         yield return (MediaPanelWidthInput, MediaPanelWidth, MediaPanelWidthLabel, string.Empty, Config.MediaPanelWidthMinimum, Config.MediaPanelWidthMaximum, true);
@@ -206,6 +209,7 @@ public partial class SettingsEditor
         nameof(TagQueueConfirmAboveLabel), nameof(TagQueueConfirmAboveHint), nameof(TagQueueConfirmAboveHelp),
         nameof(MediaTagListTopLabel), nameof(MediaTagListTopHint), nameof(MediaTagListTopHelp),
         nameof(BooruResultTagsShownLabel), nameof(BooruResultTagsShownHint), nameof(BooruResultTagsShownHelp),
+        nameof(BooruPostFilterScoreLabel), nameof(BooruPostFilterScoreHint), nameof(BooruPostFilterScoreHelp),
         nameof(BooruSearchTabsLabel), nameof(BooruSearchTabsHint), nameof(BooruSearchTabsHelp),
         nameof(MediaTagListWidthLabel), nameof(MediaTagListWidthHint), nameof(MediaTagListWidthHelp),
         nameof(MediaPanelWidthLabel), nameof(MediaPanelWidthHint), nameof(MediaPanelWidthHelp),
@@ -215,6 +219,6 @@ public partial class SettingsEditor
     {
         nameof(TagQueueLimitHelp), nameof(TagQueueFileLimitMiBHelp), nameof(TagQueueHistoryHelp),
         nameof(TagQueueGroupLimitHelp), nameof(TagQueueGroupNameLimitHelp), nameof(TagQueueConfirmAboveHelp),
-        nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(BooruSearchTabsHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
+        nameof(BooruPostFilterScoreHelp), nameof(MediaTagListTopHelp), nameof(BooruResultTagsShownHelp), nameof(BooruSearchTabsHelp), nameof(MediaTagListWidthHelp), nameof(MediaPanelWidthHelp), nameof(MediaPanelMinimumPageWidthHelp),
     };
 }

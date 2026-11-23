@@ -1626,6 +1626,18 @@
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <TextBlock x:Name="BooruPostFilterScoreFieldLabel" Text="{Binding BooruPostFilterScoreLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding BooruPostFilterScoreHint}" Classes="workspace-help" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
+                                <desktop:SettingsNumberInput x:Name="BooruPostFilterScoreInput" Value="{Binding BooruPostFilterScore, Mode=TwoWay}" Minimum="{Binding BooruPostFilterScoreMinimum}" Maximum="{Binding BooruPostFilterScoreMaximum}" Increment="1" AutomationProperties.LabeledBy="{Binding ElementName=BooruPostFilterScoreFieldLabel}" AutomationProperties.Name="{Binding BooruPostFilterScoreLabel}" AutomationProperties.HelpText="{Binding BooruPostFilterScoreHelp}" />
+                                <TextBlock x:Name="BooruPostFilterScoreInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                    <Border Classes="settings-divider">
+                        <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
+                            <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                 <TextBlock x:Name="MediaTagListWidthFieldLabel" Text="{Binding MediaTagListWidthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                 <TextBlock Text="{Binding MediaTagListWidthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                             </StackPanel>

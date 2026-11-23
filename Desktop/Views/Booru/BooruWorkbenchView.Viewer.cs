@@ -27,7 +27,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
     internal bool OpenResultViewer(string postId)
     {
         if (_closed || TopLevel.GetTopLevel(this) is not Window owner
-            || !_model.Search.View.Rows.Any(row => row.Post.PostId == postId)) return false;
+            || !_model.Search.View.VisibleRows.Any(row => row.Post.PostId == postId)) return false;
         _resultViewer?.Close();
         BooruResultViewerWindow viewer = new(_model.Search, postId, _selectedResults, () => Render(force: true));
         _resultViewer = viewer;

@@ -58,7 +58,7 @@ namespace MeowChan
     internal enum SettingsLoadProblem { None, RecoveredFromBackup, DefaultsInUse }
     internal enum ProfileOrigin { Unbound, ConfirmedNew, ExistingValid, BackupRecovery, ExistingMissingSettings, Damaged, Unsupported }
 
-    public class Config : IJsonOnDeserializing, IJsonOnDeserialized
+    public partial class Config : IJsonOnDeserializing, IJsonOnDeserialized
     {
         private string? _profileDirectory;
         private ProfileLease? _writeLease;
@@ -1679,6 +1679,7 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(MediaTagListTop), "MediaTagListTop is outside its supported range (" + MediaTagListTopMinimum + " to " + MediaTagListTopMaximum + ").");
             if (BooruResultTagsShown is < BooruResultTagsShownMinimum or > BooruResultTagsShownMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruResultTagsShown), "BooruResultTagsShown is outside its supported range (" + BooruResultTagsShownMinimum + " to " + BooruResultTagsShownMaximum + ").");
+            ValidateBooruPostFilter();
             if (BooruSearchTabs is < BooruSearchTabsMinimum or > BooruSearchTabsMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruSearchTabs), "BooruSearchTabs is outside its supported range (" + BooruSearchTabsMinimum + " to " + BooruSearchTabsMaximum + ").");
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
@@ -1942,6 +1943,7 @@ namespace MeowChan
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
                 BooruSearchTabs = BooruSearchTabs,
+                BooruPostFilterScore = BooruPostFilterScore,
                 MediaPanelMinimumPageWidth = MediaPanelMinimumPageWidth,
                 ProfileRegistryLimit = ProfileRegistryLimit,
                 TagQueueWalkWindow = TagQueueWalkWindow,
@@ -2218,6 +2220,7 @@ namespace MeowChan
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruSearchTabs = source.BooruSearchTabs;
+            BooruPostFilterScore = source.BooruPostFilterScore;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;
@@ -2448,6 +2451,7 @@ namespace MeowChan
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
             BooruSearchTabs = source.BooruSearchTabs;
+            BooruPostFilterScore = source.BooruPostFilterScore;
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth;
             ProfileRegistryLimit = source.ProfileRegistryLimit;
             TagQueueWalkWindow = source.TagQueueWalkWindow;

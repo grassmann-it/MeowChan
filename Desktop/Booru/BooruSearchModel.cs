@@ -14,7 +14,7 @@ internal enum BooruSearchStatus
 }
 
 /// <summary>Immutable snapshot of the search tab. Views render it; tests assert on it.</summary>
-internal sealed record BooruSearchView(
+internal sealed partial record BooruSearchView(
     string ProviderId,
     string ProviderName,
     BooruInputMode Mode,

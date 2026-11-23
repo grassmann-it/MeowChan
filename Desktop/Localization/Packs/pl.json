@@ -2943,7 +2943,7 @@
     "booru.ui.command.open": "Wyszukiwanie i obserwacje Danbooru…",
     "booru.ui.intro": "Przeszukuj Danbooru, wczytaj pojedynczy post lub obserwuj wyszukiwanie pod kątem nowych postów. Żadne żądanie nie jest wysyłane, dopóki nie naciśniesz przycisku.",
     "booru.ui.provider": "Dostawca: {0} (publiczny, tylko do odczytu)",
-    "booru.ui.noFilterNote": "Wyniki są wyświetlane dokładnie tak, jak Danbooru zwraca je dla Twoich tagów. MeowChan nie dodaje filtra ocen ani dodatkowych wyrażeń. Wczytywane oryginały trafiają do zwykłej kolejki pobierania.",
+    "booru.ui.noFilterNote": "MeowChan nie dodaje terminów wyszukiwania ani filtra klasyfikacji do żądań dostawcy. Filtry lokalne zmieniają tylko widoczność wczytanych wyników. Oryginały korzystają ze zwykłej kolejki pobierania.",
     "booru.ui.tab.search": "Wyszukiwanie",
     "booru.ui.tab.watchers": "Obserwacje ({0})",
     "booru.ui.mode.label": "Rodzaj danych",
@@ -5314,6 +5314,20 @@
     "booru.bulk.endLimit": "Osiągnięto limit stron źródła; wyszukiwanie może mieć więcej wyników, których nie da się wylistować.",
     "booru.bulk.endEnd": "Źródło nie zgłosiło dalszych wyników po tych.",
     "booru.bulk.endBlocked": "Źródło przestało odpowiadać (pauza, limit zapytań, brak sieci lub błąd); reszta nie została wylistowana. Spróbuj później.",
-    "booru.bulk.endCanceled": "Zatrzymane przez Ciebie; reszta nie została wylistowana. Co trafiło do kolejki, tam zostaje."
+    "booru.bulk.endCanceled": "Zatrzymane przez Ciebie; reszta nie została wylistowana. Co trafiło do kolejki, tam zostaje.",
+    "booru.filter.title": "Filtry lokalne",
+    "booru.filter.hint": "Filtrowana jest tylko wczytana strona. Żadne żądanie nie jest wysyłane do dostawcy. Obserwowane wyszukiwania i „Pobierz wszystko z tego wyszukiwania” nadal korzystają z całego wyszukiwania.",
+    "booru.filter.rating": "Klasyfikacja",
+    "booru.filter.media": "Typ multimediów",
+    "booru.filter.all": "Wszystkie",
+    "booru.filter.score": "Minimalny wynik",
+    "booru.filter.tags": "Filtry tagów",
+    "booru.filter.tagsHint": "Zaznaczone: wymagaj tagu. Puste: wyklucz tag. Kreska: ignoruj tag. Wszystkie warunki muszą być spełnione; brak wyniku nie spełnia minimum.",
+    "booru.filter.count": "Widoczne: {0} z {1}",
+    "booru.filter.empty": "Żaden wczytany wynik nie pasuje do tych filtrów lokalnych. Zresetuj filtry, aby wyświetlić wczytaną stronę.",
+    "booru.filter.audio": "Dźwięk",
+    "booru.filter.animation": "Animacje",
+    "settings.booruPostFilterScore": "Booru: początkowy minimalny wynik",
+    "settings.booruPostFilterScore.hint": "Początkowy wynik po włączeniu lokalnego filtra minimalnego wyniku. Domyślnie: {0}. Filtry są początkowo wyłączone i zachowywane osobno dla każdej karty wyszukiwania w tej sesji."
   }
 }

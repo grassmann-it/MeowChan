@@ -383,6 +383,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(BuildBulkStatus());
         tab.Children.Add(_statusHost);
         tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
+        tab.Children.Add(BuildPostFilters());
         tab.Children.Add(_results);
         tab.Children.Add(BuildBottomBar()); // result line and pager under the list
         tab.Children.Add(_pageLimit);
@@ -605,6 +606,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _pageLimit.IsVisible = view.PageLimitReached;
         _pageLimit.Text = Texts.T("booru.ui.page.limit", BooruSearchModel.MaximumPage, BooruSearchModel.PageSize);
         RenderResultViewBar(view);
+        view = RenderPostFilters(view);
 
         string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, string.Join('|',
             view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}:{_expandedTagPosts.Contains(row.Post.PostId)}:{TagsShown()}")));

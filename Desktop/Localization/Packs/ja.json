@@ -3125,7 +3125,7 @@
     "booru.ui.command.open": "Danbooruの検索と監視…",
     "booru.ui.intro": "Danbooruを検索する、単一の投稿を読み込む、または検索を監視して新しい投稿を待ちます。ボタンを押すまで何もリクエストしません。",
     "booru.ui.provider": "プロバイダー: {0}（公開、読み取り専用）",
-    "booru.ui.noFilterNote": "結果はDanbooruが指定したタグに対して返したとおりに表示されます。MeowChanは評価フィルターも追加の検索語も加えません。読み込んだオリジナルは通常のダウンロードキューを使います。",
+    "booru.ui.noFilterNote": "MeowChanはプロバイダーへのリクエストに検索語やレーティングフィルターを追加しません。ローカルフィルターは読み込み済みの結果の表示だけを変更します。オリジナルのダウンロードには通常のキューを使用します。",
     "booru.ui.tab.search": "検索",
     "booru.ui.tab.watchers": "監視（{0}）",
     "booru.ui.mode.label": "入力の種類",
@@ -5163,6 +5163,20 @@
     "booru.bulk.endLimit": "取得元のページ上限に達しました。検索にはまだ一覧にできない結果がある可能性があります。",
     "booru.bulk.endEnd": "取得元は、これ以降の結果はないと伝えました。",
     "booru.bulk.endBlocked": "取得元が応答しなくなりました（一時停止、レート制限、オフライン、またはエラー）。残りは一覧にしていません。後でもう一度お試しください。",
-    "booru.bulk.endCanceled": "ユーザーが停止しました。残りは一覧にしていません。キューに入れたものはそのまま残ります。"
+    "booru.bulk.endCanceled": "ユーザーが停止しました。残りは一覧にしていません。キューに入れたものはそのまま残ります。",
+    "booru.filter.title": "ローカルフィルター",
+    "booru.filter.hint": "読み込み済みのページだけを絞り込みます。プロバイダーへのリクエストは送信しません。検索の監視と「この検索のすべてをダウンロード」は検索全体を使用します。",
+    "booru.filter.rating": "レーティング",
+    "booru.filter.media": "メディアの種類",
+    "booru.filter.all": "すべて",
+    "booru.filter.score": "最低スコア",
+    "booru.filter.tags": "タグフィルター",
+    "booru.filter.tagsHint": "チェック：タグを必須にする。空欄：タグを除外する。横線：タグを無視する。すべての条件を満たす必要があります。スコア不明の投稿は最低スコア条件を満たしません。",
+    "booru.filter.count": "{1}件中{0}件を表示",
+    "booru.filter.empty": "読み込み済みの結果に、このローカルフィルターと一致するものはありません。フィルターをリセットすると、読み込み済みのページを表示できます。",
+    "booru.filter.audio": "音声",
+    "booru.filter.animation": "アニメーション",
+    "settings.booruPostFilterScore": "Booru：最低スコアの初期値",
+    "settings.booruPostFilterScore.hint": "ローカルの最低スコアフィルターを有効にしたときの初期値です。既定値：{0}。フィルターは最初は無効で、このセッション中は検索タブごとに保持されます。"
   }
 }

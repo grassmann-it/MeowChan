@@ -14,7 +14,7 @@ internal static class BooruUiCatalog
         ("booru.ui.command.open", "Danbooru search and watchers…", "Danbooru-Suche und Suchbeobachtungen…"),
         ("booru.ui.intro", "Search Danbooru, load a single post, or watch a search for new posts. Nothing is requested until you press a button.", "Danbooru durchsuchen, einen einzelnen Post laden oder eine Suche auf neue Posts beobachten. Es wird erst etwas abgefragt, wenn du eine Schaltfläche drückst."),
         ("booru.ui.provider", "Provider: {0} (public, read-only)", "Anbieter: {0} (öffentlich, nur lesend)"),
-        ("booru.ui.noFilterNote", "Results appear exactly as Danbooru returns them for your tags. MeowChan adds no rating filter and no extra search terms. Originals you load use the normal download queue.", "Die Treffer erscheinen genau so, wie Danbooru sie für deine Tags liefert. MeowChan fügt weder einen Einstufungsfilter noch weitere Suchbegriffe hinzu. Geladene Originale nutzen die normale Downloadwarteschlange."),
+        ("booru.ui.noFilterNote", "MeowChan adds no extra search terms and no rating filter to provider requests. Local filters only change which loaded results are visible. Originals you load use the normal download queue.", "MeowChan fügt Anbieteranfragen keine zusätzlichen Suchbegriffe und keinen Einstufungsfilter hinzu. Lokale Filter ändern nur, welche geladenen Treffer sichtbar sind. Geladene Originale nutzen die normale Downloadwarteschlange."),
         ("booru.ui.tab.search", "Search", "Suche"),
         ("booru.ui.tab.watchers", "Watchers ({0})", "Suchbeobachtungen ({0})"),
 

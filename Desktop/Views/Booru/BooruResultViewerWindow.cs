@@ -49,13 +49,13 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 
     internal string CurrentPostId => _ids[_index];
     internal Task Cleanup { get; private set; } = Task.CompletedTask;
-    private BooruResultRowView? Row => _search.View.Rows.FirstOrDefault(row => row.Post.PostId == CurrentPostId);
+    private BooruResultRowView? Row => _search.View.VisibleRows.FirstOrDefault(row => row.Post.PostId == CurrentPostId);
 
     internal BooruResultViewerWindow(BooruSearchModel search, string postId, HashSet<string> selected, Action selectionChanged,
         BooruPreviewDecoder? decoder = null)
     {
         _search = search;
-        _ids = search.View.Rows.Select(row => row.Post.PostId).ToArray();
+        _ids = search.View.VisibleRows.Select(row => row.Post.PostId).ToArray();
         _index = Array.IndexOf(_ids, postId);
         if (_index < 0) throw new ArgumentException("The post is not in this result page.", nameof(postId));
         _selected = selected;
@@ -186,7 +186,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 
     private void Refresh()
     {
-        if (!_ids.SequenceEqual(_search.View.Rows.Select(value => value.Post.PostId)) || Row is not { } row)
+        if (!_ids.SequenceEqual(_search.View.VisibleRows.Select(value => value.Post.PostId)) || Row is not { } row)
         { Close(); return; }
         Title = Texts.T("booru.ui.post.title", CurrentPostId);
         _caption.Text = $"{Title} · {_index + 1}/{_ids.Length} · {Texts.T("booru.mediaRole.Preview")} · {Texts.T("booru.ui.post.rating", BooruText.Rating(row.Post.Rating))}";

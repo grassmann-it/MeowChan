@@ -219,6 +219,7 @@ public static class SettingsTransfer
             TagQueueConfirmAbove = source.TagQueueConfirmAbove,
             MediaTagListTop = source.MediaTagListTop,
             BooruResultTagsShown = source.BooruResultTagsShown,
+            BooruPostFilterScore = source.BooruPostFilterScore,
             BooruSearchTabs = source.BooruSearchTabs,
             MediaPanelMinimumPageWidth = source.MediaPanelMinimumPageWidth,
             TagQueueFileLimitMiB = source.TagQueueFileLimitMiB,

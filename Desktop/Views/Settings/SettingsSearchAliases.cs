@@ -105,6 +105,7 @@ internal static class SettingsSearchAliases
         ["TagQueueUndoDepth"] = "undo back history steps queue rückgängig zurücknehmen schritte verlauf warteschlange tagging-warteschlange",
         ["MediaTagListTop"] = "booru mode tag list sidebar tag counts top show all booru-modus tag-liste seitenleiste anzahl alle anzeigen",
         ["BooruResultTagsShown"] = "booru danbooru result list tag chips shown more limit compact tags per result booru-ergebnis liste tag-chips angezeigt mehr begrenzung kompakt",
+        ["BooruPostFilterScore"] = "booru danbooru local post filter minimum score threshold nachfilter lokal mindest-score schwelle",
         ["BooruSearchTabs"] = "booru danbooru search tabs open limit most extra tabs session booru-suche tabs offen begrenzung maximal reiter",
         ["MediaTagListWidth"] = "tag list width sidebar handle resize wide narrow booru layout breite tag-liste seitenleiste layout schmal breit",
         ["MediaPanelWidth"] = "media panel width sidebar preview large medium split view handle resize wide narrow medienleiste breite vorschau groß seitenleiste schmal breit",

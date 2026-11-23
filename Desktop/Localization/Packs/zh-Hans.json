@@ -3125,7 +3125,7 @@
     "booru.ui.command.open": "Danbooru 搜索和关注器…",
     "booru.ui.intro": "搜索 Danbooru、加载单个帖子，或关注某个搜索以获取新帖子。在你按下按钮之前不会发出任何请求。",
     "booru.ui.provider": "提供方：{0}（公开、只读）",
-    "booru.ui.noFilterNote": "结果完全按照 Danbooru 针对你的标签返回的内容显示。MeowChan 不会添加评级过滤，也不会添加额外的搜索词条。你加载的原图使用常规下载队列。",
+    "booru.ui.noFilterNote": "MeowChan 不会向提供方请求添加搜索词或内容分级筛选。本地筛选仅改变已加载结果的可见性。原始文件使用正常下载队列。",
     "booru.ui.tab.search": "搜索",
     "booru.ui.tab.watchers": "关注器（{0}）",
     "booru.ui.mode.label": "输入类型",
@@ -5163,6 +5163,20 @@
     "booru.bulk.endLimit": "已达到来源的页数上限；该搜索可能还有无法列出的结果。",
     "booru.bulk.endEnd": "来源报告在这些结果之后没有更多结果。",
     "booru.bulk.endBlocked": "来源不再响应（暂停、限速、离线或出错）；其余未列出。请稍后再试。",
-    "booru.bulk.endCanceled": "已由你停止；其余未列出。已入队的内容仍在队列中。"
+    "booru.bulk.endCanceled": "已由你停止；其余未列出。已入队的内容仍在队列中。",
+    "booru.filter.title": "本地筛选",
+    "booru.filter.hint": "仅筛选已加载的页面，不会向提供方发送请求。搜索监控和“下载此搜索的全部结果”仍使用完整搜索。",
+    "booru.filter.rating": "内容分级",
+    "booru.filter.media": "媒体类型",
+    "booru.filter.all": "全部",
+    "booru.filter.score": "最低评分",
+    "booru.filter.tags": "标签筛选",
+    "booru.filter.tagsHint": "勾选：必须包含标签。空白：排除标签。横线：忽略标签。必须满足所有条件；缺少评分的结果不满足最低评分条件。",
+    "booru.filter.count": "{1} 个中显示 {0} 个",
+    "booru.filter.empty": "已加载的结果均不符合这些本地筛选条件。重置筛选即可显示已加载的页面。",
+    "booru.filter.audio": "音频",
+    "booru.filter.animation": "动画",
+    "settings.booruPostFilterScore": "Booru：初始最低评分",
+    "settings.booruPostFilterScore.hint": "启用本地最低评分筛选时的初始值。默认值：{0}。筛选最初处于关闭状态，在本次会话中按搜索标签页分别保存。"
   }
 }

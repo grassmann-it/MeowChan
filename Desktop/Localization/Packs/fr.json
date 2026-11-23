@@ -3302,7 +3302,7 @@
     "booru.ui.command.open": "Recherche et veilles Danbooru…",
     "booru.ui.intro": "Recherchez sur Danbooru, chargez une seule publication ou surveillez une recherche pour détecter de nouvelles publications. Rien n’est demandé tant que vous n’appuyez pas sur un bouton.",
     "booru.ui.provider": "Fournisseur : {0} (public, lecture seule)",
-    "booru.ui.noFilterNote": "Les résultats s’affichent exactement comme Danbooru les renvoie pour vos tags. MeowChan n’ajoute aucun filtre de classification ni terme de recherche supplémentaire. Les originaux que vous chargez utilisent la file de téléchargement habituelle.",
+    "booru.ui.noFilterNote": "MeowChan n’ajoute ni termes de recherche ni filtre de classification aux requêtes envoyées au fournisseur. Les filtres locaux changent seulement la visibilité des résultats chargés. Les originaux utilisent la file de téléchargement habituelle.",
     "booru.ui.tab.search": "Recherche",
     "booru.ui.tab.watchers": "Veilles ({0})",
     "booru.ui.mode.label": "Type de saisie",
@@ -5265,6 +5265,20 @@
     "booru.bulk.endLimit": "La limite de pages de la source a été atteinte ; la recherche peut avoir d’autres résultats impossibles à lister.",
     "booru.bulk.endEnd": "La source n’a signalé aucun autre résultat après ceux-ci.",
     "booru.bulk.endBlocked": "La source a cessé de répondre (pause, limite de débit, hors ligne ou erreur) ; le reste n’a pas été listé. Réessayez plus tard.",
-    "booru.bulk.endCanceled": "Arrêté par vous ; le reste n’a pas été listé. Ce qui a été mis en file y reste."
+    "booru.bulk.endCanceled": "Arrêté par vous ; le reste n’a pas été listé. Ce qui a été mis en file y reste.",
+    "booru.filter.title": "Filtres locaux",
+    "booru.filter.hint": "Seule la page chargée est filtrée. Aucune requête n’est envoyée au fournisseur. Les suivis et « Tout télécharger pour cette recherche » utilisent toujours la recherche complète.",
+    "booru.filter.rating": "Classification",
+    "booru.filter.media": "Type de média",
+    "booru.filter.all": "Tous",
+    "booru.filter.score": "Score minimal",
+    "booru.filter.tags": "Filtres de tags",
+    "booru.filter.tagsHint": "Coché : exiger le tag. Vide : exclure le tag. Tiret : ignorer le tag. Toutes les conditions doivent être remplies ; un score absent ne satisfait pas le minimum.",
+    "booru.filter.count": "{0} sur {1} visibles",
+    "booru.filter.empty": "Aucun résultat chargé ne correspond à ces filtres locaux. Réinitialisez les filtres pour afficher la page chargée.",
+    "booru.filter.audio": "Son",
+    "booru.filter.animation": "Animations",
+    "settings.booruPostFilterScore": "Booru : score minimal initial",
+    "settings.booruPostFilterScore.hint": "Score initial à l’activation du filtre local de score minimal. Valeur par défaut : {0}. Les filtres sont désactivés au départ et conservés séparément par onglet de recherche pour cette session."
   }
 }
