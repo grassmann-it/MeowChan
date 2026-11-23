@@ -48,8 +48,11 @@ internal sealed class BooruPage : UserControl, IDisposable
     internal BooruWorkbenchView View => _view;
     internal BooruWorkbenchModel Model => _view.Model;
 
-    internal void RestoreSearchTabs(BooruSearchTabStore store, Config config) =>
+    internal void RestoreSearchTabs(BooruSearchTabStore store, Config config)
+    {
+        _view.ApplyListProfile(config);
         _tabPersistence = new BooruTabPersistence(_view, store, config);
+    }
 
     internal void FlushSearchTabs() => _tabPersistence?.Dispose();
 

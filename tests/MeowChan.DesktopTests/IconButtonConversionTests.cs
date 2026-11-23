@@ -137,7 +137,7 @@ public sealed class IconButtonConversionTests
         { "Desktop/Views/Booru/BooruWorkbenchView.cs", "IconButtons.Apply(_next, \"chevron-right\", Texts.T(\"booru.ui.page.next\"))", "chevron-right" },
         { "Desktop/Views/Booru/BooruWorkbenchView.cs", "ShowIconBeforeText(open, \"external-link\")", "external-link" },
         { "Desktop/Views/Booru/BooruWorkbenchView.cs", "ShowIconBeforeText(copy, \"copy\")", "copy" },
-        { "Desktop/Views/Booru/BooruWorkbenchView.cs", "ShowIconBeforeText(load, cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load)", "download-cloud" },
+        { "Desktop/Views/Booru/BooruWorkbenchView.cs", "CompactAction(load, icon)", "download-cloud" },
         { "Desktop/Views/Media/BooruMediaDetailsDialog.cs", "ShowIconBeforeText(open, \"external-link\")", "external-link" },
         { "Desktop/Views/Media/BooruMediaDetailsDialog.cs", "ShowIconBeforeText(copy, \"copy\")", "copy" },
         { "Desktop/GalleryViewer.cs", "\"GalleryActual\" => Texts.T(\"gallery.actual\")", "crosshair" },

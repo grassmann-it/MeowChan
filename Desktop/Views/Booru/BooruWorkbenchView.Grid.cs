@@ -306,7 +306,7 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>
     /// One tile. It is a keyboard stop like a card (the same name, Enter, double click, middle click and context menu through
     /// <see cref="ConfigureHitCard"/>). The actions of the hit that the tile does not show (download or cancel or retry, show in Media, open and
-    /// copy the post link) stay in the hit's own card, built by <see cref="CreateResultCard"/> and kept hidden inside the tile: the context menu
+    /// copy the post link) stay in a hidden command host inside the tile: the context menu
     /// and the middle click find their buttons there, so a tile can do exactly what its card does and never decides anything on its own.
     /// </summary>
     private Control CreateResultTile(BooruResultRowView row)
@@ -315,12 +315,8 @@ internal sealed partial class BooruWorkbenchView
         string postId = post.PostId;
         double picture = BooruTileMetrics.PictureSize(_tileSize);
 
-        Control card = CreateResultCard(row);
-        card.IsVisible = false;
-        // The card's own gallery and selection controls would be a second pair with the same names; the tile shows the one pair below.
-        if (card.GetVisualDescendants().OfType<Control>().FirstOrDefault(control => control.Name == "BooruViewerActions:" + postId) is { Parent: Panel owner } viewerActions)
-            owner.Children.Remove(viewerActions);
-        Button? showInMedia = ButtonOf(card, ShowInMediaPrefix + postId);
+        Panel commandHost = new() { IsVisible = false };
+        Button? showInMedia = AddResultCommands(row, commandHost, compact: false);
 
         Panel frame = new() { Width = picture, Height = picture, HorizontalAlignment = HorizontalAlignment.Center };
         frame.Children.Add(WithPreviewCorners(CreatePreview(row, picture), post, picture));
@@ -355,7 +351,7 @@ internal sealed partial class BooruWorkbenchView
         body.Children.Add(frame);
         body.Children.Add(line);
         body.Children.Add(actions);
-        body.Children.Add(card);
+        body.Children.Add(commandHost);
 
         Border bar = new()
         {

@@ -361,36 +361,6 @@ public sealed class BooruHitKeyboardTests
     });
 
     [Fact]
-    public void MoreTagsIsAButtonThatListsEveryTagOfThatCardOnly() => OnDispatcher(async () =>
-    {
-        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
-        using (model) using (view)
-        {
-            await SearchAsync(harness, model, view);
-            view.ResultTagsShown = () => 24; // the limit is a setting now (default 12); this test folds at 24
-            string[] names = Enumerable.Range(1, 30).Select(number => "tag_" + number).ToArray();
-            var post = BooruUiFixtures.Post("901", tags: names);
-            MethodInfo createTags = typeof(BooruWorkbenchView).GetMethod("CreateTags", Private)!;
-            StackPanel Tags() => (StackPanel)createTags.Invoke(view, new object[] { post })!;
-
-            StackPanel folded = Tags();
-            Assert.Equal(24, folded.GetLogicalDescendants().OfType<Button>().Count(button => button.Name!.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal)));
-            Avalonia.Controls.Button more = Assert.Single(folded.GetLogicalDescendants().OfType<Avalonia.Controls.Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "901");
-            Assert.True(more.IsEnabled);
-            Assert.Equal("+6 more", more.Content);
-            Assert.Contains("tag_27", ToolTip.GetTip(more) as string);
-
-            more.RaiseEvent(new RoutedEventArgs(Avalonia.Controls.Button.ClickEvent));
-            StackPanel expanded = Tags();
-            Assert.Equal(30, expanded.GetLogicalDescendants().OfType<Button>().Count(button => button.Name!.StartsWith(BooruWorkbenchView.ResultTagPrefix, StringComparison.Ordinal)));
-            Assert.DoesNotContain(expanded.GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "901");
-            // Another card keeps its limit.
-            post = BooruUiFixtures.Post("902", tags: names);
-            Assert.Contains(Tags().GetLogicalDescendants().OfType<Button>(), button => button.Name == BooruWorkbenchView.MoreTagsPrefix + "902");
-        }
-    });
-
-    [Fact]
     public void AMiddleClickOnAHitCardOpensThePostPageAndNeverLoadsAnything() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);

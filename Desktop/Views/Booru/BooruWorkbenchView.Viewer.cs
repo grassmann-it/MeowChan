@@ -67,16 +67,31 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         return true;
     }
 
-    private Control CreateResultViewerActions(string postId)
+    private WrapPanel CreateResultViewerActions(string postId, bool compact = false)
     {
         WrapPanel actions = new() { Name = "BooruViewerActions:" + postId, Classes = { "workspace-toolbar" } };
+        if (compact)
+        {
+            actions.Classes.Clear();
+            actions.ItemSpacing = 4;
+            actions.LineSpacing = 4;
+        }
         Button open = new() { Name = "BooruView:" + postId, Content = CommandCatalog.Label("gallery.open"), HorizontalAlignment = HorizontalAlignment.Left };
         open.Classes.Add("ghost");
-        CommandBindings.ShowIconBeforeText(open, CommandCatalog.Get("gallery.open").Icon);
+        string icon = CommandCatalog.Get("gallery.open").Icon;
+        if (compact) CompactAction(open, icon);
+        else CommandBindings.ShowIconBeforeText(open, icon);
         AutomationProperties.SetName(open, CommandCatalog.Label("gallery.open") + ": " + Texts.T("booru.ui.post.title", postId));
+        if (compact) ToolTip.SetTip(open, AutomationProperties.GetName(open));
         open.Click += (_, _) => OpenGallery(postId);
         CheckBox select = new() { Name = "BooruSelect:" + postId, Content = Texts.T("media.tile.selected"), IsChecked = _selectedResults.Contains(postId) };
         AutomationProperties.SetName(select, Texts.T("media.tile.selected") + ": " + Texts.T("booru.ui.post.title", postId));
+        if (compact)
+        {
+            select.Content = null;
+            SizeCompactAction(select);
+            ToolTip.SetTip(select, AutomationProperties.GetName(select));
+        }
         select.Click += (_, _) =>
         {
             if (!_selectedResults.Add(postId)) _selectedResults.Remove(postId);

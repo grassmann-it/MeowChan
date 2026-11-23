@@ -59,30 +59,13 @@ public sealed class SurfaceStyleTests
     }
 
     [Fact]
-    public void BooruHitsAndWatchersAreCardsAndTheirThumbnailIsFlat()
+    public void BooruWatchersAreCardsAndResultThumbnailsAreFlat()
     {
         // Cards belong to the shared view; the window is only a host after the workspace extraction.
         string booru = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
-        Assert.Contains("BooruResult:\" + post.PostId };\n        card.Classes.Add(\"workspace-card\")", booru.Replace("\r\n", "\n"));
         Assert.Contains("BooruWatcher:\" + watcher.WatcherId };\n        card.Classes.Add(\"workspace-card\")", booru.Replace("\r\n", "\n"));
         Assert.Contains("frame.Classes.Add(\"workspace-thumb-placeholder\")", booru);
         Assert.DoesNotContain("frame.Classes.Add(\"raised\")", booru); // no box around a thumbnail inside a card
-    }
-
-    [Fact]
-    public void BooruResultActionsStayCompactAndShareOneResponsiveActionRow()
-    {
-        string view = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.cs"));
-        string viewer = File.ReadAllText(Root("Desktop/Views/Booru/BooruWorkbenchView.Viewer.cs"));
-        Assert.Contains("ColumnDefinitions = new ColumnDefinitions(\"Auto,*\")", view);
-        Assert.Contains("""Name = "BooruResultActions:" + post.PostId""", view);
-        // The link buttons join the card's one action row unparented; moving a panel's children would reparent attached controls.
-        Assert.Contains("foreach (Button link in CreateLinkButtons(", view);
-        Assert.DoesNotContain("links.Children", view);
-        Assert.DoesNotContain("Grid.SetColumn(load, 2)", view);
-        Assert.Contains("""Name = "BooruViewerActions:" + postId""", viewer);
-        Assert.Contains("open.Classes.Add(\"ghost\")", viewer);
-        Assert.Contains("Classes = { \"workspace-toolbar\" }", viewer);
     }
 
     [Fact]

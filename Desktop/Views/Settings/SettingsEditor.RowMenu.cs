@@ -180,7 +180,7 @@ public partial class SettingsEditor
             Choice(StatsHeaderGraphInput, () => SelectedStatsHeaderGraph?.Value, value => SelectedStatsHeaderGraph = StatsHeaderGraphChoices.FirstOrDefault(item => item.Value == value) ?? SelectedStatsHeaderGraph, config => config.StatsHeaderGraph),
             Text(DownloadPathInput, () => DownloadPath, value => DownloadPath = value, config => config.DownloadPath),
             Text(ExportFilenameTemplateInput, () => ExportFilenameTemplate, value => ExportFilenameTemplate = value, config => config.ExportFilenameTemplate),
-    }.ToDictionary(setting => setting.Input, StringComparer.Ordinal);
+    }.Concat(BooruListDefaults()).ToDictionary(setting => setting.Input, StringComparer.Ordinal);
 
     /// <summary>The names of the inputs that can be reset (tests check that each one is an input of this page).</summary>
     internal IReadOnlyCollection<string> ResettableInputNames => DefaultSettings().Keys;

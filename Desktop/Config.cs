@@ -1755,6 +1755,7 @@ namespace MeowChan
             if (BooruGalleryCacheMiB is < BooruGalleryCacheMiBMinimum or > BooruGalleryCacheMiBMaximum)
                 throw new ArgumentOutOfRangeException(nameof(BooruGalleryCacheMiB), "BooruGalleryCacheMiB is outside its supported range (" + BooruGalleryCacheMiBMinimum + " to " + BooruGalleryCacheMiBMaximum + ").");
             ValidateBooruGalleryLimits();
+            ValidateBooruListLayout();
             if (MediaPanelMinimumPageWidth is < MediaPanelMinimumPageWidthMinimum or > MediaPanelMinimumPageWidthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(MediaPanelMinimumPageWidth), "MediaPanelMinimumPageWidth is outside its supported range (" + MediaPanelMinimumPageWidthMinimum + " to " + MediaPanelMinimumPageWidthMaximum + ").");
             if (ProfileRegistryLimit is < ProfileRegistryLimitMinimum or > ProfileRegistryLimitMaximum)
@@ -2020,6 +2021,7 @@ namespace MeowChan
                 TagQueueConfirmAbove = TagQueueConfirmAbove,
                 MediaTagListTop = MediaTagListTop,
                 BooruResultTagsShown = BooruResultTagsShown,
+                BooruListLayout = BooruListLayout,
                 BooruNewSearchTarget = BooruNewSearchTarget,
                 BooruSearchTabs = BooruSearchTabs,
                 RestoreBooruSearchTabs = RestoreBooruSearchTabs,
@@ -2312,6 +2314,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruListLayout = source.BooruListLayout;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;
@@ -2556,6 +2559,7 @@ namespace MeowChan
             TagQueueConfirmAbove = source.TagQueueConfirmAbove;
             MediaTagListTop = source.MediaTagListTop;
             BooruResultTagsShown = source.BooruResultTagsShown;
+            BooruListLayout = source.BooruListLayout;
             BooruNewSearchTarget = source.BooruNewSearchTarget;
             BooruSearchTabs = source.BooruSearchTabs;
             RestoreBooruSearchTabs = source.RestoreBooruSearchTabs;

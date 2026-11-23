@@ -100,6 +100,7 @@ internal sealed class BooruWorkbenchWindow : Window, IDisposable
     internal BooruWorkbenchModel Model => _view.Model;
     internal Func<string, Task<bool>>? ShowInMedia { get => _view.ShowInMedia; set => _view.ShowInMedia = value; }
     internal Func<string, bool>? IsPostSavedInMedia { get => _view.IsPostSavedInMedia; set => _view.IsPostSavedInMedia = value; }
+    internal void ApplyListProfile(Config config) => _view.ApplyListProfile(config);
     internal void ApplyWorkView(WorkView view, bool viewChanged) => _view.ApplyWorkView(view, viewChanged);
     internal void ShowQuery(string query) => _view.ShowQuery(query);
     internal void AddTagToSearch(string tag) => _view.AddTagToSearch(tag);

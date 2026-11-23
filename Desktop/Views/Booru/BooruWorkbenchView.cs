@@ -1,9 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
@@ -73,16 +71,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal const string ShowInMediaPrefix = "BooruShowInMedia:";
     internal const string WatcherShowInMediaPrefix = "BooruWatcherShowInMedia:";
 
-    private const int PreviewSize = 112;
     private readonly HashSet<string> _expandedTagPosts = new(StringComparer.Ordinal);
-    private const int MaximumHiddenTagsNamed = 60;
     private const int MaximumPreviewBytes = 8 * 1024 * 1024;
 
     private sealed record CachedBitmap(byte[] Bytes, Bitmap Bitmap);
 
     private readonly BooruWorkbenchModel _model;
     private readonly bool _ownsModel;
-    private readonly Dictionary<string, CachedBitmap> _bitmaps = new(StringComparer.Ordinal);
+    private readonly Dictionary<(string PostId, int DecodeWidth), CachedBitmap> _bitmaps = new();
     private readonly DispatcherTimer _clock = new() { Interval = TimeSpan.FromSeconds(1) };
     private readonly List<ContextMenuHost> _resultTagMenus = new();
     private readonly IDisposable _keyContextHost;
@@ -226,6 +222,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         base.OnAttachedToVisualTree(e);
         _attached = true;
         if (_closed) return;
+        LayoutUpdated += OnListLayoutUpdated;
         // Keep subscriptions through transient detaches: late results remain in the model and are
         // rendered here too, even if their queued notification ran while no host was attached.
         Render(force: true);
@@ -237,6 +234,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _attached = false;
         _clock.Stop();
         DismissResultViewer();
+        LayoutUpdated -= OnListLayoutUpdated;
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -261,8 +259,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     /// <summary>E2: how many source tag chips a result shows before "+N more" (the setting, read at each render); the default without a host.</summary>
     internal Func<int>? ResultTagsShown { get; set; }
+    private Config? _listProfile;
+    private BooruListLayoutSettings ListLayout => _listProfile?.BooruListLayout ?? BooruListLayoutSettings.Default;
 
-    private int TagsShown() => Math.Clamp(ResultTagsShown?.Invoke() ?? MeowChan.Config.BooruResultTagsShownDefault,
+    internal void ApplyListProfile(Config config) => _listProfile = config;
+
+    private int TagsShown() => Math.Clamp(ResultTagsShown?.Invoke() ?? _listProfile?.BooruResultTagsShown ?? MeowChan.Config.BooruResultTagsShownDefault,
         MeowChan.Config.BooruResultTagsShownMinimum, MeowChan.Config.BooruResultTagsShownMaximum);
 
     /// <summary>Passive local predicate used for watcher cards; it must require the exact Danbooru post identity.</summary>
@@ -382,6 +384,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         tab.Children.Add(BuildBulkStatus());
         tab.Children.Add(_statusHost);
         tab.Children.Add(BuildResultViewBar()); // the list/tile switch and the tile size (BooruWorkbenchView.Grid.cs)
+        Grid.SetIsSharedSizeScope(_results, true);
         _resultsArea.Children.Add(_results);
         _resultsArea.Children.Add(BuildBottomBar());
         _resultScroll.Content = _resultsArea;
@@ -606,12 +609,15 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _pageLimit.Text = Texts.T("booru.ui.page.limit", view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
         RenderResultViewBar(view);
 
-        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, string.Join('|',
-            view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}:{_expandedTagPosts.Contains(row.Post.PostId)}:{TagsShown()}")));
+        int decodeEdge = _resultView == BooruResultView.List ? ListDecodeEdge : 0;
+        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, ListLayout, TagsShown(), decodeEdge, string.Join('|',
+            view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}")));
         if (force || key != _resultsKey)
         {
             _resultsKey = key;
+            _renderedListDecodeEdge = decodeEdge;
             _selectedResults.IntersectWith(view.Rows.Select(row => row.Post.PostId));
+            _expandedTagPosts.IntersectWith(view.Rows.Select(row => row.Post.PostId));
             _resultWorkViewActions.Clear();
             DisposeResultTagMenus();
             RebuildResults(view);
@@ -774,37 +780,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     // ---- result cards ----------------------------------------------------------------------------------
 
-    private Control CreateResultCard(BooruResultRowView row)
+    private Button? AddResultCommands(BooruResultRowView row, Panel actions, bool compact)
     {
         BooruPostView post = row.Post;
-        // The card is a keyboard stop with its own accessible name (ConfigureHitCard); its title line is the visible form of the same post.
-        Border card = new() { Name = "BooruResult:" + post.PostId };
-        card.Classes.Add("workspace-card");
-
-        Grid grid = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 12 };
-        grid.Children.Add(WithPreviewCorners(CreatePreview(row), post));
-
-        StackPanel info = new() { Spacing = 4 };
-        info.Children.Add(new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), Classes = { "card-title" }, TextWrapping = TextWrapping.Wrap });
-        // I8: the post facts as a definition list; the address is no longer a text line, it is the tooltip of the link buttons.
-        info.Children.Add(CreateDetails(post));
-        info.Children.Add(CreateResultViewerActions(post.PostId));
-
         bool withdrawn = post.IsDeleted || post.IsBanned;
-        TextBlock original = new()
-        {
-            Text = BooruText.Original(post.OriginalAccess, withdrawn), TextWrapping = TextWrapping.Wrap,
-            FontWeight = FontWeight.Medium
-        };
-        original.Classes.Add(post.OriginalAccess == BooruOriginalAccess.Available ? "workspace-status-success" : "workspace-warning");
-        // E2: "Original available" is the normal case and no line of its own (it is the tooltip of the load button); only a problem is shown.
-        if (withdrawn || post.OriginalAccess != BooruOriginalAccess.Available) info.Children.Add(original);
-        info.Children.Add(CreateTags(post));
-        if (row.Load == BooruRowLoad.AlreadyLoaded && _showInMedia != null
-            && (_isPostSavedInMedia == null || _isPostSavedInMedia(post.PostId)))
-            info.Children.Add(CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
-                Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId));
-
         bool retry = row.CanRetry;
         bool cancel = row.CanCancel && !retry;
         string actionText = cancel ? Texts.T("booru.ui.cancel")
@@ -814,7 +793,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
         Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, HorizontalAlignment = HorizontalAlignment.Left };
         load.Classes.Add("primary");
-        CommandBindings.ShowIconBeforeText(load, cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load);
+        string icon = cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load;
+        if (compact) CompactAction(load, icon);
+        else CommandBindings.ShowIconBeforeText(load, icon);
         RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
             _resultWorkViewActions);
         load.IsEnabled = cancel || retry || row.CanLoad;
@@ -829,13 +810,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         else if (retry) load.Click += async (_, _) => await _model.Search.RetryOriginalAsync(post.PostId);
         else load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
 
-        WrapPanel actions = new() { Name = "BooruResultActions:" + post.PostId, Classes = { "workspace-toolbar" } };
         actions.Children.Add(load);
         if (retry && row.CanCancel)
         {
             Button cancelPending = new() { Name = CancelLoadPrefix + post.PostId, Content = Texts.T("booru.ui.cancel") };
-            CommandBindings.EnsureIconBeforeText(cancelPending, CardMenuIcons.Cancel);
+            if (compact) CompactAction(cancelPending, CardMenuIcons.Cancel);
+            else CommandBindings.EnsureIconBeforeText(cancelPending, CardMenuIcons.Cancel);
             AutomationProperties.SetName(cancelPending, $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}");
+            ToolTip.SetTip(cancelPending, AutomationProperties.GetName(cancelPending));
             cancelPending.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
             RegisterWorkViewAction(cancelPending, "booru.result.cancel", _resultWorkViewActions);
             actions.Children.Add(cancelPending);
@@ -843,33 +825,22 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         if (BooruPostLinks.TryCanonical(post, out string canonical))
             foreach (Button link in CreateLinkButtons(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
                 Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions, iconOnly: true))
-                actions.Children.Add(link);
-        info.Children.Add(actions);
-
-        if (BooruText.Load(row) is { } loadText)
-        {
-            TextBlock state = new() { Text = loadText, TextWrapping = TextWrapping.Wrap };
-            state.Classes.Add(row.Load switch
             {
-                BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded => "workspace-status-success",
-                BooruRowLoad.Handing => "workspace-meta",
-                BooruRowLoad.Failed or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.RefusalPending
-                    => "workspace-error",
-                _ => "workspace-warning"
-            });
-            // Announced through the persistent notice line (_noticeText); this rebuilt line would stay silent.
-            info.Children.Add(state);
-        }
-        Grid.SetColumn(info, 1);
-        grid.Children.Add(info);
+                if (compact) SizeCompactAction(link);
+                actions.Children.Add(link);
+            }
 
-        card.Child = grid;
-        // The hit's one context menu (BooruWorkbenchView.CardMenus.cs) opens on a right click, the Menu key, Shift+F10 and menu.context-open; after an
-        // entry rebuilt the cards the focus returns to the same hit. Keyboard and double click of the hit (interaction audit V11): BooruWorkbenchView.Hits.cs.
-        AttachCardMenu(card, () => ComposeResultMenu(card, post.PostId), () => FocusHit(post.PostId));
-        Button? showInMedia = info.Children.OfType<Button>().FirstOrDefault(button => button.Name == ShowInMediaPrefix + post.PostId);
-        ConfigureHitCard(card, row, showInMedia);
-        return card;
+        Button? showInMedia = null;
+        if (row.Load == BooruRowLoad.AlreadyLoaded && _showInMedia != null
+            && (_isPostSavedInMedia == null || _isPostSavedInMedia(post.PostId)))
+        {
+            showInMedia = CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
+                Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId);
+            if (compact) CompactAction(showInMedia, CommandCatalog.Get("thread.show-in-media").Icon);
+            actions.Children.Add(showInMedia);
+        }
+        return showInMedia;
+
     }
 
     private Button CreateShowInMediaAction(string name, string accessibleName, string postId)
@@ -1008,14 +979,15 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         finally { _applying = false; }
     }
 
-    private Control CreatePreview(BooruResultRowView row, double size = PreviewSize)
+    private Border CreatePreview(BooruResultRowView row, double size, int decodeWidth = 0)
     {
         Border frame = new()
         {
+            Name = "BooruPreviewFrame:" + row.Post.PostId,
             Width = size, Height = size, VerticalAlignment = VerticalAlignment.Top, ClipToBounds = true,
             CornerRadius = new CornerRadius(5)
         };
-        if (row.Preview == BooruPreviewState.Ready && PreviewBitmap(row) is { } bitmap)
+        if (row.Preview == BooruPreviewState.Ready && PreviewBitmap(row, decodeWidth) is { } bitmap)
         {
             // D3: the thumbnail is flat on the card (no box, no edge of its own); only the placeholder has a quiet slot.
             // Decorative next to the card's title line; not a second "Post #n".
@@ -1045,59 +1017,10 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     }
 
     /// <summary>
-    /// I8: the provider's facts of a post as a definition list (term | value) instead of a "·" chain. Each value is named
-    /// "term: value" for screen readers; the term itself is not read twice.
-    /// </summary>
-    private static Control CreateDetails(BooruPostView post)
-    {
-        // E2: two pairs (term | value, term | value) per row, so the list stays within the height of the preview; the original file
-        // (the longest value) takes a row of its own across the value columns.
-        Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,*"), ColumnSpacing = 8, RowSpacing = 2 };
-        WorkViewElement.SetId(list, "booru.result.details");
-        int slot = 0;
-        void Add(string termKey, string value, bool wide = false)
-        {
-            if (wide && slot % 2 == 1) slot++;
-            int row = slot / 2, column = slot % 2 * 2;
-            while (list.RowDefinitions.Count <= row) list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            slot += wide ? 2 : 1;
-            string termText = Texts.T(termKey);
-            TextBlock term = new() { Text = termText, Classes = { "workspace-meta" }, VerticalAlignment = VerticalAlignment.Top };
-            AutomationProperties.SetAccessibilityView(term, AccessibilityView.Raw);
-            TextBlock detail = new() { Text = value, TextWrapping = TextWrapping.Wrap };
-            detail[!TextBlock.FontSizeProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Text.Meta"); // D0 token, value in the text colour
-            AutomationProperties.SetName(detail, termText + ": " + value);
-            Grid.SetRow(term, row); Grid.SetRow(detail, row); Grid.SetColumn(term, column); Grid.SetColumn(detail, column + 1);
-            if (wide) Grid.SetColumnSpan(detail, 3);
-            list.Children.Add(term); list.Children.Add(detail);
-        }
-        string rating = BooruText.Rating(post.Rating);
-        if (post.Rating != BooruRating.Unknown && !string.IsNullOrEmpty(post.RawRating)
-            && !string.Equals(post.RawRating, post.Rating.ToString(), StringComparison.OrdinalIgnoreCase))
-            rating += " (" + post.RawRating + ")";
-        Add("booru.ui.post.field.rating", rating);
-        if (post.Score is { } score) Add("booru.ui.post.field.score", score.ToString(Texts.Culture));
-        if (post.FavoriteCount is { } favorites) Add("booru.ui.post.field.favorites", favorites.ToString(Texts.Culture));
-        if (post.CreatedAt is { } created) Add("booru.ui.post.field.created", created.ToLocalTime().ToString("d", Texts.Culture));
-        if (post.Original is { } original)
-        {
-            StringBuilder media = new();
-            if (original.Width is { } width && original.Height is { } height)
-                media.Append(width.ToString(CultureInfo.InvariantCulture)).Append('×').Append(height.ToString(CultureInfo.InvariantCulture));
-            if (!string.IsNullOrEmpty(original.Extension))
-                media.Append(media.Length > 0 ? " " : string.Empty).Append(original.Extension.TrimStart('.'));
-            if (original.ExpectedSize is { } size)
-                media.Append(media.Length > 0 ? " " : string.Empty).Append(Size(size));
-            if (media.Length > 0) Add("booru.ui.post.field.file", media.ToString(), wide: true);
-        }
-        return list;
-    }
-
-    /// <summary>
     /// I7: fixed corners on the result preview, from the post data already shown (no request): the type (GIF, video) at the top
     /// right and a "deleted"/"banned" mark at the bottom left. Static borders over the preview; the card keeps its size.
     /// </summary>
-    private static Control WithPreviewCorners(Control preview, BooruPostView post, double size = PreviewSize)
+    private static Control WithPreviewCorners(Control preview, BooruPostView post, double size)
     {
         string? kind = post.Original?.Extension?.TrimStart('.').ToLowerInvariant() switch
         {
@@ -1121,71 +1044,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     }
 
     private static string Size(long bytes) => SizeText.Format(bytes);
-
-    private Control CreateTags(BooruPostView post)
-    {
-        StackPanel panel = new() { Spacing = 4 };
-        panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.tags.label"), Classes = { "workspace-meta" }, FontWeight = FontWeight.Medium });
-        if (post.Tags.IsEmpty)
-        {
-            panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.tags.none"), Classes = { "workspace-meta" } });
-            return panel;
-        }
-        int shown = 0;
-        // "+N more" lifts the limit for this card only (a click on it; the cards are rebuilt with the flag in the results key).
-        int limit = _expandedTagPosts.Contains(post.PostId) ? int.MaxValue : TagsShown();
-        HashSet<string> shownNames = new(StringComparer.Ordinal);
-        foreach (BooruTagCategory category in new[] { BooruTagCategory.Artist, BooruTagCategory.Copyright, BooruTagCategory.Character,
-            BooruTagCategory.General, BooruTagCategory.Meta, BooruTagCategory.Unknown })
-        {
-            string[] names = post.Tags.Where(tag => tag.Category == category).Select(tag => tag.Name).ToArray();
-            if (names.Length == 0 || shown >= limit) continue;
-            string[] take = names.Take(limit - shown).ToArray();
-            shown += take.Length;
-            shownNames.UnionWith(take);
-            // C1: source tags as compact dashed chips with their category mark; the category is named in front, so the mark is
-            // only an addition. I8: Danbooru's category order (artist, copyright, character, general, meta); a chip adds its tag
-            // to the search field (nothing is requested until Search).
-            string label = Texts.T("booru.ui.tagCategory." + category);
-            WrapPanel line = new() { Name = "BooruResultTags:" + category, ItemSpacing = 4, LineSpacing = 4 };
-            line.Children.Add(new TextBlock { Text = label + ":", VerticalAlignment = VerticalAlignment.Center, Classes = { "workspace-meta" } });
-            foreach (string name in take)
-            {
-                Button chip = new()
-                {
-                    Name = ResultTagPrefix + post.PostId + ":" + name, Content = WorkspaceChips.CreateSourceTag(name, category, compact: true),
-                    Classes = { WorkspaceChips.SourceButton }, MaxWidth = 240
-                };
-                string accessible = Texts.T("booru.ui.tags.addFor", name, label);
-                AutomationProperties.SetName(chip, accessible);
-                ToolTip.SetTip(chip, accessible);
-                chip.Click += (_, _) => AddTagToSearch(name);
-                // A right click, the Menu key and Shift+F10 on the chip: add, exclude, copy the name (the chip's own menu, not the card's).
-                _resultTagMenus.Add(new ContextMenuHost(chip, () => ComposeTagMenu(name), () => chip.Focus(NavigationMethod.Tab)));
-                line.Children.Add(chip);
-            }
-            AutomationProperties.SetName(line, label + ": " + string.Join(", ", take));
-            panel.Children.Add(line);
-        }
-        if (post.Tags.Length > shown)
-        {
-            // The tags that do not fit are named for the mouse and for assistive technology; the details dialog of the saved medium lists all.
-            string[] hidden = post.Tags.Select(tag => tag.Name).Where(name => !shownNames.Contains(name)).ToArray();
-            string rest = string.Join(", ", hidden.Take(MaximumHiddenTagsNamed)) + (hidden.Length > MaximumHiddenTagsNamed ? "…" : string.Empty);
-            string postId = post.PostId;
-            string moreText = Texts.T("booru.ui.tags.more", post.Tags.Length - shown);
-            Button more = new() { Name = MoreTagsPrefix + postId, Content = moreText, HorizontalAlignment = HorizontalAlignment.Left };
-            CommandBindings.EnsureIconBeforeText(more, "chevron-down");
-            more.Classes.Add("link");
-            string showAll = Texts.T("booru.ui.tags.showAll", rest);
-            ToolTip.SetTip(more, showAll);
-            AutomationProperties.SetName(more, moreText);
-            AutomationProperties.SetHelpText(more, showAll);
-            more.Click += (_, _) => ExpandTags(postId);
-            panel.Children.Add(more);
-        }
-        return panel;
-    }
 
     /// <summary>
     /// I8: a source tag chip of a result adds its tag to the search field (tag search) up to the parser's limit. Only the field
@@ -1233,24 +1091,17 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             SetLinkNote(("booru.ui.tags.copied", tag, false), revision);
     }
 
-    /// <summary>"+N more" on a card: the card lists every source tag from now on (until the page is searched again).</summary>
-    private void ExpandTags(string postId)
-    {
-        if (_closed || !_expandedTagPosts.Add(postId)) return;
-        Render(force: true);
-    }
-
     private void DisposeResultTagMenus()
     {
         foreach (ContextMenuHost menu in _resultTagMenus) menu.Dispose();
         _resultTagMenus.Clear();
     }
 
-    private Bitmap? PreviewBitmap(BooruResultRowView row)
+    private Bitmap? PreviewBitmap(BooruResultRowView row, int decodeWidth)
     {
         if (row.PreviewBytes is not { Length: > 0 } bytes || bytes.Length > MaximumPreviewBytes) return null;
-        string id = row.Post.PostId;
-        if (_bitmaps.TryGetValue(id, out CachedBitmap? cached) && ReferenceEquals(cached.Bytes, bytes)) return cached.Bitmap;
+        var key = (row.Post.PostId, decodeWidth);
+        if (_bitmaps.TryGetValue(key, out CachedBitmap? cached) && ReferenceEquals(cached.Bytes, bytes)) return cached.Bitmap;
         try
         {
             using MemoryStream stream = new(bytes, writable: false);
@@ -1259,10 +1110,12 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             if (codec == null || codec.Info.Width <= 0 || codec.Info.Height <= 0
                 || (long)codec.Info.Width * codec.Info.Height > 40_000_000) return null;
             stream.Position = 0;
-            int width = Math.Min(ImageOrientation.DisplaySize(codec).Width, PreviewDecodeWidth);
+            PixelSize display = ImageOrientation.DisplaySize(codec);
+            int width = decodeWidth == 0 ? Math.Min(display.Width, PreviewDecodeWidth)
+                : Math.Max(1, (int)Math.Ceiling(display.Width * Math.Min(1.0, (double)decodeWidth / Math.Max(display.Width, display.Height))));
             Bitmap bitmap = ImageOrientation.DecodeToWidth(stream, width);
             if (cached is not null) cached.Bitmap.Dispose();
-            _bitmaps[id] = new CachedBitmap(bytes, bitmap);
+            _bitmaps[key] = new CachedBitmap(bytes, bitmap);
             return bitmap;
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
@@ -1274,11 +1127,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private void PruneBitmaps(IEnumerable<BooruResultRowView> rows)
     {
         HashSet<string> keep = rows.Select(row => row.Post.PostId).ToHashSet(StringComparer.Ordinal);
-        foreach (string id in _bitmaps.Keys.Where(id => !keep.Contains(id)).ToArray())
+        foreach (var key in _bitmaps.Keys.Where(key => !keep.Contains(key.PostId) || !UsedDecodeWidth(key.DecodeWidth)).ToArray())
         {
             // The old cards are already detached by the rebuild, so the image can be released.
-            _bitmaps[id].Bitmap.Dispose();
-            _bitmaps.Remove(id);
+            _bitmaps[key].Bitmap.Dispose();
+            _bitmaps.Remove(key);
         }
     }
 
