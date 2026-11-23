@@ -37,7 +37,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         Classes = { "workspace-help" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis,
         VerticalAlignment = VerticalAlignment.Center
     };
-    private readonly TextBlock _favoriteLabel = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _favoriteLabel = new() { Classes = { "panel-action-label" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _favoriteContent;
     private bool? _favoriteAvailable;
     private GalleryDecisionView _view = GalleryDecisionView.Unavailable;

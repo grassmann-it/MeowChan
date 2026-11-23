@@ -1057,6 +1057,13 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <Style Selector="TextBlock.workspace-body-text, SelectableTextBlock.workspace-post-body, TextBlock.panel-action-label">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+    </Style>
+    <Style Selector="TextBlock.workspace-panel-title">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
     <Style Selector="SelectableTextBlock.media-fact-value">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
         <Setter Property="FontWeight" Value="Normal" />

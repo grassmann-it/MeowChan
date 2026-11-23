@@ -43,7 +43,7 @@ internal sealed class MediaSidebarTabs
     private static ToggleButton Tab(string name) => new()
     {
         Name = name, Classes = { "media-control" }, Height = WorkspaceMetrics.InputHeight,
-        Content = new TextBlock { TextTrimming = TextTrimming.CharacterEllipsis }
+        Content = new TextBlock { Classes = { "panel-action-label" }, TextTrimming = TextTrimming.CharacterEllipsis }
     };
 
     private static void Present(ToggleButton button, string label, string? commandId, string? reason)

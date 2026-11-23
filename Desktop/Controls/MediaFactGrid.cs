@@ -27,10 +27,9 @@ internal sealed class MediaFactGrid : Grid
         TextBlock key = new() { Text = label, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
         SelectableTextBlock text = fileName ? new FileNameValue(value) : new SelectableTextBlock
         {
-            Text = value, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2
+            Text = value, Classes = { "media-fact-value" }, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2
         };
         text.Name = name;
-        text.Classes.Add("media-fact-value");
         ToolTip.SetTip(text, value);
         Children.Add(key);
         Children.Add(text);
@@ -70,6 +69,7 @@ internal sealed class MediaFactGrid : Grid
         internal FileNameValue(string fullName)
         {
             _fullName = fullName;
+            Classes.Add("media-fact-value");
             TextWrapping = TextWrapping.NoWrap;
             TextTrimming = TextTrimming.CharacterEllipsis;
             MaxLines = 1;

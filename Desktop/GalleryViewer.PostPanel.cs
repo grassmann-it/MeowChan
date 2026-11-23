@@ -131,7 +131,7 @@ internal sealed partial class GalleryViewer
 
     private static Button TagChip(string text, bool more, Action open)
     {
-        Button chip = new() { Name = more ? "GalleryPostTagsMore" : "GalleryPostTag", Content = new TextBlock { Text = text, MaxLines = 1,
+        Button chip = new() { Name = more ? "GalleryPostTagsMore" : "GalleryPostTag", Content = new TextBlock { Text = text, Classes = { WorkspaceChips.Label }, MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center },
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Focusable = false };
         // An assigned tag rests on the accent tint like the reader's tag bar; "+N more" is the offered (outlined) form.

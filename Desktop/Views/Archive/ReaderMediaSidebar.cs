@@ -283,7 +283,7 @@ internal sealed class ReaderMediaSidebar : Border
     private readonly Grid _card = new() { Name = "ReaderMediaSidebarCard", RowDefinitions = new RowDefinitions("*,Auto,Auto") };
     private readonly Grid _header;
     // Polite live region: the page sets its text once the selection rested (AnnounceDelayMs).
-    private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Opacity = 0, IsHitTestVisible = false, Height = 0 };
+    private readonly TextBlock _live = new() { Name = "ReaderMediaSidebarLive", Classes = { "workspace-meta" }, Opacity = 0, IsHitTestVisible = false, Height = 0 };
     private readonly GalleryDecisionRow _decision = new("ReaderMediaSidebarDecision", compact: true);
     private readonly TextBlock _decisionError = new() { Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private readonly StackPanel _rating = new() { Spacing = 4 };

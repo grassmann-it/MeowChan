@@ -303,7 +303,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     // The hairline between the decision row and the field (12 dip of air on both sides: the field area's 8 plus the line's own 4).
     private Border? _decisionDivider;
     private IQuickTagExtraUndo? _extraUndo;
-    private readonly TextBlock _title = new() { Classes = { "quick-tag-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _title = new() { Classes = { "workspace-panel-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly PanelCloseButton _close;
     private readonly IdentitySuggestionBox _input = new() { ProtectComposition = true };
     private readonly TextBlock _suggestionsHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
@@ -322,7 +322,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly StackPanel _assigned;
     private readonly ContentControl _extra = new() { IsVisible = false };
     // Two lines, then the ellipsis; a status cut there shows in full as its tooltip (narrow-window sweep, 16.11.2026).
-    private readonly TextBlock _status = new TrimTipTextBlock { TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _status = new TrimTipTextBlock { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, MaxLines = 2, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Button _undo = new();
     private readonly Button _stamp = new();
     private readonly Button _advanced = new();
