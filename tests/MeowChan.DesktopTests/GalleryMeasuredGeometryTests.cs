@@ -120,8 +120,14 @@ public sealed class GalleryMeasuredGeometryTests
     [InlineData(280)]
     [InlineData(360)]
     [InlineData(480)]
-    public void ThreadMediaCounterSharesTheSameLayoutInBothTabs(double width) => WithSidePanel(width, panel =>
+    public void ThreadMediaCounterAndRatingShareTheSameLayoutInBothTabs(double width) => WithSidePanel(width, panel =>
     {
+        GalleryDecisionRow post = new("PostDecision", compact: true);
+        GalleryDecisionRow tags = new("TagDecision", compact: true);
+        post.Show(new GalleryDecisionView(1, GalleryDecisionCoverage.None, 3, false, true));
+        tags.Show(new GalleryDecisionView(1, GalleryDecisionCoverage.None, null, false, true));
+        panel.PostContent = post;
+        panel.TagContent = tags;
         panel.Position.Show(new(16, 23, false));
 
         foreach (GallerySidePanelSegment tab in Enum.GetValues<GallerySidePanelSegment>())
@@ -134,6 +140,16 @@ public sealed class GalleryMeasuredGeometryTests
             Assert.Contains(WorkspaceChips.Badge, pill.Classes);
             Assert.Equal("No. 16 / 23", Assert.IsType<TextBlock>(pill.Child).Text);
             Assert.Equal("Medium 16 of 23", ToolTip.GetTip(pill));
+
+            GalleryDecisionRow row = tab == GallerySidePanelSegment.Post ? post : tags;
+            Assert.True(row.IsEffectivelyVisible);
+            Assert.Equal(tab == GallerySidePanelSegment.Post ? "3 of 5" : "Unrated", row.Summary.Text);
+            Assert.True(row.StarButtons[0].Bounds.Bottom < row.FavoriteButton.Bounds.Top);
+            Assert.True(row.FavoriteButton.Bounds.Width < panel.Bounds.Width);
+            Assert.Equal(row.StarButtons[0].Bounds.Left, row.FavoriteButton.Bounds.Left, 0.5);
+            Assert.True(row.FavoriteButton.Bounds.Right <= row.StarButtons[^1].Bounds.Right);
+            Assert.True(row.ClearButton.Bounds.Bottom < row.Summary.Bounds.Top);
+            Assert.Equal(row.ClearButton.Bounds.Left, row.Summary.Bounds.Left, 0.5);
         }
 
         panel.Position.Show(null);

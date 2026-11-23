@@ -321,11 +321,16 @@ internal static class GalleryMediaTagChecks
 
     private static void CheckDecisionAlignment(GalleryDecisionRow row)
     {
-        double center = row.Bounds.Width / 2;
-        foreach (Control control in new[] { row.RatingGroup, row.FavoriteButton, row.Summary })
-            Require(control.Bounds.Width > 0 && Math.Abs(control.Bounds.Center.X - center) <= 1,
-                $"{control.Name} is not centered in the rating section.");
-        Require(row.Summary.TextAlignment == Avalonia.Media.TextAlignment.Center, "The rating caption text is not centered.");
+        Control firstStar = row.StarButtons[0];
+        Control lastStar = row.StarButtons[^1];
+        Require(row.FavoriteButton.Bounds.Width > 0 && row.FavoriteButton.Bounds.Width < row.Bounds.Width
+            && Math.Abs(row.FavoriteButton.Bounds.Left - firstStar.Bounds.Left) <= 1
+            && row.FavoriteButton.Bounds.Top >= firstStar.Bounds.Bottom
+            && row.FavoriteButton.Bounds.Right <= lastStar.Bounds.Right + 1,
+            "Favorite must fit below the stars.");
+        Require(row.Summary.Bounds.Width > 0 && Math.Abs(row.Summary.Bounds.Left - row.ClearButton.Bounds.Left) <= 1
+            && row.Summary.Bounds.Top >= row.ClearButton.Bounds.Bottom,
+            "The rating caption must sit below the clear button.");
     }
 
     // Same dialog through the real archive menu and MainWindow wiring, without
