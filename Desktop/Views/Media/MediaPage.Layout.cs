@@ -30,7 +30,7 @@ namespace MeowChan;
 public sealed partial class MediaPage
 {
     /// <summary>The space the tag list keeps from the page edge (the sidebar's own margin); the column is this much wider than the list.</summary>
-    private const double SidebarMargin = 12;
+    internal const double SidebarMargin = 12;
     /// <summary>The width of the drag handle between the tag list and the grid.</summary>
     internal const double HandleWidth = 6;
 
@@ -297,7 +297,7 @@ public sealed partial class MediaPage
         Avalonia.Controls.Grid.SetColumn(surface, surfaceColumn);
         Avalonia.Controls.Grid.SetColumn(_panelHandle, 1);
         inner[panelColumn].MinWidth = panelShown ? Math.Min(MeowChan.Config.MediaPanelWidthMinimum, panelColumns.PanelWidth) + edge : 0;
-        inner[panelColumn].MaxWidth = panelShown ? MediaPanelColumns.MaximumPanelWidth(_layout, bodyWidth) + edge : double.PositiveInfinity;
+        inner[panelColumn].MaxWidth = panelShown ? MediaPanelColumns.MaximumPanelWidth(bodyWidth, shown ? width : 0) + edge : double.PositiveInfinity;
         inner[panelColumn].Width = new GridLength(panelShown ? panelColumns.PanelWidth + edge : 0);
         inner[1].Width = new GridLength(panelShown ? HandleWidth : 0);
         inner[surfaceColumn].MinWidth = 0;
