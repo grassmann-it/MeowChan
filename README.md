@@ -7,23 +7,27 @@
 
 <h1 align="center">MeowChan</h1>
 
-<p align="center"><strong>1.1.0 · Latest release</strong></p>
+<p align="center"><strong>1.1.1 · Latest release</strong></p>
 
 <p align="center">Original media. Better viewing. Your archive, offline.</p>
 
 Save the threads you care about—and make them worth coming back to. **MeowChan** watches imageboard threads and boards, saves original media and captured posts, and turns your collection into a searchable offline reading workspace. Browse images and video, pick up where you left off, or take saved posts and verified originals with you as portable HTML.
 
-[**Get MeowChan 1.1.0 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.0.md) · [Platform requirements](docs/platform-support.md)
+[**Get MeowChan 1.1.1 →**](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.1) · [User guide](docs/Help.md) · [Release notes](docs/releases/v1.1.1.md) · [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
 
-**1.1.0 is the biggest MeowChan release so far**: a Media page over everything you saved, private tags with a fast tagging workflow, your own file imports, a first Danbooru source and a new look for every window.
+## What's new in 1.1.1
 
-## Booru navigation in 1.1.1
+- **Danbooru searches you can return to.** Booru is in the default navigation. Searches open in tabs and can be restored at startup. The **Watchers** button opens the watcher overview from beside the search tabs.
+- **A gallery for search results.** Switch between List, Grid and Gallery on the same page of results. The inline gallery and separate viewer share controls, shortcuts and tag tools.
+- **A compact Tagging page.** Start or continue a walk beside the stamp editor and a progress count such as **0 of N results**. The filter row shows how many entries match.
+- **More room to read and browse.** The Reader hides the title bar in full screen and reveals it at the top edge. Reader, Archive and Media share the same media-sidebar layout, with consistent icons for sidebar switches and recurring actions.
+- **A clearer Downloads table.** Search and URL copying sit with the Threads and Boards tabs. Keyboard navigation highlights the whole focused row.
 
-Booru appears by default with the bundled Danbooru source enabled. The new footer default also applies to profiles that used the 1.1.0 default footer. To hide the page, turn off **Show Booru actions** in Settings → Interface → Footer.
+**Upgrading from 1.1.0.** Back up your profile first. Eligible profiles reconnect the bundled Danbooru plugin to the verified 1.1.1 build when you install into a new directory. If the build needs review, the startup notice opens the repair dialog. To change Booru visibility, use **Show Booru actions** in Settings → Interface → Footer. [Upgrade details and limits](docs/releases/v1.1.1.md#upgrading-from-110)
 
-**Deutsch.** Booru erscheint standardmäßig mit aktivierter Danbooru-Quelle. Das gilt auch für Profile mit der 1.1.0-Standard-Fußleiste. Unter Einstellungen → Oberfläche → Fußleiste lässt sich die Seite über **Booru-Aktionen anzeigen** ausblenden.
+**Validation status.** These screenshots come from a Linux source build using offline demo data. The release notes track the final candidate, validation workflow and Tom’s Windows and macOS package acceptance. [Validation status](docs/releases/v1.1.1.md#validation-status)
 
-## What's new in 1.1.0 🐾
+## Features introduced in 1.1.0
 
 - **12 interface languages.** English, Deutsch, Español, Français, Русский, 简体中文, 日本語, 한국어, Português (Brasil), Čeština, Italiano and Polski. The ten new packs are AI-authored previews with language and plural reviews but no native-speaker acceptance yet; corrections are welcome. Chinese, Japanese and Korean need Noto Sans CJK on Linux.
 - **A Media page for everything you saved.** All saved files in one tile grid with nine sort orders, removable filter chips, SHA-256 duplicate grouping, a Media sidebar and multi-select actions including **Export all matches…**.
@@ -34,9 +38,7 @@ Booru appears by default with the bundled Danbooru source enabled. The new foote
 
 See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and known limitations. **Upgrading from 1.0.2:** several profile files are migrated on first start and 1.0.2 cannot open the migrated archive, so make a full backup of your profile first.
 
-**Validation status, stated plainly:** the packages were built by [workflow run 44412533700](https://github.com/grassmann-it/MeowChan/actions/runs/44412533700) in package-media mode and the full cross-platform validation sweep was **not green** (validation was intentionally skipped). Several features are freshly built and not yet tested in depth, in particular quick tagging, Danbooru (tested against a local fake, not the live site), the experimental sources, the ten new languages and native Windows and macOS behaviour. [Download checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/SHA256SUMS) cover the published filenames.
-
-### Features introduced in 1.0.0
+## Features introduced in 1.0.0
 
 - **A fresh desktop.** The Semi + Ursa UI rework brings clearer layouts and consistent controls. Choose compact **Barebones**, **Simple** or **Advanced**, with Light/Dark themes, English/German and configurable shortcuts. Settings are organized into eight focused pages.
 - **More chans, one collection.** **11 supplied sources** cover 4chan, 8kun, Lainchan, Kohlchan, Wizchan, Endchan, 2ch, Leftypol, Uboachan, ZZZchan and SushiChan. Experimental sources are marked and start disabled; registration does not guarantee live availability.
@@ -48,29 +50,24 @@ See the [1.1.0 release notes](docs/releases/v1.1.0.md) for upgrade warnings and 
 
 The [1.0.0 release notes](docs/releases/v1.0.0.md) cover the original feature release and upgrade considerations; the [changelog](CHANGELOG.md) records the details. Back up your profile and media before upgrading. If you run into problems, [report an issue](https://github.com/grassmann-it/MeowChan/issues/new); use [0.9.0](https://github.com/grassmann-it/MeowChan/releases/tag/v0.9.0) only with an untouched profile or pre-upgrade backup.
 
-## Take a look around · 1.1.0
+## Take a look around · 1.1.1
 
-Source-built captures of the 1.1.0 interface with offline demonstration data; see the [1.1.0 capture notes](docs/screenshots/v1.1.0/README.md) for conditions and the full set of 22 images.
+The **Media page** brings your saved files into a single grid beside a large preview. These Linux captures use offline demonstration data. [Capture notes](docs/screenshots/1.1.1/README.md)
 
-### Your whole media collection in one grid
+[![MeowChan 1.1.1 Media page with grid and preview sidebar](docs/screenshots/1.1.1/media-library-dark.png)](docs/screenshots/1.1.1/media-library-dark.png)
 
-The new **Media page** shows every saved file across all archived threads, with filters, sort orders, multi-select and a big preview sidebar.
+| Downloads | Reader with media sidebar |
+| --- | --- |
+| [![MeowChan 1.1.1 Downloads with the Threads and Boards toolbar](docs/screenshots/1.1.1/downloads.png)](docs/screenshots/1.1.1/downloads.png) | [![MeowChan 1.1.1 Reader with posts and a media preview](docs/screenshots/1.1.1/reader-sidebar-dark.png)](docs/screenshots/1.1.1/reader-sidebar-dark.png) |
 
-[![MeowChan 1.1.0 Media page](docs/screenshots/v1.1.0/media-library-dark.png)](docs/screenshots/v1.1.0/media-library-dark.png)
+| Booru gallery | Tagging queue |
+| --- | --- |
+| [![MeowChan 1.1.1 Booru gallery with result navigation and source tags](docs/screenshots/1.1.1/booru-gallery-dark.png)](docs/screenshots/1.1.1/booru-gallery-dark.png) | [![MeowChan 1.1.1 compact Tagging header with stamp and progress](docs/screenshots/1.1.1/tagging-queue-dark.png)](docs/screenshots/1.1.1/tagging-queue-dark.png) |
 
-### Tag as fast as you can browse
+The search toolbar and Watchers button are also visible in List view. [Booru workbench screenshot](docs/screenshots/1.1.1/booru-workbench-dark.png)
 
-The **quick tagging panel** in the gallery rates, favorites and tags while you browse; the [Tagging page](docs/screenshots/v1.1.0/tagging-queue-dark.png) works through a queue with stamp tags.
-
-[![MeowChan 1.1.0 gallery with quick tagging panel](docs/screenshots/v1.1.0/gallery-quick-tagging-dark.png)](docs/screenshots/v1.1.0/gallery-quick-tagging-dark.png)
-
-### Twelve languages
-
-Switch the interface language any time in Settings — here in German, one of 12 languages.
-
-[![MeowChan 1.1.0 settings in German](docs/screenshots/v1.1.0/settings-german-dark.png)](docs/screenshots/v1.1.0/settings-german-dark.png)
-
-### Before and after · 1.0.1 vs 1.1.0
+<details>
+<summary>Before and after · 1.0.1 vs 1.1.0</summary>
 
 Same offline demonstration data, old interface left, new interface right.
 
@@ -84,34 +81,36 @@ Same offline demonstration data, old interface left, new interface right.
 | Media focus | [![1.0.1 Media focus](docs/screenshots/v1.0.1/gallery-focus.png)](docs/screenshots/v1.0.1/gallery-focus.png) | [![1.1.0 Media focus](docs/screenshots/v1.1.0/gallery-focus.png)](docs/screenshots/v1.1.0/gallery-focus.png) |
 | Settings | [![1.0.1 Settings](docs/screenshots/v1.0.1/settings.png)](docs/screenshots/v1.0.1/settings.png) | [![1.1.0 Settings](docs/screenshots/v1.1.0/settings.png)](docs/screenshots/v1.1.0/settings.png) |
 
-Earlier captures remain available with their original source checkpoints: [1.0.1](docs/screenshots/v1.0.1/README.md), [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
+</details>
+
+Earlier captures and their provenance are available for [1.1.0](docs/screenshots/v1.1.0/README.md), [1.0.1](docs/screenshots/v1.0.1/README.md), [1.0.0](docs/screenshots/v1.0.0/README.md) and [0.9.0](docs/screenshots/README.md).
 
 ## Quick start
 
-Desktop packages cover **Windows x64, Linux x64/Arm64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs; it requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. See [platform requirements](docs/platform-support.md) for dependencies and package details.
+Desktop packages cover **Windows x64, Linux x64/ARM64 and macOS Intel/Apple Silicon** and include .NET. Linux offers bundled-VLC archives, smaller system-VLC archives and bundled AppImages for both CPUs. It requires glibc and X11/XWayland. Separate macOS DMGs contain an ad-hoc-signed `MeowChan.app` and an Applications shortcut, without notarization. [Platform requirements](docs/platform-support.md#upstream-requirements-checked-on-2026-10-10)
 
-| Platform | Download 1.1.0 |
+| Platform | Download 1.1.1 |
 | --- | --- |
-| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/01-MeowChan-1.1.0-win-x64.zip) |
-| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/02-MeowChan-1.1.0-osx-arm64.dmg) |
-| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/03-MeowChan-1.1.0-osx-x64.dmg) |
-| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/04-MeowChan-1.1.0-linux-x64.AppImage) |
-| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.0/05-MeowChan-1.1.0-linux-arm64.AppImage) |
+| Windows x64 | [ZIP](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/01-MeowChan-1.1.1-win-x64.zip) |
+| macOS — Apple Silicon | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/02-MeowChan-1.1.1-osx-arm64.dmg) |
+| macOS — Intel | [DMG](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/03-MeowChan-1.1.1-osx-x64.dmg) |
+| Linux x64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/04-MeowChan-1.1.1-linux-x64.AppImage) |
+| Linux ARM64 | [AppImage](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/05-MeowChan-1.1.1-linux-arm64.AppImage) |
 
-1. [Download MeowChan 1.1.0](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0) and extract the **whole archive**, or open the macOS DMG and drag `MeowChan.app` to Applications. Start `MeowChan.exe`, `MeowChan` or `MeowChan.app` for your platform.
+1. Download the package for your platform. Extract the **whole archive** and start `MeowChan.exe` or `./MeowChan`, make the AppImage executable and run it, or open the DMG and drag `MeowChan.app` to Applications before launching it. [macOS first-launch guidance](docs/macos-signing.md)
 2. Set your download folder and media rules in Settings, then Save.
 3. Paste a thread or board URL into Downloads and select Add. Boards discover their threads automatically.
 4. Open Archive to find saved content. Double-click a thread to read it; use Shift+Enter or its context menu for the gallery, and the context menu for HTML export. Copy an entire exported folder for offline reading elsewhere.
 
 ### Choosing a Linux package
 
-For each of `linux-x64` and `linux-arm64`, choose a package on the [1.1.0 release page](https://github.com/grassmann-it/MeowChan/releases/tag/v1.1.0):
+Both `linux-x64` and `linux-arm64` have an AppImage and two archive variants. [All 1.1.1 packages](docs/releases/v1.1.1.md#downloads) · [SHA256 checksums](https://github.com/grassmann-it/MeowChan/releases/download/v1.1.1/SHA256SUMS)
 
 | Filename suffix | VLC requirement |
 | --- | --- |
-| `MeowChan-1.1.0-<RID>.AppImage` | Includes VLC; make executable and run. |
-| `MeowChan-1.1.0-<RID>-bundled-vlc.tar.gz` | Includes VLC; extract the whole archive and run `./MeowChan`. |
-| `MeowChan-1.1.0-<RID>-system-vlc.tar.gz` | Smaller archive; install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
+| `MeowChan-1.1.1-<RID>.AppImage` | Includes VLC. Make it executable and run it. |
+| `MeowChan-1.1.1-<RID>-bundled-vlc.tar.gz` | Includes VLC. Extract the whole archive and run `./MeowChan`. |
+| `MeowChan-1.1.1-<RID>-system-vlc.tar.gz` | Install compatible system LibVLC 3, version 3.0.20 or newer, and its media/output plugins first. |
 
 Choose a bundled archive or AppImage to avoid a separate VLC installation. All variants include .NET. Linux checks the required VLC backend **before starting the session**: an absent, unsupported or unusable system backend shows an installation hint and exits with code 2 after acknowledgement. A damaged bundled backend requires re-extracting the complete package; it does not fall back to system VLC. A corrupt or unsupported media file remains a per-file error. See [Linux startup help](docs/Help.md#linux-packages-and-startup).
 
