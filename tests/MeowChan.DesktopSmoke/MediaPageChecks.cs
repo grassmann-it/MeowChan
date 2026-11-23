@@ -134,14 +134,20 @@ internal static partial class MediaPageChecks
 
             ComboBox sort = C<ComboBox>(page, "MediaSort");
             Button shuffle = C<Button>(page, "MediaShuffle");
-            sort.SelectedIndex = 2;
-            Require(shuffle.IsVisible && page.ShownEntries.Count == 3, "Random order did not offer a shuffle.");
+            // At this width the default media panel takes part of the row, so Shuffle belongs in More.
+            await UntilAsync(() => page.IsPanelShown && page.ToolbarRow.Bounds.Width > 0
+                && page.ToolbarLevel == MediaToolbarLayout.Level.Compact);
+            sort.SelectedIndex = (int)MediaLibrarySort.Random;
+            Require(!shuffle.IsEffectivelyVisible && C<Button>(page, "MediaMore").IsEffectivelyVisible
+                && page.HeaderMoreIds.Contains("media.toolbar.shuffle") && page.ShownEntries.Count == 3,
+                "Random order must offer Shuffle under More beside the media panel.");
             MediaLibraryEntry[] random = page.ShownEntries.ToArray();
-            sort.SelectedIndex = 1;
-            Require(!shuffle.IsVisible && page.ShownEntries.Count == 3, "Newest order lost entries.");
-            sort.SelectedIndex = 2;
+            sort.SelectedIndex = (int)MediaLibrarySort.Newest;
+            Require(!shuffle.IsEffectivelyVisible && !page.HeaderMoreIds.Contains("media.toolbar.shuffle") && page.ShownEntries.Count == 3,
+                "Newest order must keep all entries and omit Shuffle.");
+            sort.SelectedIndex = (int)MediaLibrarySort.Random;
             Require(page.ShownEntries.SequenceEqual(random), "Random order reshuffled without asking.");
-            sort.SelectedIndex = 0;
+            sort.SelectedIndex = (int)MediaLibrarySort.ByThread;
 
             // A real verified thumbnail appears for a visible saved image.
             await UntilAsync(() => page.GetVisualDescendants().OfType<MediaLibraryTileView>()
