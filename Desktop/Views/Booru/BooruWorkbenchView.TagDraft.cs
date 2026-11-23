@@ -14,9 +14,9 @@ namespace MeowChan.Desktop.Booru;
 
 internal sealed partial class BooruWorkbenchView
 {
-    internal const string MenuTagRemove = "booru.menu.tag-remove";
-    private const string DraftIncluded = "booru-draft-included";
-    private const string DraftExcluded = "booru-draft-excluded";
+    internal static readonly string MenuTagRemove = "booru.menu.tag-remove";
+    private static readonly string DraftIncluded = "booru-draft-included";
+    private static readonly string DraftExcluded = "booru-draft-excluded";
     private readonly List<ContextMenuHost> _resultTagMenus = new();
     private readonly List<(Button Button, ChipOutline Outline, BooruTag Tag, string Category)> _resultTagChips = new();
     private (BooruInputMode Mode, string Input)? _shownTagDraft;
