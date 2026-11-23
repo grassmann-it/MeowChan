@@ -230,11 +230,8 @@ public sealed class BooruListLayoutTests
             Near(tile.Width, tile.Height);
         }
         Border tileWithMenu = fixture.Card("102");
-        Assert.True(tileWithMenu.Focus());
-        ContextMenuBuilder menu = (ContextMenuBuilder)typeof(BooruWorkbenchView)
-            .GetMethod("ComposeResultMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .Invoke(fixture.View, [tileWithMenu, "102"])!;
-        menu.ToModel().Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuOpenPost).Invoke!();
+        ContextMenu menu = BooruResultActionsTests.OpenContext(fixture.Window, tileWithMenu);
+        BooruResultActionsTests.Click(BooruResultActionsTests.Item(menu, BooruWorkbenchView.MenuOpenPost));
         BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => fixture.Harness.Links.Opened.Count == 1, "grid menu opens the correct post"));
         Assert.EndsWith("/102", fixture.Harness.Links.Opened[0], StringComparison.Ordinal);
 

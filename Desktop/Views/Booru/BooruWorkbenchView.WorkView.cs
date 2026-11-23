@@ -16,7 +16,8 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruWorkbenchView
 {
     private readonly Button _more = new() { Name = "BooruMore", IsVisible = false };
-    private readonly List<Button> _resultWorkViewActions = new();
+    private readonly List<Button> _resultWorkViewButtons = new();
+    private readonly List<ResultActions> _resultActions = new();
     private readonly List<Button> _watcherWorkViewActions = new();
     private WorkView _workView = WorkView.Advanced;
     private bool _workViewRegistered;
@@ -45,9 +46,23 @@ internal sealed partial class BooruWorkbenchView
         WorkViewElement.SetId(_watchers, "booru.watchers.list");
         WorkViewElement.SetId(_noticeHost, "booru.notice");
         WorkViewElement.SetId(_storageHost, "booru.catalog.usage");
-        _more.Click += (_, _) => WorkViewMoreSurface.Open(_more, MoreEntries());
+        _more.Click += (_, _) => OpenMore();
         _workViewRegistered = true;
         WorkViewMoreSurface.Configure(_more, 0);
+    }
+
+    private void OpenMore()
+    {
+        IReadOnlyList<WorkViewMoreSurface.Entry> entries = MoreEntries();
+        if (entries.Count == 0) return;
+        _more.ContextMenu?.Close();
+        ContextMenu menu = WorkViewMoreSurface.CreateMenu(entries, _more);
+        _more.ContextMenu = menu;
+        menu.Closed += (_, _) =>
+        {
+            if (ReferenceEquals(_more.ContextMenu, menu)) _more.ContextMenu = null;
+        };
+        menu.Open(_more);
     }
 
     private void RefreshWorkViewPresentation()
@@ -64,7 +79,7 @@ internal sealed partial class BooruWorkbenchView
         WorkViewGate.Apply(_noticeHost, _workView, WorkViewElement.GetStateVisible(_noticeHost));
         WorkViewGate.Apply(_storageHost, _workView, WorkViewElement.GetStateVisible(_storageHost), _catalogUsageRevealed);
 
-        foreach (Button button in _resultWorkViewActions.Concat(_watcherWorkViewActions))
+        foreach (Button button in _resultWorkViewButtons.Concat(_watcherWorkViewActions))
             WorkViewGate.Apply(button, _workView, WorkViewElement.GetStateVisible(button));
 
         WorkViewMoreSurface.Configure(_more, MoreEntries().Count);
@@ -72,8 +87,20 @@ internal sealed partial class BooruWorkbenchView
 
     private IReadOnlyList<WorkViewMoreSurface.Entry> MoreEntries()
     {
-        List<WorkViewMoreSurface.Entry> entries = WorkViewMoreSurface
-            .ForButtons(_resultWorkViewActions.Concat(_watcherWorkViewActions), _workView).ToList();
+        List<WorkViewMoreSurface.Entry> entries = new();
+        object? tab = _tabs.SelectedItem;
+        foreach (ResultActions result in _resultActions)
+        {
+            foreach (ResultCommand link in result.LinkCommands())
+            {
+                WorkViewEntry policy = WorkViewPolicy.Get(link.WorkViewId!);
+                if (policy.For(_workView) == Presence.Overflow)
+                    entries.Add(new(policy.OverflowOrder, policy.CommandId, () => link.Name, () => result.Run(link.Action),
+                        () => ReferenceEquals(tab, _tabs.SelectedItem) && policy.For(_workView) == Presence.Overflow
+                            && result.CanRun(link.Action), link.Icon));
+            }
+        }
+        entries.AddRange(WorkViewMoreSurface.ForButtons(_watcherWorkViewActions, _workView));
         WorkViewEntry storage = WorkViewPolicy.Get("booru.catalog.usage");
         if (WorkViewElement.GetStateVisible(_storageHost)
             && WorkViewPolicy.Resolve(storage.Id, _workView, _catalogUsageRevealed) == Presence.Overflow)

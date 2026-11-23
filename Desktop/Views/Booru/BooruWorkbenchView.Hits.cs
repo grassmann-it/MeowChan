@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Automation.Peers;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -62,20 +64,18 @@ internal static class BooruHitKeys
         };
     }
 
-    /// <summary>
-    /// The main action of a hit (decision 95): "Show in Media" once the original is saved locally and that button is enabled. Without
-    /// a local copy nothing happens: Enter and a double click never start a download.
-    /// </summary>
-    internal static Button? Primary(Button? showInMedia) => showInMedia is { IsEffectivelyEnabled: true } ? showInMedia : null;
 }
 
 /// <summary>Keyboard, focus and menu of the result cards, and the double click of the watcher cards.</summary>
 internal sealed partial class BooruWorkbenchView
 {
+    private readonly MiddleClickTracker _resultMiddleClick = new();
+
     private void InitializeHitList()
     {
         AutomationProperties.SetControlTypeOverride(_results, AutomationControlType.List);
         AutomationProperties.SetControlTypeOverride(_watchers, AutomationControlType.List);
+        AddHandler(InputElement.PointerPressedEvent, (_, _) => _resultMiddleClick.Cancel(), RoutingStrategies.Tunnel, handledEventsToo: true);
         InitializeGallery();
     }
 
@@ -96,35 +96,43 @@ internal sealed partial class BooruWorkbenchView
     /// one menu of BooruWorkbenchView.CardMenus.cs (AttachCardMenu): the card's ContextMenuHost opens it on a right click, the Menu key,
     /// Shift+F10 and the context-open command, here from the focused card as well.
     /// </summary>
-    private void ConfigureHitCard(Border card, BooruResultRowView row, Button? showInMedia)
+    private void ConfigureHitCard(Border card, BooruResultRowView row, ResultActions result)
     {
         string postId = row.Post.PostId;
         card.Classes.Add("workspace-card-focusable");
         card.Focusable = true;
         card.IsTabStop = true;
         AutomationProperties.SetControlTypeOverride(card, AutomationControlType.ListItem);
-        AutomationProperties.SetName(card, Texts.T("booru.ui.result.hitName", postId, BooruText.Rating(row.Post.Rating),
-            Texts.T(showInMedia != null ? "booru.ui.result.localYes" : "booru.ui.result.localNo")));
+        AutomationProperties.SetName(card, card.Name);
+        AutomationProperties.SetAutomationId(card, card.Name);
+        AutomationProperties.SetHelpText(card, Texts.T("booru.ui.result.hitName", postId, BooruText.Rating(row.Post.Rating),
+            Texts.T(result.IsAvailable(ResultAction.ShowInMedia, row) ? "booru.ui.result.localYes" : "booru.ui.result.localNo")));
+        card.AddHandler(ContextRequestedEvent, (sender, e) =>
+        {
+            if (e.TryGetPosition(card, out _) && result.IsCurrent()) card.Focus(NavigationMethod.Pointer);
+        });
+        AttachCardMenu(card, () => ComposeResultMenu(result), () =>
+        {
+            if (result.IsCurrent()) FocusHit(postId);
+        });
         // Saved originals keep their Show in Media route. Unsaved hits open the inline gallery
         // (preview and sample only); neither Enter nor double-click implicitly downloads an original.
+        bool Activate() => result.IsCurrent() && (result.Run(ResultAction.ShowInMedia) || OpenGallery(postId));
         card.DoubleTapped += (_, e) =>
         {
-            if (_closed || !ItemActivation.IsCardDoubleClick(e, card)) return;
-            if (BooruHitKeys.Primary(showInMedia) is { } primary) { e.Handled = true; Click(primary); }
-            else e.Handled = OpenGallery(postId);
+            if (ItemActivation.IsCardDoubleClick(e, card)) e.Handled = Activate();
         };
-        ConfigureMiddleClick(card, postId);
-        ConfigureHitCursor(card, postId);
+        ConfigureMiddleClick(card, result);
+        ConfigureHitCursor(card, result);
         card.KeyDown += (_, e) =>
         {
-            if (_closed) return;
+            if (!result.IsCurrent()) return;
             if (TryToggleSelectionKey(e, card, postId)) { e.Handled = true; return; }
             BooruHitKey key = BooruHitKeys.Route(e, card, ShortcutServiceCapturing(), tiles: card.Parent is BooruTilePanel);
             switch (key)
             {
                 case BooruHitKey.Activate:
-                    if (BooruHitKeys.Primary(showInMedia) is { } primary) { e.Handled = true; Click(primary); }
-                    else e.Handled = OpenGallery(postId);
+                    e.Handled = Activate();
                     break;
                 case BooruHitKey.None:
                     break;
@@ -138,27 +146,23 @@ internal sealed partial class BooruWorkbenchView
 
     /// <summary>
     /// Dead-affordance review 15.11.: a middle click on a hit card (not on a button, a tag or selectable text; press and release on the same card)
-    /// opens the post page in the browser, like the middle click on a thread row opens its source: the card's "Open post" button, with its rules.
-    /// Nothing is loaded or downloaded.
+    /// opens the post page in the browser with the same availability rules as the context menu.
     /// </summary>
-    private void ConfigureMiddleClick(Border card, string postId)
+    private void ConfigureMiddleClick(Border card, ResultActions result)
     {
-        MiddleClickTracker tracker = new();
         card.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
         {
-            if (!MiddleClickTracker.IsPress(e, card)) { tracker.Cancel(); return; }
-            tracker.Pressed(ItemActivation.IsOwnedByInteractivePart(e.Source, card) ? null : card);
+            if (MiddleClickTracker.IsPress(e, card) && result.IsCurrent() && !ItemActivation.IsOwnedByInteractivePart(e.Source, card))
+                _resultMiddleClick.Pressed(result);
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         card.AddHandler(InputElement.PointerReleasedEvent, (object? _, PointerReleasedEventArgs e) =>
         {
-            if (_closed || e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-            if (!tracker.Released(ItemActivation.IsOwnedByInteractivePart(e.Source, card) ? null : card)) return;
-            e.Handled = true;
-            if (ButtonOf(card, OpenPostPrefix + postId) is { IsEffectivelyEnabled: true } open) Click(open);
+            if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
+            bool onHit = new Rect(card.Bounds.Size).Contains(e.GetPosition(card)) && !ItemActivation.IsOwnedByInteractivePart(e.Source, card);
+            if (_resultMiddleClick.Released(onHit ? result : null) && card.IsAttachedToVisualTree() && result.IsCurrent())
+                e.Handled = result.Run(ResultAction.Open);
         }, RoutingStrategies.Tunnel);
     }
-
-    private static void Click(Button button) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
 
     private static void MoveHitFocus(Panel list, Border card, BooruHitKey key)
     {
@@ -166,17 +170,21 @@ internal sealed partial class BooruWorkbenchView
         int target = BooruHitKeys.Target(key, index, list.Children.Count, (list as BooruTilePanel)?.Columns ?? 1);
         if (target < 0 || target == index) return;
         Control next = list.Children[target];
-        next.Focus(NavigationMethod.Directional);
         next.BringIntoView();
+        next.Focus(NavigationMethod.Directional);
     }
 
-    /// <summary>The card of <paramref name="postId"/>, else the first hit, else the search field (after a menu action rebuilt the cards).</summary>
+    /// <summary>Scrolls to the same hit and restores focus after its card has been rebuilt.</summary>
     private void FocusHit(string postId)
     {
         if (_resultView == BooruResultView.Gallery && ReferenceEquals(_gallery.Parent, _results)) { FocusGalleryStage(); return; }
         IReadOnlyList<Control> cards = ResultCards;
-        Control? card = cards.FirstOrDefault(child => child.Name == "BooruResult:" + postId) ?? cards.FirstOrDefault();
-        if (card is { IsEffectivelyVisible: true }) card.Focus(NavigationMethod.Directional);
+        Control? card = cards.FirstOrDefault(child => child.Name == "BooruResult:" + postId);
+        if (card is { IsEffectivelyVisible: true })
+        {
+            card.BringIntoView();
+            card.Focus(NavigationMethod.Directional);
+        }
         else FocusSearchInput();
     }
 

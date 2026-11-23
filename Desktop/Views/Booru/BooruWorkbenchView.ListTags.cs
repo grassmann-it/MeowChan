@@ -23,7 +23,7 @@ internal sealed partial class BooruWorkbenchView
         BooruTagCategory.General, BooruTagCategory.Meta, BooruTagCategory.Unknown
     ];
 
-    private BooruListTagFlow CreateTags(BooruPostView post)
+    private BooruListTagFlow CreateTags(BooruPostView post, ResultActions result)
     {
         bool expanded = _expandedTagPosts.Contains(post.PostId);
         var ordered = ListTagOrder.SelectMany(category => post.Tags.Where(tag => tag.Category == category)).ToArray();
@@ -42,8 +42,8 @@ internal sealed partial class BooruWorkbenchView
             string accessible = Texts.T("booru.ui.tags.addFor", tag.Name, label);
             AutomationProperties.SetName(chip, accessible);
             ToolTip.SetTip(chip, accessible);
-            chip.Click += (_, _) => AddTagToSearch(tag.Name);
-            _resultTagMenus.Add(new ContextMenuHost(chip, () => ComposeTagMenu(tag.Name), () => chip.Focus(NavigationMethod.Tab)));
+            chip.Click += (_, _) => { if (result.IsCurrent()) AddTagToSearch(tag.Name); };
+            _resultTagMenus.Add(new ContextMenuHost(chip, () => ComposeTagMenu(tag.Name, result.Target), () => chip.Focus(NavigationMethod.Tab)));
             buttons[i] = chip;
             items[i] = chip;
             if (i > 0 && ordered[i - 1].Category == tag.Category) continue;
@@ -66,7 +66,7 @@ internal sealed partial class BooruWorkbenchView
         CommandBindings.EnsureIconBeforeText(toggle, expanded ? "chevron-up" : "chevron-down", 12);
         toggle.Click += (_, _) =>
         {
-            if (_closed) return;
+            if (!result.IsCurrent()) return;
             if (expanded) _expandedTagPosts.Remove(post.PostId);
             else _expandedTagPosts.Add(post.PostId);
             Render(force: true);

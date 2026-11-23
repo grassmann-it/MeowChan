@@ -96,30 +96,6 @@ public sealed class QuickWinMenusDeleteTests : IDisposable
         Assert.Contains("void OpenDiagnosticKeyboardMenu(", Read("Desktop/Views/Diagnostics/DiagnosticsPage.ContextMenus.cs"));
     }
 
-    // ---- V8: menus where there were none ---------------------------------------------------------------------------------------
-
-    [Fact]
-    public void BooruHitsAndWatchersHaveAContextMenuWhoseEntriesPressTheCardsOwnButtons()
-    {
-        string cards = Read("Desktop/Views/Booru/BooruWorkbenchView.CardMenus.cs");
-        string view = Read("Desktop/Views/Booru/BooruWorkbenchView.cs");
-        Assert.Contains("AttachCardMenu(", view);
-        string list = Read("Desktop/Views/Booru/BooruWorkbenchView.List.cs");
-        Assert.Contains("AttachCardMenu(", list);
-        Assert.Contains("ComposeResultMenu(", list);
-        Assert.Contains("ComposeWatcherMenu(", view);
-        Assert.Contains("new ContextMenuHost(", cards);
-        Assert.Contains("Press(", cards);
-        // The same commands' icons and labels: nothing invented for the shared entries.
-        Assert.Contains("\"thread.show-in-media\"", cards);
-        Assert.Contains("\"post.open-source\"", cards);
-        Assert.Contains("\"post.copy-link\"", cards);
-        Assert.Contains("\"watch.check\"", cards);
-        Assert.Contains("\"watch.remove\"", cards);
-        // Removing a watcher is the last section.
-        Assert.True(cards.IndexOf("MenuRemove, CommandCatalog", StringComparison.Ordinal) > cards.IndexOf("MenuCheck", StringComparison.Ordinal));
-    }
-
     [Fact]
     public void TheReaderSidebarStripAndTheFilmstripTileOpenTheMediaMenuOfTheirOwnMedium()
     {
