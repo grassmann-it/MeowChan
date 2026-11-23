@@ -92,15 +92,6 @@ public sealed class BooruHitKeyboardTests
     }
 
     [Fact]
-    public void ThePrimaryActionIsShowInMediaAndNeverALoad()
-    {
-        Assert.Null(BooruHitKeys.Primary(null));
-        Button show = new() { IsEnabled = true };
-        Assert.Same(show, BooruHitKeys.Primary(show));
-        Assert.Null(BooruHitKeys.Primary(new Button { IsEnabled = false }));
-    }
-
-    [Fact]
     public void TheContextOpenCommandNamesTheBooruHitAndTheBooruPage()
     {
         MeowChan.Desktop.Commands.CommandDefinition open = MeowChan.Desktop.Commands.CommandCatalog.Get("menu.context-open");
@@ -113,7 +104,7 @@ public sealed class BooruHitKeyboardTests
     // ---- the cards of a real view -----------------------------------------------------------------------------------
 
     [Fact]
-    public void HitsAreKeyboardStopsWithANameThatSaysPostRatingAndLocalCopy() => OnDispatcher(async () =>
+    public void HitsAreKeyboardStopsWithStableNamesAndLocalizedHelp() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
         using (model) using (view)
@@ -130,13 +121,16 @@ public sealed class BooruHitKeyboardTests
                 Assert.Equal(AutomationProperties.GetSizeOfSet(card), 3);
             }
             Assert.Equal(new[] { 1, 2, 3 }, cards.Select(AutomationProperties.GetPositionInSet));
-            Assert.Equal("Post #101, rating General, local copy: yes", AutomationProperties.GetName(cards[0]));
-            Assert.Equal("Post #102, rating General, local copy: no", AutomationProperties.GetName(cards[1]));
+            Assert.Equal("BooruResult:101", AutomationProperties.GetName(cards[0]));
+            Assert.Equal("BooruResult:102", AutomationProperties.GetName(cards[1]));
+            Assert.Equal("Post #101, rating General, local copy: yes", AutomationProperties.GetHelpText(cards[0]));
+            Assert.Equal("Post #102, rating General, local copy: no", AutomationProperties.GetHelpText(cards[1]));
             Texts.SetLanguage("de");
             try
             {
                 await Task.Delay(30); // the view renders the language change on a posted callback
-                Assert.Equal("Post #102, Einstufung Allgemein, lokale Kopie: nein", AutomationProperties.GetName(Cards(view)[1]));
+                Assert.Equal("BooruResult:102", AutomationProperties.GetName(Cards(view)[1]));
+                Assert.Equal("Post #102, Einstufung Allgemein, lokale Kopie: nein", AutomationProperties.GetHelpText(Cards(view)[1]));
             }
             finally { Texts.SetLanguage("en"); }
         }
@@ -213,37 +207,6 @@ public sealed class BooruHitKeyboardTests
                 Raise(source, shiftF10);
                 Assert.True(shiftF10.Handled);
             }
-        }
-    });
-
-    [Fact]
-    public void TheHitMenuOffersTheCardsOwnActionsWithTheirAvailability() => OnDispatcher(async () =>
-    {
-        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
-        using (model) using (view)
-        {
-            harness.Queue.States["101"] = BooruLocalState.Loaded;
-            view.ShowInMedia = _ => Task.FromResult(true);
-            List<Border> cards = await SearchAsync(harness, model, view);
-
-            // The one hit menu (BooruWorkbenchView.CardMenus.cs): the card's primary button (load, cancel or retry) first, then Show in Media, then the links.
-            ContextMenuModel saved = Menu(view, cards[0], "101");
-            Assert.Equal(new[] { BooruWorkbenchView.MenuLoad, BooruWorkbenchView.MenuShowInMedia, BooruWorkbenchView.MenuOpenPost, BooruWorkbenchView.MenuCopyLink },
-                saved.Entries.Select(entry => entry.Id));
-            Assert.Equal(new[] { false, true, true, true }, saved.Entries.Select(entry => entry.Available));
-            Assert.Equal(2, saved.Sections.Count);
-
-            ContextMenuModel plain = Menu(view, cards[1], "102");
-            Assert.Equal(new[] { BooruWorkbenchView.MenuLoad, BooruWorkbenchView.MenuOpenPost, BooruWorkbenchView.MenuCopyLink }, plain.Entries.Select(entry => entry.Id));
-            Assert.All(plain.Entries, entry => Assert.True(entry.Available));
-            Assert.Equal("Download original", plain.Entries.First().Label);
-
-            // The entries run the card's own buttons: the link actions go through the same fake browser and clipboard.
-            plain.Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuCopyLink).Invoke!();
-            await BooruTestSupport.WaitAsync(() => harness.Links.Copied.Count == 1, "the copied link");
-            Assert.Equal(0, harness.Queue.Loads.Count);
-            plain.Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuLoad).Invoke!();
-            await BooruTestSupport.WaitAsync(() => harness.Queue.Loads.Count == 1, "the load");
         }
     });
 
@@ -361,40 +324,6 @@ public sealed class BooruHitKeyboardTests
     });
 
     [Fact]
-    public void AMiddleClickOnAHitCardOpensThePostPageAndNeverLoadsAnything() => OnDispatcher(async () =>
-    {
-        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
-        using (model) using (view)
-        {
-            List<Border> cards = await SearchAsync(harness, model, view);
-            Border card = cards[1];
-            TextBlock title = card.GetLogicalDescendants().OfType<TextBlock>().First();
-            Button load = Button(card, BooruWorkbenchView.LoadPrefix + "102");
-
-            // A press on one place and a release on a button of the card are a click on the button, not on the card.
-            Raise(title, MiddlePress(card, title));
-            Raise(load, MiddleRelease(load));
-            Assert.Empty(harness.Links.Opened);
-
-            // A middle press and release on the card's non-interactive part opens the post page.
-            Raise(title, MiddlePress(card, title));
-            PointerReleasedEventArgs release = MiddleRelease(title);
-            Raise(title, release);
-            Assert.True(release.Handled);
-            await BooruTestSupport.WaitAsync(() => harness.Links.Opened.Count == 1, "the opened post page");
-            Assert.Equal("https://danbooru.donmai.us/posts/102", harness.Links.Opened[0]);
-            Assert.Empty(harness.Queue.Loads);
-
-            // A release without its press does nothing.
-            PointerReleasedEventArgs stray = MiddleRelease(title);
-            Raise(title, stray);
-            Assert.False(stray.Handled);
-            await Task.Delay(20);
-            Assert.Single(harness.Links.Opened);
-        }
-    });
-
-    [Fact]
     public void AWatcherCardIsAKeyboardStopWhoseEnterShowsItsQueryAndWhoseMenuKeyOpensItsMenu() => OnDispatcher(async () =>
     {
         BooruUiHarness harness = new();
@@ -469,29 +398,13 @@ public sealed class BooruHitKeyboardTests
     private static Button Button(Border card, string name) =>
         card.GetLogicalDescendants().OfType<Button>().Single(button => button.Name == name);
 
-    private static ContextMenuModel Menu(BooruWorkbenchView view, Border card, string postId)
-    {
-        ContextMenuBuilder? builder = (ContextMenuBuilder?)typeof(BooruWorkbenchView).GetMethod("ComposeResultMenu", Private)!
-            .Invoke(view, new object[] { card, postId });
-        return Assert.IsType<ContextMenuBuilder>(builder).ToModel();
-    }
-
     private static ContextMenuModel TagMenu(BooruWorkbenchView view, string tag) =>
         Assert.IsType<ContextMenuBuilder>(view.ComposeTagMenu(tag)).ToModel();
 
     private static ContextMenuEntry[] Entries(ContextMenuModel menu) => menu.Entries.ToArray();
 
-    // One synthetic mouse for every event of these fixtures: a press and its release must share the pointer (and its id) for the card to
-    // pair them, and nothing here ever captures, so the instance outlives the individual event args on purpose.
+    // The routed double-tap fixtures share one pointer.
     private static readonly Avalonia.Input.Pointer SyntheticMouse = new(1, PointerType.Mouse, true);
-
-    private static PointerPressedEventArgs MiddlePress(Visual root, object source) => new(source, SyntheticMouse, root,
-        default, 0, new PointerPointProperties(RawInputModifiers.MiddleMouseButton, PointerUpdateKind.MiddleButtonPressed), KeyModifiers.None)
-        { RoutedEvent = InputElement.PointerPressedEvent, Source = source };
-
-    private static PointerReleasedEventArgs MiddleRelease(object source) => new(source, SyntheticMouse, (Visual)source,
-        default, 0, new PointerPointProperties(RawInputModifiers.None, PointerUpdateKind.MiddleButtonReleased), KeyModifiers.None, MouseButton.Middle)
-        { RoutedEvent = InputElement.PointerReleasedEvent, Source = source };
 
     /// <summary>Raises the event on the control it comes from, so it bubbles up to the card as a real pointer or key event does (RaiseEvent sets the source to its target).</summary>
     private static void Raise(Interactive source, RoutedEventArgs e) => source.RaiseEvent(e);

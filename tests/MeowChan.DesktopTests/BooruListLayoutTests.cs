@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
@@ -176,6 +177,27 @@ public sealed class BooruListLayoutTests
     });
 
     [Fact]
+    public void WideTagColumnsKeepEachCategoryTogetherWhenTagsWrap() => Run(() =>
+    {
+        using Fixture fixture = new(tagCount: 29);
+        fixture.ResizeViewport(1401);
+        BooruResultActionsTests.Click(Toggle(fixture.Card("101"), "101"));
+        fixture.Settle();
+
+        Border card = fixture.Card("101");
+        Control tags = Find<Control>(card, "BooruListTags:101");
+        double middle = Bounds(tags, card).Center.X;
+        BooruPostView post = fixture.Model.Search.View.Rows[0].Post;
+        string prefix = BooruWorkbenchView.ResultTagPrefix + "101:";
+        var shown = ShownTags(card).ToDictionary(chip => chip.Name![prefix.Length..], chip => Bounds(chip, card).Center.X > middle);
+        Assert.Equal(post.Tags.Length, shown.Count);
+        Assert.Contains(true, shown.Values);
+        Assert.Contains(false, shown.Values);
+        foreach (var category in post.Tags.GroupBy(tag => tag.Category))
+            Assert.Single(category.Select(tag => shown[tag.Name]).Distinct());
+    });
+
+    [Fact]
     public void EmptyTagsAndLargeTextStayReachableAndResizeKeepsTheCheckboxFocused() => Run(() =>
     {
         using Fixture fixture = new(tagCount: 0);
@@ -230,11 +252,8 @@ public sealed class BooruListLayoutTests
             Near(tile.Width, tile.Height);
         }
         Border tileWithMenu = fixture.Card("102");
-        Assert.True(tileWithMenu.Focus());
-        ContextMenuBuilder menu = (ContextMenuBuilder)typeof(BooruWorkbenchView)
-            .GetMethod("ComposeResultMenu", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .Invoke(fixture.View, [tileWithMenu, "102"])!;
-        menu.ToModel().Entries.Single(entry => entry.Id == BooruWorkbenchView.MenuOpenPost).Invoke!();
+        ContextMenu menu = BooruResultActionsTests.OpenContext(fixture.Window, tileWithMenu);
+        BooruResultActionsTests.Click(BooruResultActionsTests.Item(menu, BooruWorkbenchView.MenuOpenPost));
         BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => fixture.Harness.Links.Opened.Count == 1, "grid menu opens the correct post"));
         Assert.EndsWith("/102", fixture.Harness.Links.Opened[0], StringComparison.Ordinal);
 
@@ -360,6 +379,13 @@ public sealed class BooruListLayoutTests
         Rect action = Bounds(button, card);
         Assert.True(action.Top >= preview.Bottom - 1 && action.Left >= preview.Left - 1 && action.Right <= preview.Right + 1,
             $"{name}: {action} must be under {preview}");
+        if (name.StartsWith(BooruWorkbenchView.LoadPrefix, StringComparison.Ordinal))
+        {
+            Assert.Equal("download-cloud", IconButtons.KeyOf(Assert.IsType<Button>(button)));
+            Border icon = Assert.Single(button.GetVisualDescendants().OfType<Border>(), child =>
+                child.OpacityMask is ImageBrush brush && ReferenceEquals(brush.Source, CommandBindings.IconMask("download-cloud")));
+            Assert.True(action.Contains(Bounds(icon, card)));
+        }
     }
 
     private static Button[] ShownTags(Control card) => card.GetVisualDescendants().OfType<Button>()

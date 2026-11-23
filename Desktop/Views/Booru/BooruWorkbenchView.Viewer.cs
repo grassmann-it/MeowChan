@@ -67,8 +67,9 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         return true;
     }
 
-    private WrapPanel CreateResultViewerActions(string postId, bool compact = false)
+    private WrapPanel CreateResultViewerActions(ResultActions result, bool compact = false)
     {
+        string postId = result.PostId;
         WrapPanel actions = new() { Name = "BooruViewerActions:" + postId, Classes = { "workspace-toolbar" } };
         if (compact)
         {
@@ -83,7 +84,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         else CommandBindings.ShowIconBeforeText(open, icon);
         AutomationProperties.SetName(open, CommandCatalog.Label("gallery.open") + ": " + Texts.T("booru.ui.post.title", postId));
         if (compact) ToolTip.SetTip(open, AutomationProperties.GetName(open));
-        open.Click += (_, _) => OpenGallery(postId);
+        open.Click += (_, _) => { if (result.IsCurrent()) OpenGallery(postId); };
         CheckBox select = new() { Name = "BooruSelect:" + postId, Content = Texts.T("media.tile.selected"), IsChecked = _selectedResults.Contains(postId) };
         AutomationProperties.SetName(select, Texts.T("media.tile.selected") + ": " + Texts.T("booru.ui.post.title", postId));
         if (compact)
@@ -94,6 +95,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         }
         select.Click += (_, _) =>
         {
+            if (!result.IsCurrent()) return;
             if (!_selectedResults.Add(postId)) _selectedResults.Remove(postId);
             Render(force: true);
         };

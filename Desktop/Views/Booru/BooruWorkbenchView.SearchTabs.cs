@@ -299,8 +299,11 @@ internal sealed partial class BooruWorkbenchView
     {
         if (_syncingTabs || _closed || e.Source != _tabs) return;
         if (_tabs.SelectedItem is not TabItem item) return;
+        _resultMiddleClick.Cancel();
+        _more.ContextMenu?.Close();
         ClearTabLimitNotice();
         QueueActiveTabReveal();
+        OnModelChanged();
         if (item.Tag is not int searchId) return;
         AttachSearchContent(item);
         _searchTabs?.Select(searchId);

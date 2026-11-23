@@ -108,12 +108,13 @@ internal sealed partial class BooruWorkbenchView
     }
 
     /// <summary>A card or tile is a stop of the cursor: focus and a click put the cursor on it, Space marks the hit while the card itself holds the focus.</summary>
-    private void ConfigureHitCursor(Border card, string postId)
+    private void ConfigureHitCursor(Border card, ResultActions result)
     {
-        card.GotFocus += (_, _) => SetCursor(postId);
+        string postId = result.PostId;
+        card.GotFocus += (_, _) => { if (result.IsCurrent()) SetCursor(postId); };
         card.AddHandler(InputElement.PointerPressedEvent, (object? _, PointerPressedEventArgs e) =>
         {
-            if (e.GetCurrentPoint(card).Properties.IsLeftButtonPressed) SetCursor(postId);
+            if (e.GetCurrentPoint(card).Properties.IsLeftButtonPressed && result.IsCurrent()) SetCursor(postId);
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
         card.Classes.Set("booru-cursor", _cursorPostId == postId);
     }

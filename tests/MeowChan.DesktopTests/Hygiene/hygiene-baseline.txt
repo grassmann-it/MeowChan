@@ -209,7 +209,6 @@ discarded-task	Desktop/Views/Archive/NativeTransferImportDialog.cs	2
 discarded-task	Desktop/Views/Archive/NativeTransferPreviewDialog.cs	2
 discarded-task	Desktop/Views/Archive/PostFilterDialog.cs	4
 discarded-task	Desktop/Views/Archive/UrlTextExportDialog.cs	1
-discarded-task	Desktop/Views/Booru/BooruWorkbenchView.cs	1
 discarded-task	Desktop/Views/Collections/MediaTagDialog.cs	1
 discarded-task	Desktop/Views/Collections/PostBookmarksDialog.axaml.cs	4
 discarded-task	Desktop/Views/Collections/ReaderGroupsDialog.axaml.cs	8

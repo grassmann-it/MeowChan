@@ -272,8 +272,9 @@ internal sealed partial class BooruWorkbenchView
     }
 
     /// <summary>Builds the hits of <paramref name="view"/> into the results panel: the cards of the list, or the one tile panel.</summary>
-    private void RebuildResults(BooruSearchView view)
+    private void RebuildResults(BooruSearchView view, bool preserveFocus)
     {
+        _resultMiddleClick.Cancel();
         if (_resultView == BooruResultView.Gallery && view.Rows.Any())
         {
             RebuildGallery(view);
@@ -284,8 +285,8 @@ internal sealed partial class BooruWorkbenchView
         if (_resultView != BooruResultView.Grid || !view.Rows.Any())
         {
             _tiles = null;
-            RebuildPanel(_results, () => NumberHits(view.Rows.Select(CreateResultCard).ToList()), fallback: () => null,
-                preserveFocus: !returningFromGallery);
+            RebuildPanel(_results, () => NumberHits(view.Rows.Select(row => CreateResultCard(row, BindResult(view, row))).ToList()),
+                preserveFocus: preserveFocus && !returningFromGallery, resultRevision: view.ResultRevision);
             ApplyCursor();
             return;
         }
@@ -297,33 +298,24 @@ internal sealed partial class BooruWorkbenchView
         _tiles = tiles;
         RebuildPanel(_results, () =>
         {
-            foreach (Control tile in NumberHits(view.Rows.Select(CreateResultTile).ToList())) tiles.Children.Add(tile);
+            foreach (Control tile in NumberHits(view.Rows.Select(row => CreateResultTile(row, BindResult(view, row))).ToList())) tiles.Children.Add(tile);
             return new List<Control> { tiles };
-        }, fallback: () => null, preserveFocus: !returningFromGallery);
+        }, preserveFocus: preserveFocus && !returningFromGallery, resultRevision: view.ResultRevision);
         ApplyCursor();
     }
 
-    /// <summary>
-    /// One tile. It is a keyboard stop like a card (the same name, Enter, double click, middle click and context menu through
-    /// <see cref="ConfigureHitCard"/>). The actions of the hit that the tile does not show (download or cancel or retry, show in Media, open and
-    /// copy the post link) stay in a hidden command host inside the tile: the context menu
-    /// and the middle click find their buttons there, so a tile can do exactly what its card does and never decides anything on its own.
-    /// </summary>
-    private Control CreateResultTile(BooruResultRowView row)
+    private Control CreateResultTile(BooruResultRowView row, ResultActions result)
     {
         BooruPostView post = row.Post;
         string postId = post.PostId;
         double picture = BooruTileMetrics.PictureSize(_tileSize);
-
-        Panel commandHost = new() { IsVisible = false };
-        Button? showInMedia = AddResultCommands(row, commandHost, compact: false);
 
         Panel frame = new() { Width = picture, Height = picture, HorizontalAlignment = HorizontalAlignment.Center };
         frame.Children.Add(WithPreviewCorners(CreatePreview(row, picture), post, picture));
         // Bottom right: the original is saved locally (the same fact as the card's "Show in Media" button).
         Border local = WorkspaceChips.CreateCornerMark("BooruResultLocal:" + postId, HorizontalAlignment.Right, VerticalAlignment.Bottom);
         local.Margin = new Thickness(0, 0, 4, 4);
-        WorkspaceChips.SetCornerMark(local, showInMedia != null ? BooruTileMetrics.LocalMark : null, Texts.T("booru.ui.tile.local"));
+        WorkspaceChips.SetCornerMark(local, result.IsAvailable(ResultAction.ShowInMedia, row) ? BooruTileMetrics.LocalMark : null, Texts.T("booru.ui.tile.local"));
         frame.Children.Add(local);
 
         TextBlock line = new()
@@ -344,14 +336,13 @@ internal sealed partial class BooruWorkbenchView
 
         // The actions are quiet: shown while the pointer is over the tile, the keyboard focus is inside it, or the hit is selected. They are only
         // transparent otherwise (not hidden), so Tab and the screen reader still reach them.
-        Control actions = CreateResultViewerActions(postId);
+        Control actions = CreateResultViewerActions(result);
         actions.Classes.Add("booru-tile-actions");
 
         StackPanel body = new() { Spacing = 8 };
         body.Children.Add(frame);
         body.Children.Add(line);
         body.Children.Add(actions);
-        body.Children.Add(commandHost);
 
         Border bar = new()
         {
@@ -368,8 +359,7 @@ internal sealed partial class BooruWorkbenchView
         tile.Classes.Add("booru-tile");
         tile.Classes.Set("booru-tile-selected", selected);
         ToolTip.SetTip(tile, BooruText.Rating(post.Rating));
-        AttachCardMenu(tile, () => ComposeResultMenu(tile, postId), () => FocusHit(postId));
-        ConfigureHitCard(tile, row, showInMedia);
+        ConfigureHitCard(tile, row, result);
         return tile;
     }
 }
