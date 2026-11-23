@@ -220,6 +220,7 @@ public partial class MainWindow
                 quickSettings = _archivePage?.FlushQuickSettingsAsync() ?? Task.CompletedTask;
             });
             budget.Run("booru-tabs-flush", () => booruSearchTabs = FlushBooruSearchTabsAsync());
+            var booruViewerBounds = _booruPage?.View.OpenViewerBounds;
             _isClosing = true;
             _shutdownRunning = true;
             budget.Run("clipboard-monitor", StopClipboardMonitor);
@@ -253,7 +254,7 @@ public partial class MainWindow
             // R10: the reader's inline players, the media sidebar's and the Media panel's are native players too. They are released
             // now, while their drawables are still attached, instead of fire-and-forget when the closed window detaches them.
             Task inlineVideos = ReleaseShellVideosForShutdown();
-            Task windowPreferences = FlushWindowPreferencesAsync();
+            Task windowPreferences = SaveWindowPreferencesAsync(booruViewerBounds);
             Task galleryPreferences = FlushGalleryPreferencesAsync();
             Task readingPosition = _readingPositionSave;
             Task finalPreferences = FlushFinalPreferencesAsync(windowPreferences, galleryPreferences, readingPosition, quickSettings);

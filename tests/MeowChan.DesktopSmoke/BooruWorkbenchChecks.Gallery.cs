@@ -4,7 +4,9 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Booru;
+using MeowChan.Interfaces;
 using MeowChan.PluginSdk;
+using MeowChan.Testing;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopSmoke;
@@ -14,6 +16,67 @@ namespace MeowChan.DesktopSmoke;
 // scheduler or network). Captures the idle page and one result page, then ends the page's lifetime through the service boundary.
 internal static partial class BooruWorkbenchChecks
 {
+    private static async Task CheckPopoutBoundsAfterShutdownAsync(MainWindow owner)
+    {
+        string profile = TemporaryWorkspacePaths.CreateDirectory("booru-viewer-placement-");
+        string media = Path.Combine(profile, "media");
+        Directory.CreateDirectory(media);
+        new Config
+        {
+            DownloadPath = media, AutomaticUpdateChecks = false, SaveUrlsOnExit = false, FirstRunSetupVersion = 1,
+            MinimumFreeSpaceGiB = 0, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced", ShowBooruTools = true
+        }.SaveConfig(profile);
+
+        var saved = await WithPopoutAsync(async (shell, popout) =>
+        {
+            var initial = popout.NormalBounds;
+            popout.Width = Math.Max(popout.MinWidth, popout.Width - 40);
+            popout.Height = Math.Max(popout.MinHeight, popout.Height - 32);
+            popout.Position += new PixelPoint(24, 20);
+            await SettleAsync(popout);
+            var current = popout.NormalBounds;
+            Require(current is not null && current.Value.Position != initial?.Position,
+                $"The test did not move the open popout. Initial {initial}, current {current}.");
+            Require(shell.SessionHost.Config.ReadBooruViewerBounds() is null, "The fixture already had saved popout placement.");
+            return current;
+        });
+        Require(Config.LoadConfig(profile).ReadBooruViewerBounds() == saved, "Shutdown lost the open popout's last normal bounds on disk.");
+        var restored = await WithPopoutAsync((_, popout) => Task.FromResult(popout.NormalBounds));
+        Require(restored == saved, $"A fresh profile host reopened at {restored}, expected {saved}.");
+
+        async Task<(Size Size, PixelPoint Position)?> WithPopoutAsync(
+            Func<MainWindow, BooruResultViewerWindow, Task<(Size Size, PixelPoint Position)?>> check)
+        {
+            await using DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>());
+            await using MainWindow shell = new(host);
+            BooruUiHarness harness = new();
+            harness.Serve(pages: 1, perPage: 1);
+            host.BooruServices = harness.Services;
+            try
+            {
+                shell.Show(owner);
+                await host.StartAsync();
+                Reconcile.Invoke(shell, null);
+                await SmokeNavigation.GoToAsync(shell, MainWindow.WorkspacePage.Booru);
+                BooruPage page = shell.BooruPageForTests!;
+                await page.ActivateAsync();
+                page.View.ShowQuery("cat");
+                await page.Model.Search.SubmitAsync();
+                Require(page.View.OpenResultViewer("101"), "The profile's popout did not open.");
+                BooruResultViewerWindow popout = shell.OwnedWindows.OfType<BooruResultViewerWindow>().Single();
+                await SettleAsync(popout);
+                return await check(shell, popout);
+            }
+            finally
+            {
+                TaskCompletionSource closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                shell.Closed += (_, _) => closed.TrySetResult();
+                shell.Close();
+                await closed.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            }
+        }
+    }
+
     private static async Task CheckGalleryToolbarAsync(MainWindow owner, BooruPage page, string shots)
     {
         Click(Find<Button>(page, "BooruView:101"));

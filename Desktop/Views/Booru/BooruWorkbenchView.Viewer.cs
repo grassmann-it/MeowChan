@@ -23,6 +23,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
     private HashSet<string> _selectedResults = new(StringComparer.Ordinal);
     private BooruResultViewerWindow? _resultViewer;
     private (Size Size, PixelPoint Position)? _viewerBounds;
+    internal (Size Size, PixelPoint Position)? OpenViewerBounds => _resultViewer?.NormalBounds;
     internal Func<(Size Size, PixelPoint Position)?>? RestoreViewerBounds { get; set; }
     internal Action<(Size Size, PixelPoint Position)>? SaveViewerBounds { get; set; }
 
