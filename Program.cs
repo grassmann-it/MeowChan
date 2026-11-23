@@ -59,8 +59,10 @@ internal static partial class Program
         {
             // The desktop has exited. Give the separately fenced discard step time
             // to finish, even when the temporary drive is slow.
-            folderSession?.WindowShutdownWatchdog?.Disarm();
+            ShutdownWatchdog? watchdog = folderSession?.WindowShutdownWatchdog;
+            watchdog?.Disarm();
             removed = folderSession?.RemoveTemporaryProfile() != false;
+            watchdog?.Arm(ShutdownExit.WatchdogGrace, () => "the folder session ended, but the process did not exit");
             ProfileStartup.FolderSession = null;
             Log.CloseAndFlush();
         }
