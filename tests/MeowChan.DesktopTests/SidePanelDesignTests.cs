@@ -226,7 +226,7 @@ public sealed class SidePanelDesignTests
     [Theory, InlineData(false), InlineData(true)]
     public void ReaderAndMediaShareTheTitlePreviewAndSections(bool media) => Run(() =>
     {
-        ReaderMediaSidebar panel = new() { DecisionKeyContext = media ? "media" : "reader", OpenTagsAsync = _ => Task.CompletedTask };
+        ReaderMediaSidebar panel = new() { DecisionKeyContext = media ? "media" : "reader", OpenTagsAsync = (_, _) => Task.CompletedTask };
         panel.Describe(media ? "No. 200" : "No. 1051", "evening.jpg", "640×480", true, new(1, 55, false), 2048);
         panel.SetSourceFacts("Archive /g/ · 42", null, null, 2048, media ? null : 2048, null);
         panel.SetTags(["landscape"], null);

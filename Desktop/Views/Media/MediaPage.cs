@@ -967,13 +967,14 @@ public sealed partial class MediaPage : UserControl
     /// it; several selected tiles are rated and tagged together. A tile that cannot be tagged gets the stars and the reason as text. Without a popover
     /// host the tag dialog opens as before.
     /// </summary>
-    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, QuickTagInitialFocus initialFocus, bool useSelection = true)
+    private async Task OpenRateAndTagAsync(MediaLibraryEntry entry, MediaLibraryTileRow row, Control anchor, Func<bool> current, QuickTagInitialFocus initialFocus,
+        CancellationToken sidebarToken = default)
     {
-        if (useSelection && _grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, initialFocus); return; }
+        if (!sidebarToken.CanBeCanceled && _grid.Selection.Count > 1 && !_selectionBusy) { await TagSelectionAsync(anchor, initialFocus); return; }
         string? blocked = TagsBlockedReason(entry, row.State);
         if (TagPopoverAsync is { } popover)
         {
-            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(initialFocus, blocked, FocusGridNow));
+            await popover(entry, anchor, QuickTagPopoverContext.ContextOf(entry, _shown, row.Index), current, new RateAndTagRequest(initialFocus, blocked, FocusGridNow, sidebarToken));
             return;
         }
         if (blocked != null)
