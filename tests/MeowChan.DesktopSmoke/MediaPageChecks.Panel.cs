@@ -1,11 +1,13 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -164,12 +166,46 @@ internal static partial class MediaPageChecks
             await PanelUntilAsync(() => opened.Count == 1, () => "'Open in gallery' did not open the gallery");
             Require(opened[0].Window[opened[0].Start] == rows[0].Entry, "'Open in gallery' must start at the panel's medium: " + opened[0].Window[opened[0].Start].Name);
             Program.CaptureWindow(window, "smoke-media-panel.png");
+            VerifyPanelKeys(window, page, panel, rows[0]);
             Texts.SetLanguage("de");
             await PanelUntilAsync(() => page.PanelRow?.Entry == rows[0].Entry && position.Text == "Nr. 1 / 3",
                 () => "The header position did not follow the language change: '" + position.Text + "'.");
             Console.WriteLine("SMOKE media panel [en]: on by default right of the grid with its handle; sidebar/divider fill the host independently of the grid, title/actions at the top inside the sidebar; empty without a selection; follows a click (which only selects) and the grid's selection; header names the selected medium (post number, file name), picture named after it and changed with the tile; no overlay arrows or counter; Open in gallery starts at the panel's medium.");
         }
         finally { page.EndLifetime(); window.Close(); }
+    }
+
+    private static void VerifyPanelKeys(Window window, MediaPage page, ReaderMediaSidebar panel, MediaLibraryTileRow row)
+    {
+        List<(string Command, MediaLibraryEntry Entry)> actions = new();
+        page.ExecuteMediaMenuActionAsync = (id, entry, current) =>
+        {
+            Require(current(), "A focused panel command must have a current media page.");
+            actions.Add((id, entry));
+            return Task.CompletedTask;
+        };
+        panel.RefreshFavorite();
+
+        void Press(Control target, string shortcut, string command)
+        {
+            Require(target.Focus() && ReferenceEquals(window.FocusManager?.GetFocusedElement(), target),
+                "The panel control must take focus for " + shortcut);
+            KeyGesture gesture = ShortcutGesture.Parse(shortcut).Resolve(EffectiveShortcutBindings.CurrentPlatform);
+            KeyEventArgs key = new() { RoutedEvent = InputElement.KeyDownEvent, Key = gesture.Key, KeyModifiers = gesture.KeyModifiers };
+            target.RaiseEvent(key);
+            Require(key.Handled && actions.Count == 1 && actions[0] == (command, row.Entry),
+                "The focused panel must run " + command + " once on its displayed medium.");
+            actions.Clear();
+        }
+
+        Press(panel.Open, "I", "media.details");
+        Press(panel.Open, "Primary+E", "media.export-original");
+        Press(panel.Open, "Primary+O", "media.show-in-folder");
+        Press(panel.Open, "Primary+Shift+C", "media.copy-path");
+        Press(panel.FavoriteButton, "Shift+0", "media.rating.clear");
+        for (int rating = 1; rating <= 5; rating++)
+            Press(panel.FavoriteButton, "Shift+" + rating, "media.rating.set-" + rating);
+        Console.WriteLine("SMOKE media panel shortcuts: the focused action button and favorite star routed all four menu commands and direct ratings 0 through 5.");
     }
 
     private static async Task PanelUntilAsync(Func<bool> condition, Func<string> describe)
