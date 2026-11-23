@@ -944,7 +944,6 @@ namespace MeowChan
                     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(property));
                 RaiseStatisticsTextsChanged();
                 RaiseReaderTextsChanged();
-                RefreshBooruSearchChoices(SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget);
                 RaiseTagQueueTextsChanged();
                 RaiseBooruGalleryTextsChanged();
                 RaiseViewerTextsChanged();
@@ -996,9 +995,14 @@ namespace MeowChan
             string readerPostWidth = SelectedReaderPostWidth?.Value ?? _config.ReaderPostWidth;
             string headerTagline = SelectedHeaderTagline?.Value ?? _config.HeaderTagline;
             string headerTaglineFixed = SelectedHeaderTaglineFixed?.Value ?? _config.HeaderTaglineFixedId;
+            string booruSearchTarget = SelectedBooruNewSearchTarget?.Value ?? _config.BooruNewSearchTarget;
             bool wasRefreshing = _refreshingLanguageLabels;
             _refreshingLanguageLabels = true;
-            try { RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth, headerTagline, headerTaglineFixed); }
+            try
+            {
+                RefreshChoices(theme, mode, language, readingFontSize, animations, statsHeaderGraph, readerPostWidth, headerTagline, headerTaglineFixed);
+                RefreshBooruSearchChoices(booruSearchTarget);
+            }
             finally { _refreshingLanguageLabels = wasRefreshing; }
         }
 

@@ -1,8 +1,11 @@
+using System.Text.Json;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
 using MeowChan.Desktop.Updates;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
+using MeowChan.PluginHost.Installation;
+using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
@@ -15,6 +18,8 @@ namespace MeowChan.DesktopTests;
 public sealed class BooruPluginRuntimeCompositionTests
 {
     private const string PluginId = "meowchan.official.danbooru";
+    private const string DanbooruManifest = "MeowChan.Plugin.Danbooru.plugin.json";
+    internal const string ReleasedProfileVariable = "MEOWCHAN_RELEASED110_DANBOORU_PROFILE";
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(180);
 
     [Fact]
@@ -26,7 +31,7 @@ public sealed class BooruPluginRuntimeCompositionTests
         stub.Publish("cat_ears", post.Id);
         Configure(profile.Path); // a fresh profile directory first gets its settings, then the local plugin
         bool delivered = Directory.Exists(Path.Combine(AppContext.BaseDirectory, "plugins"))
-            && Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "plugins"), "MeowChan.Plugin.Danbooru.plugin.json").Length > 0;
+            && Directory.GetFiles(Path.Combine(AppContext.BaseDirectory, "plugins"), DanbooruManifest).Length > 0;
         if (!delivered)
         {
             Directory.CreateDirectory(Path.Combine(profile.Path, "plugins"));
@@ -87,6 +92,83 @@ public sealed class BooruPluginRuntimeCompositionTests
         finally { await StopAsync(restarted); }
     }
 
+    [Released110DanbooruProfileFact]
+    public async Task ReleasedDanbooruMovesToTheCurrentDeliveredBuildAndKeepsTheOldBuildForRollback()
+    {
+        string releasedProfile = Environment.GetEnvironmentVariable(ReleasedProfileVariable)!;
+        var releasedStore = new PluginProfileStore(releasedProfile);
+        PluginProfileSnapshot released = await releasedStore.ReadAsync();
+        PluginActivationSnapshot old = Danbooru(released);
+        PluginReleaseSnapshot prior = Assert.IsType<PluginReleaseSnapshot>(old.Active);
+        string oldManifest = Assert.Single(old.Candidates, item => item.CandidateId == prior.CandidateId).CandidatePath!;
+        Assert.Equal(DanbooruManifest, Path.GetFileName(oldManifest));
+        Assert.Equal(ManifestAssemblyHash(oldManifest), prior.Artifact.AssemblySha256);
+        Assert.True(File.Exists(prior.Artifact.AssemblyPath), prior.Artifact.AssemblyPath);
+        Assert.Null(old.Pinned);
+        Assert.Empty(released.Grants);
+        Assert.True(old.Enabled);
+
+        string newManifest = Path.Combine(AppContext.BaseDirectory, "plugins", DanbooruManifest);
+        string assemblyHash = ManifestAssemblyHash(newManifest);
+        Assert.NotEqual(oldManifest, newManifest);
+        Assert.NotEqual(prior.Artifact.AssemblySha256, assemblyHash);
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        Configure(profile.Path);
+        var store = new PluginProfileStore(profile.Path);
+        Directory.CreateDirectory(Path.GetDirectoryName(store.StorePath)!);
+        File.Copy(releasedStore.StorePath, store.StorePath);
+
+        string? revision = null;
+        for (int start = 0; start < 2; start++)
+        {
+            DesktopSessionHost host = Create(profile.Path, stub);
+            try
+            {
+                await host.StartAsync().WaitAsync(Deadline);
+                Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+                await BooruCompositionHostTests.WaitAsync(() => host.BooruServices != null, "Booru services after the packaged upgrade");
+                PluginActivationSnapshot current = Danbooru(await host.Plugins!.ProfileStore.ReadAsync());
+                PluginReleaseSnapshot active = Assert.IsType<PluginReleaseSnapshot>(current.Active);
+                Assert.Equal(newManifest, Assert.Single(current.Candidates, item => item.CandidateId == active.CandidateId).CandidatePath);
+                Assert.Equal(assemblyHash, active.Artifact.AssemblySha256);
+                Assert.Equal(active.CandidateId, current.SelectedCandidateId);
+                Assert.NotEqual(prior.ExecutionRevision, active.ExecutionRevision);
+                Assert.Equal(revision ??= active.ExecutionRevision, active.ExecutionRevision);
+                Assert.Equal(prior.ExecutionRevision, current.LastGood!.ExecutionRevision);
+                Assert.Equal(SdkJson.Serialize(prior.Description), SdkJson.Serialize(active.Description));
+                Assert.Equal(SdkJson.Serialize(prior.Configuration), SdkJson.Serialize(active.Configuration));
+                Assert.Null(current.Pinned);
+                Assert.False(host.Plugins.DanbooruStartupRepairRequired);
+                Assert.Empty(stub.Requests);
+            }
+            finally { await StopAsync(host); }
+        }
+
+        PluginProfileSnapshot upgraded = await store.ReadAsync();
+        await store.SelectRollbackAsync(PluginId, upgraded.Revision);
+        DesktopSessionHost rolledBack = Create(profile.Path, stub);
+        try
+        {
+            await rolledBack.StartAsync().WaitAsync(Deadline);
+            Assert.True(rolledBack.State == DesktopSessionState.Ready, rolledBack.StartupError);
+            PluginActivationSnapshot current = Danbooru(await rolledBack.Plugins!.ProfileStore.ReadAsync());
+            Assert.Equal(prior.ExecutionRevision, current.Active!.ExecutionRevision);
+            Assert.Equal(prior.ExecutionRevision, current.Pinned!.ExecutionRevision);
+            Assert.Empty(stub.Requests);
+        }
+        finally { await StopAsync(rolledBack); }
+    }
+
+    private static PluginActivationSnapshot Danbooru(PluginProfileSnapshot state) =>
+        Assert.Single(state.Plugins, plugin => plugin.PluginId == PluginId);
+
+    private static string ManifestAssemblyHash(string file)
+    {
+        Assert.True(File.Exists(file), file);
+        return JsonSerializer.Deserialize<PluginBundleManifest>(File.ReadAllBytes(file))!.AssemblySha256;
+    }
+
     private static void Configure(string profile) => new Config
     {
         DownloadPath = Path.Combine(profile, "media"), DownloadsPaused = false, SaveUrlsOnExit = true,
@@ -106,5 +188,14 @@ public sealed class BooruPluginRuntimeCompositionTests
     {
         await host.StopAsync().WaitAsync(Deadline);
         await host.DisposeAsync();
+    }
+}
+
+public sealed class Released110DanbooruProfileFactAttribute : FactAttribute
+{
+    public Released110DanbooruProfileFactAttribute()
+    {
+        if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(BooruPluginRuntimeCompositionTests.ReleasedProfileVariable)))
+            Skip = "Requires a fresh profile created by the v1.1.0 release and a staged current Danbooru bundle.";
     }
 }

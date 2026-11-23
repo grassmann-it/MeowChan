@@ -187,12 +187,31 @@ internal sealed partial class BooruWorkbenchView
         int tab = SearchTabs.ActiveId;
         BooruSearchView before = search.View;
         int page = before.Page + delta;
-        await search.GoToPageAsync(page);
+        Control pagerButton = delta < 0 ? _previous : _next;
+        TopLevel? topLevel = TopLevel.GetTopLevel(this);
+        IFocusManager? focus = topLevel?.FocusManager;
+        IInputElement? origin = focus?.GetFocusedElement();
+        bool fromPager = ReferenceEquals(origin, pagerButton);
+        bool focusMoved = false;
+        topLevel?.AddHandler(GotFocusEvent, TrackFocus, handledEventsToo: true);
+        try { await search.GoToPageAsync(page); }
+        finally { topLevel?.RemoveHandler(GotFocusEvent, TrackFocus); }
         BooruSearchView after = search.View;
-        if (_closed || SearchTabs.ActiveId != tab || after.Page != page || after.ProviderId != before.ProviderId || after.InstanceId != before.InstanceId
-            || after.ExecutedQuery != before.ExecutedQuery
-            || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty || _input.IsKeyboardFocusWithin) return;
+        if (_closed || focusMoved || SearchTabs.ActiveId != tab || after.Page != page
+            || after.ProviderId != before.ProviderId || after.InstanceId != before.InstanceId || after.ExecutedQuery != before.ExecutedQuery
+            || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty) return;
+        // The pager can lose focus when the busy state hides it. Any other active focus takes priority.
+        IInputElement? focused = focus?.GetFocusedElement();
+        bool pagerLostFocus = fromPager && (focused is null || ReferenceEquals(focused, topLevel));
+        bool stillAtOrigin = ReferenceEquals(focused, origin) && (fromPager || ReferenceEquals(origin, _gallery.Stage));
+        if (topLevel is Window { IsActive: false } || !(pagerLostFocus || stillAtOrigin)) return;
         Render(force: false);
         FocusGalleryStage();
+
+        void TrackFocus(object? sender, FocusChangedEventArgs e)
+        {
+            if (e.Source is IInputElement target && !ReferenceEquals(target, origin) && !ReferenceEquals(target, topLevel))
+                focusMoved = true;
+        }
     }
 }

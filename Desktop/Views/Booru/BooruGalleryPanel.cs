@@ -266,8 +266,14 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
 
     private void StartSampleIfVisible(BooruResultRowView row)
     {
-        if (_requestSample && CanShowSample)
-            _sample.Start(Samples?.Invoke(), row.Post, SampleSettings, SampleDelay, Decode, bitmap => ApplySample(row.Post.Identity, bitmap));
+        if (!_requestSample || !CanShowSample) return;
+        BooruPostKey identity = row.Post.Identity;
+        _sample.Start(Samples?.Invoke(), row.Post, SampleSettings, SampleDelay, Decode, bitmap => ApplySample(identity, bitmap),
+            () =>
+            {
+                if (!_disposed && CanShowSample && _currentPost == identity
+                    && _rows.FirstOrDefault(candidate => candidate.Post.Identity == identity) is { } current) Render(current);
+            });
     }
 
     private (IImage? Bitmap, BooruGallerySampleState State) Decode(byte[] bytes, int width, int maximumPixels)
@@ -277,19 +283,15 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         return (bitmap, bitmap is null ? BooruGallerySampleState.Failed : BooruGallerySampleState.Shown);
     }
 
-    private bool ApplySample(BooruPostKey identity, IImage? bitmap)
+    private bool ApplySample(BooruPostKey identity, IImage bitmap)
     {
         if (_disposed || !CanShowSample || _currentPost != identity) return false;
-        if (bitmap is not null)
-        {
-            _image.Source = bitmap;
-            Release(_sampleBitmap);
-            _sampleBitmap = bitmap;
-            _picture = BooruGalleryPicture.Sample;
-            Release(_previewBitmap);
-            _previewBitmap = null;
-        }
-        if (_rows.FirstOrDefault(row => row.Post.Identity == identity) is { } row) Render(row);
+        _image.Source = bitmap;
+        Release(_sampleBitmap);
+        _sampleBitmap = bitmap;
+        _picture = BooruGalleryPicture.Sample;
+        Release(_previewBitmap);
+        _previewBitmap = null;
         return true;
     }
 

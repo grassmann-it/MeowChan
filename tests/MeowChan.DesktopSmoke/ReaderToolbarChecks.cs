@@ -154,7 +154,7 @@ internal static class ReaderToolbarChecks
         }
     }
 
-    private static void CheckRightEdge(ArchivePage page, string context)
+    internal static void CheckRightEdge(ArchivePage page, string context)
     {
         ActionToolBar bar = Bar(page);
         Button fullscreen = Named(page, "ArchiveReaderFullscreen");

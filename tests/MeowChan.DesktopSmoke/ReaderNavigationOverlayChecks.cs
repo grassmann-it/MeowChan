@@ -730,16 +730,18 @@ internal static class ReaderNavigationOverlayChecks
         }
         for (int index = 1; index < buttons.Length; index++)
         {
-            // ActionToolBar deliberately reserves a larger, separator-bearing gap between
-            // groups; within a group the compact action gap is 8 DIP. Measure the actual
-            // contract instead of treating the decorative group separator as a spacing bug.
+            // The right-aligned run can absorb spare space before its first action.
+            // Inside either run the item and separator gaps are fixed.
             int previousGroup = ActionToolBar.GetGroup(buttons[index - 1].Button);
             int group = ActionToolBar.GetGroup(buttons[index].Button);
             double expectedGap = previousGroup == group ? ActionToolBarPanel.ItemGap : ActionToolBarPanel.GroupGap;
-            Require(Math.Abs(buttons[index].Box.Left - buttons[index - 1].Box.Right - expectedGap) <= 1,
+            double gap = buttons[index].Box.Left - buttons[index - 1].Box.Right;
+            bool startsEndRun = ActionToolBar.GetEnd(buttons[index].Button) && !ActionToolBar.GetEnd(buttons[index - 1].Button);
+            Require(startsEndRun ? gap >= expectedGap - 1 : Math.Abs(gap - expectedGap) <= 1,
                 "Visible reader toolbar actions lost their measured horizontal spacing: " + Describe());
         }
         Require(Math.Abs(area.Height - 32) <= 1, "Reader toolbar reserves unexplained vertical space: " + Describe());
+        ReaderToolbarChecks.CheckRightEdge(page, Describe());
         // WV3: the work view decides what sits under More, and the width moves the tail of the policy's keep-visible order
         // (WorkViewPolicy.ReaderToolbarKeepVisibleOrder) first; Required actions (way back, star, state returns) never move.
         ReaderWorkViewChecks.RequireOverflowFollowsPolicy(page, toolbar, Describe);

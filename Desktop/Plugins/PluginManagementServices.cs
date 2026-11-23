@@ -22,7 +22,9 @@ internal sealed record PluginCatalogEntry(string Key, string? PluginId, string? 
     internal string Name => Description?.Name ?? Path.GetFileName(LoaderPath) ?? PluginId ?? Key;
     internal bool IsSource => Description == null ? SourcePath != null : Description.Sources.Count > 0;
     internal bool IsFilter => Description?.Filters.Count > 0;
-    internal PluginReleaseSnapshot? EditableRelease => new[] { Activation?.Pending, Activation?.Pinned, Activation?.Active, Activation?.LastGood }
+    internal PluginReleaseSnapshot? SavedBuildDraft => PinnedRelease is null && Candidate is { IsPresent: true, Problem: null }
+        ? PluginProfileStore.MatchingBuildDraft(Activation?.InstalledBuildDraft, Candidate) : null;
+    internal PluginReleaseSnapshot? EditableRelease => SavedBuildDraft ?? new[] { Activation?.Pending, Activation?.Pinned, Activation?.Active, Activation?.LastGood }
         .FirstOrDefault(release => release != null && release.CandidateId == CandidateId);
     internal PluginReleaseSnapshot? PinnedRelease => Activation?.Pinned is { } pinned && pinned.CandidateId == CandidateId ? pinned : null;
     internal PluginArtifact? ConfigurationArtifact => PinnedRelease?.Artifact ?? Candidate?.Artifact ?? EditableRelease?.Artifact;

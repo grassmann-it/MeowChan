@@ -49,6 +49,12 @@ The 1.1.1 release page follows the clearer 1.0.2 layout rather than the 1.1.0 on
 - Supporting files (`candidate-inventory.json`, the NuGet packages, the corresponding video-source archives) are explained in one sentence so no asset name is cryptic. The 1.1.0 page lacked the table and these explanations.
 - Check the final asset list and every link against the uploaded names before publishing; Tom publishes.
 
+## Handling red tests before the release (23 Nov)
+
+- A red test is **not chased by default.** If it passes in isolation and the cause is interference between tests (shared shortcut, dispatcher or footer state), record the cause in the validation note; it does not block.
+- A red test is **fixed** when it shows a real product defect, a layout failure in a GUI smoke, or when the test fix is small.
+- Follow-ups for 1.2.0: derive the localization audit counts from the built catalog instead of literals; replace tests that read source text of a smoke with checks on the product.
+
 ## Version audit
 
 | Location | Result |

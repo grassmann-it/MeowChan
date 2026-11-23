@@ -58,6 +58,24 @@ public sealed class PluginEntryPresentationTests
     }
 
     [Fact]
+    public void SavedBuildDraftReloadsInSettingsAndLeavesExplicitBuildSelectionAvailable()
+    {
+        var locked = Candidate("new");
+        var saved = Release("new") with { Configuration = new("saved", new("1", [new("count", SettingKind.Integer, Integer: 17)]),
+            new Dictionary<string, SettingsSnapshot>()) };
+        var entry = Entry(null, locked, lastGood: Release("old"), problem: "Selection required");
+        entry = entry with { Activation = entry.Activation! with { InstalledBuildDraft = saved } };
+        var draft = new PluginConfigurationDraft(entry, 3);
+        var view = PluginEntryPresentation.Create(entry, draft: draft, profileRevision: 3);
+
+        Assert.Equal("17", draft.Plugin.Text("count"));
+        Assert.False(draft.Dirty);
+        Assert.True(view.CandidateChoiceRequired);
+        Assert.Equal(PluginPendingKind.None, view.PendingKind);
+        Assert.Null((entry with { Candidate = Candidate("later") }).SavedBuildDraft);
+    }
+
+    [Fact]
     public void PendingBuildAndDisabledStateAreBothPreserved()
     {
         PluginCatalogEntry entry = Entry(Release("old"), Candidate("new"),

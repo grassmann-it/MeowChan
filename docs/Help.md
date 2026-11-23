@@ -428,10 +428,12 @@ saved results, those gestures use **Show in Media**. **Open in new window** uses
 the same navigation and remembers its last normal size and position. The side
 panel shows copyable Danbooru tags grouped by category.
 
-Both viewers show the available preview first. The provider's larger, reduced-size
-sample replaces it when the sample fits the configured gallery limits. Moving to
-another result or closing the viewer cancels the previous sample request. To
-download an original, use **Download original**.
+Both viewers show the preview already fetched by Search when available. The gallery
+may fetch the provider's larger, reduced-size **sample** for the currently open
+result only. The gallery settings limit the download size (MiB), pixel count,
+response time, and decoded image width. Moving to another result or closing the
+viewer cancels the pending sample request. **Download original** or its keyboard
+shortcut explicitly queues the original.
 
 | Key or action | In the Booru result viewer |
 | --- | --- |

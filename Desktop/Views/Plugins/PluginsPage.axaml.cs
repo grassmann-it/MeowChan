@@ -528,13 +528,14 @@ public partial class PluginsPage : UserControl
     {
         PluginConfigurationDraft? draft = CurrentDraft;
         bool stale = draft != null && draft.ExpectedRevision != _catalog?.Profile.Revision;
+        bool savedBuildDraft = Selected?.SavedBuildDraft is not null;
         if (_savedNoticeKey != _selectedKey || draft?.Dirty == true) _savedNoticeKey = null;
         C<TextBlock>("PluginDraftStatus").Text = Texts.T(stale ? "plugins.stale" : draft?.Dirty == true ? "plugins.draft"
-            : _savedNoticeKey != null ? "plugins.savedNextStart" : "plugins.settingsHint");
+            : savedBuildDraft ? "plugins.draftBuildLocked" : _savedNoticeKey != null ? "plugins.savedNextStart" : "plugins.settingsHint");
         C<TextBlock>("PluginDraftStatus").Classes.Set("workspace-error", stale);
         TextBlock draftSummary = C<TextBlock>("PluginDraftSummary");
         draftSummary.Text = C<TextBlock>("PluginDraftStatus").Text;
-        draftSummary.IsVisible = stale || draft?.Dirty == true;
+        draftSummary.IsVisible = stale || draft?.Dirty == true || savedBuildDraft;
         draftSummary.Classes.Set("workspace-error", stale);
         SetAction("PluginSave", stale ? "plugins.stale" : "plugins.reason.unchanged", draft?.Dirty == true && !stale);
         SetAction("PluginDiscard", "plugins.reason.noDraft", draft != null);

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
@@ -49,26 +50,125 @@ public sealed partial class PluginProfileStoreTests
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public async Task InstalledPluginWithChangedHashRequiresAnExplicitBuildSelection(bool sourceFile)
+    public async Task SavingSettingsForAChangedInstalledBuildKeepsItLockedAcrossRestarts(bool sourceFile)
     {
         var old = await Delivered("user-install", "one");
         var store = Store();
-        if (sourceFile) old.Candidate = old.Candidate with { CandidatePath = Path.Combine(profile, "plugins", "fixture.cs") };
+        if (sourceFile)
+        {
+            string local = Path.Combine(profile, "plugins");
+            Directory.CreateDirectory(local);
+            await File.WriteAllTextAsync(Path.Combine(local, "fixture.cs"), "// Local source candidate");
+            var installed = Assert.Single((await new PluginInstallationInventory().ScanAsync(local)).Candidates);
+            Assert.Equal(PluginCandidateKind.Source, installed.Kind);
+            old.Candidate = old.Candidate with { CandidateId = installed.CandidateId, CandidatePath = installed.Path };
+        }
         var state = await store.ApplyBundledStartupAsync([old.Candidate], [], [], 0);
+        PluginGrantScope scope = new("source", "board", "rule");
+        state = await store.SetGrantAsync("test.plugin", "dimensions", scope, FilterDataAccess.OriginalImage, state.Revision);
+        var priorGrant = Assert.Single(state.Grants);
         var next = await Delivered("user-install", "two");
-        if (sourceFile) next.Candidate = next.Candidate with { CandidatePath = old.Candidate.CandidatePath };
+        if (sourceFile) next.Candidate = next.Candidate with { CandidateId = old.Candidate.CandidateId, CandidatePath = old.Candidate.CandidatePath };
         Assert.Equal(old.Candidate.CandidateId, next.Candidate.CandidateId);
         Assert.NotEqual(old.Candidate.Artifact!.AssemblySha256, next.Candidate.Artifact!.AssemblySha256);
+        var proposed = Active(state).Configuration with { PluginSettings = Values("1", 17) };
+        state = await store.ApplyBundledStartupAsync([next.Candidate], [], [], state.Revision);
+        Assert.Null(Assert.Single(state.Plugins).Active);
+        Assert.Contains("Select the new build", state.Plugins[0].Problem);
+        state = await store.SaveConfigurationAsync("test.plugin", next.Candidate.CandidateId, proposed, state.Revision);
         for (int restart = 0; restart < 2; restart++)
         {
-            state = await store.ApplyBundledStartupAsync([next.Candidate], [], [], state.Revision);
+            state = await Store().ApplyBundledStartupAsync([next.Candidate], [], [], state.Revision);
             Assert.Null(state.Plugins[0].Active);
+            Assert.Null(state.Plugins[0].Pending);
             Assert.Equal(old.Candidate.Artifact.ExecutionRevision, state.Plugins[0].LastGood!.ExecutionRevision);
             Assert.Contains("Select the new build", state.Plugins[0].Problem);
+            Assert.Equal(priorGrant, Assert.Single(state.Grants));
         }
-        state = await store.SelectCandidateAsync("test.plugin", next.Candidate.CandidateId, state.Revision);
-        state = await store.ApplyBundledStartupAsync([next.Candidate], [], [], state.Revision);
+        state = await Store().SelectCandidateAsync("test.plugin", next.Candidate.CandidateId, state.Revision);
+        Assert.Equal(17, Number(state.Plugins[0].Pending!));
+        Assert.Equal(priorGrant, Assert.Single(state.Grants));
+        state = await Store().ApplyBundledStartupAsync([next.Candidate], [], [], state.Revision);
         Assert.Equal(next.Candidate.Artifact.ExecutionRevision, Active(state).ExecutionRevision);
+        Assert.Equal(17, Number(Active(state)));
+        Assert.Equal(FilterDataAccess.None, PluginGrantAuthorization.Resolve(state, "test.plugin", "dimensions", "source", "board", "rule").Access);
+        Assert.Equal(priorGrant.Revision + 1, Assert.Single(state.Grants).Revision);
+    }
+
+    [Fact]
+    public async Task ExplicitInstalledSelectionSurvivesSettingsCorrectionWithoutApprovingALaterBuild()
+    {
+        var old = await Delivered("local-revision", "one");
+        var store = Store();
+        var state = await store.ApplyStartupAsync([old.Candidate], 0);
+        var required = new SettingsSchema("2", [new("flag", SettingScope.Plugin, SettingKind.Boolean, "Flag", IsRequired: true)]);
+        var next = await Delivered("local-revision", "two", settings: required);
+        state = await store.ApplyStartupAsync([next.Candidate], state.Revision);
+        state = await store.SelectCandidateAsync("test.plugin", next.Candidate.CandidateId, state.Revision);
+        Assert.Null(state.Plugins[0].Pending);
+        var proposed = new PluginConfiguration("draft", new("2", [new("flag", SettingKind.Boolean, Boolean: true)]),
+            new Dictionary<string, SettingsSnapshot>());
+        state = await Store().SaveConfigurationAsync("test.plugin", next.Candidate.CandidateId, proposed, state.Revision);
+        Assert.Equal(next.Candidate.Artifact!.ExecutionRevision, state.Plugins[0].Pending!.ExecutionRevision);
+
+        var later = await Delivered("local-revision", "three", settings: required);
+        state = await Store().ApplyStartupAsync([later.Candidate], state.Revision);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Contains("Select the new build", state.Plugins[0].Problem);
+        state = await Store().SaveConfigurationAsync("test.plugin", later.Candidate.CandidateId, proposed, state.Revision);
+        state = await Store().ApplyStartupAsync([later.Candidate], state.Revision);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Equal(next.Candidate.Artifact.ExecutionRevision, state.Plugins[0].Pending!.ExecutionRevision);
+    }
+
+    [Fact]
+    public async Task LegacyPendingForAChangedInstalledBuildBecomesADraftUntilSelected()
+    {
+        var first = await Delivered("legacy-installed", "one");
+        var store = Store();
+        var state = await store.ApplyStartupAsync([first.Candidate], 0);
+        var next = await Delivered("legacy-installed", "two");
+        state = await store.ApplyStartupAsync([next.Candidate], state.Revision);
+
+        // Both old commands wrote this same snapshot, so the envelope cannot establish explicit intent.
+        var plugin = Assert.Single(state.Plugins);
+        var values = plugin.LastGood!.Configuration with { PluginSettings = Values("1", 29) };
+        byte[] payload = SdkJson.Serialize(state with { Plugins = [plugin with
+        {
+            Pending = new(next.Candidate.CandidateId, next.Candidate.Artifact!, next.Candidate.Description!, values),
+            Problem = null
+        }] });
+        await File.WriteAllBytesAsync(store.StorePath,
+            SdkJson.Serialize(new { Version = 1, Sha256 = Convert.ToHexString(SHA256.HashData(payload)), Payload = payload }));
+
+        state = await Store().ApplyStartupAsync([next.Candidate], state.Revision);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Null(state.Plugins[0].Pending);
+        state = await Store().SelectCandidateAsync("test.plugin", next.Candidate.CandidateId, state.Revision);
+        state = await Store().ApplyStartupAsync([next.Candidate], state.Revision);
+        Assert.Equal(29, Number(Active(state)));
+    }
+
+    [Fact]
+    public async Task UnconfiguredInstalledBuildCannotBeReplacedBySavingSettingsForARebuild()
+    {
+        var first = await Delivered("not-configured", "one", requiredSetting: true);
+        var store = Store();
+        var state = await store.ApplyStartupAsync([first.Candidate], 0);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Null(state.Plugins[0].LastGood);
+        var next = await Delivered("not-configured", "two", requiredSetting: true);
+        state = await store.ApplyStartupAsync([next.Candidate], state.Revision);
+        Assert.Contains("Select the new build", state.Plugins[0].Problem);
+
+        state = await Store().SaveConfigurationAsync("test.plugin", next.Candidate.CandidateId,
+            new("draft", Values("1", 11), new Dictionary<string, SettingsSnapshot>()), state.Revision);
+        state = await Store().ApplyStartupAsync([next.Candidate], state.Revision);
+        Assert.Null(state.Plugins[0].Active);
+        Assert.Null(state.Plugins[0].Pending);
+        state = await Store().SelectCandidateAsync("test.plugin", next.Candidate.CandidateId, state.Revision);
+        state = await Store().ApplyStartupAsync([next.Candidate], state.Revision);
+        Assert.Equal(11, Number(Active(state)));
     }
 
     // Synthetic delivered-store fixtures, not historical-release provenance.
