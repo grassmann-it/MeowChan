@@ -312,9 +312,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private readonly Border _upper = new();
     private readonly TextBlock _stripEmpty = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _more = new() { Classes = { "subtle" }, HorizontalAlignment = HorizontalAlignment.Left };
-    private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _allHeading = new() { Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _allChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
-    private readonly TextBlock _someHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _someHeading = new() { Classes = { "workspace-meta" }, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _someChips = new() { ItemSpacing = AssignedItemSpacing, LineSpacing = AssignedLineSpacing };
     private readonly TextBlock _assignedEmpty = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _assigned;
@@ -372,7 +372,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         AutomationProperties.SetLiveSetting(_markedBadge, AutomationLiveSetting.Polite);
         _markBar = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, IsVisible = false, Name = _name + "MarkBar", Children = { _markedBadge, _markedClear } };
 
-        Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Name = _name + "Header" };
+        Grid header = new() { Height = WorkspaceMetrics.InputHeight, ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8, Name = _name + "Header" };
         header.Children.Add(_title);
         header.Children.Add(_close); Grid.SetColumn(_close, 1);
         _close.VerticalAlignment = VerticalAlignment.Center;
@@ -381,12 +381,13 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         // Natural-height siblings: scroll past every assigned row to reach the complete suggestion block.
         _upper.Child = new StackPanel { Spacing = 8, Children = { _assigned, _extra } };
         _stripHost.Child = new StackPanel { Children = { _strip, _stripEmpty } };
-        Grid suggestionArea = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 8, Name = _name + "SuggestionArea" };
+        Grid suggestionArea = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto"), RowSpacing = 4, Name = _name + "SuggestionArea" };
         Control suggestionsHeader = SuggestionsHeader();
         suggestionArea.Children.Add(suggestionsHeader);
         suggestionArea.Children.Add(_stripHost); Grid.SetRow(_stripHost, 1);
         suggestionArea.Children.Add(_more); Grid.SetRow(_more, 2);
         _more.VerticalAlignment = VerticalAlignment.Bottom;
+        _more.Margin = new Thickness(0, 4, 0, 0);
 
         // The footer: three buttons of icon and text. In a narrow host (the side panel) they are stacked at full width, otherwise in a row.
         Grid actions = new() { Name = _name + "Actions" };
@@ -399,7 +400,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         BuildFooterButton(_advanced, AdvancedIcon);
         ApplyFooterLayout(stacked: false);
 
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,Auto,Auto,Auto,Auto,Auto"), RowSpacing = 12 };
+        Grid layout = new() { RowDefinitions = new RowDefinitions("32,Auto,Auto,Auto,Auto,Auto"), RowSpacing = 12, VerticalAlignment = VerticalAlignment.Top };
         layout.Children.Add(header);
         // The field with the marks bar under it (a single row, so a hidden bar leaves no gap).
         StackPanel fieldArea = new() { Spacing = 8, Children = { _input, _markBar }, Name = _name + "Field" };
@@ -1063,6 +1064,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         }
         for (int index = 0; index < buttons.Length; index++)
         {
+            buttons[index].Classes.Set("quick-tag-compact-action", !stacked && _compact);
             Grid.SetRow(buttons[index], stacked ? index : 0);
             Grid.SetColumn(buttons[index], stacked ? 0 : index);
             if (_sidebarSections != null) PanelActionStack.Stretch(buttons[index]);

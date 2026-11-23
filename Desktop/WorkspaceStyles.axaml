@@ -1445,6 +1445,7 @@
     </Style>
     <Style Selector="ToggleButton.rating-favorite">
         <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="Padding" Value="12,0" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
@@ -1454,6 +1455,9 @@
     <Style Selector="ToggleButton.rating-favorite /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-favorite:checked, ToggleButton.rating-favorite:indeterminate">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
     </Style>
     <Style Selector="ToggleButton.rating-favorite:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:indeterminate /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
@@ -1503,6 +1507,9 @@
     </Style>
     <!-- The one hairline of the quick tag popover and the gallery tag panel: between the decision row (favourite, rating) and the tag field. Its own 4 dip
          above and below add to the field area's 8 dip spacing: 12 dip of air on both sides. -->
+    <Style Selector="Button.quick-tag-compact-action">
+        <Setter Property="Padding" Value="4,0" />
+    </Style>
     <Style Selector="Border.quick-tag-divider">
         <Setter Property="Height" Value="1" /><Setter Property="Margin" Value="0,4" /><Setter Property="HorizontalAlignment" Value="Stretch" />
         <Setter Property="Background" Value="{DynamicResource Workspace.Border}" />
