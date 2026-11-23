@@ -146,6 +146,7 @@ internal static partial class MediaPageChecks
                 () => "While the order is random the narrow row must also hold Shuffle again under More: " + string.Join(",", page.HeaderMoreIds));
             window.Width = 760;
             await UntilAsync(() => Math.Abs(page.Bounds.Width - 760) < 0.5);
+            await page.PresentTask;
             RequireToolbarFits("compact (760)");
             Require(!C<Button>(page, "MediaShuffle").IsEffectivelyVisible, "At 760 DIP Shuffle must be offered through More.");
             MenuFlyout menu = (MenuFlyout)more.Flyout!;
@@ -153,9 +154,11 @@ internal static partial class MediaPageChecks
             MenuItem shuffle = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, Texts.T("media.shuffle")));
             await UntilAsync(() => menu.IsOpen && shuffle.IsEffectivelyVisible && shuffle.Bounds.Width > 0);
             int presentations = page.PresentCount;
+            int requests = page.PresentRunCount;
             SmokeActionClick.Execute(shuffle);
-            await UntilAsync(() => page.PresentCount > presentations);
-            Require(page.PresentCount == presentations + 1 && page.Sort == MediaLibrarySort.Random && page.Tiles.Count == 3,
+            await page.PresentTask;
+            Require(page.PresentRunCount == requests + 1 && page.PresentCount == presentations + 1
+                && page.Sort == MediaLibrarySort.Random && page.Tiles.Count == 3,
                 "Shuffle from More must present the same three tiles once in random order.");
             menu.Hide();
             Console.WriteLine($"SMOKE media Shuffle at 760 DIP: invoked through More at measured row width {page.ToolbarRow.Bounds.Width:0.##}.");

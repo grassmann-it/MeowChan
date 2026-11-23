@@ -6,6 +6,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -19,6 +20,37 @@ namespace MeowChan.DesktopSmoke;
 // when written (no GUI smokes at that time); the central run decides.
 internal static partial class MediaPageChecks
 {
+    private static async Task CheckNarrowMediaToolbarAsync(Window window, MediaPage page)
+    {
+        MediaPageLayout saved = page.PageLayout;
+        double width = window.Width;
+        page.ApplyLayout(saved with { TagList = true, TagListSide = MediaTagListSide.Left }, save: false);
+        try
+        {
+            window.Width = 832;
+            await UntilAsync(() => Math.Abs(page.Bounds.Width - 832) < 0.5);
+            await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+            Control more = C<Control>(page, "MediaMore");
+            Control row = page.ToolbarRow;
+            double moreLeft = more.TranslatePoint(default, page)!.Value.X;
+            double moreRight = moreLeft + more.Bounds.Width;
+            double moreInRow = more.TranslatePoint(new Point(more.Bounds.Width, 0), row)!.Value.X;
+            Require(more.IsEffectivelyVisible && more.Bounds.Width > 0 && moreLeft >= 0 && moreRight <= page.Bounds.Width + 0.5
+                && moreInRow <= row.Bounds.Width + 0.5 && row.Bounds.Width >= MediaToolbarLayout.NarrowestRowWidth - 0.5,
+                $"At 832 DIP More must fit inside the toolbar and the page (row {row.Bounds.Width}, More right {moreRight}).");
+            Require(!page.TagSidebar.IsEffectivelyVisible && !page.IsPanelShown && page.PageLayout.TagListWidth == saved.TagListWidth,
+                "Narrowing must fold the sidebars and preserve the list preference.");
+            Console.WriteLine($"SMOKE media More at 832 DIP: toolbar {row.Bounds.Width:0.##}, More right {moreRight:0.##}.");
+            Program.CaptureWindow(window, "smoke-media-more-832.png");
+        }
+        finally
+        {
+            window.Width = width;
+            page.ApplyLayout(saved, save: false);
+            await UntilAsync(() => Math.Abs(page.Bounds.Width - width) < 0.5);
+        }
+    }
+
     private static async Task LayoutAsync(Window window, MediaPage page, ThemeVariant theme, string code)
     {
         string state = $"layout {theme}/{code}";
@@ -102,20 +134,6 @@ internal static partial class MediaPageChecks
         await UntilAsync(() => Math.Abs(panel.Bounds.Width - preferredPanelWidth) < 0.5);
         Require(page.IsPanelShown && page.PageLayout.PanelWidth == preferredPanelWidth,
             state + ": widening must restore the preferred media-panel width.");
-
-        window.Width = 832;
-        await UntilAsync(() => Math.Abs(page.Bounds.Width - 832) < 0.5);
-        window.UpdateLayout();
-        Control more = C<Control>(page, "MediaMore");
-        double toolbarWidth = page.ToolbarRow.Bounds.Width;
-        double moreRight = X(more) + more.Bounds.Width;
-        Require(more.IsEffectivelyVisible && more.Bounds.Width > 0 && X(more) >= 0 && moreRight <= page.Bounds.Width + 0.5
-            && toolbarWidth >= MediaToolbarLayout.NarrowestRowWidth - 0.5,
-            $"{state}: at 832 DIP the toolbar must keep More inside the page (row {toolbarWidth}, More right {moreRight}).");
-        Require(!sidebar.IsEffectivelyVisible && !page.IsPanelShown && page.PageLayout.TagListWidth == Config.MediaTagListWidthMaximum,
-            state + ": narrowing must fold the sidebars and preserve the list preference.");
-        Console.WriteLine($"SMOKE media More at 832 DIP [{state}]: toolbar {toolbarWidth:0.##}, More right {moreRight:0.##}.");
-        if (theme == ThemeVariant.Light && code == "en") Program.CaptureWindow(window, "smoke-media-more-832.png");
 
         window.Width = 1400;
         page.ApplyLayout(page.PageLayout with { TagListWidth = 256, TagListSide = MediaTagListSide.Left });

@@ -121,6 +121,7 @@ internal static partial class MediaPageChecks
             Require(page.Snapshot is { Complete: true } && page.Snapshot.Threads.Count == 2, "Index did not cover both threads.");
             Require(page.ShownEntries.Count == 3 && page.ShownEntries.All(entry => entry.Presence == MediaLibraryPresence.Present),
                 "Default view must show exactly the three saved files.");
+            await CheckNarrowMediaToolbarAsync(window, page);
             // By thread: the newer thread B first, then A's post file, then A's file without a post.
             Require(page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + (entry.PostId ?? "-")).SequenceEqual(new[] { "200:200", "100:100", "100:-" }),
                 "By-thread order is wrong: " + string.Join(",", page.ShownEntries.Select(entry => entry.Thread.Thread + ":" + entry.PostId)));
