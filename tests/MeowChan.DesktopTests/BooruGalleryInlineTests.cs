@@ -329,6 +329,7 @@ public sealed class BooruGalleryInlineTests
             Assert.True(input.Focus());
             input.RaiseEvent(Press(Key.End, input));
             Assert.True(input.IsFocused);
+            Assert.Equal(input.Text!.Length, input.CaretIndex);
             Assert.Equal("101", view.Gallery.CurrentPostId);
 
             Assert.True(view.OpenResultViewer("101"));
