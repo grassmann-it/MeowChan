@@ -114,6 +114,28 @@ public sealed class MediaPageTermFilterTests : IDisposable
     }
 
     [Fact]
+    public async Task ConcurrentSourceTagRequestsShareOneIndex()
+    {
+        string source = BooruMediaIdentity.Source;
+        BooruPostClaimTag[] tags = Enumerable.Range(0, 16_384)
+            .Select(i => new BooruPostClaimTag($"tag_{i}", BooruPostClaimTagCategory.General)).ToArray();
+        BooruPostRecord post = new(source, "10", new BooruPostClaim(source, "10", BooruPostClaimPresence.Tags, Tags: tags),
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.CurrentSchemaVersion, [post], []);
+        MediaSourceTagIndexCache cache = new();
+        TaskCompletionSource start = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<MediaSourceTagIndex>[] requests = Enumerable.Range(0, 8).Select(_ => Task.Run(async () =>
+        {
+            await start.Task;
+            return cache.For(catalog);
+        })).ToArray();
+
+        start.SetResult();
+        MediaSourceTagIndex[] indexes = await Task.WhenAll(requests);
+        Assert.All(indexes, index => Assert.Same(indexes[0], index));
+    }
+
+    [Fact]
     public void SourceTagFiltersUseOnlyTheDefaultDanbooruInstanceInEitherOrder()
     {
         static BooruPostRecord Post(string? instance, string name) => new(BooruMediaIdentity.Source, "42",
