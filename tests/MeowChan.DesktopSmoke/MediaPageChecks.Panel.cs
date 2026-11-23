@@ -17,7 +17,7 @@ namespace MeowChan.DesktopSmoke;
 // The media panel of the Media page (smoke id media-page, after the page journey; its own profile with the three saved files of SeedAsync).
 // The panel is on by default and stands right of the grid on a wide page. It follows the grid's selection: a real click, a programmatic
 // selection and its own "next" arrow each make it show the selected tile, with the header naming that medium (post number, file name) and the
-// counter "x of y" in the header; a single click only selects (the gallery is not opened), "Open in gallery" opens it at the
+// localized position pill in the header; a single click only selects (the gallery is not opened), "Open in gallery" opens it at the
 // panel's medium. Compile-checked only when written (no GUI smokes at that time); the central run decides.
 internal static partial class MediaPageChecks
 {
@@ -166,7 +166,7 @@ internal static partial class MediaPageChecks
             Require(opened[0].Window[opened[0].Start] == rows[0].Entry, "'Open in gallery' must start at the panel's medium: " + opened[0].Window[opened[0].Start].Name);
             Program.CaptureWindow(window, "smoke-media-panel.png");
             Texts.SetLanguage("de");
-            await PanelUntilAsync(() => page.PanelRow?.Entry == rows[0].Entry && position.Text == "1 von 3",
+            await PanelUntilAsync(() => page.PanelRow?.Entry == rows[0].Entry && position.Text == "Nr. 1 / 3",
                 () => "The header position did not follow the language change: '" + position.Text + "'.");
             Console.WriteLine("SMOKE media panel [en]: on by default right of the grid with its handle; sidebar/divider fill the host independently of the grid, title/actions at the top inside the sidebar; empty without a selection; follows a click (which only selects) and the grid's selection; header names the selected medium (post number, file name), picture named after it and changed with the tile; no overlay arrows or counter; Open in gallery starts at the panel's medium.");
         }

@@ -257,6 +257,7 @@ internal static class ReaderMediaSidebarChecks
             Require(!page.IsMediaSidebarShown, "The archive view showed the sidebar while it is set to the large reader only.");
             page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.IsMediaSidebarInArchiveView && page.MediaSidebar!.IsEffectivelyVisible);
+            ReaderMediaSidebar sidebar = page.MediaSidebar!;
             Require(page.ReaderMedia.Sidebar && page.ReaderMedia.SidebarAlways, "The archive view's switch did not choose Always.");
             Require(sidebar.Parent == pane && Grid.GetRow(sidebar) == 0 && Grid.GetRowSpan(sidebar) == 2
                 && Grid.GetColumn(sidebar) == (page.ReaderMedia.SidebarRight ? 2 : 0)
