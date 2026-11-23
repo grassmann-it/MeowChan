@@ -3,30 +3,42 @@
 ## 1.1.1
 
 - Show Booru in the default navigation, including profiles that used the 1.1.0
-  default footer. Reconnect the verified bundled Danbooru build across install
-  directories and offer repair review directly from the startup warning when needed.
+  default footer. Migrate eligible 1.1.0 profiles to the verified bundled Danbooru
+  build across install directories, retain the previous build record for rollback
+  and offer repair review from the startup warning when needed.
 - Group the Reader’s thread-list and media-sidebar switches, and the Media page’s
-  tag-list and media-sidebar switches. Show the active state of the Reader’s
-  **Find** and **Tags** toggles in the toolbar.
+  tag-list and media-sidebar switches. Give the Reader, Archive and Media page
+  a shared sidebar header and use consistent icons for panel switches and workspace
+  actions. Show the active state of the Reader’s **Find** and **Tags** toggles.
+- Hide the title bar in Reader fullscreen and reveal it at the top edge. Keep
+  **Full screen** beside the sidebar switches at narrow widths.
 - Open Danbooru searches in new tabs by default, with an alternate shortcut for the
-  current tab. Reopen saved searches and bounded results on startup. Browse the
-  current result page in List, Grid or Gallery view, and queue available originals
-  from a search up to the source’s page limit.
+  current tab. Reopen saved searches and bounded results on startup. Retain the
+  current and marked results when switching tabs and open the Watchers overview
+  from a dedicated button beside the tabs.
+- Browse the current Danbooru result page in List, Grid or Gallery view. Share
+  controls, shortcuts, tags and larger previews between the inline gallery and the
+  separate viewer. Queue available originals from a search up to the source’s page limit.
 - Align the Downloads toolbar with the Threads and Boards tabs. Keep keyboard focus
   on the whole row as you move between cells.
 - Restore Reader previews when returning to an archived thread and retry failed
   attachment previews in place. Fix links and post references on later lines.
-- Put Start or Continue, progress and a stamp editor in the Tagging header.
-  Show a result count beside the filters. With a selection, keep editing tags
-  and marking entries as finished within reach and put additional actions
-  under **More**. Space toggles the focused entry in the list or grid.
+- Put the start or continue action, **0 of N results** progress and a stamp editor
+  in the compact Tagging header. Show the matching count beside the filters. With a
+  selection, keep editing tags and marking entries as finished within reach and put
+  additional actions under **More**. Space toggles the focused entry in the list or grid.
 - Keep the gallery footer open while its controls are in use, restore auto-hide when
-  idle, and stop tooltips from intercepting the pointer.
+  idle, and stop tooltips from intercepting the pointer. Rate local media with 1–5,
+  clear ratings with 0, assign colour labels with 6–9 and zoom to 1:1 with Z.
 - Tag counts in the tagging queue use the media index. **Without tags** includes only media
   with a known count of zero. Opening a v1, v2 or dogfood v3 queue leaves its files untouched.
   The first edit to a v3 queue saves the previous revision in `tag-queue.json.bak` and the
   edited revision in `tag-queue.json`, both as v2. Older v2 builds can then continue the walk
   with its groups, cursor and stamps. Attachment revision keys are kept in memory only.
+- Add a filename template and live preview to original exports. Verify existing
+  copies before skipping them on import and report added and missing tags.
+- Show readable platform labels for release downloads and keep desktop filenames
+  ordered with `01`–`09` prefixes.
 - See the [1.1.1 release notes](docs/releases/v1.1.1.md) for more fixes and limits.
 
 ## 1.1.0 — 2026-11-19 — Media page, own tags, Danbooru and plugin SDK 1.1.0

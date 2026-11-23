@@ -55,8 +55,43 @@ roadmap.md
 # Local architecture sparring and implementation notes
 /docs/architecture/
 /architecture/
+/docs/development/evidence/
+/docs/diagnostics/
+/docs/ux-ledger-*.md
+/docs/cts-disposal-UX-LEDGER-*.md
+/docs/*audit*.md
+/docs/analyzer-validation-*.md
+/docs/release-*-closure-gate-*.md
+/docs/release-*-local-status-*.md
+/docs/release-*-status-*.md
+/docs/review-fixtures*
+/docs/development/UX-UI-*-REVIEW-PROMPT-*.md
+/docs/development/*audit*.md
+/docs/development/*-review-20*.md
+/docs/development/ux-ledger-*.md
+/docs/development/pkg-*.md
+/docs/development/package-*.md
+/docs/development/pr*-merge-cleanup-*.md
+/docs/development/c6-parallel-capture-isolation-*.md
+/docs/development/ca2000-desktop-smoke-ownership-*.md
+/docs/development/l10n-pack-cleanup-*.md
+/docs/development/l10n-pack-retained-keys-*.tsv
+/docs/development/macos-intel-core-shard*.md
+/docs/development/media-page-ui-event-deadline-*.md
+/docs/development/o2-04-large-reader-hosting-safety.md
+/docs/development/plugin-delivery-dev-ux-*.md
+/docs/development/ux-empty-overflow-menu-*.md
+/docs/development/ux-ui-common-errors.md
+/docs/development/ux-ui-release-followups-*.md
+/docs/development/validate-*.md
 
+# Local and CI output
 /artifacts/
+/review/
+/plugins/Examples/**/Evidence/
+/tests/MeowChan.DesktopTests/*.evidence.md
+/tests/gallery-error-decomposition/NativeReadinessEvidence.md
+/tests/package9_audit/
 
 __pycache__/
 
@@ -65,6 +100,10 @@ __pycache__/
 /samples/MeowChan.RelaunchMock/
 /.architecture-sparring/
 /.commandcode/
+/.lain/
+/.opencode/
+/opencode.json
+/opencode.jsonc
 /.frontier-review/
 /samples/MeowChan.SemiUrsaMock/
 

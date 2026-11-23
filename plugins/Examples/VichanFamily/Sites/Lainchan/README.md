@@ -61,11 +61,7 @@ and an invented `archived` property do not terminate Lainchan watches.
 
 ## Evidence and limits
 
-`Evidence/` contains dated metadata, SHA-256 hashes and selected source excerpts.
-The earlier 2026-10-22 collection was reviewed before implementation and is copied
-with its original readme. The added API-code and thread-HTML requests were also
-bounded to 256 KiB, no cookies, redirects, retries or media requests. No real post
-bodies, author names, original filenames or image bytes were retained.
+The API and thread HTML were checked with bounded public requests.
 
 - Homepage → official repository: https://github.com/lainchan/lainchan
 - Upstream API: https://raw.githubusercontent.com/lainchan/lainchan/master/inc/api.php

@@ -157,7 +157,7 @@ internal sealed class NewProfileDialog : Window, IDisposable
     }
 
     /// <summary>Until the person edits a folder, both follow the name: <c>.MeowChan-profiles/&lt;name&gt;</c> and
-    /// <c>MeowChan-&lt;name&gt;</c> beside this window's download folder, each the first that does not exist yet.</summary>
+    /// <c>MeowChan-&lt;name&gt;</c> beside the download folder used for suggestions, each the first that does not exist yet.</summary>
     private void SuggestFolders()
     {
         string slug = ProfileOpenPolicy.Slug(_name.Text ?? string.Empty);
@@ -166,7 +166,7 @@ internal sealed class NewProfileDialog : Window, IDisposable
         {
             if (!_folderEdited && ProfileOpenPolicy.DefaultProfilesParent() is { } parent)
                 _folder.Text = ProfileOpenPolicy.FreeFolder(parent, slug);
-            if (!_downloadsEdited) _downloads.Text = ProfileOpenPolicy.SuggestDownloadFolder(_service.CurrentDownloadPath, slug);
+            if (!_downloadsEdited) _downloads.Text = _service.SuggestDownloadFolder(slug);
         }
         finally { _syncing = false; }
     }

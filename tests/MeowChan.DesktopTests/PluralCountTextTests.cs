@@ -72,7 +72,6 @@ public sealed class PluralCountTextTests : IDisposable
         ["settings.exportFilenameTemplate.tooLong"] = "the number is the fixed template length cap (ExportFilenameTemplate.MaxTemplateLength = 120), never 1",
         ["settings.exportFilenameTemplateHint"] = "{1} is the fixed template length cap (ExportFilenameTemplate.MaxTemplateLength = 120), never 1",
         ["settings.galleryPlayback.videoRepeatsHint"] ="range text of a bounded setting (\"Default {0}, from {1} to {2} passes\")",
-        ["reader.sidebar.noMedia"] = "the number is a post number (\"No. {0}\") and \"media\" is the same in the singular and the plural",
         ["sources.showAll"] = "\"Downloads\" is the name of a page, not the counted noun",
         ["stats.settings.maxSourcesHint"] = "range text of a bounded setting",
         ["stats.settings.persistIntervalHint"] = "range text of a bounded setting (minutes)",

@@ -246,10 +246,6 @@ internal sealed record ArchivePostRow(string Id, string Subject, string Body,
         get => _repliesExpanded;
         set { if (_repliesExpanded == value) return; _repliesExpanded = value; Changed(nameof(RepliesExpanded)); }
     }
-    /// <summary>The replies were opened by the "Expand replies automatically" setting, not by the reader; turning the setting off closes only these.</summary>
-    public bool RepliesAutoExpanded { get; set; }
-    /// <summary>The card of this post was realised (shown) at least once on this page; only such cards load their replies automatically.</summary>
-    public bool RepliesRealised { get; set; }
     public bool RepliesLoading => _repliesLoading;
     public bool RepliesLoaded => _repliesLoaded;
     public int RepliesOffset => _repliesOffset;

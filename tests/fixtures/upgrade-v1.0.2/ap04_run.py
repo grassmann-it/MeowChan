@@ -45,8 +45,8 @@ import legacy102_process as process_runner  # noqa: E402
 from legacy102_process import CommandFailed, CommandTimedOut, CommandUnavailable  # noqa: E402
 RELEASE_REVISION = 'eec6c0169f8d52f7481ea0bf7febfd20981e97c3'
 EXPECTED_VERSION = '1.1.0'
-ALLOWED_OUT = Path.home() / '.cache/claude-ssd-tmp/ap4'
-LOCK = Path.home() / '.cache/claude-ssd-tmp/heavy.lock'
+ALLOWED_OUT = Path.home() / '.cache/meowchan/ap4'
+LOCK = Path(os.environ.get('OCHAN_HEAVY_LOCK') or ALLOWED_OUT.parent / 'heavy.lock')
 # flock --conflict-exit-code: heavy.lock was not acquired within --lock-wait, so the command never started.
 LOCK_BUSY = 75
 DEFAULT_LOCK_WAIT = 3600

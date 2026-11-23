@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 import importlib.util
 import json
-import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -19,7 +18,7 @@ checks = module('review-prechecks')
 
 class ReviewContracts(unittest.TestCase):
     def test_full_matrix_missing_is_explicit(self):
-        with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
+        with tempfile.TemporaryDirectory() as path:
             cells = runner.inventory(Path(path))
             self.assertEqual(260, len(cells))
             self.assertEqual(260, sum(c['status'] == 'missing' for c in cells))
@@ -27,7 +26,7 @@ class ReviewContracts(unittest.TestCase):
             self.assertEqual({760, 900, 1099, 1100, 1440}, {c['geometry']['width'] for c in cells})
 
     def test_single_debug_scene_accepts_non_matrix_width(self):
-        with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
+        with tempfile.TemporaryDirectory() as path:
             self.assertEqual(('tagging-stamp', 1920, 'Light', 'en'), runner.parse_scene('tagging-stamp-1920-light-en'))
             cells = runner.inventory(Path(path), 'tagging-870-dark-de')
             self.assertEqual(1, len(cells))
@@ -35,7 +34,7 @@ class ReviewContracts(unittest.TestCase):
             self.assertEqual(870, cells[0]['geometry']['width'])
 
     def test_screenshot_without_dump_rejected(self):
-        with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
+        with tempfile.TemporaryDirectory() as path:
             root = Path(path)
             import hashlib
             (root / 'screenshot.png').write_bytes(b'synthetic screenshot bytes')
@@ -50,7 +49,7 @@ class ReviewContracts(unittest.TestCase):
 
     def test_committed_bundle_and_tamper_detection(self):
         import hashlib
-        with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
+        with tempfile.TemporaryDirectory() as path:
             root = Path(path)
             control = dict(name='SyntheticControl', bounds=None, visible=False, is_enabled=True, is_focused=False, text='Synthetic')
             data = {'bundle.json': {'complete': True}, 'control-tree.json': {'elements': [control]}, 'state.json': {}, 'timing.json': {}}
@@ -77,7 +76,7 @@ class ReviewContracts(unittest.TestCase):
         self.assertEqual(1, checks.ratio('#123456', '#123456'))
 
     def test_prechecks_report_unavailable_exports(self):
-        with tempfile.TemporaryDirectory(dir=os.environ['COMMANDCODE_SCRATCHPAD']) as path:
+        with tempfile.TemporaryDirectory() as path:
             report = checks.run(ROOT.parent, Path(path))
             self.assertEqual(2, len(report['incomplete']))
             self.assertGreater(len(report['measurements']), 50)

@@ -20,11 +20,5 @@ original paths are accepted only below `/.media/`; thumbnails are not advertised
 
 ## Evidence and limits
 
-The API family is supported by the public research record in
-`review/goal-1.0.3-source-fixtures-glm.md`, but the current live instance was not
-read through because POWBlock blocked the metadata probes. `Fixtures/` contains
-synthetic, explicitly non-live-verified shapes and challenge/404/media HTTP
-receipts. These fixtures are documentation artifacts only: the existing separate
-example-plugin test project copies fixtures from `tests/`, which this worker was
-not permitted to modify. No current availability, host integration, package or
-platform acceptance is implied.
+POWBlock prevented live metadata checks. `Fixtures/` contains synthetic
+metadata, challenge, 404 and media HTTP examples.

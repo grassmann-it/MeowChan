@@ -1,4 +1,4 @@
-# UX-LEDGER-21: smoke / release boundary
+# Smoke testing and release packages
 
 The shipping `MeowChan` assembly must contain neither acceptance harness types nor the private
 MainWindow acceptance methods. `ReleaseAssemblyBoundaryTests` reads its actual PE metadata
@@ -80,67 +80,10 @@ Focused validation (no solution build or full smoke suite):
 
 ```sh
 dotnet build tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Debug
-dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Debug --no-build --filter 'FullyQualifiedName~Apphost|FullyQualifiedName~ReleaseAssemblyBoundaryTests'
+xvfb-run -a dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Debug --no-build --filter 'FullyQualifiedName~Apphost|FullyQualifiedName~ReleaseAssemblyBoundaryTests'
 dotnet build tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release
-dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --filter FullyQualifiedName~ReleaseAssemblyBoundaryTests
+xvfb-run -a dotnet test tests/MeowChan.DesktopTests/MeowChan.DesktopTests.csproj -c Release --no-build --filter FullyQualifiedName~ReleaseAssemblyBoundaryTests
 dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Debug
 dotnet build tests/MeowChan.DesktopSmoke/MeowChan.DesktopSmoke.csproj -c Release
-python3 scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --registry --only no-tray --output artifacts/ledger21
+python3 scripts/run-desktop-smoke.py --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll --registry --only no-tray --output artifacts/smoke-boundary
 ```
-
-## Recorded validation (2026-11-17)
-
-At code commit `d708440d436ffb63e0282e8b40cad1514207131b`:
-
-- Product + DesktopTests built in Debug and Release (zero errors).
-- Focused Debug tests: **76 passed, 0 failed, 0 skipped**.
-- Focused Release tests: **20 passed, 0 failed, 0 skipped**, including the PE metadata absence
-  assertion and the retained source-activation startup/diagnostic assertions.
-- DesktopSmoke built in Debug and Release (zero errors), against those already-built products.
-- Release registry invocation above: **no-tray passed; summary 1 passed, 0 failed, 0 skipped**.
-- Debug in-app `--smoke-startup-seconds 3` on private DBus/Xvfb: **APPHOST STARTUP PASS**;
-  actual main window/session ready, dwell and normal shutdown completed, exit 0.
-- No full solution build or full smoke suite was run. Existing compiler/analyzer warnings remain.
-
-### Packaging migration validation (2026-11-17)
-
-The migration is implemented in `41afb5ac4`. All 19 inherited uncommitted entries belonged to
-this migration and were retained. Completion also repaired the renamed macOS workflow-step
-contract, pointed the plugin inventory contract at its relocated shared oracle, and corrected a
-stale selector expectation to **require** the always-running full-sweep aggregate while keeping
-all unrelated workload exclusions asserted. No scene assertions or acceptance coverage were removed.
-Linux Debug package bytes and individual Release layout reports now have independent hash checks;
-negative tests reject substitution of Release hashes for executed Debug ZIPs on Windows/macOS.
-
-Locally reverified using .NET SDK 10.0.111 on Linux (no solution build, no GUI suite):
-
-- `dotnet build MeowChan.csproj -c Release --no-restore -m:1 -p:UseSharedCompilation=false -nodeReuse:false`:
-  succeeded, zero errors; existing warnings remain.
-- The same product-only build with `-c Debug`: succeeded, zero errors.
-- The resulting `bin/Release/net10.0/MeowChan.dll` contains **zero of the seven switches**, no
-  `--smoke-` user-string prefix and no development hook; the Debug assembly contains **all seven**
-  and the hook. Both configuration markers were checked by the boundary preflight.
-- All seven runners' `--dry-run` entry points accepted the actual Debug output and rejected the
-  actual Release output. No UI, playback, scene or shipping-binary execution claim is made.
-- `python3 scripts/test-apphost-acceptance-boundary.py -v`: **8 passed**. Its Linux Docker
-  command-construction test supplies synthetic UID/GID values so this shared suite also runs on
-  Windows. The contract was additionally rerun with POSIX identity APIs removed: **1 passed**;
-  this checks portability of the test, not actual Windows packaging.
-- `python3 -m unittest discover -s tests -p 'test_apphost_*_runner.py' -v`: **58 passed**.
-- `python3 -m unittest discover -s tests -p test_prerelease.py -v`: **57 passed**.
-- Supplemental packaging contracts: macOS **95 passed, 1 skipped** (native Apple signing tools),
-  Linux **42 passed, 1 skipped** (explicit local Docker image required), retained stable release
-  **6 passed**. Auxiliary integrity/plugin/source-activation script contracts: **13/25/14 passed**.
-- Debug acceptance locked `linux-x64` self-contained/single-file restore with
-  `MeowChanAcceptancePublish=true` succeeded against the reviewed RID locks. No lockfile changes
-  were retained. This was a restore check, not a native archive publish/acceptance run.
-- Workflow YAML and migrated embedded Python parsed; `git diff --check` passed.
-
-**Open native CI gate:** run the final source through both macOS RIDs, Windows x64 and both Linux
-RIDs, including actual self-contained publishing, signing/mounting/ZIP round trips, Docker/native
-VLC positive and error scenarios, AppImage AppRun/extract-and-run, and downstream candidate/source
-assembly. Those platform executions and final-source archive/evidence hashes were not proven
-locally. The implementation no longer has an unmigrated Release-switch caller, but release
-acceptance still requires green native CI evidence. Debug execution is deliberately not proof of
-executing a shipping Release binary; physical audio, Developer ID/notarization and Gatekeeper
-remain outside the pre-existing acceptance claim.

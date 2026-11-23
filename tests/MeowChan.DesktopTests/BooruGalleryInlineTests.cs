@@ -5,6 +5,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -28,6 +29,21 @@ public sealed class BooruGalleryInlineTests
 {
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
     private const int MiB = 1024 * 1024;
+
+    [Fact]
+    public void DashedSourceChipsRenderOnSuccessiveDispatchers()
+    {
+        Render();
+        Render();
+
+        static void Render() => BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            ChipOutline chip = new() { IsDashed = true, Stroke = Brushes.Black, Width = 60, Height = 24 };
+            using WindowScope window = new(chip);
+            Assert.Equal(new Size(60, 24), chip.Bounds.Size);
+        });
+    }
 
     [Fact]
     public void TheTwoGallerySettingsHaveDefaultMinimumAndMaximumAndAreValidated()

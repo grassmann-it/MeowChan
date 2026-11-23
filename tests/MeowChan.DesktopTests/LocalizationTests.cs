@@ -41,6 +41,20 @@ public sealed class LocalizationTests : IDisposable
         Assert.Equal("en", Texts.Culture.Name);
     }
 
+    [Theory]
+    [InlineData("zh-CN", "zh-Hans")]
+    [InlineData("zh-SG", "zh-Hans")]
+    [InlineData("zh-TW", "en")]
+    [InlineData("pt-BR", "pt-BR")]
+    [InlineData("de-CH", "de")]
+    [InlineData("fr-CA", "fr")]
+    [InlineData("sv-SE", "en")]
+    public void StartupCultureFollowsInstalledPackParents(string culture, string expected)
+    {
+        Texts.Initialize();
+        Assert.Equal(expected, Texts.ResolveCulture(CultureInfo.GetCultureInfo(culture)));
+    }
+
     [Fact]
     public void ActiveLanguageWinsAndEnglishIsUsedOnlyForMissingKeysOrBrokenFormats()
     {

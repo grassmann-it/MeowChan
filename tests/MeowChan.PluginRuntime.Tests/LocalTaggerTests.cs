@@ -61,6 +61,7 @@ public sealed class LocalTaggerTests
         Assert.Equal(FixturePlugin.ModelId, suggestion.Provenance.ModelId);
         Assert.Equal(FixturePlugin.Revision, suggestion.Provenance.ModelRevision);
         Assert.Equal(FixturePlugin.ModelSha256, suggestion.Provenance.ModelSha256);
+        Assert.Equal(approvedHash, suggestion.Provenance.ManifestSha256);
         Assert.Equal("fixture", suggestion.Provenance.PluginId);
 
         TaggerJobResult resumed = await RunAsync(worker, approvedHash, item, CancellationToken.None);
@@ -70,6 +71,36 @@ public sealed class LocalTaggerTests
         string path = Path.Combine(installed.DirectoryPath, LocalTaggerModelManifest.WeightsFileName);
         File.WriteAllBytes(path, [203]);
         await Assert.ThrowsAsync<LocalTaggerModelException>(() => reloaded.VerifyInstalledAsync(CancellationToken.None));
+    }
+
+    [Fact]
+    public async Task AChangedManifestWithTheSameModelAndWeightsRunsAgain()
+    {
+        using Workspace workspace = new();
+        using ProfileLease lease = ProfileLease.Acquire(Path.Combine(workspace.Path, "profile"));
+        LocalTaggerModelStore models = new(lease);
+        TagSuggestionStore suggestions = new(lease);
+        await using PluginWorkerManager manager = new();
+        TaggerJobItem item = TestImage(255);
+        string original = WritePackage(workspace.Path, "original", [204]);
+        string changed = WritePackage(workspace.Path, "changed", [204], height: 2);
+
+        foreach (string path in new[] { original, changed, original })
+        {
+            LocalTaggerModelPreview preview = await models.PreviewAsync(path, CancellationToken.None);
+            await models.ImportAsync(preview, CancellationToken.None);
+            string hash = preview.Package.ManifestSha256;
+            LocalTaggerWorker worker = CreateWorker(workspace.Path, models, suggestions, manager, Approve(hash));
+
+            TaggerJobResult run = await RunAsync(worker, hash, item, CancellationToken.None);
+            Assert.Equal(1, run.Tagged);
+            TagSuggestionSnapshot stored = suggestions.Load();
+            Assert.Equal(hash, Assert.Single(stored.Runs).Provenance.ManifestSha256);
+            Assert.Equal(hash, Assert.Single(stored.PendingFor(item.MediaSha256, 0)).Provenance.ManifestSha256);
+
+            TaggerJobResult resumed = await RunAsync(worker, hash, item, CancellationToken.None);
+            Assert.Equal(1, resumed.Skipped);
+        }
     }
 
     [Fact]

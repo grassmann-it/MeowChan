@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.FolderSources;
+using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
 
@@ -35,6 +36,45 @@ internal sealed partial class DesktopSessionHost
     private Timer? _folderSourceNotify;
     private int _folderSourceNotifyPending;
     private bool _folderSourcesStopped;
+
+    // Adoption constructs the host on a worker. The lease we hold here stays with
+    // that same host through restore and producer activation.
+    private void ValidateReadOnlyStartupSource(string source, ISessionStore session, IWorkStateStore work)
+    {
+        if (!StartupFolderSession.IsPlainPath(source) || !Directory.Exists(source))
+            throw new FolderSourceException(FolderSourceError.FolderUnavailable);
+        if (FolderSourceValidation.Overlaps(source, ProfileDirectory))
+            throw new FolderSourceException(FolderSourceError.FolderIsProfile);
+
+        RequireSafe(Config.DownloadPath);
+        if (Config.SaveUrlsOnExit)
+        {
+            SessionSnapshot snapshot = session.LoadAsync().GetAwaiter().GetResult().Snapshot;
+            foreach (string root in snapshot.DownloadDirectories.Values.Distinct(StringComparer.Ordinal))
+                RequireSafe(root);
+        }
+
+        // The journal overrides the session projection. Its assignments can also
+        // be reused when a completed or suppressed watch is explicitly reopened.
+        IReadOnlyList<WorkResource> resources = work.LoadResources();
+        foreach (string root in resources.Select(resource => resource.OutputRoot).Distinct(StringComparer.Ordinal))
+            RequireSafe(root);
+        foreach (WorkResource resource in resources.Where(resource => resource.IsThread))
+        {
+            foreach (MediaWork media in work.LoadMedia(resource.Url, resource.Generation))
+            {
+                RequireSafe(media.DestinationPath);
+                if (media.LegacyPath is { } legacy) RequireSafe(legacy);
+            }
+        }
+
+        void RequireSafe(string path)
+        {
+            if (!Path.IsPathFullyQualified(path) || FolderSourceValidation.Overlaps(source, path)
+                || !StartupFolderSession.IsPlainPath(path))
+                throw new FolderSourceException(FolderSourceError.FolderIsDownloads);
+        }
+    }
 
     /// <summary>Raised (coalesced, on a worker) when folder sources, their files or their digests changed.</summary>
     internal event Action? FolderSourcesChanged;

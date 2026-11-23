@@ -53,6 +53,27 @@ public sealed class TagSuggestionStoreTests : IDisposable
     }
 
     [Fact]
+    public void ARunWithoutManifestRemainsReadableButCannotResumeAVerifiedManifest()
+    {
+        TagSuggestionStore store = Store();
+        TagSuggestionProvenance verified = R1 with { ManifestSha256 = new string('c', 64) };
+        store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]);
+
+        TagSuggestionSnapshot legacy = Store().Load();
+        Assert.True(legacy.HasCompletedRun(MediaA, R1));
+        Assert.False(legacy.HasCompletedRun(MediaA, verified));
+        Assert.Null(Assert.Single(legacy.Runs).Provenance.ManifestSha256);
+
+        store.CommitRuns([Run(MediaA, verified, ("cat", 0.9))]);
+
+        TagSuggestionSnapshot reloaded = Store().Load();
+        Assert.True(reloaded.HasCompletedRun(MediaA, verified));
+        Assert.False(reloaded.HasCompletedRun(MediaA, R1));
+        Assert.Equal(verified, Assert.Single(reloaded.Runs).Provenance);
+        Assert.Equal(verified, Assert.Single(reloaded.PendingFor(MediaA, 0)).Provenance);
+    }
+
+    [Fact]
     public void OnlyTaggedRunsCountAsDoneAndCarrySuggestions()
     {
         TagSuggestionStore store = Store();
@@ -113,6 +134,27 @@ public sealed class TagSuggestionStoreTests : IDisposable
         Assert.Equal(["bird", "fish"], snapshot.PendingFor(MediaA, 0.05).Select(value => value.Name));
         Assert.All(snapshot.PendingFor(MediaA, 0.05), value => Assert.Equal(R2, value.Provenance));
         Assert.True(snapshot.HasCompletedRun(MediaA, R1) && snapshot.HasCompletedRun(MediaA, R2));
+    }
+
+    [Fact]
+    public void ReviewViewFiltersPendingByContentAndScoreAndKeepsEveryTerminalState()
+    {
+        TagSuggestionStore store = Store();
+        TagSuggestionSnapshot initial = store.CommitRuns([Run(MediaA, R1, ("accepted", 0.8), ("rejected", 0.7), ("older", 0.9)),
+            Run(MediaB, R1, ("different", 1))]);
+        long accepted = initial.Suggestions.Single(row => row.Name == "accepted").Id;
+        long rejected = initial.Suggestions.Single(row => row.Name == "rejected").Id;
+        TagSuggestionSnapshot decided = store.Decide([accepted], TagSuggestionState.Accepted, initial.Revision);
+        store.Decide([rejected], TagSuggestionState.Rejected, decided.Revision);
+        store.CommitRuns([Run(MediaA, R1, ("first", 0.9), ("second", 0.5), ("low", 0.2)),
+            Run(MediaA, OtherTagger, ("wrong length", 1)) with { MediaLength = 101 }]);
+        TagSuggestionSnapshot stored = Store().Load();
+
+        Assert.Equal([("first", TagSuggestionState.Pending), ("second", TagSuggestionState.Pending),
+            ("rejected", TagSuggestionState.Rejected), ("accepted", TagSuggestionState.Accepted), ("older", TagSuggestionState.Superseded)],
+            stored.ReviewFor(MediaA, 100, 0.35).Select(row => (row.Name, row.State)));
+        Assert.Contains(stored.ReviewFor(MediaA, 100, 0.05), row => row.Name == "low");
+        Assert.Equal("wrong length", Assert.Single(stored.ReviewFor(MediaA, 101, 0.35)).Name);
     }
 
     [Fact]

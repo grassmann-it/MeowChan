@@ -21,7 +21,7 @@ public sealed class IdenticalLocalizationStringsAuditTests
 
     [Theory]
     [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
-    public void BundledPackHasNoDuplicatePropertiesAndItsExactEnglishKeysAreAllowlisted(string code)
+    public void BundledPackHasNoDuplicatePropertiesAndItsExactEnglishTextIsAllowlisted(string code)
     {
         string packResource = Texts.BundledPackResourcePrefix + code + ".json";
         using Stream? packStream = typeof(Texts).Assembly.GetManifestResourceStream(packResource);
@@ -33,15 +33,19 @@ public sealed class IdenticalLocalizationStringsAuditTests
         Assert.True(allowlistStream is not null, $"Missing exact-English allowlist for {code}: LocalizationAudit/{code}.json");
         using JsonDocument allowlist = JsonDocument.Parse(allowlistStream, StrictJson);
 
-        HashSet<string> approved = new(StringComparer.Ordinal);
+        Dictionary<string, string> approved = new(StringComparer.Ordinal);
         foreach (JsonProperty entry in allowlist.RootElement.EnumerateObject())
         {
-            Assert.True(entry.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(entry.Value.GetString()),
+            JsonElement reason = entry.Value.GetProperty("reason");
+            Assert.True(reason.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(reason.GetString()),
                 $"Exact-English allowlist entry {code}/{entry.Name} needs a reason.");
-            approved.Add(entry.Name);
+            JsonElement text = entry.Value.GetProperty("text");
+            Assert.True(text.ValueKind == JsonValueKind.String,
+                $"Exact-English allowlist entry {code}/{entry.Name} needs the approved text.");
+            approved.Add(entry.Name, text.GetString()!);
         }
 
-        HashSet<string> exact = new(StringComparer.Ordinal);
+        Dictionary<string, string> exact = new(StringComparer.Ordinal);
         foreach (JsonProperty entry in pack.RootElement.GetProperty("strings").EnumerateObject())
         {
             // Pack-specific plural variants use the English base key when there is no exact source key.
@@ -50,14 +54,17 @@ public sealed class IdenticalLocalizationStringsAuditTests
                 continue;
 
             if (string.Equals(entry.Value.GetString(), english, StringComparison.Ordinal))
-                exact.Add(entry.Name);
+                exact.Add(entry.Name, english);
         }
 
-        string[] unexpected = exact.Except(approved, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-        string[] stale = approved.Except(exact, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
-        Assert.True(unexpected.Length == 0 && stale.Length == 0,
+        string[] unexpected = exact.Keys.Except(approved.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        string[] stale = approved.Keys.Except(exact.Keys, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        string[] changed = exact.Where(entry => approved.TryGetValue(entry.Key, out string? text) && entry.Value != text)
+            .Select(entry => entry.Key).Order(StringComparer.Ordinal).ToArray();
+        Assert.True(unexpected.Length == 0 && stale.Length == 0 && changed.Length == 0,
             $"Exact-English audit failed for {code} (LocalizationAudit/{code}.json).\n"
-            + "Unapproved keys (translate or add a reason): " + string.Join(", ", unexpected) + "\n"
-            + "Stale allowlist keys (remove): " + string.Join(", ", stale));
+            + "Unapproved keys (translate or approve text with a reason): " + string.Join(", ", unexpected) + "\n"
+            + "Stale allowlist keys (remove): " + string.Join(", ", stale) + "\n"
+            + "Changed approved text (translate or review the approval and its reason): " + string.Join(", ", changed));
     }
 }

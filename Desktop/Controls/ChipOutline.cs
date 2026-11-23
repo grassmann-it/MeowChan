@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Media;
+using Avalonia.Media.Immutable;
 
 namespace MeowChan.Desktop.Controls;
 
@@ -13,7 +14,7 @@ namespace MeowChan.Desktop.Controls;
 public sealed class ChipOutline : Decorator
 {
     /// <summary>Dash and gap, in multiples of the stroke thickness: short enough to read as dashed on an 18-px chip.</summary>
-    private static readonly DashStyle Dash = new(new double[] { 2, 2 }, 0);
+    private static readonly ImmutableDashStyle Dash = new(new double[] { 2, 2 }, 0);
 
     public static readonly StyledProperty<IBrush?> BackgroundProperty = Border.BackgroundProperty.AddOwner<ChipOutline>();
     public static readonly StyledProperty<IBrush?> StrokeProperty = AvaloniaProperty.Register<ChipOutline, IBrush?>(nameof(Stroke));

@@ -31,9 +31,5 @@ partial responses remain non-terminal failures/deferred host results.
 
 ## Evidence and fixtures
 
-The route/selector contract is based on the bounded 2026-11-09 research record
-in `review/goal-1.0.3-source-fixtures-glm.md`. `Fixtures/` contains neutral
-synthetic examples for catalog, single/multiple-media threads, redirects, 404
-and media `HEAD` observations. The fixtures are not live availability, archive,
-package or platform acceptance evidence and are intentionally not connected to
-the separate test project because this worker is restricted to this directory.
+`Fixtures/` contains synthetic examples for catalogs, single- and multiple-media
+threads, redirects, 404s and media `HEAD` outcomes.

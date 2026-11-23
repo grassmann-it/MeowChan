@@ -19,16 +19,17 @@ namespace MeowChan;
 public partial class ArchivePage
 {
     private ArchiveSearchSpec _query = new ArchiveSearchSpec();
-    private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
-        int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error, bool AutoExpanded = false);
+    private sealed record InlineReplyState(string PostId, bool? ManualChoice, bool Loaded, int? Count,
+        int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error);
     private sealed record ReaderHistoryEntry(ArchivedThreadView View, int Offset, ReaderAnchor? Anchor,
         IReadOnlyList<InlineReplyState> Replies);
 
     private InlineReplyState[] CaptureInlineReplyState() =>
         (ArchivePosts.ItemsSource as IEnumerable<ArchivePostRow>)?
-            .Where(row => row.RepliesExpanded || row.RepliesLoaded || row.HasRepliesError)
-            .Select(row => new InlineReplyState(row.Id, row.RepliesExpanded, row.RepliesLoaded,
-                row.BacklinkCount, row.RepliesOffset, Array.AsReadOnly(row.Replies.ToArray()), row.RepliesError, row.RepliesAutoExpanded))
+            .Select(row => (Row: row, Choice: _replyAutoExpand.ManualChoice(row)))
+            .Where(item => item.Choice.HasValue || item.Row.RepliesLoaded || item.Row.HasRepliesError)
+            .Select(item => new InlineReplyState(item.Row.Id, item.Choice, item.Row.RepliesLoaded,
+                item.Row.BacklinkCount, item.Row.RepliesOffset, item.Row.Replies, item.Row.RepliesError))
             .ToArray() ?? Array.Empty<InlineReplyState>();
 
     private void RestoreInlineReplyState(IReadOnlyList<InlineReplyState> states)
@@ -43,9 +44,9 @@ public partial class ArchivePage
             if (state.Loaded) row.SetReplies(state.Replies, state.Count ?? state.Replies.Count, state.Offset);
             else if (state.Count.HasValue) row.SetBacklinkCount(state.Count.Value);
             row.SetRepliesError(state.Error);
-            row.RepliesExpanded = state.Expanded;
-            row.RepliesAutoExpanded = state.Expanded && state.AutoExpanded;
+            if (state.ManualChoice is bool open) _replyAutoExpand.RememberChoice(row, open);
         }
+        UpdateFocusedReplies();
     }
     private readonly LinkedList<ReaderHistoryEntry> _history = new();
     private ReaderAnchor? _backlinkOriginAnchor;

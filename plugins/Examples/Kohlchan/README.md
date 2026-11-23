@@ -82,8 +82,7 @@ the source. A limit+1 byte sentinel marks truncation.
   catalogs. Catalog structure is documentation-/fixture-supported; complete live
   catalog parsing remains unconfirmed. No substitute source was introduced.
 
-`Evidence/` contains the exact records. The explicit source information in
-Describe calls out the catalog limit. Live thread access is confirmed at the
+`Describe` calls out the catalog limit. Live thread access is confirmed at the
 limited metadata level; this does not claim full product support. Multiple files,
 archived snapshot and catalog contents are tested with clearly synthetic data.
 Compiler → Worker → Registry → Queue → Store → restart/reader/gallery/export,
@@ -111,7 +110,6 @@ API4845 bytes vs served4759 bytes; identity diagnosis confirmed the same represe
 
 Conditional in-place EXIF stripping with retained upload size is an evidenced upstream mechanism, not a proven cause of this object.
 The provider's deployed historical version/settings are not bound to this review;
-the API values are not universally reclassified as upload metadata. See
-`Evidence/integrity-research-20261024.json` for source paths, revision/body hashes
-and exact scope. No per-format size adjustment, checksum removal, or hash inferred
+the API values are not universally reclassified as upload metadata. No
+per-format size adjustment, checksum removal, or hash inferred
 from an original basename is applied.

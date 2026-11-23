@@ -54,7 +54,8 @@ internal sealed class LocalTaggerWorker(LocalTaggerModelStore models, TagSuggest
 
             HashSet<(string Name, TaggerTagCategory Category)> vocabulary = package.Manifest.Tags.Select(tag => (tag.Name, tag.Category)).ToHashSet();
             TaggerRegistry registry = new();
-            TaggerHostBinding binding = new(configuration, OfflineServices.Instance, OfflineServices.Instance, RequireVerifiedModelHash: true);
+            TaggerHostBinding binding = new(configuration, OfflineServices.Instance, OfflineServices.Instance,
+                RequireVerifiedModelHash: true, ManifestSha256: package.ManifestSha256);
             TaggerRegistration registration = registry.Register(worker.Description with { Taggers = [description] }, binding, InvokeAsync).Single();
             try
             {

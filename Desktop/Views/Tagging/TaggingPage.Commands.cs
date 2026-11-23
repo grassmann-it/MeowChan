@@ -164,8 +164,9 @@ public sealed partial class TaggingPage
     }
 
     /// <summary>The context menu of the selected entries (null without a selection); composed fresh at every opening.</summary>
-    private ContextMenuBuilder? ComposeRowMenu() =>
-        Lead == null ? null : TaggingQueueMenu.Compose(CommandContext(), id => () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.menu"));
+    private ContextMenuBuilder? ComposeRowMenu() => Lead is not { } row ? null
+        : TaggingQueueMenu.Compose(CommandContext(), id => () => OpenActions.Start(() => ExecuteRowCommandAsync(id), "tagging.menu"),
+            () => OpenActions.Start(() => ShowTagSuggestionsAsync(row.Item), "tagging.suggestions"));
 
     /// <summary>The menu as plain data (smoke and test seam); null without a selection.</summary>
     internal ContextMenuModel? ListMenuModel() => ComposeRowMenu()?.ToModel();

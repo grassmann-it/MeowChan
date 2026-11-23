@@ -26,10 +26,5 @@ credential/cookie behavior is present.
 
 ## Evidence and limits
 
-The routes and field names are based on the bounded 2026-11-09 public research
-record in `review/goal-1.0.3-source-fixtures-glm.md`. The `Fixtures/` files in this
-folder are synthetic contract examples, not live user content and are not wired
-into the existing separate example-plugin test project because this worker may not
-edit `tests/`. They cover catalog/page/thread shapes, redirects, 404s and media
-HEAD outcomes. They do not prove current availability, production host wiring,
-offline capture, package inclusion or platform acceptance.
+`Fixtures/` contains synthetic contract examples covering catalog, pagination,
+thread shapes, redirects, 404s and media `HEAD` outcomes.

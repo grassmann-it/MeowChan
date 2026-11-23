@@ -1,6 +1,65 @@
 <UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:commands="clr-namespace:MeowChan.Desktop.Commands"
              xmlns:desktop="clr-namespace:MeowChan.Desktop" xmlns:controls="clr-namespace:MeowChan.Desktop.Controls" xmlns:ursa="https://irihi.tech/ursa" xmlns:wv="using:MeowChan.Desktop.WorkViews" x:Class="MeowChan.ArchivePage" SizeChanged="OnSizeChanged">
+    <UserControl.Resources>
+        <DataTemplate x:Key="ReaderReplyCards" x:DataType="desktop:ArchivePostRow">
+            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                <ItemsControl ItemsSource="{Binding Replies}">
+                    <ItemsControl.Styles>
+                        <Style Selector="Button.reader-reply-card">
+                            <Setter Property="Background" Value="{DynamicResource Workspace.ReaderCodeSurface}" />
+                            <Setter Property="BorderThickness" Value="0" />
+                            <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
+                            <Setter Property="Padding" Value="8,4" />
+                            <Setter Property="MinHeight" Value="0" />
+                            <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+                        </Style>
+                    </ItemsControl.Styles>
+                    <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.8}" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
+                            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
+                                <Rectangle Width="4" RadiusX="2" RadiusY="2" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
+                                <Button Grid.Column="1" Classes="reader-reply-card" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
+                                        commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited"
+                                        HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
+                                    <StackPanel Spacing="{StaticResource Workspace.Space.2}">
+                                        <TextBlock Text="{Binding ReplyCardHeader}" Classes="workspace-meta" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding ReplyExcerpt}" IsVisible="{Binding HasReplyExcerpt}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                </Button>
+                            </Grid>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" TextWrapping="Wrap" />
+                <!-- Narrow-window sweep: the button and its range share a line while they fit; in a narrow card the range wraps below. -->
+                <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="{Binding HasMoreReplies}">
+                    <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
+                    <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
+                </WrapPanel>
+            </StackPanel>
+        </DataTemplate>
+        <DataTemplate x:Key="ReaderSidebarPostDetail" x:DataType="desktop:ArchivePostRow">
+            <StackPanel Spacing="{StaticResource Workspace.Space.8}">
+                <TextBlock Text="{Binding Subject}" IsVisible="{Binding HasSubject}" Classes="section-title" TextWrapping="Wrap" />
+                <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}">
+                    <TextBlock Text="{Binding Author}" IsVisible="{Binding HasAuthor}" Classes="workspace-meta" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding Posted}" IsVisible="{Binding HasPosted}" Classes="workspace-meta" ToolTip.Tip="{Binding PostedFull}" />
+                    <TextBlock Text="{Binding RemovedLabel}" IsVisible="{Binding IsDeleted}" Classes="workspace-meta" />
+                </WrapPanel>
+                <desktop:ReaderBodyTextBlock Classes="reader-body" Document="{Binding BodyDocument}" Expanded="True"
+                                             SpoilersRevealed="{Binding SpoilersRevealed, Mode=TwoWay}"
+                                             FontSize="{Binding $parent[ContentControl].FontSize}" TextWrapping="Wrap"
+                                             QuoteInvoked="OnInlineQuoteInvoked" LinkInvoked="OnInlineLinkInvoked" QuoteHover="OnInlineQuoteHover" />
+                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ReaderReplyCards}" HorizontalContentAlignment="Stretch" />
+                <StackPanel IsVisible="{Binding HasRepliesError}" Spacing="{StaticResource Workspace.Space.4}">
+                    <TextBlock Text="{Binding RepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
+                    <Button Tag="action.retry" Classes="localized" Click="OnMoreRepliesClick" HorizontalAlignment="Left" />
+                </StackPanel>
+            </StackPanel>
+        </DataTemplate>
+    </UserControl.Resources>
     <Grid x:Name="ArchiveRoot" Margin="{StaticResource Workspace.Inset.Page}" RowDefinitions="Auto,*,Auto" RowSpacing="{StaticResource Workspace.Space.8}">
         <!-- The shared page head (PageHeader): the header toolbar stands top right while it leaves the title its room, else under the title
              (the toolbar still folds what does not fit into "More"), so the title and description are never pushed out of a narrow window. -->
@@ -477,14 +536,6 @@
                                                     <Setter Property="Background" Value="Transparent" />
                                                     <Setter Property="BorderThickness" Value="0" />
                                                 </Style>
-                                                <Style Selector="Button.reader-reply-card">
-                                                    <Setter Property="Background" Value="{DynamicResource Workspace.ReaderCodeSurface}" />
-                                                    <Setter Property="BorderThickness" Value="0" />
-                                                    <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
-                                                    <Setter Property="Padding" Value="8,4" />
-                                                    <Setter Property="MinHeight" Value="0" />
-                                                    <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
-                                                </Style>
                                                 <Style Selector="Button.reader-quote">
                                                     <Setter Property="Background" Value="Transparent" />
                                                     <Setter Property="BorderThickness" Value="0" />
@@ -589,32 +640,9 @@
                                                                 </StackPanel>
                                                                 <!-- I2: replies as nested cards, one level deep: a left rail, the header and the first lines of each reply.
                                                                      The header counter above opens and closes them; "Show more replies" adds the next five. -->
-                                                                <StackPanel IsVisible="{Binding RepliesExpanded}" Margin="12,2,0,2" Spacing="{StaticResource Workspace.Space.8}">
-                                                                    <ItemsControl ItemsSource="{Binding Replies}">
-                                                                        <ItemsControl.ItemsPanel><ItemsPanelTemplate><StackPanel Spacing="{StaticResource Workspace.Space.8}" /></ItemsPanelTemplate></ItemsControl.ItemsPanel>
-                                                                        <ItemsControl.ItemTemplate>
-                                                                            <DataTemplate x:DataType="desktop:ArchiveQuoteRow">
-                                                                                <Grid ColumnDefinitions="Auto,*" ColumnSpacing="{StaticResource Workspace.Space.8}">
-                                                                                    <Rectangle Width="3" RadiusX="1.5" RadiusY="1.5" Fill="{DynamicResource Workspace.Accent}" Opacity="0.8" />
-                                                                                    <Button Grid.Column="1" Classes="reader-reply-card" ToolTip.Tip="{Binding AccessibleLabel}" AutomationProperties.Name="{Binding AccessibleLabel}"
-                                                                                            commands:CommandPresentation.Id="reader.open-quote" Click="OnQuoteClick" PointerEntered="OnQuoteButtonEntered" PointerExited="OnQuoteButtonExited"
-                                                                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Left">
-                                                                                        <StackPanel Spacing="{StaticResource Workspace.Space.2}">
-                                                                                            <TextBlock Text="{Binding ReplyCardHeader}" Classes="workspace-meta" TextWrapping="Wrap" />
-                                                                                            <TextBlock Text="{Binding ReplyExcerpt}" IsVisible="{Binding HasReplyExcerpt}" TextWrapping="Wrap" />
-                                                                                        </StackPanel>
-                                                                                    </Button>
-                                                                                </Grid>
-                                                                            </DataTemplate>
-                                                                        </ItemsControl.ItemTemplate>
-                                                                    </ItemsControl>
-                                                                    <TextBlock Text="{Binding RepliesLoadingLabel}" IsVisible="{Binding RepliesLoading}" Classes="muted" TextWrapping="Wrap" />
-                                                                    <!-- Narrow-window sweep: the button and its range share a line while they fit; in a narrow card the range wraps below. -->
-                                                                    <WrapPanel ItemSpacing="{StaticResource Workspace.Space.8}" LineSpacing="{StaticResource Workspace.Space.4}" IsVisible="{Binding HasMoreReplies}">
-                                                                        <Button Content="{Binding MoreRepliesLabel}" commands:CommandPresentation.Id="reader.show-replies" Click="OnMoreRepliesClick" />
-                                                                        <TextBlock Text="{Binding RepliesPageLabel}" VerticalAlignment="Center" Classes="muted" TextWrapping="Wrap" />
-                                                                    </WrapPanel>
-                                                                </StackPanel>
+                                                                <ContentControl Content="{Binding}" ContentTemplate="{StaticResource ReaderReplyCards}"
+                                                                                IsVisible="{Binding RepliesExpanded}" Margin="12,2,0,2"
+                                                                                HorizontalContentAlignment="Stretch" />
                                                                 <TextBlock Text="{Binding RepliesError}" IsVisible="{Binding HasRepliesError}" TextWrapping="Wrap" Foreground="{DynamicResource Workspace.Error}" />
                                                             </StackPanel>
                                                         </desktop:ReaderPostLayout>

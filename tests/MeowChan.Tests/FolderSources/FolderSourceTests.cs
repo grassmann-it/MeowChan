@@ -452,8 +452,8 @@ public sealed class FolderSourceTests
         Assert.All(fixture.Catalog.Read().Items, item => Assert.Equal(FolderSourceItemState.Seen, item.State));
         hasher.Paused = false;
         await TestWait.UntilAsync(() => fixture.Catalog.Read().Items.All(item => item.State == FolderSourceItemState.Hashed), "Background pass did not finish.");
-        Assert.Equal(6, hasher.Status.HashedThisSession);
         await hasher.StopBackgroundAsync();
+        Assert.Equal(6, hasher.Status.HashedThisSession);
     }
 
     // ---- Virtual manifests, projection and index ----

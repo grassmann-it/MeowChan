@@ -71,6 +71,21 @@ public sealed class TaggingPageMenuTests : IDisposable
     }
 
     [Fact]
+    public void TheModelSuggestionActionAppliesToExactlyOneSelectedMedium()
+    {
+        TagQueueSnapshot queue = Queue(Item(1), Item(2));
+        bool opened = false;
+        ContextMenuModel one = TaggingQueueMenu.Compose(Context(queue, [0]), _ => () => { }, () => opened = true).ToModel();
+        var entry = Assert.Single(one.Entries, candidate => candidate.Id == "tagging.suggestions");
+        Assert.Equal("View model suggestions…", entry.Label);
+        entry.Invoke!();
+        Assert.True(opened);
+
+        ContextMenuModel both = TaggingQueueMenu.Compose(Context(queue, [0, 1]), _ => () => { }, () => opened = true).ToModel();
+        Assert.DoesNotContain(both.Entries, candidate => candidate.Id == "tagging.suggestions");
+    }
+
+    [Fact]
     public void OneEntryTagsAloneSeveralTagTogetherAndTheMenuSaysWhyTheOtherIsOff()
     {
         TagQueueSnapshot queue = Queue(Item(1), Item(2), Item(3));

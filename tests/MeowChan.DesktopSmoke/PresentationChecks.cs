@@ -297,7 +297,8 @@ internal static class PresentationChecks
                 && providers.All(provider => sources.Text.Contains(provider.DisplayName + " (" + provider.BaseUri.AbsoluteUri + ")", StringComparison.Ordinal)),
                 "The scrollable results lost rejected URLs or the separate registered-source help.");
             // The intake clips its scrollable content. Compare the visible viewports with the table.
-            await WaitForLayoutAsync(window, () => FitsVertically(input, intake) && FitsVertically(add, intake)
+            await WaitForLayoutAsync(window, () => InViewport(window, input) && InViewport(window, add)
+                && FitsVertically(input, intake) && FitsVertically(add, intake)
                 && grid.IsEffectivelyVisible && grid.Bounds.Height >= grid.RowHeight
                 && FitsVertically(resultViewport, intake) && IsBelow(intake, downloads, window)
                 && grid.GetVisualDescendants().OfType<DataGridRow>().Any(row => row.IsEffectivelyVisible

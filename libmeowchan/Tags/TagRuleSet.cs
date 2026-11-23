@@ -34,10 +34,11 @@ internal sealed record TagRuleInput(string OriginalName, MediaTagSubject Subject
     };
 }
 
-/// <summary>The original term, provenance and exact occurrence stay available even if the rule hides the tag.</summary>
-internal sealed record TagRuleProjection(TagRuleInput Input, PrivateTagName? Canonical, IReadOnlyList<PrivateTagName> Parents)
+/// <summary>The original term, provenance and occurrence remain available even when there is no private mapping.</summary>
+internal sealed record TagRuleProjection(TagRuleInput Input, PrivateTagName? Canonical, IReadOnlyList<PrivateTagName> Parents,
+    TagNameError MappingError = TagNameError.None)
 {
-    internal bool IsIgnored => Canonical is null;
+    internal bool IsIgnored => Canonical is null && MappingError == TagNameError.None;
 
     internal IEnumerable<PrivateTagName> MappedNames()
         => Canonical is { } canonical ? Parents.Prepend(canonical) : [];
@@ -272,7 +273,11 @@ internal sealed class TagRuleSet
 
         internal TagRuleProjection Project(TagRuleInput input, CancellationToken token)
         {
-            PrivateTagName raw = RequireName(input.OriginalName);
+            if (!PrivateTagName.TryCreate(input.OriginalName, out PrivateTagName? raw, out TagNameError error) || raw is null)
+            {
+                if (input.Origin is TagRuleOrigin.Provider) return new(input, null, [], error);
+                throw new TagRuleException(TagRuleError.InvalidName);
+            }
             if (_ignored.Contains(raw)) return new(input, null, []);
             PrivateTagName canonical = Canonical(raw, token);
             if (_ignored.Contains(canonical)) return new(input, null, []);

@@ -1,3 +1,4 @@
+using MeowChan.Archive;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
@@ -40,6 +41,45 @@ public sealed class TagRuleTests
         Assert.Equal("girl", hidden.Input.OriginalName);
         Assert.Empty(hidden.Parents);
         Assert.Equal("long_hair", rules.Project(input with { OriginalName = "long_hair" }).Canonical!.Display);
+    }
+
+    [Fact]
+    public void ProviderClaimsSurvivePreviewApplyUndoAndReloadIncludingUnmappableTags()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        BooruCatalogStore catalog = new(temp.Path, lease);
+        BooruPostClaimTag[] original =
+        [
+            new("Girl", BooruPostClaimTagCategory.Character),
+            new("portrait", BooruPostClaimTagCategory.General),
+            new(new string('x', PrivateTagName.MaximumScalars + 1), BooruPostClaimTagCategory.Artist)
+        ];
+        catalog.UpsertPost(new BooruPostClaim("danbooru", "100", BooruPostClaimPresence.Tags, Tags: original),
+            DateTimeOffset.UnixEpoch);
+        byte[] raw = File.ReadAllBytes(catalog.FilePath);
+        BooruPostClaim post = Assert.Single(catalog.Read().Posts).Post;
+        MediaTagSubject subject = Bound("100");
+        TagRuleInput[] inputs = post.Tags.Select(tag => Provider(tag.Name, subject)).ToArray();
+        PrivateTagStore tags = new(temp.Path, lease);
+        TagRuleSet rules = new([
+            new(TagRuleKind.Alias, "girl", "1girl"),
+            new(TagRuleKind.Parent, "1girl", "person"),
+            new(TagRuleKind.Ignore, "portrait")
+        ]);
+
+        TagRulePreview preview = tags.PreviewTagRules(rules, inputs, expectedRevision: 0);
+
+        Assert.Equal(original.Select(tag => tag.Name), preview.Projections.Select(row => row.Input.OriginalName));
+        Assert.True(preview.Projections[1].IsIgnored);
+        Assert.False(preview.Projections[2].IsIgnored);
+        Assert.Equal(TagNameError.TooManyScalars, preview.Projections[2].MappingError);
+        Assert.Equal(["1girl", "person"], preview.Changes.Select(change => change.Name.Display));
+        TagRuleCommit applied = tags.ApplyTagRules(preview);
+        Assert.Equal(2, applied.Commit.Snapshot.TagsOf(subject).Count);
+        Assert.Empty(tags.UndoTagRules(applied.Undo!).Snapshot.Tags);
+        Assert.Equal(raw, File.ReadAllBytes(catalog.FilePath));
+        Assert.Equal(original, Assert.Single(new BooruCatalogStore(temp.Path, lease).Read().Posts).Post.Tags);
     }
 
     [Fact]
@@ -155,12 +195,12 @@ public sealed class TagRuleTests
     }
 
     [Fact]
-    public void SuggestionsKeepRawNamesAndProvenanceWhileSameBytesCanBeAcceptedSeparately()
+    public void AModelRulePreviewRequiresJournalAcceptanceAtTheExactOccurrence()
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         PrivateTagStore store = new(temp.Path, lease);
-        TagSuggestionStore suggestions = new(lease);
+        TagSuggestionStore suggestions = new(lease, privateTags: store);
         TagSuggestionSnapshot pending = suggestions.CommitRuns([Run(Model, "girl")]);
         MediaTagSubject first = Bound("100"), second = Bound("101");
         Assert.Empty(pending.PendingFor(first, 101, 0.35)); // A different observed length never binds this suggestion.
@@ -170,19 +210,23 @@ public sealed class TagRuleTests
         Assert.Equal(("girl", "1girl", Model, 0.8), (row.Input.OriginalName, row.Canonical!.Display, origin.Suggestion.Provenance, origin.Suggestion.Confidence));
         byte[] raw = File.ReadAllBytes(suggestions.FilePath);
 
-        TagRuleCommit applied = store.ApplyTagRules(preview);
-        Assert.Single(applied.Commit.Snapshot.TagsOf(first));
-        Assert.Empty(applied.Commit.Snapshot.TagsOf(second));
-        TagRulePreview another = store.PreviewTagRules(GirlAlias, pending.PendingFor(second, 100, 0.35), applied.Commit.Snapshot.Revision);
-        Assert.Equal(second, Assert.Single(another.AffectedSubjects));
-        TagRuleCommit both = store.ApplyTagRules(another);
-        Assert.Single(both.Commit.Snapshot.TagsOf(second));
+        Assert.Equal(TagSuggestionStoreError.InvalidInput,
+            Assert.Throws<TagSuggestionStoreException>(() => store.ApplyTagRules(preview)).Error);
+        Assert.False(File.Exists(Path.Combine(temp.Path, PrivateTagStore.FileName)));
         Assert.Equal(raw, File.ReadAllBytes(suggestions.FilePath));
-        Assert.Equal(PrivateTagStoreError.StaleRevision,
-            Assert.Throws<PrivateTagStoreException>(() => store.UndoTagRules(applied.Undo!)).Error);
-        PrivateTagStoreSnapshot undone = store.UndoTagRules(both.Undo!).Snapshot;
-        Assert.Single(undone.TagsOf(first));
-        Assert.Empty(undone.TagsOf(second));
+
+        Guid acceptedId = Guid.NewGuid();
+        TagReviewResult accepted = suggestions.AcceptReview(acceptedId, preview);
+        PrivateTagStoreSnapshot applied = store.ReadSnapshot();
+        Assert.Equal("1girl", Assert.Single(applied.TagsOf(first)).Name.Display);
+        Assert.Empty(applied.TagsOf(second));
+        StoredTagSuggestion committed = Assert.Single(accepted.Snapshot.Suggestions);
+        Assert.Equal(origin.Suggestion with { State = TagSuggestionState.Accepted, DecidedAt = committed.DecidedAt }, committed);
+        Assert.Empty(accepted.Snapshot.PendingFor(second, 100, 0.35));
+
+        suggestions.UndoReview(Guid.NewGuid(), acceptedId, accepted.Snapshot.Revision);
+        Assert.Empty(store.ReadSnapshot().MediaAssignments);
+        Assert.Single(suggestions.Load().PendingFor(second, 100, 0.35));
     }
 
     [Fact]
@@ -213,11 +257,11 @@ public sealed class TagRuleTests
         MediaTagSubject subject = Bound("100");
         TagSuggestionSnapshot pending = suggestions.CommitRuns([Run(Model, "girl")]);
         TagRuleInput[] selected = [Provider("other", subject), .. pending.PendingFor(subject, 100, 0.35)];
-        TagRulePreview preview = store.PreviewTagRules(GirlAlias, selected, expectedRevision: 0);
+        store.PreviewTagRules(GirlAlias, selected, expectedRevision: 0);
         suggestions.Decide([Assert.Single(pending.Suggestions).Id], TagSuggestionState.Rejected, pending.Revision);
 
         Assert.Equal(TagSuggestionStoreError.StaleRevision,
-            Assert.Throws<TagSuggestionStoreException>(() => store.ApplyTagRules(preview)).Error);
+            Assert.Throws<TagSuggestionStoreException>(() => store.PreviewTagRules(GirlAlias, selected, expectedRevision: 0)).Error);
         Assert.False(File.Exists(Path.Combine(temp.Path, PrivateTagStore.FileName)));
         TagSuggestionSnapshot rerun = suggestions.CommitRuns([Run(Model with { PluginId = "second-tagger" }, "girl")]);
         Assert.Equal(TagSuggestionState.Rejected, Assert.Single(rerun.Suggestions).State);

@@ -457,7 +457,3 @@ Dateierkennung, die automatisch zwischen diesen Formaten wählt. Insbesondere we
 - Seiteninhalte oder Medien, die erst im Internet nachbeschafft werden müssten.
 
 Ein zukünftiger Import darf immer nur den zuvor begrenzt geprüften Bestand betreffen.
-Die Architekturziele dazu sind in [GP-10 Transfer/Merge](../architecture/gesamtprogramm-2026-10-31/pakete/10-transfer-merge-export.md),
-[GP-50 Interopprofile](../architecture/gesamtprogramm-2026-10-31/contracts/interop-profiles-v1.md)
-und den [Gesamtentscheidungen](../architecture/gesamtprogramm-2026-10-31/ENTSCHEIDUNGEN.md)
-festgehalten.

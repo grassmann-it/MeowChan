@@ -1,7 +1,4 @@
-# UX-LEDGER-22: curated analyzers and temporary debt baseline
-
-Frozen **2026-11-17**, based on `origin/goal/gesamtprogramm-profile-a` at `e2ee324ef`.
-Debt fixes belong to **UX-LEDGER-23**, not this change.
+# Analyzer policy and baseline maintenance
 
 ## Policy
 
@@ -25,12 +22,9 @@ remain visible as warnings; they are not hidden by the debt baseline.
 
 ## Baseline: exact diagnostics, not whole files/types/methods
 
-`build/analyzer-baseline-2026-11-17.tsv` is the dated, reviewable snapshot: **1,089 exact diagnostics**
-across 16 assemblies (CA2000: 897; CA2213: 75; CA1001: 66; CA2016: 51). It covers the solution's
-production/test graphs plus the separately built DesktopSmoke harness. Counts are unique diagnostics,
-not the doubled console summary counts from the audit. Most entries are in tests/harnesses.
+`build/analyzer-baseline-2026-11-17.tsv` records the exact diagnostics eligible
+for suppression. The baseline is shrink-only.
 
-Build output and verification results: [analyzer-validation-2026-11-17.md](analyzer-validation-2026-11-17.md).
 `Directory.Build.targets` adds the `scripts/AnalyzerBaseline` Roslyn diagnostic suppressor and the
 baseline as an AdditionalFile. The helper references the repository's pinned SDK compiler assemblies;
 it adds no NuGet dependency and is not referenced as runtime application code. Its own build and its
@@ -48,15 +42,15 @@ than a symbol-level GlobalSuppressions file, which could hide future leaks in th
 
 ### How the baseline shrinks
 
-1. In UX-LEDGER-23, fix a debt-bearing file's four-rule diagnostics (or delete that unreachable file).
+1. Fix a debt-bearing file's four-rule diagnostics (or delete that unreachable file).
 2. Capture unsuppressed diagnostics for the affected project(s), forcing compilation:
 
    ```sh
-   mkdir -p "$COMMANDCODE_SCRATCHPAD/analyzer-capture"
+   capture_dir=$(mktemp -d)
    dotnet build path/to/project.csproj --no-incremental \
      -p:DisableAnalyzerBaseline=true -p:WarningsAsErrors= \
-     -p:AnalyzerBaselineCaptureDirectory="$COMMANDCODE_SCRATCHPAD/analyzer-capture"
-   python3 scripts/analyzer-baseline.py "$COMMANDCODE_SCRATCHPAD/analyzer-capture"
+     -p:AnalyzerBaselineCaptureDirectory="$capture_dir"
+   python3 scripts/analyzer-baseline.py "$capture_dir"
    dotnet build path/to/project.csproj
    ```
 
@@ -76,31 +70,3 @@ dotnet run --project scripts/AnalyzerBaseline.Tests/AnalyzerBaseline.Tests.cspro
 
 The nine cases cover the exact match, new file, new symbol in an existing file, edited source,
 different assembly, changed message, absent baseline, pruned entry and CRLF checkout.
-
-## Dead-code reference proof
-
-Before removal, repository-wide exact-identifier searches over **both `*.cs` and `*.axaml`**, including
-tests and reflection strings, found exactly **one occurrence (the declaration)** for each of these
-14 members. No XAML subscription/binding or test/reflection caller matched. Locations below are the
-base revision's locations, not line numbers after deletion:
-
-| File | Deleted members |
-| --- | --- |
-| `Desktop/Views/Archive/ArchivePage.Selection.cs:393-402` | `OnArchiveRemoveSelection`, `OnArchiveCopySelection`, `OnArchiveCheckSelection`, `OnArchiveRetrySelection`, `OnArchiveSelectionDetails`, `OnArchiveLeadAction` |
-| `Desktop/Views/Archive/ArchivePage.axaml.cs:965` | `ShowPreviewAsync` |
-| `Desktop/Views/Plugins/PluginsPage.Actions.cs:351` | `CreatePluginActionMenuItem` |
-| `Desktop/Views/Archive/ArchivePage.PostBookmarks.cs:141` | `CreatePostCopyItem` |
-| `Desktop/Views/Archive/ArchivePage.Ratings.cs:87` | `CurrentMediaRating` |
-| `Desktop/Views/Archive/ArchivePage.Gallery.cs:283,293` | `OnThreadReadMenu`, `OnThreadExportMenu` |
-| `Desktop/Shell/MainWindow.Plugins.cs:46` | `OnPluginsNavigationClick` |
-| `Desktop/Commands/CommandBindings.cs:385` | `BindShortcutHelp` |
-
-The six Selection shims are actually **five async-void methods and one synchronous void method**;
-the requested line numbers identify all six unambiguously. Their used Task-returning bodies remain:
-`CopyArchiveSelectionAsync`, `RemoveArchiveSelectionAsync`, `CheckArchiveSelectionAsync`,
-`ShowArchiveDetailsAsync`, plus the used `RunArchiveLeadAction`. Keyboard dispatch and current menu
-builders still call these. `OnThreadGalleryMenu` also remains: a smoke check calls it by reflection.
-
-`OnOverlayPointerExited` was renamed to `OnOverlayPointerMovedOrExited` in its declaration and both
-PointerEntered/PointerExited subscriptions. Its geometry-based body is unchanged. The reflection
-name in `GalleryTerminalRetirementTests` was updated without removing/weakening any assertion.

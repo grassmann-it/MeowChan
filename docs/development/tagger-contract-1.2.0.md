@@ -1,8 +1,8 @@
 # Tagger contract 1.0.0 (MeowChan 1.2.0, package P10)
 
-Status: **contract, store, host runner and AP11 review domain implemented**.
-Desktop integration, the worker protocol route and model installation are
-pending. Decisions marked *open* below are proposals until Tom confirms them.
+Status: **contract, store, host runner, AP11 review domain and Desktop view of
+saved suggestions implemented**. Interactive review and Desktop job launch
+are pending. Decisions marked *open* below are proposals until Tom confirms them.
 
 Sources: `.architecture-sparring/1.2.0-marketplace-editionen-ki-planung-2026-11-20.md`
 (§4, §5, §10, §11, §13), `release-zuordnung-1.1.1-1.2.0-2.0.0.md` (P10 before P8
@@ -118,7 +118,10 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
   identities. A decision to accept or reject the same tag for these bytes
   suppresses further proposals across taggers.
 - Run records (medium, provenance, outcome, count, time) make jobs idempotent;
-  only `Tagged` counts as done, other outcomes are retried.
+  only `Tagged` counts as done, other outcomes are retried. The local worker
+  records the host-verified manifest SHA-256 with the model weights hash.
+  Resume requires both digests to match. Older runs without a manifest hash
+  remain readable and are processed on the next run with a verified manifest.
 - Raw scores are stored; the threshold only filters the view
   (`PendingFor(media, threshold)`), so changing it needs no re-run.
 - An unreadable or newer file is preserved and makes the store read-only.
@@ -204,6 +207,13 @@ tagging-page package and must then follow the settings checklist: EN/DE texts,
   profile.
 
 ### Desktop integration
+
+- The tagging queue's **View model suggestions…** action opens saved results
+  for one selected medium. It shows the raw tag, category, score, model and
+  tagger provenance, and review state. The confidence threshold applies to
+  pending proposals. Decisions and superseded proposals remain visible.
+
+Remaining work:
 
 - A "Suggested" group next to provider and own tags for the current medium:
   `PendingFor(sha, threshold)`, sorted by score, with category, score and model

@@ -104,8 +104,7 @@ internal static class TaggingPageChecks
             // The move re-selects the moved entry once its command has finished (SelectOnly); let that land before the next selection.
             await SettleAsync(window);
 
-            // The context menu (TG1, ContextMenuBuilder): continue/tag, state, look, order and remove, every entry a catalog command that
-            // says why it is off; for one selected entry "Tag together…" and the order of "Tag…" are as the spec lists them.
+            // The menu exposes the stored suggestions for a single queue entry alongside the existing tagging commands.
             MeowChan.Desktop.Controls.ContextMenuModel model = tagging.ListMenuModel() ?? throw new InvalidOperationException("No menu model for a selected entry.");
             string[] labels = model.Entries.Select(item => item.Label).ToArray();
             string[] expectedLabels =
@@ -114,6 +113,7 @@ internal static class TaggingPageChecks
                 MeowChan.Desktop.Commands.CommandCatalog.Label("media.tags.edit"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.tag-together"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tags.quick.stamp-apply"),
+                Texts.T("tagging.page.suggestions.open"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-done"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-open"),
                 MeowChan.Desktop.Commands.CommandCatalog.Label("tagging.mark-skipped"),
@@ -138,6 +138,13 @@ internal static class TaggingPageChecks
             Require(tagging.OpenListMenu is { IsOpen: true }, "The context menu did not open on the list.");
             await ReviewArtifacts.GestureAsync(window, "tagging-close-list-menu", () => tagging.OpenListMenu!.Close(),
                 () => tagging.OpenListMenu is not { IsOpen: true }, () => SettleAsync(window));
+
+            Window? SuggestionsDialog() => window.OwnedWindows.FirstOrDefault(item => item.Title == Texts.T("tagging.page.suggestions.title"));
+            model.Entries.Single(item => item.Id == "tagging.suggestions").Invoke!();
+            await Program.WaitUntilAsync(() => SuggestionsDialog() is { IsVisible: true } dialog
+                && dialog.GetVisualDescendants().OfType<TextBlock>().Any(text => text.Text == Texts.T("tagging.page.suggestions.empty")));
+            SuggestionsDialog()!.Close();
+            await SettleAsync(window);
 
             // TG1: the selection bar above the list. Hidden without a selection; one entry offers "Tag…", two "Tag together…"; the state menu
             // lists the three marks; Esc clears. The grid then shows the same entries and keeps the selection (and the saved view follows).

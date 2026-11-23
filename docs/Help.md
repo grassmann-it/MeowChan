@@ -1803,8 +1803,10 @@ a hit by itself.
 The **Replies: …** counter in the header opens the replies as indented cards. By
 default it shows five at a time; **Show more replies** loads another batch. Clicking the counter again closes
 them, and reopening reuses what was already loaded. A post without replies shows no
-counter. Replies always come from the saved posts; the source is never queried for
-them. Five cards per step is the default; **Reply cards per step** changes the batch size,
+counter. **Expand replies on post focus** opens the selected post’s replies and
+closes them when you move to another post. Replies you open or close yourself keep
+that state while the thread is open. Replies come from saved posts.
+**Reply cards per step** changes the batch size,
 and **Lines per reply card** limits each excerpt (four lines by default). The character
 budgets scale with the line limits: quote previews allow about 52.5 characters per line,
 reply cards 65. These are excerpts, not limits on the stored post text.
@@ -1887,7 +1889,9 @@ turning the preference off; it returns when space is available.
 **Reader only** is the default, so the sidebar toggle starts Off in the Archive view.
 Choose **Reader and Archive view** to show the sidebar in both.
 When enabled, it shows the selected post’s medium beside the posts, following
-Up/Down navigation. Choose left or right. A post with several media gets a thumbnail strip
+Up/Down navigation. A post without media shows its text and replies in the sidebar.
+You can scroll the details and load more replies without changing which replies are
+expanded under the post. Choose left or right. A post with several media gets a thumbnail strip
 under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
 12 by default, 2–40; a larger post slides a window along); click a thumbnail or use
 **Alt+Shift+Left** and **Alt+Shift+Right** to step through the post's media. The sidebar header holds the

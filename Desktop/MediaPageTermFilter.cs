@@ -77,9 +77,9 @@ internal sealed class MediaSourceTagIndexCache
         lock (_sync)
         {
             if (_last != null && ReferenceEquals(_last.Catalog, catalog)) return _last;
+            // The filter and tag count can request the same snapshot on different workers.
+            return _last = MediaSourceTagIndex.From(catalog);
         }
-        MediaSourceTagIndex made = MediaSourceTagIndex.From(catalog);
-        lock (_sync) return _last = made;
     }
 
     /// <summary>Forgets a failed read's derived view before an explicit page retry.</summary>

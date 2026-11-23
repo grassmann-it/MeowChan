@@ -588,7 +588,7 @@ namespace MeowChan
         internal const int ReaderReplyLinesDefault = ReaderDisplayLimits.ReplyLinesDefault;
         internal const int ReaderReplyLinesMinimum = ReaderDisplayLimits.ReplyLinesMinimum;
         internal const int ReaderReplyLinesMaximum = ReaderDisplayLimits.ReplyLinesMaximum;
-        /// <summary>Open the nested reply cards of every post as soon as its card is shown (default off); a post the reader collapsed by hand stays collapsed for the open thread.</summary>
+        /// <summary>Expand replies under the selected reader post and fold automatic expansions when selection moves. Defaults to off.</summary>
         public bool ReaderExpandReplies { get; set; } = false;
         public int ReaderPageSize { get; set; } = ReaderPageSizeDefault;
         internal const int ReaderPageSizeDefault = ArchivePage.ReaderPageSizeDefault;
@@ -1581,7 +1581,7 @@ namespace MeowChan
             }
         }
 
-        private static string GetDefaultDownloadPath() => GetDefaultDownloadPath("MeowChan");
+        internal static string GetDefaultDownloadPath() => GetDefaultDownloadPath("MeowChan");
 
         private static string GetDefaultDownloadPath(string productDirectory)
         {

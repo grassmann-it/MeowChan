@@ -76,7 +76,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
     internal DesktopSessionHost(string profileDirectory, IEnumerable<IImageBoard>? providers = null,
         Func<string, ProfileLease, ISessionStore>? sessionStoreFactory = null, ILogger? logger = null,
         Func<string, Config, UpdateSession>? updateSessionFactory = null, Func<System.Net.Http.HttpClient>? pluginTransportFactory = null,
-        Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null, Stats.IoStatsHub? ioStats = null)
+        Func<string, ProfileLease, IWorkStateStore>? workStoreFactory = null, Stats.IoStatsHub? ioStats = null,
+        string? readOnlyStartupSource = null)
     {
         _logger = logger ?? Log.Logger;
         _ioStats = ioStats ?? Stats.IoStatsHub.Shared;
@@ -121,6 +122,8 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
                 ?? new SessionStore(_profileLease.ProfileDirectory, _profileLease);
             IWorkStateStore workStore = workStoreFactory?.Invoke(_profileLease.ProfileDirectory, _profileLease)
                 ?? new WorkStateStore(_profileLease.ProfileDirectory, _profileLease, _profileStartupAdmission);
+            if (readOnlyStartupSource != null)
+                ValidateReadOnlyStartupSource(readOnlyStartupSource, store, workStore);
             MeowChan.Diagnostics.PerformanceDiagnostics.Record("startup.host.ctor", "stores-done");
             _registry = new Registry(sources, queue, Path.GetFullPath(Config.DownloadPath),
                 TimeSpan.FromSeconds(Config.RecheckTimer), Config.RecheckTimer, store, Config.SaveUrlsOnExit, _logger, _content, workStore);

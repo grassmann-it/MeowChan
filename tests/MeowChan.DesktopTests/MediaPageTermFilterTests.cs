@@ -1,4 +1,5 @@
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -95,10 +96,10 @@ public sealed class MediaPageTermFilterTests : IDisposable
     public void TheSourceTagIndexReadsTheProvidersTagsOfOneSnapshotOnce()
     {
         static BooruPostRecord Post(string source, string id, params string[] names) => new(source, id,
-            new BooruPostClaim(source, id, BooruPostClaimPresence.None, Tags: names.Select(name => new BooruPostClaimTag(name, BooruPostClaimTagCategory.General)).ToArray()),
+            new BooruPostClaim(source, id, BooruPostClaimPresence.Tags, Tags: names.Select(name => new BooruPostClaimTag(name, BooruPostClaimTagCategory.General)).ToArray()),
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
-        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.CurrentSchemaVersion,
-            [Post(BooruMediaIdentity.Source, "10", "Cat_Ears", "solo", "cat_ears", "with space"), Post("other", "11", "dog")], []);
+        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.ScopedIdentitySchemaVersion,
+            [Post(BooruMediaIdentity.Source, "10", "Cat_Ears", "solo", "cat_ears", "with space"), Post("other", "10", "dog")], []);
         MediaSourceTagIndexCache cache = new();
         MediaSourceTagIndex index = cache.For(catalog);
         Assert.Same(index, cache.For(catalog));
@@ -106,9 +107,32 @@ public sealed class MediaPageTermFilterTests : IDisposable
         Assert.NotSame(index, cache.For(catalog));
         Assert.Same(MediaSourceTagIndex.Empty, cache.For(null));
         Assert.Equal(["cat_ears", "solo"], index.TagsOf(Entry(1, "10")));
-        Assert.Empty(index.TagsOf(Entry(2, "11"))); // another provider's post is not a Danbooru medium of this index
+        MediaLibraryEntry otherProvider = Entry(2, "10") with { Thread = BooruMediaIdentity.Thread(BooruPostKey.FromLegacy("other", "10")) };
+        Assert.Equal(["dog"], index.TagsOf(otherProvider));
         Assert.Empty(index.TagsOf(Entry(3)));
-        Assert.Equal(1, index.PostCount);
+        Assert.Equal(2, index.PostCount);
+    }
+
+    [Fact]
+    public async Task ConcurrentSourceTagRequestsShareOneIndex()
+    {
+        string source = BooruMediaIdentity.Source;
+        BooruPostClaimTag[] tags = Enumerable.Range(0, 16_384)
+            .Select(i => new BooruPostClaimTag($"tag_{i}", BooruPostClaimTagCategory.General)).ToArray();
+        BooruPostRecord post = new(source, "10", new BooruPostClaim(source, "10", BooruPostClaimPresence.Tags, Tags: tags),
+            DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
+        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.CurrentSchemaVersion, [post], []);
+        MediaSourceTagIndexCache cache = new();
+        TaskCompletionSource start = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task<MediaSourceTagIndex>[] requests = Enumerable.Range(0, 8).Select(_ => Task.Run(async () =>
+        {
+            await start.Task;
+            return cache.For(catalog);
+        })).ToArray();
+
+        start.SetResult();
+        MediaSourceTagIndex[] indexes = await Task.WhenAll(requests);
+        Assert.All(indexes, index => Assert.Same(indexes[0], index));
     }
 
     [Fact]

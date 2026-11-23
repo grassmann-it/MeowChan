@@ -43,9 +43,7 @@ payloads and collection/body limits retain their typed failure semantics.
 
 NW-00 observed a four-attachment post and an exact-size MD5-matching WebP.
 A `/kitchen/` JPEG follow-up returned 22,121 bytes and matched its provider MD5.
-Bounded JSON/HTML/media follow-up observations on 2026-10-25 are summarized in
-`Evidence/metadata-probes.json`. These are schema/route observations, not a
-production PluginHost/queue/archive/offline-restart or package/platform PASS.
+The 2026-10-25 follow-up checked the provider schema, routes and sample media.
 The `sushichan-*.json` test fixtures are synthetic. Negative/deletion/partial
 regression cases are not claimed as additional live observations.
 

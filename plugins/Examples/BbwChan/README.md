@@ -32,9 +32,5 @@ snapshot.
 
 ## Evidence and fixtures
 
-The endpoint and field contract is based on the bounded 2026-11-09 research
-record in `review/goal-1.0.3-source-fixtures-glm.md`. `Fixtures/` contains
-neutral JSON/HTTP examples for index, catalog, pagination, thread files,
-redirects, 404 and media `HEAD` behavior. They are not live availability,
-archive, package or platform acceptance evidence and are intentionally not
-connected to the separate test project from this worker.
+`Fixtures/` contains synthetic JSON/HTTP examples for index, catalog,
+pagination, thread files, redirects, 404 and media `HEAD` behavior.

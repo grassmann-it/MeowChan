@@ -157,6 +157,26 @@ public sealed class ProfileSwitchTests
     }
 
     [Fact]
+    public void ATemporarySessionSuggestsPersistentDownloadsAndListsOnlyTheNewProfile()
+    {
+        using Fixture fixture = new();
+        string temporaryDownloads = Path.Combine(fixture.Current, "downloads");
+        ProfileSwitchService service = new(fixture.Registry, fixture.Launcher, fixture.Current, temporaryDownloads,
+            () => 1, temporarySession: true);
+        string target = fixture.In("profiles", "cats");
+        string downloads = service.SuggestDownloadFolder("cats");
+
+        Assert.Equal(Path.GetDirectoryName(Config.GetDefaultDownloadPath()), Path.GetDirectoryName(downloads));
+        Assert.False(ProfileOpenPolicy.Overlaps(fixture.Current, downloads));
+        Assert.Null(service.Validate("Cats", target, downloads));
+        ProfileActionResult result = service.Create(new NewProfileRequest("Cats", target, downloads, "de"));
+        Assert.Equal(ProfileActionStatus.Started, result.Status);
+        Assert.Null(result.ListNoteKey);
+        Assert.Equal(target, Assert.Single(service.ReadList().Entries).Path);
+        Assert.Equal(downloads, Config.LoadConfig(target).DownloadPath);
+    }
+
+    [Fact]
     public void ANewProfileGetsItsOwnDownloadFolderLanguageAndIdAndIsListedWithTheCurrentOne()
     {
         using Fixture fixture = new();

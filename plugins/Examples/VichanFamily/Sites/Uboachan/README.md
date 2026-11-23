@@ -39,9 +39,7 @@ NW-00 confirmed 305 posts/69 originals in `/yn/res/513.json`, mixed MD5/SHA-1
 against two small originals, and a second thread with two attachments in one
 post. A new bounded metadata-only preflight on 2026-10-25 confirms `/yn/` HTML200,
 that multi-attachment thread's JSON200 and canonical HTML200, plus a second
-`/ot/` catalog200. Clean
-receipts are in `Evidence/metadata-preflight-20261025.json`; no raw post content
-or originals are shipped as fixtures. Python observations do not establish
+`/ot/` catalog200. Python observations do not establish
 productive HostHttp/download/archive/offline acceptance.
 
 Synthetic tests cover slot identities, empty names, mixed digest forms,
