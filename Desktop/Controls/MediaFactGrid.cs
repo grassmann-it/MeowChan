@@ -25,12 +25,13 @@ internal sealed class MediaFactGrid : Grid
     internal void Add(string label, string? value, string? name = null, bool fileName = false)
     {
         if (string.IsNullOrWhiteSpace(value)) return;
-        TextBlock key = new() { Text = label, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+        TextBlock key = new() { Text = label, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Left };
         SelectableTextBlock text = fileName ? new FileNameValue(value) : new SelectableTextBlock
         {
             Text = value, Classes = { "media-fact-value" }, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2
         };
         text.Name = name;
+        text.TextAlignment = TextAlignment.Left;
         ToolTip.SetTip(text, value);
         Children.Add(key);
         Children.Add(text);

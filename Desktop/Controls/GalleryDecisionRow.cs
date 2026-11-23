@@ -29,7 +29,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     {
         ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,2.5*"),
         RowDefinitions = new RowDefinitions("Auto,Auto"),
-        RowSpacing = 8
+        RowSpacing = 8, HorizontalAlignment = HorizontalAlignment.Left
     };
     // The full rating caption stays in the tooltip when trimmed.
     private readonly TextBlock _summary = new TrimTipTextBlock

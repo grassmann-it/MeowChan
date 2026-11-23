@@ -68,13 +68,13 @@ internal static class TaggingModeChecks
                     "The shared sidebar pill did not follow the queue position.");
             }
             CheckPill(1);
-            Program.CaptureWindow(window, "112-p2-tagging-gallery-tags.png");
+            Program.CaptureWindow(window, "smoke-112-p2-tagging-gallery-tags.png");
             viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == GallerySidePanelSegment.Post,
                 "The queue gallery did not switch to Post.");
             Require(viewer.IsTaggingMode, "Switching the panel tab ended the queue walk.");
             CheckPill(1);
-            Program.CaptureWindow(window, "112-p2-tagging-gallery-post.png");
+            Program.CaptureWindow(window, "smoke-112-p2-tagging-gallery-post.png");
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == GallerySidePanelSegment.Tags,
                 "The queue gallery did not switch back to Tags.");

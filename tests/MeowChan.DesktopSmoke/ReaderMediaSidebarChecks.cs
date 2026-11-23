@@ -73,16 +73,7 @@ internal static class ReaderMediaSidebarChecks
         Click(tagsTab);
         await Program.WaitUntilAsync(() => QuickTagPopover.Current?.Anchor == tagsTab);
         Require(tagsTab.IsChecked == true, "The Tags tab did not select the sidebar's editor.");
-        QuickTagPopover popover = QuickTagPopover.Current!;
-        if (popover.DecisionRow is { } decisions)
-        {
-            await Program.WaitUntilAsync(() => decisions.Bounds.Width > 0 && popover.Frame.Bounds.Height > 0);
-            using Avalonia.Media.Imaging.RenderTargetBitmap screenshot = new(new PixelSize(
-                (int)Math.Ceiling(popover.Frame.Bounds.Width), (int)Math.Ceiling(popover.Frame.Bounds.Height)));
-            screenshot.Render(popover.Frame);
-            screenshot.Save(Path.Combine(AppContext.BaseDirectory, "112-p2-popover.png"), Avalonia.Media.Imaging.PngBitmapEncoderOptions.Default);
-        }
-        popover.Close();
+        QuickTagPopover.Current!.Close();
         await Program.WaitUntilAsync(() => tagsTab.IsChecked == false);
         await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia!.Id, StringComparison.Ordinal));
         if (headerOnly) return;

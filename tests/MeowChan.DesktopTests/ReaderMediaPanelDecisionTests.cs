@@ -38,6 +38,7 @@ public sealed class ReaderMediaPanelDecisionTests
             window.UpdateLayout();
             GalleryDecisionRow decision = Assert.Single(sidebar.GetVisualDescendants().OfType<GalleryDecisionRow>());
             Assert.Equal(3, decision.View.Rating);
+            Assert.Equal(0, decision.StarButtons[0].TranslatePoint(default, decision)!.Value.X, 0.5);
             Assert.True(decision.StarButtons[2].IsChecked);
             Click(decision.StarButtons[4]);
             Assert.Equal(5, rating);
