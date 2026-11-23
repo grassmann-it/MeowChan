@@ -87,7 +87,11 @@ internal sealed class StartupFolderWindow : Window
 
     private async Task LoadProfilesAsync()
     {
-        (_protectedFolders, string[] profiles) = await Task.Run(ReadProfiles);
+        (_protectedFolders, string[] profiles) = await Task.Run(() =>
+        {
+            TemporaryProfileDiscard.RetryPending(StartupFolderSession.TempParent());
+            return ReadProfiles();
+        });
         if (!IsVisible) return;
         _profiles.ItemsSource = profiles;
         string? problem = await Task.Run(() => _session.SourceProblem(_protectedFolders));

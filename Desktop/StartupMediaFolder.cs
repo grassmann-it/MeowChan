@@ -19,6 +19,7 @@ internal sealed class StartupFolderSession : IDisposable
 
     internal string Source { get; }
     internal string? SelectedProfile { get; set; }
+    internal ShutdownWatchdog? WindowShutdownWatchdog { get; set; }
 
     internal StartupFolderSession(string source) => Source = Path.TrimEndingDirectorySeparator(Path.GetFullPath(source));
 
@@ -65,13 +66,13 @@ internal sealed class StartupFolderSession : IDisposable
     internal string PrepareTemporaryProfile(string language, IEnumerable<string> protectedFolders)
     {
         if (_temporaryProfile is not null) throw new InvalidOperationException("A temporary profile already exists for this start.");
-        string tempParent = ResolveTempPath(Path.GetTempPath());
+        string tempParent = TempParent();
         if (protectedFolders.Append(Source).Any(folder => FolderSourceValidation.SameOrBelow(tempParent, folder)))
             throw new IOException("The temporary directory is inside a protected folder.");
 
         // The OS creates a unique directory with private permissions on Unix. Use its physical
         // path so the profile can also open under macOS's /var -> /private/var alias.
-        DirectoryInfo created = Directory.CreateTempSubdirectory("MeowChan-folder-");
+        DirectoryInfo created = Directory.CreateTempSubdirectory(TemporaryProfileDiscard.Prefix);
         string directory = Path.Combine(tempParent, created.Name);
         ArchiveExportMetadataFile.RejectLinks(directory);
         _temporaryProfile = (directory, ProfileDirectoryIdentity.Capture(directory));
@@ -85,6 +86,8 @@ internal sealed class StartupFolderSession : IDisposable
         return lease.ProfileDirectory;
     }
 
+    internal static string TempParent() => ResolveTempPath(Path.GetTempPath());
+
     private static string ResolveTempPath(string path)
     {
         DirectoryInfo directory = new(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
@@ -93,7 +96,7 @@ internal sealed class StartupFolderSession : IDisposable
         return child.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? child.FullName;
     }
 
-    internal bool RemoveTemporaryProfile()
+    internal bool RemoveTemporaryProfile(Action? beforeMark = null)
     {
         if (_temporaryProfile is not { } owned) return true;
         try
@@ -101,11 +104,12 @@ internal sealed class StartupFolderSession : IDisposable
             ArchiveExportMetadataFile.RejectLinks(owned.Path);
             if (Directory.Exists(owned.Path))
             {
-                owned.Identity.EnsureMatches(owned.Path);
-                if (ProfileLease.IsInUse(owned.Path))
-                    throw new IOException("The temporary profile still has an owner.");
-                // Recursive Directory.Delete removes link entries without following them.
-                Directory.Delete(owned.Path, recursive: true);
+                if (!TemporaryProfileDiscard.IsQuarantined(owned.Path, owned.Identity))
+                {
+                    owned.Path = TemporaryProfileDiscard.Quarantine(owned.Path, owned.Identity, beforeMark);
+                    _temporaryProfile = owned;
+                }
+                TemporaryProfileDiscard.RemoveQuarantine(owned.Path, owned.Identity);
             }
             else if (File.Exists(owned.Path))
             {

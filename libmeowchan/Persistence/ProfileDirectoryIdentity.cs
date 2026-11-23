@@ -1,6 +1,8 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Security.AccessControl;
+using System.Security.Principal;
 using Microsoft.Win32.SafeHandles;
 
 namespace MeowChan.Persistence;
@@ -13,6 +15,8 @@ internal sealed class ProfileDirectoryIdentity
 {
     private readonly ulong _volume;
     private readonly ulong _file;
+
+    internal string DiscardToken => FormattableString.Invariant($"{_volume:x16}-{_file:x16}");
 
     private ProfileDirectoryIdentity(ulong volume, ulong file)
     { _volume = volume; _file = file; }
@@ -61,6 +65,17 @@ internal sealed class ProfileDirectoryIdentity
         return new(unchecked((ulong)status.Dev), unchecked((ulong)status.Ino));
     }
 
+    internal static bool IsOwnedByCurrentUser(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            using WindowsIdentity user = WindowsIdentity.GetCurrent();
+            var owner = new DirectoryInfo(path).GetAccessControl(AccessControlSections.Owner).GetOwner(typeof(SecurityIdentifier));
+            return user.User?.Equals(owner) == true || user.Owner?.Equals(owner) == true;
+        }
+        return UnixLStat(path, out FileStatus status) == 0 && status.Uid == UnixEffectiveUserId();
+    }
+
     private static ProfileDirectoryIdentity CaptureWindows(string path)
     {
         using SafeFileHandle handle = CreateFile(path, 0x80 /* FILE_READ_ATTRIBUTES */,
@@ -86,6 +101,9 @@ internal sealed class ProfileDirectoryIdentity
 
     [DllImport("System.Native", EntryPoint = "SystemNative_FStat", SetLastError = true)]
     private static extern int UnixFStat(SafeFileHandle handle, out FileStatus output);
+
+    [DllImport("libc", EntryPoint = "geteuid")]
+    private static extern uint UnixEffectiveUserId();
 
     // Normalized .NET PAL ABI, not platform-libc struct stat.
     [StructLayout(LayoutKind.Sequential)]
