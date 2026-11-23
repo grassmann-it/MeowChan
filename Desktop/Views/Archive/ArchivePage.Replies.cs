@@ -23,7 +23,6 @@ public partial class ArchivePage
     private void RefreshInlineReplies(ArchivePostRow[] rows)
     {
         CancelInlineReplies();
-        _replyAutoExpand.SwitchThread(_thread?.Summary.Id);
         _inlineReplyRows = rows;
         if (rows.Length == 0 || _thread == null || _openReader == null || !CanRead || _ended) return;
         int request = _inlineRepliesRequest;
@@ -58,7 +57,9 @@ public partial class ArchivePage
             }
             Func<Task>? restoreLayout = CaptureReaderCountLayoutCorrection();
             foreach (ArchivePostRow row in rows) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
-            ApplyAutomaticRepliesToRealised(rows);
+            UpdateFocusedReplies();
+            foreach (ArchivePostRow row in rows)
+                if (row.RepliesExpanded && ArchivePosts.ContainerFromItem(row) != null) LoadExpandedReplies(row);
             if (restoreLayout != null) await restoreLayout();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
@@ -81,19 +82,30 @@ public partial class ArchivePage
 
     internal async Task SetRepliesExpandedAsync(ArchivePostRow row, bool open)
     {
-        RememberReplyChoice(row, open);
-        row.RepliesExpanded = open;
-        if (open && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
+        if (_ended || !ContainsInlineReplyRow(row)) return;
+        Func<Task>? restore = CaptureReaderCountLayoutCorrection();
+        _replyAutoExpand.RememberChoice(row, open);
+        if (restore != null) await restore();
+        if (row.RepliesExpanded && !row.RepliesLoaded) await LoadInlineRepliesAsync(row);
     }
     private async void OnMoreRepliesClick(object? sender, RoutedEventArgs e)
     {
         if (sender is Button { DataContext: ArchivePostRow row }) await LoadInlineRepliesAsync(row);
     }
 
+    private void LoadExpandedReplies(ArchivePostRow row)
+    {
+        if (row is { RepliesExpanded: true, HasBacklinks: true, RepliesLoaded: false, HasRepliesError: false })
+            OpenActions.Start(() => LoadInlineRepliesAsync(row), "archive.reader.replies");
+    }
+
+    private bool ContainsInlineReplyRow(ArchivePostRow row) =>
+        _inlineReplyRows.Any(item => ReferenceEquals(item, row));
+
     private async Task LoadInlineRepliesAsync(ArchivePostRow row)
     {
         if (_ended || _busy || !CanRead || _openReader == null || _thread == null || row.RepliesLoading ||
-            !_inlineReplyRows.Any(item => ReferenceEquals(item, row))) return;
+            !ContainsInlineReplyRow(row)) return;
         int request = _inlineRepliesRequest;
         ArchivePostRow[] rows = _inlineReplyRows;
         ResourceId thread = _thread.Summary.Id;
@@ -101,22 +113,29 @@ public partial class ArchivePage
         int loadedBefore = row.Replies.Count;
         row.SetRepliesLoading(true);
         row.SetRepliesError(null);
+        Func<Task>? restore = null;
         try
         {
             await using ArchiveReader reader = await _openReader(token);
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
-                row.Replies.Count, InlineReplyPageSize, token);
+                loadedBefore, InlineReplyPageSize, token);
             // A history restore may have put loaded pages on the row while this one was on its way; its offset is then stale.
             if (!InlineReplyPageCurrent(rows, thread, request) || row.Replies.Count != loadedBefore) return;
+            restore = row.RepliesExpanded ? CaptureReaderCountLayoutCorrection() : null;
             row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesError(exception.Message);
+            if (InlineReplyPageCurrent(rows, thread, request))
+            {
+                restore = CaptureReaderCountLayoutCorrection();
+                row.SetRepliesError(exception.Message);
+            }
         }
         finally { if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesLoading(false); }
+        if (restore != null) await restore();
     }
 
     // A reply of this thread becomes a card with its header and the first lines of its text; a reply from another
