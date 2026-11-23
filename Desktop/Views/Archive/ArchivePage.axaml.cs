@@ -59,7 +59,6 @@ public partial class ArchivePage : UserControl
     private int _previewRequest;
     private int _listOffset;
     private int _listTotal;
-    private int _postOffset;
     private bool _available;
     private bool _busy;
     private bool _ended;
@@ -132,7 +131,7 @@ public partial class ArchivePage : UserControl
 
     public ArchivePage()
     {
-        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializePostPageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons(); InitializeThreadListToggle();
+        InitializeComponent(); InitializeThreadFind(); InitializeUnifiedSearch(); InitializeReferencePageKeys(); InitializeTransferPreview(); InitializeArchiveResultActions(); InitializeSuggestions(); InitializeSearchEditors(); InitializeArchiveSelection(); InitializeArchiveMediaCommands(); InitializeRatingCommands(); InitializeMediaPositionInput(); InitializeMediaSelection(); InitializeThreadFavoriteCommands(); InitializePrivateTags(); InitializeArchiveColumnMenus(); InitializeStatusOverlay(); InitializeReaderToolbarIcons(); InitializeThreadListToggle();
         // Navigation scrolls explicitly; selection must not re-anchor while media is loading.
         ArchivePosts.AutoScrollToSelectedItem = false;
         ArchiveMediaTiles.AutoScrollToSelectedItem = false;
@@ -370,18 +369,18 @@ public partial class ArchivePage : UserControl
         ClosePreview();
         if (resetPage || _selectedThread != id)
         {
-            _postOffset = 0;
+            _readerPostId = null;
+            _projectionSelectionPost = null;
             // F2 (16.11.2026): the way back to the last read place belongs to the thread it was made in. A load of another thread (a jump from
             // Media, Tagging or the gallery, whose list selection runs under _updatingList and so never reaches the list's own clear) starts
             // without it; the same thread re-read in place (live follow, a list page) keeps it.
             _history.Clear();
         }
-        if (_selectedThread != id) _readerPostId = null; // Post ids are local to a thread.
         _retainedMediaPosition = CaptureMediaPosition();
         _mediaProjectionPending = true;
         if (_selectedThread != id) _ = ReleaseInlineVideos(); // R10: another thread starts without players
         _selectedThread = id;
-        _postsAlignOnShow = null;
+        _postsAnchorOnShow = null;
         _mediaMenuPresenter.Invalidate();
         CloseThreadFind();
         _thread = null;
@@ -419,7 +418,6 @@ public partial class ArchivePage : UserControl
             _thread = thread;
             if (thread == null) _mediaProjectionPending = false;
             ReaderSnapshotLoaded();
-            if (_thread != null && _postOffset >= _thread.PostCount) _postOffset = 0;
             _busy = false;
             RenderThread();
             Message(string.Empty);
@@ -428,10 +426,10 @@ public partial class ArchivePage : UserControl
                 MediaLoadTask = LoadMediaAsync(thread);
                 if (filenameNavigation == null && _largeReader && DownloadReaderGate.OpensOnMedia(thread.PostCount, thread.Summary.LastCapturedAt))
                     ArchiveContentTabs.SelectedItem = ArchiveMediaTab; // DL-01: nothing to read, so the open lands on the saved media
-                if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent);
+                if (retainedAnchor != null) await RestoreReaderAnchorAsync(retainedAnchor, focusIntent: focusIntent, preserveTab: true);
                 else if (filenameNavigation == null && _largeReader && thread.PostCount > 0)
                 {
-                    // The first post of the shown page; a view still being prepared is waited for (the identity is not).
+                    // The first post in the shown order; a view still being prepared is waited for (the identity is not).
                     await AwaitProjectionAsync();
                     if (_ended || request != _contentRequest) return;
                     if (Projection is { Count: > 0 } shown)
@@ -450,7 +448,7 @@ public partial class ArchivePage : UserControl
                         }
                         else
                         {
-                            await FocusPostAsync(shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId,
+                            await FocusPostAsync(shown[0].Post.PostId,
                                 resetPage ? null : _readerInteractionRevision, focusIntent: focusIntent, passiveOpen: true);
                         }
                     }
@@ -567,8 +565,7 @@ public partial class ArchivePage : UserControl
         if (_ended) _retainedMediaPosition = null;
     }
 
-    // refreshMedia: false when only the page of posts changed behind the Media tab (the media list does not depend on it and keeps its focus and selection).
-    private void RenderThread(bool refreshMedia = true)
+    private void RenderThread()
     {
         CloseQuotePreview();
         UpdateReaderThreadActions();
@@ -597,19 +594,6 @@ public partial class ArchivePage : UserControl
                 && projection[carrier].ThreadIndex >= _thread.FindPostIndex(unreadFirst))
                 unreadCarrier = projection[carrier].Post.PostId;
             _unreadFirstNewId = unreadCarrier;
-            int pageSize = ReaderPageSize;
-            if (projection != null)
-            {
-                if (_projectionPagePost is { } pagePost)
-                {
-                    int position = projection.NearestPosition(pagePost);
-                    _postOffset = position;
-                    _projectionPagePost = null;
-                }
-                // History can retain an offset from another page size even when it has no realized anchor.
-                // Keep every rendered page aligned to the current reader size, including empty/shortened views.
-                _postOffset = projection.PageOffset(_postOffset, pageSize);
-            }
             Dictionary<string, bool> capturedIds = new(StringComparer.Ordinal);
             ArchivedThreadView current = _thread;
             bool IsDead(ArchiveQuote quote) => quote.Target is { } target && target.Thread == current.Summary.Id
@@ -619,22 +603,28 @@ public partial class ArchivePage : UserControl
                 ? null : current.Posts.FirstOrDefault(candidate => candidate.PostId == openingPost)?.PostedAt;
             PostRowContext context = new(current, openingPost, openingPostAt, DateTimeOffset.Now, unreadCarrier, unreadCount,
                 _readerView.HideMedia, projection?.IsOrdered == true, IsDead);
-            ArchivePostRow[] posts = projection == null ? Array.Empty<ArchivePostRow>()
-                : projection.Page(_postOffset, pageSize).Select(entry => BuildPostRow(entry, context)).ToArray();
+            ArchivePostRow[] posts = new ArchivePostRow[projection?.Count ?? 0];
+            for (int index = 0; index < posts.Length; index++) posts[index] = BuildPostRow(projection![index], context);
+
+            int selected = -1;
+            if (projection != null && _projectionSelectionPost is { } target)
+            {
+                selected = projection.NearestPosition(target);
+                _projectionSelectionPost = null;
+            }
+            if (selected < 0 && _readerPostId is { } retained && projection != null)
+                selected = projection.PositionOf(retained);
+            if (selected < 0 && posts.Length > 0) selected = 0;
+
             ReservePreviewSizes(posts);
             ListBox postList = ArchivePosts;
-            // A new page is a new index space. Do not carry its predecessor's
-            // virtualized realization window and estimated item positions over.
+            // Only a new snapshot or view rebuild replaces the virtualizer's index space.
             postList.ItemsSource = null;
             postList.ItemsPanel = ReaderPostList.NewPanelTemplate();
+            if (postList.Scroll is ScrollViewer scroll) scroll.Offset = default;
             postList.ItemsSource = posts;
-            // Replacing ItemsSource clears ListBox selection even when the logical post survives.
-            // Select within the projected page (not the unfiltered thread), without taking keyboard
-            // focus or recording a deliberate reading move. Explicit jumps/anchor restoration still
-            // own their later alignment. Selection also activates focused media and the sidebar.
-            ArchivePostRow? selectedPost = posts.FirstOrDefault(post => post.Id == _readerPostId) ?? posts.FirstOrDefault();
-            _readerPostId = selectedPost?.Id;
-            postList.SelectedItem = selectedPost;
+            if (projection != null) _readerPostId = selected >= 0 ? posts[selected].Id : null;
+            postList.SelectedIndex = selected;
             UpdateReaderNavigation();
             RefreshInlineReplies(posts);
         }
@@ -646,8 +636,7 @@ public partial class ArchivePage : UserControl
         noPostsText.IsVisible = noPosts != null;
         if (noPosts != null && !Equals(noPostsText.Tag, noPosts)) { noPostsText.Tag = noPosts; noPostsText.Text = Texts.T(noPosts); }
         Dispatcher.UIThread.Post(UpdateUnreadReturn, DispatcherPriority.Background);
-        // The new page's rows still get their favourite wiring (ConfigureArchiveMediaFavorites); the media list itself is not rebuilt.
-        if (refreshMedia) RenderMedia(); else ConfigureArchiveMediaFavorites();
+        RenderMedia();
         AnnounceProjection();
     }
 
@@ -655,7 +644,7 @@ public partial class ArchivePage : UserControl
         DateTimeOffset? OpeningPostAt, DateTimeOffset RenderedAt, string? UnreadCarrier, int UnreadCount,
         bool HideMedia, bool SuppressReplyToggle, Func<ArchiveQuote, bool> IsDead);
 
-    // One immutable row of a page. A placeholder keeps no attachments, so it never offers or loads media.
+    // One row in the shown order. A placeholder keeps no attachments, so it never offers or loads media.
     private ArchivePostRow BuildPostRow(ReaderPostEntry entry, PostRowContext context)
     {
         CapturedPost post = entry.Post;
@@ -780,20 +769,15 @@ public partial class ArchivePage : UserControl
         RefreshArchiveButton.IsEnabled = readReady;
         PreviousThreadsButton.IsEnabled = readReady && _listOffset > 0;
         NextThreadsButton.IsEnabled = readReady && _listOffset + PageSize < _listTotal;
-        int shownPosts = ShownPostCount;
-        PreviousPostsButton.IsEnabled = readReady && _postOffset > 0;
-        NextPostsButton.IsEnabled = readReady && _thread != null && _postOffset + ReaderPageSize < shownPosts;
-        ArchivePostNavigation.IsVisible = shownPosts > ReaderPageSize;
         PreviewArchiveMediaButton.IsEnabled = ready && SelectedMediaRow() != null;
         ArchiveOpenGallery.IsEnabled = ready && _selectedThread != null;
         ArchiveReadPosts.IsEnabled = CanExpandReader;
         ArchiveResultsGallery.IsEnabled = ready && _listTotal > 0;
         ArchiveThreadPage.Text = PageLabel(_listOffset, _listTotal);
-        ArchivePostPage.Text = PageLabel(_postOffset, shownPosts, ReaderPageSize);
         RefreshArchiveResultActions();
         ApplyReaderWorkView();
     }
-    private static string PageLabel(int offset, int total, int pageSize = PageSize) => Texts.T("archive.page", total == 0 ? 0 : offset + 1, Math.Min(offset + pageSize, total), total);
+    private static string PageLabel(int offset, int total) => Texts.T("archive.itemRange", total == 0 ? 0 : offset + 1, Math.Min(offset + PageSize, total), total);
 
     /// <summary>Starts or stops post capture for the open thread (the "Thread" menu's capture entry).</summary>
     internal async Task ToggleThreadCaptureAsync()
@@ -1034,28 +1018,6 @@ public partial class ArchivePage : UserControl
     private async void OnRefreshClick(object? sender, RoutedEventArgs e) => await ActivateAsync();
     private async void OnPreviousThreads(object? sender, RoutedEventArgs e) => await NavigateResultsPage(_listOffset / PageSize);
     private async void OnNextThreads(object? sender, RoutedEventArgs e) => await NavigateResultsPage(_listOffset / PageSize + 2);
-    private void OnPreviousPosts(object? sender, RoutedEventArgs e)
-    {
-        if (IsFilenameSearchOpen || _busy || _postOffset == 0) return;
-        ++_readerInteractionRevision;
-        _postOffset = Math.Max(0, _postOffset - ReaderPageSize);
-        ++_readerFocusRequest;
-        _readerPostId = null;
-        _postsAlignOnShow = null; // a new page starts at its top
-        RenderThread(refreshMedia: !ReaderPostsInBackground);
-        QueueReadingPositionCapture(DispatcherPriority.Loaded);
-    }
-    private void OnNextPosts(object? sender, RoutedEventArgs e)
-    {
-        if (IsFilenameSearchOpen || _busy || _thread == null || _postOffset + ReaderPageSize >= ShownPostCount) return;
-        ++_readerInteractionRevision;
-        _postOffset += ReaderPageSize;
-        ++_readerFocusRequest;
-        _readerPostId = null;
-        _postsAlignOnShow = null; // a new page starts at its top
-        RenderThread(refreshMedia: !ReaderPostsInBackground);
-        QueueReadingPositionCapture(DispatcherPriority.Loaded);
-    }
     private void OnBackClick(object? sender, RoutedEventArgs e) { if (IsFilenameSearchOpen) return; CloseThreadFind(); _showReader = false; UpdateLayoutMode(); }
     private void OnMediaSelected(object? sender, SelectionChangedEventArgs e)
     {
@@ -1233,8 +1195,6 @@ public partial class ArchivePage : UserControl
         CommandBindings.Apply(ArchiveBackButton, "archive.back-to-list", iconWithLabel: true);
         CommandBindings.Apply(PreviousThreadsButton, "archive.previous-page", iconOnly: true);
         CommandBindings.Apply(NextThreadsButton, "archive.next-page", iconOnly: true);
-        CommandBindings.Apply(PreviousPostsButton, "pagination.previous", iconOnly: true);
-        CommandBindings.Apply(NextPostsButton, "pagination.next", iconOnly: true);
         CommandBindings.Apply(PreviousReferences, "pagination.previous", iconOnly: true);
         CommandBindings.Apply(NextReferences, "pagination.next", iconOnly: true);
         CommandBindings.Apply(ArchiveHistoryBack, "reader.history-back", iconWithLabel: true);

@@ -167,7 +167,6 @@ public static class SettingsTransfer
             ReaderReplyStep = source.ReaderReplyStep,
             ReaderReplyLines = source.ReaderReplyLines,
             ReaderExpandReplies = source.ReaderExpandReplies,
-            ReaderPageSize = source.ReaderPageSize,
             ReaderThreadingDepth = source.ReaderThreadingDepth,
             GalleryFitMaxUpscalePercent = source.GalleryFitMaxUpscalePercent,
             PostFilterRuleLimit = source.PostFilterRuleLimit,

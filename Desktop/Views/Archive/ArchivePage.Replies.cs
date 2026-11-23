@@ -48,13 +48,12 @@ public partial class ArchivePage
         try
         {
             await using ArchiveReader reader = await _openReader!(token);
-            IReadOnlyDictionary<string, int> counts = await reader.GetBacklinkCountsAsync(thread,
-                rows.Select(row => row.Id).ToArray(), token);
-            if (!InlineReplyPageCurrent(rows, thread, request)) return;
+            IReadOnlyDictionary<string, int> counts = await reader.GetThreadBacklinkCountsAsync(thread, token);
+            if (!InlineReplyRowsCurrent(rows, thread, request)) return;
             if (BeforeInlineReplyCountsPublicationAsync is { } beforePublication)
             {
                 await beforePublication(token);
-                if (!InlineReplyPageCurrent(rows, thread, request)) return;
+                if (!InlineReplyRowsCurrent(rows, thread, request)) return;
             }
             Func<Task>? restoreLayout = CaptureReaderCountLayoutCorrection();
             foreach (ArchivePostRow row in rows) row.SetBacklinkCount(counts.GetValueOrDefault(row.Id));
@@ -64,12 +63,12 @@ public partial class ArchivePage
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (!InlineReplyPageCurrent(rows, thread, request)) return;
+            if (!InlineReplyRowsCurrent(rows, thread, request)) return;
             foreach (ArchivePostRow row in rows) row.SetRepliesError(exception.Message);
         }
     }
 
-    private bool InlineReplyPageCurrent(ArchivePostRow[] rows, ResourceId thread, int request)
+    private bool InlineReplyRowsCurrent(ArchivePostRow[] rows, ResourceId thread, int request)
         => !_ended && request == _inlineRepliesRequest && ReferenceEquals(rows, _inlineReplyRows)
             && _thread?.Summary.Id == thread;
 
@@ -93,7 +92,7 @@ public partial class ArchivePage
     private async Task LoadInlineRepliesAsync(ArchivePostRow row)
     {
         if (_ended || _busy || !CanRead || _openReader == null || _thread == null || row.RepliesLoading ||
-            !_inlineReplyRows.Any(item => ReferenceEquals(item, row))) return;
+            !ReferenceEquals(FindPostRow(row.Id), row)) return;
         int request = _inlineRepliesRequest;
         ArchivePostRow[] rows = _inlineReplyRows;
         ResourceId thread = _thread.Summary.Id;
@@ -107,16 +106,16 @@ public partial class ArchivePage
             ArchiveQuotePage page = await reader.GetBacklinksAsync(new ArchivePostId(thread, row.Id),
                 row.Replies.Count, InlineReplyPageSize, token);
             // A history restore may have put loaded pages on the row while this one was on its way; its offset is then stale.
-            if (!InlineReplyPageCurrent(rows, thread, request) || row.Replies.Count != loadedBefore) return;
+            if (!InlineReplyRowsCurrent(rows, thread, request) || row.Replies.Count != loadedBefore) return;
             row.SetReplies(Array.AsReadOnly(row.Replies.Concat(page.Items.Select(quote => ReplyCard(quote, thread))).ToArray()),
                 page.TotalCount, page.Offset);
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }
         catch (Exception exception)
         {
-            if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesError(exception.Message);
+            if (InlineReplyRowsCurrent(rows, thread, request)) row.SetRepliesError(exception.Message);
         }
-        finally { if (InlineReplyPageCurrent(rows, thread, request)) row.SetRepliesLoading(false); }
+        finally { if (InlineReplyRowsCurrent(rows, thread, request)) row.SetRepliesLoading(false); }
     }
 
     // A reply of this thread becomes a card with its header and the first lines of its text; a reply from another

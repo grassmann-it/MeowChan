@@ -572,10 +572,6 @@ namespace MeowChan
         internal const int ReaderReplyLinesMaximum = ReaderDisplayLimits.ReplyLinesMaximum;
         /// <summary>Open the nested reply cards of every post as soon as its card is shown (default off); a post the reader collapsed by hand stays collapsed for the open thread.</summary>
         public bool ReaderExpandReplies { get; set; } = false;
-        public int ReaderPageSize { get; set; } = ReaderPageSizeDefault;
-        internal const int ReaderPageSizeDefault = ArchivePage.ReaderPageSizeDefault;
-        internal const int ReaderPageSizeMinimum = ArchivePage.ReaderPageSizeMinimum;
-        internal const int ReaderPageSizeMaximum = ArchivePage.ReaderPageSizeMaximum;
         public int ReaderThreadingDepth { get; set; } = ReaderThreadingDepthDefault;
         internal const int ReaderThreadingDepthDefault = ReaderConversationTree.DepthDefault;
         internal const int ReaderThreadingDepthMinimum = ReaderConversationTree.DepthMinimum;
@@ -1039,7 +1035,6 @@ namespace MeowChan
             ReaderPreviewDelayMs = Math.Clamp(ReaderPreviewDelayMs, ReaderPreviewDelayMsMinimum, ReaderPreviewDelayMsMaximum);
             ReaderReplyStep = Math.Clamp(ReaderReplyStep, ReaderReplyStepMinimum, ReaderReplyStepMaximum);
             ReaderReplyLines = Math.Clamp(ReaderReplyLines, ReaderReplyLinesMinimum, ReaderReplyLinesMaximum);
-            ReaderPageSize = Math.Clamp(ReaderPageSize, ReaderPageSizeMinimum, ReaderPageSizeMaximum);
             ReaderThreadingDepth = Math.Clamp(ReaderThreadingDepth, ReaderThreadingDepthMinimum, ReaderThreadingDepthMaximum);
             ReadingHistoryLimit = Math.Clamp(ReadingHistoryLimit, ReadingHistoryLimitMinimum, ReadingHistoryLimitMaximum);
             ReadingHistoryMenuEntries = Math.Clamp(ReadingHistoryMenuEntries, ReadingHistoryMenuEntriesMinimum, ReadingHistoryMenuEntriesMaximum);
@@ -1839,8 +1834,6 @@ namespace MeowChan
                 throw new ArgumentOutOfRangeException(nameof(ReaderReplyStep), "ReaderReplyStep is outside its supported range.");
             if (ReaderReplyLines is < ReaderReplyLinesMinimum or > ReaderReplyLinesMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderReplyLines), "ReaderReplyLines is outside its supported range.");
-            if (ReaderPageSize is < ReaderPageSizeMinimum or > ReaderPageSizeMaximum)
-                throw new ArgumentOutOfRangeException(nameof(ReaderPageSize), "ReaderPageSize is outside its supported range.");
             if (ReaderThreadingDepth is < ReaderThreadingDepthMinimum or > ReaderThreadingDepthMaximum)
                 throw new ArgumentOutOfRangeException(nameof(ReaderThreadingDepth), "ReaderThreadingDepth is outside its supported range.");
             if (ReadingHistoryLimit is < ReadingHistoryLimitMinimum or > ReadingHistoryLimitMaximum)
@@ -2108,7 +2101,6 @@ namespace MeowChan
                 ReaderReplyStep = ReaderReplyStep,
                 ReaderReplyLines = ReaderReplyLines,
                 ReaderExpandReplies = ReaderExpandReplies,
-                ReaderPageSize = ReaderPageSize,
                 ReaderThreadingDepth = ReaderThreadingDepth,
                 ReadingHistoryLimit = ReadingHistoryLimit,
                 ReadingHistoryMenuEntries = ReadingHistoryMenuEntries,
@@ -2398,7 +2390,6 @@ namespace MeowChan
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderExpandReplies = source.ReaderExpandReplies;
-            ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
             ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;
@@ -2664,7 +2655,6 @@ namespace MeowChan
             ReaderReplyStep = source.ReaderReplyStep;
             ReaderReplyLines = source.ReaderReplyLines;
             ReaderExpandReplies = source.ReaderExpandReplies;
-            ReaderPageSize = source.ReaderPageSize;
             ReaderThreadingDepth = source.ReaderThreadingDepth;
             ReadingHistoryLimit = source.ReadingHistoryLimit;
             ReadingHistoryMenuEntries = source.ReadingHistoryMenuEntries;

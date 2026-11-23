@@ -373,18 +373,6 @@
                             <Border Classes="settings-divider">
                                 <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                                     <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <TextBlock x:Name="ReaderPageSizeFieldLabel" Text="{Binding ReaderPageSizeLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding ReaderPageSizeHint}" Classes="workspace-help" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel Grid.Column="1" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
-                                        <desktop:SettingsNumberInput x:Name="ReaderPageSizeInput" Value="{Binding ReaderPageSize, Mode=TwoWay}" Minimum="{Binding ReaderPageSizeMinimum}" Maximum="{Binding ReaderPageSizeMaximum}" Increment="10" AutomationProperties.LabeledBy="{Binding ElementName=ReaderPageSizeFieldLabel}" AutomationProperties.Name="{Binding ReaderPageSizeLabel}" AutomationProperties.HelpText="{Binding ReaderPageSizeHelp}" />
-                                        <TextBlock x:Name="ReaderPageSizeInputError" Classes="workspace-error" TextWrapping="Wrap" IsVisible="False" AutomationProperties.LiveSetting="Assertive" />
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                            <Border Classes="settings-divider">
-                                <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
-                                    <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
                                         <TextBlock x:Name="ReaderThreadingDepthFieldLabel" Text="{Binding ReaderThreadingDepthLabel}" Classes="workspace-field-label" TextWrapping="Wrap" />
                                         <TextBlock Text="{Binding ReaderThreadingDepthHint}" Classes="workspace-help" TextWrapping="Wrap" />
                                     </StackPanel>

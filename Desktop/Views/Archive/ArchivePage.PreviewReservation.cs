@@ -50,11 +50,11 @@ public partial class ArchivePage
     /// <summary>Preloads planned but not started (diagnostic and smoke seam).</summary>
     internal int PreviewPrefetchesWaiting => _previewPrefetchQueue.Waiting;
 
-    private void ReservePreviewSizes(IReadOnlyList<ArchivePostRow> posts)
+    private void ReservePreviewSizes(ArchivePostRow[] posts)
     {
         CancelPreviewWork();
         HookPreviewPrefetch();
-        if (_thread == null || posts.Count == 0) return;
+        if (_thread == null || posts.Length == 0) return;
         ResourceId resource = _thread.Summary.Id;
         ReaderPreviewAspectMemo memo = ReaderPreviewAspectMemo.Shared;
         _inlineVideo.ExpandedImages.BeginThread(string.Join('/', resource.Source, resource.Board, resource.Thread));
