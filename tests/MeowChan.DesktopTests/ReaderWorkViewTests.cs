@@ -74,7 +74,7 @@ public sealed class ReaderWorkViewTests
     }
 
     [Fact]
-    public void ArchiveToolbarMediaHeaderWrapsBelowItsActionsAtNarrowWidths() => BooruComponentDispatcher.Run(() =>
+    public void ArchiveSidebarKeepsItsFactsAndActionsBelowAStableHeaderAtNarrowWidths() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.Initialize();
@@ -88,28 +88,24 @@ public sealed class ReaderWorkViewTests
             window.Show();
             Dispatcher.UIThread.RunJobs();
             Control header = sidebar.HeaderRow;
-            Control number = header.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarPostLink");
-            TextBlock details = header.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarHeader");
+            MediaFactGrid facts = Assert.Single(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
+            SelectableTextBlock file = Assert.Single(facts.Children.OfType<SelectableTextBlock>(), text => text.Name == "ReaderMediaSidebarFile");
             MediaPositionPill counter = sidebar.PositionPill;
             Point At(Control item) => item.TranslatePoint(default, header)!.Value;
 
             Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
-            Assert.DoesNotContain(header.GetVisualDescendants().OfType<TextBlock>(), text => text.Classes.Contains("section-title"));
+            Assert.DoesNotContain(sidebar.Open, header.GetVisualDescendants());
+            Assert.DoesNotContain(sidebar.PostLink, header.GetVisualDescendants());
             GalleryMeasuredGeometryTests.AssertSidebarHeader(header, sidebar.Segments, counter, sidebar.Close);
-            Assert.Equal(0, At(number).X);
-            Assert.True(At(details).Y > At(counter).Y);
-            Assert.True(At(counter).X > At(details).X);
-            Assert.True(At(sidebar.Open).X > At(sidebar.FavoriteButton).X);
-            double singleLineHeight = details.Bounds.Height;
+            Assert.True(At(file).Y >= header.Bounds.Height);
+            Assert.True(At(sidebar.Open).Y > At(file).Y);
 
             BooruReviewTestPlatform.Resize(window, 272);
-            Assert.Equal(0, At(number).X);
-            Assert.Equal(At(sidebar.Close).Y + sidebar.Close.Bounds.Height / 2, At(counter).Y + counter.Bounds.Height / 2, 0.5);
-            Assert.True(At(details).Y > At(sidebar.Open).Y);
-            Assert.True(details.Bounds.Height > singleLineHeight);
-            Assert.InRange(header.Bounds.Height, ReaderMediaSidebar.HeaderLineHeight, 3 * ReaderMediaSidebar.HeaderLineHeight);
+            Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, header.Bounds.Height);
+            GalleryMeasuredGeometryTests.AssertSidebarHeader(header, sidebar.Segments, counter, sidebar.Close);
             Assert.True(At(sidebar.Open).X + sidebar.Open.Bounds.Width <= header.Bounds.Width);
-            Assert.Contains("2001×3000", details.Text);
+            Assert.Contains("…", file.Text);
+            Assert.EndsWith(".jpg", file.Text);
         }
         finally { window.Close(); }
     });
