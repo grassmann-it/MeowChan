@@ -74,11 +74,12 @@ public sealed class StorageLimitsSectionTests : IDisposable
             "ReserveInput", "BooruCatalogMiBInput", "FavoriteEntryLimitInput", "PostBookmarkLimitInput",
             "PostFilterRuleLimitInput", "HiddenPostLimitInput", "TagQueueLimitInput", "FolderSourceMaxFilesInput",
             "ArchiveTagFilterTagsPerListInput", "UrlTextExportLimitMiBInput", "SlashTagSuggestionCountInput",
-            "VideoScrubCacheLimitMiBInput", "QuickTagSuggestionCountInput"
+            "VideoScrubCacheLimitMiBInput", "QuickTagSuggestionCountInput", "LocalTaggerManifestKiBInput",
+            "LocalTaggerWeightsMiBInput", "LocalTaggerInputTensorMiBInput"
         })
         {
             XElement field = Named(markup, name);
-            Assert.Contains(page, field.Ancestors());
+            Assert.Contains(name == "ReserveInput" ? page : limitsGroup, field.Ancestors());
             Assert.DoesNotContain(expander, field.Ancestors());
         }
 
@@ -207,14 +208,19 @@ public sealed class StorageLimitsSectionTests : IDisposable
         string[] hints = page.Descendants().Select(e => (string?)e.Attribute("Text"))
             .Where(text => text != null && text.StartsWith("{Binding ") && text.EndsWith("Hint}"))
             .Select(text => text!["{Binding ".Length..^1]).Distinct().ToArray();
-        // Require a hint for every actual user-limit field, not an obsolete row-count baseline.
         XElement pluginExpander = Named(markup, "SettingsWorkerBudgetsHeading");
+        XElement taggerLimits = Named(markup, "SettingsLocalTaggerLimits");
+        XElement taggerRestartHint = Assert.Single(taggerLimits.Elements(),
+            e => (string?)e.Attribute("Text") == "{Binding BudgetRestartHint}");
         foreach (XElement field in page.Descendants().Where(e => e.Name.LocalName == "SettingsNumberInput"
             && !e.Ancestors().Contains(pluginExpander)))
         {
             string name = (string)field.Attribute(X + "Name")!;
             Assert.True(intro.IsBefore(field), $"{name} precedes the introduction");
-            Assert.Contains(name[..^"Input".Length] + "Hint", hints);
+            if (field.Ancestors().Contains(taggerLimits))
+                Assert.True(taggerRestartHint.IsBefore(field), $"{name} precedes the Local Tagger restart hint");
+            else
+                Assert.Contains(name[..^"Input".Length] + "Hint", hints);
         }
 
         // These getters only look up texts and constants; no window or profile is needed.

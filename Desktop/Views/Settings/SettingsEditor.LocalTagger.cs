@@ -12,6 +12,8 @@ public partial class SettingsEditor
     internal decimal LocalTaggerInputTensorMiBMinimum => LocalTaggerModelSettings.InputTensorMiBRange.Minimum;
     internal decimal LocalTaggerInputTensorMiBMaximum => LocalTaggerModelSettings.InputTensorMiBRange.Maximum;
 
+    internal string LocalTaggerLimitsLabel => Texts.T("localTagger.title");
+
     private decimal? _localTaggerManifestKiB;
     internal decimal? LocalTaggerManifestKiB { get => _localTaggerManifestKiB; set => SetField(ref _localTaggerManifestKiB, value, nameof(LocalTaggerManifestKiB)); }
     internal string LocalTaggerManifestKiBLabel => Texts.T("budgets.localTaggerManifest");

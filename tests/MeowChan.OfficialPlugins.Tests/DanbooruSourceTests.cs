@@ -367,13 +367,12 @@ public sealed class DanbooruSourceTests
     {
         RecordingHttp http = Returning(Json("[]"));
         BooruSearchRequest request = new("danbooru", "cat", 1, 20, cursor);
-        // A canonical SDK cursor, but longer than any Danbooru post id (18 digits).
-        Assert.Empty(SdkValidation.ValidateBooruSearchRequest(request, Source));
+        // Longer than the SDK post id cap (18 digits): the SDK request validation already rejects it, and the plugin still fails closed.
+        Assert.Contains(SdkValidation.ValidateBooruSearchRequest(request, Source), issue => issue.Code == "invalid_cursor");
         BooruSearchFailure failure = Assert.IsType<BooruSearchFailure>(await Plugin.SearchPostsAsync(request, Context(http)));
-        Assert.Equal("invalid-cursor", failure.Failure.Code);
-        Assert.Equal("The cursor is not a Danbooru post id.", failure.Failure.Message);
+        Assert.Equal("invalid-request", failure.Failure.Code);
         Assert.DoesNotContain(cursor, JsonSerializer.Serialize(failure));
-        Assert.Empty(SdkValidation.ValidateBooruSearchResult(request, failure, Source));
+        Assert.Empty(SdkValidation.ValidateBooruSearchResult(request with { BeforePostId = "5" }, failure, Source));
         Assert.Empty(http.Requests);
     }
 
@@ -401,7 +400,7 @@ public sealed class DanbooruSourceTests
         Assert.Equal("unexpected-order", Assert.IsType<BooruSearchFailure>((await Search(Json(Fixture("search-cursor.json")), "cat", 1, 2, "999")).Result).Failure.Code);
         Assert.Equal("unexpected-order", Assert.IsType<BooruSearchFailure>((await Search(Json("[{\"id\":5},{\"id\":4}]"), "cat", 1, 2, "4")).Result).Failure.Code);
         Assert.IsType<BooruSearchSnapshot>((await Search(Json("[{\"id\":5},{\"id\":4}]"), "cat", 1, 2, "6")).Result);
-        Assert.IsType<BooruSearchSnapshot>((await Search(Json("[{\"id\":9223372036854775807}]"), "cat", 1, 2)).Result);
+        Assert.IsType<BooruSearchSnapshot>((await Search(Json("[{\"id\":999999999999999999}]"), "cat", 1, 2)).Result);
     }
 
     [Fact]

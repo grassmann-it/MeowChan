@@ -57,7 +57,9 @@ public sealed class FilterSurfaceContractTests
     public void TheMediaHeadFollowsThePageGridAndShuffleAndRefreshAreSquareIcons()
     {
         string page = Source("Desktop/Views/Media/MediaPage.cs");
-        Assert.Contains("Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8), Classes = { \"workspace-page-header\" }", page); // LY-03
+        Assert.Contains("Margin = new Thickness(MediaToolbarLayout.HorizontalMargin, PageHeader.PageTopOffset, MediaToolbarLayout.HorizontalMargin, 8)", page);
+        Assert.Equal(12d, MediaToolbarLayout.HorizontalMargin);
+        Assert.Contains("Classes = { \"workspace-page-header\" }", page);
         Assert.Contains("_headerBody = new() { Spacing = 8 }", page);
         Assert.Contains("WorkspaceIcons.MakeSquare(_shuffle, WorkspaceIcons.Shuffle, Texts.T(\"media.shuffle\"));", page);
         Assert.DoesNotContain("_shuffle.Content = Texts.T", page);
