@@ -53,6 +53,27 @@ public sealed class TagSuggestionStoreTests : IDisposable
     }
 
     [Fact]
+    public void ARunWithoutManifestRemainsReadableButCannotResumeAVerifiedManifest()
+    {
+        TagSuggestionStore store = Store();
+        TagSuggestionProvenance verified = R1 with { ManifestSha256 = new string('c', 64) };
+        store.CommitRuns([Run(MediaA, R1, ("cat", 0.9))]);
+
+        TagSuggestionSnapshot legacy = Store().Load();
+        Assert.True(legacy.HasCompletedRun(MediaA, R1));
+        Assert.False(legacy.HasCompletedRun(MediaA, verified));
+        Assert.Null(Assert.Single(legacy.Runs).Provenance.ManifestSha256);
+
+        store.CommitRuns([Run(MediaA, verified, ("cat", 0.9))]);
+
+        TagSuggestionSnapshot reloaded = Store().Load();
+        Assert.True(reloaded.HasCompletedRun(MediaA, verified));
+        Assert.False(reloaded.HasCompletedRun(MediaA, R1));
+        Assert.Equal(verified, Assert.Single(reloaded.Runs).Provenance);
+        Assert.Equal(verified, Assert.Single(reloaded.PendingFor(MediaA, 0)).Provenance);
+    }
+
+    [Fact]
     public void OnlyTaggedRunsCountAsDoneAndCarrySuggestions()
     {
         TagSuggestionStore store = Store();

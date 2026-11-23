@@ -9,7 +9,8 @@ internal delegate Task<TaggerBatchResult> TaggerInvoker(TaggerBatchRequest reque
 /// <summary>Services the host binds to every call of one plugin's taggers. Network access is not among them: see <see cref="TaggerRegistry"/>.</summary>
 internal sealed record TaggerHostBinding(PluginConfiguration Configuration, IPluginResources Resources, IPluginLog Log,
     // Network capability comes from a host-bound transport (manual admission, no automatic redirects).
-    IHostHttp? ConsentedHttp = null, string? ExecutionRevision = null, bool RequireVerifiedModelHash = false);
+    IHostHttp? ConsentedHttp = null, string? ExecutionRevision = null, bool RequireVerifiedModelHash = false,
+    string? ManifestSha256 = null);
 
 /// <summary>A validated tagger of a registered plugin.</summary>
 internal sealed record TaggerRegistration(string PluginId, string PluginVersion, TaggerDescription Tagger,

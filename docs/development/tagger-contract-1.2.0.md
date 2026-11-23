@@ -118,7 +118,10 @@ budget), 512 suggestions per item, 8 models, 8 network hosts, 24 h ranges.
   identities. A decision to accept or reject the same tag for these bytes
   suppresses further proposals across taggers.
 - Run records (medium, provenance, outcome, count, time) make jobs idempotent;
-  only `Tagged` counts as done, other outcomes are retried.
+  only `Tagged` counts as done, other outcomes are retried. The local worker
+  records the host-verified manifest SHA-256 with the model weights hash.
+  Resume requires both digests to match. Older runs without a manifest hash
+  remain readable and are processed on the next run with a verified manifest.
 - Raw scores are stored; the threshold only filters the view
   (`PendingFor(media, threshold)`), so changing it needs no re-run.
 - An unreadable or newer file is preserved and makes the store read-only.

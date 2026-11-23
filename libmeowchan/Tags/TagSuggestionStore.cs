@@ -19,7 +19,7 @@ internal enum TagSuggestionStoreState { Ready, Unsupported, Failed }
 
 /// <summary>Who proposed a suggestion. <see cref="RunKey"/> identifies a tagger run independent of the plugin build.</summary>
 internal sealed record TagSuggestionProvenance(string PluginId, string TaggerKey, string PluginVersion, string ModelId,
-    string ModelRevision, string? ModelSha256 = null)
+    string ModelRevision, string? ModelSha256 = null, string? ManifestSha256 = null)
 {
     [JsonIgnore] internal string TaggerIdentity => PluginId + "\n" + TaggerKey;
     [JsonIgnore] internal string RunKey => TaggerIdentity + "\n" + ModelId + "\n" + ModelRevision;
@@ -67,7 +67,8 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<Stored
     /// <summary>Whether this exact tagger and model revision already tagged these bytes (resume skips it).</summary>
     internal bool HasCompletedRun(string mediaSha256, TagSuggestionProvenance provenance)
         => Runs.Any(run => string.Equals(run.MediaSha256, mediaSha256, StringComparison.Ordinal)
-            && run.Provenance.RunKey == provenance.RunKey && run.Outcome == TagSuggestionStore.TaggedOutcome);
+            && run.Provenance.RunKey == provenance.RunKey && run.Provenance.ManifestSha256 == provenance.ManifestSha256
+            && run.Outcome == TagSuggestionStore.TaggedOutcome);
 
     /// <summary>Pending suggestions of one medium at or above the display threshold, best first. The threshold never changes stored data.</summary>
     internal IReadOnlyList<StoredTagSuggestion> PendingFor(string mediaSha256, double threshold)
@@ -335,7 +336,8 @@ internal sealed partial class TagSuggestionStore
     private static bool IsValidProvenance(TagSuggestionProvenance? value) => value is not null
         && IsIdentity(value.PluginId) && IsIdentity(value.TaggerKey) && IsIdentity(value.PluginVersion)
         && IsIdentity(value.ModelId) && IsIdentity(value.ModelRevision)
-        && (value.ModelSha256 is null || IsSha256(value.ModelSha256));
+        && (value.ModelSha256 is null || IsSha256(value.ModelSha256))
+        && (value.ManifestSha256 is null || IsSha256(value.ManifestSha256));
 
     private static bool IsValidTag(string? name, string? category, double confidence, long? start, long? end) =>
         IsTagName(name) && IsIdentity(category) && double.IsFinite(confidence) && confidence is >= 0 and <= 1

@@ -194,7 +194,8 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
             return new BatchOutcome(null, Invalid: true);
 
         TagSuggestionProvenance provenance = new(registration.PluginId, tagger.Key, registration.PluginVersion,
-            result.Provenance.ModelId, result.Provenance.ModelRevision, result.Provenance.ModelSha256?.ToLowerInvariant());
+            result.Provenance.ModelId, result.Provenance.ModelRevision, result.Provenance.ModelSha256?.ToLowerInvariant(),
+            registration.Binding.ManifestSha256);
         Dictionary<string, TaggerJobItem> byItem = new(StringComparer.Ordinal);
         for (int index = 0; index < inputs.Length; index++) byItem.Add(inputs[index].ItemId, batch[index]);
         List<TagSuggestionRunInput> runs = new(result.Items.Count);
@@ -208,21 +209,23 @@ internal sealed class TaggerJobRunner(TaggerRegistry registry, TagSuggestionStor
         return new BatchOutcome(runs);
     }
 
-    /// <summary>Same tagger and a declared model revision (or, without models, the same plugin version) already tagged these bytes.</summary>
+    /// <summary>Resume requires the declared model revision (or plugin version without models) and the same verified manifest, if present.</summary>
     private static bool AlreadyTagged(TagSuggestionSnapshot snapshot, TaggerRegistration registration, string mediaSha256)
     {
         TaggerDescription tagger = registration.Tagger;
         if (tagger.Models.Count == 0)
             return snapshot.Runs.Any(run => run.Outcome == TagSuggestionStore.TaggedOutcome
                 && string.Equals(run.MediaSha256, mediaSha256, StringComparison.Ordinal) && run.Provenance.PluginId == registration.PluginId
-                && run.Provenance.TaggerKey == tagger.Key && run.Provenance.PluginVersion == registration.PluginVersion);
+                && run.Provenance.TaggerKey == tagger.Key && run.Provenance.PluginVersion == registration.PluginVersion
+                && run.Provenance.ManifestSha256 == registration.Binding.ManifestSha256);
         if (registration.Binding.RequireVerifiedModelHash)
             return snapshot.Runs.Any(run => run.Outcome == TagSuggestionStore.TaggedOutcome && run.MediaSha256 == mediaSha256
                 && run.Provenance.PluginId == registration.PluginId && run.Provenance.TaggerKey == tagger.Key
+                && run.Provenance.ManifestSha256 == registration.Binding.ManifestSha256
                 && tagger.Models.Any(model => model.ModelId == run.Provenance.ModelId && model.Revision == run.Provenance.ModelRevision
                     && model.Sha256 is not null && string.Equals(model.Sha256, run.Provenance.ModelSha256, StringComparison.OrdinalIgnoreCase)));
         return tagger.Models.Any(model => snapshot.HasCompletedRun(mediaSha256, new TagSuggestionProvenance(registration.PluginId,
-            tagger.Key, registration.PluginVersion, model.ModelId, model.Revision)));
+            tagger.Key, registration.PluginVersion, model.ModelId, model.Revision, ManifestSha256: registration.Binding.ManifestSha256)));
     }
 
     private static bool Accepts(TaggerDescription tagger, TagSuggestionSettings settings, TaggerJobItem item)
