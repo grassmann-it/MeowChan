@@ -217,7 +217,7 @@ internal static partial class MediaPageChecks
             Require(untagged.Focus(), "The untagged count link must take keyboard focus.");
             untagged.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(withoutTags.IsChecked == true && page.ShownEntries.Count == 3 && !untagged.IsVisible && page.FilterChips.Children.Count == 1
-                && C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 3, 3), "The untagged link did not apply its filter.");
+                && C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaFilterSummary(3, 3), "The untagged link did not apply its filter.");
             await UntilAsync(() => window.FocusManager?.GetFocusedElement() is Visual focused && focused.GetSelfAndVisualAncestors().Contains(page.Grid));
             RemoveChip(page.FilterChips, 0);
             Require(withoutTags.IsChecked == false && untagged.IsVisible && !page.FilterChips.IsVisible, "Removing the untagged chip did not widen back.");
@@ -258,7 +258,7 @@ internal static partial class MediaPageChecks
             // A thread tag reaches every file of the thread, the loose file included.
             Include("rpt");
             Require(Shown() == "100:100,100:-" && chips.Children.Count == 1 && page.ActiveFilterCount > 0, "Thread tag filter failed: " + Shown());
-            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 2, 3), "Filtered count is wrong.");
+            Require(C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaFilterSummary(2, 3), "Filtered count is wrong.");
             Include("cute");
             Require(page.ShownEntries.Count == 0 && C<TextBlock>(page, "MediaEmpty").IsVisible
                 && C<TextBlock>(page, "MediaEmpty").Text == Texts.T("media.filter.noMatch"), "All-of two tags must match nothing: " + Shown());
@@ -569,7 +569,7 @@ internal static partial class MediaPageChecks
             Require(page.AddTagFilterByName("cute", include: true) == null, "Including cute failed.");
             Require(page.Tiles.Count == 1 && page.Tiles[0].Occurrences.Count == 3 && page.Tiles[0].ThreadCount == 3 && page.Tiles[0].Entry == in400,
                 "A media tag on one occurrence must keep the whole group, shown by the matching occurrence.");
-            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 2), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
+            Require(C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaFilterSummary(1, 2), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
             Require(((await FindDuplicatesHintAsync(page)).Content as TextBlock)?.Text == Texts.T("media.tile.inThreads", 3), "The hint counts all occurrences, not only matching ones.");
             page.ResetFilters();
 
@@ -1183,7 +1183,7 @@ internal static partial class MediaPageChecks
             sound.SelectedIndex = 1;
             Require(Shown() == "snd-900.mp4" && kind.SelectedIndex == (int)MediaLibraryKindFilter.Video && page.ActiveFilterCount > 0, "With sound must show only the sound video: " + Shown());
             Require(note.IsVisible && note.Text == Texts.T("media.audio.unknown", 1) && page.UncheckedVideos == 1, "The undecidable video must be counted: " + note.Text);
-            Require(C<TextBlock>(page, "MediaStatus").Text == Texts.T("media.filter.count", 1, 3), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
+            Require(C<TextBlock>(page, "MediaStatus").Text == CountPhrases.MediaFilterSummary(1, 3), "Filtered count is wrong: " + C<TextBlock>(page, "MediaStatus").Text);
             sound.SelectedIndex = 2;
             Require(Shown() == "mute-910.mp4" && note.Text == Texts.T("media.audio.unknown", 1), "Without sound must show only the silent video, never the undecidable one: " + Shown());
             Require(page.CurrentFilter().Sound == MediaLibrarySoundFilter.WithoutSound, "The filter does not describe the choice.");
