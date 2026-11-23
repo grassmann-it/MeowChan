@@ -9,6 +9,35 @@ namespace MeowChan.DesktopSmoke;
 
 internal static class ShellPresentationChecks
 {
+    internal static async Task CheckFullscreenFooterAsync(MainWindow window)
+    {
+        WindowState origin = window.WindowState;
+        ComboBox mode = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+        RequireFooter(window, visible: true);
+        Require(mode.Focus(), "The work-view chooser could not take focus in windowed mode.");
+        Press(mode, Key.F11);
+        await WaitForSettledGeometryAsync(window, () => IsNativeFullscreen(window), "fullscreen footer");
+        RequireFooter(window, visible: false);
+        Require(!mode.Focus(), "The hidden work-view chooser could still take focus.");
+        Control? focused = window.FocusManager?.GetFocusedElement() as Control;
+        Require(focused is { IsEffectivelyVisible: true }, "Entering fullscreen left no visible focus target.");
+        Press(focused!, Key.Escape);
+        await WaitForSettledGeometryAsync(window, () => window.WindowState == origin, "windowed footer");
+        RequireFooter(window, visible: true);
+        Require(mode.Focus(), "The restored work-view chooser could not take focus.");
+    }
+
+    internal static void RequireFooter(MainWindow window, bool visible)
+    {
+        Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
+        Border status = window.FindControl<Border>("WorkspaceStatusBar")!;
+        Border navigation = window.FindControl<Border>("WorkspaceNavigation")!;
+        Require(status.IsEffectivelyVisible == visible && navigation.IsEffectivelyVisible == visible
+            && (root.RowDefinitions[2].Height.Value > 0) == visible
+            && (root.RowDefinitions[3].Height.Value > 0) == visible,
+            $"Expected shell footer visibility {visible} on {window.SelectedPage} in {window.WindowState}.");
+    }
+
     internal static async Task RunAsync(MainWindow window)
     {
         Size target = new(1000, 668);
@@ -49,6 +78,7 @@ internal static class ShellPresentationChecks
         PixelPoint position = window.Position;
         window.FindControl<Button>("FullscreenButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         await WaitForSettledGeometryAsync(window, () => IsNativeFullscreen(window), "native fullscreen");
+        RequireFooter(window, visible: false);
         Size[] observedEntryFrames = OperatingSystem.IsMacOS()
             ? FullscreenField<List<Size>>(window, "_fullscreenExitStaleNativeClients").ToArray() : [];
         if (OperatingSystem.IsMacOS())
@@ -73,6 +103,7 @@ internal static class ShellPresentationChecks
 
         Require(Math.Abs(window.ClientSize.Height - size.Height) <= 2 && Math.Abs(window.Position.X - position.X) <= 2
             && Math.Abs(window.Position.Y - position.Y) <= 2, "Fullscreen did not restore normal window geometry.");
+        RequireFooter(window, visible: true);
         await MacScreenCapture.TryCaptureAsync("shell-fullscreen-off");
         // A completed transition must also release ordinary resize behavior.
         window.RequestNormalWindowSize(new Size(size.Width + 17, size.Height + 13));
@@ -120,8 +151,10 @@ internal static class ShellPresentationChecks
         input.Focus();
         Press(input, Key.F11);
         await WaitForSettledGeometryAsync(window, () => IsNativeFullscreen(window), "maximized to fullscreen");
+        RequireFooter(window, visible: false);
         Press(input, Key.Escape);
         await WaitForSettledGeometryAsync(window, () => IsNativeMaximized(window), "maximized restored");
+        RequireFooter(window, visible: true);
         window.WindowState = WindowState.Normal;
         await WaitForSettledGeometryAsync(window, () => window.WindowState == WindowState.Normal
             && Math.Abs(window.ClientSize.Width - size.Width) <= 2

@@ -860,7 +860,17 @@ internal static class TaggingPageChecks
         Require(host.IsVisible && host.Content is GalleryViewer viewer && viewer.CaptureState().PostId == a.PostId,
             "A current gallery request must open the selected medium.");
         await GalleryViewerChecksAccess.WaitForLayoutAsync(window);
-        GalleryViewerChecksAccess.Click((GalleryViewer)host.Content!, "GalleryClose");
+        GalleryViewer opened = (GalleryViewer)host.Content!;
+        WindowState beforeFullscreen = window.WindowState;
+        GalleryViewerChecksAccess.Click(opened, "GalleryFullscreen");
+        await Program.WaitUntilAsync(() => window.WindowState == WindowState.FullScreen);
+        ShellPresentationChecks.RequireFooter(window, visible: false);
+        opened.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await Program.WaitUntilAsync(() => window.WindowState == beforeFullscreen);
+        ShellPresentationChecks.RequireFooter(window, visible: true);
+        Require(host.IsVisible && ReferenceEquals(host.Content, opened) && opened.CaptureState().PostId == a.PostId,
+            "Leaving fullscreen changed the gallery opened from Tagging.");
+        GalleryViewerChecksAccess.Click(opened, "GalleryClose");
         await window.GalleryCleanupTask.WaitAsync(deadline);
         Console.WriteLine("SMOKE tagging-page gallery: missing bytes and missing manifest warn, an old visit cannot open, and a current visit opens the chosen medium.");
     }

@@ -13,6 +13,7 @@ namespace MeowChan.DesktopTests;
 
 // RQ-08: a saved Danbooru original carries the profile's own (private) tags as a loose local file of its post. The provider's
 // tags stay claims in the Booru catalog; equal bytes saved for two posts are two occurrences with separate tags.
+[Collection("Avalonia global state")]
 public sealed class BooruLocalMediaTagHostTests
 {
     private static readonly byte[] Bytes = { 0x89, 0x50, 0x4E, 0x47, 7, 7, 7, 7 };
@@ -73,7 +74,7 @@ public sealed class BooruLocalMediaTagHostTests
         using TempDirectory temp = new();
         new Config().SaveConfig(temp.Path);
         await SeedPostAsync(temp.Path, "123", Bytes);
-        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync();
         string[] provider = SourceTags(host, "123");
         (MediaLibraryEntry indexed, GalleryEntry gallery) = await OpenAsync(host, "123");
@@ -106,7 +107,7 @@ public sealed class BooruLocalMediaTagHostTests
         await SeedPostAsync(temp.Path, "201", Bytes);
         await SeedPostAsync(temp.Path, "202", Bytes);
         LocalMediaTagTarget target;
-        await using (DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>())))
         {
             await host.StartAsync();
             (_, GalleryEntry first) = await OpenAsync(host, "201");
@@ -121,7 +122,7 @@ public sealed class BooruLocalMediaTagHostTests
             await Session(host, MediaTagSubjects.Of(second)!).AddAsync("only-second");
             Assert.Equal(2, host.GetPrivateTagSnapshot().Snapshot!.LocalRegistry.Occurrences.Count);
         }
-        await using (DesktopSessionHost restored = new(temp.Path, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost restored = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>())))
         {
             await restored.StartAsync();
             PrivateTagStoreSnapshot snapshot = restored.GetPrivateTagSnapshot().Snapshot!;
@@ -145,7 +146,7 @@ public sealed class BooruLocalMediaTagHostTests
         using TempDirectory temp = new();
         new Config().SaveConfig(temp.Path);
         await SeedPostAsync(temp.Path, "401", Bytes);
-        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync();
         (_, GalleryEntry gallery) = await OpenAsync(host, "401");
         MediaTagSession session = Session(host, MediaTagSubjects.Of(gallery)!);

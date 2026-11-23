@@ -269,7 +269,7 @@ internal static partial class SmokeScenarios
         Root("media-tile-panel", "MEOWCHAN_MEDIA_TILE_PANEL_ONLY"),
         Root("diagnostic-feedback", "MEOWCHAN_DIAGNOSTIC_FEEDBACK_ONLY"),
         // Independent normal-tail scenes: one failing page must not hide the next page's evidence.
-        Root("normal-core", "MEOWCHAN_NORMAL_CORE_ONLY", "normal head through rendered bindings and synthetic row disposal"),
+        Root("normal-core", "MEOWCHAN_NORMAL_CORE_ONLY", "normal head through rendered bindings, synthetic row disposal and fullscreen footer roundtrip"),
         Root("normal-board-admission", "MEOWCHAN_NORMAL_BOARD_ADMISSION_ONLY"),
         Root("normal-grid", "MEOWCHAN_NORMAL_GRID_ONLY"),
         Root("normal-settings-page", "MEOWCHAN_NORMAL_SETTINGS_PAGE_ONLY"),

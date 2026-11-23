@@ -1,17 +1,20 @@
 using System;
+using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
 
-// Media focus mode owns the footer and can hide the title bar. Window fullscreen also
-// hides the title bar. Both modes share the top-edge reveal and its keyboard access.
+// Window fullscreen hides the footer and title bar. Media focus mode also hides
+// the footer and can opt into the same floating title bar.
 public partial class MainWindow
 {
     private const double StatusStripHeight = 26, NavigationHeight = 52;
@@ -106,10 +109,26 @@ public partial class MainWindow
         bool hide = _mediaFocusActive && !_isClosing && _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null;
         _mediaFocusFooterHidden = hide;
         _mediaFocusHeaderHidden = hide && _config.MediaFocusHidesHeader;
-        WorkspaceStatusBar.IsVisible = WorkspaceNavigation.IsVisible = !hide;
-        WorkspaceRoot.RowDefinitions[2].Height = new GridLength(hide ? 0 : StatusStripHeight);
-        WorkspaceRoot.RowDefinitions[3].Height = new GridLength(hide ? 0 : NavigationHeight);
+        ApplyShellChromePresentation();
+    }
+
+    private void ApplyShellChromePresentation()
+    {
+        bool hideFooter = _mediaFocusFooterHidden || WindowState == WindowState.FullScreen;
+        bool moveFooterFocus = hideFooter && (WorkspaceStatusBar.IsKeyboardFocusWithin || WorkspaceNavigation.IsKeyboardFocusWithin);
+        if (hideFooter && WorkspaceNavigation.IsVisible)
+        {
+            bool popupOpen = WorkspaceModeComboBox.IsDropDownOpen || ToolsNavigationButton.Flyout?.IsOpen == true;
+            WorkspaceModeComboBox.IsDropDownOpen = false;
+            ToolsNavigationButton.Flyout?.Hide();
+            // Closing the footer popup can return focus to its anchor or clear it.
+            moveFooterFocus |= WorkspaceNavigation.IsKeyboardFocusWithin || popupOpen && FocusManager?.GetFocusedElement() == null;
+        }
+        WorkspaceStatusBar.IsVisible = WorkspaceNavigation.IsVisible = !hideFooter;
+        WorkspaceRoot.RowDefinitions[2].Height = new GridLength(hideFooter ? 0 : StatusStripHeight);
+        WorkspaceRoot.RowDefinitions[3].Height = new GridLength(hideFooter ? 0 : NavigationHeight);
         ApplyTitleBarPresentation();
+        if (moveFooterFocus) FocusWorkspaceContent();
     }
 
     // The one place that decides how the title bar sits: in its own row (normal), or floating over the page and shown by the strip.
@@ -168,9 +187,21 @@ public partial class MainWindow
     {
         if (_titleBarReturnFocus is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true } origin
             && TopLevel.GetTopLevel(origin) == this && origin.Focus(NavigationMethod.Tab)) return;
-        Control? content = _gallery != null && !_gallerySuspended ? _gallery
+        FocusWorkspaceContent();
+    }
+
+    private void FocusWorkspaceContent()
+    {
+        bool galleryActive = _gallery != null && !_gallerySuspended;
+        Control? content = galleryActive ? _gallery
             : _largeReaderOpen || _selectedPage == WorkspacePage.Archive
                 ? _archivePage?.FindControl<ListBox>("ArchivePosts") : null;
-        if (content?.Focus(NavigationMethod.Tab) != true) Focus(NavigationMethod.Tab);
+        if (content?.Focus(NavigationMethod.Tab) == true) return;
+        Control scope = galleryActive ? GalleryHost : _largeReaderOpen ? ReaderHost : WorkspacePages;
+        // A fallback outside text input keeps the shell's page shortcuts available.
+        Control? first = scope.GetVisualDescendants().OfType<Control>().FirstOrDefault(control =>
+            control is { Focusable: true, IsTabStop: true, IsEffectivelyVisible: true, IsEffectivelyEnabled: true }
+            && !PointerFocusReclaim.IsTextInput(control));
+        first?.Focus(NavigationMethod.Tab);
     }
 }

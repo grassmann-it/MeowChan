@@ -4372,7 +4372,7 @@
     "gallery.panel.post": "帖子",
     "gallery.panel.tags": "标签",
     "gallery.panel.segments": "面板内容",
-    "gallery.panel.segmentHelp": "按左右方向键可在帖子和标签之间切换。显示媒体位置时，它会居中显示在选项卡上方。",
+    "gallery.panel.segmentHelp": "按左右方向键可在帖子和标签之间切换。媒体位置会显示在选项卡旁边。",
     "gallery.panel.close": "关闭面板",
     "gallery.panel.resize": "面板宽度：拖动以更改（{0}–{1}）",
     "media.selection.queue": "加入标签队列",

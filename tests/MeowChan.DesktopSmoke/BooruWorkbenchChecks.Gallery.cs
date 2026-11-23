@@ -119,6 +119,16 @@ internal static partial class BooruWorkbenchChecks
             && (ToolTip.GetTip(openPost) as string)?.Contains("/posts/102", StringComparison.Ordinal) == true,
             "The gallery toolbar actions lack their visual hierarchy or tooltips.");
         Capture(owner, shots, "gallery-toolbar-light");
+        WindowState before = owner.WindowState;
+        ShellPresentationChecks.RequireFooter(owner, visible: true);
+        Click(fullscreen);
+        await Program.WaitUntilAsync(() => owner.WindowState == WindowState.FullScreen);
+        ShellPresentationChecks.RequireFooter(owner, visible: false);
+        gallery.Stage.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+        await Program.WaitUntilAsync(() => owner.WindowState == before);
+        ShellPresentationChecks.RequireFooter(owner, visible: true);
+        Require(page.View.ResultView == BooruResultView.Gallery && gallery.CurrentPostId == "102",
+            "Leaving fullscreen changed the Booru gallery or its current result.");
         page.View.SetResultView(BooruResultView.List, save: false);
     }
 

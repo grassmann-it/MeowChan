@@ -4453,7 +4453,7 @@
     "gallery.panel.post": "Příspěvek",
     "gallery.panel.tags": "Štítky",
     "gallery.panel.segments": "Obsah panelu",
-    "gallery.panel.segmentHelp": "Šipky vlevo a vpravo přepínají mezi příspěvkem a štítky. Když se zobrazuje pozice média, je uprostřed nad kartami.",
+    "gallery.panel.segmentHelp": "Šipky vlevo a vpravo přepínají mezi příspěvkem a štítky. Když se zobrazuje pozice média, je vedle karet.",
     "gallery.panel.close": "Zavřít panel",
     "gallery.panel.resize": "Šířka panelu: změňte ji tažením ({0}–{1})",
     "media.selection.queue": "Přidat do fronty štítkování",

@@ -312,7 +312,7 @@ internal static partial class SmokeScenarios
             await MediaTileRefillChecks.RunAsync(mainWindow);
         }),
         ["diagnostic-feedback"] = new(SmokeStage.AfterCommandRefresh, mainWindow => DiagnosticsFeedbackChecks.RunAsync(mainWindow)),
-        ["normal-core"] = new(SmokeStage.NormalHead, _ => Task.CompletedTask),
+        ["normal-core"] = new(SmokeStage.NormalHead, ShellPresentationChecks.CheckFullscreenFooterAsync),
         ["normal-board-admission"] = new(SmokeStage.AfterCommandRefresh, mainWindow => BoardAdmissionChecks.RunAsync(mainWindow)),
         ["normal-grid"] = new(SmokeStage.AfterCommandRefresh, mainWindow => GridChecks.RunAsync(mainWindow)),
         ["normal-settings-page"] = new(SmokeStage.AfterCommandRefresh, mainWindow => SettingsPageChecks.RunAsync(mainWindow)),

@@ -38,7 +38,7 @@ internal static class OverlayReveal
             return;
         }
         // The start value (Opacity 0) must be rendered once before the transition runs towards 1.
-        Dispatcher.UIThread.Post(() =>
+        overlay.Dispatcher.Post(() =>
         {
             if (overlay.IsVisible) overlay.Classes.Set(ShownClass, true);
         }, DispatcherPriority.Render);

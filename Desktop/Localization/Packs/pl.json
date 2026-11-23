@@ -4457,7 +4457,7 @@
     "gallery.panel.post": "Post",
     "gallery.panel.tags": "Tagi",
     "gallery.panel.segments": "Zawartość panelu",
-    "gallery.panel.segmentHelp": "Strzałki w lewo i w prawo przełączają między postem a tagami. Gdy pozycja pliku jest widoczna, znajduje się pośrodku nad kartami.",
+    "gallery.panel.segmentHelp": "Strzałki w lewo i w prawo przełączają między postem a tagami. Gdy pozycja pliku jest widoczna, znajduje się obok kart.",
     "gallery.panel.close": "Zamknij panel",
     "gallery.panel.resize": "Szerokość panelu: przeciągnij, aby zmienić ({0}–{1})",
     "media.selection.queue": "Dodaj do kolejki tagowania",
