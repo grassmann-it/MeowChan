@@ -1369,6 +1369,7 @@
     "plugins.stat.sources": "Fonti",
     "plugins.draft": "Bozza non salvata. Salvala per applicare le impostazioni al prossimo avvio dell’app; fino ad allora i valori attivi restano invariati.",
     "plugins.savedNextStart": "Salvato. Le impostazioni hanno effetto al prossimo avvio dell’app.",
+    "plugins.draftBuildLocked": "Bozza delle impostazioni salvata. La nuova build resta bloccata. Scegli «Usa questa build al prossimo avvio» per attivarla al riavvio con queste impostazioni.",
     "plugins.settingsHint": "Le impostazioni di plugin e fonti hanno effetto al prossimo avvio dell’app.",
     "plugins.information": "Capacità e informazioni",
     "plugins.asOf": "Al {0:g} · Fonte: {1}",

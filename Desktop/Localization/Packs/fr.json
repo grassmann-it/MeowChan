@@ -1991,6 +1991,7 @@
     "budgets.mediaIndexCacheHint": "La copie enregistrée de l’index de la page Médias, pour qu’ouvrir Médias ne relise pas chaque fil. Un index plus grand n’est pas enregistré et la page Médias le signale ; après un redémarrage, ouvrir Médias relit alors l’archive. Un index enregistré plus grand reste lisible. Autorisé : de 16 à 1024 MiB.",
     "budgets.range": "{0} doit être un entier compris entre {1} et {2}.",
     "plugins.savedNextStart": "Enregistré. Les paramètres prendront effet au prochain démarrage de l’application.",
+    "plugins.draftBuildLocked": "Le brouillon des paramètres a été enregistré. La nouvelle version reste bloquée. Choisissez « Utiliser cette version au prochain démarrage » pour l’activer avec ces paramètres au redémarrage.",
     "settings.parallelEffective": "Effectif : {0} transferts de médias simultanés (la plus petite des deux valeurs)",
     "budgets.intro": "Limites d’espace disque, de données locales et de processus en arrière-plan. Abaisser une limite ne supprime jamais rien : ce que vous avez déjà reste lisible et utilisable ; seules les nouvelles entrées sont refusées tant que vous n’êtes pas repassé sous la limite.",
     "settings.storageLimits": "Stockage et limites",

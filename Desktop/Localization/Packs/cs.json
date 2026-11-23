@@ -1379,6 +1379,7 @@
     "plugins.stat.sources": "Zdroje",
     "plugins.draft": "Neuložený koncept. Uložte ho, aby se nastavení použilo při příštím spuštění aplikace; do té doby zůstávají aktivní hodnoty beze změny.",
     "plugins.savedNextStart": "Uloženo. Nastavení se projeví při příštím spuštění aplikace.",
+    "plugins.draftBuildLocked": "Koncept nastavení byl uložen. Nové sestavení zůstává zablokované. Zvolte „Použít tento build při příštím spuštění“, aby se po restartu aktivovalo s tímto nastavením.",
     "plugins.settingsHint": "Nastavení pluginů a zdrojů se projeví při příštím spuštění aplikace.",
     "plugins.information": "Schopnosti a informace",
     "plugins.asOf": "Stav k {0:g} · Zdroj: {1}",
