@@ -91,7 +91,7 @@ small thread established the LynxChan object shape, an original-media path and
 If-Modified-Since304. Kohlchan's two live catalog responses exceeded the 256-KiB
 **evidence collection** limit; they were not accepted as parsed full catalogs.
 This smaller collection limit is distinct from the host's 8-MiB metadata limit.
-See each example's [Lainchan](../../plugins/Examples/Lainchan/README.md) /
+See each example's [Lainchan](../../plugins/Examples/VichanFamily/Sites/Lainchan/README.md) /
 [Kohlchan](../../plugins/Examples/Kohlchan/README.md) evidence notes.
 
 No original media were downloaded in that evidence collection. A documented
@@ -102,13 +102,9 @@ release checks; consult the candidate's release notes for their actual results.
 
 ## Wizchan and Endchan validation
 
-Wizchan and Endchan are supplied as independent SDK-only source implementations.
-The [2026-10-24 local results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
-bind their parser/HTTP/routing tests, seven-plugin delivery, SDK-free probes and
-production fixture acquisition/offline restore to the tested candidate. The
-author workflow separately retains Lainchan/Kohlchan as its two acquired sources.
-Provider metadata evidence remains in the
-[Wizchan](../../plugins/Examples/Wizchan/README.md) and
+Wizchan is part of the Vichan family plugin. Endchan is a separate SDK-only
+plugin. For provider metadata and the limits of those integrations, see the
+[Wizchan](../../plugins/Examples/VichanFamily/Sites/Wizchan/README.md) and
 [Endchan](../../plugins/Examples/Endchan/README.md) notes. Fixture-media acquisition
 does not establish a live-original download, a live archive transition or current
 provider health. The dated Lainchan/Kohlchan results above retain their original

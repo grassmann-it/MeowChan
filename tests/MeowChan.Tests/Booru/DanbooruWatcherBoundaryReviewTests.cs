@@ -5,9 +5,7 @@ using MeowChan.Booru;
 namespace MeowChan.Tests.Booru;
 
 /// <summary>
-/// Independent B2/B3 boundary review (2026-11-12). Synthetic pages only. Tests marked
-/// <c>Skip</c> encode the CORRECT contract for a reproducible product gap documented in
-/// review/booru-b2-boundary-2026-11-12.md; un-skip them together with the product fix.
+/// Watcher boundary checks using synthetic pages. Enable each skipped test with its product fix.
 /// </summary>
 public sealed class DanbooruWatcherBoundaryReviewTests
 {

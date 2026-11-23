@@ -53,6 +53,7 @@ internal static class ShellPresentationChecks
             ? FullscreenField<List<Size>>(window, "_fullscreenExitStaleNativeClients").ToArray() : [];
         if (OperatingSystem.IsMacOS())
             Require(observedEntryFrames.Length > 0, "Native fullscreen entry produced no recorded resize observations.");
+        await MacScreenCapture.TryCaptureAsync("shell-fullscreen-on");
         Press(window, Key.F1);
         Require(MeowChan.Desktop.Views.Shortcuts.ShortcutsWindow.For(window) is { IsVisible: true }, "F1 did not open the shortcuts window over fullscreen.");
         Press(window, Key.Escape);
@@ -72,6 +73,7 @@ internal static class ShellPresentationChecks
 
         Require(Math.Abs(window.ClientSize.Height - size.Height) <= 2 && Math.Abs(window.Position.X - position.X) <= 2
             && Math.Abs(window.Position.Y - position.Y) <= 2, "Fullscreen did not restore normal window geometry.");
+        await MacScreenCapture.TryCaptureAsync("shell-fullscreen-off");
         // A completed transition must also release ordinary resize behavior.
         window.RequestNormalWindowSize(new Size(size.Width + 17, size.Height + 13));
         try

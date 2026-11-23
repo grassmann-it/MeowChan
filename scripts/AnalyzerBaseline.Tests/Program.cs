@@ -8,8 +8,7 @@ using Microsoft.CodeAnalysis.CSharp.Syntax;
 using Microsoft.CodeAnalysis.Diagnostics;
 using Microsoft.CodeAnalysis.Text;
 
-string root = Environment.GetEnvironmentVariable("COMMANDCODE_SCRATCHPAD")
-    ?? throw new InvalidOperationException("Set COMMANDCODE_SCRATCHPAD to a temporary directory.");
+string root = Path.GetTempPath();
 string sourcePath = Path.Combine(root, "Probe.cs");
 string baselinePath = Path.Combine(root, "build", "analyzer-baseline-2026-11-17.tsv");
 const string source = "class Existing { }\n";

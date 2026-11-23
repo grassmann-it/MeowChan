@@ -117,8 +117,7 @@ class PluginPackagingTests(unittest.TestCase):
                 if not (fixtures / token).is_file():
                     missing.append(token)
             elif re.fullmatch(r'(?:tests|docs|Desktop)/[\w./-]+', token):
-                # docs/architecture/ is the gitignored local planning tree; it cannot be checked here.
-                if not token.startswith('docs/architecture/') and not (repository / token.rstrip('/')).exists():
+                if not (repository / token.rstrip('/')).exists():
                     missing.append(token)
             else:
                 cited -= 1

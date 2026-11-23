@@ -20,7 +20,7 @@ Each read makes one host HTTP call. Host pacing/retry/cancellation apply. Valid2
 
 ## Evidence, provenance and limits
 
-`Evidence/` records nine bounded public GETs on2026-10-24 (256KiB each, no redirects/cookies/retries/media). Exact UTC/URL/status/bodyhash and redacted shapes are retained, not post bodies, authors or original filenames. Eight initial requests were followed by one explicitly authorized board-directory check. Live catalog200 (99 entries), small three-post thread200, threadHTML200, board-directory200, ETag304 and missing-thread404 were observed. Original paths are from HTML, not acquired image bytes. `index.html` is linked by the homepage; the slash route was fetched directly. Conditional catalog304, actual deletion/archive transition and live multifile were not observed.
+Nine bounded public metadata requests ran on 2026-10-24, including a board-directory check. Live catalog200 (99 entries), small three-post thread200, threadHTML200, board-directory200, ETag304 and missing-thread404 were observed. Original paths are from HTML, not acquired image bytes. `index.html` is linked by the homepage; the slash route was fetched directly. Conditional catalog304, actual deletion/archive transition and live multifile were not observed.
 
 Homepage links the official engine repository <https://github.com/fallenPineapple/NPFchan>. Its API source documents first-file plus `extra_files` and base64 MD5; the current deployed revision is unknown. Selected short API lines and license summary are research evidence. No PHP/template/JavaScript code is incorporated: this independent C# adapter adapts this repository's Lainchan example. NPFchan LICENSE.md grants permissive use conditional on retaining copyright/permission notices for copied substantial portions; future upstream code imports require their own notices review.
 
@@ -47,7 +47,6 @@ API90011 bytes and MD5 differed from served89933 bytes and MD5; identity/no-auto
 
 Upload size/hash can survive optional image transformation; actual deployed revision/configuration and exact object cause remain unproven.
 The provider's deployed historical version/settings are not bound to this review;
-the API values are not universally reclassified as upload metadata. See
-`Evidence/integrity-research-20261024.json` for source paths, revision/body hashes
-and exact scope. No per-format size adjustment, checksum removal, or hash inferred
+the API values are not universally reclassified as upload metadata. No
+per-format size adjustment, checksum removal, or hash inferred
 from an original basename is applied.

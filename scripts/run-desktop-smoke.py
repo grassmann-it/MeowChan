@@ -35,6 +35,7 @@ BRANCH_SELECTORS = (("MEOWCHAN_TEMPLATE_COMPARISON", "1"), ("MEOWCHAN_ARCHIVE_CO
                     ("MEOWCHAN_URSA_NATIVE_SUITE", "groups"))
 # SmokeScenarios.FunctionalAudio: such registry entries run inside the private null-audio wrapper, as in CI.
 FUNCTIONAL_AUDIO = "MEOWCHAN_REQUIRE_FUNCTIONAL_AUDIO=1"
+MAC_SCREENSHOT_SCENARIOS = {"normal+MEOWCHAN_NORMAL_CORE_ONLY", "selection", "reader-ux+MEOWCHAN_GALLERY_CLOSE_ONLY"}
 # scripts/with-isolated-window-manager.py: the known sporadic startup failures of the private window manager.
 WINDOW_MANAGER_STARTUP_FLAKE = re.compile(r"The isolated window manager (exited during startup|did not become ready)")
 
@@ -335,6 +336,10 @@ def run_mode_staged(mode: str, assembly: Path, destination: Path, environment: d
     with private_working_directory(isolated) as working_directory:
         child_environment = prepare_environment(environment, isolated, Path(working_directory))
         scenario = expected_scenario or derived_scenario(mode, child_environment)
+        child_environment.pop("MEOWCHAN_MAC_SCREENSHOT_DIR", None)
+        if (sys.platform == "darwin" and not isolated and environment.get("MEOWCHAN_MAC_SCREENSHOTS") == "1"
+                and scenario in MAC_SCREENSHOT_SCENARIOS):
+            child_environment["MEOWCHAN_MAC_SCREENSHOT_DIR"] = str(destination)
         if environment.get("MEOWCHAN_REVIEW_ARTIFACTS"):
             child_environment["MEOWCHAN_REVIEW_ARTIFACTS"] = str(destination / "review-artifacts")
         if not isolated:
@@ -406,6 +411,10 @@ def run_mode_staged(mode: str, assembly: Path, destination: Path, environment: d
                     except (OSError, subprocess.TimeoutExpired) as exception:
                         error = f"Process cleanup failed: {exception}"
     log_text = (destination / "output.log").read_text(encoding="utf-8", errors="replace")
+    if "MEOWCHAN_MAC_SCREENSHOT_DIR" in child_environment:
+        for line in log_text.splitlines():
+            if line.startswith("WARNING macOS screenshot "):
+                print(line, flush=True)
     xvfb_teardown_ignored = not timed_out and not interrupted and survived_xvfb_teardown(
         exit_code, destination / "harness-exit-code", log_text)
     if xvfb_teardown_ignored:

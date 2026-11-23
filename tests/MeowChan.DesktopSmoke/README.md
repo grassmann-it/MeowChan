@@ -222,6 +222,14 @@ existing identity-verified fixture clipboard; without that fixture it is skipped
 before touching a native clipboard. Record actual image review as retain/adjust/change;
 technical assertions alone do not decide whether the hierarchy is understandable.
 
+## Synthetic desktop review scenes
+
+On Linux, `scripts/run-review-fixtures.py` captures synthetic desktop scenes
+using Xvfb, Openbox, a private D-Bus session and ffmpeg with libvpx. Pass a
+DesktopSmoke assembly via `--assembly` and a fresh local directory via
+`--output`. Use `--scene media-760-dark-de` for a single scene or
+`--generate-only` for a synthetic profile without screenshots.
+
 ## Dialog gallery (`dialog-gallery`)
 
 `MEOWCHAN_DIALOG_GALLERY_ONLY=1` is an evidence run, not a check. It opens every dialog, modal, secondary window, popup,

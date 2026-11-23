@@ -34,9 +34,8 @@ Payload validators are accepted only after SDK validation of a valid snapshot.
 
 Evidence collected on 2026-10-24 comprises eight bounded public metadata or
 documentation GETs, 262335 received bytes, no retries, authentication, redirect
-following or original/thumbnail download. See [observations](Evidence/observations.json)
-for URLs, response hashes, distinctions between observed/documented behavior and
-unknowns. `.net` as canonical is local policy: `.org` served identical thread bytes
+following or original/thumbnail download. The adapter uses `.net` as its
+canonical host: `.org` served identical thread bytes
 directly, not a canonical redirect. The operator-linked fork documentation does
 not establish the deployed server revision. No upstream implementation code was
 copied; this file adapts this repository's Kohlchan example.
@@ -69,7 +68,6 @@ LIVE03 original33534 bytes vs API33552 bytes; no independent identity/no-auto-de
 
 Operator-linked fork copies input size/hash into file metadata. A stripping/reencode cause is NOT established in these inspected fork modules; do not transfer general LynxChan findings.
 The provider's deployed historical version/settings are not bound to this review;
-the API values are not universally reclassified as upload metadata. See
-`Evidence/integrity-research-20261024.json` for source paths, revision/body hashes
-and exact scope. No per-format size adjustment, checksum removal, or hash inferred
+the API values are not universally reclassified as upload metadata. No
+per-format size adjustment, checksum removal, or hash inferred
 from an original basename is applied.

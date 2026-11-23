@@ -110,9 +110,7 @@ local hit when the top-level snapshot disagrees, matching `MediaNativeInput`.
 Both native motion acknowledgements now additionally require the actual event
 source in the target subtree and `target.IsPointerOver`. Screen containment,
 activation, two coordinates, two-second delivery deadlines, final footer/root
-over-state and terminal retirement assertions remain unchanged. No other check
-body or matrix changes. Native evidence and verification limits are recorded in
-`NativeReadinessEvidence.md` beside this file.
+over-state and terminal retirement assertions remain unchanged.
 
 The reference covers the suffix beginning at the exact `BOUNDARY` declaration in
 `check_contract.py` through EOF. Decode as UTF-8 with universal-newline

@@ -13,8 +13,6 @@ using MeowChan.Tags;
 
 namespace MeowChan.Import;
 
-// Contract: docs/architecture/gesamtprogramm-2026-10-31/contracts/manual-import-v1.md (§3 catalog, §6 failure and atomicity).
-
 /// <summary>Where one import batch stands. <see cref="Copying"/> after a stop means "interrupted": finished on the next run.</summary>
 internal enum ManualImportBatchState { Copying, Completed }
 

@@ -33,7 +33,7 @@ including the `chan-sources.json` migration markers and the unique source invent
 This extension still does not claim GUI, package, Windows/macOS, or release
 acceptance.
 
-## AP04 overlay correction and preserved evidence
+## AP04 overlay initialization
 
 The failed generator created `profile/exports` before `new Config { ...
 }.SaveConfig(profile)`. The exported released `Desktop/Config.cs:742` correctly
@@ -43,30 +43,6 @@ here. The overlay now creates only the empty new profile, saves settings, **then
 creates exports and starts the fixture host. Merely assigning `DownloadPath` and
 `LastExportDirectory` does not create those directories. No recovery bypass,
 lease/admission override, pinned product change or oracle relaxation is involved.
-
-Historical evidence stays untouched (paths relative to
-`/home/tomka/mc-evidence/ux103-restpakete-20261111/`):
-
-* Original user-supplied generator: `input/tests/fixtures/upgrade-v1.0.2/Program.cs`.
-* Failed exported overlay and exact release: `resume-1011/released102-source/`.
-* Failed profile: `resume-1011/released102-profile/`.
-* Failure log: `resume-1011/ap04-generation.log` (the pre-save recovery refusal).
-
-The original Program.cs, failed exported overlay and pre-fix versioned overlay all
-had SHA256 `fabd202a944332e291479f4e5973deb761b55fb5d7ff92d3a9be7d1b319373eb`.
-Only the current versioned overlay is patched. Do not update the old source
-manifest, reuse the failed profile, delete its exports, or repair it into passing
-evidence. Export again to fresh paths so the new manifest binds the changed
-overlay; all existing identity/content assertions remain; the receipt now also records the legacy chan-plugin states.
-
-`tests/test_released102_fixture_generation.py` is a small source-contract
-regression for the new-path guard, empty pre-save setup and ordinary save before
-export creation. It neither emulates released Config nor proves runtime admission.
-Root's targeted command, **NOT RUN by this worker**:
-
-```sh
-python3 -m unittest discover -s tests -p test_released102_fixture_generation.py -v
-```
 
 ## Preparation and provenance
 
@@ -230,7 +206,7 @@ package manifest whose `source_commit` must equal the candidate.
 ```sh
 python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py --dry-run --candidate-sha "$SHA" --out "$OUT"   # plan only
 python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py --candidate-sha "$SHA" \
-  --out /home/tomka/.cache/claude-ssd-tmp/ap4/r1 \
+  --out "$OUT" \
   --linux-package-dir <run>/linux-distribution-candidate-linux-x64/linux-packages \
   --sha256sums <run>/stable-candidate-"$SHA"/SHA256SUMS
 ```
@@ -270,33 +246,6 @@ python3 tests/fixtures/upgrade-v1.0.2/ap04_run.py --candidate-sha "$SHA" \
   published-asset start, Windows/macOS. `--release-artifact/--release-sums` only compare the checksum of
   an owner-supplied 1.0.2 download; the 1.0.2 code that writes the profile is the pinned Git object.
 * Helper regressions (no dotnet): `python3 -m unittest discover -s tests -p test_ap04_run.py -v`.
-
-### Recorded attempts (Root, resume-1011, 12.11.2026)
-
-Evidence under `/home/tomka/mc-evidence/ux103-restpakete-20261111/resume-1011/`:
-
-* Attempt 1 (`ap04-generation.log`, exit 134): pre-save recovery refusal, kept as is.
-* Attempts 2-5 (`ap04-generation{2..5}.log`, `ap04-receipt{2..5}.log`): generation
-  exit 0, `SOURCE OK ... files=1863 overlay=2`, `RECEIPT OK ... files=34`. The overlay
-  and preparer hashes in `released102-src2/UPGRADE-102-SOURCE.json` equal the current
-  `Program.cs`, `UpgradeFixtureGenerator.csproj` and `prepare.py`.
-* Attempts 2-4 failed in the export-language comparison (later fixed in the test).
-* Attempt 5 (`ap04-consumer5.log`, `ap04-consumer-trx5/`, `released102-cycles5/`):
-  13/13 passed, the upgrade fact executed (not skipped), cycles 0/1/2 and
-  `current-result.json` present. Current side stamped `1.0.2+e3569eae`, run from the
-  dirty root checkout with the test change committed afterwards as `d959026b`, so
-  it is not a frozen clean run. `check_migrated.py` on it: `archive=5->12
-  journal=none->1 private-tags=absent booru-catalog=absent`, manifests `v4:unchanged`.
-* Not carried forward: later commits changed archive/tag/journal/Danbooru/host code
-  (Danbooru catalog, private-tag format 2 for loose files, journal pruning). A fresh
-  attempt on the frozen candidate is required.
-* First `ap04_run.py` attempt (13.11.2026, not part of resume-1011):
-  `/home/tomka/.cache/claude-ssd-tmp/ap4/full-20261113-024722`, candidate `6f4dfe91`,
-  `--allow-no-package`. Preflight and `SOURCE OK ... files=1863 overlay=2` passed; then
-  `released-restore` was killed after 1000 s while still waiting for `heavy.lock` (its log
-  holds only the command line, no output and no `EXIT`), everything later was skipped and
-  the verdict was `FAIL`. Nothing was restored, built or opened. The lock wait is now bounded
-  and reported on its own, and a source-only run can no longer end in `PASS`.
 
 The existing test invokes the current consumer once for cycle 0 (upgrade), once
 for cycle 1, and once for cycle 2 (offline restarts), each a separate process with

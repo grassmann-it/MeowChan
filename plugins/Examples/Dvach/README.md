@@ -59,8 +59,7 @@ though it is no longer compared.
 The NW-00 preflight recorded one matching JPEG (25,475 bytes, API size24) and
 `.hk` → `.su` original redirect. A new bounded metadata/HTML preflight on
 2026-10-25 confirms `.su` board and thread HTML200, `.hk` board301 to `.su`,
-`/pr/` catalog/thread shapes and a second `/mu/` catalog. Clean receipts are in
-`Evidence/metadata-preflight-20261025.json`; raw post bodies are not test fixtures.
+`/pr/` catalog/thread shapes and a second `/mu/` catalog.
 These are Python HTTP observations, not runtime/plugin-worker or download tests.
 
 Synthetic tests cover multiple attachments, null/empty files, escaping, foreign

@@ -415,6 +415,8 @@ jobs:
         shell: bash
         env:
           GUI_CI_SCENES: ${{ matrix.scenes }}
+          # Optional compositor evidence is uploaded with each scene's regular captures.
+          MEOWCHAN_MAC_SCREENSHOTS: ${{ runner.os == 'macOS' && '1' || '0' }}
         run: |
           scene_args=()
           if [[ -n "$GUI_CI_SCENES" ]]; then scene_args=(--scenes "$GUI_CI_SCENES"); fi

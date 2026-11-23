@@ -30,9 +30,3 @@ Feather is only their style reference: 24 grid, 2 px round stroke, the frame of 
 the divider and the filled left or right part (the side panel the switch controls); `workspace-expand`/`workspace-shrink` are the frame with
 two arrows pointing apart or together (viewer focus mode). Rendered like the others (`rsvg-convert -w 48 -h 48`). `sidebar.svg` is no longer
 used by a command.
-
-These are prepared assets, not a record of completed UI integration. The local
-0.9.0 architecture handoff contains the action map, source and derivative SHA-256
-inventory, preview and portable kit under
-`docs/architecture/0.9.0/references/ui-icons/`. That planning directory is ignored
-by Git. The source/version and license above remain with the asset tree.

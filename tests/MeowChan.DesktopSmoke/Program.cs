@@ -404,6 +404,7 @@ internal static class Program
             if (mainWindow.UrlList.Count != 0 || mainWindow.BoardsList.Count != 0)
                 throw new InvalidOperationException("The isolated session did not start empty.");
             Console.WriteLine("SMOKE MainWindow visible with empty isolated session.");
+            await MacScreenCapture.TryCaptureAsync("main-window");
             if (await RunSelectedAsync(SmokeStage.Ready, mainWindow)) return;
             if (_archiveCleanupMode)
             {

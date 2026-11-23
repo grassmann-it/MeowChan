@@ -5,6 +5,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class ProfileProducerDesktopAdmissionTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(15);
@@ -16,8 +17,8 @@ public sealed class ProfileProducerDesktopAdmissionTests
         SaveConfig(directory.Path);
         ProfileLease? lease = null;
         FailingActivationStore? work = null;
-        await using DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>(),
-            workStoreFactory: (_, owner) => { lease = owner; return work = new(owner); });
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(directory.Path, Array.Empty<IImageBoard>(),
+            workStoreFactory: (_, owner) => { lease = owner; return work = new(owner); }));
         await host.StartAsync().WaitAsync(Deadline);
 
         Assert.NotNull(lease);
@@ -50,7 +51,7 @@ public sealed class ProfileProducerDesktopAdmissionTests
     {
         using TempDirectory directory = new();
         SaveConfig(directory.Path);
-        await using DesktopSessionHost host = new(directory.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(directory.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync().WaitAsync(Deadline);
         Assert.Equal(DesktopSessionState.Ready, host.State);
         ProfileLease lease = LeaseOf(host);

@@ -1,6 +1,7 @@
 """Runner safety fixtures. These checks never start Avalonia or a graphical desktop."""
-from contextlib import contextmanager
+from contextlib import contextmanager, redirect_stdout
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -409,6 +410,37 @@ class DesktopSmokeRunnerTests(unittest.TestCase):
         result = self.run_with_log("SMOKE SCENARIO: normal\nSMOKE PASS: fixture\n", selector, name="fallthrough")
         self.assertFalse(result["passed"])
         self.assertIn("expected normal+MEOWCHAN_READER_FIND_ONLY", result["error"])
+
+    def test_mac_screenshot_opt_in_and_warnings_are_independent_of_smoke_pass(self):
+        warning = "WARNING macOS screenshot main-window: the captured screen is black or transparent"
+        for platform, enabled, mode, scenario, capture in (
+            ("darwin", True, "normal", "normal+MEOWCHAN_NORMAL_CORE_ONLY", True),
+            ("darwin", True, "reader-ux", "reader-ux+MEOWCHAN_GALLERY_CLOSE_ONLY", True),
+            ("darwin", True, "selection", "selection", True),
+            ("darwin", True, "normal", "normal", False),
+            ("darwin", False, "selection", "selection", False),
+            ("win32", True, "selection", "selection", False),
+        ):
+            with self.subTest(platform=platform, enabled=enabled, scenario=scenario), \
+                    tempfile.TemporaryDirectory(dir=self.root) as temporary:
+                destination = Path(temporary) / "evidence"
+                environment = {"MEOWCHAN_MAC_SCREENSHOTS": "1" if enabled else "0",
+                               "MEOWCHAN_MAC_SCREENSHOT_DIR": str(self.root / "inherited")}
+
+                def fake_process(*args, **kwargs):
+                    self.assertEqual(kwargs["env"].get("MEOWCHAN_MAC_SCREENSHOT_DIR"),
+                                     str(destination) if capture else None)
+                    if capture:
+                        kwargs["stdout"].write(warning + "\n")
+                    kwargs["stdout"].write(f"SMOKE SCENARIO: {scenario}\nSMOKE PASS: fixture\n")
+                    return mock.Mock(wait=mock.Mock(return_value=0))
+
+                with mock.patch.object(runner.sys, "platform", platform), \
+                        mock.patch.object(runner.subprocess, "Popen", side_effect=fake_process), \
+                        mock.patch.object(runner, "stop_owned_processes"), redirect_stdout(io.StringIO()) as output:
+                    result = runner.run_mode(mode, self.assembly, destination, environment, False, 1, scenario)
+                self.assertTrue(result["passed"])
+                self.assertEqual(warning in output.getvalue(), capture)
 
     def test_explicit_scenario_is_exact_and_requires_the_line(self):
         result = self.run_with_log("SMOKE SCENARIO: selection\nSMOKE PASS: fixture\n", {}, "selection", "selection")
