@@ -9,6 +9,9 @@ using MeowChan.Downloader;
 using MeowChan.Interfaces;
 using MeowChan.Persistence;
 using MeowChan.PluginHost.Http;
+using MeowChan.PluginHost.Contracts;
+using MeowChan.PluginHost.Sources.Booru;
+using MeowChan.PluginSdk;
 using MeowChan.Tests.Shared;
 
 namespace MeowChan.DesktopTests;
@@ -33,6 +36,40 @@ public sealed class BooruCompositionHostTests
         Assert.Equal("danbooru", host.BooruServices!.Search.ProviderId);
         Assert.Empty(stub.Requests);
         Assert.Equal(0, binding.Worker.SearchCalls);
+    }
+
+    [Fact]
+    public async Task ActiveBindingsExposeSeparateWatcherPortsAndCanBeDisabledIndependently()
+    {
+        using TempDirectory profile = new();
+        using DanbooruStub stub = new();
+        using DanbooruTestBinding legacy = new(stub);
+        SourceDescription source = legacy.Source with
+        {
+            SourceId = "test-source", Name = "Fixture", BooruProfile = BooruEndpointPolicy.Danbooru
+        };
+        using BooruHostHttp http = new(legacy.Transport, legacy.Policy, [source]);
+        BooruHostServices services = new(legacy.Services, http);
+        bool enabled = true;
+        BooruProviderBinding second = new(source, services, legacy.Transport, legacy.Policy,
+            _ => Task.FromResult<IPluginWorkerClient?>(null), () => Volatile.Read(ref enabled));
+        await using DesktopSessionHost host = await StartAsync(profile.Path, stub, () => null, paused: true,
+            bindings: [legacy.Binding, second]);
+        await WaitAsync(() => host.ActiveBooruServices.Count == 2, "both Booru compositions");
+
+        IReadOnlyList<BooruWorkbenchServices> active = host.ActiveBooruServices;
+        Assert.Equal(["danbooru", "test-source"], active.Select(item => item.Search.ProviderId));
+        foreach (BooruWorkbenchServices item in active)
+            Assert.Equal(BooruWatcherCommandStatus.Done, (await item.Watchers.CreateAsync("cat", CancellationToken.None)).Status);
+        string first = Assert.Single(await active[0].Watchers.ListAsync(CancellationToken.None)).WatcherId;
+        string other = Assert.Single(await active[1].Watchers.ListAsync(CancellationToken.None)).WatcherId;
+        Assert.NotEqual(first, other);
+        Assert.Contains(ReadCatalog(host).Watchers, watcher => watcher.WatcherId == other && watcher.SourceId == "test-source");
+
+        Volatile.Write(ref enabled, false);
+        second.RaiseAvailabilityChanged();
+        Assert.Same(active[0], Assert.Single(host.ActiveBooruServices));
+        Assert.Empty(stub.Requests);
     }
 
     [Fact]
@@ -546,7 +583,8 @@ public sealed class BooruCompositionHostTests
     private static BooruCatalogSnapshot ReadCatalog(DesktopSessionHost host) => host.BooruComposition!.Catalog.Read();
 
     internal static async Task<DesktopSessionHost> StartAsync(string profile, DanbooruStub stub, Func<BooruProviderBinding?> binding,
-        bool paused = false, bool writeConfig = true, DanbooruWatcherSchedulerOptions? options = null)
+        bool paused = false, bool writeConfig = true, DanbooruWatcherSchedulerOptions? options = null,
+        BooruProviderBinding[]? bindings = null)
     {
         if (writeConfig) new Config
         {
@@ -558,7 +596,8 @@ public sealed class BooruCompositionHostTests
         DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>(),
             updateSessionFactory: (path, config) => new UpdateSession(path, config, stub.Client(), disableEnvironment: () => "1"))
         {
-            BooruBindingForTests = binding,
+            BooruBindingForTests = bindings is null ? binding : null,
+            BooruBindingsForTests = bindings,
             BooruSchedulerOptionsForTests = options ?? new DanbooruWatcherSchedulerOptions { Interval = TimeSpan.FromMinutes(30), CheckStartSpacing = TimeSpan.Zero }
         };
         try

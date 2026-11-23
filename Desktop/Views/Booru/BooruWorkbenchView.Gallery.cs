@@ -78,8 +78,8 @@ internal sealed partial class BooruWorkbenchView
     {
         // Resolve the row again: a click must never act on a post the gallery has already left.
         if (_closed || _model.Search.View.Rows.FirstOrDefault(row => row.Post.PostId == postId) is not { } row) return;
-        if (row.CanRetry) await _model.Search.RetryOriginalAsync(postId);
-        else if (row.CanLoad) await _model.Search.LoadOriginalAsync(postId);
+        if (row.CanRetry) await _model.Search.RetryOriginalAsync(postId, row.Post.Identity);
+        else if (row.CanLoad) await _model.Search.LoadOriginalAsync(postId, row.Post.Identity);
     }
 
     /// <summary>Use the measured room after the gallery controls and pager, including any wrapped translations.</summary>
@@ -189,7 +189,8 @@ internal sealed partial class BooruWorkbenchView
         int page = before.Page + delta;
         await search.GoToPageAsync(page);
         BooruSearchView after = search.View;
-        if (_closed || SearchTabs.ActiveId != tab || after.Page != page || after.ExecutedQuery != before.ExecutedQuery
+        if (_closed || SearchTabs.ActiveId != tab || after.Page != page || after.ProviderId != before.ProviderId || after.InstanceId != before.InstanceId
+            || after.ExecutedQuery != before.ExecutedQuery
             || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty || _input.IsKeyboardFocusWithin) return;
         Render(force: false);
         FocusGalleryStage();

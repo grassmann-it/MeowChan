@@ -20,7 +20,7 @@ internal static class DanbooruWatcherRecordMapper
         DanbooruWatcher compact = CompactKnownPostIds(watcher);
         return new BooruWatcherRecord(
             compact.WatcherId,
-            DanbooruWatcher.ProviderId,
+            compact.SourceId,
             compact.CanonicalQuery,
             compact.State.ToString(),
             compact.CreatedAtUtc,
@@ -43,10 +43,10 @@ internal static class DanbooruWatcherRecordMapper
             BudgetLimited: compact.Progress.BudgetLimited);
     }
 
-    internal static DanbooruWatcher FromRecord(BooruWatcherRecord record)
+    internal static DanbooruWatcher FromRecord(BooruWatcherRecord record, string sourceId = DanbooruWatcher.ProviderId)
     {
         ArgumentNullException.ThrowIfNull(record);
-        if (record.SourceId != DanbooruWatcher.ProviderId)
+        if (record.SourceId != sourceId || !BooruPostKey.IsToken(sourceId))
             throw Invalid("provider");
         int pageSize = record.PageSize ?? DanbooruWatcher.DefaultPageSize;
         int pageBudget = record.PageBudget ?? DanbooruWatcher.DefaultPageBudget;
@@ -63,6 +63,7 @@ internal static class DanbooruWatcherRecordMapper
 
         return fresh with
         {
+            SourceId = record.SourceId,
             State = state,
             ResumeState = resume,
             LastCheckedAtUtc = record.LastCheckedAtUtc,

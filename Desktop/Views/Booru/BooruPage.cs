@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -22,11 +24,11 @@ internal sealed class BooruPage : UserControl, IDisposable
     private BooruTabPersistence? _tabPersistence;
     private bool _disposed;
 
-    internal BooruPage(BooruWorkbenchServices services)
+    internal BooruPage(BooruWorkbenchServices services, IReadOnlyList<BooruWorkbenchServices>? sources = null)
     {
         ArgumentNullException.ThrowIfNull(services);
         Name = "BooruPage";
-        BooruWorkbenchModel model = new(services);
+        BooruWorkbenchModel model = new(services, sources);
         try
         {
             // Keep the view itself in the tree: focus, clipboard, clock and future media hooks
@@ -47,6 +49,7 @@ internal sealed class BooruPage : UserControl, IDisposable
     /// <summary>The actual hosted view, for the existing gallery/media callback wiring.</summary>
     internal BooruWorkbenchView View => _view;
     internal BooruWorkbenchModel Model => _view.Model;
+    internal bool HasSources(IReadOnlyList<BooruWorkbenchServices> sources) => Model.Sources.SequenceEqual(sources);
 
     internal void RestoreSearchTabs(BooruSearchTabStore store, Config config) =>
         _tabPersistence = new BooruTabPersistence(_view, store, config);

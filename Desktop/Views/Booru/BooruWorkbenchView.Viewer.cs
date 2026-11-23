@@ -52,7 +52,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
             if (_closed) return;
             // The cursor follows the post the popup ended on; the inline gallery (when shown) moves there too.
             BooruSearchView current = _model.Search.View;
-            if (SearchTabs.ActiveId != tab || !current.Rows.Any(row => row.Post.PostId == viewer.CurrentPostId))
+            if (SearchTabs.ActiveId != tab || !current.Rows.Any(row => row.Post.Identity == viewer.CurrentPost))
             {
                 _gallery.SuspendSamples(false);
                 return;

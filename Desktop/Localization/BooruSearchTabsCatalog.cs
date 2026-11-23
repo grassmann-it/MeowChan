@@ -7,6 +7,7 @@ internal static class BooruSearchTabsCatalog
 {
     internal static readonly (string Key, string English, string German)[] Entries =
     {
+        ("booru.tabs.source", "Search source", "Suchquelle"),
         ("booru.tabs.watchers", "Watchers", "Suchbeobachtungen"),
         ("booru.tabs.watchersTip", "Open the Watchers tab. {0} active watchers.", "Tab für Suchbeobachtungen öffnen. {0} aktive Suchbeobachtungen."),
         ("booru.tabs.watchersTip.one", "Open the Watchers tab. {0} active watcher.", "Tab für Suchbeobachtungen öffnen. {0} aktive Suchbeobachtung."),

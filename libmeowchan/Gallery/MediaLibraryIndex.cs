@@ -5,6 +5,7 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 
@@ -34,6 +35,10 @@ internal sealed record MediaLibraryEntry(
     /// provider claims itself; the claims are read from the Booru catalog when a view needs them.
     /// </summary>
     internal string? BooruPostId { get; init; }
+
+    internal BooruPostKey? BooruIdentity =>
+        BooruPostId is { } postId && BooruMediaIdentity.TryGetPostKey(Thread, out BooruPostKey identity)
+            && identity.PostId == postId ? identity : null;
 
     /// <summary>
     /// The import item id (32 hex digits) when this is a manually imported file (see <see cref="Import.ManualImportIdentity"/>),

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeowChan.Booru;
 using MeowChan.PluginHost.Http;
 using MeowChan.PluginSdk;
 
@@ -25,7 +26,7 @@ internal sealed class BooruSearchTabs
     {
         internal int Id { get; } = id;
         internal BooruSearchView? Snapshot { get; set; }
-        internal BooruSearchTabTarget? SavedTarget { get; init; }
+        internal BooruSearchTabTarget? SavedTarget { get; set; }
         internal bool IsDeferred { get; init; }
         internal bool WasCaptured { get; set; }
     }
@@ -61,13 +62,26 @@ internal sealed class BooruSearchTabs
     {
         if (!CanAdd) return -1;
         Slot slot = new(_nextId++) { SavedTarget = copyCurrent ? Find(_activeId)?.SavedTarget : null };
-        BooruSearchView? copy = copyCurrent ? _search.View : null;
+        BooruSearchView current = _search.View;
+        BooruSearchView? copy = copyCurrent ? current : _search.NewSourceView(current.ProviderId, current.InstanceId);
         Store();
         _slots.Add(slot);
         _activeId = slot.Id;
         _search.Restore(copy, _activeId);
         Changed?.Invoke();
         return slot.Id;
+    }
+
+    internal void SelectSource(string sourceId, string instanceId)
+    {
+        BooruSearchView current = _search.View;
+        if (current.ProviderId == sourceId && current.InstanceId == instanceId) return;
+        if (_search.NewSourceView(sourceId, instanceId, current) is not { } next)
+            return;
+        _search.CancelBulk();
+        if (Find(_activeId) is { } slot) slot.SavedTarget = null;
+        _search.Restore(next, _activeId);
+        Changed?.Invoke();
     }
 
     internal bool Select(int id)
@@ -127,7 +141,8 @@ internal sealed class BooruSearchTabs
             ? view.Input : view.Input[..BooruSearchTabTarget.MaximumDraftLength];
         if (slot.SavedTarget is { } unbound)
             return unbound with { Mode = view.Mode, Input = input, Rows = unbound.Rows?.Take(resultLimit).ToArray() };
-        if (input.Length == 0 && view.Mode == BooruInputMode.Tags && view.ExecutedQuery is null && view.ExecutedPostId is null)
+        if (input.Length == 0 && view.Mode == BooruInputMode.Tags && view.ExecutedQuery is null && view.ExecutedPostId is null
+            && BooruPostKey.IsLegacyScope(view.ProviderId, view.InstanceId))
             return null;
         BooruSearchTabRow[] rows = view.Rows.Take(resultLimit).Select(row => new BooruSearchTabRow(row.Post.Post,
             row.Preview == BooruPreviewState.Ready && row.PreviewBytes is { Length: > 0 and <= BooruPreviewHttp.MaximumPreviewBytes } bytes

@@ -72,7 +72,7 @@ public sealed class DiagnosticsKeyboardMenuTests
         var section = page.FindControl<Expander>("DiagnosticOverviewSection")!;
         var grid = page.FindControl<DataGrid>("DiagnosticsGrid")!;
         Assert.True(summary.IsVisible);
-        Assert.Equal("Entries: 4 / 4 · selected: 0 · Retry targets: 1", summary.Text);
+        Assert.Equal("Entries: 4 / 4 · selected: 0 · 1 retry target", summary.Text);
         Assert.Equal("Overview of the current entries", Assert.IsType<TextBlock>(section.Header).Text);
         Assert.Equal("Check · Timeout × 3" + Environment.NewLine + "Request · Waiting × 1", overview.Text);
         section.IsExpanded = false;
@@ -82,11 +82,11 @@ public sealed class DiagnosticsKeyboardMenuTests
         Assert.Same(updated, grid.SelectedItem);
         Assert.False(section.IsVisible);
         page.FilterSource("missing");
-        Assert.Equal("Entries: 0 / 4 · selected: 0 · Retry targets: 0", summary.Text);
+        Assert.Equal("Entries: 0 / 4 · selected: 0 · 0 retry targets", summary.Text);
         page.FindControl<Button>("DiagnosticClearFilters")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.True(section.IsVisible);
         Assert.False(section.IsExpanded);
-        Assert.Equal("Entries: 4 / 4 · selected: 0 · Retry targets: 1", summary.Text);
+        Assert.Equal("Entries: 4 / 4 · selected: 0 · 1 retry target", summary.Text);
     }, canRetry: target => target.WatchId == 1);
 
     private static void Run(Action<DiagnosticsPage> test, Func<DiagnosticTarget, bool>? canRetry = null) => BooruComponentDispatcher.Run(() =>

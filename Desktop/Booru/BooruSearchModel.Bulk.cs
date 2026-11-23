@@ -27,6 +27,7 @@ internal sealed record BooruBulkView(BooruBulkPhase Phase, string? Query = null,
     int AlreadyQueued = 0, int AlreadySaved = 0, int NoOriginal = 0, int Failed = 0, BooruBulkEnd End = BooruBulkEnd.None)
 {
     internal int TabId { get; init; }
+    internal (string Source, string Instance) Scope { get; init; }
     internal BooruPagerLimits PagerLimits { get; init; } = BooruPagerLimits.Default;
     internal bool IsRunning => Phase == BooruBulkPhase.Running;
 }
@@ -68,19 +69,22 @@ internal sealed partial class BooruSearchModel
         if (lifetime is null) return;
         using CancellationTokenSource source = CancellationTokenSource.CreateLinkedTokenSource(lifetime.Token);
         BooruBulkView state;
+        Binding binding;
         lock (_gate)
         {
-            if (!CanDownloadAllLocked()) return;
+            if (!CanDownloadAllLocked() || BindingFor(_view) is not { } current) return;
+            binding = current;
             _cancelBulk = source.Cancel;
             _bulk = state = new BooruBulkView(BooruBulkPhase.Running, _view.ExecutedQuery)
             {
                 TabId = _activeSearchTabId,
+                Scope = (_view.ProviderId, _view.InstanceId),
                 PagerLimits = _view.PagerLimits
             };
         }
         RaiseChanged();
         BooruBulkEnd end;
-        try { (state, end) = await CollectAsync(state, source.Token).ConfigureAwait(false); }
+        try { (state, end) = await CollectAsync(state, binding, source.Token).ConfigureAwait(false); }
         finally
         {
             lock (_gate) _cancelBulk = null;
@@ -93,7 +97,7 @@ internal sealed partial class BooruSearchModel
         RaiseChanged();
     }
 
-    private async Task<(BooruBulkView State, BooruBulkEnd End)> CollectAsync(BooruBulkView state, CancellationToken token)
+    private async Task<(BooruBulkView State, BooruBulkEnd End)> CollectAsync(BooruBulkView state, Binding binding, CancellationToken token)
     {
         string query = state.Query!;
         BooruPagerLimits limits = state.PagerLimits;
@@ -102,7 +106,7 @@ internal sealed partial class BooruSearchModel
         for (int page = 1; page <= limits.Pages && end == BooruBulkEnd.None; page++)
         {
             BooruCallResult<BooruResultPage> result;
-            try { result = await _search.SearchAsync(query, page, limits.PostsPerPage, token).ConfigureAwait(false); }
+            try { result = await binding.Search.SearchAsync(query, page, limits.PostsPerPage, token).ConfigureAwait(false); }
             catch (OperationCanceledException) { end = BooruBulkEnd.Canceled; break; }
             catch (Exception exception) when (exception is not OutOfMemoryException)
             {
@@ -110,7 +114,7 @@ internal sealed partial class BooruSearchModel
             }
             if (result.Status != BooruCallStatus.Ok || result.Value is not { } value || value.Page != page
                 || !string.Equals(value.Query, query, StringComparison.Ordinal) || value.Posts.Length > limits.PostsPerPage
-                || value.Posts.Any(post => !IsBound(post.SourceId, post.Identity.InstanceId)))
+                || value.Posts.Any(post => post.SourceId != binding.Search.ProviderId || post.Identity.InstanceId != binding.Search.InstanceId))
             {
                 end = BooruBulkEnd.Blocked;
                 break;
@@ -127,7 +131,7 @@ internal sealed partial class BooruSearchModel
                     continue;
                 }
                 BooruLoadResult load;
-                try { load = await _queue.LoadOriginalAsync(post, BooruLoadOrigin.Search, query, token).ConfigureAwait(false); }
+                try { load = await binding.Queue.LoadOriginalAsync(post, BooruLoadOrigin.Search, query, token).ConfigureAwait(false); }
                 catch (OperationCanceledException) { end = BooruBulkEnd.Canceled; break; }
                 catch (Exception exception) when (exception is not OutOfMemoryException)
                 {

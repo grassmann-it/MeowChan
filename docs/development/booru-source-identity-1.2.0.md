@@ -1,6 +1,12 @@
 # Booru-Quellenidentität in 1.2.0
 
-Stand B2, Schritt 1. Die Abnahme verwendet Danbooru und eine zweite Bindung mit einem HTTP-Testdouble. Die ausgelieferte Quellenwahl bietet weiterhin Danbooru an.
+## N2-Teilschnitt
+
+Die Booru-Suche zeigt den Quellenwähler ab zwei aktiven Bindungen. Jeder Such-Tab behält seine Bindung beim Wechsel und beim lokalen Wiederherstellen. Der Watcher läuft je Quelle mit eigener Abfrage, Baseline und Cursor. Katalog, Originalqueue und die Galerie ordnen gleiche Post-IDs über den vorhandenen Quellenschlüssel getrennt zu. Danbooru behält seine bisherigen Medien-IDs und Pfade. Katalogschema 1 bleibt lesbar und wechselt beim ersten Eintrag einer weiteren Quelle auf Schema 2. Der Tab-Store verwendet weiterhin Schema 2.
+
+Der Schnitt unterstützt die bestehende Tag-Suchsyntax, eine Standardinstanz je Quelle und absteigende Dezimal-IDs für Watcher. Die zweite Quelle in den Tests ist eine Testbindung. Für weitere Anbieter bleiben Adapter, anbieterspezifische Suchsyntax und Cursor, gemeinsames e621/e926-Pacing, Anmeldung und Plugin-Auslieferung offen.
+
+## Ausgangspunkt B2, Schritt 1
 
 ## Inventar vor B2
 
@@ -27,7 +33,7 @@ Stand B2, Schritt 1. Die Abnahme verwendet Danbooru und eine zweite Bindung mit 
 
 - Der Katalog liest Schema 1 als `danbooru/default`. Unter Schema 1 bleiben die bisherigen Post- und Befund-IDs und der Dateiaufbau lesbar. Ein Schreibvorgang mit einer weiteren Bindung hebt den Katalog atomar auf Schema 2, das Instanzen berücksichtigt. Danach ist ein Leser für Schema 2 nötig. Vor dem ersten Schreibvorgang ist keine Umrechnung oder Neuanforderung von Medien erforderlich.
 - In v2/v3 der Tagging-Queue wird eine gültige alte Danbooru-ID als `(danbooru, default, Post, primary, original)` gelesen. Undurchsichtige Altmarker bleiben unterscheidbar. Die bestehende Lesekompatibilität und das Schreibformat v2 gelten weiter. Der Tagging-Workflow für weitere Quellen bleibt ein Folgeschritt.
-- Das Ausgangsrelease hatte keine Such-Tab-Datei. Ohne Datei startet der bisherige leere Haupttab. Ein gespeichertes Ziel ohne Quellen- und Instanzangabe fällt auf `danbooru/default` zurück. Die neue Tab-Datei startet mit ihrem eigenen Schema 1.
+- Das Ausgangsrelease hatte keine Such-Tab-Datei. Ohne Datei startet der bisherige leere Haupttab. Ein gespeichertes Ziel ohne Quellen- und Instanzangabe fällt auf `danbooru/default` zurück. Seit der Kaskade liest der Tab-Store die bisherigen Layouts und schreibt Schema 2.
 
 ## Abnahme
 
@@ -37,4 +43,4 @@ Stand B2, Schritt 1. Die Abnahme verwendet Danbooru und eine zweite Bindung mit 
 
 - B5/B6 verwenden ein lokales Review-Journal und einen Tagger-Worker. Beide können den Booru-Originalauftrag über den bestehenden bestätigten Asset-Link konsumieren. Der Schritt benötigt davon keinen neuen Schreibpfad.
 - B7 behält die Formate der Tagging-Queue für den Altprofilpfad. B8 betrifft die Reader- und Seitenleistenkomposition. B9 liefert selektive CI. B10 kann den vollständigen Medienbezug später für die Kollisionsvorschau verwenden.
-- Die Quellenwahl, ein realer zweiter Adapter und seine Endpoint-/Hostprüfung, geteilte Anbieterbudgets samt `Retry-After` sowie die Galerie- und Watcher-Pfade für weitere Bindungen folgen in B2. B3 kann die Offline-Wiederherstellung um Treffer und lokale Filter erweitern. B4 klärt Kontozugriff sowie gegebenenfalls getrennte Identitätsräume privater Daten.
+- N2 verbindet die Quellenwahl mit den Galerie- und Watcher-Pfaden. Für reale weitere Adapter folgen eigene Endpoint- und Hostprüfungen sowie geteilte Anbieterbudgets samt `Retry-After`. B3 kann die Offline-Wiederherstellung um lokale Filter erweitern. B4 klärt den Kontozugriff und gegebenenfalls getrennte Identitätsräume für private Daten.

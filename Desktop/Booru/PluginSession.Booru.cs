@@ -31,8 +31,8 @@ internal sealed partial class PluginSession
 
     /// <summary>
     /// Every composed post-search source by source id (Danbooru included). Each plugin's sources share one booru host
-    /// services instance: one job registry and one bounded metadata transport with per-source pacing and cooldown. Only
-    /// Danbooru has a desktop composition (catalog, watcher, pages) so far; the others are host-side only.
+    /// services instance: one job registry and one bounded metadata transport with per-source pacing and cooldown. The
+    /// sources with the workbench's search and cursor contract can also be composed by the desktop session.
     /// </summary>
     internal IReadOnlyDictionary<string, BooruProviderBinding> BooruSources
     {

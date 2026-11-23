@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
@@ -40,6 +41,13 @@ internal sealed class BooruProviderBinding
     }
 
     internal SourceDescription Source { get; }
+
+    // This workbench uses decimal watcher cursors and the existing tag-search subset.
+    internal bool SupportsWorkbench => Source.SourceId == DanbooruPostReference.ProviderId
+        || Source.PostOrder == PostOrderKind.DecimalPostId && Services.ProfileOf(Source.SourceId) is { } profile
+            && (profile.Query.BeforeCursorPrefix is not null || profile.Endpoints.Any(endpoint => endpoint.Kind == BooruEndpointKind.Search
+                && endpoint.Parameters.Any(parameter => parameter.Kind == BooruParameterKind.PageOrBeforeCursor)))
+            && Source.HttpHosts.Any(host => host.Purpose.HasFlag(HttpHostPurpose.OriginalMedia));
     internal BooruHostServices Services { get; }
 
     /// <summary>Borrowed; never disposed by the composition.</summary>
@@ -132,8 +140,13 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         _mediaClient = binding.CreateOriginalMediaClient();
         try
         {
-            Originals = new BooruOriginalQueue(queue, catalog, outputRoot, _mediaClient, timeProvider: clock);
-            SearchPort = new BooruWatcherSearchPort(Search, binding.Services, binding.GetWorkerAsync, clock);
+            string sourceId = binding.Source.SourceId;
+            var mediaHosts = binding.Source.HttpHosts.Where(host => host.Purpose.HasFlag(HttpHostPurpose.OriginalMedia))
+                .Select(host => host.Host).ToArray();
+            Originals = new BooruOriginalQueue(queue, catalog, outputRoot, _mediaClient,
+                allowedMediaHosts: sourceId == DanbooruPostReference.ProviderId && mediaHosts.Length == 0 ? null : mediaHosts,
+                timeProvider: clock, sourceId: sourceId);
+            SearchPort = new BooruWatcherSearchPort(Search, binding.Services, binding.GetWorkerAsync, sourceId, clock);
             _watcherHost = CreateWatcherHost();
             _previewHttp = new BooruPreviewHttp(binding.Transport, binding.Source, timeProvider: clock);
             _queuePort = new BooruOriginalQueuePort(Originals, catalog, binding.Source.SourceId, _availability);
@@ -166,6 +179,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
 
     /// <summary>Also closed while a disabled generation is draining; old handles use the same gate.</summary>
     internal bool IsAvailable => _availability.IsAvailable;
+    internal event Action? AvailabilityChanged;
 
     internal static BooruSessionComposition Create(BooruProviderBinding binding, DownloadQueue queue, BooruCatalogStore catalog,
         string outputRoot, BooruProducerLifecycle producers, TimeProvider? clock = null, DanbooruWatcherSchedulerOptions? options = null)
@@ -206,7 +220,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
     {
         // SyncSessionPause is called before either the first Start or an F4 replacement can start its loop.
         _watcherSearch = new BooruAvailabilityWatcherSearchPort(SearchPort, _availability);
-        return new DanbooruWatcherHost(Catalog, Originals, _watcherSearch, _clock, _options, _producers);
+        return new DanbooruWatcherHost(Catalog, Originals, _watcherSearch, _clock, _options, _producers, _binding.Source.SourceId);
     }
 
     /// <summary>Read the confirmed shared queue state afresh, including during a concurrent F4 host replacement.</summary>
@@ -236,6 +250,7 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
         _availability.Close();
         _previewHttp.Dispose();
         _ = RefreshAvailabilityAsync();
+        AvailabilityChanged?.Invoke();
     }
 
     private async Task RefreshAvailabilityAsync()
@@ -275,7 +290,11 @@ internal sealed class BooruSessionComposition : IAsyncDisposable
             _previewHttp.Dispose();
             Log.Warning(exception, "Danbooru availability transition failed; ports remain unavailable");
         }
-        finally { _lifecycle.Release(); }
+        finally
+        {
+            _lifecycle.Release();
+            AvailabilityChanged?.Invoke();
+        }
     }
 
     /// <summary>

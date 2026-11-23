@@ -793,7 +793,7 @@ internal sealed partial class DesktopSessionHost : IAsyncDisposable
         }
         // Revoke escaped Booru handles before scheduling engine shutdown. Cancellation callbacks
         // run outside the outer lifecycle monitor; physical drain still belongs to StopAsync.
-        Volatile.Read(ref _booru)?.ClosePortIngress();
+        CloseBooruPortIngress();
         SettleTerminalFinalWriteObservers(plan);
         StartEngineShutdownOnce(plan);
         return _engineStopTask!;

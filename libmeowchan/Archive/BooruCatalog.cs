@@ -835,7 +835,9 @@ internal sealed class BooruCatalogStore
     {
         ValidateStoredWatcher(canonical);
         BooruWatcherRecord[] watchers = CopyWith(cache.Snapshot.Watchers, index, canonical);
-        WriteLocked(cache, cache.Snapshot with { Watchers = Array.AsReadOnly(watchers) },
+        int schema = canonical.SourceId == DanbooruPostReference.ProviderId
+            ? cache.Snapshot.SchemaVersion : BooruCatalogSnapshot.ScopedIdentitySchemaVersion;
+        WriteLocked(cache, cache.Snapshot with { SchemaVersion = schema, Watchers = Array.AsReadOnly(watchers) },
             null, index < 0 ? canonical.WatcherId : null, admission, cancellationToken,
             // Removing a watcher only swaps its state and drops traversal progress.
             stateChangeOnly: index >= 0 && canonical.State == "Removed");
@@ -1044,6 +1046,8 @@ internal sealed class BooruCatalogStore
         {
             if (watcher is null) throw new InvalidDataException("The Booru catalog contains a null watcher.");
             ValidateStoredWatcher(watcher);
+            if (snapshot.SchemaVersion == BooruCatalogSnapshot.CurrentSchemaVersion && watcher.SourceId != DanbooruPostReference.ProviderId)
+                throw new InvalidDataException("The Booru catalog contains a scoped watcher in schema 1.");
             if (!watcherKeys.Add(watcher.WatcherId))
                 throw new InvalidDataException("The Booru catalog contains duplicate watchers.");
         }
@@ -1167,7 +1171,7 @@ internal sealed class BooruCatalogStore
     {
         ArgumentNullException.ThrowIfNull(watcher);
         ValidateRequiredText(watcher.WatcherId, nameof(watcher.WatcherId), 128);
-        if (watcher.WatcherId.Any(char.IsControl) || watcher.SourceId != DanbooruPostReference.ProviderId)
+        if (watcher.WatcherId.Any(char.IsControl) || !BooruPostKey.IsToken(watcher.SourceId))
             throw new ArgumentException("The Booru watcher record is invalid.", nameof(watcher));
         ValidateRequiredText(watcher.Query, nameof(watcher.Query), 1024);
         if (!DanbooruTagQuery.TryParse(watcher.Query, out DanbooruTagQuery? query, out _)

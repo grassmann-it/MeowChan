@@ -4,5 +4,5 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruSearchModel
 {
     /// <summary>The sample source of the gallery; null when the preview port has none (the gallery then shows the preview only).</summary>
-    internal IBooruSamplePort? Samples => _previews as IBooruSamplePort;
+    internal IBooruSamplePort? Samples => BindingFor(View)?.Previews as IBooruSamplePort;
 }

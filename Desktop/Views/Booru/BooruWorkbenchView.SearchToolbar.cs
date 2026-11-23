@@ -1,5 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using Avalonia.Automation;
+using Avalonia.Layout;
 using Avalonia;
 using Avalonia.Controls;
 using MeowChan.Desktop.Controls;
@@ -9,6 +12,44 @@ namespace MeowChan.Desktop.Booru;
 
 internal sealed partial class BooruWorkbenchView
 {
+    private readonly ComboBox _sourcePicker = new()
+    {
+        Name = "BooruSourcePicker",
+        HorizontalAlignment = HorizontalAlignment.Left,
+        IsVisible = false
+    };
+
+    private ComboBox BuildSourcePicker()
+    {
+        _sourcePicker.IsVisible = _model.Sources.Count > 1;
+        if (!_sourcePicker.IsVisible) return _sourcePicker;
+        _sourcePicker.ItemsSource = _model.Sources.Select(source => new ComboBoxItem
+        {
+            Content = source.Search.ProviderName,
+            Tag = source.Search
+        }).ToArray();
+        _sourcePicker.SelectionChanged += (_, _) =>
+        {
+            if (_applying || _sourcePicker.SelectedItem is not ComboBoxItem { Tag: IBooruSearchPort source }) return;
+            DismissResultViewer();
+            ReleaseGallery();
+            _cursorPostId = null;
+            _selectedResults.Clear();
+            SearchTabs.SelectSource(source.ProviderId, source.InstanceId);
+        };
+        return _sourcePicker;
+    }
+
+    private void RenderSourcePicker(BooruSearchView view)
+    {
+        if (_sourcePicker.ItemsSource is not ComboBoxItem[] items) return;
+        string label = Texts.T("booru.tabs.source");
+        AutomationProperties.SetName(_sourcePicker, label);
+        ToolTip.SetTip(_sourcePicker, label);
+        _sourcePicker.SelectedItem = items.FirstOrDefault(item => item.Tag is IBooruSearchPort source
+            && source.ProviderId == view.ProviderId && source.InstanceId == view.InstanceId);
+    }
+
     private static HelpContent BuildSearchHelp(BooruSearchView view)
     {
         List<string> paragraphs = [Texts.T("booru.ui.provider", view.ProviderName), Texts.T("booru.ui.intro")];

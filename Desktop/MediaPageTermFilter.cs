@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Gallery;
 using MeowChan.Tags;
 
@@ -26,15 +27,15 @@ internal static class TagQueueKeys
 /// </summary>
 internal sealed class MediaSourceTagIndex
 {
-    private readonly Dictionary<string, string[]> _byPost;
+    private readonly Dictionary<BooruPostKey, string[]> _byPost;
 
-    private MediaSourceTagIndex(BooruCatalogSnapshot? catalog, Dictionary<string, string[]> byPost)
+    private MediaSourceTagIndex(BooruCatalogSnapshot? catalog, Dictionary<BooruPostKey, string[]> byPost)
     {
         Catalog = catalog;
         _byPost = byPost;
     }
 
-    internal static MediaSourceTagIndex Empty { get; } = new(null, new Dictionary<string, string[]>(StringComparer.Ordinal));
+    internal static MediaSourceTagIndex Empty { get; } = new(null, new Dictionary<BooruPostKey, string[]>());
 
     /// <summary>The snapshot this index was made from (null for <see cref="Empty"/>).</summary>
     internal BooruCatalogSnapshot? Catalog { get; }
@@ -44,11 +45,10 @@ internal sealed class MediaSourceTagIndex
     internal static MediaSourceTagIndex From(BooruCatalogSnapshot catalog)
     {
         ArgumentNullException.ThrowIfNull(catalog);
-        Dictionary<string, string[]> byPost = new(catalog.Posts.Count, StringComparer.Ordinal);
+        Dictionary<BooruPostKey, string[]> byPost = new(catalog.Posts.Count);
         foreach (BooruPostRecord record in catalog.Posts)
         {
-            if (!record.Identity.IsLegacyDanbooru || byPost.ContainsKey(record.PostId)) continue;
-            byPost[record.PostId] = record.Post.Tags.Select(tag => tag.Name?.Trim() ?? string.Empty).Where(MediaFilterTerm.IsSourceTagName)
+            byPost[record.Identity] = record.Post.Tags.Select(tag => tag.Name?.Trim() ?? string.Empty).Where(MediaFilterTerm.IsSourceTagName)
                 .Select(name => name.ToLowerInvariant()).Distinct(StringComparer.Ordinal).ToArray();
         }
         return new MediaSourceTagIndex(catalog, byPost);
@@ -56,11 +56,12 @@ internal sealed class MediaSourceTagIndex
 
     /// <summary>Test seam: an index over fixed post tags.</summary>
     internal static MediaSourceTagIndex Of(IReadOnlyDictionary<string, string[]> posts) =>
-        new(null, posts.ToDictionary(pair => pair.Key, pair => pair.Value.Select(MediaFilterTerm.SourceTagValue).Distinct(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal));
+        new(null, posts.ToDictionary(pair => BooruPostKey.FromLegacy(BooruMediaIdentity.Source, pair.Key),
+            pair => pair.Value.Select(MediaFilterTerm.SourceTagValue).Distinct(StringComparer.Ordinal).ToArray()));
 
     /// <summary>The source tags of the occurrence (empty for anything that is not a downloaded provider medium, or a post the catalog lacks).</summary>
     internal IReadOnlyList<string> TagsOf(MediaLibraryEntry entry) =>
-        entry.BooruPostId is { } post && _byPost.TryGetValue(post, out string[]? tags) ? tags : Array.Empty<string>();
+        entry.BooruIdentity is { } post && _byPost.TryGetValue(post, out string[]? tags) ? tags : Array.Empty<string>();
 }
 
 /// <summary>Keeps the source tag index of the last catalog snapshot, so a filter change does not read the catalog's tags again. Thread-safe.</summary>

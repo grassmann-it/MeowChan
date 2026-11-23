@@ -1,5 +1,7 @@
 using MeowChan.Archive;
 using MeowChan.Booru;
+using MeowChan.Gallery;
+using MeowChan.Storage;
 
 namespace MeowChan.Tests.Booru;
 
@@ -35,6 +37,7 @@ public sealed partial class BooruOriginalQueueTests
             string document = File.ReadAllText(original.Catalog.FilePath);
             Assert.Contains("\"schemaVersion\": 1", document, StringComparison.Ordinal);
             Assert.DoesNotContain("instanceId", document, StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(legacy.Identity, Assert.Single(original.Catalog.Read().Posts).Identity);
         }
 
         await using (Session restarted = new(directory.Path, legacyCdn))
@@ -78,6 +81,22 @@ public sealed partial class BooruOriginalQueueTests
         Assert.Equal(BooruCatalogSnapshot.ScopedIdentitySchemaVersion, snapshot.SchemaVersion);
         Assert.Equal(2, snapshot.Posts.Count);
         Assert.NotEqual(snapshot.TryGetPost(legacy.Identity)!.LocalPath, snapshot.TryGetPost(second.Identity)!.LocalPath);
+        Assert.Equal(legacy.Identity, snapshot.TryGetPost("danbooru", "42")!.Identity);
+        var (entries, unreadable) = await BooruMediaProjection.EntriesAsync(snapshot, MediaAssetReader.OpenAsync);
+        Assert.Equal(0, unreadable);
+        Assert.Equal(2, entries.Count);
+        Assert.NotEqual(entries[0].Thread, entries[1].Thread);
+        Assert.NotEqual(entries[0].MediaId, entries[1].MediaId);
+        foreach (MediaLibraryEntry entry in entries)
+        {
+            BooruPostKey identity = Assert.IsType<BooruPostKey>(entry.BooruIdentity);
+            GalleryEntry gallery = Assert.IsType<GalleryEntry>(
+                await BooruMediaGallery.ResolveAsync(entry, snapshot, MediaAssetReader.OpenAsync));
+            Assert.Equal(BooruMediaIdentity.Thread(identity), gallery.Key.Thread);
+            Assert.Equal(snapshot.TryGetPost(identity)!.LocalPath, gallery.Asset.Path);
+            MediaLibraryEntry other = Assert.Single(entries, candidate => candidate.BooruIdentity != identity);
+            Assert.Null(await BooruMediaGallery.ResolveAsync(entry with { Thread = other.Thread }, snapshot, MediaAssetReader.OpenAsync));
+        }
         Assert.Empty(await again.Booru.RecoverPendingAsync());
         Assert.Empty(await Other(again).RecoverPendingAsync());
         Assert.Single(legacyCdn.Requests);

@@ -282,7 +282,7 @@ internal static class DiagnosticsChecks
                 "The healthy diagnostics fixture should list only the platform information rows, in the platform group.");
             Require(!(grid.ItemsSource?.Cast<DiagnosticEntry>().Any() ?? false),
                 "The healthy diagnostics table must hold no platform fact: those belong to the platform group.");
-            Require(platform.IsVisible && Equals(platform.Header, Texts.T("diagnostics.platform") + " (" + rows.Length + ")"),
+            Require(platform.IsVisible && Equals(platform.Header, Texts.T("diagnostics.platform") + " · " + Texts.Count("diagnostics.groupEntries", rows.Length)),
                 "The platform group lost its count header.");
             await Program.WaitUntilAsync(() =>
             {

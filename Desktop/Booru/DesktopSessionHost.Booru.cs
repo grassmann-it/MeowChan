@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MeowChan.Archive;
@@ -25,13 +26,13 @@ internal sealed partial class DesktopSessionHost
     private static readonly TimeSpan BooruStopWait = TimeSpan.FromSeconds(10);
     private readonly SemaphoreSlim _booruGate = new(1, 1);
     private readonly object _booruSync = new();
-    private BooruSessionComposition? _booru;
+    private readonly Dictionary<string, BooruSessionComposition> _booruCompositions = new(StringComparer.Ordinal);
     // Every composition that may have reached StartAsync is retained until the shared queue has physically drained.
     // This is deliberately broader than the UI availability gate: a recovery or an accepted original may still hold
     // the composition's client after its watcher host was stopped. There is no owner-scoped DownloadQueue drain in
     // this layer, so removing an entry on Disable/Replace would be an unsafe, unproved early retirement.
     private readonly List<BooruSessionComposition> _booruTransportOwners = new();
-    private BooruProviderBinding? _booruBinding;
+    private BooruProviderBinding[] _booruBindings = [];
     private BooruWorkbenchServices? _booruServicesOverride;
     private bool _booruClosed;
 
@@ -65,17 +66,24 @@ internal sealed partial class DesktopSessionHost
     /// </summary>
     internal BooruWorkbenchServices? BooruServices
     {
-        get
-        {
-            BooruWorkbenchServices? overridden = Volatile.Read(ref _booruServicesOverride);
-            if (overridden != null) return overridden;
-            BooruSessionComposition? composed = Volatile.Read(ref _booru);
-            return composed is { IsAvailable: true } ? composed.Services : null;
-        }
+        get => ActiveBooruServices.FirstOrDefault();
         set
         {
             Volatile.Write(ref _booruServicesOverride, value);
             SyncBooruNoticeObservation();
+        }
+    }
+
+    internal IReadOnlyList<BooruWorkbenchServices> ActiveBooruServices
+    {
+        get
+        {
+            if (Volatile.Read(ref _booruServicesOverride) is { } overridden) return [overridden];
+            lock (_booruSync)
+                return _booruCompositions.Values.Where(composition => composition.IsAvailable)
+                    .Select(composition => composition.Services)
+                    .OrderBy(services => services.Search.ProviderId != DanbooruPostReference.ProviderId)
+                    .ThenBy(services => services.Search.ProviderId, StringComparer.Ordinal).ToArray();
         }
     }
 
@@ -85,27 +93,41 @@ internal sealed partial class DesktopSessionHost
     /// </summary>
     internal event Action<BooruWatcherCheckNotice>? BooruWatcherQueued;
 
-    private IBooruWatcherPort? _observedWatchers;
+    private readonly HashSet<IBooruWatcherPort> _observedWatchers = new();
 
     private void SyncBooruNoticeObservation()
     {
         lock (_booruSync)
         {
-            IBooruWatcherPort? current = BooruServices?.Watchers;
-            if (ReferenceEquals(current, _observedWatchers)) return;
-            if (_observedWatchers != null) _observedWatchers.CheckQueued -= OnBooruCheckQueued;
-            _observedWatchers = current;
-            if (current != null) current.CheckQueued += OnBooruCheckQueued;
+            HashSet<IBooruWatcherPort> current = ActiveBooruServices.Select(services => services.Watchers).ToHashSet();
+            foreach (IBooruWatcherPort port in _observedWatchers.Except(current).ToArray())
+            {
+                port.CheckQueued -= OnBooruCheckQueued;
+                _observedWatchers.Remove(port);
+            }
+            foreach (IBooruWatcherPort port in current)
+                if (_observedWatchers.Add(port)) port.CheckQueued += OnBooruCheckQueued;
         }
     }
 
     private void OnBooruCheckQueued(BooruWatcherCheckNotice notice) => BooruWatcherQueued?.Invoke(notice);
 
     /// <summary>The running composition (tests, diagnostics); null when Danbooru is not composed.</summary>
-    internal BooruSessionComposition? BooruComposition => Volatile.Read(ref _booru);
+    internal BooruSessionComposition? BooruComposition
+    {
+        get { lock (_booruSync) return _booruCompositions.GetValueOrDefault(DanbooruPostReference.ProviderId); }
+    }
+
+    private void CloseBooruPortIngress()
+    {
+        BooruSessionComposition[] owners;
+        lock (_booruSync) owners = _booruTransportOwners.ToArray();
+        foreach (BooruSessionComposition owner in owners) owner.ClosePortIngress();
+    }
 
     /// <summary>Test seam: supplies the plugin binding instead of the plugin session (loopback stubs, in-process plugin).</summary>
     internal Func<BooruProviderBinding?>? BooruBindingForTests { get; set; }
+    internal BooruProviderBinding[]? BooruBindingsForTests { get; set; }
     internal TimeProvider? BooruClockForTests { get; set; }
     internal DanbooruWatcherSchedulerOptions? BooruSchedulerOptionsForTests { get; set; }
 
@@ -123,35 +145,44 @@ internal sealed partial class DesktopSessionHost
             if (!_booruClosed) _booruStart = Task.Run(StartBooruAfterReadyAsync);
     }
 
-    private BooruProviderBinding? ResolveBooruBinding() => BooruBindingForTests is { } factory ? factory() : Plugins?.Booru;
+    private BooruProviderBinding[] ResolveBooruBindings() => BooruBindingForTests is { } factory
+        ? (factory() is { } binding ? [binding] : [])
+        : (BooruBindingsForTests ?? Plugins?.BooruSources.Values.ToArray() ?? [])
+            .Where(binding => binding.SupportsWorkbench).ToArray();
 
     // Ready continuation of StartCoreAsync. Never throws: Danbooru is optional and must not fail the session.
     private async Task StartBooruAfterReadyAsync()
     {
-        BooruProviderBinding? binding;
-        try { binding = ResolveBooruBinding(); }
+        BooruProviderBinding[] bindings;
+        try { bindings = ResolveBooruBindings(); }
         catch (Exception exception)
         {
             _logger.Error(exception, "The Danbooru binding could not be resolved.");
             return;
         }
-        if (binding == null) return;
         lock (_booruSync)
         {
             if (_booruClosed) return;
-            _booruBinding = binding;
+            _booruBindings = bindings;
+            foreach (BooruProviderBinding binding in bindings) binding.AvailabilityChanged += OnBooruAvailabilityChanged;
         }
-        binding.AvailabilityChanged += OnBooruAvailabilityChanged;
-        await EnsureBooruComposedAsync(binding).ConfigureAwait(false);
+        foreach (BooruProviderBinding binding in bindings)
+            await EnsureBooruComposedAsync(binding).ConfigureAwait(false);
     }
 
     private void OnBooruAvailabilityChanged()
     {
-        BooruProviderBinding? binding;
-        lock (_booruSync) binding = _booruClosed ? null : _booruBinding;
-        if (binding == null) return;
-        _ = Task.Run(() => EnsureBooruComposedAsync(binding));
-        BooruChanged?.Invoke();
+        BooruProviderBinding[] bindings;
+        lock (_booruSync)
+        {
+            if (_booruClosed) return;
+            bindings = _booruBindings;
+        }
+        _ = Task.Run(async () =>
+        {
+            foreach (BooruProviderBinding binding in bindings)
+                await EnsureBooruComposedAsync(binding).ConfigureAwait(false);
+        });
     }
 
     private async Task EnsureBooruComposedAsync(BooruProviderBinding binding)
@@ -165,7 +196,7 @@ internal sealed partial class DesktopSessionHost
         try
         {
             lock (_booruSync)
-                if (_booruClosed || _booru != null || State != DesktopSessionState.Ready || !binding.IsEnabled()) return;
+                if (_booruClosed || _booruCompositions.ContainsKey(binding.Source.SourceId) || State != DesktopSessionState.Ready || !binding.IsEnabled()) return;
             BooruCatalogStore? catalog = _registry.BooruCatalog;
             if (catalog == null)
             {
@@ -195,7 +226,8 @@ internal sealed partial class DesktopSessionHost
             {
                 if (!_booruClosed)
                 {
-                    _booru = composition;
+                    _booruCompositions.Add(binding.Source.SourceId, composition);
+                    composition.AvailabilityChanged += NotifyBooruChanged;
                     changed = true;
                 }
             }
@@ -211,11 +243,13 @@ internal sealed partial class DesktopSessionHost
             _logger.Error(exception, "The Danbooru composition failed; the window stays hidden.");
         }
         finally { _booruGate.Release(); }
-        if (changed)
-        {
-            SyncBooruNoticeObservation();
-            BooruChanged?.Invoke();
-        }
+        if (changed) NotifyBooruChanged();
+    }
+
+    private void NotifyBooruChanged()
+    {
+        SyncBooruNoticeObservation();
+        BooruChanged?.Invoke();
     }
 
     /// <summary>
@@ -225,13 +259,11 @@ internal sealed partial class DesktopSessionHost
     /// </summary>
     private async Task<Task> StopBooruBeforeQueueAsync()
     {
-        BooruProviderBinding? binding;
         lock (_booruSync)
         {
             _booruClosed = true;
-            binding = _booruBinding;
+            foreach (BooruProviderBinding binding in _booruBindings) binding.AvailabilityChanged -= OnBooruAvailabilityChanged;
         }
-        if (binding != null) binding.AvailabilityChanged -= OnBooruAvailabilityChanged;
         Task start;
         lock (_booruSync) start = _booruStart;
         Task stopped = Task.WhenAll(start, StopComposedBooruAsync());
@@ -246,19 +278,16 @@ internal sealed partial class DesktopSessionHost
     {
         // A composition that is still starting holds the gate; its start observes the cancelled startup token.
         await _booruGate.WaitAsync().ConfigureAwait(false);
-        BooruSessionComposition? composition;
+        BooruSessionComposition[] compositions;
         try
         {
-            lock (_booruSync)
-            {
-                composition = _booru;
-            }
+            lock (_booruSync) compositions = _booruCompositions.Values.ToArray();
         }
         finally { _booruGate.Release(); }
-        if (composition == null) return;
-        await composition.StopAsync().ConfigureAwait(false);
-        SyncBooruNoticeObservation();
-        BooruChanged?.Invoke();
+        foreach (BooruSessionComposition composition in compositions)
+            composition.AvailabilityChanged -= NotifyBooruChanged;
+        await Task.WhenAll(compositions.Select(composition => composition.StopAsync())).ConfigureAwait(false);
+        NotifyBooruChanged();
     }
 
     /// <summary>

@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using MeowChan.Booru;
 using System.IO;
 using System.Linq;
 using MeowChan.PluginHost.Sources.Booru;
@@ -10,16 +11,39 @@ namespace MeowChan.Desktop.Booru;
 // WITHOUT sending a request (a restored page is the page as it was; "Search again" stays the explicit way to repeat it).
 internal sealed partial class BooruSearchModel
 {
-    private bool IsBound(BooruSearchView view) => IsBound(view.ProviderId, view.InstanceId);
+    private bool IsBound(BooruSearchView view) => BindingFor(view) is not null;
 
-    private bool IsBound(string sourceId, string instanceId) => sourceId == _search.ProviderId && instanceId == _search.InstanceId;
+    private Binding? BindingFor(BooruSearchView view) => BindingFor(view.ProviderId, view.InstanceId);
+
+    private Binding? BindingFor(string sourceId, string instanceId) =>
+        _bindings.FirstOrDefault(binding => binding.Search.ProviderId == sourceId && binding.Search.InstanceId == instanceId);
+
+    private static BooruSearchView BlankView(Binding binding) =>
+        new(binding.Search.ProviderId, binding.Search.ProviderName, BooruInputMode.Tags, string.Empty,
+            new BooruParsedInput(BooruInputKind.Empty), BooruSearchStatus.Idle, null, null, 1, true,
+            ImmutableArray<BooruResultRowView>.Empty, null, null, null, InstanceId: binding.Search.InstanceId);
+
+    internal BooruSearchView? NewSourceView(string sourceId, string instanceId, BooruSearchView? draft = null)
+    {
+        if (BindingFor(sourceId, instanceId) is not { } binding) return null;
+        BooruSearchView view = BlankView(binding);
+        return draft is null ? view : view with
+        {
+            Mode = draft.Mode, Input = draft.Input, Parsed = ParseInput(draft.Mode, draft.Input, sourceId)
+        };
+    }
+
+    private static BooruParsedInput ParseInput(BooruInputMode mode, string input, string sourceId) =>
+        BooruInput.Parse(mode, input, sourceId);
 
     private static bool MatchesView(BooruPostView post, BooruSearchView view) =>
         post.SourceId == view.ProviderId && post.Identity.InstanceId == view.InstanceId;
 
     internal BooruSearchView ViewFromTarget(BooruSearchTabTarget target, int resultLimit, SourceDescription? source)
     {
-        bool bound = IsBound(target.Source, target.Instance);
+        Binding? binding = BindingFor(target.Source, target.Instance);
+        bool bound = binding is not null;
+        source = binding?.Source ?? (source?.SourceId == target.Source ? source : null);
         BooruInputMode mode = target.Mode ?? (target.PostId is null ? BooruInputMode.Tags : BooruInputMode.Post);
         string input = target.Input ?? target.PostId ?? target.Query ?? string.Empty;
         ImmutableArray<BooruResultRowView> rows = bound && target.Rows is { } cached
@@ -33,8 +57,8 @@ internal sealed partial class BooruSearchModel
             : ImmutableArray<BooruResultRowView>.Empty;
         BooruSearchStatus status = !bound ? BooruSearchStatus.Unavailable
             : !rows.IsEmpty ? BooruSearchStatus.Results : target.Empty ? BooruSearchStatus.Empty : BooruSearchStatus.Idle;
-        return new BooruSearchView(target.Source, bound ? _search.ProviderName : target.Source, mode, input,
-            BooruInput.Parse(mode, input), status, target.Query, target.PostId, target.Page, target.IsEnd, rows,
+        return new BooruSearchView(target.Source, binding?.Search.ProviderName ?? target.Source, mode, input,
+            ParseInput(mode, input, target.Source), status, target.Query, target.PostId, target.Page, target.IsEnd, rows,
             null, bound ? null : BooruCodes.SourceUnavailable, null, InstanceId: target.Instance,
             NeedsLoad: status == BooruSearchStatus.Idle
                 && (!string.IsNullOrWhiteSpace(input) || target.Query is not null || target.PostId is not null))
@@ -43,6 +67,7 @@ internal sealed partial class BooruSearchModel
 
     private static bool IsValidCachedPost(BooruPost post, BooruSearchTabTarget target, SourceDescription? source)
     {
+        if (post.Id.SourceId != target.Source) return false;
         if (source is not null)
             return SdkValidation.ValidateBooruPostResult(new BooruPostRequest(post.Id), new BooruPostSnapshot(post), source).Count == 0;
         try
@@ -65,9 +90,7 @@ internal sealed partial class BooruSearchModel
         {
             if (_disposed) return;
             _activeSearchTabId = tabId;
-            BooruSearchView next = snapshot ?? new BooruSearchView(_search.ProviderId, _search.ProviderName, BooruInputMode.Tags,
-                string.Empty, new BooruParsedInput(BooruInputKind.Empty), BooruSearchStatus.Idle, null, null, 1, true,
-                ImmutableArray<BooruResultRowView>.Empty, null, null, null, InstanceId: _search.InstanceId);
+            BooruSearchView next = snapshot ?? BlankView(_defaultBinding);
             bool bound = IsBound(next);
             ImmutableArray<BooruResultRowView> rows = (bound ? next.Rows : ImmutableArray<BooruResultRowView>.Empty)
                 .Where(row => MatchesView(row.Post, next))

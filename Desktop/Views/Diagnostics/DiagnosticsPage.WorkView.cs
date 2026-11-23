@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
@@ -20,6 +22,9 @@ public partial class DiagnosticsPage
     private WorkView _workView = WorkView.Advanced;
     private bool _workViewApplied;
     private readonly ContextMenu _moreMenu = ContextMenuBuilder.Empty();
+    private readonly Dictionary<(WorkView View, bool Problems), bool> _diagnosticLayoutEdits = [];
+    internal Func<WorkView, PresentationProfile>? LoadDiagnosticLayout { get; set; }
+    internal Func<WorkView, bool, bool, Task>? SaveDiagnosticLayoutAsync { get; set; }
 
     private Expander FiltersSection => this.FindControl<Expander>("DiagnosticFiltersSection")!;
     private Button MoreButton => this.FindControl<Button>("DiagnosticMoreButton")!;
@@ -32,7 +37,25 @@ public partial class DiagnosticsPage
         bool changed = !_workViewApplied || view != _workView;
         _workView = view;
         _workViewApplied = true;
+        if (changed) ApplyDiagnosticLayout();
         ApplyWorkViewPresence(changed);
+    }
+
+    private void ApplyDiagnosticLayout()
+    {
+        PresentationProfile? layout = LoadDiagnosticLayout?.Invoke(_workView);
+        _problemsCollapsed = _diagnosticLayoutEdits.GetValueOrDefault((_workView, true), layout?.DiagnosticsProblemsCollapsed ?? false);
+        _activityCollapsed = _diagnosticLayoutEdits.GetValueOrDefault((_workView, false), layout?.DiagnosticsActivityCollapsed ?? false);
+        ApplyDiagnosticGroupVisibility();
+    }
+
+    private void RememberDiagnosticGroupLayout(bool problems, bool collapsed)
+    {
+        WorkView view = _workView;
+        // The view can be switched back before the preference writer has confirmed this change.
+        _diagnosticLayoutEdits[(view, problems)] = collapsed;
+        if (SaveDiagnosticLayoutAsync is { } save)
+            OpenActions.Start(() => save(view, problems, collapsed), "diagnostics.saveLayout");
     }
 
     // R6: a filter that differs from its default is shown whatever the view says. Value comparison, not a view test.

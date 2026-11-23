@@ -1405,11 +1405,11 @@ public sealed class HelpDocumentationTests
             "PauseAsync(", "ResumeAsync(", "SearchAsync(", "CheckNowAsync(", "EnablePluginAsync(" })
             Assert.DoesNotContain(forbidden, host, StringComparison.Ordinal);
         Assert.Contains("candidate.ShowBooruTools = ShowBooruActions;", Read("Desktop/Views/Settings/SettingsEditor.Footer.cs"), StringComparison.Ordinal);
-        Assert.Contains("ReferenceEquals(current.Services, services)", host, StringComparison.Ordinal);
+        Assert.Contains("current.HasSources(sources)", host, StringComparison.Ordinal);
         Assert.Contains("BooruPageHost.Content = page;", host, StringComparison.Ordinal);
         string booru = Read("Desktop/Booru/MainWindow.Booru.cs");
         Assert.Contains("_config.ShowBooruTools", booru, StringComparison.Ordinal);
-        Assert.Contains("page.View.TryShowQueryInNewTab(query)", booru, StringComparison.Ordinal);
+        Assert.Contains("page.View.TryShowQueryInNewTab(query, source?.Search)", booru, StringComparison.Ordinal);
         Assert.DoesNotContain("SearchAsync(", booru, StringComparison.Ordinal);
         string navigation = Read("Desktop/Shell/MainWindow.Navigation.cs");
         Assert.Contains("id != \"navigation.booru\" || CanOpenBooru", navigation, StringComparison.Ordinal);
@@ -1672,9 +1672,9 @@ public sealed class HelpDocumentationTests
         Assert.Contains("Func<bool> interactionCurrent = page.CaptureBooruHandoffInteraction();", media, StringComparison.Ordinal);
         Assert.Contains("ReferenceEquals(_booruPage, sourcePage) && ReferenceEquals(_session.BooruServices, services)", media, StringComparison.Ordinal);
         Assert.Contains("if (!Current() || !interactionCurrent()) return Cancelled();", media, StringComparison.Ordinal);
-        Assert.Contains("page.ShowBooruPostAsync(postId, Current, cancelNotice)", media, StringComparison.Ordinal);
+        Assert.Contains("page.ShowBooruPostAsync(identity, Current, cancelNotice)", media, StringComparison.Ordinal);
         Assert.Contains("error is not OutOfMemoryException && (!Current() || !interactionCurrent())", media, StringComparison.Ordinal);
-        Assert.Contains("FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, postId)", Read("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs"), StringComparison.Ordinal);
+        Assert.Contains("FocusExactEntryAsync(entry => IsSavedBooruEntry(entry, identity)", Read("Desktop/Views/Media/MediaPage.BooruCrossLinks.cs"), StringComparison.Ordinal);
         Assert.Contains("NavigateWorkspace(WorkspacePage.Booru)", Read("Desktop/Booru/MainWindow.Booru.cs"), StringComparison.Ordinal);
         Assert.Contains("ConfigureBooruMediaLinks(page);", Read("Desktop/Booru/MainWindow.BooruNavigation.cs"), StringComparison.Ordinal);
         Assert.Contains("navigation.booru", MainPageOrder.CommandIds);

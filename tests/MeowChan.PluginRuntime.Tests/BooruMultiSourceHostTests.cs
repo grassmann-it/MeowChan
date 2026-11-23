@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using MeowChan.Http;
+using MeowChan.Booru;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginHost.Http;
 using MeowChan.PluginHost.Sources.Booru;
@@ -205,6 +206,29 @@ public sealed class BooruMultiSourceHostTests
             Assert.Equal(BooruSearchService.InvalidQueryCode,
                 Assert.IsType<BooruSearchFailure>(await search.SearchAsync(worker, source, query, 1)).Failure.Code);
         Assert.Equal(2, worker.SearchCalls);
+    }
+
+    [Fact]
+    public async Task WatcherHostPortsMapTheSamePostIdIntoSeparateSources()
+    {
+        using Rig rig = new();
+        BooruSearchService search = new(rig.Services);
+        await using FakeWorker worker = new(request =>
+        {
+            BooruPost post = new(new(request.SourceId, "42"), BooruFieldPresence.None);
+            return new BooruSearchSnapshot(new(request.SourceId, request.Query, request.Page, [post], true));
+        });
+        IDanbooruWatcherSearchPort legacy = new BooruWatcherSearchPort(search, rig.Services, _ => Task.FromResult<IPluginWorkerClient?>(worker));
+        IDanbooruWatcherSearchPort engine = new BooruWatcherSearchPort(search, rig.Services,
+            _ => Task.FromResult<IPluginWorkerClient?>(worker), "engine", null);
+        using IDanbooruWatcherSearchSession first = legacy.OpenCheck();
+        using IDanbooruWatcherSearchSession second = engine.OpenCheck();
+
+        var firstPage = Assert.IsType<DanbooruWatcherSearchSnapshot>(await first.SearchAsync("cat", null, CancellationToken.None));
+        var secondPage = Assert.IsType<DanbooruWatcherSearchSnapshot>(await second.SearchAsync("cat", null, CancellationToken.None));
+        Assert.Equal(new BooruPostKey("danbooru", "default", "42"), Assert.Single(firstPage.Posts).Identity);
+        Assert.Equal(new BooruPostKey("engine", "default", "42"), Assert.Single(secondPage.Posts).Identity);
+        Assert.Equal(0, rig.Sends);
     }
 
     [Fact]

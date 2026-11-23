@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Controls.Notifications;
@@ -44,7 +45,8 @@ public partial class MainWindow
 
     private async Task<bool> AdmitBooruAddressCoreAsync(string entry, DanbooruAddress address, int ignoredSearches)
     {
-        BooruWorkbenchServices? services = CanOpenBooru ? _session.BooruServices : null;
+        BooruWorkbenchServices? services = CanOpenBooru ? _session.ActiveBooruServices.FirstOrDefault(candidate =>
+            candidate.Search.ProviderId == DanbooruPostReference.ProviderId) : null;
         if (services is null)
         {
             _admissionResults.Add(new AdmissionFeedback(address.CanonicalText, AdmissionStatus.Unsupported, Texts.T("booru.ui.add.disabled")));
@@ -59,7 +61,7 @@ public partial class MainWindow
             return outcome.Status is AdmissionStatus.Added or AdmissionStatus.AlreadyPresent;
         }
         string query = address.PrefilledQuery(out bool addedSafeRating);
-        (bool opened, int? limit) = OpenBooruSearchDraft(query);
+        (bool opened, int? limit) = OpenBooruSearchDraft(query, services);
         if (!opened)
         {
             string reason = limit is { } count ? Texts.T("booru.tabs.limit", count) : Texts.T("booru.ui.add.disabled");

@@ -30,7 +30,7 @@ public partial class DiagnosticsPage
         grid.Columns[0].Header = Texts.T("feedback.time");
         grid.Columns[1].Header = Texts.T("diagnostics.category");
         grid.Columns[2].Header = Texts.T("diagnostics.message");
-        this.FindControl<Expander>("SessionFeedbackSection")!.Header = Texts.T("feedback.title") + " (" + entries.Length + ")";
+        this.FindControl<Expander>("SessionFeedbackSection")!.Header = DiagnosticGroupHeading(Texts.T("feedback.title"), entries.Length);
         this.FindControl<TextBlock>("SessionFeedbackEmpty")!.Text = Texts.T("feedback.empty");
         this.FindControl<TextBlock>("SessionFeedbackEmpty")!.IsVisible = entries.Length == 0;
         this.FindControl<Button>("ClearSessionFeedbackButton")!.IsEnabled = entries.Length != 0;
