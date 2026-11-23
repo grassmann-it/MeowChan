@@ -1084,6 +1084,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         if (button.Content is not Grid { Children: [ContentControl slot, TextBlock text] }) return;
         text.Text = label;
+        // At the popover minimum keep the full command names; the outbound editor retains its arrow.
+        slot.IsVisible = !_compact || FooterStacked || ReferenceEquals(button, _advanced);
         // The icon follows the label's foreground (also its disabled look). Only a control in a window can load it.
         if (_attached && slot.Content == null && slot.Tag is string icon)
         {
