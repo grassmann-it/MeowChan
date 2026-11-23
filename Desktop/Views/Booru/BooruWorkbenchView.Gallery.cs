@@ -187,10 +187,18 @@ internal sealed partial class BooruWorkbenchView
         int tab = SearchTabs.ActiveId;
         BooruSearchView before = search.View;
         int page = before.Page + delta;
+        Control pagerButton = delta < 0 ? _previous : _next;
+        IFocusManager? focus = TopLevel.GetTopLevel(this)?.FocusManager;
+        IInputElement? origin = focus?.GetFocusedElement();
+        bool fromPager = ReferenceEquals(origin, pagerButton);
         await search.GoToPageAsync(page);
         BooruSearchView after = search.View;
         if (_closed || SearchTabs.ActiveId != tab || after.Page != page || after.ExecutedQuery != before.ExecutedQuery
-            || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty || _input.IsKeyboardFocusWithin) return;
+            || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty) return;
+        // The pager can lose focus when the busy state hides it. Any other active focus takes priority.
+        IInputElement? focused = focus?.GetFocusedElement();
+        if (!(fromPager && (focused is null || ReferenceEquals(focused, origin))
+            || ReferenceEquals(origin, _gallery.Stage) && ReferenceEquals(focused, origin))) return;
         Render(force: false);
         FocusGalleryStage();
     }

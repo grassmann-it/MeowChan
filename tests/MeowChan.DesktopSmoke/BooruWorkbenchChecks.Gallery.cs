@@ -121,7 +121,7 @@ internal static partial class BooruWorkbenchChecks
             TaskCompletionSource pageReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
             h.Search.OnSearch = async (query, number, cancellationToken) =>
             {
-                if (number == 2) await pageReady.Task.WaitAsync(cancellationToken);
+                if (number is 2 or 3) await pageReady.Task.WaitAsync(cancellationToken);
                 return await serve(query, number, cancellationToken);
             };
             nextPage.BringIntoView();
@@ -149,6 +149,16 @@ internal static partial class BooruWorkbenchChecks
             await native.ClickAsync(original);
             await Picture("202", focused: false);
             Require(gallery.SelectBox.IsChecked == true, "Moving in the duplicate changed the original tab.");
+
+            pageReady = new(TaskCreationOptions.RunContinuationsAsynchronously);
+            nextPage.BringIntoView();
+            await native.ClickAsync(nextPage);
+            await Program.WaitUntilAsync(() => page.Model.Search.View.IsBusy);
+            Require(toggle.Third.Focus(NavigationMethod.Tab), "Could not move focus to the view switch while paging.");
+            pageReady.SetResult();
+            await Picture("301", focused: false);
+            await SettleAsync(window);
+            Require(toggle.Third.IsFocused, $"The page response stole focus from the view switch: {Describe(FocusedControl())}.");
 
             window.Width = 760;
             await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - 760) <= 1);
