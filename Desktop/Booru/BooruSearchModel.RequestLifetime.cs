@@ -44,6 +44,9 @@ internal sealed partial class BooruSearchModel
         RequestLifetime? previous = _request;
         _request = needsRequest ? new RequestLifetime() : null;
         _requestId++;
+        _view = _view with { ResultRevision = new(_activeSearchTabId, _requestId) };
+        _originalActions.Clear();
+        _originalActionVersions.Clear();
         if (previous != null) OpenActions.Start(previous.RetireAsync, "booru.request.retire");
         return _request;
     }

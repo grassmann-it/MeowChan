@@ -36,7 +36,7 @@ internal sealed partial class BooruWorkbenchView
         if (_resultView == BooruResultView.List && _renderedListDecodeEdge != ListDecodeEdge) OnModelChanged();
     }
 
-    private Control CreateResultCard(BooruResultRowView row)
+    private Control CreateResultCard(BooruResultRowView row, ResultActions result)
     {
         BooruPostView post = row.Post;
         Border card = new() { Name = "BooruResult:" + post.PostId, Classes = { "workspace-card" } };
@@ -51,8 +51,8 @@ internal sealed partial class BooruWorkbenchView
         Control preview = WithPreviewCorners(frame, post, 0);
 
         WrapPanel commands = new() { Name = "BooruResultActions:" + post.PostId, ItemSpacing = 4, LineSpacing = 4 };
-        Button? showInMedia = AddResultCommands(row, commands, compact: true);
-        commands.Children.Add(CreateResultViewerActions(post.PostId, compact: true));
+        AddResultCommands(row, result, commands);
+        commands.Children.Add(CreateResultViewerActions(result, compact: true));
         StackPanel picture = new() { Name = "BooruResultPicture:" + post.PostId, Children = { preview, commands } };
 
         StackPanel facts = new()
@@ -87,9 +87,8 @@ internal sealed partial class BooruWorkbenchView
             notices.Children.Add(state);
         }
 
-        card.Child = new BooruListCardLayout(card, ListLayout, picture, preview, frame, facts, CreateTags(post), notices);
-        AttachCardMenu(card, () => ComposeResultMenu(card, post.PostId), () => FocusHit(post.PostId));
-        ConfigureHitCard(card, row, showInMedia);
+        card.Child = new BooruListCardLayout(card, ListLayout, picture, preview, frame, facts, CreateTags(post, result), notices);
+        ConfigureHitCard(card, row, result);
         return card;
     }
 

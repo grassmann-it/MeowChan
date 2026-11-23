@@ -120,7 +120,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     private readonly TextBlock _linkNote = new() { Name = LinkNoteName, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
 
     private (string Key, string Argument, bool Problem)? _linkNoteState;
+    private ResultLinkScope? _linkNoteScope;
     private string? _resultsKey;
+    private BooruResultRevision _renderedResultRevision;
     // The cards are rebuilt on every change; their newest state is repeated in the persistent notice lines (live regions).
     private readonly BooruLiveMirror<(BooruRowLoad, string?)?> _loadMirror = new();
     private readonly BooruLiveMirror<BooruNotice> _watcherMirror = new(ReferenceEqualityComparer.Instance);
@@ -502,6 +504,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         _title.Text = Texts.T("booru.ui.title");
         _searchTab.Header = Texts.T("booru.ui.tab.search");
+        if (_linkNoteScope is { } scope && !IsCurrentResultLink(scope))
+        {
+            _linkNoteScope = null;
+            _linkNoteState = null;
+        }
         Footer.IsVisible = _linkNote.IsVisible = _linkNoteState is not null;
         _linkNote.Text = _linkNoteState is { } note ? Texts.T(note.Key, note.Argument) : string.Empty;
         _linkNote.Classes.Set("workspace-error", _linkNoteState is { Problem: true });
@@ -612,15 +619,18 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         int decodeEdge = _resultView == BooruResultView.List ? ListDecodeEdge : 0;
         string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, ListLayout, TagsShown(), decodeEdge, string.Join('|',
             view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}")));
-        if (force || key != _resultsKey)
+        if (force || key != _resultsKey || _renderedResultRevision != view.ResultRevision)
         {
+            if (_renderedResultRevision != view.ResultRevision) _more.ContextMenu?.Close();
             _resultsKey = key;
             _renderedListDecodeEdge = decodeEdge;
             _selectedResults.IntersectWith(view.Rows.Select(row => row.Post.PostId));
             _expandedTagPosts.IntersectWith(view.Rows.Select(row => row.Post.PostId));
-            _resultWorkViewActions.Clear();
+            _resultWorkViewButtons.Clear();
+            _resultActions.Clear();
             DisposeResultTagMenus();
-            RebuildResults(view);
+            RebuildResults(view, preserveFocus: _renderedResultRevision == view.ResultRevision);
+            _renderedResultRevision = view.ResultRevision;
             PruneBitmaps(view.Rows);
         }
     }
@@ -704,7 +714,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     /// <paramref name="fallback"/>. Without a fallback a vanished control leaves focus where the platform puts it.
     /// </summary>
     private void RebuildPanel(Panel panel, Func<List<Control>> build, string? moveTo = null, Func<Control?>? fallback = null,
-        bool waitWhileDisabled = false, bool preserveFocus = true)
+        bool waitWhileDisabled = false, bool preserveFocus = true, BooruResultRevision? resultRevision = null)
     {
         var focusManager = TopLevel.GetTopLevel(this)?.FocusManager;
         Visual? focused = preserveFocus ? focusManager?.GetFocusedElement() as Visual : null;
@@ -713,6 +723,8 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             for (int index = 0; index < panel.Children.Count; index++)
                 if (ReferenceEquals(panel.Children[index], focused) || panel.Children[index].IsVisualAncestorOf(focused)) { card = index; break; }
         string? focusedName = card >= 0 && focused is Control { Name: { } name } ? name : null;
+        string? hitName = resultRevision != null ? focused?.GetSelfAndVisualAncestors().OfType<Border>()
+            .FirstOrDefault(hit => hit.Name?.StartsWith("BooruResult:", StringComparison.Ordinal) == true)?.Name : null;
         if (_pendingFocus is { } pending && ReferenceEquals(pending.Panel, panel))
         {
             _pendingFocus = null;
@@ -726,7 +738,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Dispatcher.Post(() =>
         {
             if (_closed || !ReferenceEquals(focusAfterRebuild, focusManager?.GetFocusedElement())) return;
-            Control? target = Enabled(panel, moveTo) ?? Enabled(panel, focusedName) ?? Enabled(panel, Counterpart(focusedName));
+            if (resultRevision is { } revision && (_model.Search.View.ResultRevision != revision || !IsSearchItem(_tabs.SelectedItem))) return;
+            Control? target = Enabled(panel, moveTo) ?? Enabled(panel, focusedName) ?? Enabled(panel, Counterpart(focusedName))
+                ?? Enabled(panel, hitName);
             if (target is null && waitWhileDisabled && focusedName is not null
                 && panel.GetVisualDescendants().OfType<Control>().Any(control => control.Name == focusedName))
             {
@@ -740,6 +754,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
                         .FirstOrDefault(button => button.IsEffectivelyEnabled && button.IsEffectivelyVisible && button.Focusable);
                 target ??= fallback();
             }
+            if (resultRevision != null) target?.BringIntoView();
             target?.Focus(NavigationMethod.Tab);
         }, DispatcherPriority.Loaded);
     }
@@ -780,69 +795,6 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     // ---- result cards ----------------------------------------------------------------------------------
 
-    private Button? AddResultCommands(BooruResultRowView row, Panel actions, bool compact)
-    {
-        BooruPostView post = row.Post;
-        bool withdrawn = post.IsDeleted || post.IsBanned;
-        bool retry = row.CanRetry;
-        bool cancel = row.CanCancel && !retry;
-        string actionText = cancel ? Texts.T("booru.ui.cancel")
-            : retry ? BooruText.RetryOriginal(row) : Texts.T("booru.ui.load");
-        string actionName = cancel || retry ? $"{actionText}: {Texts.T("booru.ui.post.title", post.PostId)}"
-            : Texts.T("booru.ui.loadFor", post.PostId);
-        string actionPrefix = cancel ? CancelLoadPrefix : retry ? RetryLoadPrefix : LoadPrefix;
-        Button load = new() { Name = actionPrefix + post.PostId, Content = actionText, HorizontalAlignment = HorizontalAlignment.Left };
-        load.Classes.Add("primary");
-        string icon = cancel ? CardMenuIcons.Cancel : retry ? CardMenuIcons.Retry : CardMenuIcons.Load;
-        if (compact) CompactAction(load, icon);
-        else CommandBindings.ShowIconBeforeText(load, icon);
-        RegisterWorkViewAction(load, cancel ? "booru.result.cancel" : retry ? "booru.result.retry" : "booru.result.load",
-            _resultWorkViewActions);
-        load.IsEnabled = cancel || retry || row.CanLoad;
-        AutomationProperties.SetName(load, actionName);
-        string? why = post.OriginalAccess != BooruOriginalAccess.Available ? BooruText.Original(post.OriginalAccess, withdrawn)
-            : BooruText.Load(row);
-        ToolTip.SetTip(load, why ?? (post.OriginalAccess == BooruOriginalAccess.Available && !withdrawn
-            ? actionName + Environment.NewLine + BooruText.Original(post.OriginalAccess, withdrawn) : actionName));
-        ToolTip.SetShowOnDisabled(load, true);
-        if (why is not null) AutomationProperties.SetHelpText(load, why);
-        if (cancel) load.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
-        else if (retry) load.Click += async (_, _) => await _model.Search.RetryOriginalAsync(post.PostId);
-        else load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
-
-        actions.Children.Add(load);
-        if (retry && row.CanCancel)
-        {
-            Button cancelPending = new() { Name = CancelLoadPrefix + post.PostId, Content = Texts.T("booru.ui.cancel") };
-            if (compact) CompactAction(cancelPending, CardMenuIcons.Cancel);
-            else CommandBindings.EnsureIconBeforeText(cancelPending, CardMenuIcons.Cancel);
-            AutomationProperties.SetName(cancelPending, $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}");
-            ToolTip.SetTip(cancelPending, AutomationProperties.GetName(cancelPending));
-            cancelPending.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
-            RegisterWorkViewAction(cancelPending, "booru.result.cancel", _resultWorkViewActions);
-            actions.Children.Add(cancelPending);
-        }
-        if (BooruPostLinks.TryCanonical(post, out string canonical))
-            foreach (Button link in CreateLinkButtons(OpenPostPrefix + post.PostId, CopyLinkPrefix + post.PostId, canonical,
-                Texts.T("booru.ui.post.openFor", post.PostId), Texts.T("booru.ui.post.copyFor", post.PostId), _resultWorkViewActions, iconOnly: true))
-            {
-                if (compact) SizeCompactAction(link);
-                actions.Children.Add(link);
-            }
-
-        Button? showInMedia = null;
-        if (row.Load == BooruRowLoad.AlreadyLoaded && _showInMedia != null
-            && (_isPostSavedInMedia == null || _isPostSavedInMedia(post.PostId)))
-        {
-            showInMedia = CreateShowInMediaAction(ShowInMediaPrefix + post.PostId,
-                Texts.T("booru.ui.result.showInMediaFor", post.PostId), post.PostId);
-            if (compact) CompactAction(showInMedia, CommandCatalog.Get("thread.show-in-media").Icon);
-            actions.Children.Add(showInMedia);
-        }
-        return showInMedia;
-
-    }
-
     private Button CreateShowInMediaAction(string name, string accessibleName, string postId)
     {
         Button show = new() { Name = name, Content = Texts.T("booru.ui.result.showInMedia") };
@@ -850,24 +802,24 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         show.Classes.Add("ghost");
         AutomationProperties.SetName(show, accessibleName);
         ToolTip.SetTip(show, accessibleName);
-        show.Click += async (_, _) =>
-        {
-            if (_showInMedia is not { } navigate || !TryBeginLinkAction(out long revision)) return;
-            try
-            {
-                bool shown = await navigate(postId);
-                if (shown || !IsCurrentLinkAction(revision)) return;
-                SetLinkNote(("booru.crossLinks.missingLocal", postId, true), revision);
-            }
-            catch (Exception exception) when (exception is not OutOfMemoryException)
-            {
-                // A host/profile transition may retire the navigation callback while it is awaited.
-                // This is an action failure, not evidence that the local original is missing.
-                Log.Warning(exception, "Could not show a Danbooru post in local media");
-                SetLinkNote(("booru.crossLinks.navigationFailed", postId, true), revision);
-            }
-        };
+        show.Click += async (_, _) => await ShowInMediaAsync(postId);
         return show;
+    }
+
+    private async Task ShowInMediaAsync(string postId, BooruResultTarget? target = null)
+    {
+        if (_showInMedia is not { } navigate || !TryBeginLinkAction(out long revision)) return;
+        ResultLinkScope? scope = CaptureResultLink(target);
+        try
+        {
+            if (!await navigate(postId))
+                SetLinkNote(("booru.crossLinks.missingLocal", postId, true), revision, scope);
+        }
+        catch (Exception exception) when (exception is not OutOfMemoryException)
+        {
+            Log.Warning(exception, "Could not show a Danbooru post in local media");
+            SetLinkNote(("booru.crossLinks.navigationFailed", postId, true), revision, scope);
+        }
     }
 
     /// <summary>"Open in browser" and "Copy link" for one canonical post URL; nothing else is ever opened or copied.</summary>
@@ -883,60 +835,57 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     // The buttons without a panel of their own: a card that already has a toolbar adds them to it. Handing out the panel's children instead
     // would reparent controls that still belong to it, which Avalonia refuses ("already has a visual parent").
     private IReadOnlyList<Button> CreateLinkButtons(string openName, string copyName, string url, string openAccessibleName, string copyAccessibleName,
-        ICollection<Button> workViewActions, bool iconOnly = false)
+        ICollection<Button> workViewActions)
     {
-        // iconOnly (E2, the result list): an icon button; the tooltip says what it does, the automation name names the post.
-        Button open = new() { Name = openName };
-        if (!iconOnly) open.Content = Texts.T("booru.ui.post.open");
+        Button open = new() { Name = openName, Content = Texts.T("booru.ui.post.open") };
         open.Classes.Add("ghost");
-        if (iconOnly) IconButtons.Apply(open, "external-link", openAccessibleName);
-        else CommandBindings.ShowIconBeforeText(open, "external-link");
+        CommandBindings.ShowIconBeforeText(open, "external-link");
         RegisterWorkViewAction(open, "booru.result.open", workViewActions);
         AutomationProperties.SetName(open, openAccessibleName);
         ToolTip.SetTip(open, Texts.T("booru.ui.post.openTip", url));
         open.Click += async (_, _) => await OpenLinkAsync(url);
-        Button copy = new() { Name = copyName };
-        if (!iconOnly) copy.Content = Texts.T("booru.ui.post.copy");
+        Button copy = new() { Name = copyName, Content = Texts.T("booru.ui.post.copy") };
         copy.Classes.Add("ghost");
-        if (iconOnly) IconButtons.Apply(copy, "copy", copyAccessibleName);
-        else CommandBindings.ShowIconBeforeText(copy, "copy");
+        CommandBindings.ShowIconBeforeText(copy, "copy");
         RegisterWorkViewAction(copy, "booru.result.copy-link", workViewActions);
         AutomationProperties.SetName(copy, copyAccessibleName);
-        ToolTip.SetTip(copy, iconOnly ? Texts.T("booru.ui.post.copy") + Environment.NewLine + url : url);
+        ToolTip.SetTip(copy, url);
         copy.Click += async (_, _) => await CopyLinkAsync(url);
         return new[] { open, copy };
     }
 
-    private async Task OpenLinkAsync(string url)
+    private async Task OpenLinkAsync(string url, BooruResultTarget? target = null)
     {
         // Only canonical post pages reach this method (built by BooruPostLinks); a launcher failure is shown, never retried.
         if (!TryBeginLinkAction(out long revision)) return;
+        ResultLinkScope? scope = CaptureResultLink(target);
         try
         {
             await _model.Services.Links.Open(url);
-            SetLinkNote(null, revision);
+            SetLinkNote(null, revision, scope);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             Log.Warning(exception, "Could not open a Danbooru post in the browser");
-            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true), revision);
+            SetLinkNote(("booru.ui.link.openFailed", string.Empty, true), revision, scope);
         }
     }
 
-    private async Task CopyLinkAsync(string url)
+    private async Task CopyLinkAsync(string url, BooruResultTarget? target = null)
     {
         if (!TryBeginLinkAction(out long revision)) return;
+        ResultLinkScope? scope = CaptureResultLink(target);
         try
         {
             if (_model.Services.Links.Copy is { } copy) await copy(url);
             else if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard) await clipboard.SetTextAsync(url);
             else throw new InvalidOperationException("The clipboard is unavailable.");
-            SetLinkNote(("booru.ui.link.copied", url, false), revision);
+            SetLinkNote(("booru.ui.link.copied", url, false), revision, scope);
         }
         catch (Exception exception) when (exception is not OutOfMemoryException)
         {
             Log.Warning(exception, "Could not copy a Danbooru post link");
-            SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision);
+            SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision, scope);
         }
     }
 
@@ -970,10 +919,11 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         SetLinkNote(state, revision);
     }
 
-    private void SetLinkNote((string Key, string Argument, bool Problem)? state, long revision)
+    private void SetLinkNote((string Key, string Argument, bool Problem)? state, long revision, ResultLinkScope? scope = null)
     {
-        if (!IsCurrentLinkAction(revision)) return;
+        if (!IsCurrentLinkAction(revision) || (scope is { } bound && !IsCurrentResultLink(bound))) return;
         _linkNoteState = state;
+        _linkNoteScope = state != null ? scope : null;
         _applying = true;
         try { RenderChrome(); }
         finally { _applying = false; }
@@ -1074,21 +1024,24 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     }
 
     /// <summary>The menu of a source-tag chip: add it to the search, exclude it from the search, copy its name.</summary>
-    internal ContextMenuBuilder? ComposeTagMenu(string tag)
+    internal ContextMenuBuilder? ComposeTagMenu(string tag, BooruResultTarget? target = null)
     {
-        if (_closed) return null;
+        ResultLinkScope? scope = CaptureResultLink(target);
+        bool Available() => !_closed && (scope is not { } bound || IsCurrentResultLink(bound));
+        if (!Available()) return null;
         return new ContextMenuBuilder().Named(tag)
-            .Item(MenuTagAdd, Texts.T("booru.ui.tags.menuAdd"), () => AddTagToSearch(tag), icon: "plus")
-            .Item(MenuTagExclude, Texts.T("booru.ui.tags.menuExclude"), () => AddTagToSearch(tag, exclude: true), icon: "minus")
+            .Item(MenuTagAdd, Texts.T("booru.ui.tags.menuAdd"), () => AddTagToSearch(tag), availableWhen: Available, icon: "plus")
+            .Item(MenuTagExclude, Texts.T("booru.ui.tags.menuExclude"), () => AddTagToSearch(tag, exclude: true), availableWhen: Available, icon: "minus")
             .Section()
-            .Command("tags.copy-name", () => _ = CopyTagNameAsync(tag));
+            .Command("tags.copy-name", () => OpenActions.Start(() => CopyTagNameAsync(tag, target), "booru.tags.copy"), availableWhen: Available);
     }
 
-    private async Task CopyTagNameAsync(string tag)
+    private async Task CopyTagNameAsync(string tag, BooruResultTarget? target)
     {
         if (!TryBeginLinkAction(out long revision)) return;
-        if (await MenuClipboard.CopyAsync(this, tag, _ => SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision)))
-            SetLinkNote(("booru.ui.tags.copied", tag, false), revision);
+        ResultLinkScope? scope = CaptureResultLink(target);
+        if (await MenuClipboard.CopyAsync(this, tag, _ => SetLinkNote(("booru.ui.link.copyFailed", string.Empty, true), revision, scope)))
+            SetLinkNote(("booru.ui.tags.copied", tag, false), revision, scope);
     }
 
     private void DisposeResultTagMenus()

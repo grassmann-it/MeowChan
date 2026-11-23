@@ -9,13 +9,6 @@ using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop.Booru;
 
-// Interaction audit 1.1.0 (V8): a result card and a watcher card have a context menu. A right-click, the Menu key, Shift+F10 and the rebindable
-// "Open context menu" open the card's own actions: load the original (or cancel / retry it), show it in Media, open or copy the post link; for a
-// watcher check now, pause or resume, restart from now, the same links for its latest post and, last, remove. The menu holds no logic of its own:
-// every entry presses the card's button of the same action, so it does exactly that, is available exactly when that button is and gives the same
-// reason when it is not. The entries are composed when the menu opens, from the buttons the card has then. Icons are those of the matching
-// commands (the media menu's post links, "Check now", "Show in Media", "Remove from watch list"). A result card is a keyboard stop of its own
-// (BooruWorkbenchView.Hits.cs), so the keys also work on the focused card; a watcher card's keys work from the buttons inside it.
 internal sealed partial class BooruWorkbenchView
 {
     internal const string MenuLoad = "booru.menu.load";
@@ -43,23 +36,28 @@ internal sealed partial class BooruWorkbenchView
     private static void AttachCardMenu(Border card, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null) =>
         _ = new ContextMenuHost(card, compose, fallbackFocus);
 
-    private ContextMenuBuilder? ComposeResultMenu(Border card, string postId)
+    private static ContextMenuBuilder? ComposeResultMenu(ResultActions result)
     {
-        if (_closed) return null;
-        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("booru.ui.post.title", postId));
-        Button? load = ButtonOf(card, LoadPrefix + postId), cancel = ButtonOf(card, CancelLoadPrefix + postId), retry = ButtonOf(card, RetryLoadPrefix + postId);
-        if (retry != null)
+        if (!result.IsCurrent() || result.CurrentRow() is not { } row) return null;
+        ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("booru.ui.post.title", result.PostId));
+        ResultCommand[] commands = result.Commands(row).ToArray();
+        foreach (ResultCommand command in commands.Where(command => command.Action is ResultAction.Load or ResultAction.Cancel or ResultAction.Retry))
         {
-            AddButtonItem(menu, retry, MenuLoad, CardMenuIcons.Retry);
-            AddButtonItem(menu, cancel, "booru.menu.cancel-original", CardMenuIcons.Cancel);
+            string id = command.Action == ResultAction.Cancel && row.CanRetry ? "booru.menu.cancel-original" : MenuLoad;
+            AddResultItem(menu, result, command, id);
         }
-        else if (cancel != null) AddButtonItem(menu, cancel, MenuLoad, CardMenuIcons.Cancel);
-        else if (load != null) AddButtonItem(menu, load, MenuLoad, CardMenuIcons.Load);
-        AddShowInMedia(menu, ButtonOf(card, ShowInMediaPrefix + postId));
+        if (commands.Any(command => command.Action == ResultAction.ShowInMedia))
+            menu.Command("thread.show-in-media", () => result.Run(ResultAction.ShowInMedia), entryId: MenuShowInMedia,
+                showShortcut: false, availableWhen: () => result.IsCurrent() && result.CanRun(ResultAction.ShowInMedia));
         menu.Section();
-        AddLinkItems(menu, ButtonOf(card, OpenPostPrefix + postId), ButtonOf(card, CopyLinkPrefix + postId));
+        foreach (ResultCommand link in commands.Where(command => command.Action is ResultAction.Open or ResultAction.Copy))
+            AddResultItem(menu, result, link, link.Action == ResultAction.Open ? MenuOpenPost : MenuCopyLink);
         return menu;
     }
+
+    private static void AddResultItem(ContextMenuBuilder menu, ResultActions result, ResultCommand command, string id) =>
+        menu.Item(id, command.Label, () => result.Run(command.Action), reason: command.Reason,
+            availableWhen: () => result.IsCurrent() && result.CanRun(command.Action), icon: command.Icon);
 
     private ContextMenuBuilder? ComposeWatcherMenu(Border card, string watcherId, string query)
     {

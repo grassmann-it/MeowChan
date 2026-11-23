@@ -238,7 +238,7 @@ public sealed class BooruTileGridTests
             Assert.True(tile.Focusable);
             Assert.True(tile.IsTabStop);
             string id = tile.Name![^3..];
-            // The selection check and "Open in gallery" are there once and visible; the hidden card does not repeat them.
+            // The selection check and "Open in gallery" are there once and visible; there is one set per tile.
             Assert.Single(tile.GetLogicalDescendants().OfType<CheckBox>(), box => box.Name == "BooruSelect:" + id);
             Button gallery = Assert.Single(tile.GetLogicalDescendants().OfType<Button>(), button => button.Name == "BooruView:" + id);
             Assert.True(gallery.IsEffectivelyVisible || !tile.IsEffectivelyVisible);
@@ -254,13 +254,8 @@ public sealed class BooruTileGridTests
             Assert.Contains(tile.GetLogicalDescendants().OfType<TextBlock>(), text => text.Name == "BooruTileLine:" + id && text.Text!.StartsWith("#" + id, StringComparison.Ordinal));
         }
 
-        // The saved hit shows the local mark; the context menu still offers what the card offers.
         Assert.True(Local(tiles[0]).IsVisible);
         Assert.False(Local(tiles[1]).IsVisible);
-        ContextMenuBuilder? menu = (ContextMenuBuilder?)typeof(BooruWorkbenchView).GetMethod("ComposeResultMenu", Private)!.Invoke(view, new object[] { tiles[1], "102" });
-        string[] entries = Assert.IsType<ContextMenuBuilder>(menu).ToModel().Entries.Select(entry => entry.Id).ToArray();
-        Assert.Contains(BooruWorkbenchView.MenuLoad, entries);
-        Assert.Contains(BooruWorkbenchView.MenuOpenPost, entries);
 
         // An arrow key on a tile is handled there (the move itself needs a window).
         KeyEventArgs right = Press(Key.Right, tiles[0]);

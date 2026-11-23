@@ -32,8 +32,6 @@ internal sealed partial class BooruSearchModel
             // A search that was still running when the tab was left has no rows; it is offered again, never resumed.
             BooruSearchStatus status = next.Status == BooruSearchStatus.Searching ? BooruSearchStatus.Idle : next.Status;
             _view = next with { Rows = rows, Status = status, Notice = null, Restored = true };
-            _originalActions.Clear();
-            _originalActionVersions.Clear();
             ReplaceRequest(needsRequest: !rows.IsEmpty);
         }
         RaiseChanged();
