@@ -268,7 +268,8 @@ internal static partial class BooruWorkbenchChecks
                 "The active tab's close button or the add button was clipped at 760 DIP.");
             await native.ClickAsync(close);
             await Program.WaitUntilAsync(() => !ReferenceEquals(tabs.SelectedItem, active));
-            Require(h.Search.Requests == 2 && h.Queue.Loads.Count == 0, "Gallery navigation or tab actions started unexpected provider work.");
+            Require(h.Search.Searches.Select(search => search.Page).SequenceEqual(new[] { 1, 2, 3 }) && h.Queue.Loads.Count == 0,
+                "Gallery navigation or tab actions started unexpected provider work.");
             Console.WriteLine("SMOKE booru live gallery: native focus, return, paging, tab position and marks, and chrome at 760 DIP.");
         }
         finally { window.Close(); }
