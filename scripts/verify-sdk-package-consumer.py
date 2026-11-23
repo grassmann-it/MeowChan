@@ -54,7 +54,8 @@ RESULT_NAME = "RESULT.json"
 # intentionally not a user/profile path and is only used when the lane did not
 # provide one (for example by a local maintainer running the gate manually).
 DEFAULT_HEAVY_LOCK = Path(os.environ["OCHAN_HEAVY_LOCK"]) if os.environ.get("OCHAN_HEAVY_LOCK") else (
-    Path(tempfile.gettempdir()) / "meowchan-heavy.lock"
+    Path.home() / ".cache" / "meowchan" / "heavy.lock" if os.name != "nt"
+    else Path(tempfile.gettempdir()) / "meowchan-heavy.lock"
 )
 
 FORBIDDEN_PATH_PARTS = {".ochan", "authstore"}

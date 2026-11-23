@@ -41,7 +41,8 @@ HEX_SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 DEFAULT_TIMEOUT_SECONDS = 180
 MAX_TIMEOUT_SECONDS = 1800
 DEFAULT_HEAVY_LOCK = Path(os.environ["OCHAN_HEAVY_LOCK"]) if os.environ.get("OCHAN_HEAVY_LOCK") else (
-    Path(tempfile.gettempdir()) / "meowchan-heavy.lock"
+    Path.home() / ".cache" / "meowchan" / "heavy.lock" if os.name != "nt"
+    else Path(tempfile.gettempdir()) / "heavy.lock"
 )
 
 SDK_ASSEMBLY = "MeowChan.PluginSdk.dll"
@@ -780,7 +781,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--timeout-seconds", type=int, default=DEFAULT_TIMEOUT_SECONDS,
                         help=f"Single budget including heavy.lock wait (1-{MAX_TIMEOUT_SECONDS}, default {DEFAULT_TIMEOUT_SECONDS}).")
     parser.add_argument("--heavy-lock", type=Path, default=DEFAULT_HEAVY_LOCK,
-                        help="Shared lock path (defaults to OCHAN_HEAVY_LOCK or tempdir/meowchan-heavy.lock).")
+                        help="Shared lock path (override the platform default or OCHAN_HEAVY_LOCK).")
     return parser
 
 

@@ -19,7 +19,7 @@ passed on ARM (`macos-15`) and Intel (`macos-15-intel`). Each job mounted its
 signed DMG, verified the app and Applications shortcut, copied the app out, and
 ran startup, bundled-VLC playback and the packaged desktop workflow from that
 copy. The run also paired both DMGs with their corresponding-source overlay.
-See [the platform evidence](platform-support.md#090-candidate-targeted-native-checks-and-final-packages).
+See [the 0.9.0 platform package record](platform-support.md#final-090-platform-packages-historical).
 This evidence belongs to that exact source. The targeted
 [Intel Mac run at `b76e2f1`](https://github.com/tfgrass/MeowChan/actions/runs/39682508602)
 passed native source checks at that checkpoint. The subsequent focused Apple
