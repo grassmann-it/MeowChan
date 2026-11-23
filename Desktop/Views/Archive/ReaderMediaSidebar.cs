@@ -303,7 +303,6 @@ internal sealed class ReaderMediaSidebar : Border
     private bool _stripSyncing;
     private Bitmap? _bitmap;
     private Action<Bitmap>? _release;
-    private bool _hover;
 
     // The texts and the toggle command of the host: the reader's sidebar says "post", the Media page's panel says "medium" (same view, other words).
     /// <summary>The key of the accessible region name and the Media page panel's empty header.</summary>
@@ -328,7 +327,7 @@ internal sealed class ReaderMediaSidebar : Border
 
     // In the header row, icon only: the words are its tooltip and name.
     internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen", Classes = { "icon-square", "ghost" } };
-    internal Button Close { get; } = new() { Name = "ReaderMediaSidebarClose", Classes = { "icon-square", "ghost" } };
+    internal PanelCloseButton Close { get; } = new("ReaderMediaSidebarClose");
 
     /// <summary>The picture frame: its size is the decode target (smoke and page seam).</summary>
     internal Control Frame => _frame;
@@ -418,9 +417,6 @@ internal sealed class ReaderMediaSidebar : Border
 
         // Icon only: the command's label is the name and the tooltip (with its shortcut); the catalog follows language and bindings.
         CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
-        Close.Content = CommandBindings.NamedIcon("x");
-        Close.Opacity = 0; // shown on hover and keyboard focus, like the reader's navigation cross (edge rule: top right)
-        Close.IsHitTestVisible = false;
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
         _headerActions.Children.Add(_favorite);
@@ -482,9 +478,6 @@ internal sealed class ReaderMediaSidebar : Border
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
-        TransientHover.Attach(this, hovered => { _hover = hovered; UpdateClose(); });
-        GotFocus += (_, _) => UpdateClose();
-        LostFocus += (_, _) => UpdateClose();
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
         Localize();
@@ -508,16 +501,7 @@ internal sealed class ReaderMediaSidebar : Border
         AutomationProperties.SetName(_strip, stripName);
         ToolTip.SetTip(_strip, stripName);
         string close = Texts.T(CloseKey);
-        ToolTip.SetTip(Close, ToggleCommandId == null ? close : CommandBindings.Tooltip(ToggleCommandId, null, close));
-        AutomationProperties.SetName(Close, close);
-    }
-
-    // Hidden at rest and then no click target either: an invisible cross must not close the sidebar under a click that meant the picture's corner.
-    private void UpdateClose()
-    {
-        bool shown = TransientHover.WindowUsable(this) && (_hover || IsKeyboardFocusWithin);
-        Close.Opacity = shown ? 1 : 0;
-        Close.IsHitTestVisible = shown;
+        Close.Localize(close, ToggleCommandId == null ? close : CommandBindings.Tooltip(ToggleCommandId, null, close));
     }
 
     // Reader hosts retain their single-click/video affordance. The Media preview may opt into a hand for its double-click gallery

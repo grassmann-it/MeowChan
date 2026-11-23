@@ -74,7 +74,7 @@ public sealed class GalleryMeasuredGeometryTests
         Texts.Initialize();
         string oldLanguage = Texts.Language;
         Texts.SetLanguage("en");
-        GallerySidePanel panel = new(new Button { Width = 32, Height = 32 }) { Width = width };
+        GallerySidePanel panel = new(new PanelCloseButton("Close")) { Width = width };
         Window window = new() { Width = 520, Height = 500, Content = panel };
         try
         {

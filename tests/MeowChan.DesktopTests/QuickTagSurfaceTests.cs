@@ -57,7 +57,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
     [Fact]
     public void GalleryHeaderCounterKeepsLiveTextVisibilityAndAccessibleNameInTheSidebar()
     {
-        GallerySidePanel panel = new(new Button());
+        GallerySidePanel panel = new(new PanelCloseButton("Close"));
         MediaPositionPill counter = panel.Position;
         Assert.Same(panel, counter.Parent);
         Assert.False(counter.Focusable);

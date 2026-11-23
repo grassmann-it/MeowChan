@@ -304,7 +304,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private Border? _decisionDivider;
     private IQuickTagExtraUndo? _extraUndo;
     private readonly TextBlock _title = new() { Classes = { "quick-tag-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
-    private readonly Button _close = new();
+    private readonly PanelCloseButton _close;
     private readonly IdentitySuggestionBox _input = new() { ProtectComposition = true };
     private readonly TextBlock _suggestionsHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly WrapPanel _strip = new() { ItemSpacing = StripItemSpacing, LineSpacing = 0, VerticalAlignment = VerticalAlignment.Top };
@@ -361,7 +361,8 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         _name = string.IsNullOrWhiteSpace(name) ? "QuickTag" : name;
         Name = _name;
         Focusable = false;
-        _close.Name = _name + "Close"; _input.Name = _name + "Input"; _strip.Name = _name + "Suggestions"; _more.Name = _name + "More";
+        _close = new PanelCloseButton(_name + "Close");
+        _input.Name = _name + "Input"; _strip.Name = _name + "Suggestions"; _more.Name = _name + "More";
         _allChips.Name = _name + "Assigned"; _someChips.Name = _name + "AssignedSome"; _status.Name = _name + "Status";
         _undo.Name = _name + "Undo"; _stamp.Name = _name + "Stamp"; _advanced.Name = _name + "Advanced"; _title.Name = _name + "Title"; _extra.Name = _name + "Extra";
         _stripHost.Name = _name + "SuggestionsHost"; _upper.Name = _name + "Body"; _flow.Name = _name + "Scroll";
@@ -385,7 +386,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         header.Children.Add(_title); Grid.SetColumn(_title, 1);
         header.Children.Add(_close); Grid.SetColumn(_close, 3);
         _counter.Margin = new Thickness(0, 0, 8, 0);
-        WorkspaceIcons.MakeSquare(_close, WorkspaceIcons.Close, Texts.T("tags.quick.close"), Texts.T("tags.quick.closeTip"));
         _close.VerticalAlignment = VerticalAlignment.Center;
 
         _assigned = new StackPanel { Spacing = 8, Children = { _allHeading, _allChips, _someHeading, _someChips, _assignedEmpty } };
@@ -994,8 +994,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         if (NavigationEnabled) hint += " " + QuickTagKeys.TextWithKey("tags.quick.fieldHintNavigation", QuickTagKeys.CommitNextGesture(_platform));
         AutomationProperties.SetHelpText(_input, hint);
         ToolTip.SetTip(_input, hint);
-        AutomationProperties.SetName(_close, Texts.T("tags.quick.close"));
-        ToolTip.SetTip(_close, Texts.T("tags.quick.closeTip"));
+        _close.Localize(Texts.T("tags.quick.close"));
         _suggestionsHeading.Text = Texts.T("tags.quick.suggestions");
         AutomationProperties.SetName(_strip, Texts.T("tags.quick.suggestions"));
         AutomationProperties.SetHelpText(_strip, Texts.T("tags.quick.suggestions.help"));

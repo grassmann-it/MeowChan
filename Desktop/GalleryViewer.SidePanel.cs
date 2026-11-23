@@ -41,7 +41,8 @@ internal sealed partial class GalleryViewer
     private void CreateSidePanel(Control postContent)
     {
         // The × keeps the name every smoke uses; it closes the whole host and the focus returns to the picture.
-        Button close = CloseLayerButton("GalleryReturnImage", () => { if (_contextOpen) SetContextOpen(false); });
+        PanelCloseButton close = new("GalleryReturnImage");
+        close.Click += (_, _) => { if (_contextOpen) SetContextOpen(false); };
         _sidePanel = new GallerySidePanel(close) { PostContent = postContent };
         _sidePanel.SegmentRequested += OnSidePanelSegmentRequested;
         _sidePanel.WidthDragged += width =>
@@ -69,7 +70,7 @@ internal sealed partial class GalleryViewer
         _sidePanel.SetTagsAvailable(tagsAvailable, _tagsUnavailableReason);
         _sidePanel.Localize();
         RefreshPanelCounter(); // the host header's owner-supplied position text follows language changes too
-        RefreshCloseLayerButton(_sidePanel.CloseButton, Texts.T("gallery.panel.close"));
+        _sidePanel.CloseButton.Localize(Texts.T("gallery.panel.close"));
     }
 
     private void RefreshPanelCounter()

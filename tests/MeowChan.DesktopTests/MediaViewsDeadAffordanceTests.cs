@@ -123,7 +123,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     });
 
     [Fact]
-    public void TheSidebarsCrossIsNoClickTargetWhileItIsInvisible() => BooruComponentDispatcher.Run(() =>
+    public void TheSidebarsCrossIsVisibleAndClickableWithOrWithoutHover() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ReaderMediaSidebar sidebar = new();
@@ -135,8 +135,8 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             window.PlatformImpl!.Activated?.Invoke();
             Dispatcher.UIThread.RunJobs();
             Assert.True(sidebar.Bounds.Width > 0);
-            Assert.Equal(0, sidebar.Close.Opacity);
-            Assert.False(sidebar.Close.IsHitTestVisible);
+            Assert.Equal(1, sidebar.Close.Opacity);
+            Assert.True(sidebar.Close.IsHitTestVisible);
 
             Point inside = sidebar.TranslatePoint(new Point(sidebar.Bounds.Width / 2, 20), window)!.Value;
             window.MouseMove(inside);
@@ -146,8 +146,8 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
 
             window.MouseMove(new Point(window.ClientSize.Width - 1, inside.Y));
             Dispatcher.UIThread.RunJobs();
-            Assert.Equal(0, sidebar.Close.Opacity);
-            Assert.False(sidebar.Close.IsHitTestVisible);
+            Assert.Equal(1, sidebar.Close.Opacity);
+            Assert.True(sidebar.Close.IsHitTestVisible);
         }
         finally { window.Close(); }
     });

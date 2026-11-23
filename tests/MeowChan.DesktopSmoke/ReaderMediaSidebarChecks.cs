@@ -106,7 +106,7 @@ internal static class ReaderMediaSidebarChecks
                 await native.MoveAsync(sidebar.Frame);
                 await Program.WaitUntilAsync(() => sidebar.Close.Opacity == 1 && sidebar.Close.IsHitTestVisible);
                 await native.MoveAsync(posts);
-                await Program.WaitUntilAsync(() => sidebar.Close.Opacity == 0 && !sidebar.Close.IsHitTestVisible);
+                await Program.WaitUntilAsync(() => sidebar.Close.Opacity == 1 && sidebar.Close.IsHitTestVisible);
             }
             // The column takes its width in the next layout pass after the sidebar is shown.
             await Program.WaitUntilAsync(() => Math.Abs(frame.ColumnDefinitions[0].ActualWidth - page.ReaderMedia.SidebarWidth) <= 1,
@@ -231,7 +231,7 @@ internal static class ReaderMediaSidebarChecks
 
     private static void CheckDisabledGalleryTagsTooltip(Window owner)
     {
-        GallerySidePanel panel = new(new Button());
+        GallerySidePanel panel = new(new PanelCloseButton("Close"));
         Window fixture = new() { Content = panel, Width = 400, Height = 240, ShowInTaskbar = false };
         string reason = Texts.T("archive.notSaved");
         try

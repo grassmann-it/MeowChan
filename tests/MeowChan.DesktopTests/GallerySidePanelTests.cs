@@ -21,8 +21,9 @@ public sealed class GallerySidePanelTests : IDisposable
 
     private static GallerySidePanel Panel(out Button close)
     {
-        close = new Button { Name = "GalleryReturnImage" };
-        return new GallerySidePanel(close) { PostContent = new StackPanel { Children = { new Button { Name = "PostAction" } } },
+        PanelCloseButton cross = new("GalleryReturnImage");
+        close = cross;
+        return new GallerySidePanel(cross) { PostContent = new StackPanel { Children = { new Button { Name = "PostAction" } } },
             TagContent = new StackPanel { Children = { new TextBox { Name = "TagField" } } } };
     }
 
@@ -264,7 +265,6 @@ public sealed class GallerySidePanelTests : IDisposable
     public void TheHostSitsInThePostPanelSlotAndKeepsTheCloseButtonsName()
     {
         string side = ReadSource("Desktop/GalleryViewer.SidePanel.cs");
-        Assert.Contains("CloseLayerButton(\"GalleryReturnImage\"", side);
         Assert.Contains("_contextPanel.Child = _sidePanel;", side);
         string viewer = ReadSource("Desktop/GalleryViewer.cs");
         // The card has no header of its own any more: no title and no second "Back to image" button in the post content.
