@@ -126,7 +126,8 @@ internal static class GalleryMediaTagChecks
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
-            Require(viewer.SidePanel.TagSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any(), "The Tags tab has no fact grid.");
+            window.UpdateLayout();
+            await UntilAsync(() => viewer.SidePanel.TagSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any());
             Program.CaptureWindow(window, "smoke-112-p2-gallery-tags.png");
             await CaptureRateAndTagPopoverAsync(window, viewer, bound);
             // TP4: Shift+Page Down marks the shown medium and moves on, Shift+Page Up goes back and unmarks it. The counter chip shows
