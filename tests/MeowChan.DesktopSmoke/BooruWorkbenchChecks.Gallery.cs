@@ -58,9 +58,11 @@ internal static partial class BooruWorkbenchChecks
             {
                 shell.Show(owner);
                 await host.StartAsync();
+                await Program.WaitUntilAsync(() => host.State == DesktopSessionState.Ready
+                    && shell.FindControl<Button>("AddUrlButton")!.IsEnabled,
+                    () => $"The popout profile shell did not finish startup: {host.State}.");
                 Reconcile.Invoke(shell, null);
-                await SmokeNavigation.GoToAsync(shell, MainWindow.WorkspacePage.Booru);
-                BooruPage page = shell.BooruPageForTests!;
+                BooruPage page = await OpenPageAsync(shell, shell.FindControl<MenuItem>("WorkspaceMenuItem")!);
                 await page.ActivateAsync();
                 page.View.ShowQuery("cat");
                 await page.Model.Search.SubmitAsync();
