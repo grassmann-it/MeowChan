@@ -1667,6 +1667,10 @@
                             </StackPanel>
                         </Grid>
                     </Border>
+                    <StackPanel x:Name="BooruListBasicFields" />
+                    <Expander x:Name="BooruListAdvanced" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <StackPanel x:Name="BooruListAdvancedFields" />
+                    </Expander>
                     <Border Classes="settings-divider">
                         <Grid Classes="settings-row" ColumnDefinitions="*,280" RowDefinitions="Auto,Auto" ColumnSpacing="{StaticResource Workspace.Space.24}">
                             <StackPanel Classes="settings-label" Spacing="{StaticResource Workspace.Space.4}" VerticalAlignment="Center">
