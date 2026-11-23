@@ -113,7 +113,9 @@ public partial class MainWindow
         _windowPreferenceTimer.Stop(); _windowPreferenceTimer.Start();
     }
 
-    private Task FlushWindowPreferencesAsync()
+    private Task FlushWindowPreferencesAsync() => SaveWindowPreferencesAsync(booruViewerBounds: null);
+
+    private Task SaveWindowPreferencesAsync((Size Size, PixelPoint Position)? booruViewerBounds)
     {
         _windowPreferenceTimer?.Stop();
         if (!_windowPreferencesReady) return _windowPreferenceSave;
@@ -136,6 +138,7 @@ public partial class MainWindow
                 current.WindowWidth = client.Width; current.WindowHeight = client.Height;
                 current.WindowPositionX = position.X; current.WindowPositionY = position.Y;
                 current.WindowMaximized = maximized;
+                if (booruViewerBounds is { } bounds) current.WriteBooruViewerBounds(bounds);
                 foreach (var mode in columns)
                     foreach (var pair in mode.Value) current.GetLayoutProfile(mode.Key).ColumnWidths[pair.Key] = pair.Value;
                 foreach (var mode in order)

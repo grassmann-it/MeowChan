@@ -102,6 +102,7 @@ internal static partial class BooruWorkbenchChecks
             page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
             await CheckSearchRowResizeAsync(owner, h, shots);
             await CheckLiveGalleryAsync(owner);
+            await CheckPopoutBoundsAfterShutdownAsync(owner);
             await CheckTabStripAsync(owner, page, shots);
             await CheckInvalidInputAsync(page, input);
             input.Text = "cat blue_eyes";

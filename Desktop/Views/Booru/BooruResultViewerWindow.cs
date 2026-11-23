@@ -202,12 +202,10 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing) return;
+        if (e.Handled || ShortcutService.IsCapturing || BooruGalleryToolbar.ChildOwnsKeys(e)) return;
         _toolbar.RouteKey(e, _viewer);
         if (e.Handled || e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter) return;
         using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
-        // Let the read-only tags keep the platform's copy and text-selection gestures.
-        if (e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(_tags)) return;
         // Permit only image-view commands through to the composed viewer; local-media commands,
         // slideshow, rating and tagging do not apply to a result that has not been downloaded.
         if (e.Key == Key.Tab || new[] { "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.rotate" }
@@ -231,8 +229,10 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
             || _shownPreview != row.Preview || !ReferenceEquals(_shownBytes, row.PreviewBytes)))
             ShowPreview(row);
 
-        _sample.Start(_search.Samples, row.Post, _sampleSettings, BooruGallerySampleLoader.DefaultDelay,
-            (bytes, width, pixels) => BooruGalleryPanel.DecodeBitmap(bytes, width, pixels), image => ApplySample(row, image));
+        if (IsVisible)
+            _sample.Start(_search.Samples, row.Post, _sampleSettings, BooruGallerySampleLoader.DefaultDelay,
+                (bytes, width, pixels) => BooruGalleryPanel.DecodeBitmap(bytes, width, pixels), image => ApplySample(row, image),
+                () => { if (!_ended && Row is { } current) RenderCaption(current); });
         RenderCaption(row);
     }
 
@@ -253,17 +253,19 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
         OpenActions.Start(() => _viewer.ShowAsync(entry, CancellationToken.None), "booru.viewer.show");
     }
 
-    private bool ApplySample(BooruResultRowView requested, IImage? image)
+    private bool ApplySample(BooruResultRowView requested, IImage image)
     {
-        if (_ended || !IsVisible || Row is not { } row || !ReferenceEquals(requested.Post, row.Post)) return false;
-        if (image is Bitmap bitmap)
+        if (_ended || !IsVisible || image is not Bitmap bitmap
+            || Row is not { } row || !ReferenceEquals(requested.Post, row.Post)) return false;
+        GalleryEntry entry = _shownEntry ?? CreateDisplayEntry(row, length: 0);
+        if (!_viewer.TryPresentDisplayVariant(_shownEntry, entry, bitmap))
         {
-            GalleryEntry entry = _shownEntry ?? CreateDisplayEntry(row, length: 0);
-            if (!_viewer.TryPresentDisplayVariant(_shownEntry, entry, bitmap)) return false;
-            _shownEntry = entry;
-            _shownBytes = null;
+            // Rebuild the expected preview on the next refresh if the viewer's entry was replaced.
+            _shownPreview = null;
+            return false;
         }
-        RenderCaption(row);
+        _shownEntry = entry;
+        _shownBytes = null;
         return true;
     }
 
@@ -271,10 +273,8 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
     {
         BooruGalleryPicture picture = _sample.State == BooruGallerySampleState.Shown ? BooruGalleryPicture.Sample
             : row.Preview == BooruPreviewState.Ready ? BooruGalleryPicture.Preview : BooruGalleryPicture.None;
-        BooruGallerySampleState state = _sample.State == BooruGallerySampleState.NotOffered
-            ? BooruGallerySampleState.Deferred : _sample.State;
         BooruGallerySampleLimits limits = _sample.Limits;
-        _caption.Text = BooruGalleryStatus.Line(row, picture, state,
+        _caption.Text = BooruGalleryStatus.Line(row, picture, _sample.State,
             limits.Bytes / (1024 * 1024), limits.MaximumPixels, limits.TimeoutSeconds);
     }
 

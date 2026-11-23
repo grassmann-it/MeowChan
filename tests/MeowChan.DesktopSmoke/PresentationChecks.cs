@@ -230,7 +230,10 @@ internal static class PresentationChecks
         Button add = window.FindControl<Button>("AddUrlButton")!;
         DataGrid grid = window.FindControl<DataGrid>("ThreadsDataGrid")!;
         Border inspector = window.FindControl<Border>("WorkspaceInspector")!;
+        ScrollViewer intake = window.FindControl<ScrollViewer>("WorkspaceIntakeScroll")!;
         Border results = window.FindControl<Border>("AdmissionResultsPanel")!;
+        ScrollViewer resultViewport = window.FindControl<ScrollViewer>("AdmissionResultsScroll")!;
+        Border downloads = window.FindControl<Border>("DownloadsPanel")!;
         string? draft = input.Text;
         try
         {
@@ -258,7 +261,6 @@ internal static class PresentationChecks
                 ?? throw new InvalidOperationException("The URL results expander is missing.");
             resultExpander.IsExpanded = true;
             Click(add);
-            ScrollViewer resultViewport = window.FindControl<ScrollViewer>("AdmissionResultsScroll")!;
             await WaitForLayoutAsync(window, () => add.IsEnabled && results.IsEffectivelyVisible && results.Bounds.Height > 0
                 && resultViewport.Bounds.Height > 0 && InViewport(window, resultViewport)
                 && FitsVertically(resultViewport, results)
@@ -294,9 +296,10 @@ internal static class PresentationChecks
                 && sources.Text.Contains("https://8kun.top/", StringComparison.Ordinal)
                 && providers.All(provider => sources.Text.Contains(provider.DisplayName + " (" + provider.BaseUri.AbsoluteUri + ")", StringComparison.Ordinal)),
                 "The scrollable results lost rejected URLs or the separate registered-source help.");
-            await WaitForLayoutAsync(window, () => InViewport(window, input) && InViewport(window, add)
+            // The intake clips its scrollable content. Compare the visible viewports with the table.
+            await WaitForLayoutAsync(window, () => FitsVertically(input, intake) && FitsVertically(add, intake)
                 && grid.IsEffectivelyVisible && grid.Bounds.Height >= grid.RowHeight
-                && IsBelow(results, window.FindControl<Border>("DownloadsPanel")!, window)
+                && FitsVertically(resultViewport, intake) && IsBelow(intake, downloads, window)
                 && grid.GetVisualDescendants().OfType<DataGridRow>().Any(row => row.IsEffectivelyVisible
                     && ReferenceEquals(row.DataContext, selected) && FitsVertically(row, grid)));
             double tableHeight = grid.Bounds.Height;
@@ -331,7 +334,8 @@ internal static class PresentationChecks
                 inputInViewport = InViewport(window, input), addInViewport = InViewport(window, add),
                 grid.IsEffectivelyVisible, gridHeight = grid.Bounds.Height.ToString(), rowHeight = grid.RowHeight.ToString(),
                 gridAtLeastOneRow = grid.Bounds.Height >= grid.RowHeight,
-                resultsBeforeDownloads = IsBelow(results, window.FindControl<Border>("DownloadsPanel")!, window),
+                reportViewportFitsIntake = FitsVertically(resultViewport, intake),
+                intakeBeforeDownloads = IsBelow(intake, downloads, window),
                 selectedMatches = ReferenceEquals(grid.SelectedItem, selected),
                 selectedRows = grid.GetVisualDescendants().OfType<DataGridRow>()
                     .Where(row => ReferenceEquals(row.DataContext, selected)).Select(row => new
@@ -344,7 +348,7 @@ internal static class PresentationChecks
                     }).ToArray()
             }));
             foreach (string name in new[] { "WorkspaceHeader", "WorkspacePages", "ShellActionErrorBanner", "WorkspaceBody", "WorkspaceIntakeCard",
-                "WorkspaceContentGrid", "UrlInput", "AddUrlButton", "AdmissionResultsPanel",
+                "WorkspaceContentGrid", "WorkspaceIntakeScroll", "UrlInput", "AddUrlButton", "AdmissionResultsPanel",
                 "AdmissionResultsScroll", "DownloadsPanel", "DownloadsTabs", "ThreadsDataGrid", "WorkspaceInspector", "InspectorCloseButton" })
             {
                 Control? control = window.FindControl<Control>(name);

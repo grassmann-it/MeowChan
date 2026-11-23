@@ -4,10 +4,138 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using MeowChan.Archive;
 using MeowChan.Desktop.Localization;
 using MeowChan.FolderSources;
+using MeowChan.Persistence;
+using Serilog;
 
 namespace MeowChan.Desktop;
+
+/// <summary>Owns the isolated profile of a positional folder start until the desktop lifetime ends.</summary>
+internal sealed class StartupFolderSession : IDisposable
+{
+    private (string Path, ProfileDirectoryIdentity Identity)? _temporaryProfile;
+
+    internal string Source { get; }
+    internal string? SelectedProfile { get; set; }
+
+    internal StartupFolderSession(string source) => Source = Path.TrimEndingDirectorySeparator(Path.GetFullPath(source));
+
+    internal static string? ReadPositionalPath(string[] args)
+    {
+        if (args is not [string folder] || string.IsNullOrWhiteSpace(folder) || folder[0] == '-' || folder.Any(char.IsControl))
+            return null;
+        return Path.TrimEndingDirectorySeparator(Path.GetFullPath(folder));
+    }
+
+    internal StartupMediaFolderArgument Registration => new(Source, StartupMediaFolderProblem.None, OpenMediaView: true);
+
+    internal string? SourceProblem(IEnumerable<string> protectedFolders)
+    {
+        if (!IsPlainPath(Source) || !Directory.Exists(Source) || Source.Length > FolderSourceCatalog.MaximumPathLength)
+            return "profile.error.mediaUnavailable";
+        if (protectedFolders.Any(folder => FolderSourceValidation.Overlaps(Source, folder)))
+            return "profile.error.mediaUnsafe";
+        try
+        {
+            using IEnumerator<string> probe = Directory.EnumerateFileSystemEntries(Source).GetEnumerator();
+            probe.MoveNext();
+            return null;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException)
+        {
+            return "profile.error.mediaUnavailable";
+        }
+    }
+
+    internal string? ProfileProblem(string profile, IEnumerable<string> protectedFolders)
+    {
+        if (SourceProblem(protectedFolders.Append(profile)) is { } problem) return problem;
+        if (!IsPlainPath(profile) || ProfileOpenPolicy.Classify(profile) != ProfileFolderKind.Existing)
+            return "profile.status.notProfile";
+        if (ProfileLease.IsInUse(profile)) return "profile.status.inUse";
+        Config config = Config.LoadConfig(profile);
+        if (!config.AllowsOrdinaryWrites) throw SettingsRecoveryRequiredException.For(config, profile);
+        if (!IsPlainPath(config.DownloadPath) || FolderSourceValidation.Overlaps(Source, config.DownloadPath))
+            return "profile.error.mediaUnsafe";
+        return null;
+    }
+
+    internal string PrepareTemporaryProfile(string language, IEnumerable<string> protectedFolders)
+    {
+        if (_temporaryProfile is not null) throw new InvalidOperationException("A temporary profile already exists for this start.");
+        string tempParent = ResolveTempPath(Path.GetTempPath());
+        if (protectedFolders.Append(Source).Any(folder => FolderSourceValidation.SameOrBelow(tempParent, folder)))
+            throw new IOException("The temporary directory is inside a protected folder.");
+
+        // The OS creates a unique directory with private permissions on Unix. Use its physical
+        // path so the profile can also open under macOS's /var -> /private/var alias.
+        DirectoryInfo created = Directory.CreateTempSubdirectory("MeowChan-folder-");
+        string directory = Path.Combine(tempParent, created.Name);
+        ArchiveExportMetadataFile.RejectLinks(directory);
+        _temporaryProfile = (directory, ProfileDirectoryIdentity.Capture(directory));
+        using ProfileLease lease = ProfileLease.Acquire(directory);
+        Config config = Config.LoadConfig(lease.ProfileDirectory, lease);
+        config.DownloadPath = Path.Combine(lease.ProfileDirectory, "downloads");
+        config.FirstRunSetupVersion = 1;
+        config.AutomaticUpdateChecks = false;
+        config.Language = language;
+        config.SaveConfig(lease.ProfileDirectory);
+        return lease.ProfileDirectory;
+    }
+
+    private static string ResolveTempPath(string path)
+    {
+        DirectoryInfo directory = new(Path.TrimEndingDirectorySeparator(Path.GetFullPath(path)));
+        if (directory.Parent is not { } parent) return directory.FullName;
+        DirectoryInfo child = new(Path.Combine(ResolveTempPath(parent.FullName), directory.Name));
+        return child.ResolveLinkTarget(returnFinalTarget: true)?.FullName ?? child.FullName;
+    }
+
+    internal bool RemoveTemporaryProfile()
+    {
+        if (_temporaryProfile is not { } owned) return true;
+        try
+        {
+            ArchiveExportMetadataFile.RejectLinks(owned.Path);
+            if (Directory.Exists(owned.Path))
+            {
+                owned.Identity.EnsureMatches(owned.Path);
+                if (ProfileLease.IsInUse(owned.Path))
+                    throw new IOException("The temporary profile still has an owner.");
+                // Recursive Directory.Delete removes link entries without following them.
+                Directory.Delete(owned.Path, recursive: true);
+            }
+            else if (File.Exists(owned.Path))
+            {
+                throw new IOException("The temporary profile directory has been replaced.");
+            }
+            _temporaryProfile = null;
+            return true;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            Log.Warning(error, "The temporary folder profile could not be removed.");
+            return false;
+        }
+    }
+
+    public void Dispose() => RemoveTemporaryProfile();
+
+    internal static bool IsPlainPath(string path)
+    {
+        try
+        {
+            ArchiveExportMetadataFile.RejectLinks(path);
+            return true;
+        }
+        catch (Exception error) when (error is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return false;
+        }
+    }
+}
 
 internal enum StartupMediaFolderStatus
 {
@@ -39,14 +167,17 @@ internal static class StartupMediaFolderRegistration
         if (argument.Problem == StartupMediaFolderProblem.Malformed) return Task.FromResult(Refused("profile.startMedia.badArgument"));
         if (argument.Problem == StartupMediaFolderProblem.NeedsProfile) return Task.FromResult(Refused("profile.startMedia.needsProfile"));
         // Every catalog and file system check runs on a worker: the folder may be on a slow or sleeping disk (W3-12).
-        return Task.Run(() => RegisterCoreAsync(session, argument.Path ?? string.Empty, otherProfileFolders, token), token);
+        return Task.Run(() => RegisterCoreAsync(session, argument, otherProfileFolders, token), token);
     }
 
-    private static async Task<StartupMediaFolderResult> RegisterCoreAsync(DesktopSessionHost session, string folder,
+    private static async Task<StartupMediaFolderResult> RegisterCoreAsync(DesktopSessionHost session, StartupMediaFolderArgument argument,
         IReadOnlyList<string> otherProfileFolders, CancellationToken token)
     {
         try
         {
+            string folder = argument.Path ?? string.Empty;
+            if (argument.OpenMediaView && !StartupFolderSession.IsPlainPath(folder))
+                return Refused("profile.error.mediaUnavailable");
             // The roots alone: the per-source counts of ListFolderSources are not needed to see whether the folder is already added.
             IReadOnlyList<FolderSourceRoot> roots = session.ReadFolderSourceRoots();
             // Already added (for example a restart that still carries the argument): nothing to do, nothing to say.

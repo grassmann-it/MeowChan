@@ -107,5 +107,16 @@ internal static class ProfileCatalog
         ("profile.startMedia.refused", "The media folder for this profile was not added. {0}", "Der Medienordner für dieses Profil wurde nicht hinzugefügt. {0}"),
         ("profile.startMedia.badArgument", "The start argument for the media folder was incomplete.", "Das Startargument für den Medienordner war unvollständig."),
         ("profile.startMedia.needsProfile", "A media folder can only be handed over when a profile is opened.", "Ein Medienordner kann nur beim Öffnen eines Profils mitgegeben werden."),
+
+        ("profile.folderSession.title", "Open media folder", "Medienordner öffnen"),
+        ("profile.folderSession.adopt", "Add to selected profile", "Ins gewählte Profil übernehmen"),
+        ("profile.folderSession.adoptHint", "Add the folder to the selected profile as a read-only source. Media files stay in place.",
+            "Füge den Ordner dem gewählten Profil als schreibgeschützte Quelle hinzu. Die Mediendateien bleiben an ihrem Ort."),
+        ("profile.folderSession.temporary", "Open temporarily", "Temporär öffnen"),
+        ("profile.folderSession.temporaryHint", "Open the folder with a separate temporary profile. Changes in that profile are discarded when you close it.",
+            "Öffne den Ordner mit einem separaten temporären Profil. Änderungen in diesem Profil werden beim Schließen verworfen."),
+        ("profile.folderSession.discard", "Discard and close", "Verwerfen und schließen"),
+        ("profile.folderSession.discardHint", "Discard the temporary profile and all changes in it? The media folder will stay unchanged.",
+            "Das temporäre Profil und alle Änderungen darin verwerfen? Der Medienordner bleibt unverändert."),
     };
 }

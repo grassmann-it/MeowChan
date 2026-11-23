@@ -151,6 +151,8 @@ public sealed class SourcesPluginsDesktopContractTests
         Assert.Contains("errors = await ValidateInWorkerAsync(worker, configuration, token);", save);
         Assert.Contains("SaveConfigurationAsync(entry.PluginId, draft.CandidateId, configuration, draft.ExpectedRevision, token)", save);
         Assert.Contains("if (!Current(generation)) return;", save);
+        Assert.Contains("selectBuild.Focus();", save);
+        Assert.Contains("savedBuildDraft ? \"plugins.draftBuildLocked\"", Read("Desktop/Views/Plugins/PluginsPage.axaml.cs"));
         Assert.Contains("SetAction(\"PluginSave\", stale ? \"plugins.stale\" : \"plugins.reason.unchanged\", draft?.Dirty == true && !stale)", Read("Desktop/Views/Plugins/PluginsPage.axaml.cs"));
         string shortcuts = Read("Desktop/Shell/MainWindow.Shortcuts.cs");
         Assert.Contains("_selectedPage == WorkspacePage.Sources && _pluginsPage?.IsDiscardConfirmationOpen == true", shortcuts);

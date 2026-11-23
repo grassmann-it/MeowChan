@@ -303,12 +303,19 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Assert.True(frame.IsVisible && frame.IsHitTestVisible);
             Assert.False(strip.IsVisible);
             Assert.Same(readerFocus, window.FocusManager!.GetFocusedElement());
-            foreach (string name in CaptionButtonNames)
+            bool ownCaptionButtons = WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode);
+            Button shellFullscreen = window.FindControl<Button>("FullscreenButton")!;
+            foreach (Button button in CaptionButtonNames.Select(name => window.FindControl<Button>(name)!).Prepend(shellFullscreen))
             {
-                Button button = window.FindControl<Button>(name)!;
+                // The app's fullscreen command is available with both native and custom captions.
+                if (!ownCaptionButtons && button != shellFullscreen)
+                {
+                    Assert.False(button.IsEffectivelyVisible);
+                    continue;
+                }
                 Point point = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
                 window.MouseMove(point);
-                Assert.True(button.IsEffectivelyVisible && button.IsEffectivelyEnabled && button.IsPointerOver);
+                Assert.True(button.IsEffectivelyVisible && button.IsEffectivelyEnabled && button.IsPointerOver, button.Name);
             }
             window.MouseMove(new Point(300, 250));
             Layout();
@@ -322,11 +329,11 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Layout();
             Button brand = window.FindControl<Button>("BrandAboutButton")!;
             Assert.Same(brand, window.FocusManager.GetFocusedElement());
-            Button close = window.FindControl<Button>("WindowCloseButton")!;
-            Assert.True(close.Focus(NavigationMethod.Tab));
+            Button headerAction = ownCaptionButtons ? window.FindControl<Button>("WindowCloseButton")! : shellFullscreen;
+            Assert.True(headerAction.Focus(NavigationMethod.Tab));
             Layout();
             Assert.True(frame.IsVisible);
-            Assert.True(Press(close, Key.F6));
+            Assert.True(Press(headerAction, Key.F6));
             Layout();
             Assert.Same(readerFocus, window.FocusManager.GetFocusedElement());
             Assert.False(frame.IsVisible);

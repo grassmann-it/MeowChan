@@ -47,7 +47,7 @@ public partial class MainWindow
             return;
         }
 
-        if (_config.CloseToTray && e.CloseReason == WindowCloseReason.WindowClosing)
+        if (!TemporaryFolderSession && _config.CloseToTray && e.CloseReason == WindowCloseReason.WindowClosing)
         {
             MinimizeWindow();
             return;
@@ -180,10 +180,11 @@ public partial class MainWindow
             ConfirmCloseDuringArchiveDeletionAsync,
             () => _postBookmarkEditor?.PrepareToCloseAsync() ?? Task.FromResult(true),
             () => _postBookmarksDialog?.PrepareToCloseAsync() ?? Task.FromResult(true),
+            ConfirmTemporaryFolderCloseAsync,
         });
         if (!confirmed)
         {
-            Log.Information("Closing the application was kept back by a running permanent deletion or an open dialog with unsaved changes.");
+            Log.Information("A shutdown confirmation kept the application open.");
             if (IsArchiveDeletionRunning) _archiveDeletionDialog?.Activate();
             else if (_postBookmarkEditor is Window editor) editor.Activate();
             else if (_postBookmarksDialog is Window bookmarks) bookmarks.Activate();
@@ -220,6 +221,7 @@ public partial class MainWindow
                 quickSettings = _archivePage?.FlushQuickSettingsAsync() ?? Task.CompletedTask;
             });
             budget.Run("booru-tabs-flush", () => booruSearchTabs = FlushBooruSearchTabsAsync());
+            var booruViewerBounds = _booruPage?.View.OpenViewerBounds;
             _isClosing = true;
             _shutdownRunning = true;
             budget.Run("clipboard-monitor", StopClipboardMonitor);
@@ -253,7 +255,7 @@ public partial class MainWindow
             // R10: the reader's inline players, the media sidebar's and the Media panel's are native players too. They are released
             // now, while their drawables are still attached, instead of fire-and-forget when the closed window detaches them.
             Task inlineVideos = ReleaseShellVideosForShutdown();
-            Task windowPreferences = FlushWindowPreferencesAsync();
+            Task windowPreferences = SaveWindowPreferencesAsync(booruViewerBounds);
             Task galleryPreferences = FlushGalleryPreferencesAsync();
             Task readingPosition = _readingPositionSave;
             Task finalPreferences = FlushFinalPreferencesAsync(windowPreferences, galleryPreferences, readingPosition, quickSettings);

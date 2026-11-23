@@ -34,6 +34,9 @@
     <!-- These test the Debug-only acceptance harness, not product behavior; unchanged assertions run in Debug. -->
     <Compile Include="../Shared/Apphost/ApphostAcceptanceAssertions.cs;../Shared/Apphost/ApphostPlaybackDiagnostics.cs" Condition="'$(Configuration)' != 'Debug'" />
     <Compile Remove="Apphost*SmokeTests.cs" Condition="'$(Configuration)' != 'Debug'" />
+    <EmbeddedResource Include="LocalizationAudit/*.json"
+                      WithCulture="false"
+                      LogicalName="MeowChan.DesktopTests.LocalizationAudit.%(Filename)%(Extension)" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

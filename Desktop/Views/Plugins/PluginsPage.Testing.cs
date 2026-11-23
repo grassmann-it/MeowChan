@@ -10,6 +10,7 @@ using MeowChan.Desktop.WorkViews;
 using MeowChan.Desktop.Plugins;
 using MeowChan.PluginHost.Activation;
 using MeowChan.PluginHost.Compilation;
+using MeowChan.PluginHost.Configuration;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginSdk;
 
@@ -62,7 +63,7 @@ public partial class PluginsPage
         PluginArtifact? artifact = entry.ConfigurationArtifact;
         if (artifact == null) { ErrorLocalized("plugins.noArtifact"); FocusFirstSettingError(); return; }
         (long generation, CancellationToken token) = BeginOperation();
-        bool focusSaveError = false;
+        bool focusSaveError = false, revealBuildSelection = false;
         try
         {
             await using (IPluginWorkerClient worker = await _services.StartTestWorkerAsync(artifact, configuration, token))
@@ -72,9 +73,11 @@ public partial class PluginsPage
                 ShowFieldErrors(errors);
                 if (errors.Count > 0) { focusSaveError = true; return; }
             }
-            await _services.ProfileStore.SaveConfigurationAsync(entry.PluginId, draft.CandidateId, configuration, draft.ExpectedRevision, token);
+            PluginProfileSnapshot saved = await _services.ProfileStore.SaveConfigurationAsync(entry.PluginId, draft.CandidateId, configuration, draft.ExpectedRevision, token);
             if (!Current(generation)) return;
-            _drafts.Remove(entry.Key); _renderedKey = null; _savedNoticeKey = entry.Key;
+            PluginActivationSnapshot activation = saved.Plugins.Single(plugin => plugin.PluginId == entry.PluginId);
+            revealBuildSelection = (entry with { Activation = activation }).SavedBuildDraft is not null;
+            _drafts.Remove(entry.Key); _renderedKey = null; _savedNoticeKey = revealBuildSelection ? null : entry.Key;
             await RefreshAsync();
         }
         catch (OperationCanceledException) { }
@@ -85,6 +88,12 @@ public partial class PluginsPage
             // The test worker's asynchronous disposal must finish before focusing enabled controls.
             if (focusSaveError && !_ended && generation == _operationGeneration && ReferenceEquals(CurrentDraft, draft))
                 FocusFirstSettingError();
+            if (revealBuildSelection && !_ended && generation == _operationGeneration && _selectedKey == entry.Key &&
+                C<Button>("PluginSelectCandidate") is { IsEffectivelyVisible: true, IsEnabled: true } selectBuild)
+            {
+                selectBuild.BringIntoView();
+                selectBuild.Focus();
+            }
         }
     }
     private void ShowFieldErrors(IReadOnlyList<PluginConfigurationFieldError> errors, bool focusFirstError = false)

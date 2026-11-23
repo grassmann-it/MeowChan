@@ -178,7 +178,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 PluginReleaseSnapshot? release = null;
                 BundledRepairBinding? automaticBinding = null;
                 (string From, string Path, string Carried)? carryOver = null;
-                bool sdkUpgrade = false, pinnedUpdate = false, movedBundle = false;
+                bool sdkUpgrade = false, pinnedUpdate = false, movedBundle = false, installedBuildChanged = false;
                 if (superseded.Contains(pluginId))
                     next = next with { Problem = "Replaced by the bundled plugin '" + SupersededBundledPlugins[pluginId] + "', which serves the same sources." };
                 else if (old.Pinned is not null)
@@ -244,6 +244,13 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                     bool deliveredCandidate = candidate is not null && document.Provenance.Any(p => BundledCandidateMigration.Matches(p, candidate));
                     bool deliveredIdentity = candidate is not null && (binding is not null || previous.Provenance is not null ||
                         document.Provenance.Any(p => p.CandidateId == candidate.CandidateId));
+                    if (!deliveredIdentity && candidate is { Artifact: { } observed, Description: not null, Problem: null, IsPresent: true })
+                    {
+                        PluginArtifact? retained = RetainedInstalledArtifact(old, candidate, previous);
+                        installedBuildChanged = InstalledBuildChanged(candidate, retained, buildChanged);
+                        if (old.Active is null && old.LastGood is null)
+                            next = next with { UnconfiguredInstalledBuild = retained ?? observed };
+                    }
                     // An explicitly selected same-code local Pending may relocate established code,
                     // but may not attest a first activation, claim delivered provenance or mask material changes.
                     bool selectedLocalAlias = candidate is not null && old.SelectedCandidateId == candidate.CandidateId &&
@@ -333,8 +340,14 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                         next = next with { Problem = PluginActivationProblems.NoTrustedBasis };
                     else if (deliveredCandidate && buildChanged && !bindingMatches && !automaticBundleUpdate)
                         next = next with { Problem = PluginActivationProblems.ExecutableChanged };
-                    else if (!deliveredIdentity && RequiresInstalledBuildSelection(old, candidate, previous, buildChanged))
+                    else if (installedBuildChanged && !HasExplicitBuildSelection(old, candidate))
+                    {
                         next = next with { Problem = PluginActivationProblems.InstalledBuildChanged };
+                        // Older profiles used Pending for both saving settings and selecting a build.
+                        // Keep those settings, but ask for a fresh selection of the changed executable.
+                        if (MatchingBuildDraft(old.Pending, candidate) is { } legacy)
+                            next = next with { Pending = null, InstalledBuildDraft = MatchingBuildDraft(old.InstalledBuildDraft, candidate) ?? legacy };
+                    }
                     // Persisted consent cannot replace serialization of a live permission authority.
                     // Legacy callers without its shared gate retain the raw inheritance guard.
                     // An accepted automatic update (SDK bridge or #130 in-place carry-over) rechecked its rights above.
@@ -381,12 +394,22 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                                 release.Description.SdkVersion == existingTransition.ToSdkVersion
                                     ? existingTransition : null;
                         next = next with { Active = release, Pending = null, LastGood = lastGood ?? release,
+                            ExplicitlySelectedBuild = null, UnconfiguredInstalledBuild = null,
                             SelectedCandidateId = movedBundle ? release.CandidateId : next.SelectedCandidateId,
                             Pinned = old.Pinned is null ? null : release, AutomaticSdkTransition = sdkTransition,
                             LifecycleRevision = checked(old.LifecycleRevision + 1),
                             Problem = present.Length > 1 ? "Multiple candidates exist; the selected candidate is retained."
                                 // Shown once on the plugin's card; the next start clears it (#130).
                                 : pinnedUpdate ? PluginActivationProblems.PinnedReleaseUpdatedInPlace : null };
+                        if (installedBuildChanged)
+                        {
+                            // Existing grants belong to the prior local executable. Retain the old grants
+                            // while it can still run, and revoke them atomically with a successful switch.
+                            state = state with { Grants = state.Grants.Select(grant =>
+                                grant.PluginId == pluginId && grant.Access != FilterDataAccess.None
+                                    ? grant with { Access = FilterDataAccess.None, Revision = checked(grant.Revision + 1) }
+                                    : grant).ToArray() };
+                        }
                         // Advance an established binding only with the accepted activation,
                         // never while a later ownership/conflict check can still reject it.
                         if (automaticBinding is { } acceptedBinding)
@@ -551,12 +574,14 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         PluginCandidateSnapshot candidate = AvailableCandidate(plugin, candidateId);
         RequireOrdinaryCandidateSelection(document, plugin, candidate);
         PluginReleaseSnapshot? sameCodeAlias = BundledCandidateMigration.IdenticalEstablishedLocalAlias(document, plugin, candidate, IsProfileLocal(candidate));
-        ConfigurationMigrationResult migration = PluginSettingsMigration.Migrate(MatchingBasis(plugin, candidateId) ?? sameCodeAlias, candidate.Description!);
+        PluginReleaseSnapshot? savedDraft = MatchingBuildDraft(plugin.InstalledBuildDraft, candidate);
+        ConfigurationMigrationResult migration = PluginSettingsMigration.Migrate(savedDraft ?? MatchingBasis(plugin, candidateId) ?? sameCodeAlias, candidate.Description!);
         // Selecting a candidate with incompatible settings records the choice, retaining the old values for explicit correction.
         PluginReleaseSnapshot? pending = migration.Configuration is null ? null : new(candidateId, candidate.Artifact!, candidate.Description!, migration.Configuration);
         Dictionary<string, string> selectedSources = new(state.SelectedSourceOwners, StringComparer.Ordinal);
         foreach (SourceDescription source in candidate.Description!.Sources) selectedSources[source.SourceId] = pluginId;
         PluginProfileSnapshot next = Replace(state, plugin with { SelectedCandidateId = candidateId, Pinned = null, Pending = pending,
+            ExplicitlySelectedBuild = candidate, InstalledBuildDraft = savedDraft is null ? plugin.InstalledBuildDraft : null,
             AutomaticSdkTransition = null,
             Problem = migration.Configuration is null ? "Selected candidate needs settings correction: " + string.Join("; ", migration.Issues.Select(issue => issue.Message)) : null })
             with { SelectedSourceOwners = selectedSources };
@@ -581,6 +606,21 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
             PluginConfiguration saved = new(Guid.NewGuid().ToString("N"),
                 PluginSettingsMigration.WithDefaults(description.Settings, configuration.PluginSettings), sources);
             PluginReleaseSnapshot pending = new(candidateId, pinned?.Artifact ?? candidate!.Artifact!, description, saved);
+            if (candidate is not null && !HasExplicitBuildSelection(plugin, candidate))
+            {
+                PreReplacementBasis previous = BundledCandidateMigration.TrustedPreReplacementBasis(document, plugin);
+                PluginArtifact? retained = RetainedInstalledArtifact(plugin, candidate, previous);
+                bool buildChanged = previous.HasHistory && (previous.Missing || previous.ExecutionRevision != pending.ExecutionRevision);
+                if (InstalledBuildChanged(candidate, retained, buildChanged))
+                {
+                    bool samePending = MatchingBuildDraft(plugin.Pending, candidate) is not null;
+                    return Task.FromResult(document with { Profile = Replace(state, plugin with
+                    {
+                        InstalledBuildDraft = pending,
+                        Pending = samePending ? null : plugin.Pending
+                    }) });
+                }
+            }
             bool bound = document.Bindings.Any(b => b.PluginId == pluginId && b.SelectedCandidateId == plugin.SelectedCandidateId &&
                 b.TargetCandidateId == candidateId && b.TargetExecutionRevision == pending.ExecutionRevision);
             return Task.FromResult(document with { Profile = Replace(state, plugin with
@@ -597,7 +637,7 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         Dictionary<string, string> selectedSources = new(state.SelectedSourceOwners, StringComparer.Ordinal);
         foreach (SourceDescription source in release.Description.Sources) selectedSources[source.SourceId] = pluginId;
         return Replace(state, plugin with { SelectedCandidateId = release.CandidateId, Pending = release, Pinned = release,
-            AutomaticSdkTransition = null, Problem = null })
+            ExplicitlySelectedBuild = null, AutomaticSdkTransition = null, Problem = null })
             with { SelectedSourceOwners = selectedSources };
     }, cancellationToken);
 
@@ -897,16 +937,23 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
         return state with { Plugins = plugins };
     }
     private static bool SameBuild(PluginReleaseSnapshot a, PluginReleaseSnapshot b) => a.CandidateId == b.CandidateId && a.ExecutionRevision == b.ExecutionRevision;
-    private static bool RequiresInstalledBuildSelection(PluginActivationSnapshot plugin, PluginCandidateSnapshot candidate,
-        PreReplacementBasis previous, bool buildChanged)
-    {
-        PluginArtifact? retained = previous.Release?.Artifact ??
+    private static PluginArtifact? RetainedInstalledArtifact(PluginActivationSnapshot plugin, PluginCandidateSnapshot candidate,
+        PreReplacementBasis previous) => plugin.UnconfiguredInstalledBuild ?? previous.Release?.Artifact ??
             plugin.Candidates.FirstOrDefault(item => item.CandidateId == candidate.CandidateId)?.Artifact;
-        bool changed = retained is not null && retained.AssemblySha256 != candidate.Artifact!.AssemblySha256 ||
-            buildChanged && candidate.CandidatePath?.EndsWith(".plugin.json", StringComparison.OrdinalIgnoreCase) == true;
-        return changed && (plugin.Pending is not { } approved || approved.CandidateId != candidate.CandidateId ||
-            !BundledCandidateMigration.SameExecutableAndDescription(approved, candidate));
-    }
+
+    private static bool InstalledBuildChanged(PluginCandidateSnapshot candidate, PluginArtifact? retained, bool buildChanged) =>
+        retained is not null && retained.AssemblySha256 != candidate.Artifact!.AssemblySha256 ||
+        candidate.CandidatePath?.EndsWith(".plugin.json", StringComparison.OrdinalIgnoreCase) == true &&
+            (buildChanged || retained is not null && retained.ExecutionRevision != candidate.Artifact!.ExecutionRevision);
+
+    private static bool HasExplicitBuildSelection(PluginActivationSnapshot plugin, PluginCandidateSnapshot candidate) =>
+        plugin.SelectedCandidateId == candidate.CandidateId && plugin.ExplicitlySelectedBuild is
+            { Artifact: { } artifact, Description: { } description } selected && selected.CandidateId == candidate.CandidateId &&
+            BundledCandidateMigration.SameExecutableAndDescription(artifact, description, candidate);
+
+    internal static PluginReleaseSnapshot? MatchingBuildDraft(PluginReleaseSnapshot? draft, PluginCandidateSnapshot? candidate) =>
+        draft is not null && candidate is not null && draft.CandidateId == candidate.CandidateId &&
+            BundledCandidateMigration.SameExecutableAndDescription(draft, candidate) ? draft : null;
 
     private static PluginReleaseSnapshot? MatchingBasis(PluginActivationSnapshot plugin, string candidateId) =>
         new[] { plugin.Pending, plugin.Active, plugin.LastGood }.FirstOrDefault(release => release?.CandidateId == candidateId);
@@ -954,7 +1001,9 @@ public sealed partial class PluginProfileStore : IPluginProfileStore
                 if (!candidateOwners.Add(candidate.CandidateId) || candidate.PluginId != plugin.PluginId) throw new ArgumentException("Conflicting candidate ownership.");
                 ValidateObservation(new(candidate.CandidateId, candidate.PluginId, candidate.Artifact, candidate.Description, candidate.Problem));
             }
-            foreach (PluginReleaseSnapshot release in new[] { plugin.Active, plugin.Pending, plugin.LastGood, plugin.Pinned }.OfType<PluginReleaseSnapshot>())
+            if (plugin.ExplicitlySelectedBuild is { } selection)
+                ValidateObservation(new(selection.CandidateId, plugin.PluginId, selection.Artifact, selection.Description));
+            foreach (PluginReleaseSnapshot release in new[] { plugin.Active, plugin.Pending, plugin.LastGood, plugin.Pinned, plugin.InstalledBuildDraft }.OfType<PluginReleaseSnapshot>())
             {
                 if (release.Description.PluginId != plugin.PluginId) throw new ArgumentException("Release belongs to a different plugin.");
                 ValidateObservation(new(release.CandidateId, plugin.PluginId, release.Artifact, release.Description));

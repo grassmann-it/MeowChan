@@ -1491,6 +1491,7 @@ namespace MeowChan
         /// <summary>Resolves the profile without creating files or directories.</summary>
         public static string GetConfigDirectory()
         {
+            if (Desktop.ProfileStartup.FolderSession?.SelectedProfile is { } folderProfile) return folderProfile;
             string? overrideDirectory = ResolveProfileOverrides(CommandLineProfile,
                 Environment.GetEnvironmentVariable("MEOWCHAN_PROFILE"),
                 Environment.GetEnvironmentVariable("OCHAN_PROFILE"));

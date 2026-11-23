@@ -212,7 +212,9 @@ internal static partial class ReaderIdeaChecks
         await using Fixture fixture = await OpenAsync(owner, "310", _ =>
         [
             new("310", 0, PostFieldPresence.All, Subject: "Opening", Author: "Anon", Html: "<p>The opening post says something long enough to read.<br>Second line.</p>"),
-            new("311", 1, PostFieldPresence.All, Html: "<a href='#p310' class='quotelink'>&gt;&gt;310</a> first reply"),
+            // Leave room for the open, interactive preview above the next test link.
+            new("311", 1, PostFieldPresence.All, Html: "<a href='#p310' class='quotelink'>&gt;&gt;310</a> first reply"
+                + "<br>First line of the reply.<br>Second line.<br>Third line.<br>End of the reply."),
             new("312", 2, PostFieldPresence.All, Html: "<a href='#p311' class='quotelink'>&gt;&gt;311</a> and <a href='#p999' class='quotelink'>&gt;&gt;999</a> reply two")
         ]);
         ArchivePage page = fixture.Page;
@@ -413,9 +415,15 @@ internal static partial class ReaderIdeaChecks
             "The reading line was not 8 dip above its card: line bottom=" + (dividerStart.Y + divider.Bounds.Height) + ", card top=" + cardStart.Y);
         Program.CaptureWindow(fixture.Window, "smoke-reader-i3-unread-line.png");
         // Scrolling past the line shows the way back; the button returns to the line and disappears there.
+        // Bring a concrete row into view so the virtualizer can measure its actual position.
+        // A single jump to the estimated extent can land before the line after remeasurement.
+        ArchivePostRow last = rows[^1];
+        list.ScrollIntoView(last);
         ScrollViewer scroll = ListScroll(fixture);
-        scroll.Offset = new Vector(0, scroll.Extent.Height);
-        await Program.WaitUntilAsync(() => back.IsVisible, () => "no return button after scrolling past the line");
+        string ScrollState() => $"offset={scroll.Offset.Y}, extent={scroll.Extent.Height}, viewport={scroll.Viewport.Height}";
+        await Program.WaitUntilAsync(() => list.ContainerFromItem(last)?.TranslatePoint(default, viewport) is { Y: >= 0 } top
+            && top.Y < viewport.Bounds.Height, () => $"last post {last.Id} did not scroll into view; {ScrollState()}");
+        await Program.WaitUntilAsync(() => back.IsEffectivelyVisible, () => $"no return button after scrolling to post {last.Id}; {ScrollState()}");
         Require(back.Content as string == MeowChan.Desktop.Localization.Texts.T("reader.unreadReturn"), "The return button had the wrong label.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-i3-return-button.png");
         back.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));

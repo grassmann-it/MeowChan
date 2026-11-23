@@ -35,6 +35,7 @@ public sealed class SettingsLanguageRefreshStateTests : IDisposable
                 case nameof(SettingsEditor.LanguageChoices): editor.SelectedLanguage = null; break;
                 case nameof(SettingsEditor.ReadingFontSizeChoices): editor.SelectedReadingFontSize = null; break;
                 case nameof(SettingsEditor.GalleryPlaybackModeChoices): editor.SelectedGalleryPlaybackMode = null; break;
+                case nameof(SettingsEditor.BooruSearchTargetChoices): editor.SelectedBooruNewSearchTarget = null; break;
             }
         };
         using var wait = new CancellationTokenSource();
@@ -62,6 +63,8 @@ public sealed class SettingsLanguageRefreshStateTests : IDisposable
             Assert.Equal("Advanced", editor.SelectedWorkspaceMode!.Value);
             Assert.Equal("Large", editor.SelectedReadingFontSize!.Value);
             Assert.Equal("Slideshow", editor.SelectedGalleryPlaybackMode!.Value);
+            Assert.Equal(Config.BooruSearchTargetCurrentTab, editor.SelectedBooruNewSearchTarget!.Value);
+            Assert.Equal(Texts.T("settings.booru.newSearchTarget.current"), editor.SelectedBooruNewSearchTarget.Label);
             Assert.Equal("en", editor.SelectedLanguage!.Code); // unsaved choice is not active UI language
             // SetField deliberately retains an equal immutable choice on a same-code
             // refresh. Selection is value-based; reference identity is not the contract.
@@ -114,6 +117,7 @@ public sealed class SettingsLanguageRefreshStateTests : IDisposable
         Set(editor, "_selectedWorkspaceMode", new SettingsChoice("Advanced", "old mode label"));
         Set(editor, "_selectedReadingFontSize", new SettingsChoice("Large", "old font label"));
         Set(editor, "_selectedGalleryPlaybackMode", new SettingsChoice("Slideshow", "old gallery label"));
+        Set(editor, "_selectedBooruNewSearchTarget", new SettingsChoice(Config.BooruSearchTargetCurrentTab, "old Booru label"));
         Set(editor, "_selectedLanguage", new LanguageInfo("en", "old language label"));
         return editor;
     }

@@ -290,6 +290,7 @@ internal static class PluginCatalog
         ("plugins.stale", "The saved state changed. Your draft is retained; reload before saving.", "Der gespeicherte Stand hat sich geändert. Der Entwurf bleibt erhalten; vor dem Speichern neu laden."),
         ("plugins.draft", "Unsaved draft. Save it to apply the settings at the next app start; until then the active values stay unchanged.", "Ungespeicherter Entwurf. Speichern übernimmt die Einstellungen beim nächsten Appstart; bis dahin bleiben die aktiven Werte unverändert."),
         ("plugins.savedNextStart", "Saved. The settings take effect at the next app start.", "Gespeichert. Die Einstellungen wirken beim nächsten Appstart."),
+        ("plugins.draftBuildLocked", "Settings draft saved. The new build is still blocked. Choose “Use this build next start” to activate it with these settings when you restart.", "Der Einstellungsentwurf wurde gespeichert. Der neue Build bleibt gesperrt. Wähle „Diese Fassung beim nächsten Start verwenden“, um ihn beim Neustart mit diesen Einstellungen zu aktivieren."),
         ("plugins.settingsHint", "Plugin and source settings take effect at the next app start.", "Plugin- und Quelleinstellungen wirken beim nächsten Appstart."),
         ("plugins.information", "Capabilities and information", "Fähigkeiten und Informationen"),
         ("plugins.asOf", "As of {0:g} · Source: {1}", "Stand {0:g} · Quelle: {1}"),

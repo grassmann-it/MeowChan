@@ -1228,6 +1228,23 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
+    public void BooruGalleryHelpDescribesPreviewSampleLimitsAndExplicitOriginalDownloads()
+    {
+        string german = Plain(Section(Read(DanbooruGuide), "Treffer in der Vorschau durchsehen"));
+        Assert.Contains("die bereits von der Suche geladene Vorschau", german, StringComparison.Ordinal);
+        Assert.Contains("Nur für den aktuell geöffneten Treffer", german, StringComparison.Ordinal);
+        Assert.Contains("Fassung (Sample) nachladen", german, StringComparison.Ordinal);
+        Assert.Contains("Downloadgröße (MiB), Pixelzahl und Antwortfrist", german, StringComparison.Ordinal);
+        Assert.Contains("Original laden oder das zugehörige Tastenkürzel reiht das Original ausdrücklich zum Download ein", german, StringComparison.Ordinal);
+
+        string english = Plain(Section(Read(Help), "Browse result previews"));
+        Assert.Contains("preview already fetched by Search", english, StringComparison.Ordinal);
+        Assert.Contains("sample for the currently open result only", english, StringComparison.Ordinal);
+        Assert.Contains("download size (MiB), pixel count, response time, and decoded image width", english, StringComparison.Ordinal);
+        Assert.Contains("Download original or its keyboard shortcut explicitly queues the original", english, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DanbooruDisabledPluginAndGapRestartGuidanceMatchesTheShippedTexts()
     {
         (string Key, string English, string German)[] ui = BooruUiCatalog.Entries;
