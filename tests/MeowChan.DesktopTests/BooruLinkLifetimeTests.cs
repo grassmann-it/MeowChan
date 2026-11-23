@@ -297,21 +297,15 @@ public sealed class BooruLinkLifetimeTests
     private static TaskCompletionSource<T> NewSource<T>() =>
         new(TaskCreationOptions.RunContinuationsAsynchronously);
 
-    // One actual Avalonia dispatcher owns creation, awaited continuations and assertions. No
-    // application, platform renderer, native window, X server or user's profile is involved.
-    private static void OnDispatcher(Func<Task> test)
+    // Use a fresh dispatcher for the controls and their async click handlers. Pumping the xunit
+    // worker's dispatcher could also run callbacks queued by a previous test.
+    private static void OnDispatcher(Func<Task> test) => BooruComponentDispatcher.Run(() =>
     {
-        FieldInfo primary = typeof(Dispatcher).GetField("s_uiThread", BindingFlags.Static | BindingFlags.NonPublic)!;
-        object? previousDispatcher = primary.GetValue(null);
         SynchronizationContext? previousContext = SynchronizationContext.Current;
-        string language = Texts.Language;
         Dispatcher owner = Dispatcher.CurrentDispatcher;
         try
         {
-            primary.SetValue(null, owner);
             SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
-            Texts.Initialize();
-            Texts.SetLanguage("en");
             Task pending = test();
             DateTime deadline = DateTime.UtcNow.AddSeconds(5);
             while (!pending.IsCompleted)
@@ -322,13 +316,8 @@ public sealed class BooruLinkLifetimeTests
             }
             pending.GetAwaiter().GetResult();
         }
-        finally
-        {
-            Texts.SetLanguage(language);
-            SynchronizationContext.SetSynchronizationContext(previousContext);
-            primary.SetValue(null, previousDispatcher);
-        }
-    }
+        finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
+    });
 
     // async-void Click handlers announce completion through SynchronizationContext. Wait for
     // that causal completion, rather than checking an unchanged notice before the handler ran.
