@@ -229,7 +229,7 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 
         if (IsVisible)
             _sample.Start(_search.Samples, row.Post, _sampleSettings, BooruGallerySampleLoader.DefaultDelay,
-                BooruGalleryPanel.DecodeBitmap, image => ApplySample(row, image),
+                (bytes, width, pixels) => BooruGalleryPanel.DecodeBitmap(bytes, width, pixels), image => ApplySample(row, image),
                 () => { if (!_ended && Row is { } current) RenderCaption(current); });
         RenderCaption(row);
     }
