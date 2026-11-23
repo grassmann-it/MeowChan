@@ -478,13 +478,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal TextBlock Title => _title;
     internal Grid Header { get; }
 
-    /// <summary>
-    /// Gives a flush side-panel host the shared section inset inside this surface's own scroll viewport.
-    /// The scrollbar remains in the outer gutter, so it neither covers nor substitutes for the right content inset.
-    /// </summary>
-    internal void UseSectionInset() =>
-        _flow[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
-
     /// <summary>Uses the gallery header and the shared panel section order.</summary>
     internal void UseSidebarHeader()
     {

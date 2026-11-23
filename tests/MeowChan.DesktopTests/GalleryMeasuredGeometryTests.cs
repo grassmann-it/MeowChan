@@ -215,7 +215,7 @@ public sealed class GalleryMeasuredGeometryTests
     });
 
     [Fact]
-    public void SidePanelScrollersOwnEqualTokenInsetsOutsideTheirScrollbarGutter() => OnDispatcher(() =>
+    public void SidePanelInsetsAreOwnedByTheOuterPanel() => OnDispatcher(() =>
     {
         GalleryViewer viewer = new();
         typeof(GalleryViewer).GetMethod("SetContextOpen", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -228,8 +228,9 @@ public sealed class GalleryMeasuredGeometryTests
         Border frame = Find<Border>(viewer, "GalleryContext");
         Assert.Equal(8, frame.Padding.Top);
         Assert.Equal(frame.Padding.Left, frame.Padding.Right);
-        Assert.Equal(post.Padding.Left, post.Padding.Right);
-        Assert.Equal(16, post.Padding.Left);
+        Assert.Equal(16, frame.Padding.Left);
+        Assert.Equal(0, post.Padding.Left);
+        Assert.Equal(0, post.Padding.Right);
 
         ReaderMediaSidebar reader = new();
         ThemeVariantScope readerScope = new() { RequestedThemeVariant = ThemeVariant.Dark, Child = reader };

@@ -498,10 +498,9 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         {
             Name = "GalleryPanelPostScroll",
             Content = _context,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
         };
-        // The content keeps the section inset on both sides; the vertical scrollbar owns the outer gutter and is not mistaken for right padding.
-        postScroll[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
         CreateSidePanel(postScroll);
         _body.Children.Add(_contextPanel); Grid.SetColumn(_contextPanel, 1);
         root.Children.Add(_close); // First child: first in the tab order, as the toolbar button was.
