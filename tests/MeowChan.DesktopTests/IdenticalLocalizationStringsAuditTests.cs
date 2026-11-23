@@ -1,83 +1,63 @@
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.DesktopTests;
 
 [Collection("Localization")]
-public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
+public sealed class IdenticalLocalizationStringsAuditTests
 {
-    private static readonly IReadOnlyDictionary<string, (int Entries, int ExactEnglish, string Digest)> Expected =
-        new Dictionary<string, (int, int, string)>(StringComparer.Ordinal)
-        {
-            ["cs"] = (5493, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
-            ["es"] = (5440, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
-            ["fr"] = (5440, 120, "7b5f781094edcf29e359eeb3a7c733241c4161be7e0a5ad3df54f954ca68d8f1"),
-            ["it"] = (5446, 129, "eb687b3d54ee0fda9a4292201f275dfe0013253dcee6af3104892abe9f6a4d7b"),
-            ["ja"] = (5333, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
-            ["ko"] = (5333, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
-            ["pl"] = (5494, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
-            ["pt-BR"] = (5446, 143, "a21be79decfd7566b0ee5cc93b958d6ed69282dd547064012f8b1a488bd54557"),
-            ["ru"] = (5471, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),
-            ["zh-Hans"] = (5333, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),
-        };
-
-    public IdenticalLocalizationStringsAuditTests() => Texts.Initialize();
-    public void Dispose()
-    {
-        Texts.Initialize();
-        Texts.SetLanguage("en");
-    }
+    private const string AllowlistResourcePrefix = "MeowChan.DesktopTests.LocalizationAudit.";
+    private static readonly JsonDocumentOptions StrictJson = new() { AllowDuplicateProperties = false };
 
     [Fact]
-    public void EnglishSourceCatalogHasTheAuditedUniqueInventory()
+    public void EnglishCatalogHasOnlyTheIntentionalEmptySentinels()
     {
-        Assert.Equal(5442, BuiltInCatalog.English.Count);
-        Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
-        Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
+        // BuiltInCatalog constructs its dictionaries with ToDictionary, which rejects duplicate source keys.
+        Assert.Equal(
+            new[] { "savedSearch.confirm.None", "savedSearch.prompt.None" },
+            BuiltInCatalog.English.Where(entry => entry.Value.Length == 0)
+                .Select(entry => entry.Key).Order(StringComparer.Ordinal));
     }
 
     [Theory]
     [MemberData(nameof(BundledLanguagePackCompletenessTests.BundledCodes), MemberType = typeof(BundledLanguagePackCompletenessTests))]
-    public void BundledPackHasNoDuplicatePropertiesAndItsExactEnglishSetIsAudited(string code)
+    public void BundledPackHasNoDuplicatePropertiesAndItsExactEnglishKeysAreAllowlisted(string code)
     {
-        Assert.True(Expected.TryGetValue(code, out (int Entries, int ExactEnglish, string Digest) expected), code);
-        using Stream stream = typeof(Texts).Assembly.GetManifestResourceStream(Texts.BundledPackResourcePrefix + code + ".json")!;
-        using JsonDocument document = JsonDocument.Parse(stream);
-        AssertNoDuplicateProperties(document.RootElement, "$" + code);
+        string packResource = Texts.BundledPackResourcePrefix + code + ".json";
+        using Stream? packStream = typeof(Texts).Assembly.GetManifestResourceStream(packResource);
+        Assert.NotNull(packStream);
+        using JsonDocument pack = JsonDocument.Parse(packStream, StrictJson);
 
-        JsonElement strings = document.RootElement.GetProperty("strings");
-        List<(string Key, string Value)> exact = strings.EnumerateObject()
-            .Where(property => BuiltInCatalog.English.TryGetValue(property.Name, out string? english)
-                && string.Equals(property.Value.GetString(), english, StringComparison.Ordinal))
-            .Select(property => (property.Name, property.Value.GetString()!))
-            .OrderBy(item => item.Name, StringComparer.Ordinal)
-            .ToList();
+        using Stream? allowlistStream = typeof(IdenticalLocalizationStringsAuditTests).Assembly
+            .GetManifestResourceStream(AllowlistResourcePrefix + code + ".json");
+        Assert.True(allowlistStream is not null, $"Missing exact-English allowlist for {code}: LocalizationAudit/{code}.json");
+        using JsonDocument allowlist = JsonDocument.Parse(allowlistStream, StrictJson);
 
-        Assert.Equal(expected.Entries, strings.EnumerateObject().Count());
-        Assert.Equal(expected.ExactEnglish, exact.Count);
-        string payload = string.Concat(exact.Select(item => item.Key + "\t" + item.Value + "\n"));
-        string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
-        Assert.Equal(expected.Digest, digest);
-    }
-
-    private static void AssertNoDuplicateProperties(JsonElement element, string path)
-    {
-        if (element.ValueKind == JsonValueKind.Object)
+        HashSet<string> approved = new(StringComparer.Ordinal);
+        foreach (JsonProperty entry in allowlist.RootElement.EnumerateObject())
         {
-            HashSet<string> names = new(StringComparer.Ordinal);
-            foreach (JsonProperty property in element.EnumerateObject())
-            {
-                Assert.True(names.Add(property.Name), "Duplicate JSON property at " + path + ": " + property.Name);
-                AssertNoDuplicateProperties(property.Value, path + "." + property.Name);
-            }
+            Assert.True(entry.Value.ValueKind == JsonValueKind.String && !string.IsNullOrWhiteSpace(entry.Value.GetString()),
+                $"Exact-English allowlist entry {code}/{entry.Name} needs a reason.");
+            approved.Add(entry.Name);
         }
-        else if (element.ValueKind == JsonValueKind.Array)
+
+        HashSet<string> exact = new(StringComparer.Ordinal);
+        foreach (JsonProperty entry in pack.RootElement.GetProperty("strings").EnumerateObject())
         {
-            int index = 0;
-            foreach (JsonElement item in element.EnumerateArray())
-                AssertNoDuplicateProperties(item, path + "[" + index++ + "]");
+            // Pack-specific plural variants use the English base key when there is no exact source key.
+            if (!BuiltInCatalog.English.TryGetValue(entry.Name, out string? english)
+                && !(PluralRules.BaseKey(entry.Name) is { } baseKey && BuiltInCatalog.English.TryGetValue(baseKey, out english)))
+                continue;
+
+            if (string.Equals(entry.Value.GetString(), english, StringComparison.Ordinal))
+                exact.Add(entry.Name);
         }
+
+        string[] unexpected = exact.Except(approved, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        string[] stale = approved.Except(exact, StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
+        Assert.True(unexpected.Length == 0 && stale.Length == 0,
+            $"Exact-English audit failed for {code} (LocalizationAudit/{code}.json).\n"
+            + "Unapproved keys (translate or add a reason): " + string.Join(", ", unexpected) + "\n"
+            + "Stale allowlist keys (remove): " + string.Join(", ", stale));
     }
 }

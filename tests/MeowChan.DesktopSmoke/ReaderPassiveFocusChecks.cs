@@ -220,9 +220,11 @@ internal static class ReaderPassiveFocusChecks
         Type anchorType = typeof(ArchivePage).GetNestedType("ReaderAnchor", BindingFlags.NonPublic)!;
         object anchor = Activator.CreateInstance(anchorType, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
             null, [id, "__pf05_missing_post__", 0d, selected], null)!;
-        // Reflection does not supply C# optional arguments (all five RestoreReaderAnchorAsync parameters are passed); preserve RenderThread()'s
-        // refreshMedia=true default while replacing the real post containers.
-        typeof(ArchivePage).GetMethod("RenderThread", Private)!.Invoke(page, [true]);
+        // Use the production optional default when replacing the real post containers.
+        MethodInfo render = typeof(ArchivePage).GetMethod("RenderThread", Private, [typeof(bool)])!;
+        ParameterInfo refreshMedia = render.GetParameters().Single();
+        Require(refreshMedia.IsOptional && refreshMedia.DefaultValue is true, "Reader rendering must default to refreshing media.");
+        render.Invoke(page, [Type.Missing]);
         await (Task)typeof(ArchivePage).GetMethod("RestoreReaderAnchorAsync", Private)!
             .Invoke(page, [anchor, true, intent, null, null])!;
     }
