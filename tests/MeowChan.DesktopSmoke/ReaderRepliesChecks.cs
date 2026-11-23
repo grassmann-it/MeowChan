@@ -33,10 +33,20 @@ internal static class ReaderRepliesChecks
             await using ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(profile, lease);
             CapturedPost[] posts = [new("100", 0, PostFieldPresence.All, Html: "<p>" + string.Join(" ", Enumerable.Repeat("Saved local text remains selectable and readable at the configured font size.", 24)) + "</p>"),
                 .. Enumerable.Range(101, 25).Select((number, index) => new CapturedPost(number.ToString(), index + 1,
-                    PostFieldPresence.All, Html: "<a href='#p100'>&gt;&gt;100</a> reply " + number))];
+                    PostFieldPresence.All, Html: "<a href='#p100'>&gt;&gt;100</a> reply " + number
+                        + (number is >= 105 and <= 111 ? " <a href='#p102'>&gt;&gt;102</a>" : string.Empty)
+                        + (number is >= 113 and <= 119 ? " <a href='#p103'>&gt;&gt;103</a>" : string.Empty),
+                    Attachments: number == 121 ? [new CapturedAttachment(0, "missing", OriginalFileName: "reader-fixture.png")] : null))];
             await catalog.CaptureAsync(new CapturedThreadSnapshot(id, "https://boards.4chan.org/g/thread/100",
                 "Inline replies regression", ThreadSourceState.Archived, DateTimeOffset.UtcNow, profile, posts));
-            page = new ArchivePage(token => ArchiveReader.OpenAsync(profile, token), (_, _) => Task.CompletedTask, _ => { });
+            TaskCompletionSource? pendingRead = null;
+            page = new ArchivePage(async token =>
+            {
+                TaskCompletionSource? hold = pendingRead;
+                pendingRead = null;
+                if (hold != null) await hold.Task.WaitAsync(token);
+                return await ArchiveReader.OpenAsync(profile, token);
+            }, (_, _) => Task.CompletedTask, _ => { });
             window = new Window { Width = 1120, Height = 820, Content = page, Title = "Private inline replies regression" };
             window.Show(owner);
             page.IsAvailable = true;
@@ -145,6 +155,7 @@ internal static class ReaderRepliesChecks
                 Require(window.ActualThemeVariant == theme, "The card fixture did not apply " + theme.Key);
                 await CheckPostCardsAsync(window, page, id);
             }
+            await CheckSidebarPostDetailsAsync(window, page, hold => pendingRead = hold);
         }
         finally
         {
@@ -152,6 +163,105 @@ internal static class ReaderRepliesChecks
             window?.Close();
             Directory.Delete(profile, recursive: true);
         }
+    }
+
+    private static async Task CheckSidebarPostDetailsAsync(Window window, ArchivePage page, Action<TaskCompletionSource> holdNextRead)
+    {
+        ListBox list = page.FindControl<ListBox>("ArchivePosts")!;
+        ArchivePostRow[] rows = (ArchivePostRow[])list.ItemsSource!;
+        ArchivePostRow manual = rows.Single(row => row.Id == "100");
+        ArchivePostRow target = rows.Single(row => row.Id == "102");
+        ArchivePostRow intermediate = rows.Single(row => row.Id == "103");
+        ArchivePostRow final = rows.Single(row => row.Id == "120");
+        await Program.WaitUntilAsync(() => target.BacklinkCount == 7 && intermediate.BacklinkCount == 7);
+        await page.SetRepliesExpandedAsync(manual, true);
+        window.Width = 1440;
+        page.InlineReplyPageSize = 3;
+        page.ApplyReaderMediaPreferences(page.ReaderMedia with { Sidebar = true, SidebarAlways = true });
+        await Program.WaitUntilAsync(() => page.IsMediaSidebarShown);
+        ReaderMediaSidebar sidebar = page.MediaSidebar!;
+        ScrollViewer detail = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(view => view.Name == "ReaderSidebarPostDetail");
+
+        ListBoxItem Card(ArchivePostRow row) => (ListBoxItem)list.ContainerFromItem(row)!;
+        double Top(ArchivePostRow row) => Card(row).TranslatePoint(default, list)!.Value.Y;
+        ReaderBodyTextBlock DetailBody() => detail.GetVisualDescendants().OfType<ReaderBodyTextBlock>().Single();
+        Button[] DetailReplies() => detail.GetVisualDescendants().OfType<Button>()
+            .Where(button => button.Classes.Contains("reader-reply-card") && button.IsEffectivelyVisible).ToArray();
+
+        await page.FocusPostAsync(target.Id);
+        await Program.WaitUntilAsync(() => target.Replies is { Count: 3 } && !target.RepliesLoading);
+        await SmokeDispatcher.SettleAsync();
+        Require(detail.IsEffectivelyVisible && sidebar.Shown == null && !sidebar.Open.IsVisible && !sidebar.StripVisible
+            && ReferenceEquals(DetailBody().Document, target.BodyDocument) && DetailReplies().Length == 3
+            && ReferenceEquals(list.SelectedItem, target) && Card(target).IsFocused && !target.RepliesExpanded,
+            "The sidebar did not show the selected text post and its first reply page independently of inline expansion.");
+
+        detail.GetVisualDescendants().OfType<Button>().Single(button => Equals(button.Content, target.MoreRepliesLabel))
+            .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        await Program.WaitUntilAsync(() => target.Replies.Count == 6 && !target.RepliesLoading);
+        await SmokeDispatcher.SettleAsync();
+        Require(DetailReplies().Select(button => ((ArchiveQuoteRow)button.DataContext!).Quote.Origin.PostId)
+            .SequenceEqual(new[] { "105", "106", "107", "108", "109", "110" }),
+            "The sidebar skipped, duplicated or reordered replies when loading more.");
+
+        double before = Top(target);
+        page.ReaderExpandRepliesPreference = true;
+        await SmokeDispatcher.SettleAsync();
+        Require(target.RepliesExpanded && manual.RepliesExpanded && !intermediate.RepliesExpanded
+            && ReferenceEquals(list.SelectedItem, target) && Card(target).IsFocused && Math.Abs(Top(target) - before) <= 2,
+            "Enabling focus expansion moved the selected post or expanded another post.");
+        Program.CaptureWindow(window, "smoke-reader-f11-post-detail.png");
+
+        await page.SetRepliesExpandedAsync(target, false);
+        TaskCompletionSource pending = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        holdNextRead(pending);
+        double finalTop;
+        try
+        {
+            Task away = page.FocusPostAsync(intermediate.Id);
+            await Program.WaitUntilAsync(() => intermediate.RepliesLoading);
+            Task back = page.FocusPostAsync(target.Id);
+            Task latest = page.FocusPostAsync(final.Id);
+            await Task.WhenAll(away, back, latest);
+            finalTop = Top(final);
+            Require(intermediate.RepliesLoading && !intermediate.RepliesExpanded,
+                "The previous post's automatic expansion survived while its reply request was still pending.");
+        }
+        finally { pending.TrySetResult(); }
+        await Program.WaitUntilAsync(() => !intermediate.RepliesLoading && !target.RepliesLoading);
+        await SmokeDispatcher.SettleAsync();
+        Require(ReferenceEquals(list.SelectedItem, final) && Card(final).IsFocused && Math.Abs(Top(final) - finalTop) <= 2
+            && ReferenceEquals(DetailBody().Document, final.BodyDocument) && DetailReplies().Length == 0
+            && manual.RepliesExpanded && !target.RepliesExpanded && !intermediate.RepliesExpanded,
+            "A rapid focus change or late reply load restored a stale post, reply expansion or offset.");
+
+        ArchivePostRow media = rows.Single(row => row.Id == "121");
+        await page.FocusPostAsync(media.Id);
+        await Program.WaitUntilAsync(() => sidebar.HeaderLine.Contains("reader-fixture.png", StringComparison.Ordinal));
+        Require(!detail.IsVisible && ReferenceEquals(list.SelectedItem, media) && Card(media).IsFocused,
+            "The post detail remained visible after moving to a media post.");
+        await page.FocusPostAsync(target.Id);
+        Require(detail.IsVisible && !target.RepliesExpanded && DetailReplies().Length == 6,
+            "Returning to the text post lost its manual collapse or sidebar replies.");
+        await page.SetRepliesExpandedAsync(target, true);
+        await page.FocusPostAsync(intermediate.Id);
+        Require(target.RepliesExpanded && intermediate.RepliesExpanded, "A manual opening was lost on the next focus change.");
+        page.ReaderExpandRepliesPreference = false;
+        Require(target.RepliesExpanded && manual.RepliesExpanded && !intermediate.RepliesExpanded,
+            "Disabling focus expansion collapsed a manually opened post.");
+
+        await page.FocusPostAsync(manual.Id);
+        await SmokeDispatcher.SettleAsync();
+        Require(detail.Extent.Height > detail.Viewport.Height, "The sidebar detail did not scroll independently.");
+        detail.Offset = new Vector(0, 120);
+        await SmokeDispatcher.SettleAsync();
+        double detailOffset = detail.Offset.Y;
+        window.Width += 80;
+        await SmokeDispatcher.SettleAsync();
+        Require(detailOffset > 0 && Math.Abs(detail.Offset.Y - detailOffset) <= 2
+            && ReferenceEquals(list.SelectedItem, manual) && Card(manual).IsFocused,
+            "Resizing the sidebar discarded its offset or the reader selection/focus.");
+        Console.WriteLine("SMOKE reader F11: post detail, paged replies, focus/selection/position, resize and manual expansion passed.");
     }
 
     // Reader post cards (R1-R6): OP on the page and reply cards in their tokens, one-line header with the
@@ -167,6 +277,9 @@ internal static class ReaderRepliesChecks
         ArchivePostRow opening = rows.Single(row => row.Id == "100"), reply = rows.Single(row => row.Id == "101"); // Realized right below the long OP.
         Require(opening.IsOpeningPost && !reply.IsOpeningPost, "The thread-number post was not the only opening post.");
         await Program.WaitUntilAsync(() => opening.BacklinkCount == 25);
+        // The opening post's manually opened replies survive the quote jump above.
+        // Collapse them so the opening post and its neighbour can share the viewport.
+        if (opening.RepliesExpanded) await page.SetRepliesExpandedAsync(opening, false);
         ListBoxItem Container(ArchivePostRow row) => list.GetVisualDescendants().OfType<ListBoxItem>()
             .Single(item => ReferenceEquals(item.DataContext, row));
         // The preceding async quote click can still be settling its focus/layout passes after selecting 101.

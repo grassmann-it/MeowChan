@@ -270,10 +270,13 @@ public partial class ArchivePage
         ReaderNavigation.LostFocus += (_, _) => ShowReaderNavigation();
         ReaderNavigation.DetachedFromVisualTree += (_, _) => _readerNavigationIdleTimer?.Stop();
         ListBox posts = ArchivePosts;
-        posts.SelectionChanged += (_, _) =>
+        posts.SelectionChanged += (_, e) =>
         {
+            if (!ReferenceEquals(e.Source, posts)) return;
+            ++_readerLayoutRevision;
             CancelReaderMediaActivation();
             if (posts.SelectedItem is ArchivePostRow selected) _readerPostId = selected.Id;
+            UpdateFocusedReplies(keepPosition: true);
             UpdateReaderNavigation();
         };
         Grid pane = ArchiveReaderPane;

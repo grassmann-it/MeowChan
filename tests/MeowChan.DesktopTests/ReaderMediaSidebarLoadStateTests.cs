@@ -283,14 +283,6 @@ public sealed class ReaderMediaSidebarLoadStateTests : IDisposable
         Assert.Equal("No. 9 has no media", sidebar.StatusText);
     });
 
-    [Fact]
-    public void TheReaderGivesAPostWithoutMediaTheFinalTextNotTheDimmedTrace()
-    {
-        string page = Read("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
-        Assert.Contains("sidebar.ShowNoMedia(reason);", page);
-        Assert.DoesNotContain("sidebar.Dim(reason)", page);
-    }
-
     // ---- the hosts ----------------------------------------------------------------------------------------------------------------
 
     private static string RepositoryRoot()

@@ -621,6 +621,8 @@ public partial class ArchivePage : UserControl
                 _readerView.HideMedia, projection?.IsOrdered == true, IsDead);
             ArchivePostRow[] posts = projection == null ? Array.Empty<ArchivePostRow>()
                 : projection.Page(_postOffset, pageSize).Select(entry => BuildPostRow(entry, context)).ToArray();
+            _replyAutoExpand.SwitchThread(current.Summary.Id);
+            foreach (ArchivePostRow post in posts) _replyAutoExpand.RestoreChoice(post);
             ReservePreviewSizes(posts);
             ListBox postList = ArchivePosts;
             // A new page is a new index space. Do not carry its predecessor's
