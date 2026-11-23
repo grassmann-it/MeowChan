@@ -4299,6 +4299,7 @@
     "gallery.post.tags.more": "+{0} więcej",
     "gallery.decision.favorite.tip": "Dodaj do ulubionych lub usuń z ulubionych",
     "gallery.decision.favorite.some": "Ulubione u niektórych",
+    "gallery.decision.rating.description": "Ocena: {0}",
     "gallery.decision.rating.mixed": "Oceny się różnią",
     "gallery.decision.status.ratingSaved": "Zapisano ocenę {0} z 5.",
     "gallery.decision.status.ratingRemoved": "Usunięto ocenę.",

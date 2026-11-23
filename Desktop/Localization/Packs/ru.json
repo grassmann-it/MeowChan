@@ -4276,6 +4276,7 @@
     "gallery.post.tags.more": "ещё {0}",
     "gallery.decision.favorite.tip": "Добавить в избранное или убрать из избранного",
     "gallery.decision.favorite.some": "В избранном у некоторых",
+    "gallery.decision.rating.description": "Оценка: {0}",
     "gallery.decision.rating.mixed": "Оценки различаются",
     "gallery.decision.status.ratingSaved": "Оценка {0} из 5 сохранена.",
     "gallery.decision.status.ratingRemoved": "Оценка удалена.",

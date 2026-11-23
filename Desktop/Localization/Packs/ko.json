@@ -4215,6 +4215,7 @@
     "gallery.post.tags.more": "+{0}개 더",
     "gallery.decision.favorite.tip": "즐겨찾기에 추가하거나 제거",
     "gallery.decision.favorite.some": "일부만 즐겨찾기",
+    "gallery.decision.rating.description": "평가: {0}",
     "gallery.decision.rating.mixed": "평가가 서로 다름",
     "gallery.decision.status.ratingSaved": "평가 {0}/5 저장됨.",
     "gallery.decision.status.ratingRemoved": "평가를 제거했습니다.",

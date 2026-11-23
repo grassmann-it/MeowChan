@@ -4258,6 +4258,7 @@
     "gallery.post.tags.more": "+{0} altri",
     "gallery.decision.favorite.tip": "Aggiungi ai preferiti o rimuovi dai preferiti",
     "gallery.decision.favorite.some": "Preferito per alcuni",
+    "gallery.decision.rating.description": "Valutazione: {0}",
     "gallery.decision.rating.mixed": "Le valutazioni differiscono",
     "gallery.decision.status.ratingSaved": "Valutazione {0} su 5 salvata.",
     "gallery.decision.status.ratingRemoved": "Valutazione rimossa.",

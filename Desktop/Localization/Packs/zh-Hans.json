@@ -4218,6 +4218,7 @@
     "gallery.post.tags.more": "另有 {0} 个",
     "gallery.decision.favorite.tip": "加入或移出收藏",
     "gallery.decision.favorite.some": "部分已收藏",
+    "gallery.decision.rating.description": "评分：{0}",
     "gallery.decision.rating.mixed": "评分不一致",
     "gallery.decision.status.ratingSaved": "已保存评分：{0} / 5。",
     "gallery.decision.status.ratingRemoved": "已移除评分。",

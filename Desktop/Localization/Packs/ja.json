@@ -4215,6 +4215,7 @@
     "gallery.post.tags.more": "他{0}件",
     "gallery.decision.favorite.tip": "お気に入りに追加または削除",
     "gallery.decision.favorite.some": "一部がお気に入り",
+    "gallery.decision.rating.description": "評価：{0}",
     "gallery.decision.rating.mixed": "評価がそろっていません",
     "gallery.decision.status.ratingSaved": "評価 {0}/5 を保存しました。",
     "gallery.decision.status.ratingRemoved": "評価を削除しました。",
