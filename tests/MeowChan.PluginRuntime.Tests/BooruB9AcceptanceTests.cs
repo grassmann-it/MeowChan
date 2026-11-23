@@ -14,7 +14,7 @@ namespace MeowChan.PluginRuntime.Tests;
 /// Each gate drives the whole chain with synthetic data — real plugin parser, real host transport, real
 /// claim mapping, real watcher scheduler, real shared download queue, real catalog and media store — and
 /// restarts the profile where the scenario asks for it. See <see cref="B9Session"/> for the wiring.
-/// These gates do not cover UI rendering (B6/B7) or a real 1.0.2 profile; see review/booru-b9-gates-2026-11-12.md.
+/// These gates cover headless integration with synthetic profiles.
 /// </summary>
 public sealed class BooruB9AcceptanceTests
 {
@@ -366,10 +366,9 @@ public sealed class BooruB9AcceptanceTests
     }
 
     /// <summary>
-    /// B9 finding F1 (review/booru-b9-gates-2026-11-12.md): an app shutdown during a transfer must not drop the
-    /// user's request. Fixed by 2d57d64e (a queue stop settles as <c>Interrupted</c> and keeps the durable
-    /// <see cref="BooruOriginalIntent.Requested"/>); this gate is active again and checks the running and the
-    /// waiting job and their single transfer after the restart.
+    /// App shutdown settles a running transfer as <c>Interrupted</c> and keeps the durable
+    /// <see cref="BooruOriginalIntent.Requested"/>. Check that the running and waiting jobs each
+    /// transfer once after restart.
     /// </summary>
     [Fact]
     public async Task S6_AppShutdownDuringATransferKeepsRunningAndWaitingOriginalsPendingForTheNextStart()

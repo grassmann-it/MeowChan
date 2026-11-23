@@ -56,7 +56,9 @@ roadmap.md
 /docs/architecture/
 /architecture/
 
+# Local and CI output
 /artifacts/
+/review/
 
 __pycache__/
 
