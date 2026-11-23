@@ -37,13 +37,13 @@ internal sealed record FolderSourcePanelServices(
 internal sealed class FolderSourcesPanel : UserControl
 {
     private readonly FolderSourcePanelServices _services;
-    private readonly TextBlock _status = new() { Name = "FolderSourcesStatus", TextWrapping = TextWrapping.Wrap };
-    private readonly TextBlock _blocked = new() { Name = "FolderSourcesBlocked", TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    private readonly TextBlock _empty = new() { Name = "FolderSourcesEmpty", TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _status = new() { Name = "FolderSourcesStatus", Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _blocked = new() { Name = "FolderSourcesBlocked", Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _empty = new() { Name = "FolderSourcesEmpty", Classes = { "muted" }, TextWrapping = TextWrapping.Wrap };
     private readonly StackPanel _rows = new() { Name = "FolderSourcesRows", Spacing = 8 };
     private readonly Button _add = new() { Name = "FolderSourcesAdd" };
     private readonly Button _pause = new() { Name = "FolderSourcesPause" };
-    private readonly TextBlock _error = new() { Name = "FolderSourcesError", TextWrapping = TextWrapping.Wrap, IsVisible = false };
+    private readonly TextBlock _error = new() { Name = "FolderSourcesError", Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     private Guid? _confirmRemove;
     private bool _busy, _refreshing, _refreshAgain;
     private IReadOnlyList<FolderSourceView> _views = Array.Empty<FolderSourceView>();
@@ -61,10 +61,6 @@ internal sealed class FolderSourcesPanel : UserControl
     {
         _services = services ?? throw new ArgumentNullException(nameof(services));
         Name = "FolderSourcesPanel";
-        _status.Classes.Add("workspace-meta");
-        _blocked.Classes.Add("workspace-error");
-        _empty.Classes.Add("muted");
-        _error.Classes.Add("workspace-error");
         _pause.Classes.Add("subtle");
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
         AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
@@ -155,18 +151,15 @@ internal sealed class FolderSourcesPanel : UserControl
     {
         FolderSourceRoot root = view.Root;
         string id = FolderSourceIdentity.Format(root.Id);
-        TextBlock name = new() { Text = root.Name, FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap };
-        SelectableTextBlock path = new() { Text = root.Path, TextWrapping = TextWrapping.Wrap };
-        path.Classes.Add("workspace-meta");
+        TextBlock name = new() { Text = root.Name, Classes = { "workspace-panel-title" }, TextWrapping = TextWrapping.Wrap };
+        SelectableTextBlock path = new() { Text = root.Path, Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
         TextBlock counts = new()
         {
-            Name = "FolderSourceCounts_" + id, TextWrapping = TextWrapping.Wrap,
+            Name = "FolderSourceCounts_" + id, Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap,
             Text = Texts.T("folderSource.row.counts", view.Counts.Files.ToString("N0", Texts.Culture),
                 view.Counts.Hashed.ToString("N0", Texts.Culture), view.Counts.Missing.ToString("N0", Texts.Culture))
         };
-        counts.Classes.Add("workspace-help");
-        TextBlock scan = new() { TextWrapping = TextWrapping.Wrap, Text = view.Scanning ? Texts.T("folderSource.row.scanning") : ScanText(root) };
-        scan.Classes.Add("workspace-help");
+        TextBlock scan = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap, Text = view.Scanning ? Texts.T("folderSource.row.scanning") : ScanText(root) };
         Button rescan = new() { Name = "FolderSourceRescan_" + id, Content = Texts.T("folderSource.row.rescan"), IsEnabled = !_busy && !view.Scanning };
         Button rename = new() { Name = "FolderSourceRename_" + id, Content = Texts.T("folderSource.row.rename"), IsEnabled = !_busy };
         Button remove = new() { Name = "FolderSourceRemove_" + id, Content = Texts.T("folderSource.row.remove"), IsEnabled = !_busy && !view.Scanning };
@@ -185,7 +178,7 @@ internal sealed class FolderSourcesPanel : UserControl
         };
         if (_confirmRemove == root.Id)
         {
-            TextBlock ask = new() { Name = "FolderSourceRemoveAsk", Text = Texts.T("folderSource.remove.ask", root.Name), TextWrapping = TextWrapping.Wrap };
+            TextBlock ask = new() { Name = "FolderSourceRemoveAsk", Classes = { "workspace-body-text" }, Text = Texts.T("folderSource.remove.ask", root.Name), TextWrapping = TextWrapping.Wrap };
             Button yes = new() { Name = "FolderSourceRemoveConfirm", Content = Texts.T("folderSource.remove.confirm") };
             Button no = new() { Name = "FolderSourceRemoveKeep", Content = Texts.T("folderSource.remove.keep") };
             yes.Classes.Add("danger"); no.Classes.Add("subtle");

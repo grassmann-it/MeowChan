@@ -74,7 +74,7 @@ public sealed class QuickTagScrollFlowTests
             using QuickTagSurface surface = popover?.Surface ?? new QuickTagSurface(session, options) { FillSuggestions = true, Suggestions = suggestions };
             surface.FocusOnAttach = false;
             if (popover != null) popover.Frame.Width = width;
-            GallerySidePanel? panel = host == "panel" ? new GallerySidePanel(new Button())
+            GallerySidePanel? panel = host == "panel" ? new GallerySidePanel(new PanelCloseButton("Close"))
                 { TagContent = surface, Segment = GallerySidePanelSegment.Tags } : null;
             Root root = new() { Child = popover?.Frame ?? (Control?)panel ?? surface };
             ScrollViewer scroll = Assert.IsType<ScrollViewer>(surface.Content);

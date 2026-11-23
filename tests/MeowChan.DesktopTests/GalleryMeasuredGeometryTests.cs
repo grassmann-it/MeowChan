@@ -74,7 +74,7 @@ public sealed class GalleryMeasuredGeometryTests
         Texts.Initialize();
         string oldLanguage = Texts.Language;
         Texts.SetLanguage("en");
-        GallerySidePanel panel = new(new Button { Width = 32, Height = 32 }) { Width = width };
+        GallerySidePanel panel = new(new PanelCloseButton("Close")) { Width = width };
         Window window = new() { Width = 520, Height = 500, Content = panel };
         try
         {
@@ -117,10 +117,12 @@ public sealed class GalleryMeasuredGeometryTests
     }
 
     [Theory]
-    [InlineData(280)]
-    [InlineData(360)]
-    [InlineData(480)]
-    public void ThreadMediaCounterAndRatingShareTheSameLayoutInBothTabs(double width) => WithSidePanel(width, panel =>
+    [InlineData(240, false, false, "No. 16 / 23", "Medium 16 of 23")]
+    [InlineData(280, true, false, "No. 16 / 23+", "Medium 16 of at least 23")]
+    [InlineData(360, false, true, "No. 16 / 23", "Queue 16 of 23")]
+    [InlineData(480, false, true, "No. 16 / 23", "Queue 16 of 23")]
+    public void CounterAndRatingShareTheSameLayoutInBothTabs(double width, bool more, bool queue, string shortText,
+        string longText) => WithSidePanel(width, panel =>
     {
         GalleryDecisionRow post = new("PostDecision", compact: true);
         GalleryDecisionRow tags = new("TagDecision", compact: true);
@@ -128,7 +130,7 @@ public sealed class GalleryMeasuredGeometryTests
         tags.Show(new GalleryDecisionView(1, GalleryDecisionCoverage.None, null, false, true));
         panel.PostContent = post;
         panel.TagContent = tags;
-        panel.Position.Show(new(16, 23, false));
+        panel.Position.Show(new(16, 23, more, queue));
 
         foreach (GallerySidePanelSegment tab in Enum.GetValues<GallerySidePanelSegment>())
         {
@@ -138,8 +140,9 @@ public sealed class GalleryMeasuredGeometryTests
             MediaPositionPill pill = Assert.Single(panel.Children.OfType<MediaPositionPill>());
             Assert.Same(panel.Position, pill);
             Assert.Contains(WorkspaceChips.Badge, pill.Classes);
-            Assert.Equal("No. 16 / 23", Assert.IsType<TextBlock>(pill.Child).Text);
-            Assert.Equal("Medium 16 of 23", ToolTip.GetTip(pill));
+            Assert.Equal(shortText, Assert.IsType<TextBlock>(pill.Child).Text);
+            Assert.Equal(longText, ToolTip.GetTip(pill));
+            Assert.Equal(longText, Avalonia.Automation.AutomationProperties.GetName(pill));
 
             GalleryDecisionRow row = tab == GallerySidePanelSegment.Post ? post : tags;
             Assert.True(row.IsEffectivelyVisible);
@@ -187,7 +190,7 @@ public sealed class GalleryMeasuredGeometryTests
 
         AssertHeaderRow(panel);
         TextBlock label = Assert.IsType<TextBlock>(panel.Position.Child);
-        Assert.Equal(GalleryTagPanelCommands.ShortCounterText(position, marked: true), label.Text);
+        Assert.Equal(MediaPositionText.Short(position), label.Text);
         Assert.True(label.Bounds.Width > 0 && label.Bounds.Height > 0);
         Assert.Equal(tabHeight, ((Control)panel.PostButton.Parent!).Bounds.Height, 0.5);
     });
@@ -212,7 +215,7 @@ public sealed class GalleryMeasuredGeometryTests
     });
 
     [Fact]
-    public void SidePanelScrollersOwnEqualTokenInsetsOutsideTheirScrollbarGutter() => OnDispatcher(() =>
+    public void SidePanelInsetsAreOwnedByTheOuterPanel() => OnDispatcher(() =>
     {
         GalleryViewer viewer = new();
         typeof(GalleryViewer).GetMethod("SetContextOpen", BindingFlags.Instance | BindingFlags.NonPublic)!
@@ -225,8 +228,9 @@ public sealed class GalleryMeasuredGeometryTests
         Border frame = Find<Border>(viewer, "GalleryContext");
         Assert.Equal(8, frame.Padding.Top);
         Assert.Equal(frame.Padding.Left, frame.Padding.Right);
-        Assert.Equal(post.Padding.Left, post.Padding.Right);
-        Assert.Equal(16, post.Padding.Left);
+        Assert.Equal(16, frame.Padding.Left);
+        Assert.Equal(0, post.Padding.Left);
+        Assert.Equal(0, post.Padding.Right);
 
         ReaderMediaSidebar reader = new();
         ThemeVariantScope readerScope = new() { RequestedThemeVariant = ThemeVariant.Dark, Child = reader };

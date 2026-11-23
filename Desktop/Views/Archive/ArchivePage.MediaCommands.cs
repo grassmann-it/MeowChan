@@ -85,6 +85,7 @@ public partial class ArchivePage
                         ? _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(saved.Key.Thread, saved.Asset)) : null;
                 }
         RefreshArchiveFavoriteControls();
+        RefreshMediaSidebarDecisions();
     }
 
     // <paramref name="selected"/> null: the toggle of the stars and menus; a value (the favourite keys): that explicit target (the toggle only when the host wired no setter).

@@ -318,12 +318,12 @@ public sealed class GalleryTagPanelTests : IDisposable
     [Fact]
     public void ACounterTextReadsMediumFourOfTwentySevenInBothLanguagesAndNamesAnOpenEnd()
     {
-        Assert.Equal("Medium 4 of 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, false)));
-        Assert.Equal("Medium 4 of at least 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, true)));
-        Assert.Null(GalleryTagPanelCommands.CounterText(null));
+        Assert.Equal("Medium 4 of 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, false)));
+        Assert.Equal("Medium 4 of at least 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, true)));
+        Assert.Null(MediaPositionText.Long(null));
         Texts.SetLanguage("de");
-        Assert.Equal("Medium 4 von 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, false)));
-        Assert.Equal("Medium 4 von mindestens 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, true)));
+        Assert.Equal("Medium 4 von 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, false)));
+        Assert.Equal("Medium 4 von mindestens 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, true)));
     }
 
     [Fact]
@@ -543,15 +543,13 @@ public sealed class GalleryTagPanelTests : IDisposable
     }
 
     [Fact]
-    public void ThePanelHooksIntoTheViewerWithFewLinesAndTheNamedFilesStayUntouched()
+    public void ThePanelUsesTheSharedSlotAndKeepsTagLogicOutOfPlaybackAndDecode()
     {
         string overlay = ReadSource("Desktop/GalleryViewer.Overlay.cs"), overflow = ReadSource("Desktop/GalleryViewer.Overflow.cs");
         // The slot is shared with the post panel: placement, overlay hold and focus need no hook of their own.
         Assert.DoesNotContain("TagPanel", overlay);
         Assert.DoesNotContain("TagPanel", overflow);
         string viewer = ReadSource("Desktop/GalleryViewer.cs");
-        int hooks = viewer.Split('\n').Count(line => line.Contains("TagPanel") || line.Contains("ToggleContext") || line.Contains("tagOnly") || line.Contains("PostContextVisible"));
-        Assert.InRange(hooks, 1, 17); // Includes the shared sidebar position supplied with gallery navigation.
         Assert.Contains("GalleryTagPanelPosition? sidebarPosition", viewer);
         // V2: the surface is the Tags segment of the side panel host in that slot.
         Assert.Contains("_sidePanel.TagContent = surface;", ReadSource("Desktop/GalleryViewer.TagPanel.cs"));

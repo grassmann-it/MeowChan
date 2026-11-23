@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Security.Cryptography;
 using System.Text.Json;
 using Avalonia;
@@ -5,6 +6,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Archive;
@@ -80,7 +82,7 @@ internal static class GalleryMediaTagChecks
             foreach (string counterLanguage in new[] { "en", "de" })
             {
                 Texts.SetLanguage(counterLanguage);
-                foreach (int width in new[] { 280, 320, 480 })
+                foreach (int width in new[] { 280, 360, 480 })
                 {
                     viewer.PanelWidth = width;
                     window.UpdateLayout(); // the existing gallery close button does not prove the new header slot has been templated
@@ -119,10 +121,15 @@ internal static class GalleryMediaTagChecks
             var where = viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<SelectableTextBlock>().Single(line => line.Name == "GalleryPostWhere");
             Require(where.TextAlignment == Avalonia.Media.TextAlignment.Left, "The Post metadata is not left-aligned.");
             CheckDecisionAlignment(viewer.PostDecisionRow!);
+            Require(viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any(), "The Post tab has no fact grid.");
             Program.CaptureWindow(window, "smoke-gallery-post-header.png");
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
+            window.UpdateLayout();
+            await UntilAsync(() => viewer.SidePanel.TagSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any());
+            Program.CaptureWindow(window, "smoke-112-p2-gallery-tags.png");
+            await CaptureRateAndTagPopoverAsync(window, viewer, bound);
             // TP4: Shift+Page Down marks the shown medium and moves on, Shift+Page Up goes back and unmarks it. The counter chip shows
             // "1 marked" with its clear button, the panel's target is the selection while a mark exists, and the panel is on the first medium again.
             MeowChan.Desktop.Controls.QuickTagSurface marking = viewer.TagSurface!;
@@ -317,6 +324,24 @@ internal static class GalleryMediaTagChecks
 
         void Press(Key key, KeyModifiers modifiers = KeyModifiers.None) =>
             editor.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = key, KeyModifiers = modifiers });
+    }
+
+    private static async Task CaptureRateAndTagPopoverAsync(MainWindow window, GalleryViewer viewer, GalleryEntry entry)
+    {
+        MethodInfo open = typeof(MainWindow).GetMethod("OpenGalleryTileRateAndTagAsync", BindingFlags.Instance | BindingFlags.NonPublic)!;
+        Task opening = (Task)open.Invoke(window, [entry, viewer.SidePanel.TagsButton])!;
+        try
+        {
+            await UntilAsync(() => QuickTagPopover.Current is { Surface: not null, DecisionRow: not null, Frame.Bounds.Height: > 0 });
+            QuickTagPopover popover = QuickTagPopover.Current!;
+            CheckDecisionAlignment(popover.DecisionRow!);
+            Control frame = popover.Frame.GetVisualAncestors().OfType<FlyoutPresenter>().FirstOrDefault() ?? (Control)popover.Frame;
+            using RenderTargetBitmap screenshot = new(new PixelSize((int)Math.Ceiling(frame.Bounds.Width), (int)Math.Ceiling(frame.Bounds.Height)));
+            screenshot.Render(frame);
+            screenshot.Save(Path.Combine(AppContext.BaseDirectory, "smoke-112-p2-popover.png"), PngBitmapEncoderOptions.Default);
+        }
+        finally { QuickTagPopover.Current?.Close(); }
+        await opening;
     }
 
     private static void CheckDecisionAlignment(GalleryDecisionRow row)

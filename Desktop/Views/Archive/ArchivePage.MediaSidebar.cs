@@ -18,6 +18,10 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Favorites;
+using MeowChan.Desktop.MediaActions;
+using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
@@ -171,7 +175,7 @@ public partial class ArchivePage
         if (_mediaSidebar is { } existing) return existing;
         // Publish only a fully configured sidebar: a failed reader move must
         // not leave an incomplete cached sidebar poisoning the next attempt.
-        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false };
+        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false, DecisionKeyContext = "reader" };
         if (_largeReader) ReaderHostingStep("sidebar.created");
         GridSplitter splitter = new GridSplitter
         {
@@ -678,6 +682,49 @@ public partial class ArchivePage
         // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
+    private void RefreshMediaSidebarDecisions()
+    {
+        if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || _thread is not { } thread
+            || ArchivePosts.SelectedItem is not ArchivePostRow post || CurrentSidebarAttachment() is not { } row) return;
+        ResourceId resource = thread.Summary.Id;
+        ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(_assets.Select(asset => asset.Manifest).Distinct(), resource, post.Id, row.Attachment);
+        ArchiveAssetRow? saved = resolved == null ? null
+            : _assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
+        if (saved != null)
+        {
+            FavoriteAssetKey key = FavoriteAssetKey.From(resource, saved.Asset);
+            bool Current() => !_ended && _available && _mediaSidebarShown && ReferenceEquals(row, CurrentSidebarAttachment());
+            sidebar.ConfigureRating(() => Current() && !saved.RatingUnavailable && _mediaRatingError == null && GetMediaRating != null
+                && SetMediaRatingAsync != null && CanChangeMediaRating?.Invoke(key) == true, () => saved.Rating,
+                value => SetMediaRatingAsync?.Invoke(key, value) ?? Task.CompletedTask);
+        }
+        else sidebar.ConfigureRating(null, null, null);
+
+        string? blocked = _privateTags == null ? MediaMenuReasons.TagsUnknown : null;
+        MediaTagSubject? subject = null;
+        if (blocked == null && resolved != null && saved != null)
+        {
+            if (resolved.IsLegacy)
+            {
+                ArchiveMediaSubject context = ResolveArchiveMediaSubject(saved, row, post.Id);
+                subject = MediaTagSubjects.Of(context.TagEntry);
+                blocked = context.TagsBlocked;
+            }
+            else
+            {
+                GalleryEntry entry = new(new(resource, saved.Manifest.Directory, saved.Asset.AssetId),
+                    saved.Manifest, saved.Asset, null, row.Attachment, !saved.Asset.IsCurrent, false) { AttachmentResolution = resolved };
+                subject = MediaTagSubjects.Of(entry, out GalleryMediaTagUnavailable reason);
+                if (subject == null) blocked = MediaMenuReasons.Tags(reason);
+            }
+        }
+        string[]? tags = subject != null ? _privateTags?.TagsOf(subject).Select(tag => tag.Name.Display).ToArray() : null;
+        sidebar.SetTags(tags, blocked ?? (subject == null ? MediaMenuReasons.NotSaved : null));
+        sidebar.SetSourceFacts(resource.Source + " /" + resource.Board + "/ · " + resource.Thread, post.Author, post.Posted,
+            saved?.Asset.Length, row.Attachment.ExpectedSize, row.Attachment.ProviderSizeHint,
+            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false);
+    }
+
     private void RefreshMediaSidebar()
     {
         if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar) return;
@@ -725,7 +772,6 @@ public partial class ArchivePage
         ArchiveAttachmentRow row = post.Attachments[_sidebarIndex];
         CapturedAttachmentText file = CapturedAttachmentText.Of(row);
         string postLine = post.NumberLabel;
-        string size = file.Size is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
         // Tom (16.11.2026): the medium already shown (a rebuilt page, a refreshed thread, a larger frame, the sidebar back from the other host) keeps
         // its picture: no load at all while it covers the frame, otherwise a larger decode that swaps in place (ReaderMediaSidebarLoadState).
         string mediumKey = SidebarMediumKey(post, row);
@@ -734,9 +780,10 @@ public partial class ArchivePage
         ThreadMediaPositions? media = _thread?.MediaPositions;
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
-        sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel, position);
+        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, post.CopyNumberLabel, position);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
+        RefreshMediaSidebarDecisions();
         UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);
         string announcement = ReaderMediaSidebarRules.RegionText(post.Id, _sidebarIndex, count, file);
@@ -756,7 +803,7 @@ public partial class ArchivePage
             return;
         }
         MediaSidebarTask = RunMediaSidebarLoadAsync(loading,
-            token => LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, token));
+            token => LoadMediaSidebarAsync(sidebar, post, row, mediumKey, ticket, target, token));
     }
 
     private Task RunMediaSidebarLoadAsync(CancellationTokenSource loading, Func<CancellationToken, Task> work) =>
@@ -864,7 +911,7 @@ public partial class ArchivePage
         return ReaderMediaSidebarRules.PhysicalTarget(frame, TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
     }
 
-    private Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string size, string key,
+    private Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string key,
         ReaderMediaLoadTicket ticket, (double Width, double Height) target, CancellationToken token)
     {
         ReaderMediaSidebarImageLoad load = new(sidebar, key, ticket, _sidebarFit, () => IsCurrentSidebarRequest(ticket.Request), token);
@@ -890,7 +937,7 @@ public partial class ArchivePage
         }, picture =>
         {
             _sidebarShownDetail = picture.Source is { } source
-                ? (size.Length > 0 ? size + " · " : string.Empty) + $"{source.Width}×{source.Height}" : size;
+                ? $"{source.Width}×{source.Height}" : string.Empty;
             sidebar.SetDetail(_sidebarShownDetail);
         }, () => PreloadMediaSidebarNeighboursAsync(post, target, token));
     }

@@ -67,7 +67,6 @@ internal sealed partial class GalleryViewer
         _marks ??= new GalleryMarks(owner.Options.MarkedMediaLimit);
         GalleryTagPanelController controller = GalleryTagPanelController.Create(owner, entry, _marks);
         QuickTagSurface surface = new(controller.Session, owner.Options, TagPanelName) { NavigationEnabled = true, FillSuggestions = true, ReadSourceTags = owner.ReadSourceTags };
-        surface.UseSectionInset();
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
         surface.MarkedCount = _marks.Count;
@@ -100,6 +99,7 @@ internal sealed partial class GalleryViewer
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
         _tagPanelOpen = true;
+        RefreshTagPanelInfo(entry);
         _filmstrip.SetTaggingViewOpen(true); // the filmstrip's "no tags yet" mark follows the tagging view
         _hoverContextOpen = false; // an edge-hover opened post panel would otherwise close the slot behind the tags
         RefreshDecisionRow();
@@ -267,6 +267,17 @@ internal sealed partial class GalleryViewer
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         RefreshDecisionRow();
+    }
+
+    private void RefreshTagPanelInfo(GalleryEntry entry)
+    {
+        if (!_tagPanelOpen || _tagSurface is not { } surface) return;
+        int generation = _contextGeneration;
+        GalleryPostParts parts = BuildPostParts(entry, (panel, name, label, invoke) => Command(panel, name, label, () =>
+        {
+            if (ReferenceEquals(_tagSurface, surface) && generation == _contextGeneration) invoke();
+        }));
+        surface.SetSidebarInfo(parts.Info, parts.Actions);
     }
 
     // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------

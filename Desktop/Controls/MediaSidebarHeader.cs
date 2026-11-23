@@ -41,7 +41,7 @@ internal class MediaSidebarHeader : Grid
     {
         Size rowSize = new(double.PositiveInfinity, WorkspaceMetrics.InputHeight);
         _close.Measure(rowSize);
-        double reserve = _position.IsVisible ? ShrinkRowPanel.MinimumShrunkWidth + 2 * HeaderGap : 0;
+        double reserve = _position.IsVisible ? WorkspaceMetrics.MediaPanelPositionMinWidth + 2 * HeaderGap : 0;
         ColumnDefinitions[0].MaxWidth = Math.Max(0, availableSize.Width - _close.DesiredSize.Width - reserve);
         return base.MeasureOverride(availableSize);
     }

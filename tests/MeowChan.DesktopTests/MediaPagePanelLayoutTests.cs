@@ -94,7 +94,10 @@ public sealed class MediaPagePanelLayoutTests
                 Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
                 Assert.Equal(8 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
                 Assert.True(panel.Card.Bounds.Height > 0);
-                Assert.Equal(panel.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y + panel.Card.Bounds.Height);
+                ScrollViewer details = panel.GetVisualDescendants().OfType<ScrollViewer>()
+                    .Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
+                Control last = details.IsVisible ? details : panel.Card;
+                Assert.Equal(panel.Bounds.Height, last.TranslatePoint(default, panel)!.Value.Y + last.Bounds.Height, 0.5);
             }
             Layout(height);
             double firstFrame = panel.Frame.Bounds.Height;

@@ -108,7 +108,7 @@ internal sealed partial class GalleryViewer
         if (_tagPanelOpen && _tagSurface != null && _tagController != null) CoupleTaggingPanel(_tagSurface, _tagController);
         else ShowTagPanel(owner);
         // QW2: the first sentence goes through the one status line (the panel's while it is open, else the strip's); the first
-        // decision replaces it. QW1: the panel's own counter leaves, the arrows count. QW3: the slideshow line is not for this mode.
+        // decision replaces it. QW3: the slideshow line is not for this mode.
         SayTagging(TaggingModeText.Start(walk));
         RefreshPanelCounter();
         RefreshPlaybackControls();
@@ -127,7 +127,7 @@ internal sealed partial class GalleryViewer
         _tagging = null;
         _taggingOwner = null;
         _taggingStatus.Text = string.Empty;
-        RefreshPanelCounter(); // an open panel shows its "Medium n of m" again
+        RefreshPanelCounter();
         RefreshPlaybackControls(); // the slideshow line may speak again
         UpdateHelp();
         OnGalleryModeChanged();

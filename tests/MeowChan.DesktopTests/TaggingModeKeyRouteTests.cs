@@ -163,7 +163,6 @@ public sealed class TaggingModeKeyRouteTests : IDisposable
         Assert.Contains("_session.SetTagQueueCursorAsync(position)", queue);
         string gallery = Source("Desktop", "Shell", "MainWindow.Gallery.cs");
         Assert.Contains("EndGalleryTagging(persist: true);", gallery);
-        Assert.Contains("TaggingPositionText(_galleryEntries[_galleryIndex]) ??", gallery);
         // PT5 host glue: one stamp for every panel of the window, kept in the settings.
         string glue = Source("Desktop", "Shell", "MainWindow.GalleryTags.cs");
         Assert.Contains("TaggingSettings.StampOptions(_config).CreateStamp(_config.TagStamp)", glue); // PT7: the stamp size is a setting

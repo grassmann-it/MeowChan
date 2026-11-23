@@ -301,7 +301,7 @@ public sealed class ReaderMediaSidebarImageLoadTests
             if (hasPreview) view.ShowPicture(preview, released.Add, false, 100, 160, "post-a", new PixelSize(100, 160));
             ReaderMediaLoadTicket ticket = view.Load.Begin("post-a", (80, 128));
             Task load = (Task)typeof(ArchivePage).GetMethod("LoadMediaSidebarAsync", flags)!.Invoke(page,
-                new object[] { view, post, row, "", "post-a", ticket, (80d, 128d), CancellationToken.None })!;
+                new object[] { view, post, row, "post-a", ticket, (80d, 128d), CancellationToken.None })!;
             view.ShowLoading(view.Load.LoadingLook(ticket.Request), Texts.T("reader.sidebar.loading"));
             if (completion == "missing") resolve.SetResult(null);
             else if (completion == "cancel") resolve.SetCanceled();

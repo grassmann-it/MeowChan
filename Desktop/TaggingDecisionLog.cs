@@ -407,7 +407,7 @@ internal static class TaggingModeText
 {
     /// <summary>"Queue 12 of 200" for the gallery header; null when the medium left the queue.</summary>
     internal static string? Position(TaggingWalk walk, int index) => walk.QueuePosition(index) is { } position
-        ? Texts.T("tagging.position", position.Number.ToString(Texts.Culture), position.Count.ToString(Texts.Culture)) : null;
+        ? MediaPositionText.Long(new(position.Number, position.Count, More: false, Queue: true)) : null;
 
     /// <summary>"Open: 194 · Done: 5 · Skipped: 1", the same order and words as the Tagging page (numbers in fixed phrases: no plural forms needed).</summary>
     internal static string Progress(TaggingWalk walk)

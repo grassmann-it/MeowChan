@@ -185,11 +185,11 @@ public sealed class GalleryRatingPanelTests : IDisposable
     }
 
     [Fact]
-    public void ThePostTagsSectionListsTheTagsAsChipButtonsThatOpenTheTagsSegmentAndOneLinkForTheKeyboard()
+    public void ThePostTagsSectionListsTheTagsAsChipButtonsThatOpenTheTagsSegment()
     {
         Fixture h = new();
         SetField(h.Viewer, "_tagNames", new[] { "alpha", "beta", "gamma" });
-        StackPanel section = (StackPanel)BuildTags(h.Viewer, out List<(string Name, string Text)> commands);
+        StackPanel section = (StackPanel)BuildTags(h.Viewer);
         WrapPanel chips = Assert.IsType<WrapPanel>(section.Children.OfType<WrapPanel>().Single());
         Assert.Equal(3, chips.Children.Count);
         // Dead-affordance review 15.11.: a chip is a real, enabled button (it opens the Tags segment); the one link is the keyboard's way, so the
@@ -202,7 +202,6 @@ public sealed class GalleryRatingPanelTests : IDisposable
             Assert.Equal(Texts.T("gallery.post.tags.edit"), ToolTip.GetTip(button));
             Click(button); // the viewer of this fixture has no open panel: nothing to open, nothing may throw
         });
-        Assert.Equal(new[] { ("GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit")) }, commands.Select(item => (item.Name, item.Text)).ToArray());
         Assert.Contains("alpha, beta, gamma", AutomationProperties.GetName(chips));
     }
 
@@ -212,12 +211,12 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Fixture h = new();
         SetField(h.Viewer, "_postTagChipLimit", 5);
         SetField(h.Viewer, "_tagNames", Enumerable.Range(1, 12).Select(number => "t" + number).ToArray());
-        WrapPanel chips = ((StackPanel)BuildTags(h.Viewer, out _)).Children.OfType<WrapPanel>().Single();
+        WrapPanel chips = ((StackPanel)BuildTags(h.Viewer)).Children.OfType<WrapPanel>().Single();
         Assert.Equal(6, chips.Children.Count); // five chips and "+7 more"
         Assert.Equal("GalleryPostTagsMore", ((Control)chips.Children[^1]).Name);
         Assert.Equal(Texts.T("gallery.post.tags.more", 7), ((TextBlock)((Button)chips.Children[^1]).Content!).Text);
         SetField(h.Viewer, "_postTagChipLimit", 12); // exactly as many as there are: no overflow chip
-        chips = ((StackPanel)BuildTags(h.Viewer, out _)).Children.OfType<WrapPanel>().Single();
+        chips = ((StackPanel)BuildTags(h.Viewer)).Children.OfType<WrapPanel>().Single();
         Assert.Equal(12, chips.Children.Count);
         Assert.DoesNotContain(chips.Children, child => ((Control)child).Name == "GalleryPostTagsMore");
         Assert.Contains("_gallery.PostTagChipLimit = _config.GalleryPostTagChipLimit;", Source("Desktop/Shell/MainWindow.GalleryPreferences.cs"));
@@ -244,13 +243,13 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Assert.Equal(30, limit);
         string[] many = Enumerable.Range(1, limit + 5).Select(number => "t" + number).ToArray();
         SetField(h.Viewer, "_tagNames", many);
-        StackPanel section = (StackPanel)BuildTags(h.Viewer, out _);
+        StackPanel section = (StackPanel)BuildTags(h.Viewer);
         WrapPanel chips = section.Children.OfType<WrapPanel>().Single();
         Assert.Equal(limit + 1, chips.Children.Count);
         Assert.Equal("GalleryPostTagsMore", ((Control)chips.Children[^1]).Name);
         Assert.IsType<Button>(chips.Children[^1]);
         SetField(h.Viewer, "_tagNames", Array.Empty<string>());
-        section = (StackPanel)BuildTags(h.Viewer, out _);
+        section = (StackPanel)BuildTags(h.Viewer);
         Assert.Contains(section.Children, child => child.Name == "GalleryPostTagsEmpty");
         Assert.DoesNotContain(section.Children, child => child is WrapPanel);
     }
@@ -261,21 +260,9 @@ public sealed class GalleryRatingPanelTests : IDisposable
         Fixture h = new();
         SetField(h.Viewer, "_tagNames", null);
         SetField(h.Viewer, "_tagsUnavailableReason", "The tag store is damaged.");
-        StackPanel section = (StackPanel)BuildTags(h.Viewer, out List<(string Name, string Text)> commands);
-        Assert.Empty(commands);
+        StackPanel section = (StackPanel)BuildTags(h.Viewer);
         TextBlock reason = Assert.IsType<TextBlock>(section.Children.Single(child => child.Name == "GalleryPostTagsReason"));
         Assert.Equal("The tag store is damaged.", reason.Text);
-    }
-
-    [Fact]
-    public void AChipOrTheMoreChipOpensTheTagsSegmentLikeTheLink()
-    {
-        string post = Source("Desktop", "GalleryViewer.PostPanel.cs");
-        Assert.Single(post.Split("GallerySidePanelSegment.Tags, focusContent: true")[1..]); // one action, shared by the link and both kinds of chip
-        Assert.Contains("\"GalleryPostTagsEdit\", Texts.T(\"gallery.post.tags.edit\"), openTags)", post);
-        Assert.Contains("chip.Click += (_, _) => open();", post);
-        Assert.Contains("TagChip(name, more: false, openTags)", post);
-        Assert.Contains("more: true, openTags)", post);
     }
 
     // ---- R and the deletions ---------------------------------------------------------------------------------------------------
@@ -370,21 +357,8 @@ public sealed class GalleryRatingPanelTests : IDisposable
     private static void Click(Button button) =>
         typeof(Button).GetMethod("OnClick", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(button, null);
 
-    private static Control BuildTags(GalleryViewer viewer, out List<(string Name, string Text)> commands)
-    {
-        List<(string Name, string Text)> seen = new();
-        Func<Panel, string, string, Action, Button> command = (parent, name, text, action) =>
-        {
-            Button button = new() { Name = name, Content = text };
-            parent.Children.Add(button);
-            seen.Add((name, text));
-            Assert.NotNull(action);
-            return button;
-        };
-        object result = typeof(GalleryViewer).GetMethod("BuildPostTagsSection", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(viewer, new object[] { command })!;
-        commands = seen;
-        return (Control)result;
-    }
+    private static Control BuildTags(GalleryViewer viewer) =>
+        (Control)typeof(GalleryViewer).GetMethod("BuildPostTagsSection", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(viewer, null)!;
 
     private static void SetField(GalleryViewer viewer, string name, object? value) =>
         typeof(GalleryViewer).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(viewer, value);

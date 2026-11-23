@@ -11,6 +11,7 @@ using MeowChan.Transfer;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class GalleryMediaTagTests
 {
     private static readonly ResourceId Thread = new("4chan", "g", "123");
@@ -192,7 +193,7 @@ public sealed class GalleryMediaTagTests
     {
         using TempDirectory temp = new();
         PrivateMediaTagTarget target = Target();
-        await using (DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>())))
         {
             await host.StartAsync();
             MediaTagSession session = new(new MediaTagSubject.Bound(target), host.GetPublishedPrivateTagSnapshot,
@@ -200,7 +201,7 @@ public sealed class GalleryMediaTagTests
             await session.AddAsync("keep");
             Assert.Equal("keep", Assert.Single(session.Assigned).Name.Display);
         }
-        await using DesktopSessionHost restored = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost restored = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await restored.StartAsync();
         PrivateTagStoreSnapshot snapshot = restored.GetPrivateTagSnapshot().Snapshot!;
         Assert.Equal("keep", Assert.Single(snapshot.TagsOf(target)).Name.Display);
