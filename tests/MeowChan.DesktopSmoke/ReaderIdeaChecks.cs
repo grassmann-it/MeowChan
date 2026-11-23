@@ -212,7 +212,9 @@ internal static partial class ReaderIdeaChecks
         await using Fixture fixture = await OpenAsync(owner, "310", _ =>
         [
             new("310", 0, PostFieldPresence.All, Subject: "Opening", Author: "Anon", Html: "<p>The opening post says something long enough to read.<br>Second line.</p>"),
-            new("311", 1, PostFieldPresence.All, Html: "<a href='#p310' class='quotelink'>&gt;&gt;310</a> first reply"),
+            // Leave room for the open, interactive preview above the next test link.
+            new("311", 1, PostFieldPresence.All, Html: "<a href='#p310' class='quotelink'>&gt;&gt;310</a> first reply"
+                + "<br>First line of the reply.<br>Second line.<br>Third line.<br>End of the reply."),
             new("312", 2, PostFieldPresence.All, Html: "<a href='#p311' class='quotelink'>&gt;&gt;311</a> and <a href='#p999' class='quotelink'>&gt;&gt;999</a> reply two")
         ]);
         ArchivePage page = fixture.Page;
