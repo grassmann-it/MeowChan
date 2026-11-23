@@ -174,53 +174,53 @@ internal sealed class BooruListTagFlow : Panel
     {
         int count = shown + (_expanded || shown < _tags.Length ? 1 : 0);
         Rect[] slots = new Rect[count];
-        List<(int Start, int End, double Top, double Height)> rows = new();
-        double x = 0, y = 0, rowHeight = 0;
-        int start = 0;
-        bool splitSingleTagRow = _columns == 2 && shown >= 2 && TagWidth(shown) <= width;
-        for (int i = 0; i < count; i++)
+        int split = count;
+        double height = FlowColumn(0, count, 0);
+        if (_columns == 2)
         {
-            Size size = i == shown ? toggleSize : _items[i].DesiredSize;
-            size = size.WithWidth(Math.Min(width, size.Width));
-            // With two columns, two or more tags should use both even when a single row would fit.
-            bool breakOneRow = splitSingleTagRow && i == (shown + 1) / 2;
-            if (i > start && (x + size.Width > width || breakOneRow))
+            // The heading travels with its category. Only a boundary between visible categories can start column two.
+            for (int i = 1; i < shown; i++)
             {
-                rows.Add((start, i, y, rowHeight));
-                y += rowHeight + Gap;
-                x = rowHeight = 0;
-                start = i;
+                if (_tags[i - 1].Category == _tags[i].Category) continue;
+                double candidate = Math.Max(FlowColumn(0, i, 0), FlowColumn(i, count, width + ColumnGap));
+                if (split != count && candidate >= height) continue;
+                split = i;
+                height = candidate;
             }
-            slots[i] = new Rect(x, y, size.Width, size.Height);
-            x += size.Width + Gap;
-            rowHeight = Math.Max(rowHeight, size.Height);
         }
-        rows.Add((start, count, y, rowHeight));
-        int split = _columns == 2 ? (rows.Count + 1) / 2 : rows.Count;
-        // A trailing row may contain only the fold button. Keep a row of chips in each column.
-        if (_columns == 2 && shown >= 2 && rows[^1].Start == shown) split = Math.Min(split, rows.Count - 2);
-        double height = 0;
-        for (int row = 0; row < rows.Count; row++)
-        {
-            var line = rows[row];
-            bool second = row >= split;
-            double columnX = second ? width + ColumnGap : 0;
-            double dy = top - (second ? rows[split].Top : 0);
-            for (int item = line.Start; item < line.End; item++)
-            {
-                Rect slot = slots[item];
-                slots[item] = slot.Translate(new Vector(columnX, dy + (line.Height - slot.Height) / 2));
-            }
-            height = Math.Max(height, line.Top + dy + line.Height);
-        }
+        FlowColumn(0, split, 0, slots);
+        if (split < count) FlowColumn(split, count, width + ColumnGap, slots);
         return (slots, height);
-    }
 
-    private double TagWidth(int shown)
-    {
-        double width = 0;
-        for (int i = 0; i < shown; i++) width += _items[i].DesiredSize.Width;
-        return width + (shown - 1) * Gap;
+        double FlowColumn(int first, int end, double columnX, Rect[]? output = null)
+        {
+            double x = 0, y = top, rowHeight = 0;
+            int rowStart = first;
+            for (int i = first; i < end; i++)
+            {
+                Size size = i == shown ? toggleSize : _items[i].DesiredSize;
+                size = size.WithWidth(Math.Min(width, size.Width));
+                if (i > rowStart && x + size.Width > width)
+                {
+                    CenterRow(i);
+                    y += rowHeight + Gap;
+                    x = rowHeight = 0;
+                    rowStart = i;
+                }
+                if (output != null) output[i] = new Rect(columnX + x, y, size.Width, size.Height);
+                x += size.Width + Gap;
+                rowHeight = Math.Max(rowHeight, size.Height);
+            }
+            CenterRow(end);
+            return y + rowHeight;
+
+            void CenterRow(int rowEnd)
+            {
+                if (output == null) return;
+                for (int i = rowStart; i < rowEnd; i++)
+                    output[i] = output[i].Translate(new Vector(0, (rowHeight - output[i].Height) / 2));
+            }
+        }
     }
 
     protected override Size ArrangeOverride(Size finalSize)

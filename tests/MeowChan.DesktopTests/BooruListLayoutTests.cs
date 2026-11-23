@@ -176,6 +176,27 @@ public sealed class BooruListLayoutTests
     });
 
     [Fact]
+    public void WideTagColumnsKeepEachCategoryTogetherWhenTagsWrap() => Run(() =>
+    {
+        using Fixture fixture = new(tagCount: 29);
+        fixture.ResizeViewport(1401);
+        BooruResultActionsTests.Click(Toggle(fixture.Card("101"), "101"));
+        fixture.Settle();
+
+        Border card = fixture.Card("101");
+        Control tags = Find<Control>(card, "BooruListTags:101");
+        double middle = Bounds(tags, card).Center.X;
+        BooruPostView post = fixture.Model.Search.View.Rows[0].Post;
+        string prefix = BooruWorkbenchView.ResultTagPrefix + "101:";
+        var shown = ShownTags(card).ToDictionary(chip => chip.Name![prefix.Length..], chip => Bounds(chip, card).Center.X > middle);
+        Assert.Equal(post.Tags.Length, shown.Count);
+        Assert.Contains(true, shown.Values);
+        Assert.Contains(false, shown.Values);
+        foreach (var category in post.Tags.GroupBy(tag => tag.Category))
+            Assert.Single(category.Select(tag => shown[tag.Name]).Distinct());
+    });
+
+    [Fact]
     public void EmptyTagsAndLargeTextStayReachableAndResizeKeepsTheCheckboxFocused() => Run(() =>
     {
         using Fixture fixture = new(tagCount: 0);
