@@ -119,6 +119,7 @@ public partial class ArchivePage
         // no list reload, so selection and scroll position stay. An unreadable store clears them.
         RefreshThreadTagRows(ArchiveVisibleRows);
         OnPrivateTagsChangedForFilter();
+        RefreshMediaSidebarDecisions();
     }
 
     private void RefreshThreadTagRows(IEnumerable<ArchiveThreadRow> rows)

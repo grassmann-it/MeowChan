@@ -47,6 +47,7 @@ public partial class ArchivePage
             Message(MediaRatingText.LocalizedFilterNoLongerMatches);
             ArchiveRatingFilter.Focus();
         }
+        RefreshMediaSidebarDecisions();
         foreach (ArchiveMediaTileView tile in this.GetVisualDescendants().OfType<ArchiveMediaTileView>()) tile.RefreshRating();
     }
     private void OnMediaRatingFilterChanged(object? sender, SelectionChangedEventArgs e)

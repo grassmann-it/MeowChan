@@ -38,6 +38,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     };
     private readonly TextBlock _favoriteLabel = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _favoriteContent;
+    private bool? _favoriteAvailable;
     private GalleryDecisionView _view = GalleryDecisionView.Unavailable;
     // The star the pointer is on (1 to 5): the stars up to it show as set. Never a state of the row, never a request.
     private int? _preview;
@@ -141,7 +142,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     {
         if (!_view.Available || value is < 1 or > 5) return false;
         if (value == null && !_view.Rating.HasValue && !_view.RatingMixed) return true; // nothing to remove: the key is the row's, it changes nothing
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         RatingRequested?.Invoke(value);
         return true;
     }
@@ -152,11 +153,11 @@ internal sealed class GalleryDecisionRow : StackPanel
     /// </summary>
     internal bool RequestFavorite(FavoriteKeyAction action)
     {
-        if (!_view.Available || !FavoriteVisible || action == FavoriteKeyAction.None) return false;
+        if (!_favorite.IsEnabled || !FavoriteVisible || action == FavoriteKeyAction.None) return false;
         bool wanted = action switch { FavoriteKeyAction.Add => true, FavoriteKeyAction.Remove => false, _ => _view.NextFavorite };
         bool all = _view.Favorite == GalleryDecisionCoverage.All, none = _view.Favorite == GalleryDecisionCoverage.None;
         if (action == FavoriteKeyAction.Add && all || action == FavoriteKeyAction.Remove && none) return true;
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         FavoriteRequested?.Invoke(wanted);
         return true;
     }
@@ -171,11 +172,12 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal Action? ReturnFocus { get; set; }
 
     /// <summary>Shows what the targets carry now.</summary>
-    internal void Show(GalleryDecisionView view)
+    internal void Show(GalleryDecisionView view, bool? favoriteAvailable = null)
     {
+        _favoriteAvailable = favoriteAvailable;
         _view = view ?? throw new ArgumentNullException(nameof(view));
         bool all = view.Favorite == GalleryDecisionCoverage.All;
-        _favorite.IsEnabled = view.Available;
+        _favorite.IsEnabled = favoriteAvailable ?? view.Available;
         _favorite.IsChecked = view.Favorite == GalleryDecisionCoverage.Some ? null : all;
         _favoriteContent.Children[0] = FavoriteStar.Create(all, StarGlyphSize);
         // The label says what the targets carry: "Favorite", and "Favorite on some" while only some of a selection are.
@@ -267,7 +269,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         AutomationProperties.SetAccessibilityView(_group, AccessibilityView.Content);
         AutomationProperties.SetControlTypeOverride(_group, AutomationControlType.Group);
         AutomationProperties.SetName(this, Texts.T("gallery.decision.name"));
-        Show(_view);
+        Show(_view, _favoriteAvailable);
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (_attached) Localize(); });
@@ -277,14 +279,14 @@ internal sealed class GalleryDecisionRow : StackPanel
     // A toggle button flips itself on click; the shown state is the view's, so it is set again before the request goes out.
     private void OnFavorite(object? sender, RoutedEventArgs e)
     {
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         FavoriteRequested?.Invoke(_view.NextFavorite);
         GiveFocusBack();
     }
 
     private void OnStar(int number)
     {
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         RatingRequested?.Invoke(number);
         GiveFocusBack();
     }

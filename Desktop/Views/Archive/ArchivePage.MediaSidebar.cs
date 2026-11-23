@@ -18,6 +18,10 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
+using MeowChan.Favorites;
+using MeowChan.Desktop.MediaActions;
+using MeowChan.Storage;
+using MeowChan.Tags;
 
 namespace MeowChan;
 
@@ -171,7 +175,7 @@ public partial class ArchivePage
         if (_mediaSidebar is { } existing) return existing;
         // Publish only a fully configured sidebar: a failed reader move must
         // not leave an incomplete cached sidebar poisoning the next attempt.
-        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false };
+        ReaderMediaSidebar sidebar = new ReaderMediaSidebar { IsVisible = false, DecisionKeyContext = "reader" };
         if (_largeReader) ReaderHostingStep("sidebar.created");
         GridSplitter splitter = new GridSplitter
         {
@@ -678,6 +682,49 @@ public partial class ArchivePage
         // The running task owns disposal, including non-cooperative decodes after cancellation.
     }
 
+    private void RefreshMediaSidebarDecisions()
+    {
+        if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || _thread is not { } thread
+            || ArchivePosts.SelectedItem is not ArchivePostRow post || CurrentSidebarAttachment() is not { } row) return;
+        ResourceId resource = thread.Summary.Id;
+        ResolvedMediaAttachment? resolved = MediaAttachmentResolver.Resolve(_assets.Select(asset => asset.Manifest).Distinct(), resource, post.Id, row.Attachment);
+        ArchiveAssetRow? saved = resolved == null ? null
+            : _assets.FirstOrDefault(asset => ReferenceEquals(asset.Manifest, resolved.Snapshot) && asset.Asset == resolved.Asset);
+        if (saved != null)
+        {
+            FavoriteAssetKey key = FavoriteAssetKey.From(resource, saved.Asset);
+            bool Current() => !_ended && _available && _mediaSidebarShown && ReferenceEquals(row, CurrentSidebarAttachment());
+            sidebar.ConfigureRating(() => Current() && !saved.RatingUnavailable && _mediaRatingError == null && GetMediaRating != null
+                && SetMediaRatingAsync != null && CanChangeMediaRating?.Invoke(key) == true, () => saved.Rating,
+                value => SetMediaRatingAsync?.Invoke(key, value) ?? Task.CompletedTask);
+        }
+        else sidebar.ConfigureRating(null, null, null);
+
+        string? blocked = _privateTags == null ? MediaMenuReasons.TagsUnknown : null;
+        MediaTagSubject? subject = null;
+        if (blocked == null && resolved != null && saved != null)
+        {
+            if (resolved.IsLegacy)
+            {
+                ArchiveMediaSubject context = ResolveArchiveMediaSubject(saved, row, post.Id);
+                subject = MediaTagSubjects.Of(context.TagEntry);
+                blocked = context.TagsBlocked;
+            }
+            else
+            {
+                GalleryEntry entry = new(new(resource, saved.Manifest.Directory, saved.Asset.AssetId),
+                    saved.Manifest, saved.Asset, null, row.Attachment, !saved.Asset.IsCurrent, false) { AttachmentResolution = resolved };
+                subject = MediaTagSubjects.Of(entry, out GalleryMediaTagUnavailable reason);
+                if (subject == null) blocked = MediaMenuReasons.Tags(reason);
+            }
+        }
+        string[]? tags = subject != null ? _privateTags?.TagsOf(subject).Select(tag => tag.Name.Display).ToArray() : null;
+        sidebar.SetTags(tags, blocked ?? (subject == null ? MediaMenuReasons.NotSaved : null));
+        sidebar.SetSourceFacts(resource.Source + " /" + resource.Board + "/ · " + resource.Thread, post.Author, post.Posted,
+            saved?.Asset.Length, row.Attachment.ExpectedSize, row.Attachment.ProviderSizeHint,
+            MediaProvenanceText.Summary(resolved?.Binding), saved?.Asset.IsCurrent == false);
+    }
+
     private void RefreshMediaSidebar()
     {
         if (_ended || !_mediaSidebarShown || _mediaSidebar is not { } sidebar) return;
@@ -733,9 +780,10 @@ public partial class ArchivePage
         ThreadMediaPositions? media = _thread?.MediaPositions;
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
-        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, post.CopyNumberLabel, position, savedBytes: file.Size);
+        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, post.CopyNumberLabel, position);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
+        RefreshMediaSidebarDecisions();
         UpdateSidebarStrip(sidebar, post, samePost);
         OfferSidebarVideo(post, row);
         string announcement = ReaderMediaSidebarRules.RegionText(post.Id, _sidebarIndex, count, file);

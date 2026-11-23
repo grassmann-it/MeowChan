@@ -83,6 +83,7 @@ public partial class ArchivePage
                     row.FavoriteError = () => entry == null ? null : _favoriteErrors.GetValueOrDefault(FavoriteAssetKey.From(entry.Key.Thread, entry.Asset));
                 }
         RefreshArchiveFavoriteControls();
+        RefreshMediaSidebarDecisions();
     }
 
     // <paramref name="selected"/> null: the toggle of the stars and menus; a value (the favourite keys): that explicit target (the toggle only when the host wired no setter).

@@ -97,7 +97,7 @@ public sealed partial class MediaPage
         ReaderMediaSidebar panel = _panel = new ReaderMediaSidebar
         {
             Name = "MediaPanel", IsVisible = false, UseGalleryCursor = true, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
-            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true
+            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true, DecisionKeyContext = "media"
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
@@ -364,9 +364,14 @@ public sealed partial class MediaPage
             : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
         panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
             threadPosition: PanelPositionOf(row), savedBytes: entry.Length);
-        // The star reads the panel's row when it is asked, so a new presentation (own state changed) needs no new wiring.
-        panel.ConfigureFavorite(PanelFavoriteAvailable, () => _panelRow?.State?.Favorite == MediaLibraryFlag.Yes,
-            () => _panelRow is { } current ? ToggleTileFavoriteAsync(current.Entry) : Task.CompletedTask);
+        // Each write freezes the panel row even when the grid refreshes its selection.
+        panel.ConfigureFavorite(PanelFavoriteAvailable, () => row.State?.Favorite == MediaLibraryFlag.Yes,
+            () => ToggleTileFavoriteAsync(entry));
+        bool Current() => !_lifetime.IsCancellationRequested && _building == null && _panelShown && ReferenceEquals(_panelRow, row);
+        panel.ConfigureRating(() => Current() && !_selectionBusy && ExecuteMediaMenuActionAsync != null && row.State?.RatingKnown == true,
+            () => _panelRow?.State?.UserRating, value => ExecuteMediaActionAsync(value is int rating ? "media.rating.set-" + rating : "media.rating.clear", entry, Current));
+        panel.SetTags(row.State?.CanEditMediaTags == true ? row.State.MediaTags : null, TagsBlockedReason(entry, row.State));
+        panel.SetSourceFacts(row.ThreadLabel, null, entry.PostedAt?.ToString("g", Texts.Culture), entry.Length, null, null);
     }
 
     private bool PanelFavoriteAvailable() => !_lifetime.IsCancellationRequested && ExecuteMediaMenuActionAsync != null
