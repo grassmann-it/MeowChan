@@ -74,6 +74,13 @@ internal sealed record TagSuggestionSnapshot(long Revision, IReadOnlyList<Stored
     internal IReadOnlyList<StoredTagSuggestion> PendingFor(string mediaSha256, double threshold)
         => PendingForContent(mediaSha256, threshold, mediaLength: null).ToArray();
 
+    /// <summary>Shows eligible pending proposals first and keeps every decided or superseded row in the history.</summary>
+    internal IReadOnlyList<StoredTagSuggestion> ReviewFor(string mediaSha256, long mediaLength, double threshold)
+        => PendingForContent(mediaSha256, threshold, mediaLength).Concat(Suggestions
+            .Where(value => value.MediaSha256 == mediaSha256 && value.MediaLength == mediaLength
+                && value.State != TagSuggestionState.Pending)
+            .OrderByDescending(value => value.DecidedAt).ThenByDescending(value => value.Id)).ToArray();
+
     /// <summary>Binds pending raw suggestions for the observed bytes to the exact occurrence being reviewed.</summary>
     internal IReadOnlyList<TagRuleInput> PendingFor(MediaTagSubject subject, long mediaLength, double threshold)
     {

@@ -137,6 +137,27 @@ public sealed class TagSuggestionStoreTests : IDisposable
     }
 
     [Fact]
+    public void ReviewViewFiltersPendingByContentAndScoreAndKeepsEveryTerminalState()
+    {
+        TagSuggestionStore store = Store();
+        TagSuggestionSnapshot initial = store.CommitRuns([Run(MediaA, R1, ("accepted", 0.8), ("rejected", 0.7), ("older", 0.9)),
+            Run(MediaB, R1, ("different", 1))]);
+        long accepted = initial.Suggestions.Single(row => row.Name == "accepted").Id;
+        long rejected = initial.Suggestions.Single(row => row.Name == "rejected").Id;
+        TagSuggestionSnapshot decided = store.Decide([accepted], TagSuggestionState.Accepted, initial.Revision);
+        store.Decide([rejected], TagSuggestionState.Rejected, decided.Revision);
+        store.CommitRuns([Run(MediaA, R1, ("first", 0.9), ("second", 0.5), ("low", 0.2)),
+            Run(MediaA, OtherTagger, ("wrong length", 1)) with { MediaLength = 101 }]);
+        TagSuggestionSnapshot stored = Store().Load();
+
+        Assert.Equal([("first", TagSuggestionState.Pending), ("second", TagSuggestionState.Pending),
+            ("rejected", TagSuggestionState.Rejected), ("accepted", TagSuggestionState.Accepted), ("older", TagSuggestionState.Superseded)],
+            stored.ReviewFor(MediaA, 100, 0.35).Select(row => (row.Name, row.State)));
+        Assert.Contains(stored.ReviewFor(MediaA, 100, 0.05), row => row.Name == "low");
+        Assert.Equal("wrong length", Assert.Single(stored.ReviewFor(MediaA, 101, 0.35)).Name);
+    }
+
+    [Fact]
     public void ARerunOfTheSameRevisionReplacesItsPendingSuggestions()
     {
         TagSuggestionStore store = Store();

@@ -51,8 +51,11 @@ internal sealed partial class TagSuggestionStore
     internal TagSuggestionSnapshot RecoverReview(CancellationToken token = default)
     {
         using ProfileAdmissionToken admission = _lease.Admission.EnterStoreWriter(token);
-        return _lease.RunStoreWrite(admission, () => RecoverReviewCore(token));
+        return RecoverReviewAdmitted(admission, token);
     }
+
+    internal TagSuggestionSnapshot RecoverReviewAdmitted(ProfileAdmissionToken admission, CancellationToken token)
+        => _lease.RunStoreWrite(admission, () => RecoverReviewCore(token));
 
     // An occurrence review must use the profile's configured write limits.
     private PrivateTagStore PrivateTags() => _privateTags

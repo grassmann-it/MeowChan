@@ -170,7 +170,7 @@ internal static class TaggingQueueMenu
 {
     /// <param name="context">The selection and what is possible now.</param>
     /// <param name="action">What the entry of a command does (called when it is clicked).</param>
-    internal static ContextMenuBuilder Compose(TaggingCommandContext context, Func<string, Action> action)
+    internal static ContextMenuBuilder Compose(TaggingCommandContext context, Func<string, Action> action, Action? openSuggestions = null)
     {
         ArgumentNullException.ThrowIfNull(context);
         ArgumentNullException.ThrowIfNull(action);
@@ -183,6 +183,8 @@ internal static class TaggingQueueMenu
                 TaggingCommandState state = TaggingRowCommands.Evaluate(id, context);
                 menu.Command(id, action(id), state.Available, state.Reason, keyContext: "tagging");
             }
+            if (section == 0 && openSuggestions is not null && context.Selected.Count == 1)
+                menu.Item("tagging.suggestions", Texts.T("tagging.page.suggestions.open"), openSuggestions);
             // Groups sit between decisions and navigation in the row menu.
             if (section == 1) AddGroups(menu.Section(), context, action);
         }
