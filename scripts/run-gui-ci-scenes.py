@@ -131,6 +131,10 @@ def collect(entries, required, assembly, output, timeout, native=False, run=boun
                 raise RuntimeError('Runner outer deadline/forced termination: desktop safety unproven')
             if result.returncode:
                 print((destination / 'runner.log').read_text(errors='replace')[-8000:], flush=True)
+            elif sys.platform == 'darwin' and environment.get('MEOWCHAN_MAC_SCREENSHOTS') == '1':
+                for line in (destination / 'runner.log').read_text(errors='replace').splitlines():
+                    if line.startswith('WARNING macOS screenshot '):
+                        print(line, flush=True)
             if audio_report:
                 audio = json.loads(audio_report.read_text())
                 if audio.get('cleanup', {}).get('complete') is not True:

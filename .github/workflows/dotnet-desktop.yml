@@ -336,6 +336,8 @@ jobs:
         shell: bash
         env:
           GUI_CI_SCENARIO: ${{ inputs.scenario || 'all' }}
+          # Optional compositor evidence is uploaded with each scene's regular captures.
+          MEOWCHAN_MAC_SCREENSHOTS: ${{ runner.os == 'macOS' && '1' || '0' }}
         run: |
           python scripts/run-gui-ci-scenes.py \
             --assembly tests/MeowChan.DesktopSmoke/bin/Release/net10.0/MeowChan.DesktopSmoke.dll \
