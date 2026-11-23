@@ -534,7 +534,7 @@ public sealed class BooruCompositionHostTests
         using MeowChan.Persistence.ProfileLease lease = MeowChan.Persistence.ProfileLease.Acquire(profile.Path);
         BooruCatalogStore catalog = new(profile.Path, lease);
         lease.Admission.CompleteStartup();
-        DanbooruWatcherScheduler scheduler = new(catalog, new NoSearch(), new NoAdmission());
+        await using DanbooruWatcherScheduler scheduler = new(catalog, new NoSearch(), new NoAdmission());
         scheduler.Load();
         Assert.Equal(BooruCodes.CatalogUnreadable, scheduler.GetSnapshot().FaultCode);
         using BooruSchedulerWatcherPort port = new(scheduler, catalog);
