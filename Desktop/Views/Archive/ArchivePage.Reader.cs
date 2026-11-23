@@ -257,7 +257,8 @@ public partial class ArchivePage
             _readerSurfacePointer = null;
             _readerNavigationPointerOver = false;
             // A shortcut can scroll the posts and release hover while its reveal is still fresh.
-            if (_readerNavigationActivityFromPointer || !TransientHover.WindowUsable(ReaderContentSurface))
+            if (_readerNavigationActive
+                && (_readerNavigationActivityFromPointer || !TransientHover.WindowUsable(ReaderContentSurface)))
             {
                 _readerNavigationActive = false;
                 _readerNavigationIdleTimer?.Stop();
