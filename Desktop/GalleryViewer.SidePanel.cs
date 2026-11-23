@@ -75,7 +75,7 @@ internal sealed partial class GalleryViewer
     private void RefreshPanelCounter()
     {
         if (_sidePanel == null) return;
-        GalleryTagPanelPosition? position = GalleryChromePlan.PanelCounter(_tagOwner?.CounterPosition ?? _sidebarPosition, IsTagMode);
+        GalleryTagPanelPosition? position = _sidebarPosition;
         bool marked = _tagController is { } controller && controller.IsMarked(controller.ShownEntry());
         _sidePanel.Position.Show(position, marked);
     }

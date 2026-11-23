@@ -318,12 +318,12 @@ public sealed class GalleryTagPanelTests : IDisposable
     [Fact]
     public void ACounterTextReadsMediumFourOfTwentySevenInBothLanguagesAndNamesAnOpenEnd()
     {
-        Assert.Equal("Medium 4 of 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, false)));
-        Assert.Equal("Medium 4 of at least 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, true)));
-        Assert.Null(GalleryTagPanelCommands.CounterText(null));
+        Assert.Equal("Medium 4 of 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, false)));
+        Assert.Equal("Medium 4 of at least 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, true)));
+        Assert.Null(MediaPositionText.Long(null));
         Texts.SetLanguage("de");
-        Assert.Equal("Medium 4 von 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, false)));
-        Assert.Equal("Medium 4 von mindestens 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, true)));
+        Assert.Equal("Medium 4 von 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, false)));
+        Assert.Equal("Medium 4 von mindestens 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, true)));
     }
 
     [Fact]

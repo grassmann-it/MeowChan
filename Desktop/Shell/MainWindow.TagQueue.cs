@@ -265,7 +265,7 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>"Queue 12 of 200" for the gallery header while the tagging mode shows a medium of its walk; null otherwise.</summary>
-    private string? TaggingPositionText(GalleryEntry entry) =>
-        _galleryTagging is { } walk && walk.IndexOf(entry.EntryKey) is var index and >= 0 ? TaggingModeText.Position(walk, index) : null;
+    private GalleryTagPanelPosition? TaggingPosition(GalleryEntry entry) =>
+        _galleryTagging is { } walk && walk.QueuePosition(walk.IndexOf(entry.EntryKey)) is { } position
+            ? new(position.Number, position.Count, More: false, Queue: true) : null;
 }

@@ -261,12 +261,6 @@ internal sealed record GalleryChromePlan(bool Filmstrip, GalleryFilmstripDock Fi
     // ---- the "say it once" rules of the tagging mode (QW1 to QW5, folded in from GalleryTaggingChrome) ---------------------------
 
     /// <summary>
-    /// QW1: the position ("Queue 3 of 27") stands once, between the arrows. The tag panel's head shows no "Medium 3 of 27" in the
-    /// tagging mode; outside the mode it shows it as before.
-    /// </summary>
-    internal static GalleryTagPanelPosition? PanelCounter(GalleryTagPanelPosition? counter, bool taggingMode) => taggingMode ? null : counter;
-
-    /// <summary>
     /// QW1: the filmstrip repeats the position only while the arrows are away (the controls are hidden and the strip peeks in alone
     /// at the top edge); with the arrows on the screen it shows no text.
     /// </summary>

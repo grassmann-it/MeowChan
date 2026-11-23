@@ -297,7 +297,7 @@ public sealed class ReaderMediaSidebarLayoutTests
         Rect emptyCard = view.Card.Bounds;
         Assert.Equal(32, emptyHeader.Height);
         GalleryTagPanelPosition mediaPosition = new(1234567890, 1234567891, false);
-        string positionText = GalleryTagPanelCommands.CounterText(mediaPosition)!;
+        string positionText = MediaPositionText.Long(mediaPosition)!;
         view.Describe("No. 123", new string('x', 500) + ".png", "100 MiB · 50000×100", true,
             "Copy post reference", mediaPosition);
         view.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);

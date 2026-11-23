@@ -467,15 +467,15 @@ public sealed class GalleryMarkingTests : IDisposable
         Assert.Equal("Marking limit reached (10). Clear marks or raise the limit in the settings.", GalleryTagPanelCommands.MarkAnnouncement(Result(GalleryMarkOutcome.LimitReached, 10, 10)));
         Assert.Null(GalleryTagPanelCommands.MarkAnnouncement(Result(GalleryMarkOutcome.NotMarked)));
         Assert.Equal("All marks cleared.", GalleryTagPanelCommands.ClearedAnnouncement());
-        Assert.Equal("Medium 4 of 27 · marked", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, false), marked: true));
-        Assert.Equal("Medium 4 of 27", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, false)));
+        Assert.Equal("Medium 4 of 27 · marked", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, false), marked: true));
+        Assert.Equal("Medium 4 of 27", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, false)));
         Assert.Equal("3 media files", GalleryTagPanelCommands.SelectionLabel(3));
 
         Texts.SetLanguage("de");
         Assert.Equal("„a.png“ markiert. Insgesamt markiert: 3.", GalleryTagPanelCommands.MarkAnnouncement(Result(GalleryMarkOutcome.Marked)));
         Assert.Equal("Markierungslimit erreicht (10). Markierungen löschen oder das Limit in den Einstellungen erhöhen.",
             GalleryTagPanelCommands.MarkAnnouncement(Result(GalleryMarkOutcome.LimitReached, 10, 10)));
-        Assert.Equal("Medium 4 von 27 · markiert", GalleryTagPanelCommands.CounterText(new GalleryTagPanelPosition(4, 27, false), marked: true));
+        Assert.Equal("Medium 4 von 27 · markiert", MediaPositionText.Long(new GalleryTagPanelPosition(4, 27, false), marked: true));
         Assert.Equal("3 Medien", GalleryTagPanelCommands.SelectionLabel(3));
     }
 

@@ -481,11 +481,11 @@ public partial class MainWindow
         // expose enabled arrows before that guard is released after decoding.
         bool ready = _galleryResolvingRequest != _galleryRequest;
         // The tagging mode names the place in the whole queue ("Queue 12 of 200") instead of the place in the walk's list (PT3).
-        string label = _galleryThreadPositions == null
+        string label = position.Queue ? MediaPositionText.Long(position)! : _galleryThreadPositions == null
             ? position.Number + (position.More ? " · " + Texts.T("gallery.more") : " / " + position.Count)
             : position.Number > 0 ? Texts.T("reader.sidebar.position", position.Number, position.Count)
             : Texts.T("thread.media.total", position.Count);
-        _gallery.SetPosition(TaggingPositionText(_galleryEntries[_galleryIndex]) ?? label,
+        _gallery.SetPosition(label,
             ready && _galleryIndex > 0,
             ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count), position);
     }
@@ -497,8 +497,9 @@ public partial class MainWindow
     private GalleryTagPanelPosition? CurrentGalleryPosition()
     {
         GalleryTagPanelPosition? current = GalleryListPosition();
-        return current != null && _galleryThreadPositions is { } media
-            ? new(media.NumberAt(_galleryIndex) ?? 0, media.Count, false) : current;
+        if (current == null) return null;
+        return TaggingPosition(_galleryEntries[_galleryIndex]) ?? (_galleryThreadPositions is { } media
+            ? new(media.NumberAt(_galleryIndex) ?? 0, media.Count, false) : current);
     }
 
     private async Task ReadGalleryPostAsync(GalleryEntry entry)
