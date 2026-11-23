@@ -11,6 +11,7 @@ namespace MeowChan.DesktopTests;
 
 // F1: a recovered original can be accepted by the shared queue while its Booru composition is still unpublished.
 // This keeps the real queue/catalog/profile lease in the path; only the provider wire is the in-memory stub.
+[Collection("Avalonia global state")]
 public sealed class BooruUnpublishedTransportTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);

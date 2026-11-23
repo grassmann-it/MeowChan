@@ -30,6 +30,8 @@ internal static partial class MediaPageChecks
         Texts.SetLanguage("en");
         List<(MediaLibrarySort Sort, MediaLibrarySortDirection Direction)> saved = new();
         MediaPage page = new(host.OpenArchiveReaderAsync) { SaveSortAsync = (sort, direction) => { saved.Add((sort, direction)); return Task.CompletedTask; } };
+        // This fixture sweeps the toolbar's own width. The page journey covers the default open media panel.
+        page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
         Window window = new() { Width = 1100, Height = 800, Content = page, Title = "Media sort toolbar — diagnostic", ShowInTaskbar = false };
         try
         {
@@ -82,7 +84,8 @@ internal static partial class MediaPageChecks
             Require(page.SortDirection == MediaLibrarySortDirection.Reversed && Order().SequenceEqual(byName.Reverse()),
                 "Reversed must be the mirror of the default order: " + string.Join(",", byName) + " / " + string.Join(",", Order()));
             sort.SelectedIndex = (int)MediaLibrarySort.Random;
-            Require(!direction.IsEnabled, "The random order has no direction.");
+            Require(!direction.IsEnabled && C<Button>(page, "MediaShuffle").IsEffectivelyVisible
+                && !page.HeaderMoreIds.Contains("media.toolbar.shuffle"), "The wide toolbar must offer Shuffle in place of a sort direction.");
             sort.SelectedIndex = (int)MediaLibrarySort.Name;
 
             // What the user chose is handed over for saving (the shell writes it as a direct preference, except the random order: the last other choice stays).

@@ -103,6 +103,7 @@ public sealed class ReaderWorkViewTests
 
             BooruReviewTestPlatform.Resize(window, 272);
             Assert.Equal(0, At(number).X);
+            Assert.Equal(At(sidebar.Close).Y + sidebar.Close.Bounds.Height / 2, At(counter).Y + counter.Bounds.Height / 2, 0.5);
             Assert.True(At(details).Y > At(sidebar.Open).Y);
             Assert.True(details.Bounds.Height > singleLineHeight);
             Assert.InRange(header.Bounds.Height, ReaderMediaSidebar.HeaderLineHeight, 2 * ReaderMediaSidebar.HeaderLineHeight + 8);

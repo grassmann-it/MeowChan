@@ -4,9 +4,11 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Input.Raw;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Motion;
 using MeowChan.Desktop.Updates;
@@ -170,23 +172,59 @@ public sealed class MediaFocusFullscreenTests : IDisposable
 
     // ---- what the shell hides ----
 
-    [Fact]
-    public void TheShellHidesTheFooterAlwaysAndTheHeaderOnlyWhenTheSettingAsksForIt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MediaFocusHonorsTheHeaderSettingAndBothModesHideTheFooter(bool hideHeaderInMediaFocus) => BooruComponentDispatcher.Run(() =>
     {
-        string chrome = Source(Chrome);
-        // The conditions: the mode is on, the Media page is shown, nothing covers it.
-        Assert.Contains("bool hide = _mediaFocusActive && !_isClosing && _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null;", chrome);
-        Assert.Contains("_mediaFocusFooterHidden = hide;", chrome);
-        Assert.Contains("_mediaFocusHeaderHidden = hide && _config.MediaFocusHidesHeader;", chrome);
-        // The footer: the status strip and the page navigation lose their rows as well as their visibility.
-        Assert.Contains("WorkspaceStatusBar.IsVisible = WorkspaceNavigation.IsVisible = !hide;", chrome);
-        Assert.Contains("WorkspaceRoot.RowDefinitions[2].Height = new GridLength(hide ? 0 : StatusStripHeight);", chrome);
-        Assert.Contains("WorkspaceRoot.RowDefinitions[3].Height = new GridLength(hide ? 0 : NavigationHeight);", chrome);
-        // The numbers are those of the XAML rows.
-        string markup = Source("Desktop/Shell/MainWindow.axaml");
-        Assert.Contains("<RowDefinition Height=\"26\" />\n            <RowDefinition Height=\"52\" />", markup.Replace("\r\n", "\n"));
-        Assert.Contains("StatusStripHeight = 26, NavigationHeight = 52", chrome);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using Profile profile = new();
+        new Config
+        {
+            DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1,
+            MediaFocusHidesHeader = hideHeaderInMediaFocus
+        }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(Exercise());
+
+        async Task<bool> Exercise()
+        {
+            await using DesktopSessionHost session = new(profile.Path, Array.Empty<IImageBoard>(),
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            await using MainWindow window = new(session) { Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await window.StartupTimingRestoreTask;
+            window.FindControl<Button>("MediaNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(MainWindow.WorkspacePage.Media, window.SelectedPage);
+            MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+            await page.BuildTask;
+            // A filtered view retains the Media toolbar even in an empty library.
+            Assert.Null(page.AddFilterTerm(MediaFilterTerm.Type(MediaLibraryKindFilter.Image)));
+            await page.PresentTask;
+            Border header = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
+            AssertFooter(window, visible: true);
+            Assert.True(header.IsEffectivelyVisible);
+
+            page.SetFocusMode(true);
+            Assert.True(page.IsFocusMode);
+            AssertFooter(window, visible: false);
+            Assert.Equal(!hideHeaderInMediaFocus, header.IsEffectivelyVisible);
+
+            Assert.True(Press(window, Key.F11));
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            AssertFooter(window, visible: false);
+            Assert.False(header.IsEffectivelyVisible);
+            Assert.True(Press(window, Key.F11));
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            AssertFooter(window, visible: false);
+            Assert.Equal(!hideHeaderInMediaFocus, header.IsEffectivelyVisible);
+
+            page.SetFocusMode(false);
+            AssertFooter(window, visible: true);
+            Assert.True(header.IsEffectivelyVisible);
+            return true;
+        }
+    });
 
     [Fact]
     public void TheHeaderFloatsOverThePageBehindAHoverStripSoTheWindowControlsStayReachable() => BooruComponentDispatcher.Run(() =>
@@ -213,6 +251,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Border frame = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
             Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
             Assert.True(window.IsActive && window.MediaFocusHeaderHidden);
+            AssertFooter(window, visible: false);
             Assert.True(strip.IsVisible);
             Assert.Equal(6, strip.Bounds.Height);
             Assert.Equal(new GridLength(0), root.RowDefinitions[0].Height);
@@ -231,6 +270,12 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Assert.False(window.MediaFocusHeaderRevealed);
             Assert.False(frame.IsVisible);
             Assert.True(strip.IsVisible);
+            window.WindowState = WindowState.FullScreen;
+            window.WindowState = WindowState.Normal;
+            AssertFooter(window, visible: false);
+            typeof(MainWindow).GetField("_mediaFocusActive", privateInstance)!.SetValue(window, false);
+            typeof(MainWindow).GetMethod("UpdateMediaFocusChrome", privateInstance)!.Invoke(window, null);
+            AssertFooter(window, visible: true);
             return true;
         }
     });
@@ -251,10 +296,99 @@ public sealed class MediaFocusFullscreenTests : IDisposable
         Assert.Contains("_mediaFocusHeaderHidden || WindowState == WindowState.FullScreen", Source(Chrome));
     }
 
+    [Fact]
+    public void FullscreenHidesTheFooterAcrossWorkspacePagesWithoutDisablingPageShortcuts() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using Profile profile = new();
+        new Config
+        {
+            DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1,
+            WorkspaceMode = "Advanced", WindowWidth = 1200, WindowHeight = 700,
+            MediaFocusHidesHeader = false,
+            ShortcutBindings = new ShortcutBindingsSection().Set("navigation.media", [ShortcutGesture.Parse("Alt+3")])
+        }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(Exercise());
+
+        async Task<bool> Exercise()
+        {
+            await using DesktopSessionHost session = new(profile.Path, Array.Empty<IImageBoard>(),
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            await using MainWindow window = new(session) { Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await window.StartupTimingRestoreTask;
+            ComboBox mode = window.FindControl<ComboBox>("WorkspaceModeComboBox")!;
+            Border navigation = window.FindControl<Border>("WorkspaceNavigation")!;
+            Border status = window.FindControl<Border>("WorkspaceStatusBar")!;
+            Button downloads = window.FindControl<Button>("DownloadsNavigationButton")!;
+            Border title = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
+            Assert.True(mode.Focus());
+            mode.IsDropDownOpen = true;
+            Assert.True(mode.IsDropDownOpen);
+            // Exercise the state-change route used by native fullscreen without a shell command.
+            window.WindowState = WindowState.FullScreen;
+            AssertFooter(window, visible: false);
+            Assert.False(mode.IsDropDownOpen);
+            Assert.False(title.IsVisible);
+            Control pageFocus = Assert.IsAssignableFrom<Control>(window.FocusManager!.GetFocusedElement());
+            Assert.True(pageFocus.IsEffectivelyVisible);
+            Assert.False(navigation.IsKeyboardFocusWithin);
+            Assert.False(downloads.Focus());
+            Assert.False(mode.Focus());
+
+            // Start Tab and Shift+Tab from real content, with the footer and both rows collapsed.
+            TextBox url = window.FindControl<TextBox>("UrlInput")!;
+            foreach (RawInputModifiers modifiers in new[] { RawInputModifiers.None, RawInputModifiers.Shift })
+            {
+                Assert.True(url.Focus());
+                window.KeyPress(Key.Tab, modifiers, PhysicalKey.Tab, "\t");
+                Assert.NotSame(url, Assert.IsAssignableFrom<Control>(window.FocusManager.GetFocusedElement()));
+                Assert.False(navigation.IsKeyboardFocusWithin);
+                Assert.False(status.IsKeyboardFocusWithin);
+            }
+
+            Assert.True(pageFocus.Focus());
+            Press(pageFocus, Key.LeftAlt, KeyModifiers.Alt);
+            Assert.True(Press(pageFocus, Key.D3, KeyModifiers.Alt));
+            var release = new KeyEventArgs { RoutedEvent = InputElement.KeyUpEvent, Key = Key.LeftAlt };
+            window.RaiseEvent(release);
+            Assert.False(release.Handled);
+            Assert.Equal(MainWindow.WorkspacePage.Media, window.SelectedPage);
+            Assert.False(title.IsVisible);
+            AssertFooter(window, visible: false);
+            Assert.True(Press(window, Key.Escape));
+            Dispatcher.UIThread.RunJobs();
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            AssertFooter(window, visible: true);
+            Assert.True(mode.Focus());
+
+            foreach (MainWindow.WorkspacePage page in Enum.GetValues<MainWindow.WorkspacePage>()
+                .Where(page => page != MainWindow.WorkspacePage.Booru)) // The real Booru route is covered by booru-workbench.
+            {
+                string command = "navigation." + page.ToString().ToLowerInvariant();
+                KeyGesture gesture = CommandBindings.Gesture(command)!;
+                Assert.True(Press(window, gesture.Key, gesture.KeyModifiers), command);
+                Assert.Equal(page, window.SelectedPage);
+                AssertFooter(window, visible: true);
+                Assert.True(Press(window, Key.F11));
+                Assert.Equal(WindowState.FullScreen, window.WindowState);
+                AssertFooter(window, visible: false);
+                Assert.True(Press(window, Key.F11));
+                Dispatcher.UIThread.RunJobs();
+                Assert.Equal(WindowState.Normal, window.WindowState);
+                AssertFooter(window, visible: true);
+                Assert.Equal(page, window.SelectedPage);
+            }
+            return true;
+        }
+    });
+
     [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ReaderFullscreenRevealsTheTitleBarWithoutMovingTheReaderOrLosingFocus(bool sidebarShown) =>
+    [InlineData(false, false)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void ReaderFullscreenRevealsTheTitleBarWithoutMovingTheReaderOrLosingFocus(bool sidebarShown, bool fromArchive) =>
         BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -275,6 +409,9 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             window.Show();
             window.PlatformImpl!.Activated?.Invoke();
             await window.StartupTimingRestoreTask;
+            if (fromArchive)
+                window.FindControl<Button>("ArchiveNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(fromArchive ? MainWindow.WorkspacePage.Archive : MainWindow.WorkspacePage.Downloads, window.SelectedPage);
             typeof(MainWindow).GetMethod("OpenLargeReader", BindingFlags.Instance | BindingFlags.NonPublic,
                 [typeof(Control), typeof(IReadOnlyList<ResourceId>)])!.Invoke(window, [null, Array.Empty<ResourceId>()]);
             Layout();
@@ -291,6 +428,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Layout();
             Assert.Equal(WindowState.FullScreen, window.WindowState);
+            AssertFooter(window, visible: false);
             Assert.Equal(new GridLength(0), root.RowDefinitions[0].Height);
             Assert.False(frame.IsVisible);
             Assert.False(frame.IsHitTestVisible);
@@ -301,6 +439,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             window.MouseMove(strip.TranslatePoint(new Point(strip.Bounds.Width / 2, 3), window)!.Value);
             Layout();
             Assert.True(frame.IsVisible && frame.IsHitTestVisible);
+            AssertFooter(window, visible: false);
             Assert.False(strip.IsVisible);
             Assert.Same(readerFocus, window.FocusManager!.GetFocusedElement());
             bool ownCaptionButtons = WindowChrome.ShowsOwnCaptionButtons(WindowChrome.Mode);
@@ -346,6 +485,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Assert.True(Press(brand, Key.Escape));
             Layout();
             Assert.Equal(WindowState.Normal, window.WindowState);
+            AssertFooter(window, visible: true);
             Assert.Equal(WorkspaceMetrics.TitleBarRow, root.RowDefinitions[0].Height);
             Assert.Equal(1, Grid.GetRowSpan(frame));
             Assert.True(frame.IsVisible && frame.IsHitTestVisible && reader.IsVisible);
@@ -384,6 +524,8 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             window.Show();
             window.PlatformImpl!.Activated?.Invoke();
             await window.StartupTimingRestoreTask;
+            window.FindControl<Button>("MediaNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(MainWindow.WorkspacePage.Media, window.SelectedPage);
             GalleryEntryKey unavailable = new(new(new ResourceId("offline", "gallery", "1"), profile.Path, "missing"), null, null);
             await window.OpenMediaGalleryAsync(Array.Empty<GalleryEntry>(), unavailable);
             ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
@@ -393,6 +535,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
                 .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Layout();
             Assert.Equal(WindowState.FullScreen, window.WindowState);
+            AssertFooter(window, visible: false);
             Assert.True(host.IsVisible);
             Assert.Equal(0, host.Bounds.Y);
             Rect galleryBounds = host.Bounds;
@@ -408,6 +551,7 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             Assert.Equal(galleryBounds, host.Bounds);
             Assert.True(Press(gallery, Key.Escape));
             Assert.Equal(WindowState.Normal, window.WindowState);
+            AssertFooter(window, visible: true);
             Assert.True(host.IsVisible && frame.IsVisible);
             Assert.False(strip.IsVisible);
             return true;
@@ -419,6 +563,15 @@ public sealed class MediaFocusFullscreenTests : IDisposable
             }
         }
     });
+
+    private static void AssertFooter(MainWindow window, bool visible)
+    {
+        Grid root = window.FindControl<Grid>("WorkspaceRoot")!;
+        Assert.Equal(visible, window.FindControl<Border>("WorkspaceStatusBar")!.IsEffectivelyVisible);
+        Assert.Equal(visible, window.FindControl<Border>("WorkspaceNavigation")!.IsEffectivelyVisible);
+        Assert.Equal(new GridLength(visible ? 26 : 0), root.RowDefinitions[2].Height);
+        Assert.Equal(new GridLength(visible ? 52 : 0), root.RowDefinitions[3].Height);
+    }
 
     private static bool Press(Control target, Key key, KeyModifiers modifiers = KeyModifiers.None)
     {

@@ -18,6 +18,7 @@ namespace MeowChan.DesktopTests;
 
 // G1: the desktop session composes the Danbooru services over the real queue, catalog and scheduler. Network is
 // the in-memory DanbooruStub; the Danbooru plugin runs in-process behind the real booru host services.
+[Collection("Avalonia global state")]
 public sealed class BooruCompositionHostTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);
@@ -255,8 +256,8 @@ public sealed class BooruCompositionHostTests
     {
         using TempDirectory profile = new(); // A genuine new profile reaches the post-Ready initial save seam.
         using DanbooruStub stub = new();
-        await using DesktopSessionHost host = new(profile.Path, Array.Empty<IImageBoard>(),
-            updateSessionFactory: (path, config) => new UpdateSession(path, config, stub.Client(), disableEnvironment: () => "1"));
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile.Path, Array.Empty<IImageBoard>(),
+            updateSessionFactory: (path, config) => new UpdateSession(path, config, stub.Client(), disableEnvironment: () => "1")));
         host.Config.AutomaticUpdateChecks = false;
         host.Config.SaveUrlsOnExit = false;
         host.Config.DownloadPath = Path.Combine(profile.Path, "media");
@@ -533,7 +534,7 @@ public sealed class BooruCompositionHostTests
         using MeowChan.Persistence.ProfileLease lease = MeowChan.Persistence.ProfileLease.Acquire(profile.Path);
         BooruCatalogStore catalog = new(profile.Path, lease);
         lease.Admission.CompleteStartup();
-        DanbooruWatcherScheduler scheduler = new(catalog, new NoSearch(), new NoAdmission());
+        await using DanbooruWatcherScheduler scheduler = new(catalog, new NoSearch(), new NoAdmission());
         scheduler.Load();
         Assert.Equal(BooruCodes.CatalogUnreadable, scheduler.GetSnapshot().FaultCode);
         using BooruSchedulerWatcherPort port = new(scheduler, catalog);
@@ -593,13 +594,13 @@ public sealed class BooruCompositionHostTests
             MaxParallelDownloads = 1, RecheckTimer = 3600, MinimumFreeSpaceGiB = 0
         }.SaveConfig(profile);
         Directory.CreateDirectory(Path.Combine(profile, "media"));
-        DesktopSessionHost host = new(profile, Array.Empty<IImageBoard>(),
+        DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile, Array.Empty<IImageBoard>(),
             updateSessionFactory: (path, config) => new UpdateSession(path, config, stub.Client(), disableEnvironment: () => "1"))
         {
             BooruBindingForTests = bindings is null ? binding : null,
             BooruBindingsForTests = bindings,
             BooruSchedulerOptionsForTests = options ?? new DanbooruWatcherSchedulerOptions { Interval = TimeSpan.FromMinutes(30), CheckStartSpacing = TimeSpan.Zero }
-        };
+        });
         try
         {
             await host.StartAsync().WaitAsync(Deadline);

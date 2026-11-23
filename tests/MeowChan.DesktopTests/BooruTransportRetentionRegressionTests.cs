@@ -21,6 +21,7 @@ namespace MeowChan.DesktopTests;
 // Rest contract: ReleaseTransport is legal only from DesktopSessionHost's post-queue-drain path. A future early
 // retirement must add a queue ownership/drain fence first; disposing on Disable, reactivation, or watcher replacement
 // alone is a regression.
+[Collection("Avalonia global state")]
 public sealed class BooruTransportRetentionRegressionTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);

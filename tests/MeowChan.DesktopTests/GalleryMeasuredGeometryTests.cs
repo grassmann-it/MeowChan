@@ -2,6 +2,7 @@ using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.LogicalTree;
+using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -73,6 +74,9 @@ public sealed class GalleryMeasuredGeometryTests
     private static void WithSidePanel(double width, Action<GallerySidePanel> test) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Texts.Initialize();
+        string oldLanguage = Texts.Language;
+        Texts.SetLanguage("en");
         GallerySidePanel panel = new(new Button { Width = 32, Height = 32 }) { Width = width };
         Window window = new() { Width = 520, Height = 500, Content = panel };
         try
@@ -84,6 +88,7 @@ public sealed class GalleryMeasuredGeometryTests
         finally
         {
             window.Close();
+            Texts.SetLanguage(oldLanguage);
         }
     });
 
@@ -93,18 +98,25 @@ public sealed class GalleryMeasuredGeometryTests
         return new Rect(origin, control.Bounds.Size);
     }
 
-    private static void AssertLeftAlignedAboveControls(Control counter, GallerySidePanel panel)
+    private static void AssertHeaderRow(Control counter, GallerySidePanel panel)
     {
         Rect bounds = BoundsIn(counter, panel);
+        Rect post = BoundsIn(panel.PostButton, panel);
+        Rect tags = BoundsIn(panel.TagsButton, panel);
+        Rect close = BoundsIn(panel.CloseButton, panel);
         Assert.True(counter.IsEffectivelyVisible);
         Assert.True(bounds.Width > 0 && bounds.Height > 0, $"Counter bounds: {bounds}");
         Assert.InRange(bounds.Left, -0.5, 0.5);
-        Assert.InRange(bounds.Right, 0, panel.Bounds.Width + 0.5);
-        foreach (Control control in new[] { panel.PostButton, panel.TagsButton, panel.CloseButton })
+        Assert.True(bounds.Right + 8 <= post.Left + 0.5);
+        Assert.True(post.Right + 4 <= tags.Left + 0.5);
+        Assert.True(tags.Right + 8 <= close.Left + 0.5);
+        Assert.Equal(panel.Bounds.Width, close.Right, 0.5);
+        foreach (Rect tabOrClose in new[] { post, tags, close })
         {
-            Rect controlBounds = BoundsIn(control, panel);
-            Assert.True(controlBounds.Width > 0 && controlBounds.Height > 0, $"{control.Name} bounds: {controlBounds}");
-            Assert.True(bounds.Bottom <= controlBounds.Top + 0.5, $"Counter {bounds} overlaps {control.Name} {controlBounds}");
+            Assert.True(tabOrClose.Width > 0);
+            Assert.Equal(32, tabOrClose.Height);
+            Assert.Equal(0, tabOrClose.Top, 0.5);
+            Assert.Equal(tabOrClose.Center.Y, bounds.Center.Y, 0.5);
         }
     }
 
@@ -112,25 +124,37 @@ public sealed class GalleryMeasuredGeometryTests
     [InlineData(280)]
     [InlineData(320)]
     [InlineData(480)]
-    public void MediumCounterIsLeftAlignedAboveTabsAndClose(double width) => WithSidePanel(width, panel =>
+    public void ThreadMediaCounterSharesTheHeaderRowWithTabsAndClose(double width) => WithSidePanel(width, panel =>
     {
-        TextBlock counter = new() { Text = "Medium 1 of 4" };
+        TextBlock counter = new() { Text = "1 of 18" };
         panel.HeaderCounter = counter;
         panel.UpdateLayout();
-        AssertLeftAlignedAboveControls(counter, panel);
+        AssertHeaderRow(counter, panel);
+
+        panel.HeaderCounter = null;
+        panel.UpdateLayout();
+        Assert.Equal(0, BoundsIn(panel.PostButton, panel).Left, 0.5);
+        Assert.Equal(0, BoundsIn(panel.PostButton, panel).Top, 0.5);
     });
 
     [Theory]
-    [InlineData("en", 280)]
+    [InlineData("en", 248)]
     [InlineData("en", 480)]
-    [InlineData("de", 280)]
-    [InlineData("ru", 280)]
-    [InlineData("pl", 280)]
-    [InlineData("fr", 320)]
+    [InlineData("de", 248)]
+    [InlineData("cs", 248)]
     [InlineData("es", 248)] // 280 dip minus the panel's two 16-dip insets
-    public void LocalizedShortCounterIsLeftAlignedAboveTheTabsAndKeepsTheirHeight(string language, double width) => WithSidePanel(width, panel =>
+    [InlineData("fr", 248)]
+    [InlineData("it", 248)]
+    [InlineData("ja", 248)]
+    [InlineData("ko", 248)]
+    [InlineData("pl", 248)]
+    [InlineData("pt-BR", 248)]
+    [InlineData("ru", 248)]
+    [InlineData("zh-Hans", 248)]
+    public void LocalizedTagCounterKeepsTheTabsOnOneRow(string language, double width) => WithSidePanel(width, panel =>
     {
         Texts.SetLanguage(language);
+        Assert.Equal(language, Texts.Language);
         panel.Localize();
         panel.UpdateLayout();
         double tabHeight = ((Control)panel.PostButton.Parent!).Bounds.Height;
@@ -147,7 +171,7 @@ public sealed class GalleryMeasuredGeometryTests
         panel.HeaderCounter = counter;
         panel.UpdateLayout();
 
-        AssertLeftAlignedAboveControls(counter, panel);
+        AssertHeaderRow(counter, panel);
         TextBlock label = Assert.IsType<TextBlock>(counter.Child);
         Assert.Equal(surface.CounterShortText, label.Text);
         Assert.True(label.Bounds.Width > 0 && label.Bounds.Height > 0);
@@ -155,26 +179,22 @@ public sealed class GalleryMeasuredGeometryTests
     });
 
     [Fact]
-    public void AtVeryNarrowWidthsTheTabsWrapWithoutHidingTheCounter() => WithSidePanel(140, panel =>
+    public void AtVeryNarrowWidthsTheCounterEllipsizesAndRecoversWhenWidened() => WithSidePanel(140, panel =>
     {
-        panel.PostButton.Width = panel.TagsButton.Width = 56;
-        panel.PostButton.Height = panel.TagsButton.Height = 32;
-        TextBlock counter = new() { Text = "Medium 1 of 4" };
+        TextBlock counter = new() { Text = "Medium 12345 of at least 67890", TextTrimming = TextTrimming.CharacterEllipsis };
         panel.HeaderCounter = counter;
         panel.UpdateLayout();
 
-        AssertLeftAlignedAboveControls(counter, panel);
-        Assert.True(BoundsIn(panel.TagsButton, panel).Top >= BoundsIn(panel.PostButton, panel).Bottom);
-        Rect close = BoundsIn(panel.CloseButton, panel);
-        Assert.Equal(140, close.Right, 0.5);
-        Assert.True(BoundsIn(panel.TagsButton, panel).Right < close.Left);
+        AssertHeaderRow(counter, panel);
+        Assert.True(Assert.Single(counter.TextLayout.TextLines).HasCollapsed);
 
-        panel.Width = 280;
-        panel.UpdateLayout();
-
-        AssertLeftAlignedAboveControls(counter, panel);
-        Assert.Equal(BoundsIn(panel.PostButton, panel).Top, BoundsIn(panel.TagsButton, panel).Top, 0.5);
-        Assert.True(BoundsIn(panel.TagsButton, panel).Right < BoundsIn(panel.CloseButton, panel).Left);
+        for (int width = 144; width <= 480; width += 4)
+        {
+            panel.Width = width;
+            panel.UpdateLayout();
+            AssertHeaderRow(counter, panel);
+        }
+        Assert.False(Assert.Single(counter.TextLayout.TextLines).HasCollapsed);
     });
 
     [Fact]
@@ -189,6 +209,7 @@ public sealed class GalleryMeasuredGeometryTests
         galleryScope.Arrange(new Rect(0, 0, 1100, 720));
         ScrollViewer post = Find<ScrollViewer>(viewer, "GalleryPanelPostScroll");
         Border frame = Find<Border>(viewer, "GalleryContext");
+        Assert.Equal(8, frame.Padding.Top);
         Assert.Equal(frame.Padding.Left, frame.Padding.Right);
         Assert.Equal(post.Padding.Left, post.Padding.Right);
         Assert.Equal(16, post.Padding.Left);

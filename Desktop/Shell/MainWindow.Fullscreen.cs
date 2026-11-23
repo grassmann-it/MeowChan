@@ -404,7 +404,7 @@ public partial class MainWindow
             if (e.OldValue is WindowState before && e.NewValue is WindowState after
                 && FullscreenPresentationChanged(before, after))
             {
-                ApplyTitleBarPresentation();
+                ApplyShellChromePresentation();
                 RefreshFullscreenButton();
             }
             ContinueLinuxFullscreenNormalRestore();

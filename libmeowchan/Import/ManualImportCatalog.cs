@@ -274,7 +274,7 @@ internal sealed class ManualImportCatalogStore
     private ManualImportCatalogSnapshot ReadLocked(CancellationToken token)
     {
         token.ThrowIfCancellationRequested();
-        RegularProfileFileIdentity? before = RegularProfileFile.TryGetIdentity(_path);
+        RegularProfileFileIdentity? before = ReadCacheIdentity();
         if (before is { } current && _cached is { } hit && _cachedIdentity == current)
         {
             Interlocked.Increment(ref _cachedReads);
@@ -294,9 +294,8 @@ internal sealed class ManualImportCatalogStore
         {
             // The path may have been replaced after the read handle closed. Never promote an identity observed
             // after that replacement: the digest fallback must re-attest the bytes on the next read.
-            RegularProfileFileIdentity? after = RegularProfileFile.TryGetIdentity(_path);
             _cached = same;
-            _cachedIdentity = before is { } stable && after == stable ? stable : null;
+            _cachedIdentity = before is { } stable && ReadCacheIdentity() == stable ? stable : null;
             _cachedDigest = digest;
             Interlocked.Increment(ref _cachedReads);
             return same;
@@ -306,17 +305,21 @@ internal sealed class ManualImportCatalogStore
         if (newer) throw new ManualImportException(ManualImportError.CatalogNewer);
         // Keep a validated snapshot for digest re-attestation even when the identity is unavailable or changed during
         // the read. A fast identity hit is used only after the before/after identities remained stable.
-        RegularProfileFileIdentity? afterRead = RegularProfileFile.TryGetIdentity(_path);
         if (read != null)
         {
             _cached = read;
-            _cachedIdentity = before is { } stable && afterRead == stable ? stable : null;
+            _cachedIdentity = before is { } stable && ReadCacheIdentity() == stable ? stable : null;
             _cachedDigest = digest;
         }
         return read ?? ManualImportCatalogSnapshot.Empty;
     }
 
     private void ForgetCache() => (_cached, _cachedIdentity, _cachedDigest) = (null, null, null);
+
+    // On Windows a same-size in-place rewrite can retain the file id and timestamp values.
+    // Re-attest the content digest before reusing a validated catalog on that platform.
+    private RegularProfileFileIdentity? ReadCacheIdentity() =>
+        OperatingSystem.IsWindows() ? null : RegularProfileFile.TryGetIdentity(_path);
 
     private void Publish(ManualImportCatalogSnapshot snapshot, CancellationToken token)
     {
@@ -343,7 +346,7 @@ internal sealed class ManualImportCatalogStore
         }
         // The atomic writer has just published exactly these bytes. Keep the snapshot even when a platform cannot
         // provide an identity; subsequent reads can still re-attest the content by digest.
-        (_cached, _cachedIdentity, _cachedDigest) = (snapshot, RegularProfileFile.TryGetIdentity(_path), SHA256.HashData(bytes));
+        (_cached, _cachedIdentity, _cachedDigest) = (snapshot, ReadCacheIdentity(), SHA256.HashData(bytes));
         // If the identity was unavailable while reading the current primary, the previous digest may be absent. The
         // committed replace has nevertheless established the backup; record its bytes without parsing so the next
         // write can still skip validation of the same backup. A post-commit probe must never turn a successful write
