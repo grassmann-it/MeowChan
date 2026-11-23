@@ -88,6 +88,10 @@ roadmap.md
 # Local and CI output
 /artifacts/
 /review/
+/plugins/Examples/**/Evidence/
+/tests/MeowChan.DesktopTests/*.evidence.md
+/tests/gallery-error-decomposition/NativeReadinessEvidence.md
+/tests/package9_audit/
 
 __pycache__/
 

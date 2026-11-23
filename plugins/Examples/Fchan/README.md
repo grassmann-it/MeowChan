@@ -26,10 +26,5 @@ posts or imports credentials.
 
 ## Evidence and limits
 
-The route and selector contract is based on the bounded 2026-11-09 research record
-in `review/goal-1.0.3-source-fixtures-glm.md`. `Fixtures/` contains neutral
-synthetic Latin-1/HTML examples, including frameset, board, thread, missing
-catalog, HTTP-only and media cases. Because this worker is restricted to the
-plugin directory, those fixtures are not connected to the separate test project
-under `tests/`. They are not live availability, archive, package or platform
-acceptance evidence.
+`Fixtures/` contains synthetic Latin-1/HTML examples, including frameset,
+board, thread, missing catalog, HTTP-only and media cases.
