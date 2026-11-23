@@ -416,7 +416,7 @@ internal static class ReadingPositionChecks
 
     // The shell reads the position through the same host action for its own resume state, and the host
     // refuses a second concurrent read by design (DesktopSessionBusyException). Wait until it is admitted.
-    private static async Task<LocalReadingPosition?> ReadPositionAsync(MainWindow window)
+    internal static async Task<LocalReadingPosition?> ReadPositionAsync(MainWindow window)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(15);
         while (true)
