@@ -259,7 +259,8 @@ public partial class ArchivePage
         // Scope the native gesture to the strip item, not the sidebar's buttons or editors.
         bool mediumKey = IsMediumGalleryKey(e) && e.Source is ListBoxItem focusedItem
             && focusedItem.GetVisualAncestors().Contains(sidebar.Strip);
-        if ((mediumKey || CommandBindings.Matches(e, "gallery.open")) && e.Source is Visual gallerySource
+        bool galleryShortcut = CommandBindings.Matches(e, "gallery.open") && !CommandRouter.IsNativeInput(e.Source, e.Key);
+        if ((mediumKey || galleryShortcut) && e.Source is Visual gallerySource
             && gallerySource.GetSelfAndVisualAncestors().Any(node => ReferenceEquals(node, sidebar)))
         {
             // Focus identifies the file even before a pending strip selection
