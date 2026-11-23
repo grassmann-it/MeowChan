@@ -4,6 +4,7 @@ using MeowChan.Persistence;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Avalonia global state")]
 public sealed class PostBookmarkHostTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
@@ -15,7 +16,7 @@ public sealed class PostBookmarkHostTests
         using TempDirectory temp = new();
         string path = Path.Combine(temp.Path, "post-bookmarks.json");
         new Config { DownloadsPaused = true }.SaveConfig(temp.Path);
-        await using (DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>())))
         {
             await host.StartAsync().WaitAsync(Timeout);
             Assert.Empty((await host.ReadPostBookmarksAsync()).Bookmarks);
@@ -23,7 +24,7 @@ public sealed class PostBookmarkHostTests
             await host.SavePostBookmarkAsync(Key, "own\n🙂", 0, false).WaitAsync(Timeout);
             Assert.Empty(host.GetView().Threads); Assert.Empty(host.GetView().Boards);
         }
-        await using (DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>()))
+        await using (DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>())))
         {
             await host.StartAsync().WaitAsync(Timeout);
             Assert.Equal("own\n🙂", Assert.Single((await host.ReadPostBookmarksAsync()).Bookmarks).Note);
@@ -37,7 +38,7 @@ public sealed class PostBookmarkHostTests
         new Config { DownloadsPaused = true }.SaveConfig(temp.Path);
         string path = Path.Combine(temp.Path, "post-bookmarks.json");
         File.WriteAllText(path, "{bad user note file");
-        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync().WaitAsync(Timeout);
         Assert.Equal(DesktopSessionState.Ready, host.State);
         await Assert.ThrowsAsync<InvalidDataException>(() => host.ReadPostBookmarksAsync());
@@ -50,7 +51,7 @@ public sealed class PostBookmarkHostTests
     public async Task BoundedEditorsCannotOverwriteAndStoppedOwnerCannotCommit()
     {
         using TempDirectory temp = new(); new Config { DownloadsPaused = true }.SaveConfig(temp.Path);
-        await using DesktopSessionHost host = new(temp.Path, Array.Empty<IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(temp.Path, Array.Empty<IImageBoard>()));
         await host.StartAsync().WaitAsync(Timeout);
         SemaphoreSlim commands = (SemaphoreSlim)typeof(DesktopSessionHost).GetField("_commands",
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(host)!;

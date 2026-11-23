@@ -8,6 +8,7 @@ namespace MeowChan.DesktopTests;
 
 // F4: the session owns the synchronous ingress cut. These are escaped production ports from a real host
 // composition; the provider is the in-memory Danbooru stub and the queue-drain callback is the only stop seam.
+[Collection("Avalonia global state")]
 public sealed class BooruSessionShutdownIngressTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);

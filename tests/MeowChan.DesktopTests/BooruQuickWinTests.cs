@@ -9,6 +9,7 @@ using MeowChan.Tests.Shared;
 namespace MeowChan.DesktopTests;
 
 /// <summary>Post links, search provenance and the watcher notification of the Danbooru window.</summary>
+[Collection("Avalonia global state")]
 public sealed class BooruQuickWinTests
 {
     private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);
@@ -189,7 +190,7 @@ public sealed class BooruQuickWinTests
         BooruUiHarness second = new();
         using TempDirectory profile = new();
         new Config { DownloadPath = Path.Combine(profile.Path, "media"), AutomaticUpdateChecks = false }.SaveConfig(profile.Path);
-        await using DesktopSessionHost host = new(profile.Path, Array.Empty<MeowChan.Interfaces.IImageBoard>());
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new(profile.Path, Array.Empty<MeowChan.Interfaces.IImageBoard>()));
         {
             List<string> seen = new();
             host.BooruWatcherQueued += notice => seen.Add(notice.WatcherId);
