@@ -17,6 +17,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Tags;
+using SkiaSharp;
 
 namespace MeowChan.DesktopTests;
 
@@ -47,11 +48,13 @@ public sealed class SidePanelDesignTests
 
     private static void Capture(Control frame, string variant, int width)
     {
-        if (width is not (280 or 480) || Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN") != "1") return;
+        string? capture = Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN");
+        if (width is not (280 or 480) || string.IsNullOrEmpty(capture)) return;
         frame.UpdateLayout();
         using RenderTargetBitmap bitmap = new(new PixelSize((int)frame.Bounds.Width, (int)frame.Bounds.Height));
         bitmap.Render(frame);
-        bitmap.Save($"/tmp/112-design-{variant}-{width}.png", PngBitmapEncoderOptions.Default);
+        string directory = capture == "1" ? Path.GetTempPath() : capture;
+        bitmap.Save(Path.Combine(directory, $"112-design-{variant}-{width}.png"), PngBitmapEncoderOptions.Default);
     }
 
     private static void Rating(Window window, GalleryDecisionRow row, Control frame, double left, double right, bool popover)
@@ -79,6 +82,9 @@ public sealed class SidePanelDesignTests
         Near(clear.Left + 8, summary.Left);
         Near(favorite.Center.Y, summary.Center.Y);
         Assert.True(summary.Right <= right + 0.5);
+        Rect group = In(row.RatingGroup, frame);
+        Near(Math.Max(clear.Right, summary.Right), group.Right);
+        Assert.Equal(TextAlignment.Left, row.Summary.TextAlignment);
         Control[] controls = [..row.StarButtons, row.ClearButton, row.FavoriteButton, row.Summary];
         Rect[] before = controls.Select(control => In(control, frame)).ToArray();
         GalleryDecisionView original = row.View;
@@ -94,6 +100,31 @@ public sealed class SidePanelDesignTests
         row.Show(original);
         window.Focus();
         Settle(window);
+    }
+
+    private static void RatingUsesThePanelSurface(Control frame, GalleryDecisionRow row)
+    {
+        using RenderTargetBitmap rendered = new(new PixelSize((int)frame.Bounds.Width, (int)frame.Bounds.Height));
+        rendered.Render(frame);
+        using MemoryStream png = new();
+        rendered.Save(png, PngBitmapEncoderOptions.Default);
+        png.Position = 0;
+        using SKBitmap pixels = SKBitmap.Decode(png);
+        Rect caption = In(row.Summary, frame);
+        int left = (int)caption.Left, top = (int)caption.Top;
+        SKColor surface = pixels.GetPixel(left - 4, top);
+        bool hasInk = false;
+        for (int y = top; y < caption.Bottom; y++)
+        {
+            for (int x = left; x < caption.Right; x++)
+            {
+                SKColor sample = pixels.GetPixel(x, y);
+                Assert.True(sample.Red + 1 >= surface.Red && sample.Green + 1 >= surface.Green && sample.Blue + 1 >= surface.Blue,
+                    $"Rating pixel ({x}, {y}) is {sample} over {surface}.");
+                hasInk |= sample.Red > surface.Red + 20;
+            }
+        }
+        Assert.True(hasInk);
     }
 
     private static void Sections(MediaPanelSections sections, Control frame, double left, double right, int width)
@@ -192,6 +223,7 @@ public sealed class SidePanelDesignTests
                     Near(In(leading, frame).Bottom + 12, In(row.RatingGroup, frame).Top);
                     double right = In(panel.CloseButton, frame).Right;
                     Rating(window, row, frame, left, right, false);
+                    if (!tags && !queue && width == 480) RatingUsesThePanelSurface(frame, row);
                     MediaPanelSections sections = panel.GetVisualDescendants().OfType<MediaPanelSections>().Single(s => s.IsEffectivelyVisible);
                     Sections(sections, frame, left, right, width);
                     if (tags)
@@ -219,6 +251,32 @@ public sealed class SidePanelDesignTests
                     Capture(frame, (queue ? "tagging-gallery-" : "gallery-") + (tags ? "tags" : "post"), width);
                 }
             }
+            viewer.ShowTagPanel(owner);
+            MediaTagSubject subject = owner.SubjectOf(entry, out _)!;
+            Assert.Equal(GalleryMarkOutcome.Marked, viewer.Marks!.Mark(subject, entry));
+            GalleryTagPanelPosition current = new(1, 3, false, queue);
+            void VerifyPosition(bool marked)
+            {
+                Settle(window);
+                Assert.Equal(marked, panel.Position.Classes.Contains("marked"));
+                Assert.Equal(MediaPositionText.Long(current, marked), ToolTip.GetTip(panel.Position));
+                Assert.Equal(ToolTip.GetTip(panel.Position), Avalonia.Automation.AutomationProperties.GetName(panel.Position));
+                Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Polite, Avalonia.Automation.AutomationProperties.GetLiveSetting(panel.Position));
+                Assert.Equal(Avalonia.Automation.AutomationLiveSetting.Off, Avalonia.Automation.AutomationProperties.GetLiveSetting(panel.Position.Label));
+            }
+
+            viewer.SetPosition("1 / 3", false, true, current);
+            VerifyPosition(marked: true);
+            panel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            VerifyPosition(marked: true);
+            Texts.SetLanguage("de");
+            viewer.SetPosition("1 / 3", false, true, current);
+            VerifyPosition(marked: true);
+            viewer.ShowTagPanel(owner);
+            VerifyPosition(marked: true);
+            Assert.Equal(GalleryMarkOutcome.Unmarked, viewer.Marks.Unmark(subject));
+            viewer.SetPosition("1 / 3", false, true, current);
+            VerifyPosition(marked: false);
         }
         finally { window.Close(); BooruComponentDispatcher.Wait(viewer.StopAsync()); }
     });

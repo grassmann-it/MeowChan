@@ -29,7 +29,7 @@ namespace MeowChan.DesktopSmoke;
 // marked a typed key handled and whether a TextInput was raised at all, and fails unless the typed text arrives (also right after R, with the field
 // focused), the popover stays, the video keeps playing and no page shortcut ran; the star keys, Alt+1, Ctrl+Z, Backspace, Ctrl+A, Esc and the focus
 // hand-back are checked with the same OS input.
-internal static class QuickTagNativeTypingChecks
+internal static partial class QuickTagNativeTypingChecks
 {
     internal static readonly ResourceId Resource = new("quick-tag-smoke", "synthetic", "480");
     private const BindingFlags Private = BindingFlags.Instance | BindingFlags.NonPublic;
@@ -44,18 +44,19 @@ internal static class QuickTagNativeTypingChecks
         Directory.CreateDirectory(directory);
         Dictionary<string, object> entries = new();
         List<CapturedPost> posts = new();
-        void Add(string postId, int ordinal, string file, byte[] bytes)
+        CapturedAttachment SaveAttachment(int position, string file, byte[] bytes)
         {
             File.WriteAllBytes(Path.Combine(directory, file), bytes);
             string media = "qt-" + file, url = "https://offline.invalid/" + file;
             entries[file] = new { MediaIdentifier = media, Variant = "original", SourceUrl = url, FileName = file, OriginalFileName = file,
                 Length = bytes.Length, Md5 = Convert.ToBase64String(MD5.HashData(bytes)), Sha256 = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant() };
-            posts.Add(new CapturedPost(postId, ordinal, PostFieldPresence.All, Html: "<p>Quick tag post " + postId + "</p>",
-                Attachments: [new CapturedAttachment(0, media, "original", url, file)]));
+            return new CapturedAttachment(position, media, "original", url, file);
         }
-        Add(VideoPost, 0, "1745935984041883.webm", await File.ReadAllBytesAsync(fixture));
-        Add(PicturePost, 1, "picture-481.jpg", Jpeg(1));
-        Add("482", 2, "picture-482.jpg", Jpeg(2));
+        void Add(string postId, int ordinal, params CapturedAttachment[] attachments) =>
+            posts.Add(new CapturedPost(postId, ordinal, PostFieldPresence.All, Html: "<p>Quick tag post " + postId + "</p>", Attachments: attachments));
+        Add(VideoPost, 0, SaveAttachment(0, "1745935984041883.webm", await File.ReadAllBytesAsync(fixture)));
+        Add(PicturePost, 1, SaveAttachment(0, "picture-481.jpg", Jpeg(1)));
+        Add("482", 2, SaveAttachment(0, "picture-482.jpg", Jpeg(2)), SaveAttachment(1, "picture-482-second.jpg", Jpeg(3)));
         await File.WriteAllTextAsync(Path.Combine(directory, ".meowchan-manifest.json"), JsonSerializer.Serialize(new { Version = 1, Entries = entries }));
         CapturedPost[] bound = await StrictMediaFixture.BindAsync(directory, Resource, posts);
         using Persistence.ProfileLease lease = Persistence.ProfileLease.Acquire(profile);
@@ -105,6 +106,7 @@ internal static class QuickTagNativeTypingChecks
                 foreach (string entry in new[] { "R", "Ctrl+Shift+T", "menu" })
                     cases.Add(await ArchiveCaseAsync(window, page, input, trace, "archive", entry, medium));
             cases.Add(await PopoverKeysAsync(window, page, input, trace));
+            await ReaderSidebarTagRaceAsync(window, page, input);
 
             // B: the large reader (opened the Downloads way), its sidebar playing the video.
             Navigate(window, "Downloads", activate: true);
@@ -127,6 +129,7 @@ internal static class QuickTagNativeTypingChecks
 
             // D: the Media page (R on a tile) and E: the Tagging page (R on a row, the stamp field).
             cases.Add(await MediaPageCaseAsync(window, input, trace));
+            await MediaSidebarTagRaceAsync(window, input);
             cases.AddRange(await TaggingPageCasesAsync(window, page, input, trace));
         }
         finally
@@ -526,7 +529,12 @@ internal static class QuickTagNativeTypingChecks
             viewer.Focus();
             await Settle(window);
         }
-        if (ReferenceEquals(host.Content, viewer)) { await input.KeyAsync(MediaNativeInput.Escape); await Settle(window); }
+        if (ReferenceEquals(host.Content, viewer))
+        {
+            await GallerySidebarSegmentsAsync(window, viewer, input);
+            await input.KeyAsync(MediaNativeInput.Escape);
+            await Settle(window);
+        }
         if (host.Content is GalleryViewer open) { GalleryViewerChecksAccess.Click(open, "GalleryClose"); await Settle(window); }
         return cases;
     }
