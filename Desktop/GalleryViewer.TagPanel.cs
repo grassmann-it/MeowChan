@@ -72,7 +72,7 @@ internal sealed partial class GalleryViewer
         surface.MarkedCount = _marks.Count;
         surface.UseSidebarHeader();
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
-        _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
+        _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-meta" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
         _tagExtra.Children.Add(_tagReason);
         _tagExtra.Children.Add(_threadSection);

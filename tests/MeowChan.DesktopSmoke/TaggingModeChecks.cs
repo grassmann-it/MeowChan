@@ -57,7 +57,7 @@ internal static class TaggingModeChecks
                 && AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton) == doneShortcut,
                 $"The Done button has no name or current key (expected '{doneShortcut}', got '{AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton)}').");
             Require(viewer.TagSurface!.Session.Stamp.Count == 1, "The panel does not share the window's stamp.");
-            Require(viewer.TagSurface.CounterText == null && !viewer.Filmstrip.IsPositionShown && !viewer.TaggingStatusText.IsVisible,
+            Require(viewer.TagSurface.Header.Children.Count == 0 && !viewer.Filmstrip.IsPositionShown && !viewer.TaggingStatusText.IsVisible,
                 "The Tags editor repeated the counters or the status.");
             MediaPositionPill pill = viewer.SidePanel.Position;
             void CheckPill(int number)

@@ -18,23 +18,25 @@ namespace MeowChan.Desktop.Controls;
 
 internal sealed class GalleryDecisionRow : StackPanel
 {
-    private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" }, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly ToggleButton _favorite = new() { Classes = { "rating-favorite" }, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
     /// <summary>Edge of a star glyph in dip.</summary>
-    private const int FavoriteGlyphSize = 20;
+    private const int FavoriteGlyphSize = 16;
     private readonly int _starGlyphSize;
+    private readonly bool _popover;
+    private readonly StackPanel _bar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
+    private readonly TextBlock _unavailable = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     // The second row shares the first row's star and clear-button columns.
     private readonly Grid _group = new()
     {
-        ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,2.5*"),
-        RowDefinitions = new RowDefinitions("Auto,Auto"),
-        RowSpacing = 8, HorizontalAlignment = HorizontalAlignment.Left
+        ColumnDefinitions = new ColumnDefinitions("Auto,8,*"),
+        RowDefinitions = new RowDefinitions("32,8,32"),
+        HorizontalAlignment = HorizontalAlignment.Left
     };
-    // The full rating caption stays in the tooltip when trimmed.
-    private readonly TextBlock _summary = new TrimTipTextBlock
+    private readonly TextBlock _summary = new()
     {
-        Classes = { "workspace-help" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis,
+        Classes = { "workspace-meta", "tnum" }, MaxLines = 2, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 0, 0, 0),
         VerticalAlignment = VerticalAlignment.Center
     };
     private readonly TextBlock _favoriteLabel = new() { Classes = { "panel-action-label" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
@@ -51,8 +53,10 @@ internal sealed class GalleryDecisionRow : StackPanel
     {
         Name = name;
         _starGlyphSize = compact ? 20 : 24;
-        _group.MaxWidth = compact ? 264 : 304;
-        _group.ColumnDefinitions[6].MinWidth = WorkspaceMetrics.InputHeight;
+        _popover = !compact;
+        Spacing = 4;
+        _group.Children.Add(_bar);
+        _group.ColumnDefinitions[2].MinWidth = WorkspaceMetrics.InputHeight;
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
         _favoriteContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8,
@@ -62,34 +66,27 @@ internal sealed class GalleryDecisionRow : StackPanel
         for (int index = 0; index < _stars.Length; index++)
         {
             int number = index + 1;
-            ColumnDefinition column = _group.ColumnDefinitions[index];
-            column.MinWidth = WorkspaceMetrics.RatingStarMinWidth;
-            column.MaxWidth = compact ? WorkspaceMetrics.InputHeight : WorkspaceMetrics.RatingPopoverStarSize;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
-            if (!compact)
-            {
-                star.Height = WorkspaceMetrics.RatingPopoverStarSize;
-            }
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
-            Grid.SetColumn(star, index);
-            _group.Children.Add(star);
+            _bar.Children.Add(star);
         }
         _clear.Width = _clear.Height = WorkspaceMetrics.InputHeight;
         _clear.Classes.Add(WorkspaceIcons.SquareClass);
-        _clear.Classes.Add("subtle");
+        _clear.Classes.Add("media-control");
+        _clear.Classes.Add("rating-clear");
         _clear.Click += OnClear;
         _clear.VerticalAlignment = VerticalAlignment.Center;
         _clear.HorizontalAlignment = HorizontalAlignment.Left;
-        Grid.SetColumn(_clear, 6);
-        Grid.SetRow(_favorite, 1);
-        Grid.SetColumnSpan(_favorite, _stars.Length);
-        Grid.SetRow(_summary, 1);
-        Grid.SetColumn(_summary, 6);
+        Grid.SetColumn(_clear, 2);
+        Grid.SetRow(_favorite, 2);
+        Grid.SetRow(_summary, 2);
+        Grid.SetColumn(_summary, 2);
         _group.Children.Add(_clear);
         _group.Children.Add(_favorite);
         _group.Children.Add(_summary);
         Children.Add(_group);
+        Children.Add(_unavailable);
         _favorite.Click += OnFavorite;
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, (_, _) => _restoreFocus = false, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -97,6 +94,22 @@ internal sealed class GalleryDecisionRow : StackPanel
         DetachedFromVisualTree += (_, _) => { _preview = null; if (!_attached) return; _attached = false; Texts.Changed -= OnLanguageChanged; };
         Localize();
         Show(GalleryDecisionView.Unavailable);
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double width = !_popover ? WorkspaceMetrics.RatingStarMinWidth
+            : availableSize.Width < 336 ? WorkspaceMetrics.InputHeight : WorkspaceMetrics.RatingPopoverStarSize;
+        double height = Math.Max(WorkspaceMetrics.InputHeight, width);
+        _group.ColumnDefinitions[0].MinWidth = width * _stars.Length;
+        _group.RowDefinitions[0].Height = new GridLength(height);
+        _bar.Margin = new Thickness((_starGlyphSize - width) / 2, 0, 0, 0);
+        foreach (ToggleButton star in _stars)
+        {
+            star.Width = width;
+            star.Height = height;
+        }
+        return base.MeasureOverride(availableSize);
     }
 
     internal ToggleButton FavoriteButton => _favorite;
@@ -181,9 +194,10 @@ internal sealed class GalleryDecisionRow : StackPanel
         bool all = view.Favorite == GalleryDecisionCoverage.All;
         _favorite.IsEnabled = favoriteAvailable ?? view.Available;
         _favorite.IsChecked = view.Favorite == GalleryDecisionCoverage.Some ? null : all;
-        _favoriteContent.Children[0] = FavoriteStar.Create(all, FavoriteGlyphSize);
-        // The label says what the targets carry: "Favorite", and "Favorite on some" while only some of a selection are.
-        _favoriteLabel.Text = view.Favorite == GalleryDecisionCoverage.Some ? Texts.T("gallery.decision.favorite.some") : Texts.T("gallery.decision.favorite");
+        _favoriteContent.Children[0] = FavoriteStar.Create(all, FavoriteGlyphSize, mixed: view.Favorite == GalleryDecisionCoverage.Some);
+        _favoriteLabel.Text = Texts.T("gallery.decision.favorite");
+        ToolTip.SetTip(_favorite, view.Favorite == GalleryDecisionCoverage.Some ? GalleryDecisionText.Favorite(view)
+            : _favoriteLabel.Text + " · " + Texts.T("gallery.decision.favorite.tip"));
         int rating = view.RatingMixed ? 0 : view.Rating ?? 0;
         // Roving tab stop: the stars are one stop of the Tab order (the checked one, star 1 while unrated); the others and the remove button are
         // reached with Left, Right, Home and End. A star that has the focus keeps it when the stop moves.
@@ -198,7 +212,10 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.IsTabStop = false;
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);
         Paint();
-        _summary.Text = GalleryDecisionText.Caption(view);
+        _summary.IsVisible = view.Available;
+        _summary.Text = view.Available ? GalleryDecisionText.Caption(view) : null;
+        _unavailable.IsVisible = !view.Available;
+        _unavailable.Text = Texts.T("gallery.decision.status.unavailable");
         // The group's help is the full sentence (rating and favourite); the caption below the clear button shows the rating alone.
         AutomationProperties.SetHelpText(_group, ShortcutHelp.Append(GalleryDecisionText.Summary(view),
             ShortcutHelp.Commands(_keyContext ?? "gallery", Enumerable.Range(1, 5).Select(number => "media.rating.set-" + number)
@@ -252,8 +269,6 @@ internal sealed class GalleryDecisionRow : StackPanel
     {
         string favorite = Texts.T("gallery.decision.favorite");
         AutomationProperties.SetName(_favorite, favorite);
-        string favoriteTip = favorite + " · " + Texts.T("gallery.decision.favorite.tip");
-        ToolTip.SetTip(_favorite, favoriteTip);
         for (int number = 1; number <= _stars.Length; number++)
         {
             string id = "media.rating.set-" + number;
@@ -265,7 +280,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         }
         string clear = CommandCatalog.Label("media.rating.clear");
         WorkspaceIcons.MakeSquare(_clear, WorkspaceIcons.StarClear, clear,
-            CommandCatalog.ShortcutTooltipDisplay("media.rating.clear", _keyContext) is { } clearGesture ? clear + " · " + clearGesture : clear);
+            CommandCatalog.ShortcutTooltipDisplay("media.rating.clear", _keyContext) is { } clearGesture ? clear + " · " + clearGesture : clear, subtle: false);
         AutomationProperties.SetName(_group, MediaRatingText.Label);
         // The stars are one group of toggle buttons that act as a radio group: a screen reader names the group "Rating" with the summary as its help.
         AutomationProperties.SetAccessibilityView(_group, AccessibilityView.Content);

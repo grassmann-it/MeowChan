@@ -1060,7 +1060,8 @@
     <Style Selector="TextBlock.workspace-body-text, SelectableTextBlock.workspace-post-body, TextBlock.panel-action-label">
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
     </Style>
-    <Style Selector="TextBlock.workspace-panel-title">
+    <Style Selector="TextBlock.workspace-panel-title, SelectableTextBlock.workspace-panel-title">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Body}" />
         <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
@@ -1442,23 +1443,35 @@
     <Style Selector="Button.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.media-control:disabled /template/ ContentPresenter#PART_ContentPresenter">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
     </Style>
-    <!-- Decision-row favourite only: match the rating bar's height and center the icon + label as one unit.
-         A minimum (not a fixed height) and vertical padding allow larger fonts and translated labels to grow. Media-control states retain theme tokens. -->
     <Style Selector="ToggleButton.rating-favorite">
-        <Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" /><Setter Property="Padding" Value="11,7" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
+        <Setter Property="Padding" Value="12,0" /><Setter Property="BorderThickness" Value="1" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
         <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
         <Setter Property="FocusAdorner" Value="{StaticResource Workspace.FocusAdorner}" />
     </Style>
-    <!-- Rating star (GalleryDecisionRow, design plan 16.11.2026): one of five equal cells of the rating bar of the "Rate and tag" popover and the gallery tag
-         panel. The cells touch (no gaps), so the hit area is continuous; each is Nav high with a 24 dip minimum, a transparent 1-px edge and no fill at rest.
-         The glyph (20 dip) is an outline in Muted while empty; a rated star is filled in Workspace.Favorite. Hover fills the cell with Hover and the stars up to
-         it show as set in the text colour (rating-preview, set by the row); the checked star has no accent fill, the filled stars carry the value; focus is the
-         shared ring; disabled is Muted. -->
+    <Style Selector="ToggleButton.rating-favorite /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="Transparent" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="ToggleButton.rating-favorite:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.rating-favorite:indeterminate /template/ ContentPresenter#PART_ContentPresenter">
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+    </Style>
+    <Style Selector="Button.panel-action">
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ControlBorder}" />
+    </Style>
+    <Style Selector="TextBlock.panel-action-label">
+        <Setter Property="FontWeight" Value="Normal" />
+    </Style>
+    <Style Selector="Button.rating-clear">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
+    </Style>
     <Style Selector="ToggleButton.rating-star">
         <Setter Property="Background" Value="Transparent" /><Setter Property="BorderBrush" Value="Transparent" /><Setter Property="BorderThickness" Value="1" />
         <Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Control}" />
-        <Setter Property="Height" Value="{StaticResource Workspace.Size.Nav}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Nav}" />
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.Control}" /><Setter Property="MinHeight" Value="{StaticResource Workspace.Size.Control}" />
         <Setter Property="MinWidth" Value="{StaticResource Workspace.Size.ControlCompact}" /><Setter Property="Padding" Value="0" />
         <Setter Property="HorizontalAlignment" Value="Stretch" /><Setter Property="VerticalAlignment" Value="Center" />
         <Setter Property="HorizontalContentAlignment" Value="Center" /><Setter Property="VerticalContentAlignment" Value="Center" />
