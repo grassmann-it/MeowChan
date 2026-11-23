@@ -10,6 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.FolderSources;
 using MeowChan.Persistence;
 
 namespace MeowChan.Desktop;
@@ -17,7 +18,7 @@ namespace MeowChan.Desktop;
 internal sealed class StartupFolderWindow : Window
 {
     private readonly StartupFolderSession _session;
-    private readonly Action<string, bool> _open;
+    private readonly Func<string, bool, Task> _open;
     private readonly ComboBox _profiles = new() { Name = "StartupFolderProfiles", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly Button _adopt = new() { Name = "StartupFolderAdopt", IsEnabled = false };
     private readonly Button _browse = new() { Name = "StartupFolderBrowse" };
@@ -29,7 +30,7 @@ internal sealed class StartupFolderWindow : Window
     private bool _applying;
     private bool _handingOff;
 
-    internal StartupFolderWindow(StartupFolderSession session, Action<string, bool> open)
+    internal StartupFolderWindow(StartupFolderSession session, Func<string, bool, Task> open)
     {
         _session = session;
         _open = open;
@@ -145,7 +146,7 @@ internal sealed class StartupFolderWindow : Window
         _applying = true;
         RefreshButtons();
         string target = profile ?? await Task.Run(() => _session.PrepareTemporaryProfile(language, _protectedFolders));
-        _open(target, profile == null);
+        await _open(target, profile == null);
         _handingOff = true;
         Close();
     }
@@ -160,6 +161,10 @@ internal sealed class StartupFolderWindow : Window
         catch (SettingsRecoveryRequiredException recovery)
         {
             if (IsVisible) _error.Text = recovery.LocalizedMessage();
+        }
+        catch (FolderSourceException error)
+        {
+            if (IsVisible) ShowError(StartupMediaFolderRegistration.ReasonKey(error.Error));
         }
         catch (Exception error) when (error is IOException or ArgumentException or NotSupportedException or InvalidOperationException
             or UnauthorizedAccessException or InvalidDataException or Microsoft.Data.Sqlite.SqliteException)

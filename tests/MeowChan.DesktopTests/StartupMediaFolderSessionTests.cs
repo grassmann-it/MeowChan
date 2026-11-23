@@ -76,7 +76,7 @@ public sealed class StartupMediaFolderSessionTests
             string temporaryProfile = start.PrepareTemporaryProfile("en", [selectedProfile]);
             Assert.StartsWith(temporaryProfile + Path.DirectorySeparatorChar, Config.LoadConfig(temporaryProfile).DownloadPath);
 
-            await using (DesktopSessionHost selected = new(selectedProfile, Array.Empty<IImageBoard>()))
+            await using (DesktopSessionHost selected = new(selectedProfile, Array.Empty<IImageBoard>(), readOnlyStartupSource: media))
             {
                 await selected.StartAsync();
                 Assert.Equal("profile.status.inUse", start.ProfileProblem(selectedProfile, []));
