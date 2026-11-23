@@ -43,6 +43,25 @@ class Host(dbus.service.Object):
             return dbus.Int32(0)
         raise dbus.exceptions.DBusException('Unknown property')
 
+    def item_proxy(self):
+        name, _, path = self.items[0].partition('/')
+        return bus.get_object(name, '/' + path if path else '/StatusNotifierItem', introspect=False)
+
+    def visible_menu_entries(self):
+        proxy = self.item_proxy()
+        menu_path = proxy.Get('org.kde.StatusNotifierItem', 'Menu', dbus_interface='org.freedesktop.DBus.Properties')
+        menu = dbus.Interface(bus.get_object(proxy.bus_name, menu_path, introspect=False), 'com.canonical.dbusmenu')
+        menu.AboutToShow(dbus.Int32(0))
+        _, layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(1), dbus.Array([], signature='s'))
+        entries = [(item_id, '' if props.get('type') == 'separator' else str(props['label']))
+                   for item_id, props, _ in layout[2] if props.get('visible', True)]
+        return menu, entries
+
+    @dbus.service.method('org.meowchan.TraySmoke', in_signature='', out_signature='as')
+    def MenuEntries(self):
+        _, entries = self.visible_menu_entries()
+        return [label for _, label in entries]
+
     @dbus.service.method('org.meowchan.TraySmoke', in_signature='s', out_signature='')
     def Control(self, command):
         if command == 'hide-own-item':
@@ -58,23 +77,15 @@ class Host(dbus.service.Object):
         elif command == 'restart-watcher':
             self.hosted = True
             bus.request_name(watcher)
-        elif command in ('activate', 'open-menu-item'):
-            item = self.items[0]
-            name, _, path = item.partition('/')
-            proxy = bus.get_object(name, '/' + path if path else '/StatusNotifierItem', introspect=False)
-            if command == 'activate':
-                proxy.Activate(dbus.Int32(0), dbus.Int32(0), dbus_interface='org.kde.StatusNotifierItem')
-            else:
-                menu_path = proxy.Get('org.kde.StatusNotifierItem', 'Menu', dbus_interface='org.freedesktop.DBus.Properties')
-                menu = bus.get_object(name, menu_path, introspect=False)
-                _, layout = menu.GetLayout(dbus.Int32(0), dbus.Int32(-1), dbus.Array([], signature='s'),
-                                           dbus_interface='com.canonical.dbusmenu')
-                # The application's first native menu action is its explicit Open item.
-                open_id = layout[2][0][0]
-                # With introspection disabled, dbus-python infers each wire type.
-                # Event's data argument is a variant even when its payload is zero.
-                menu.Event(dbus.Int32(open_id), 'clicked', dbus.Int32(0, variant_level=1), dbus.UInt32(0),
-                           dbus_interface='com.canonical.dbusmenu')
+        elif command == 'activate':
+            self.item_proxy().Activate(dbus.Int32(0), dbus.Int32(0), dbus_interface='org.kde.StatusNotifierItem')
+        elif command == 'open-menu-item' or command.startswith('click-menu-item:'):
+            menu, entries = self.visible_menu_entries()
+            item_id = entries[0][0] if command == 'open-menu-item' else next(
+                item_id for item_id, label in entries if label == command.removeprefix('click-menu-item:'))
+            # With introspection disabled, dbus-python infers each wire type.
+            # Event's data argument is a variant even when its payload is zero.
+            menu.Event(dbus.Int32(item_id), 'clicked', dbus.Int32(0, variant_level=1), dbus.UInt32(0))
         else:
             raise dbus.exceptions.DBusException('Unknown command')
 
