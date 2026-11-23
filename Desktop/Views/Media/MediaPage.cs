@@ -192,7 +192,11 @@ public sealed partial class MediaPage : UserControl
         // The page grid (M1): the head follows the other pages (workspace-page-header owns the 4 dip between title and the first line,
         // margin 12/8/12/8); the lines under it (search row, chips, status, filter section) are 8 apart.
         // LY-03: the title starts where every page title starts (PageHeader.PageTopOffset); the page has no margin of its own.
-        StackPanel header = new() { Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8), Classes = { "workspace-page-header" } };
+        StackPanel header = new()
+        {
+            Margin = new Thickness(MediaToolbarLayout.HorizontalMargin, PageHeader.PageTopOffset, MediaToolbarLayout.HorizontalMargin, 8),
+            Classes = { "workspace-page-header" }
+        };
         header.Children.Add(_title); header.Children.Add(_headerBody);
         _headerBody.Children.Add(_subtitle); _headerBody.Children.Add(tools); _headerBody.Children.Add(_searchCarryOffer);
         // The filter fields open as an inline section under the status line that pushes the grid down (S1, MediaPage.FilterSurface.cs);
