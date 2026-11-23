@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using System.Xml.Linq;
 using Avalonia.Controls;
 using MeowChan.Desktop.Controls;
 
@@ -102,9 +103,23 @@ public sealed class DataGridSelectionTests
             }
         }
 
-        // The diagnostics page serves an Extended and a Single table with the same handlers: no direct SelectedItems writes at all.
-        foreach (string file in Directory.EnumerateFiles(Path.Combine(desktop, "Views", "Diagnostics"), "*.cs"))
-            Assert.DoesNotMatch(write, File.ReadAllText(file));
+        string diagnostics = Path.Combine(desktop, "Views", "Diagnostics");
+        XName nameAttribute = XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml");
+        XElement mainGrid = Assert.Single(XDocument.Load(Path.Combine(diagnostics, "DiagnosticsPage.axaml")).Descendants(),
+            element => (string?)element.Attribute(nameAttribute) == "DiagnosticsGrid");
+        Assert.Equal("Extended", (string?)mainGrid.Attribute("SelectionMode"));
+
+        // Collapsing a group removes hidden rows from the Extended grid. Shared handlers still have to use the mode-aware helpers.
+        foreach (string file in Directory.EnumerateFiles(diagnostics, "*.cs"))
+        {
+            string text = File.ReadAllText(file);
+            if (Path.GetFileName(file) == "DiagnosticsPage.Groups.cs")
+            {
+                Assert.Contains("private DataGrid DiagnosticGrid => this.FindControl<DataGrid>(\"DiagnosticsGrid\")!;", text);
+                text = Regex.Replace(text, @"(?m)^[ \t]*DiagnosticGrid\.SelectedItems\.Remove\(hidden\);[ \t]*\r?$", "");
+            }
+            Assert.DoesNotMatch(write, text);
+        }
     }
 
     private static string SourceRoot([CallerFilePath] string path = "") =>
