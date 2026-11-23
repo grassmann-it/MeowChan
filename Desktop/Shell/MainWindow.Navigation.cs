@@ -259,6 +259,13 @@ public partial class MainWindow
                     if (Clipboard == null) throw new InvalidOperationException("Clipboard is unavailable.");
                     await Clipboard.SetTextAsync(text);
                 }, _session.RequestCheckAsync, _session.CanRequestCheck);
+                _diagnosticsPage.LoadDiagnosticLayout = view => _config.GetLayoutProfile(view.ToSetting());
+                _diagnosticsPage.SaveDiagnosticLayoutAsync = (view, problems, collapsed) => _session.SaveViewPreferencesAsync(config =>
+                {
+                    PresentationProfile profile = config.GetLayoutProfile(view.ToSetting());
+                    if (problems) profile.DiagnosticsProblemsCollapsed = collapsed;
+                    else profile.DiagnosticsActivityCollapsed = collapsed;
+                });
                 _diagnosticsPage.RetryMediaAsync = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread
                     ? _session.RetryMissingMediaAsync(target.WatchId) : System.Threading.Tasks.Task.FromResult(0);
                 _diagnosticsPage.CanRetryMedia = target => !_isClosing && target.Kind == DiagnosticTargetKind.Thread

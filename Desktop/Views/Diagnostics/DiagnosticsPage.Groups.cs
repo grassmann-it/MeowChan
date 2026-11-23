@@ -118,6 +118,7 @@ public partial class DiagnosticsPage
         if (problems) _problemsCollapsed = collapsed;
         else _activityCollapsed = collapsed;
         ApplyDiagnosticGroupVisibility();
+        RememberDiagnosticGroupLayout(problems, collapsed);
     }
 
     private void ApplyDiagnosticGroupVisibility()

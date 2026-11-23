@@ -1,5 +1,7 @@
 using System.Runtime.CompilerServices;
+using System.Text.Json;
 using System.Text.RegularExpressions;
+using MeowChan.Desktop;
 using MeowChan.Desktop.WorkViews;
 
 namespace MeowChan.DesktopTests;
@@ -10,6 +12,43 @@ public sealed class WorkViewDiagnosticsStatisticsTests
     private static readonly WorkViewPage[] Pages = [WorkViewPage.Diagnostics, WorkViewPage.Statistics];
 
     private static WorkViewEntry[] Rows(WorkViewPage page) => WorkViewPolicy.Entries.Where(entry => entry.Page == page).ToArray();
+
+    [Fact]
+    public void DiagnosticsGroupLayoutRoundTripsIndependentlyInEachWorkView()
+    {
+        using TempDirectory directory = new();
+        File.WriteAllText(Path.Combine(directory.Path, "settings.json"), "{\"LayoutProfiles\":{\"Simple\":{\"ReadingFontSize\":\"Large\"}}}");
+        Config config = Config.LoadConfig(directory.Path);
+        Assert.Null(config.LoadWarning);
+        Assert.False(config.GetLayoutProfile("Simple").DiagnosticsProblemsCollapsed);
+        Assert.False(config.GetLayoutProfile("Simple").DiagnosticsActivityCollapsed);
+        Config openDraft = config.Clone();
+
+        config.GetLayoutProfile("Simple").DiagnosticsProblemsCollapsed = true;
+        config.GetLayoutProfile("Advanced").DiagnosticsActivityCollapsed = true;
+        config.CopySettingsFieldsFrom(openDraft);
+        Config copy = new();
+        copy.CopyFrom(config.Clone());
+        copy.SaveConfig(directory.Path);
+        Config loaded = Config.LoadConfig(directory.Path);
+        var export = SettingsTransfer.Export(loaded, "1.2.0");
+        Config restored = JsonSerializer.Deserialize(export.ToJsonString(), ConfigJsonContext.Default.Config)!;
+
+        foreach (Config result in new[] { config, copy, loaded, restored })
+        {
+            Assert.Null(result.LoadWarning);
+            foreach (WorkView view in WorkViewSetting.All)
+            {
+                PresentationProfile profile = result.GetLayoutProfile(view.ToSetting());
+                Assert.Equal(view == WorkView.Simple, profile.DiagnosticsProblemsCollapsed);
+                Assert.Equal(view == WorkView.Advanced, profile.DiagnosticsActivityCollapsed);
+            }
+        }
+
+        loaded.GetLayoutProfile("Simple").DiagnosticsProblemsCollapsed = false;
+        loaded.SaveConfig(directory.Path);
+        Assert.False(Config.LoadConfig(directory.Path).GetLayoutProfile("Simple").DiagnosticsProblemsCollapsed);
+    }
 
     [Fact]
     public void BothPagesHaveRowsAndNoneIsHidden()

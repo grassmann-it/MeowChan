@@ -14,6 +14,7 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Downloader;
 using MeowChan.Http;
 using MeowChan.Interfaces;
@@ -257,6 +258,12 @@ internal static class DiagnosticsScopedRetryChecks
         await FlushAsync();
         Require(grid.SelectedItem == null && details.Text!.Contains("Updated problem", StringComparison.Ordinal),
             "Collapsed refresh dropped the exact selected entry or reopened its group.");
+        page.ApplyWorkView(WorkView.Simple);
+        Require(grid.SelectedItem is DiagnosticEntry { Summary: "Updated problem" },
+            "A different WorkView did not restore its expanded default.");
+        page.ApplyWorkView(WorkView.Advanced);
+        Require(grid.SelectedItem == null && details.IsVisible,
+            "Returning to a WorkView lost the closed group or selected detail.");
         window.UpdateLayout();
         GroupButton(GroupsLabel("diagnostics.groupProblems", 3))!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Require(grid.SelectedItem is DiagnosticEntry { Summary: "Updated problem" } refreshed && refreshed.Target?.WatchId == first.WatchId,
