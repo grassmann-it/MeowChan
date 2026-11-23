@@ -137,10 +137,10 @@ internal static class ReadingPositionChecks
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1022");
         await commands.WaitAsync();
         delayedResume = window.ResumeLastReadingAsync();
-        Require(delayedResume.IsCompletedSuccessfully, "Continue reading should be unavailable while already reading.");
         Func<bool>? readerUnchanged = null;
         try
         {
+            Require(!delayedResume.IsCompleted, "The reader-scope resume must wait for the held profile read.");
             await page.FocusPostAsync("1050");
             readerUnchanged = page.CaptureReadingRequestGuard();
         }
