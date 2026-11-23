@@ -254,12 +254,13 @@ public sealed class PageHeaderContractTests
 
     // The Media and Tagging pages build their heads in code. Tagging wraps whole action groups beside the title.
     [Theory]
-    [InlineData("Desktop/Views/Media/MediaPage.cs", "StackPanel header = new() { Margin = new Thickness(12, PageHeader.PageTopOffset, 12, 8), Classes = { \"workspace-page-header\" } };")]
-    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "Children = { _title, _start, _progress }")]
-    public void TheMediaAndTaggingTitlesUseLayoutsThatCanFitOrWrapTheirContents(string file, string layout)
+    [InlineData("Desktop/Views/Media/MediaPage.cs", "StackPanel header = new()", "header.Children.Add(_title); header.Children.Add(_headerBody);")]
+    [InlineData("Desktop/Views/Tagging/TaggingPage.cs", "return new TaggingHeader(walk,", "Children = { _title, _start, _progress }")]
+    public void TheMediaAndTaggingTitlesUseLayoutsThatCanFitOrWrapTheirContents(string file, string layout, string titlePlacement)
     {
-        string code = File.ReadAllText(Root(file)).Replace("\r\n", "\n", StringComparison.Ordinal);
+        string code = File.ReadAllText(Root(file));
         Assert.Contains(layout, code);
+        Assert.Contains(titlePlacement, code);
         Assert.DoesNotContain("PageHeader.SetRole", code);
     }
 
