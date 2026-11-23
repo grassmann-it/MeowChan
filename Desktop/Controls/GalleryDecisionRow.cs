@@ -35,9 +35,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         RowDefinitions = new RowDefinitions("32,8,32"),
         HorizontalAlignment = HorizontalAlignment.Left
     };
-    private readonly TextBlock _summary = new()
+    private readonly RatingCaption _summary = new()
     {
-        Classes = { "workspace-meta", "tnum" }, MaxLines = 2, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 0, 0, 0),
+        Classes = { "workspace-meta", "tnum" }, LineHeight = 16, MaxLines = 2, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 0, 0, 0),
         VerticalAlignment = VerticalAlignment.Center
     };
     private readonly TextBlock _favoriteLabel = new() { Classes = { "panel-action-label" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
@@ -104,7 +104,10 @@ internal sealed class GalleryDecisionRow : StackPanel
         double width = !_popover ? WorkspaceMetrics.RatingStarMinWidth
             : availableSize.Width < 336 ? WorkspaceMetrics.InputHeight : WorkspaceMetrics.RatingPopoverStarSize;
         double height = Math.Max(WorkspaceMetrics.InputHeight, width);
-        _group.ColumnDefinitions[0].MinWidth = width * _stars.Length;
+        _favorite.MaxWidth = width * _stars.Length;
+        _group.ColumnDefinitions[0].MinWidth = _favorite.MaxWidth;
+        // A narrow 240-DIP panel may wrap single ratings. At the normal minimum, only mixed ratings wrap.
+        _summary.SetLineLimit(_view.RatingMixed || availableSize.Width < (_popover ? 256 : 246) ? 2 : 1);
         _group.RowDefinitions[0].Height = new GridLength(height);
         _bar.Margin = new Thickness((_starGlyphSize - width) / 2, 0, 0, 0);
         foreach (ToggleButton star in _stars)
@@ -120,7 +123,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal bool FavoriteVisible { get => _favorite.IsVisible; set => _favorite.IsVisible = value; }
     internal IReadOnlyList<ToggleButton> StarButtons => _stars;
     internal Button ClearButton => _clear;
-    internal TextBlock Summary => _summary;
+    internal RatingCaption Summary => _summary;
     internal GalleryDecisionView View => _view;
     internal Control RatingGroup => _group;
 
