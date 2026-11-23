@@ -52,11 +52,16 @@ internal static class GalleryCloseChecks
             + $"state={window.WindowState}, requested={window.Width}x{window.Height}, client={window.ClientSize}, "
             + $"frame={window.FrameSize}, working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}, "
             + $"scale={window.RenderScaling}, gallery-visible={host.IsEffectivelyVisible}.");
+        ShellPresentationChecks.RequireFooter(window, visible: true);
         await ObserveFullscreenPresentationAsync(window, host, "before", immersive: false);
         if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_CLOSE_SKIP_FULLSCREEN") != "1")
         {
-            fullscreen.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Button entry = videoFixture ? viewer.GetGalleryVisualDescendants().OfType<Button>()
+                .Single(button => button.Name == "GalleryVideoFullscreen") : fullscreen;
+            Require(entry.IsEffectivelyVisible && entry.IsEffectivelyEnabled, "The fullscreen entry control is not reachable.");
+            entry.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await Program.WaitUntilAsync(() => IsNativeFullscreen(window) && host.IsEffectivelyVisible);
+            ShellPresentationChecks.RequireFooter(window, visible: false);
             await MacScreenCapture.TryCaptureAsync("gallery-fullscreen-on");
             await ObserveFullscreenPresentationAsync(window, host, "entered", immersive: true);
             if (Environment.GetEnvironmentVariable("MEOWCHAN_GALLERY_FULLSCREEN_CHECK") == "1")
@@ -105,7 +110,11 @@ internal static class GalleryCloseChecks
                     + $"requested={window.Width}x{window.Height}, client={window.ClientSize}, frame={window.FrameSize}, "
                     + $"working-area={window.Screens.ScreenFromWindow(window)?.WorkingArea}, scale={window.RenderScaling}.");
             }
-            else if (exitFailure == null) await MacScreenCapture.TryCaptureAsync("gallery-fullscreen-off");
+            else if (exitFailure == null)
+            {
+                ShellPresentationChecks.RequireFooter(window, visible: true);
+                await MacScreenCapture.TryCaptureAsync("gallery-fullscreen-off");
+            }
         }
         else Console.WriteLine("SMOKE gallery close: fullscreen toggles skipped for native caption input control.");
 
@@ -208,6 +217,7 @@ internal static class GalleryCloseChecks
         }
         await CaptureNativeAsync("fullscreen-" + stage);
         if (mode != "1") return;
+        ShellPresentationChecks.RequireFooter(window, visible: !immersive);
         Require(title.IsEffectivelyVisible == !immersive, "Fullscreen gallery titlebar visibility is wrong: " + stage);
         if (!host.IsEffectivelyVisible) return;
         Require(top.HasValue && Math.Abs(top.Value.X) <= 1
