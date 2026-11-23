@@ -37,7 +37,7 @@ public sealed partial class MediaPage
     private readonly ReaderInlineVideoController _panelVideoController = new();
     private bool _panelShown, _panelCollapsed;
     private MediaLibraryTileRow? _panelRow, _panelWanted;
-    private string _panelSizeText = string.Empty, _panelDimensions = string.Empty;
+    private string _panelDimensions = string.Empty;
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();
     private readonly Stopwatch _panelClock = Stopwatch.StartNew();
     private DispatcherTimer? _panelFollowTimer, _panelAnnounceTimer;
@@ -200,7 +200,7 @@ public sealed partial class MediaPage
         _panelAnnounceTimer?.Stop();
         _panelThrottle.Reset();
         _panelRow = _panelWanted = null;
-        _panelSizeText = _panelDimensions = string.Empty;
+        _panelDimensions = string.Empty;
         OfferPanelVideo(null);
         _panel?.ShowEmpty();
         _ = ReleasePanelVideos();
@@ -318,7 +318,7 @@ public sealed partial class MediaPage
         MediaLibraryTileRow? row = _panelWanted;
         bool same = row != null && _panelRow != null && MediaLibraryTileKey.Of(row.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
         _panelRow = row;
-        if (!same) { _panelSizeText = _panelDimensions = string.Empty; }
+        if (!same) { _panelDimensions = string.Empty; }
         if (row == null)
         {
             OfferPanelVideo(null);
@@ -327,7 +327,6 @@ public sealed partial class MediaPage
             return;
         }
         MediaLibraryEntry entry = row.Entry;
-        _panelSizeText = entry.Length is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
         // Tom (16.11.2026): the medium already shown (a larger frame, a changed fit limit, a rebuilt grid) keeps its picture: no load while it covers the
         // frame, otherwise a larger decode that swaps in place (ReaderMediaSidebarLoadState).
         string mediumKey = PanelVideoKey(entry);
@@ -349,7 +348,7 @@ public sealed partial class MediaPage
             {
                 panel.LimitPicture(ReaderMediaSidebarRules.MaximumDisplay(source.Width, _panelFit), ReaderMediaSidebarRules.MaximumDisplay(source.Height, _panelFit));
                 _panelDimensions = $"{source.Width}×{source.Height}";
-                panel.SetDetail(PanelDetail());
+                panel.SetDetail(_panelDimensions);
             }
             return;
         }
@@ -358,17 +357,13 @@ public sealed partial class MediaPage
         PanelTask = LoadPanelAsync(panel, row, mediumKey, ticket, target, loading.Token);
     }
 
-    private string PanelDetail() => _panelDimensions.Length == 0 ? _panelSizeText
-        : _panelSizeText.Length == 0 ? _panelDimensions : _panelSizeText + " · " + _panelDimensions;
-
-    // The header (post number, name, size and pixels), "open in gallery" and the star.
     private void DescribePanel(ReaderMediaSidebar panel, MediaLibraryTileRow row)
     {
         MediaLibraryEntry entry = row.Entry;
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
             : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
-        panel.Describe(postLine, row.Name, PanelDetail(), OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
-            threadPosition: PanelPositionOf(row));
+        panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
+            threadPosition: PanelPositionOf(row), savedBytes: entry.Length);
         // The star reads the panel's row when it is asked, so a new presentation (own state changed) needs no new wiring.
         panel.ConfigureFavorite(PanelFavoriteAvailable, () => _panelRow?.State?.Favorite == MediaLibraryFlag.Yes,
             () => _panelRow is { } current ? ToggleTileFavoriteAsync(current.Entry) : Task.CompletedTask);
@@ -425,7 +420,7 @@ public sealed partial class MediaPage
         }, picture =>
         {
             _panelDimensions = picture.Source is { } source ? $"{source.Width}×{source.Height}" : string.Empty;
-            panel.SetDetail(PanelDetail());
+            panel.SetDetail(_panelDimensions);
         });
     }
 

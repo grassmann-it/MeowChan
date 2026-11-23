@@ -113,18 +113,17 @@ internal static partial class MediaPageChecks
             Require(!page.IsPanelHeaderLifted && Math.Abs(TopOf(panel.HeaderRow) - panelTop - 8) <= 1
                     && Math.Abs(panel.Segments.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight) <= 1,
                 "The title/actions line must be inset inside the full-height sidebar.");
-            TextBlock heading = C<TextBlock>(panel, "ReaderMediaSidebarHeading");
             Point InHeader(Control control) => control.TranslatePoint(default, panel.HeaderRow)!.Value;
-            Require(Math.Abs(InHeader(panel.Segments).X) <= 1 && Math.Abs(InHeader(heading).X) <= 1
-                && InHeader(heading).Y >= ReaderMediaSidebar.HeaderLineHeight
+            Require(Math.Abs(InHeader(panel.Segments).X) <= 1
                 && Math.Abs(InHeader(panel.PositionPill).X - panel.Segments.Bounds.Width - MediaSidebarHeader.HeaderGap) <= 1
                 && Math.Abs(InHeader(panel.PositionPill).X + panel.PositionPill.Bounds.Width + MediaSidebarHeader.HeaderGap - InHeader(panel.Close).X) <= 1
                 && Math.Abs(InHeader(panel.Close).X + panel.Close.Bounds.Width - panel.HeaderRow.Bounds.Width) <= 1,
                 "The tabs, post number, position and actions are misaligned.");
             Require(Math.Abs(TopOf(panel.Card) - panelTop - 8 - panel.HeaderRow.Bounds.Height) <= 1,
                 "The card must begin below the Media header.");
-            Require(Math.Abs(TopOf(panel.Card) + panel.Card.Bounds.Height - (hostTop + panelHost.Bounds.Height)) <= 1,
-                "The media card must consume the host height below the title line.");
+            ScrollViewer details = C<ScrollViewer>(panel, "ReaderMediaSidebarDetails");
+            Require(Math.Abs(TopOf(details) + details.Bounds.Height - (hostTop + panelHost.Bounds.Height)) <= 1,
+                "The media card and details must consume the host height below the title line.");
             page.SetBooruMode(true, save: false);
             TextBlock tagsTitle = C<TextBlock>(page.TagSidebar, "MediaTagSidebarTitle");
             double CentreY(Control control) => TopOf(control) + control.Bounds.Height / 2;

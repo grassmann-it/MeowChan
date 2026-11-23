@@ -27,16 +27,18 @@ internal sealed class PanelActionStack : StackPanel
     internal static void Present(Button button, string icon)
     {
         Stretch(button);
-        if (button.Content is not string label) return;
-        TextBlock text = new()
+        button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
         {
-            Text = label, Classes = { "panel-action-label" }, TextTrimming = TextTrimming.CharacterEllipsis,
-            MaxLines = 1, VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(text, 1);
-        Border mark = (Border)CommandBindings.IconFromKey(icon, 16);
-        mark.Bind(Border.BackgroundProperty, text.GetObservable(TextBlock.ForegroundProperty));
-        button.Content = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, Children = { mark, text } };
-        ToolTip.SetTip(button, ToolTip.GetTip(button) ?? label);
+            TextBlock text = new()
+            {
+                Text = content?.ToString(), Classes = { "panel-action-label" }, TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxLines = 1, VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(text, 1);
+            Border mark = (Border)CommandBindings.IconFromKey(icon, 16);
+            mark.Bind(Border.BackgroundProperty, text.GetObservable(TextBlock.ForegroundProperty));
+            return new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8, Children = { mark, text } };
+        });
+        ToolTip.SetTip(button, ToolTip.GetTip(button) ?? button.Content);
     }
 }

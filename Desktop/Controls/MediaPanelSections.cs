@@ -13,6 +13,7 @@ internal sealed class MediaPanelSections : StackPanel
 
     internal MediaPanelSections()
     {
+        IsVisible = false;
         Spacing = WorkspaceMetrics.MediaPanelSectionGap;
         for (int i = 0; i < _sections.Length; ++i)
         {
@@ -37,6 +38,7 @@ internal sealed class MediaPanelSections : StackPanel
             _rules[i - 1].IsVisible = priorVisible && _sections[i].IsVisible;
             priorVisible |= _sections[i].IsVisible;
         }
+        IsVisible = priorVisible;
     }
 
     private static Border Rule() => new()

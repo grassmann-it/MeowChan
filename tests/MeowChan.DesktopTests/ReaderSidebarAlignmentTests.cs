@@ -57,15 +57,15 @@ public sealed class ReaderSidebarAlignmentTests
                 Layout(root, new Size(1440, 720));
                 double headerHeight = sidebar.HeaderRow.Bounds.Height;
                 double frameHeight = sidebar.Frame.Bounds.Height;
-                Assert.InRange(headerHeight, emptyHeight, emptyHeight + 2 * ReaderMediaSidebar.HeaderLineHeight);
-                TextBlock metadata = Assert.Single(sidebar.HeaderRow.GetVisualDescendants().OfType<TextBlock>(),
-                    text => text.Name == "ReaderMediaSidebarHeader");
-                Assert.Equal(sidebar.HeaderLine, ToolTip.GetTip(metadata));
-                Assert.Equal(2, metadata.TextLayout.TextLines.Count);
-                Assert.True(metadata.TranslatePoint(new Point(0, metadata.Bounds.Height), sidebar)!.Value.Y
-                    <= sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y);
-                Assert.True(sidebar.Open.TranslatePoint(new Point(0, sidebar.Open.Bounds.Height), sidebar)!.Value.Y
-                    <= metadata.TranslatePoint(default, sidebar)!.Value.Y);
+                Assert.Equal(emptyHeight, headerHeight);
+                MediaFactGrid facts = Assert.Single(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
+                SelectableTextBlock metadata = Assert.Single(facts.Children.OfType<SelectableTextBlock>(),
+                    text => text.Name == "ReaderMediaSidebarFile");
+                Assert.Equal(file, ToolTip.GetTip(metadata));
+                Assert.True(metadata.TranslatePoint(default, sidebar)!.Value.Y
+                    >= sidebar.Card.TranslatePoint(new Point(0, sidebar.Card.Bounds.Height), sidebar)!.Value.Y);
+                Assert.True(sidebar.Open.TranslatePoint(default, sidebar)!.Value.Y
+                    > metadata.TranslatePoint(default, sidebar)!.Value.Y);
 
                 Layout(root, new Size(1440, 900));
                 Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);

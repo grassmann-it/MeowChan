@@ -309,8 +309,10 @@ internal static class ReaderMediaSidebarChecks
         Require(sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 15 and <= 17 }, "The sidebar header is missing its top inset.");
         Require(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight, "The sidebar header is shorter than a control row.");
         Require(sidebar.Padding.Top == 0 && sidebar.Padding.Bottom == 0, "Neighbour alignment reclaimed media height as padding.");
-        Require(Math.Abs(sidebar.Card.TranslatePoint(default, sidebar)!.Value.Y + sidebar.Card.Bounds.Height - sidebar.Bounds.Height) <= 1,
-            "There is unused height below the media card.");
+        ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
+        Control last = details.IsVisible ? details : sidebar.Card;
+        Require(Math.Abs(last.TranslatePoint(default, sidebar)!.Value.Y + last.Bounds.Height - sidebar.Bounds.Height) <= 1,
+            "The sidebar does not fill its height below the header.");
         Console.WriteLine($"SMOKE sidebar full-height: host={host.Name}, side={Grid.GetColumn(sidebar)}, hostHeight={host.Bounds.Height}, paneHeight={sidebar.Bounds.Height}, mediaHeight={sidebar.Frame.Bounds.Height}");
         if (TopLevel.GetTopLevel(sidebar) is Window window)
             Program.CaptureWindow(window, $"smoke-reader-full-height-{host.Name}-{Grid.GetColumn(sidebar)}.png");

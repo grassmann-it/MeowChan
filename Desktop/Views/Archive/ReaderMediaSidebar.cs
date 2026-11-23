@@ -242,18 +242,14 @@ internal sealed class ReaderMediaFollowThrottle
 /// </summary>
 internal sealed class ReaderMediaSidebar : Border
 {
-    private readonly Grid _headingHost;
-    private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", TextTrimming = TextTrimming.CharacterEllipsis,
-        VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis,
-        TextWrapping = TextWrapping.Wrap, MaxLines = 2, LineHeight = HeaderLineHeight / 2, VerticalAlignment = VerticalAlignment.Center };
-    private readonly StackPanel _headerActions = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", Classes = { "workspace-meta" } };
     private readonly MediaPositionPill _positionPill = new("ReaderMediaSidebarThreadPosition");
     private readonly MediaSidebarTabs _tabs = new("ReaderMediaSidebar");
-    private readonly Grid _headerDetails = new()
-    {
-        ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), ColumnSpacing = 8
-    };
+    private readonly MediaPanelSections _sections = new() { Name = "ReaderMediaSidebarSections" };
+    private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 4 };
+    private readonly MediaFactGrid _facts = new("ReaderMediaSidebarFacts");
+    private readonly PanelActionStack _actions = new("ReaderMediaSidebarActions");
+    private long? _savedBytes;
     private GalleryTagPanelPosition? _threadPosition;
     private bool _openingTags;
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
@@ -326,7 +322,7 @@ internal sealed class ReaderMediaSidebar : Border
     }
 
     // In the header row, icon only: the words are its tooltip and name.
-    internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen", Classes = { "icon-square", "ghost" } };
+    internal Button Open { get; } = new() { Name = "ReaderMediaSidebarOpen" };
     internal PanelCloseButton Close { get; } = new("ReaderMediaSidebarClose");
 
     /// <summary>The picture frame: its size is the decode target (smoke and page seam).</summary>
@@ -415,23 +411,16 @@ internal sealed class ReaderMediaSidebar : Border
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
 
-        // Icon only: the command's label is the name and the tooltip (with its shortcut); the catalog follows language and bindings.
-        CommandBindings.Apply(Open, "gallery.open", iconOnly: true);
-        Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
-        _headerActions.Children.Add(_favorite);
-        _headerActions.Children.Add(Open);
-        _headingHost = new Grid { Children = { _heading, _postLink } };
-        Grid.SetColumn(_headerActions, 1);
-        Grid.SetRow(_title, 1);
-        Grid.SetColumnSpan(_title, 2);
-        _headerDetails.Children.Add(_headingHost);
-        _headerDetails.Children.Add(_headerActions);
-        _headerDetails.Children.Add(_title);
+        _info.Children.Add(_heading);
+        _info.Children.Add(_postLink);
+        _info.Children.Add(_facts);
+        _actions.Children.Add(Open);
+        Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
         _tabs.Post.Click += (_, _) => SelectPost();
         _tabs.Tags.Click += (_, _) => OpenActions.Start(SelectTagsAsync, "media.tags.edit");
         _tabs.SelectTags(false);
-        _header = new MediaSidebarHeader(_tabs.Row, _positionPill, Close, _headerDetails)
+        _header = new MediaSidebarHeader(_tabs.Row, _positionPill, Close)
         {
             Name = "ReaderMediaSidebarHeaderRow", Margin = new Thickness(0, HeaderTopInset, 0, 0)
         };
@@ -471,10 +460,23 @@ internal sealed class ReaderMediaSidebar : Border
             UpdateCardRows();
         };
         UpdateCardRows();
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*") };
-        layout.Children.Add(_header);
+        ScrollViewer details = new()
+        {
+            Name = "ReaderMediaSidebarDetails", Content = _sections,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            Margin = new Thickness(0, WorkspaceMetrics.MediaPanelSectionGap, 0, 0), Focusable = false
+        };
+        details.Bind(IsVisibleProperty, _sections.GetObservable(Panel.IsVisibleProperty));
+        details.AddHandler(GotFocusEvent, (_, e) => { if (e.Source is Control control) control.BringIntoView(); });
+        SizeChanged += (_, e) => details.MaxHeight = e.NewSize.Height * 0.55;
+        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         layout.Children.Add(_live);
         Grid.SetRow(_card, 1); layout.Children.Add(_card);
+        Grid.SetRow(details, 2); layout.Children.Add(details);
+        // Header is visually first. Its close is the last element in the sidebar's tab order.
+        layout.Children.Add(_header);
+        KeyboardNavigation.SetTabIndex(Close, 1);
         Child = layout;
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
@@ -494,7 +496,9 @@ internal sealed class ReaderMediaSidebar : Border
     {
         string title = Texts.T(TitleKey);
         AutomationProperties.SetName(this, title);
-        RefreshHeader();
+        RefreshFacts();
+        CommandBindings.Apply(Open, "gallery.open");
+        PanelActionStack.Present(Open, CommandCatalog.Get("gallery.open").Icon);
         _tabs.Localize(postCommandId: null);
         _positionPill.Show(_threadPosition);
         string stripName = Texts.T("reader.sidebar.strip");
@@ -538,13 +542,15 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null, GalleryTagPanelPosition? threadPosition = null)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null, GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null)
     {
         _postLine = postLine; _fileName = fileLine; _detail = detailLine; _postLinkTip = postLinkTip ?? string.Empty;
+        _savedBytes = savedBytes;
         SetThreadPosition(threadPosition);
-        RefreshHeader();
+        RefreshFacts();
         Open.IsEnabled = canOpen;
         Open.IsVisible = canOpen || fileLine.Length > 0;
+        _sections.Actions = Open.IsVisible ? _actions : null;
         _tabs.Tags.IsEnabled = fileLine.Length > 0 && OpenTagsAsync != null;
         AutomationProperties.SetName(_image, fileLine);
         UpdateFrameCursor();
@@ -596,14 +602,13 @@ internal sealed class ReaderMediaSidebar : Border
     {
         get
         {
-            string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _detail);
+            string text = ReaderMediaSidebarRules.HeaderText(_postLine, _fileName, _savedBytes is long bytes ? MediaProvenanceText.FactSize(bytes) + " " + _detail : _detail);
             return text.Length > 0 ? text : Texts.T(TitleKey);
         }
     }
 
-    private void RefreshHeader()
+    private void RefreshFacts()
     {
-        string metadata = ReaderMediaSidebarRules.HeaderText(string.Empty, _fileName, _detail);
         bool link = _postLine.Length > 0 && _postLinkTip.Length > 0;
         _postLink.IsVisible = link;
         if (link)
@@ -612,13 +617,13 @@ internal sealed class ReaderMediaSidebar : Border
             ToolTip.SetTip(_postLink, _postLinkTip);
             AutomationProperties.SetName(_postLink, _postLinkTip);
         }
-        _heading.Text = _postLine.Length == 0 && metadata.Length == 0 && ShowEmptyTitle ? Texts.T(TitleKey) : _postLine;
+        _heading.Text = _postLine.Length == 0 && _fileName.Length == 0 && ShowEmptyTitle ? Texts.T(TitleKey) : _postLine;
         _heading.IsVisible = !link && _heading.Text.Length > 0;
-        _headingHost.IsVisible = link || _heading.IsVisible;
-        _title.Text = metadata;
-        _title.IsVisible = metadata.Length > 0;
-        _headerDetails.IsVisible = _headingHost.IsVisible || _title.IsVisible;
-        ToolTip.SetTip(_title, HeaderLine);
+        _facts.Children.Clear();
+        _facts.Add(Texts.T("media.fact.file"), _fileName, "ReaderMediaSidebarFile", fileName: true);
+        if (_savedBytes is long bytes) _facts.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(bytes));
+        _facts.Add(Texts.T("media.fact.dimensions"), _detail);
+        _sections.Info = link || _heading.IsVisible || _facts.Children.Count > 0 ? _info : null;
     }
 
     /// <summary>
@@ -628,7 +633,7 @@ internal sealed class ReaderMediaSidebar : Border
     /// </summary>
     internal void ConfigureFavorite(ArchiveAttachmentRow? row)
     {
-        _favorite.IsVisible = row != null;
+        _sections.Rating = row != null ? _favorite : null;
         if (row != null) _favorite.Configure(row);
         UpdateBadges();
     }
@@ -639,7 +644,7 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>The star for a medium that is no reader attachment (the Media page): the same button with the host's own state and toggle.</summary>
     internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle, Func<string?>? error = null)
     {
-        _favorite.IsVisible = available != null;
+        _sections.Rating = available != null ? _favorite : null;
         if (available != null) _favorite.Configure(available, marked, toggle, error);
         UpdateBadges();
     }
@@ -659,7 +664,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal void SetDetail(string detailLine)
     {
         _detail = detailLine;
-        RefreshHeader();
+        RefreshFacts();
     }
 
     /// <summary>

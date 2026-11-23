@@ -273,10 +273,11 @@ public sealed class ReaderMediaSidebarLayoutTests
 
     [Theory]
     [InlineData(8, 512, 240, 720)]
+    [InlineData(8, 512, 280, 720)]
     [InlineData(8, 512, 360, 720)]
     [InlineData(512, 8, 360, 720)]
-    [InlineData(64, 64, 500, 900)]
-    public void HeaderWrapsLongFileNamesAndCardFillsTheRemainingHeight(int pixelWidth, int pixelHeight, int width, int height) => OnDispatcher(() =>
+    [InlineData(64, 64, 480, 900)]
+    public void FileFactsStayInTheBodyAndTheCardFillsTheRemainingHeight(int pixelWidth, int pixelHeight, int width, int height) => OnDispatcher(() =>
     {
         ReaderMediaSidebar view = new();
         using WriteableBitmap picture = new(new PixelSize(pixelWidth, pixelHeight), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
@@ -287,10 +288,12 @@ public sealed class ReaderMediaSidebarLayoutTests
             view.InvalidateMeasure();
             view.Measure(new Size(width, height));
             view.Arrange(new Rect(0, 0, width, height));
-            Assert.InRange(view.HeaderRow.Bounds.Height, 32, 96);
+            Assert.Equal(32, view.HeaderRow.Bounds.Height);
             Assert.Equal(height, view.Bounds.Height);
             Assert.Equal(view.Padding.Top + 8, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
-            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 8, view.Card.Bounds.Height);
+            ScrollViewer details = view.GetVisualDescendants().OfType<ScrollViewer>().Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
+            double detailsHeight = details.IsVisible ? details.Bounds.Height + details.Margin.Top : 0;
+            Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 8 - detailsHeight, view.Card.Bounds.Height, 1);
         }
         Layout();
         Rect emptyHeader = view.HeaderRow.Bounds;
@@ -304,22 +307,21 @@ public sealed class ReaderMediaSidebarLayoutTests
         view.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
         Layout();
         Control headerRow = Assert.IsType<MediaSidebarHeader>(view.HeaderRow);
-        TextBlock metadata = headerRow.GetVisualDescendants().OfType<TextBlock>().Single(text => text.Name == "ReaderMediaSidebarHeader");
+        MediaFactGrid facts = Assert.Single(view.GetVisualDescendants().OfType<MediaFactGrid>());
+        SelectableTextBlock metadata = facts.Children.OfType<SelectableTextBlock>().Single(text => text.Name == "ReaderMediaSidebarFile");
         MediaPositionPill position = view.PositionPill;
         Point At(Control control) => control.TranslatePoint(default, headerRow)!.Value;
-        Assert.Equal(0, At(view.PostLink).X);
-        Assert.Equal(0, At(metadata).X);
-        Assert.Equal(64, At(metadata).Y, 0.5);
-        Assert.Equal(2, metadata.TextLayout.TextLines.Count);
-        Assert.Equal(view.HeaderLine, ToolTip.GetTip(metadata));
-        Assert.True(At(view.Open).X >= At(view.FavoriteButton).X + view.FavoriteButton.Bounds.Width);
+        Assert.DoesNotContain(view.Open, headerRow.GetVisualDescendants());
+        Assert.DoesNotContain(view.PostLink, headerRow.GetVisualDescendants());
+        Assert.Equal(new string('x', 500) + ".png", ToolTip.GetTip(metadata));
+        Assert.True(At(view.Open).Y > At(metadata).Y);
         Assert.Equal(headerRow.Bounds.Width, At(view.Close).X + view.Close.Bounds.Width, 0.5);
         Assert.True(position.Bounds.Width > 0);
         Assert.Equal(positionText, ToolTip.GetTip(position));
         Assert.Equal(At(view.Close).Y + view.Close.Bounds.Height / 2, At(position).Y + position.Bounds.Height / 2, 0.5);
         GalleryMeasuredGeometryTests.AssertSidebarHeader(headerRow, view.Segments, position, view.Close);
         TextBlock positionLabel = Assert.IsType<TextBlock>(position.Child);
-        Assert.Equal(width == 240, Assert.Single(positionLabel.TextLayout.TextLines).HasCollapsed);
+        Assert.Single(positionLabel.TextLayout.TextLines);
         Rect header = view.HeaderRow.Bounds;
         Rect card = view.Card.Bounds;
         Assert.Equal(view.Card.Bounds.Height, view.Frame.Bounds.Height);

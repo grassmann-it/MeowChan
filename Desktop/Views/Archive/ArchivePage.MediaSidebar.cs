@@ -725,7 +725,6 @@ public partial class ArchivePage
         ArchiveAttachmentRow row = post.Attachments[_sidebarIndex];
         CapturedAttachmentText file = CapturedAttachmentText.Of(row);
         string postLine = post.NumberLabel;
-        string size = file.Size is > 0 and long bytes ? SizeText.Format(bytes) : string.Empty;
         // Tom (16.11.2026): the medium already shown (a rebuilt page, a refreshed thread, a larger frame, the sidebar back from the other host) keeps
         // its picture: no load at all while it covers the frame, otherwise a larger decode that swaps in place (ReaderMediaSidebarLoadState).
         string mediumKey = SidebarMediumKey(post, row);
@@ -734,7 +733,7 @@ public partial class ArchivePage
         ThreadMediaPositions? media = _thread?.MediaPositions;
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
-        sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel, position);
+        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, post.CopyNumberLabel, position, savedBytes: file.Size);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
         UpdateSidebarStrip(sidebar, post, samePost);
@@ -756,7 +755,7 @@ public partial class ArchivePage
             return;
         }
         MediaSidebarTask = RunMediaSidebarLoadAsync(loading,
-            token => LoadMediaSidebarAsync(sidebar, post, row, size, mediumKey, ticket, target, token));
+            token => LoadMediaSidebarAsync(sidebar, post, row, mediumKey, ticket, target, token));
     }
 
     private Task RunMediaSidebarLoadAsync(CancellationTokenSource loading, Func<CancellationToken, Task> work) =>
@@ -864,7 +863,7 @@ public partial class ArchivePage
         return ReaderMediaSidebarRules.PhysicalTarget(frame, TopLevel.GetTopLevel(sidebar)?.RenderScaling ?? TopLevel.GetTopLevel(this)?.RenderScaling ?? 1);
     }
 
-    private Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string size, string key,
+    private Task LoadMediaSidebarAsync(ReaderMediaSidebar sidebar, ArchivePostRow post, ArchiveAttachmentRow row, string key,
         ReaderMediaLoadTicket ticket, (double Width, double Height) target, CancellationToken token)
     {
         ReaderMediaSidebarImageLoad load = new(sidebar, key, ticket, _sidebarFit, () => IsCurrentSidebarRequest(ticket.Request), token);
@@ -890,7 +889,7 @@ public partial class ArchivePage
         }, picture =>
         {
             _sidebarShownDetail = picture.Source is { } source
-                ? (size.Length > 0 ? size + " · " : string.Empty) + $"{source.Width}×{source.Height}" : size;
+                ? $"{source.Width}×{source.Height}" : string.Empty;
             sidebar.SetDetail(_sidebarShownDetail);
         }, () => PreloadMediaSidebarNeighboursAsync(post, target, token));
     }
