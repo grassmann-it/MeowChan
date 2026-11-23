@@ -2,10 +2,12 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 
 namespace MeowChan.DesktopTests;
 
+[Collection("Localization")]
 public sealed class ReaderMediaPanelDecisionTests
 {
     [Theory]

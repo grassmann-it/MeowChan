@@ -1,5 +1,8 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input.Platform;
+using Avalonia.Interactivity;
+using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -55,6 +58,8 @@ public sealed class MediaFactGridTests
                 Assert.Equal(longName, ToolTip.GetTip(values[0]));
                 MenuItem copy = Assert.IsType<MenuItem>(Assert.Single(values[0].ContextMenu!.Items));
                 Assert.Equal(Texts.T("diagnostics.copy"), copy.Header);
+                copy.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+                Assert.Equal(longName, BooruComponentDispatcher.Wait(window.Clipboard!.TryGetTextAsync()));
             }
             finally
             {
