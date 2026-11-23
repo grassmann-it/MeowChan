@@ -63,7 +63,7 @@ internal sealed partial class PrivateTagStore
         });
     }
 
-    /// <summary>Confirms precisely this preview. Both stores are checked under the same lease before private tags change.</summary>
+    /// <summary>Confirms a provider/private rule preview. Model suggestions are accepted through the review journal.</summary>
     internal TagRuleCommit ApplyTagRules(TagRulePreview preview, CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(preview);
@@ -75,11 +75,12 @@ internal sealed partial class PrivateTagStore
         CancellationToken token = default)
     {
         ArgumentNullException.ThrowIfNull(preview);
+        if (preview.Projections.Any(row => row.Input.Origin is TagRuleOrigin.Model))
+            throw new TagSuggestionStoreException(TagSuggestionStoreError.InvalidInput);
         byte[]? prior = null;
         PrivateTagCommit commit = Mutate(admission, preview.Revision, token, (model, bytes) =>
         {
             RequireRuleBase(preview.Lease, preview.Fingerprint, bytes);
-            CheckRuleSuggestions(preview.Projections.Select(row => row.Input), token);
             prior = bytes;
             return (ApplyRuleChanges(model, preview.Changes, token), default);
         });
