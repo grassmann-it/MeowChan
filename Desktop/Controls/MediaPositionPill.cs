@@ -24,6 +24,7 @@ internal sealed class MediaPositionPill : Border
     internal MediaPositionPill(string name)
     {
         Name = name;
+        Height = 24;
         Classes.Add("chip-position");
         _check.Width = _check.Height = 12;
         _check.Stretch = Stretch.Uniform;

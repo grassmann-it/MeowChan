@@ -66,6 +66,8 @@ public sealed class ReaderSidebarAlignmentTests
                 LayoutAt(720);
                 double headerHeight = sidebar.HeaderRow.Bounds.Height;
                 double frameHeight = sidebar.Frame.Bounds.Height;
+                ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "ReaderMediaSidebarDetails");
+                double occupied = frameHeight + details.Bounds.Height;
                 Assert.Equal(emptyHeight, headerHeight);
                 MediaFactGrid facts = Assert.Single(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
                 SelectableTextBlock metadata = Assert.Single(facts.Children.OfType<SelectableTextBlock>(),
@@ -78,7 +80,8 @@ public sealed class ReaderSidebarAlignmentTests
 
                 LayoutAt(900);
                 Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);
-                Assert.Equal(180, sidebar.Frame.Bounds.Height - frameHeight);
+                Assert.True(sidebar.Frame.Bounds.Height > frameHeight);
+                Assert.Equal(180, sidebar.Frame.Bounds.Height + details.Bounds.Height - occupied, 0.5);
                 Assert.Equal(pane.Bounds.Height, sidebar.Bounds.Height);
             }
         }

@@ -118,7 +118,7 @@ public sealed class GalleryMeasuredGeometryTests
     }
 
     [Theory]
-    [InlineData(240, false, false, "No. 16 / 23", "Medium 16 of 23")]
+    [InlineData(240, false, false, "16 / 23", "Medium 16 of 23")]
     [InlineData(280, true, false, "No. 16 / 23+", "Medium 16 of at least 23")]
     [InlineData(360, false, true, "No. 16 / 23", "Queue 16 of 23")]
     [InlineData(480, false, true, "No. 16 / 23", "Queue 16 of 23")]
