@@ -14,7 +14,7 @@ internal static class BooruComponentDispatcher
 {
     private const BindingFlags StaticPrivate = BindingFlags.Static | BindingFlags.NonPublic;
 
-    internal static void Run(Action test)
+    internal static void Run(Action test, Func<string>? waitingFor = null)
     {
         ExceptionDispatchInfo? failure = null;
         Thread ownerThread = new(() =>
@@ -24,7 +24,8 @@ internal static class BooruComponentDispatcher
         }) { IsBackground = true, Name = "Booru component dispatcher" };
         ownerThread.Start();
         if (!ownerThread.Join(TimeSpan.FromSeconds(30)))
-            throw new TimeoutException("The Booru component dispatcher did not settle.");
+            throw new TimeoutException(waitingFor is null ? "The Booru component dispatcher did not settle."
+                : "The Booru component dispatcher timed out waiting for " + waitingFor());
         failure?.Throw();
     }
 
