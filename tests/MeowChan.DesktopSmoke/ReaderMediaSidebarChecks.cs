@@ -57,24 +57,22 @@ internal static class ReaderMediaSidebarChecks
         Require(sidebar.Open.IsEffectivelyVisible && sidebar.Close.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
         await Flush();
         Rect InHeader(Control control) => new(control.TranslatePoint(default, sidebar.HeaderRow)!.Value, control.Bounds.Size);
-        Rect tabs = InHeader(sidebar.Segments), pill = InHeader(sidebar.PositionPill), close = InHeader(sidebar.Close);
+        Rect tabs = InHeader(sidebar.Title), pill = InHeader(sidebar.PositionPill), close = InHeader(sidebar.Close);
         Require(sidebar.PositionPill.IsEffectivelyVisible && pill.Width > 0
             && Math.Abs(tabs.Left) <= 1 && Math.Abs(close.Right - sidebar.HeaderRow.Bounds.Width) <= 1
-            && Math.Abs(tabs.Right + MediaSidebarHeader.HeaderGap - pill.Left) <= 1
-            && Math.Abs(pill.Right + MediaSidebarHeader.HeaderGap - close.Left) <= 1,
-            "The reader header tabs, filling position pill and close button are misaligned.");
+            && tabs.Right + 7.5 <= pill.Left
+            && Math.Abs(pill.Center.X - (tabs.Right + close.Left) / 2) <= 0.5,
+            "The reader header title, centred position pill and close button are misaligned.");
         using (MediaNativeInput native = new(window))
         {
             await native.MoveAsync(sidebar.Frame);
             await Program.WaitUntilAsync(() => sidebar.Close.Opacity == 1);
             Program.CaptureWindow(window, "smoke-reader-media-sidebar-header.png");
         }
-        ToggleButton tagsTab = ((Panel)sidebar.Segments).Children.OfType<ToggleButton>().Last();
-        Click(tagsTab);
-        await Program.WaitUntilAsync(() => QuickTagPopover.Current?.Anchor == tagsTab);
-        Require(tagsTab.IsChecked == true, "The Tags tab did not select the sidebar's editor.");
+        Button edit = sidebar.GetVisualDescendants().OfType<Button>().Single(button => button.Name == "ReaderMediaSidebarEditTags");
+        Click(edit);
+        await Program.WaitUntilAsync(() => QuickTagPopover.Current?.Anchor == edit);
         QuickTagPopover.Current!.Close();
-        await Program.WaitUntilAsync(() => tagsTab.IsChecked == false);
         await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia!.Id, StringComparison.Ordinal));
         if (headerOnly) return;
 
@@ -308,10 +306,10 @@ internal static class ReaderMediaSidebarChecks
         Require(sidebar.TranslatePoint(default, host) is { Y: >= -1 and <= 1 }, "The sidebar does not start at the host's top.");
         Require(sidebar.HeaderRow.TranslatePoint(default, sidebar) is { Y: >= 15 and <= 17 }, "The sidebar header is missing its top inset.");
         Require(sidebar.HeaderRow.Bounds.Height >= ReaderMediaSidebar.HeaderLineHeight, "The sidebar header is shorter than a control row.");
-        Require(sidebar.Padding.Top == 0 && sidebar.Padding.Bottom == 0, "Neighbour alignment reclaimed media height as padding.");
+        Require(sidebar.Padding == new Thickness(16), "The reader sidebar lost its four-sided inset.");
         ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
         Control last = details.IsVisible ? details : sidebar.Card;
-        Require(Math.Abs(last.TranslatePoint(default, sidebar)!.Value.Y + last.Bounds.Height - sidebar.Bounds.Height) <= 1,
+        Require(Math.Abs(last.TranslatePoint(default, sidebar)!.Value.Y + last.Bounds.Height + sidebar.Padding.Bottom - sidebar.Bounds.Height) <= 1,
             "The sidebar does not fill its height below the header.");
         Console.WriteLine($"SMOKE sidebar full-height: host={host.Name}, side={Grid.GetColumn(sidebar)}, hostHeight={host.Bounds.Height}, paneHeight={sidebar.Bounds.Height}, mediaHeight={sidebar.Frame.Bounds.Height}");
         if (TopLevel.GetTopLevel(sidebar) is Window window)

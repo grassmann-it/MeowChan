@@ -29,7 +29,7 @@ public sealed class GallerySidePanelTests : IDisposable
 
     [Theory]
     [InlineData(140)]
-    [InlineData(148)]
+    [InlineData(164)]
     public void NarrowHeaderLeavesTheTagContentBelowTheTabs(int width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
@@ -49,9 +49,10 @@ public sealed class GallerySidePanelTests : IDisposable
             Assert.Equal(panel.PostButton.Bounds.Top, panel.TagsButton.Bounds.Top);
             Assert.True(segment.Bounds.Top + panel.TagsButton.Bounds.Bottom <= panel.TagSlot.Bounds.Top);
             Assert.Equal(0, segment.Bounds.Left, 0.5);
-            Assert.Equal(segment.Bounds.Right + 8, panel.Position.Bounds.Left, 0.5);
-            Assert.Equal(close.Bounds.Left - 8, panel.Position.Bounds.Right, 0.5);
-            Assert.Equal(close.Bounds.Center.Y, panel.Position.Bounds.Center.Y, 0.5);
+            Assert.Equal(32, close.Bounds.Width);
+            Assert.Equal(width, close.Bounds.Right, 0.5);
+            if (width == 140) Assert.False(panel.Position.IsVisible);
+            else GalleryMeasuredGeometryTests.AssertSidebarHeader(panel, segment, panel.Position, close);
         }
         finally
         {

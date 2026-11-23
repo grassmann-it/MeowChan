@@ -1698,6 +1698,22 @@
         <Setter Property="VerticalAlignment" Value="Center" />
     </Style>
 
+    <Style Selector="Border.chip-position">
+        <Setter Property="Height" Value="{StaticResource Workspace.Size.ControlCompact}" />
+        <Setter Property="Background" Value="{DynamicResource Workspace.Raised}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.Border}" />
+        <Setter Property="BorderThickness" Value="1" /><Setter Property="Padding" Value="8,0" />
+        <Setter Property="CornerRadius" Value="{StaticResource Workspace.Radius.Chip}" />
+    </Style>
+    <Style Selector="Border.chip-position.marked">
+        <Setter Property="Background" Value="{DynamicResource Workspace.ChipSelectedSurface}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipSelectedBorder}" />
+    </Style>
+    <Style Selector="Border.chip-position TextBlock">
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="FontWeight" Value="Medium" />
+    </Style>
+
     <Style Selector="Border.chip-badge">
         <Setter Property="Background" Value="{DynamicResource Workspace.AccentSurface}" />
         <Setter Property="BorderBrush" Value="{DynamicResource Workspace.ChipBorder}" />

@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
+using MeowChan.Tags;
 
 namespace MeowChan.Desktop;
 
@@ -77,7 +78,8 @@ internal sealed partial class GalleryViewer
     {
         if (_sidePanel == null) return;
         GalleryTagPanelPosition? position = _sidebarPosition;
-        bool marked = _tagController is { } controller && controller.IsMarked(controller.ShownEntry());
+        bool marked = _tagController is { } controller ? controller.IsMarked(controller.ShownEntry())
+            : _marks is { Count: > 0 } && _entry != null && MediaTagSubjects.Of(_entry, out _) is { } subject && _marks.IsMarked(subject);
         _sidePanel.Position.Show(position, marked);
     }
 

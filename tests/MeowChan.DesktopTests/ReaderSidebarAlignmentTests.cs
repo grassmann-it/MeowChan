@@ -18,7 +18,7 @@ public sealed class ReaderSidebarAlignmentTests
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
-        Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
+        Assert.Equal(16, ReaderMediaSidebar.HeaderTopInset);
         ArchivePage page = Page();
         Window window = new() { Width = 1440, Height = 720, Content = page };
         void LayoutAt(double height)
@@ -57,12 +57,12 @@ public sealed class ReaderSidebarAlignmentTests
                 LayoutAt(720);
                 Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
                 Assert.False(sidebar.PositionPill.IsVisible);
-                Assert.False(sidebar.PostLink.IsVisible);
+                Assert.Empty(sidebar.Title.Text!);
                 double emptyHeight = sidebar.HeaderRow.Bounds.Height;
                 Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
 
                 string file = new string('W', 250) + ".png";
-                sidebar.Describe("No. 123", file, "100 MiB", true, "Copy post reference");
+                sidebar.Describe("No. 123", file, "100 MiB", true);
                 LayoutAt(720);
                 double headerHeight = sidebar.HeaderRow.Bounds.Height;
                 double frameHeight = sidebar.Frame.Bounds.Height;
