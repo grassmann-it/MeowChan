@@ -11,6 +11,16 @@ namespace MeowChan.DesktopSmoke;
 
 internal static partial class QuickTagNativeTypingChecks
 {
+    private static async Task RecordSidebarCheckAsync(List<Case> cases, string surface, Func<Task> check)
+    {
+        try { await check(); }
+        catch (Exception error) when (error is InvalidOperationException or TimeoutException)
+        {
+            Console.WriteLine("SMOKE sidebar failure: " + error);
+            cases.Add(Fail(surface, "sidebar", "picture", error.Message));
+        }
+    }
+
     private static async Task GallerySidebarSegmentsAsync(MainWindow window, GalleryViewer viewer, MediaNativeInput input)
     {
         await input.ChordAsync('p', MediaNativeInput.ShiftLeft);
@@ -63,9 +73,11 @@ internal static partial class QuickTagNativeTypingChecks
         QuickTagSurface editor = popover.Surface!;
         Check(ReferenceEquals(popover.Anchor, origin), "The sidebar shortcut did not use the Edit tags anchor.");
         editor.Input.Text = tag;
-        Check(await editor.CommitTypedAsync(), "The tag editor refused the test tag.");
+        editor.Input.Dismiss();
+        await input.KeyAsync(MediaNativeInput.Enter);
+        await Program.WaitUntilAsync(() => window.SessionHost.GetPublishedPrivateTagSnapshot().Snapshot!
+            .TagsOf(visible).Any(definition => definition.Name.Display == tag), () => "Enter did not tag the visible medium.");
         var snapshot = window.SessionHost.GetPublishedPrivateTagSnapshot().Snapshot!;
-        Check(snapshot.TagsOf(visible).Any(definition => definition.Name.Display == tag), "The visible medium did not receive the tag.");
         Check(snapshot.TagsOf(prior).All(definition => definition.Name.Display != tag), "The previously visible medium received the tag.");
         editor.Input.Dismiss();
         await input.KeyAsync(MediaNativeInput.Escape);

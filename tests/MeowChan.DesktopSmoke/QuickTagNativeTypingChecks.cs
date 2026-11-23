@@ -106,7 +106,7 @@ internal static partial class QuickTagNativeTypingChecks
                 foreach (string entry in new[] { "R", "Ctrl+Shift+T", "menu" })
                     cases.Add(await ArchiveCaseAsync(window, page, input, trace, "archive", entry, medium));
             cases.Add(await PopoverKeysAsync(window, page, input, trace));
-            await ReaderSidebarTagRaceAsync(window, page, input);
+            await RecordSidebarCheckAsync(cases, "archive", () => ReaderSidebarTagRaceAsync(window, page, input));
 
             // B: the large reader (opened the Downloads way), its sidebar playing the video.
             Navigate(window, "Downloads", activate: true);
@@ -129,7 +129,7 @@ internal static partial class QuickTagNativeTypingChecks
 
             // D: the Media page (R on a tile) and E: the Tagging page (R on a row, the stamp field).
             cases.Add(await MediaPageCaseAsync(window, input, trace));
-            await MediaSidebarTagRaceAsync(window, input);
+            await RecordSidebarCheckAsync(cases, "media", () => MediaSidebarTagRaceAsync(window, input));
             cases.AddRange(await TaggingPageCasesAsync(window, page, input, trace));
         }
         finally
@@ -531,7 +531,7 @@ internal static partial class QuickTagNativeTypingChecks
         }
         if (ReferenceEquals(host.Content, viewer))
         {
-            await GallerySidebarSegmentsAsync(window, viewer, input);
+            await RecordSidebarCheckAsync(cases, "gallery", () => GallerySidebarSegmentsAsync(window, viewer, input));
             await input.KeyAsync(MediaNativeInput.Escape);
             await Settle(window);
         }
