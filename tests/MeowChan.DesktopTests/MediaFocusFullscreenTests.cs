@@ -172,23 +172,59 @@ public sealed class MediaFocusFullscreenTests : IDisposable
 
     // ---- what the shell hides ----
 
-    [Fact]
-    public void TheShellHidesTheFooterAlwaysAndTheHeaderOnlyWhenTheSettingAsksForIt()
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void MediaFocusHonorsTheHeaderSettingAndBothModesHideTheFooter(bool hideHeaderInMediaFocus) => BooruComponentDispatcher.Run(() =>
     {
-        string chrome = Source(Chrome);
-        // The conditions: the mode is on, the Media page is shown, nothing covers it.
-        Assert.Contains("bool hide = _mediaFocusActive && !_isClosing && _selectedPage == WorkspacePage.Media && !_largeReaderOpen && _gallery == null;", chrome);
-        Assert.Contains("_mediaFocusFooterHidden = hide;", chrome);
-        Assert.Contains("_mediaFocusHeaderHidden = hide && _config.MediaFocusHidesHeader;", chrome);
-        // The footer: the status strip and the page navigation lose their rows as well as their visibility.
-        Assert.Contains("WorkspaceStatusBar.IsVisible = WorkspaceNavigation.IsVisible = !hideFooter;", chrome);
-        Assert.Contains("WorkspaceRoot.RowDefinitions[2].Height = new GridLength(hideFooter ? 0 : StatusStripHeight);", chrome);
-        Assert.Contains("WorkspaceRoot.RowDefinitions[3].Height = new GridLength(hideFooter ? 0 : NavigationHeight);", chrome);
-        // The numbers are those of the XAML rows.
-        string markup = Source("Desktop/Shell/MainWindow.axaml");
-        Assert.Contains("<RowDefinition Height=\"26\" />\n            <RowDefinition Height=\"52\" />", markup.Replace("\r\n", "\n"));
-        Assert.Contains("StatusStripHeight = 26, NavigationHeight = 52", chrome);
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using Profile profile = new();
+        new Config
+        {
+            DownloadPath = Path.Combine(profile.Path, "Downloads"), FirstRunSetupVersion = 1,
+            MediaFocusHidesHeader = hideHeaderInMediaFocus
+        }.SaveConfig(profile.Path);
+        BooruComponentDispatcher.Wait(Exercise());
+
+        async Task<bool> Exercise()
+        {
+            await using DesktopSessionHost session = new(profile.Path, Array.Empty<IImageBoard>(),
+                updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            await using MainWindow window = new(session) { Classes = { MotionPolicy.OffClass } };
+            window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
+            await window.StartupTimingRestoreTask;
+            window.FindControl<Button>("MediaNavigationButton")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(MainWindow.WorkspacePage.Media, window.SelectedPage);
+            MediaPage page = Assert.IsType<MediaPage>(window.MediaPageForTests);
+            await page.BuildTask;
+            // A filtered view retains the Media toolbar even in an empty library.
+            Assert.Null(page.AddFilterTerm(MediaFilterTerm.Type(MediaLibraryKindFilter.Image)));
+            await page.PresentTask;
+            Border header = window.FindControl<Border>("WorkspaceTitleBarFrame")!;
+            AssertFooter(window, visible: true);
+            Assert.True(header.IsEffectivelyVisible);
+
+            page.SetFocusMode(true);
+            Assert.True(page.IsFocusMode);
+            AssertFooter(window, visible: false);
+            Assert.Equal(!hideHeaderInMediaFocus, header.IsEffectivelyVisible);
+
+            Assert.True(Press(window, Key.F11));
+            Assert.Equal(WindowState.FullScreen, window.WindowState);
+            AssertFooter(window, visible: false);
+            Assert.False(header.IsEffectivelyVisible);
+            Assert.True(Press(window, Key.F11));
+            Assert.Equal(WindowState.Normal, window.WindowState);
+            AssertFooter(window, visible: false);
+            Assert.Equal(!hideHeaderInMediaFocus, header.IsEffectivelyVisible);
+
+            page.SetFocusMode(false);
+            AssertFooter(window, visible: true);
+            Assert.True(header.IsEffectivelyVisible);
+            return true;
+        }
+    });
 
     [Fact]
     public void TheHeaderFloatsOverThePageBehindAHoverStripSoTheWindowControlsStayReachable() => BooruComponentDispatcher.Run(() =>
