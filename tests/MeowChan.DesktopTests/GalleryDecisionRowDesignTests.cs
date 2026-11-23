@@ -337,7 +337,7 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.Equal(Texts.T("gallery.decision.rating.mixed"), row.Summary.Text);
         row.Show(GalleryDecisionView.Unavailable);
         Assert.False(row.Summary.IsVisible);
-        Assert.Equal(Texts.T("gallery.decision.status.unavailable"), Assert.Single(row.Children.OfType<TextBlock>()).Text);
+        Assert.Equal(Texts.T("gallery.decision.status.unavailable"), Assert.Single(row.Children.OfType<TextBlock>(), text => text.IsVisible).Text);
     }
 
     [Fact]

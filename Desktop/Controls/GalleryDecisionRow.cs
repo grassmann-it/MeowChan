@@ -27,6 +27,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     private readonly bool _popover;
     private readonly StackPanel _bar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _unavailable = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _error = new() { Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
     // The second row shares the first row's star and clear-button columns.
     private readonly Grid _group = new()
     {
@@ -87,6 +88,8 @@ internal sealed class GalleryDecisionRow : StackPanel
         _group.Children.Add(_summary);
         Children.Add(_group);
         Children.Add(_unavailable);
+        Children.Add(_error);
+        AutomationProperties.SetLiveSetting(_error, AutomationLiveSetting.Assertive);
         _favorite.Click += OnFavorite;
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, (_, _) => _restoreFocus = false, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -120,6 +123,12 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal TextBlock Summary => _summary;
     internal GalleryDecisionView View => _view;
     internal Control RatingGroup => _group;
+
+    internal void SetError(string? message)
+    {
+        _error.Text = message;
+        _error.IsVisible = !string.IsNullOrEmpty(message);
+    }
 
     /// <summary>The star that takes the focus: the checked one (the current rating), star 1 while the medium is unrated.</summary>
     internal ToggleButton FocusStar => _stars.FirstOrDefault(star => star.IsChecked == true) ?? _stars[0];

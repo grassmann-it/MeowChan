@@ -187,6 +187,7 @@ internal sealed partial class GalleryViewer
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
+        _decisionRow?.SetError(null);
         GalleryTagPanelFrame frame = controller.Frame(entry);
         surface.Retarget(frame.Target, frame.Label);
         RefreshPanelCounter();
@@ -317,11 +318,14 @@ internal sealed partial class GalleryViewer
 
     private async Task RunDecisionAsync(QuickTagSurface surface, Task<GalleryDecisionStatus> request)
     {
+        IQuickTagTarget target = surface.Session.Target;
         try
         {
             GalleryDecisionStatus status = await request;
-            if (!ReferenceEquals(surface, _tagSurface)) return;
-            if (status.Kind != GalleryDecisionStatusKind.None) surface.Announce(status.Text());
+            if (!ReferenceEquals(surface, _tagSurface) || !ReferenceEquals(target, surface.Session.Target)) return;
+            bool failed = status.Kind == GalleryDecisionStatusKind.Failed;
+            _decisionRow?.SetError(failed ? status.Text() : null);
+            if (!failed && status.Kind != GalleryDecisionStatusKind.None) surface.Announce(status.Text());
             RefreshDecisionRow();
         }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.decision")) { /* Logged and shown. */ }
