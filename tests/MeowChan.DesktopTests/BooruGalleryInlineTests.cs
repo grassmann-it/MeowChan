@@ -334,7 +334,12 @@ public sealed class BooruGalleryInlineTests
 
             Assert.True(view.OpenResultViewer("101"));
             BooruResultViewerWindow popup = Assert.Single(host.OwnedWindows.OfType<BooruResultViewerWindow>());
-            await CheckTagsAsync(popup, popup, () => popup.CurrentPostId);
+            try { await CheckTagsAsync(popup, popup, () => popup.CurrentPostId); }
+            finally
+            {
+                popup.Close();
+                await popup.Cleanup;
+            }
         }
 
         static async Task CheckTagsAsync(Window host, Control gallery, Func<string?> currentPost)
