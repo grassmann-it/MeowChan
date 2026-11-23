@@ -1,7 +1,6 @@
 """No-dependency tests for the baseline's shrink-only update policy."""
 import contextlib
 import io
-import os
 from pathlib import Path
 import runpy
 import sys
@@ -15,7 +14,7 @@ SCRIPT = Path(__file__).resolve().parents[1] / "analyzer-baseline.py"
 class PruneTests(unittest.TestCase):
     def test_shrink_preserves_uncaptured_assembly_and_rejects_additions(self):
         state = runpy.run_path(str(SCRIPT))["main"].__globals__
-        with tempfile.TemporaryDirectory(dir=os.environ["COMMANDCODE_SCRATCHPAD"]) as directory:
+        with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             baseline = root / "baseline.tsv"
             baseline.write_text("# test\nCaptured\texisting\nOther\tuntouched\n")
@@ -36,7 +35,7 @@ class PruneTests(unittest.TestCase):
 
     def test_empty_capture_cannot_erase_baseline(self):
         state = runpy.run_path(str(SCRIPT))["main"].__globals__
-        with tempfile.TemporaryDirectory(dir=os.environ["COMMANDCODE_SCRATCHPAD"]) as directory, \
+        with tempfile.TemporaryDirectory() as directory, \
                 patch.object(sys, "argv", [str(SCRIPT), directory]), \
                 contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as error:
             state["main"]()

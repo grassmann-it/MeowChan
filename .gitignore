@@ -65,6 +65,10 @@ __pycache__/
 /samples/MeowChan.RelaunchMock/
 /.architecture-sparring/
 /.commandcode/
+/.lain/
+/.opencode/
+/opencode.json
+/opencode.jsonc
 /.frontier-review/
 /samples/MeowChan.SemiUrsaMock/
 
