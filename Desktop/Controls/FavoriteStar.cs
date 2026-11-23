@@ -20,16 +20,16 @@ internal static class FavoriteStar
     /// A star icon of <paramref name="size"/> dip. Unmarked follows the foreground of the control that hosts it; a marked star keeps the
     /// filled shape but follows the foreground too when <paramref name="tinted"/> is false (a failed write shows the error edge, not gold).
     /// </summary>
-    internal static Border Create(bool marked, int size = 16, bool tinted = true)
+    internal static Border Create(bool marked, int size = 16, bool tinted = true, bool mixed = false)
     {
         // One drawing: the star of WorkspaceIcons (outline / filled path on the 16 dip grid), scaled to <size>; this wrapper only carries
         // the state tag and the favourite tint. The path builds its geometry when it joins a visual tree (no platform at construction).
-        Avalonia.Controls.Shapes.Path star = WorkspaceIcons.Create(marked ? WorkspaceIcons.StarFilled : WorkspaceIcons.Star, inheritForeground: !(marked && tinted));
+        Avalonia.Controls.Shapes.Path star = WorkspaceIcons.Create(marked ? WorkspaceIcons.StarFilled : WorkspaceIcons.Star, inheritForeground: !(mixed || marked && tinted));
         // Gold only reads on the dark surfaces; the theme key carries the darker amber for Light (FavoriteTintContrastTests).
-        if (marked && tinted)
+        if (mixed || marked && tinted)
         {
             star[!Avalonia.Controls.Shapes.Shape.StrokeProperty] = new DynamicResourceExtension("Workspace.Favorite");
-            star[!Avalonia.Controls.Shapes.Shape.FillProperty] = new DynamicResourceExtension("Workspace.Favorite");
+            if (marked) star[!Avalonia.Controls.Shapes.Shape.FillProperty] = new DynamicResourceExtension("Workspace.Favorite");
         }
         star.Stretch = Stretch.Uniform; star.Width = size; star.Height = size;
         return new Border

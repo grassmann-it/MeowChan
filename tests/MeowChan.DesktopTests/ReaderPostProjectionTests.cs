@@ -51,7 +51,7 @@ public sealed class ReaderPostProjectionTests
         ReaderPostProjection.Build(view, null, classifiers ?? Array.Empty<IReaderPostClassifier>(), ordering, revealed ?? NoReveal, CancellationToken.None);
 
     [Fact]
-    public void IdentityIsTodaysChronologicalViewWithTheSamePages()
+    public void IdentityContainsEveryPostInChronologicalOrder()
     {
         ArchivedThreadView view = View(120);
         ReaderPostProjection identity = ReaderPostProjection.Identity(view);
@@ -59,16 +59,11 @@ public sealed class ReaderPostProjectionTests
         Assert.False(identity.IsOrdered);
         Assert.Equal(120, identity.Count);
         Assert.Equal(0, identity.HiddenCount);
-        foreach (int offset in new[] { 0, 50, 100 })
-        {
-            IReadOnlyList<ReaderPostEntry> page = identity.Page(offset, 50);
-            Assert.Equal(view.GetPosts(offset, 50).Select(post => post.PostId), page.Select(entry => entry.Post.PostId));
-            Assert.Equal(Enumerable.Range(offset, page.Count), page.Select(entry => entry.ThreadIndex));
-            Assert.All(page, entry => Assert.Equal((0, -1, default(ReaderPostVerdict)), (entry.Depth, entry.ParentIndex, entry.Verdict)));
-        }
-        Assert.Equal(20, identity.Page(100, 50).Count);
-        Assert.Empty(identity.Page(120, 50));
-        Assert.Empty(identity.Page(500, 50));
+        ReaderPostEntry[] shown = Enumerable.Range(0, identity.Count).Select(index => identity[index]).ToArray();
+        Assert.Equal(view.Posts.Select(post => post.PostId), shown.Select(entry => entry.Post.PostId));
+        Assert.Equal(Enumerable.Range(0, 120), shown.Select(entry => entry.ThreadIndex));
+        Assert.All(shown, entry => Assert.Equal((0, -1, default(ReaderPostVerdict)), (entry.Depth, entry.ParentIndex, entry.Verdict)));
+        Assert.Throws<ArgumentOutOfRangeException>(() => identity[120]);
         Assert.Equal(37, identity.PositionOf("137"));
         Assert.Equal(37, identity.NearestPosition("137"));
         Assert.Equal(-1, identity.PositionOf("999"));
@@ -81,50 +76,23 @@ public sealed class ReaderPostProjectionTests
         Assert.Equal(ReaderPostProjection.ComputeKey(view, Array.Empty<IReaderPostClassifier>(), null, NoReveal), identity.Key);
     }
 
-    [Theory]
-    [InlineData(50, 20, 40)]    // History retained the old 50-post offset; Prev must reach 20, then 0, not 30 and 10.
-    [InlineData(100, 35, 70)]   // Non-step values are valid saved settings too.
-    [InlineData(50, 200, 0)]
-    [InlineData(100, 50, 100)]  // Existing default pages are unchanged.
-    [InlineData(int.MaxValue, 20, 100)]
-    [InlineData(int.MinValue, 20, 0)]
-    public void RetainedOffsetsAreAlignedAndClampedToTheCurrentReaderPage(int position, int pageSize, int expected)
+    [Fact]
+    public void EveryShownPositionRoundTripsIncludingConversationAndHiddenPosts()
     {
-        ReaderPostProjection projection = ReaderPostProjection.Identity(View(120));
-        int offset = projection.PageOffset(position, pageSize);
-        Assert.Equal(expected, offset);
-        Assert.NotEmpty(projection.Page(offset, pageSize));
-        Assert.Equal(0, offset % pageSize);
-    }
-
-    [Theory]
-    [InlineData(20)]
-    [InlineData(35)]
-    [InlineData(50)]
-    [InlineData(200)]
-    public void ConfiguredPagesCoverTheShownOrderExactlyOnceIncludingConversationAndHiddenPosts(int pageSize)
-    {
-        ReaderPostProjection projection = Build(View(231),
+        ReaderPostProjection projection = Build(View(1500),
             new IReaderPostClassifier[] { new Rules(index => index % 3 == 0 ? Hidden() : default) },
             new FixedOrder(count => Enumerable.Range(0, count).Reverse()
                 .Select(index => new ReaderOrderEntry(index, 0, -1)).ToArray()));
         Assert.True(projection.IsOrdered);
-        Assert.Equal(154, projection.Count);
-        List<string> visited = new();
-        for (int offset = 0; offset < projection.Count; offset += pageSize)
-        {
-            Assert.Equal(offset, projection.PageOffset(offset, pageSize));
-            IReadOnlyList<ReaderPostEntry> page = projection.Page(offset, pageSize);
-            foreach (ReaderPostEntry entry in page)
-                Assert.Equal(offset, projection.PageOffset(projection.PositionOf(entry.Post.PostId), pageSize));
-            visited.AddRange(page.Select(entry => entry.Post.PostId));
-        }
-        Assert.Equal(Enumerable.Range(0, projection.Count).Select(position => projection[position].Post.PostId), visited);
-        Assert.Equal(visited.Count, visited.Distinct().Count());
+        Assert.Equal(1000, projection.Count);
+        Assert.Equal(Enumerable.Range(0, 1500).Reverse().Where(index => index % 3 != 0),
+            Enumerable.Range(0, projection.Count).Select(index => projection[index].ThreadIndex));
+        for (int index = 0; index < projection.Count; index++)
+            Assert.Equal(index, projection.PositionOf(projection[index].Post.PostId));
     }
 
     [Fact]
-    public void EmptyViewsAlwaysStartAtZeroAndInvalidPageSizesAreRejected()
+    public void EmptyViewsHaveNoJumpTarget()
     {
         foreach (ReaderPostProjection projection in new[]
         {
@@ -132,10 +100,8 @@ public sealed class ReaderPostProjectionTests
             Build(View(80), new IReaderPostClassifier[] { new Rules(_ => Hidden()) })
         })
         {
-            Assert.Equal(0, projection.PageOffset(50, 20));
-            Assert.Empty(projection.Page(projection.PageOffset(50, 20), 20));
-            Assert.Throws<ArgumentOutOfRangeException>(() => projection.PageOffset(0, 0));
-            Assert.Throws<ArgumentOutOfRangeException>(() => projection.PageOffset(0, -1));
+            Assert.Equal(0, projection.Count);
+            Assert.Equal(-1, projection.NearestPosition("137"));
         }
     }
 
@@ -252,16 +218,15 @@ public sealed class ReaderPostProjectionTests
     }
 
     [Fact]
-    public void PagesAreCutFromTheShownOrder()
+    public void AllMediaOnlyPostsStayInTheShownOrder()
     {
         ArchivedThreadView view = View(120, index => index % 2 == 0);
         ReaderPostProjection projection = Build(view, new IReaderPostClassifier[] { new ReaderMediaOnlyClassifier(new() { MediaOnly = true }) });
         Assert.Equal(60, projection.Count);
-        Assert.Equal(Enumerable.Range(0, 50).Select(index => index * 2), projection.Page(0, 50).Select(entry => entry.ThreadIndex));
-        Assert.Equal(Enumerable.Range(50, 10).Select(index => index * 2), projection.Page(50, 50).Select(entry => entry.ThreadIndex));
-        Assert.Empty(projection.Page(60, 50));
-        Assert.Equal(3, projection.Page(57, 50).Count);
-        Assert.Throws<ArgumentOutOfRangeException>(() => projection.Page(-1, 50));
+        Assert.Equal(Enumerable.Range(0, 60).Select(index => index * 2),
+            Enumerable.Range(0, projection.Count).Select(index => projection[index].ThreadIndex));
+        Assert.Equal(100, projection[50].ThreadIndex);
+        Assert.Equal(118, projection[59].ThreadIndex);
         Assert.Equal(55, projection.PositionOf("210"));
         Assert.Equal(55, projection.NearestPosition("209"));
     }

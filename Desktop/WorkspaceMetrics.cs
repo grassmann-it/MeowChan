@@ -27,7 +27,7 @@ public static class WorkspaceMetrics
     internal const double FilterChipHeight = 28;
     internal const double MediaPanelSectionGap = 12;
     internal const double MediaFactLabelWidth = 120;
-    internal const double MediaFactStackWidth = 260;
+    internal const double MediaFactStackWidth = 232;
     internal const double MediaPanelPositionMinWidth = 48;
     internal const double RatingStarMinWidth = 24;
     internal const double RatingPopoverStarSize = 40;

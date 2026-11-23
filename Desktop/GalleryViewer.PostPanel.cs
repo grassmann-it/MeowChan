@@ -105,13 +105,13 @@ internal sealed partial class GalleryViewer
         {
             // Unknown or not taggable: the reason, no link (the Tags segment is not offered either).
             if (!string.IsNullOrWhiteSpace(_tagsUnavailableReason))
-                section.Children.Add(new TextBlock { Name = "GalleryPostTagsReason", Classes = { "workspace-help" }, Text = _tagsUnavailableReason,
+                section.Children.Add(new TextBlock { Name = "GalleryPostTagsReason", Classes = { "workspace-meta" }, Text = _tagsUnavailableReason,
                     TextWrapping = TextWrapping.Wrap });
             return section;
         }
         Action openTags = () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true);
         if (count == 0)
-            section.Children.Add(new TextBlock { Name = "GalleryPostTagsEmpty", Classes = { "workspace-help" }, Text = Texts.T("tags.quick.assigned.empty"),
+            section.Children.Add(new TextBlock { Name = "GalleryPostTagsEmpty", Classes = { "workspace-meta" }, Text = Texts.T("tags.quick.assigned.empty"),
                 TextWrapping = TextWrapping.Wrap });
         else
         {

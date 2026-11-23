@@ -14,7 +14,6 @@ internal static class SettingsFieldId
     internal const string ReaderThumbnailWidth = nameof(ReaderThumbnailWidth);
     internal const string ReaderDateStyle = nameof(ReaderDateStyle);
     internal const string ReaderSpoilers = nameof(ReaderSpoilers);
-    internal const string ReaderPageSize = nameof(ReaderPageSize);
     internal const string ReaderExpandReplies = nameof(ReaderExpandReplies);
     internal const string ReadingHistoryLimit = nameof(ReadingHistoryLimit);
     internal const string ReadingHistoryMenuEntries = nameof(ReadingHistoryMenuEntries);
@@ -58,7 +57,7 @@ internal static class SettingsFieldId
     /// <summary>The name of the input control that edits the setting <paramref name="id"/> on the settings page.</summary>
     internal static string InputName(string id) => id + InputSuffix;
 
-    /// <summary>The id of the setting an input control name stands for ("ReaderPageSizeInput" gives "ReaderPageSize"); other names are returned as they are.</summary>
+    /// <summary>The id of the setting an input control name stands for ("ReaderReplyStepInput" gives "ReaderReplyStep"); other names are returned as they are.</summary>
     internal static string? FromInputName(string? name) =>
         name != null && name.EndsWith(InputSuffix, System.StringComparison.Ordinal) && name.Length > InputSuffix.Length
             ? name[..^InputSuffix.Length] : name;

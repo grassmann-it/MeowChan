@@ -524,6 +524,14 @@ public sealed class GalleryRatingKeyTests : IDisposable
         public void OpenAdvanced(GalleryEntry entry) { }
     }
 
+    internal static IGalleryTagPanelOwner LayoutOwner(PrivateTagStore store)
+    {
+        var (decisions, entries) = Three();
+        entries[0] = entries[0] with { Post = new CapturedPost("43", 0, default, Subject: "Evening light") };
+        decisions.States["a"] = new(false, 3);
+        return PanelWith(store, decisions, entries);
+    }
+
     private static PanelOwner PanelWith(PrivateTagStore store, FakeDecisions decisions, GalleryEntry[] entries)
     {
         PanelOwner owner = new(store, decisions);

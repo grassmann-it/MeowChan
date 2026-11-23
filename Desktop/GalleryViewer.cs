@@ -1567,7 +1567,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         if (entry.Post is { } post)
         {
             string subject = ArchivePresentation.PlainText(post.Subject);
-            if (!string.IsNullOrWhiteSpace(subject)) AddContext(info, subject, "workspace-post-body", "GalleryPostSubject").FontWeight = FontWeight.SemiBold;
+            if (!string.IsNullOrWhiteSpace(subject)) AddContext(info, subject, "workspace-panel-title", "GalleryPostSubject");
             string text = ArchivePresentation.PlainText(post.Html);
             if (!string.IsNullOrWhiteSpace(text)) AddContext(info, text, "workspace-post-body", "GalleryPostText");
             if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
@@ -1614,8 +1614,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
             facts.Add(Texts.T("media.fact.sourceHint"), Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
         panel.Children.Add(facts);
         string provenance = MediaProvenanceText.Summary(binding);
-        if (provenance.Length > 0) AddContext(panel, provenance, "workspace-help");
-        if (entry.Historical) AddContext(panel, Texts.T("gallery.viewer8"), "workspace-help");
+        if (provenance.Length > 0) AddContext(panel, provenance, "workspace-meta");
+        if (entry.Historical) AddContext(panel, Texts.T("gallery.viewer8"), "workspace-meta");
     }
 
     /// <summary>A "×" that closes the layer it sits in (help, post panel): 32×32, top right, tooltip "{what it does} · Esc".</summary>

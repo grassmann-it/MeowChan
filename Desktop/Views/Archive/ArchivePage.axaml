@@ -362,7 +362,7 @@
                         <TextBlock x:Name="ArchiveSelectHint" Tag="archive.select" Classes="muted localized" TextWrapping="Wrap" Margin="16" />
                         <TabControl x:Name="ArchiveContentTabs" IsVisible="False">
                             <TabItem x:Name="ArchivePostsTab" wv:WorkViewElement.Id="reader.tabs.posts" Header="Posts">
-                                <Grid RowDefinitions="Auto,*,Auto">
+                                <Grid RowDefinitions="Auto,*">
                                     <Border x:Name="ReaderNewPostsBar" IsVisible="False" Margin="8,4"
                                             Background="{DynamicResource Workspace.Card}"
                                             CornerRadius="{StaticResource Workspace.Radius.Control}" Padding="8,4">
@@ -650,11 +650,6 @@
                                                 </StackPanel>
                                             </Border>
                                         </Border>
-                                    </Grid>
-                                    <Grid x:Name="ArchivePostNavigation" Grid.Row="2" ColumnDefinitions="Auto,Auto,Auto" HorizontalAlignment="Center" Margin="8" ColumnSpacing="{StaticResource Workspace.Space.8}">
-                                        <Button x:Name="PreviousPostsButton" Tag="archive.previous" Classes="localized" Click="OnPreviousPosts" />
-                                        <TextBlock x:Name="ArchivePostPage" Grid.Column="1" Classes="muted tnum" VerticalAlignment="Center" HorizontalAlignment="Center" />
-                                        <Button x:Name="NextPostsButton" Grid.Column="2" Tag="archive.next" Classes="localized" Click="OnNextPosts" />
                                     </Grid>
                                 </Grid>
                             </TabItem>

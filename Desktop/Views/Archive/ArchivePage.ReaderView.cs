@@ -19,14 +19,11 @@ using Serilog;
 
 namespace MeowChan;
 
-// Reader foundation (plan P0): the projection "thread -> shown order" that pages, navigation, the reading mark and every
+// Reader foundation (plan P0): the projection "thread -> shown order" that the post list, navigation, the reading mark and every
 // explicit jump work against, the view switches of the settings popover (formerly the "View" menu) and the media switches as its first users. With nothing switched on the
 // projection is the identity: built synchronously, the same rows and the same allocations as before.
 public partial class ArchivePage
 {
-    internal const int ReaderPageSizeDefault = PageSize;
-    internal const int ReaderPageSizeMinimum = 20;
-    internal const int ReaderPageSizeMaximum = 200;
     // Conversation indentation: a local left margin on the post container, set before it is measured.
     internal const double ReaderIndentStep = ReaderNavigationLayout.ConversationIndentStep;
     internal const int ReaderIndentMaximumLevels = 16;
@@ -55,15 +52,14 @@ public partial class ArchivePage
     private TaskCompletionSource? _projectionReady;
     private ReaderPostProjection.ProjectionInputs? _pendingProjectionInputs;
     private ReaderPostProjection.ProjectionInputs? _failedProjectionInputs;
-    // After the next projection is in place, the page is the one that holds this post.
-    private string? _projectionPagePost;
+    // Selection to apply when the next projection is rendered.
+    private string? _projectionSelectionPost;
     // A view change keeps the post that was at the top (or selected) where it was.
     private ReaderAnchor? _projectionAnchor;
     private bool _projectionAnchorFocus;
     private bool _projectionRebuildQueued;
     private readonly HashSet<string> _revealedPosts = new(StringComparer.Ordinal);
     private ResourceId? _revealedThread;
-    private int _readerPageSize = ReaderPageSizeDefault;
 
     /// <summary>The view switches of the session; global for every thread, for this session only.</summary>
     internal ReaderViewState ReaderView => _readerView;
@@ -74,13 +70,6 @@ public partial class ArchivePage
     internal bool IsProjectionPending => _projectionReady != null || _projectionRebuildQueued;
     /// <summary>The anchor restoration after the latest view change (smoke seam).</summary>
     internal Task ReaderViewTask { get; private set; } = Task.CompletedTask;
-
-    /// <summary>Posts per reader page (P5 maps its setting here). Changing it keeps the post at the top in view.</summary>
-    internal int ReaderPageSize
-    {
-        get => _readerPageSize;
-        set => ApplyReaderDisplayPreferences(ReaderThumbnailWidth, ReaderDateStyle, value);
-    }
 
     // Implemented by the post filters (P2) and the conversation view (P4) in their own files.
     partial void AttachPostFilter();
@@ -241,16 +230,16 @@ public partial class ArchivePage
         ReaderPostProjection? projection = Projection;
         if (projection == null)
         {
-            // Still preparing: the finished projection takes the reveal over, and its page holds the post.
+            // Still preparing: the finished projection takes the reveal and selection over.
             if (_projectionReady == null) return false;
             _revealedPosts.Add(postId);
-            _projectionPagePost = postId;
+            _projectionSelectionPost = postId;
             return true;
         }
         if (!projection.IsConcealed(postId)) return false;
         _revealedPosts.Add(postId);
         _projection = projection.WithRevealed(_revealedPosts);
-        _projectionPagePost = postId;
+        _projectionSelectionPost = postId;
         RenderThread();
         return true;
     }
@@ -278,7 +267,7 @@ public partial class ArchivePage
         ReaderAnchor? anchor = CapturePostAnchor(postId) ?? CaptureReaderAnchor();
         bool focus = ArchivePosts.IsKeyboardFocusWithin;
         _projection = projection.WithRevealed(_revealedPosts);
-        _projectionPagePost = postId;
+        _projectionSelectionPost = postId;
         RenderThread();
         if (anchor != null)
             ReaderViewTask = RestoreReaderAnchorAsync(anchor with { SelectedPostId = revealed ? postId : null }, restoreFocus: focus);
@@ -288,7 +277,7 @@ public partial class ArchivePage
     {
         if (_thread == null) return null;
         ListBox list = ArchivePosts;
-        ArchivePostRow? row = (list.ItemsSource as IEnumerable<ArchivePostRow>)?.FirstOrDefault(candidate => candidate.Id == postId);
+        ArchivePostRow? row = FindPostRow(postId);
         if (row == null || list.ContainerFromItem(row) is not Control container
             || container.TranslatePoint(default, list) is not Point position) return null;
         return new ReaderAnchor(_thread.Summary.Id, postId, position.Y, (list.SelectedItem as ArchivePostRow)?.Id);
@@ -431,7 +420,7 @@ public partial class ArchivePage
         _projectionAnchorFocus = false;
         if (anchor != null && anchor.Thread != _thread.Summary.Id) anchor = null;
         _projection = projection;
-        if (anchor != null && _projectionPagePost == null) _projectionPagePost = anchor.PostId;
+        if (anchor != null && _projectionSelectionPost == null) _projectionSelectionPost = anchor.PostId;
         RenderThread();
         if (settings != null)
         {
@@ -443,7 +432,7 @@ public partial class ArchivePage
         if (nearest < 0) return;
         string? selected = anchor.SelectedPostId != null && shown.PositionOf(anchor.SelectedPostId) >= 0 ? anchor.SelectedPostId : null;
         ReaderViewTask = RestoreReaderAnchorAsync(anchor with { PostId = shown[nearest].Post.PostId, SelectedPostId = selected },
-            restoreFocus: focus);
+            restoreFocus: focus, preserveTab: true);
     }
 
     // Called at the end of RenderThread: listeners learn about a new shown order once, after its rows exist.

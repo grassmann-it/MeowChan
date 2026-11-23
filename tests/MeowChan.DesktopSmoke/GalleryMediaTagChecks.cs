@@ -90,7 +90,7 @@ internal static class GalleryMediaTagChecks
                     Require(counter.IsEffectivelyVisible && !viewer.TagSurface!.Header.Children.Contains(counter), "Counter was duplicated or hidden.");
                     Require(Avalonia.Automation.AutomationProperties.GetName(counter) == Texts.T("tags.quick.gallery.position", 1, 2)
                         && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite
-                        && counter.Child is TextBlock liveLabel
+                        && counter.Label is TextBlock liveLabel
                         && Avalonia.Automation.AutomationProperties.GetLiveSetting(liveLabel) == Avalonia.Automation.AutomationLiveSetting.Polite
                         && liveLabel.Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
                         "The position pill lost localization or polite announcements.");
@@ -99,8 +99,8 @@ internal static class GalleryMediaTagChecks
                     Rect position = InPanel(counter), post = InPanel(panel.PostButton), tagsTab = InPanel(panel.TagsButton), close = InPanel(panel.CloseButton);
                     Require(position.Width > 0 && Math.Abs(post.Left) <= 1
                         && post.Right <= tagsTab.Left
-                        && Math.Abs(position.Left - tagsTab.Right - MediaSidebarHeader.HeaderGap) <= 1
-                        && Math.Abs(close.Left - position.Right - MediaSidebarHeader.HeaderGap) <= 1
+                        && position.Left >= tagsTab.Right + 7.5
+                        && Math.Abs(position.Center.X - (tagsTab.Right + close.Left) / 2) <= 0.5
                         && Math.Abs(close.Right - panel.Bounds.Width) <= 1
                         && new[] { post, tagsTab, close }.All(control => control.Height == 32 && Math.Abs(control.Center.Y - position.Center.Y) <= 1),
                         $"The gallery header is misaligned (counter {position}, Post {post}, Tags {tagsTab}, Close {close}).");
@@ -115,7 +115,7 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Post);
             Require(viewer.CaptureState().ContextOpen && viewer.SidePanel.PostButton.IsChecked == true, "The Post segment did not take the side panel over.");
             Require(ReferenceEquals(sharedPill, viewer.SidePanel.Position) && sharedPill.IsEffectivelyVisible
-                && ((TextBlock)sharedPill.Child!).Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
+                && sharedPill.Label.Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
                 "The Post tab did not keep the same position pill as Tags.");
             window.UpdateLayout();
             var where = viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<SelectableTextBlock>().Single(line => line.Name == "GalleryPostWhere");
@@ -151,7 +151,7 @@ internal static class GalleryMediaTagChecks
             marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
             MediaPositionPill movedCounter = viewer.SidePanel.Position;
-            Require(movedCounter.Child is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.positionShort", 2, 2)
+            Require(movedCounter.Label is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.positionShort", 2, 2)
                 && Avalonia.Automation.AutomationProperties.GetName(movedCounter) == Texts.T("tags.quick.gallery.position", 2, 2)
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedCounter) == Avalonia.Automation.AutomationLiveSetting.Polite
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedLabel) == Avalonia.Automation.AutomationLiveSetting.Polite,
@@ -353,7 +353,7 @@ internal static class GalleryMediaTagChecks
             && row.FavoriteButton.Bounds.Top >= firstStar.Bounds.Bottom
             && row.FavoriteButton.Bounds.Right <= lastStar.Bounds.Right + 1,
             "Favorite must fit below the stars.");
-        Require(row.Summary.Bounds.Width > 0 && Math.Abs(row.Summary.Bounds.Left - row.ClearButton.Bounds.Left) <= 1
+        Require(row.Summary.Bounds.Width > 0 && Math.Abs(row.Summary.Bounds.Left - row.ClearButton.Bounds.Left - 8) <= 1
             && row.Summary.Bounds.Top >= row.ClearButton.Bounds.Bottom,
             "The rating caption must sit below the clear button.");
     }

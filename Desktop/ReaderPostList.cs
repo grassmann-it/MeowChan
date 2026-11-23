@@ -28,7 +28,7 @@ public sealed class ReaderPostList : ListBox
     // A local value: the list theme sets its own panel, which would win over a default.
     public ReaderPostList() => ItemsPanel = NewPanelTemplate();
 
-    /// <summary>A new panel template: assigned for each page, so a page starts without its predecessor's realized positions.</summary>
+    /// <summary>A new panel template: assigned when the shown order is rebuilt, to clear stale virtualized positions.</summary>
     internal static FuncTemplate<Panel?> NewPanelTemplate() => new(() => new ReaderPostsPanel());
 
     protected override Type StyleKeyOverride => typeof(ListBox);
