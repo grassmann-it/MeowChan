@@ -135,7 +135,7 @@ Rules checks save actual global/board overrides, verify field origins and disabl
 The download-session case also captures a real provider fixture post, restarts, removes its watch, and reads retained posts plus a verified PNG from the archive. A delayed manifest-loader fixture proves local posts remain usable while media are waiting. Preview reactivation cannot block the list. Compact EN/DE readers retain at least 100 logical pixels of post viewport; dark/light screenshots supplement those assertions. These checks use sequential windows in the isolated runner, never the personal desktop.
 
 The download-session case additionally exercises local archive search and filters,
-quote navigation onto another thread's second post page, backlinks and reading
+quote navigation to a deep post in another thread, backlinks and reading
 history. Its HTML workflow exports a synthetic retained reply together with the
 real fixture PNG through the shared library, verifies actual output counts, rejects
 repeated output without overwriting and moves the completed folder.

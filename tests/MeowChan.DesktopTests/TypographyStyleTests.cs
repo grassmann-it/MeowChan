@@ -29,7 +29,7 @@ public sealed class TypographyStyleTests
         foreach (string label in new[] { "TransferSpeedLabel", "TransferUploadLabel", "TransferDiskReadLabel", "TransferDiskLabel" })
             Assert.Matches("x:Name=\"" + label + "\"[^>]*FontFeatures=\"tnum\"", main);
         string archive = File.ReadAllText(Root("Desktop/Views/Archive/ArchivePage.axaml"));
-        foreach (string name in new[] { "ArchiveThreadPage", "ArchivePostPage", "ArchiveSelectionSummary", "ArchiveReferencesPage" })
+        foreach (string name in new[] { "ArchiveThreadPage", "ArchiveSelectionSummary", "ArchiveReferencesPage" })
             Assert.Matches("x:Name=\"" + name + "\"[^>]*Classes=\"[^\"]*tnum", archive);
     }
 
