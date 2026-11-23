@@ -110,11 +110,13 @@ internal static class BundledCandidateMigration
         proof.AssemblySha256 == artifact.AssemblySha256 && proof.SdkFingerprint == artifact.SdkFingerprint &&
         proof.CompilerFingerprint == artifact.CompilerFingerprint && proof.DescriptionSha256 == DescriptionHash(description);
 
-    internal static bool SameExecutableAndDescription(PluginReleaseSnapshot retained, PluginCandidateSnapshot target)
+    internal static bool SameExecutableAndDescription(PluginReleaseSnapshot retained, PluginCandidateSnapshot target) =>
+        SameExecutableAndDescription(retained.Artifact, retained.Description, target);
+
+    internal static bool SameExecutableAndDescription(PluginArtifact left, PluginDescription retained, PluginCandidateSnapshot target)
     {
         if (target.Artifact is not { } right || target.Description is not { } description ||
-            target.PluginId != retained.Description.PluginId || description.PluginId != retained.Description.PluginId) return false;
-        PluginArtifact left = retained.Artifact;
+            target.PluginId != retained.PluginId || description.PluginId != retained.PluginId) return false;
         // Physical assembly/cache roots may differ; executable identity and logical resource identities may not.
         return left.ExecutionRevision == right.ExecutionRevision && left.CompilationFingerprint == right.CompilationFingerprint &&
             left.AssemblySha256 == right.AssemblySha256 && left.SdkFingerprint == right.SdkFingerprint &&
@@ -123,7 +125,7 @@ internal static class BundledCandidateMigration
                 .ThenBy(r => r.RelativePath, StringComparer.Ordinal).ThenBy(r => r.Sha256, StringComparer.Ordinal)
                 .SequenceEqual(right.Resources.OrderBy(r => r.Name, StringComparer.Ordinal).ThenBy(r => r.Rid, StringComparer.Ordinal)
                     .ThenBy(r => r.RelativePath, StringComparer.Ordinal).ThenBy(r => r.Sha256, StringComparer.Ordinal)) &&
-            SdkJson.Serialize(retained.Description).AsSpan().SequenceEqual(SdkJson.Serialize(description));
+            SdkJson.Serialize(retained).AsSpan().SequenceEqual(SdkJson.Serialize(description));
     }
 
     internal static PluginReleaseSnapshot? IdenticalEstablishedLocalAlias(BundledProfileDocument document,

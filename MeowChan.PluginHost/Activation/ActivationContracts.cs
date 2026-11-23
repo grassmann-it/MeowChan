@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using MeowChan.PluginHost.Contracts;
 using MeowChan.PluginSdk;
 
@@ -33,6 +34,16 @@ public sealed record PluginActivationSnapshot(string PluginId, bool Enabled, lon
     /// supported SDK 1.0.0 to 1.1.0 transition. It is not an executable or permission grant.
     /// </summary>
     public PluginSdkTransitionSnapshot? AutomaticSdkTransition { get; init; }
+
+    [JsonInclude, JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal PluginCandidateSnapshot? ExplicitlySelectedBuild { get; init; }
+
+    [JsonInclude, JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal PluginReleaseSnapshot? InstalledBuildDraft { get; init; }
+
+    // Retain the original executable while a first local install still has no validated configuration.
+    [JsonInclude, JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    internal PluginArtifact? UnconfiguredInstalledBuild { get; init; }
 }
 
 public sealed record PluginLifecycleChange(string PluginId, bool Enabled, long LifecycleRevision);
