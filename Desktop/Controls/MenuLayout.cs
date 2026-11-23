@@ -2,15 +2,29 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Controls.Primitives;
+using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Commands;
 
 namespace MeowChan.Desktop.Controls;
+
+internal static class MenuIcons
+{
+    private static readonly ConditionalWeakTable<Control, string> Keys = new();
+
+    internal static void Record(Control icon, string key) => Keys.Add(icon, key);
+
+    internal static string? KeyOf(MenuItem item) => KeyOf(item.Icon as Control);
+
+    internal static string? KeyOf(Control? icon) => icon != null && Keys.TryGetValue(icon, out string? key) ? key : null;
+}
 
 /// <summary>
 /// The width rules of a popup menu, as plain numbers so they can be tested without a window. A row is a label and an optional shortcut;
@@ -74,6 +88,41 @@ internal sealed class MenuLayout : AvaloniaObject
 
     /// <summary>The smallest room between a label and the shortcut column, in dip (the design asks for at least three 8-dip steps).</summary>
     internal const double MinimumShortcutGap = 24;
+    private const double FlyoutColumnSpacing = 8;
+
+    // Button-based flyouts use the same separate check and icon columns as Semi's MenuItem.
+    internal static Grid CreateFlyoutRow(Control? check, Control iconSlot, Control text, TextBlock shortcut)
+    {
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("16,16,*,Auto"), ColumnSpacing = FlyoutColumnSpacing };
+        if (check != null) row.Children.Add(check);
+        iconSlot.HorizontalAlignment = HorizontalAlignment.Center;
+        iconSlot.VerticalAlignment = VerticalAlignment.Center;
+        iconSlot.IsHitTestVisible = false;
+        Grid.SetColumn(iconSlot, 1);
+        Grid.SetColumn(text, 2);
+        Grid.SetColumn(shortcut, 3);
+        row.Children.Add(iconSlot);
+        row.Children.Add(text);
+        row.Children.Add(shortcut);
+        shortcut.Classes.Add("workspace-meta");
+        shortcut.HorizontalAlignment = HorizontalAlignment.Right;
+        shortcut.VerticalAlignment = VerticalAlignment.Center;
+        shortcut.Opacity = 0.7;
+        shortcut.IsHitTestVisible = false;
+        return row;
+    }
+
+    internal static void SetFlyoutShortcut(TextBlock shortcut, string? text)
+    {
+        shortcut.Text = text ?? string.Empty;
+        shortcut.Margin = string.IsNullOrEmpty(text) ? default : new Thickness(MinimumShortcutGap - FlyoutColumnSpacing, 0, 0, 0);
+    }
+
+    internal static void SetFlyoutIcon(ContentControl slot, string? key)
+    {
+        if (MenuIcons.KeyOf(slot.Content as Control) != key)
+            slot.Content = key == null ? null : CommandBindings.NamedIcon(key);
+    }
 
     /// <summary>The fallback menu widths (tokens MenuFlyoutMinWidth and MenuFlyoutMaxWidth in WorkspaceStyles) when a theme does not define them.</summary>
     internal const double DefaultMinimumWidth = 224;

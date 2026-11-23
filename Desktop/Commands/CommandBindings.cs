@@ -305,7 +305,7 @@ public static class CommandBindings
     /// <summary>The catalog mask <paramref name="icon"/> (a file name of Assets/icons/feather/masks, e.g. "search") as a themed icon.</summary>
     internal static Control IconFromKey(string icon, int size = 16)
     {
-        return new Border
+        var visual = new Border
         {
             Width = size,
             Height = size,
@@ -316,6 +316,8 @@ public static class CommandBindings
                 Stretch = Stretch.Uniform
             }
         };
+        MenuIcons.Record(visual, icon);
+        return visual;
     }
 
     internal static Bitmap IconMask(string icon)
