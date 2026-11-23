@@ -10,8 +10,12 @@ public sealed class ReaderMediaPanelDecisionTests
 {
     [Theory]
     [InlineData("reader", 240)]
-    [InlineData("media", 280)]
+    [InlineData("reader", 280)]
     [InlineData("reader", 360)]
+    [InlineData("reader", 480)]
+    [InlineData("media", 240)]
+    [InlineData("media", 280)]
+    [InlineData("media", 360)]
     [InlineData("media", 480)]
     public void ThePanelShowsAndWritesTheCurrentRatingAndFavorite(string context, int width) => BooruComponentDispatcher.Run(() =>
     {

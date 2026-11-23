@@ -1,6 +1,8 @@
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
+using Avalonia.Interactivity;
+using MeowChan.Desktop.Controls;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
@@ -41,6 +43,7 @@ internal static class TaggingModeChecks
             window.QuickTagStampSet.Add(stampName!);
             await UntilAsync(() => host.Config.TagStamp.SequenceEqual(new[] { "stamped" }), "The stamp was not kept in the settings.");
 
+            Require(window.ShowTaggingPage(), "The Tagging page could not open.");
             await window.OpenTaggingWalkAsync(queue, queue.Items, entries, bound.EntryKey);
             await GalleryViewerChecksAccess.WaitForLayoutAsync(window);
             ContentControl galleryHost = window.FindControl<ContentControl>("GalleryHost")!;
@@ -54,11 +57,28 @@ internal static class TaggingModeChecks
                 && AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton) == doneShortcut,
                 $"The Done button has no name or current key (expected '{doneShortcut}', got '{AutomationProperties.GetAcceleratorKey(viewer.TaggingDoneButton)}').");
             Require(viewer.TagSurface!.Session.Stamp.Count == 1, "The panel does not share the window's stamp.");
-            // QW1/QW2: the position and the status stand once (the arrows count, the panel's status line speaks; the strip's line and
-            // the filmstrip's and panel's counters stay away while the arrows and the panel are on the screen).
             Require(viewer.TagSurface.CounterText == null && !viewer.Filmstrip.IsPositionShown && !viewer.TaggingStatusText.IsVisible,
-                "The position or the status is shown more than once.");
-            Program.CaptureWindow(window, "smoke-tagging-mode.png");
+                "The Tags editor repeated the counters or the status.");
+            MediaPositionPill pill = viewer.SidePanel.Position;
+            void CheckPill(int number)
+            {
+                Require(ReferenceEquals(pill, viewer.SidePanel.Position) && pill.IsEffectivelyVisible
+                    && ((TextBlock)pill.Child!).Text == Texts.T("tags.quick.gallery.positionShort", number, 3)
+                    && AutomationProperties.GetName(pill) == Texts.T("tagging.position", number, 3),
+                    "The shared sidebar pill did not follow the queue position.");
+            }
+            CheckPill(1);
+            Program.CaptureWindow(window, "112-p2-tagging-gallery-tags.png");
+            viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == GallerySidePanelSegment.Post,
+                "The queue gallery did not switch to Post.");
+            Require(viewer.IsTaggingMode, "Switching the panel tab ended the queue walk.");
+            CheckPill(1);
+            Program.CaptureWindow(window, "112-p2-tagging-gallery-post.png");
+            viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == GallerySidePanelSegment.Tags,
+                "The queue gallery did not switch back to Tags.");
+            CheckPill(1);
 
             // Stamp & next: the stamp tag lands on the bound medium, the medium is done and the gallery shows the next one.
             KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
@@ -68,6 +88,7 @@ internal static class TaggingModeChecks
             Require(host.GetPrivateTagSnapshot().Snapshot!.TagsOf(target).Select(tag => tag.Name.Display).SequenceEqual(new[] { "stamped" }),
                 "The stamp was not given to the bound medium.");
             Require(viewer.PositionText == "Queue 2 of 3", "The header did not follow: " + viewer.PositionText);
+            CheckPill(2);
 
             // Primary+Enter on the picture finishes; Shift+Space plays or pauses and never decides; S skips the last open medium and the walk is through.
             viewer.Focus();
@@ -101,6 +122,7 @@ internal static class TaggingModeChecks
             Texts.SetLanguage("de");
             await UntilAsync(() => AutomationProperties.GetName(viewer.TaggingDoneButton) == "Erledigt & weiter", "The strip did not follow the language.");
             Require(viewer.TaggingProgressText.Text == "Offen: 2 · Erledigt: 1 · Übersprungen: 0", "Wrong German progress: " + viewer.TaggingProgressText.Text);
+            CheckPill(2);
             Program.CaptureWindow(window, "smoke-tagging-mode-de.png");
             Texts.SetLanguage("en");
 

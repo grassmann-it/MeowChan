@@ -80,7 +80,7 @@ internal static class GalleryMediaTagChecks
             foreach (string counterLanguage in new[] { "en", "de" })
             {
                 Texts.SetLanguage(counterLanguage);
-                foreach (int width in new[] { 280, 320, 480 })
+                foreach (int width in new[] { 280, 360, 480 })
                 {
                     viewer.PanelWidth = width;
                     window.UpdateLayout(); // the existing gallery close button does not prove the new header slot has been templated
@@ -119,10 +119,13 @@ internal static class GalleryMediaTagChecks
             var where = viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<SelectableTextBlock>().Single(line => line.Name == "GalleryPostWhere");
             Require(where.TextAlignment == Avalonia.Media.TextAlignment.Left, "The Post metadata is not left-aligned.");
             CheckDecisionAlignment(viewer.PostDecisionRow!);
+            Require(viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any(), "The Post tab has no fact grid.");
             Program.CaptureWindow(window, "smoke-gallery-post-header.png");
             viewer.SidePanel.TagsButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Tags);
             await UntilAsync(() => viewer.TagSurface!.IsVisible && viewer.TagSurface.AdvancedButton.IsEffectivelyEnabled);
+            Require(viewer.SidePanel.TagSlot.GetVisualDescendants().OfType<MediaFactGrid>().Any(), "The Tags tab has no fact grid.");
+            Program.CaptureWindow(window, "112-p2-gallery-tags.png");
             // TP4: Shift+Page Down marks the shown medium and moves on, Shift+Page Up goes back and unmarks it. The counter chip shows
             // "1 marked" with its clear button, the panel's target is the selection while a mark exists, and the panel is on the first medium again.
             MeowChan.Desktop.Controls.QuickTagSurface marking = viewer.TagSurface!;

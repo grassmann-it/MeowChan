@@ -11,17 +11,32 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     private static readonly IReadOnlyDictionary<string, (int Entries, int ExactEnglish, string Digest)> Expected =
         new Dictionary<string, (int, int, string)>(StringComparer.Ordinal)
         {
-            ["cs"] = (5459, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
-            ["es"] = (5408, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
-            ["fr"] = (5408, 120, "7b5f781094edcf29e359eeb3a7c733241c4161be7e0a5ad3df54f954ca68d8f1"),
-            ["it"] = (5414, 129, "eb687b3d54ee0fda9a4292201f275dfe0013253dcee6af3104892abe9f6a4d7b"),
-            ["ja"] = (5303, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
-            ["ko"] = (5303, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
-            ["pl"] = (5460, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
-            ["pt-BR"] = (5414, 143, "a21be79decfd7566b0ee5cc93b958d6ed69282dd547064012f8b1a488bd54557"),
-            ["ru"] = (5437, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),
-            ["zh-Hans"] = (5303, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),
+            ["cs"] = (5469, 93, "662ed45eb88706fb5abd17b68af4b4cec4f7c4ff3295fa37bf30743221326e8d"),
+            ["es"] = (5418, 84, "d1a88ed1eefd1a51a7b39660b90feda12c9163dfee17db8a247198c3776506c4"),
+            ["fr"] = (5418, 120, "7b5f781094edcf29e359eeb3a7c733241c4161be7e0a5ad3df54f954ca68d8f1"),
+            ["it"] = (5424, 129, "eb687b3d54ee0fda9a4292201f275dfe0013253dcee6af3104892abe9f6a4d7b"),
+            ["ja"] = (5313, 58, "7ab427fa2065e50f09d5476f116ff2a051f8cacd9ebf1f1ec844fc34c1d28e3f"),
+            ["ko"] = (5313, 53, "b51b63ed6b216c6ce9dd984e23b33d0d07ebf1b9bf849869987a3fcda3b68eb4"),
+            ["pl"] = (5470, 95, "29ab906199d618762d3af868c893a4adf786c3d460be5a096f2e71ebccbdcfdf"),
+            ["pt-BR"] = (5424, 143, "a21be79decfd7566b0ee5cc93b958d6ed69282dd547064012f8b1a488bd54557"),
+            ["ru"] = (5447, 60, "6c6ec2607287bb12ae697b7c09f5b1cd150a05077e80d3578496280fe196b6d0"),
+            ["zh-Hans"] = (5313, 48, "c9ec9a93a852abae49941e4bfc105328d0f04cafd9de3fa51bf17718cc74d0ff"),
         };
+
+    // The provider number, unit and precision retain the same punctuation in these packs.
+    // "Dimensions" is French and "File" is conventional Italian UI terminology.
+    // Spanish and Brazilian Portuguese use "bytes" with the same punctuation.
+    private static readonly string[] SharedHintFormat = ["cs", "es", "fr", "it", "ja", "ko", "pl", "pt-BR", "ru"];
+
+    private static string[] AllowedMediaFacts(string code)
+    {
+        List<string> keys = [];
+        if (SharedHintFormat.Contains(code, StringComparer.Ordinal)) keys.Add("media.fact.sizeHint");
+        if (code == "fr") keys.Add("media.fact.dimensions");
+        if (code == "it") keys.Add("media.fact.file");
+        if (code is "es" or "pt-BR") keys.Add("media.fact.byteSize");
+        return keys.Order(StringComparer.Ordinal).ToArray();
+    }
 
     public IdenticalLocalizationStringsAuditTests() => Texts.Initialize();
     public void Dispose()
@@ -33,7 +48,7 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
     [Fact]
     public void EnglishSourceCatalogHasTheAuditedUniqueInventory()
     {
-        Assert.Equal(5410, BuiltInCatalog.English.Count);
+        Assert.Equal(5420, BuiltInCatalog.English.Count);
         Assert.Equal(2, BuiltInCatalog.English.Count(entry => entry.Value.Length == 0));
         Assert.Equal(BuiltInCatalog.English.Count, BuiltInCatalog.English.Keys.Distinct(StringComparer.Ordinal).Count());
     }
@@ -56,6 +71,8 @@ public sealed class IdenticalLocalizationStringsAuditTests : IDisposable
             .ToList();
 
         Assert.Equal(expected.Entries, strings.EnumerateObject().Count());
+        Assert.Equal(AllowedMediaFacts(code), exact.Where(item => item.Key.StartsWith("media.fact.", StringComparison.Ordinal)).Select(item => item.Key));
+        exact.RemoveAll(item => item.Key.StartsWith("media.fact.", StringComparison.Ordinal));
         Assert.Equal(expected.ExactEnglish, exact.Count);
         string payload = string.Concat(exact.Select(item => item.Key + "\t" + item.Value + "\n"));
         string digest = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(payload))).ToLowerInvariant();
