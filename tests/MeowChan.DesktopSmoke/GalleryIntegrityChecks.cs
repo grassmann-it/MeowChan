@@ -114,6 +114,8 @@ internal static class GalleryIntegrityChecks
                 await Settle(dialog);
                 SelectableTextBlock detailsText = dialog.GetVisualDescendants().OfType<SelectableTextBlock>().Single();
                 string raw = detailsText.Text ?? string.Empty;
+                string localLabel = MediaProvenanceText.LocalSize(binding.Actual.Length);
+                string sourceLabel = Texts.T("media.provenance.sourceSize", sourceSize, SizeText.Format(sourceSize));
                 Require(raw.Contains(binding.Actual.Sha256, StringComparison.Ordinal)
                     && raw.Contains(binding.Actual.Md5, StringComparison.Ordinal)
                     && raw.Contains(binding.Provider.ExpectedMd5!, StringComparison.Ordinal)
