@@ -22,3 +22,8 @@ allowlist file, which can be an empty JSON object, when adding a bundled pack.
 Merges that only add or edit translated strings need no audit update. Resolve any allowlist
 conflict by reviewing the affected keys and their reasons, then rerun the tests. The old
 `/tmp/audit-resolve.py` count and digest merge helper is obsolete for this audit.
+
+## Source-text tests
+
+See the [source-text test inventory](development/source-text-tests-inventory.md)
+for the tests that inspect product or smoke source and the assessment of each check.
