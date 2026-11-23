@@ -1379,6 +1379,7 @@
     "plugins.stat.sources": "Źródła",
     "plugins.draft": "Niezapisana wersja robocza. Zapisz ją, aby zastosować ustawienia przy następnym uruchomieniu aplikacji; do tego czasu aktywne wartości pozostają bez zmian.",
     "plugins.savedNextStart": "Zapisano. Ustawienia zaczną obowiązywać przy następnym uruchomieniu aplikacji.",
+    "plugins.draftBuildLocked": "Zapisano wersję roboczą ustawień. Nowa kompilacja nadal jest zablokowana. Wybierz „Użyj tej kompilacji przy następnym uruchomieniu”, aby włączyć ją z tymi ustawieniami po ponownym uruchomieniu.",
     "plugins.settingsHint": "Ustawienia wtyczki i źródła zaczynają obowiązywać przy następnym uruchomieniu aplikacji.",
     "plugins.information": "Możliwości i informacje",
     "plugins.asOf": "Stan na {0:g} · Źródło: {1}",

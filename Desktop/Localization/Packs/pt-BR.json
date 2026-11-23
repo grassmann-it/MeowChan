@@ -1369,6 +1369,7 @@
     "plugins.stat.sources": "Fontes",
     "plugins.draft": "Rascunho não salvo. Salve-o para aplicar as configurações na próxima inicialização do app; até lá, os valores ativos permanecem inalterados.",
     "plugins.savedNextStart": "Salvo. As configurações entram em vigor na próxima inicialização do app.",
+    "plugins.draftBuildLocked": "Rascunho das configurações salvo. A nova versão continua bloqueada. Escolha “Usar este build na próxima inicialização” para ativá-la com estas configurações ao reiniciar.",
     "plugins.settingsHint": "As configurações de plugin e fonte entram em vigor na próxima inicialização do app.",
     "plugins.information": "Capacidades e informações",
     "plugins.asOf": "Em {0:g} · Fonte: {1}",
