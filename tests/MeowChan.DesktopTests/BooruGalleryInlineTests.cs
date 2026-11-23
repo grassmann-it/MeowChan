@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -235,7 +236,7 @@ public sealed class BooruGalleryInlineTests
     });
 
     [Fact]
-    public void PopoutReplacesThePreviewWithOneBoundedSampleAndCancelsWhenBrowsingAway() => OnDispatcher(async () =>
+    public void PopoutReplacesThePreviewWithOneBoundedSampleAndCancelsWhenBrowsingAway() => OnDispatcher(async wait =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
@@ -258,39 +259,106 @@ public sealed class BooruGalleryInlineTests
             view.GallerySampleMiB = () => 2;
             view.GalleryCacheMiB = () => 16;
             view.GalleryMaximumWidth = () => 300;
-            await SearchAsync(harness, model, view);
+            await wait.TaskAsync(SearchAsync(harness, model, view), "the search cards and previews");
             Assert.Empty(harness.Previews.SampleRequests);
             Assert.True(view.OpenResultViewer("101"));
             Window host = Assert.IsType<Window>(TopLevel.GetTopLevel(view));
             BooruResultViewerWindow popup = Assert.Single(host.OwnedWindows.OfType<BooruResultViewerWindow>());
             Image image = popup.GetVisualDescendants().OfType<Image>().Single(picture => picture.Name == "GalleryImage");
             TextBlock caption = popup.GetVisualDescendants().OfType<TextBlock>().Single(block => block.Name == "BooruViewerCaption");
-            await BooruTestSupport.WaitAsync(() => image.Source is Bitmap && harness.Previews.SampleRequests.Count == 1, "the preview and one sample request");
+            await wait.UntilAsync(() => image.Source is Bitmap && harness.Previews.SampleRequests.Count == 1, "the preview and one sample request");
             Bitmap preview = Assert.IsType<Bitmap>(image.Source);
             Assert.Contains(Texts.T("booru.gallery.shown.preview"), caption.Text);
 
             using SKBitmap source = new(640, 320);
             using SKImage pixels = SKImage.FromBitmap(source);
             using SKData bytes = pixels.Encode(SKEncodedImageFormat.Png, 100);
-            firstSample.SetResult(bytes.ToArray());
-            await BooruTestSupport.WaitAsync(() => caption.Text!.Contains(Texts.T("booru.gallery.shown.sample")), "the sample caption");
+            byte[] sampleBytes = bytes.ToArray();
+            // The popout now expects another preview identity while the viewer still has the old one.
+            typeof(BooruResultViewerWindow).GetField("_shownEntry", Private)!
+                .SetValue(popup, BooruResultViewerWindow.CreatePreviewEntry(model.Search.View.Rows[0]));
+            firstSample.SetResult(sampleBytes);
+            await wait.UntilAsync(() => !caption.Text!.Contains(Texts.T("booru.gallery.sample.loading")), "the rejected sample to finish");
+            Assert.Same(preview, image.Source);
+            Assert.DoesNotContain(Texts.T("booru.gallery.shown.sample"), caption.Text);
+
+            image.RaiseEvent(Press(Key.Space, image)); // Refresh the same post.
+            await wait.UntilAsync(() => caption.Text!.Contains(Texts.T("booru.gallery.shown.sample")), "the sample caption");
             Assert.NotSame(preview, image.Source);
             Assert.Equal(300, Assert.IsType<Bitmap>(image.Source).PixelSize.Width);
-            Assert.Equal(new[] { "101" }, harness.Previews.SampleRequests);
+            Assert.Equal(new[] { "101", "101" }, harness.Previews.SampleRequests);
             Assert.Equal((2 * MiB, 16L * MiB), harness.Previews.SampleLimits[0]);
 
             image.RaiseEvent(Press(Key.Right, image));
-            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 2, "the next post's sample request");
+            await wait.UntilAsync(() => harness.Previews.SampleRequests.Count == 3, "the next post's sample request");
             image.RaiseEvent(Press(Key.Right, image));
-            await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 1, "cancellation after leaving the next post");
+            await wait.UntilAsync(() => Volatile.Read(ref canceledSamples) == 1, "cancellation after leaving the next post");
             Assert.Equal("103", popup.CurrentPostId);
-            Assert.Equal(new[] { "101", "102" }, harness.Previews.SampleRequests);
+            Assert.Contains(Texts.T("booru.gallery.sample.none"), caption.Text);
+            Assert.Equal(new[] { "101", "101", "102" }, harness.Previews.SampleRequests);
             Assert.Empty(harness.Queue.Loads);
             image.RaiseEvent(Press(Key.Left, image));
-            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 3, "the revisited post's sample request");
+            await wait.UntilAsync(() => harness.Previews.SampleRequests.Count == 4, "the revisited post's sample request");
             popup.Close();
-            await popup.Cleanup;
-            await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 2, "cancellation after closing the popout");
+            await wait.TaskAsync(popup.Cleanup, "the popout gallery to release its resources");
+            await wait.UntilAsync(() => Volatile.Read(ref canceledSamples) == 2, "cancellation after closing the popout");
+        }
+    });
+
+    [Fact]
+    public void GalleryTagsScrollWithTheKeyboardWithoutMovingThePost() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope window = new(view))
+        {
+            string[] tags = Enumerable.Range(1, 250).Select(index => $"long_gallery_tag_{index}").ToArray();
+            harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101", tags: tags),
+                    BooruUiFixtures.Post("102"), BooruUiFixtures.Post("103"))));
+            await SearchAsync(harness, model, view);
+            Assert.True(view.OpenGallery("101"));
+            Window host = Assert.IsType<Window>(TopLevel.GetTopLevel(view));
+            await CheckTagsAsync(host, view.Gallery, () => view.Gallery.CurrentPostId);
+
+            TextBox input = new() { Text = "Editable text" };
+            view.Gallery.SetDock(BooruGalleryDock.Left, input);
+            host.UpdateLayout();
+            Assert.True(input.Focus());
+            input.RaiseEvent(Press(Key.End, input));
+            Assert.True(input.IsFocused);
+            Assert.Equal(input.Text!.Length, input.CaretIndex);
+            Assert.Equal("101", view.Gallery.CurrentPostId);
+
+            Assert.True(view.OpenResultViewer("101"));
+            BooruResultViewerWindow popup = Assert.Single(host.OwnedWindows.OfType<BooruResultViewerWindow>());
+            try { await CheckTagsAsync(popup, popup, () => popup.CurrentPostId); }
+            finally
+            {
+                popup.Close();
+                await popup.Cleanup;
+            }
+        }
+
+        static async Task CheckTagsAsync(Window host, Control gallery, Func<string?> currentPost)
+        {
+            host.UpdateLayout();
+            BooruGalleryTags tags = Assert.Single(gallery.GetVisualDescendants().OfType<BooruGalleryTags>());
+            Assert.True(tags.Extent.Height > tags.Viewport.Height);
+            Assert.True(tags.Focus());
+            double before = tags.Offset.Y;
+            tags.RaiseEvent(Press(Key.Down, tags));
+            await BooruTestSupport.WaitAsync(() => tags.Offset.Y > before, "the tag panel to scroll down");
+            Assert.True(tags.IsFocused);
+            Assert.Equal("101", currentPost());
+
+            SelectableTextBlock text = tags.GetVisualDescendants().OfType<SelectableTextBlock>().First();
+            Assert.True(text.Focus());
+            text.RaiseEvent(Press(Key.Right, text));
+            Assert.True(text.IsFocused);
+            Assert.Equal("101", currentPost());
         }
     });
 
@@ -333,7 +401,7 @@ public sealed class BooruGalleryInlineTests
     });
 
     [Fact]
-    public void RestoringTabsInGalleryUsesTheSnapshotAndDoesNotRequestASample() => OnDispatcher(async () =>
+    public void RestoringTabsInGalleryUsesTheSnapshotAndDoesNotRequestASample() => OnDispatcher(async wait =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
@@ -341,16 +409,16 @@ public sealed class BooruGalleryInlineTests
         using (view)
         using (WindowScope window = new(view))
         {
-            await SearchAsync(harness, model, view);
+            await wait.TaskAsync(SearchAsync(harness, model, view), "the search cards and previews");
             Assert.True(view.OpenGallery("101"));
-            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 1, "the initial gallery sample");
+            await wait.UntilAsync(() => harness.Previews.SampleRequests.Count == 1, "the initial gallery sample");
             int previews = harness.Previews.Requests;
             int searches = harness.Search.Requests;
             int tab = view.SearchTabs.Add(copyCurrent: true);
-            await BooruTestSupport.WaitAsync(() => view.Gallery.CurrentPostId == "101", "the copied gallery");
+            await wait.UntilAsync(() => view.Gallery.CurrentPostId == "101", "the copied gallery");
             view.SearchTabs.Select(BooruSearchTabs.PrimaryId);
             view.SearchTabs.Select(tab);
-            await BooruTestSupport.WaitAsync(() => view.Gallery.CurrentPostId == "101", "the restored gallery");
+            await wait.UntilAsync(() => view.Gallery.CurrentPostId == "101", "the restored gallery");
             Assert.Equal(BooruGalleryPicture.Preview, view.Gallery.Picture);
             Assert.Single(harness.Previews.SampleRequests);
             Assert.Equal(previews, harness.Previews.Requests);
@@ -570,25 +638,63 @@ public sealed class BooruGalleryInlineTests
         return Cards(view);
     }
 
-    private static void OnDispatcher(Func<Task> test) => BooruComponentDispatcher.Run(() =>
+    [Fact]
+    public async Task ATimeoutNamesThePendingGalleryState()
     {
-        SynchronizationContext? previousContext = SynchronizationContext.Current;
-        Dispatcher owner = Dispatcher.UIThread;
-        try
+        GalleryWait wait = new("gallery fixture");
+        TaskCompletionSource pending = new();
+        TimeoutException error = await Assert.ThrowsAsync<TimeoutException>(
+            () => wait.TaskAsync(pending.Task, "the popup image to appear", milliseconds: 0));
+        Assert.Contains("the popup image to appear", error.Message, StringComparison.Ordinal);
+        Assert.Equal("the popup image to appear", wait.Description);
+    }
+
+    private static void OnDispatcher(Func<Task> test, [CallerMemberName] string scenario = "") =>
+        OnDispatcher(_ => test(), scenario);
+
+    private static void OnDispatcher(Func<GalleryWait, Task> test, [CallerMemberName] string scenario = "")
+    {
+        GalleryWait wait = new(scenario);
+        BooruComponentDispatcher.Run(() =>
         {
-            SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
-            Task pending = test();
-            DateTime deadline = DateTime.UtcNow.AddSeconds(10);
-            while (!pending.IsCompleted)
+            SynchronizationContext? previousContext = SynchronizationContext.Current;
+            Dispatcher owner = Dispatcher.UIThread;
+            try
             {
-                owner.RunJobs();
-                if (DateTime.UtcNow >= deadline) throw new TimeoutException("The Booru gallery test dispatcher did not finish.");
-                if (!pending.IsCompleted) Thread.Sleep(1);
+                SynchronizationContext.SetSynchronizationContext(new ActionContext(owner));
+                Task pending = test(wait);
+                DateTime deadline = DateTime.UtcNow.AddSeconds(10);
+                while (!pending.IsCompleted)
+                {
+                    owner.RunJobs();
+                    if (!pending.IsCompleted && DateTime.UtcNow >= deadline)
+                        throw new TimeoutException("The Booru gallery test dispatcher timed out waiting for " + wait.Description);
+                    if (!pending.IsCompleted) Thread.Sleep(1);
+                }
+                pending.GetAwaiter().GetResult();
             }
-            pending.GetAwaiter().GetResult();
+            finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
+        }, () => wait.Description);
+    }
+
+    private sealed class GalleryWait(string scenario)
+    {
+        private volatile string _description = scenario;
+        internal string Description => _description;
+
+        internal Task UntilAsync(Func<bool> condition, string what)
+        {
+            _description = what;
+            return BooruTestSupport.WaitAsync(condition, what);
         }
-        finally { SynchronizationContext.SetSynchronizationContext(previousContext); }
-    });
+
+        internal async Task TaskAsync(Task task, string what, int milliseconds = 5000)
+        {
+            _description = what;
+            try { await task.WaitAsync(TimeSpan.FromMilliseconds(milliseconds)); }
+            catch (TimeoutException error) { throw new TimeoutException("Timed out waiting for " + what, error); }
+        }
+    }
 
     private sealed class ActionContext(Dispatcher owner) : SynchronizationContext
     {

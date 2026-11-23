@@ -162,10 +162,13 @@ internal sealed class BooruGalleryToolbar : Border
         }
     }
 
+    internal static bool ChildOwnsKeys(KeyEventArgs e) => e.Source is Visual source
+        && source.GetSelfAndVisualAncestors().Any(visual => visual is BooruGalleryTags or SelectableTextBlock
+            || PointerFocusReclaim.IsTextInput(visual));
+
     internal void RouteKey(KeyEventArgs e, Control stage)
     {
-        if (e.Handled || ShortcutService.IsCapturing || e.Source is Visual source
-            && source.GetSelfAndVisualAncestors().Any(PointerFocusReclaim.IsTextInput)) return;
+        if (e.Handled || ShortcutService.IsCapturing || ChildOwnsKeys(e)) return;
 
         using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
         EffectiveShortcutBindings bindings = ShortcutService.Current;

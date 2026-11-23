@@ -3,6 +3,7 @@ using System.Linq;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Media;
 using MeowChan.Desktop.Localization;
 
@@ -21,9 +22,27 @@ internal sealed class BooruGalleryTags : ScrollViewer
     {
         Name = "BooruGalleryTags";
         Width = 224;
+        Focusable = true;
         HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled;
         Content = _groups;
         IsVisible = false;
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || e.KeyModifiers != KeyModifiers.None) return;
+        switch (e.Key)
+        {
+            case Key.Up: LineUp(); break;
+            case Key.Down: LineDown(); break;
+            case Key.PageUp: PageUp(); break;
+            case Key.PageDown: PageDown(); break;
+            case Key.Home: ScrollToHome(); break;
+            case Key.End: ScrollToEnd(); break;
+            default: return;
+        }
+        e.Handled = true;
     }
 
     internal void Present(BooruPostView? post)

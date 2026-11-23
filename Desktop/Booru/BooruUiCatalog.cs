@@ -32,10 +32,10 @@ internal static class BooruUiCatalog
         ("booru.ui.query.draft", "Draft: {0}", "Entwurf: {0}"),
         ("booru.ui.query.hint", "Up to two tags and one optional rating: term, sent exactly as typed (separators become single spaces). MeowChan adds nothing.", "Bis zu zwei Tags und ein optionaler rating:-Term, genau wie eingegeben gesendet (Trennzeichen werden zu einzelnen Leerzeichen). MeowChan fügt nichts hinzu."),
         ("booru.ui.post.sent", "Post requested from Danbooru: #{0}", "Bei Danbooru angefragter Post: #{0}"),
-        ("booru.ui.page.info", "Page {0} of at most {1} · {2} results per page", "Seite {0} von höchstens {1} · {2} Treffer pro Seite"),
+        ("booru.ui.page.info", "Page {0} of at most {1} · Results per page: {2}", "Seite {0} von höchstens {1} · Treffer pro Seite: {2}"),
         ("booru.ui.page.previous", "Previous page", "Vorherige Seite"),
         ("booru.ui.page.next", "Next page", "Nächste Seite"),
-        ("booru.ui.page.limit", "Searches here are limited to {0} pages of {1} results. Refine the tags, or create a watcher to follow new posts.", "Suchen sind hier auf {0} Seiten mit je {1} Treffern begrenzt. Tags eingrenzen oder eine Suchbeobachtung anlegen, um neue Posts zu verfolgen."),
+        ("booru.ui.page.limit", "Search limits (pages: {0}, results per page: {1}). Refine the tags, or create a watcher to follow new posts.", "Suchlimits (Seiten: {0}, Treffer pro Seite: {1}). Grenze die Tags ein oder lege eine Suchbeobachtung an, um neue Posts zu verfolgen."),
 
         ("booru.ui.issue.TooManyTags", "Danbooru allows at most two tags per search without an account.", "Danbooru erlaubt ohne Konto höchstens zwei Tags pro Suche."),
         ("booru.ui.issue.TooManyTerms", "At most two tags and one rating: term are supported.", "Unterstützt werden höchstens zwei Tags und ein rating:-Term."),

@@ -55,8 +55,6 @@ public sealed class PluralCountTextTests : IDisposable
         ["booru.media.tags.search.tooMany"] = "the Danbooru tag-search limit is a fixed provider constant above 1 and the marked count exceeds it",
         ["booru.media.tile.inMixed"] = "label form (\"in threads: {0} and Danbooru posts: {1}\"); the pair is shown only for equal bytes in both places",
         ["booru.media.tile.inPosts"] = "shown only for two or more provider posts (guarded by ProviderPostCount > 1)",
-        ["booru.ui.page.info"] = "constants: the page cap and the page size of the Danbooru browse",
-        ["booru.ui.page.limit"] = "both numbers are fixed Danbooru browse constants, never 1",
         ["booru.ui.result.showInMediaFor"] = "the number is a post id (\"#{0}\") and \"Media\" is the name of a page",
         ["booru.ui.tags.searchFull"] = "the Danbooru tag-search limit is a fixed provider constant above 1",
         ["feedback.repeated"] = "shown only when the same notice repeated (Count > 1)",
@@ -171,7 +169,7 @@ public sealed class PluralCountTextTests : IDisposable
     // Values whose number is a range or constant, a measured unit abbreviation, a "{0} of {1}" form or not followed by a noun at all.
     private static readonly HashSet<string> SlavicNumberBeforeNounAllowed = new(StringComparer.Ordinal)
     {
-        "booru.media.tags.search.tooMany", "booru.ui.page.limit", "feedback.repeated", "limit.warn.favoriteEntries",
+        "booru.media.tags.search.tooMany", "feedback.repeated", "limit.warn.favoriteEntries",
         "media.tile.duplicatesHint", "progress.mediaOf", "reader.date.unit.d", "stats.settings.maxSourcesHint",
         "stats.settings.persistIntervalHint", "stats.settings.retentionDaysHint", "store.backupBlocked.newer", "tags.filter.error.tooMany",
         "transfer.import.resultSet"
@@ -189,6 +187,21 @@ public sealed class PluralCountTextTests : IDisposable
                 && !pack.ContainsKey(entry.Key + ".one") && !SlavicNumberBeforeNounAllowed.Contains(entry.Key))
             .Select(entry => entry.Key + " = " + entry.Value).Order(StringComparer.Ordinal).ToArray();
         Assert.True(offenders.Length == 0, code + ": a number before a noun outside Texts.Count; use \"Nouns: {n}\" or add the plural forms:\n" + string.Join("\n", offenders));
+    }
+
+    [Theory]
+    [InlineData("en", 1, 1, "Page 1 of at most 1 · Results per page: 1", "Search limits (pages: 1, results per page: 1).")]
+    [InlineData("en", 1, 2, "Page 1 of at most 1 · Results per page: 2", "Search limits (pages: 1, results per page: 2).")]
+    [InlineData("en", 2, 1, "Page 1 of at most 2 · Results per page: 1", "Search limits (pages: 2, results per page: 1).")]
+    [InlineData("de", 1, 1, "Seite 1 von höchstens 1 · Treffer pro Seite: 1", "Suchlimits (Seiten: 1, Treffer pro Seite: 1).")]
+    [InlineData("de", 1, 2, "Seite 1 von höchstens 1 · Treffer pro Seite: 2", "Suchlimits (Seiten: 1, Treffer pro Seite: 2).")]
+    [InlineData("de", 2, 1, "Seite 1 von höchstens 2 · Treffer pro Seite: 1", "Suchlimits (Seiten: 2, Treffer pro Seite: 1).")]
+    public void BooruPagerAndLimitMessageHandleSinglePagesAndResults(string code, int pages, int results,
+        string pager, string limit)
+    {
+        Texts.SetLanguage(code);
+        Assert.Equal(pager, Texts.T("booru.ui.page.info", 1, pages, results));
+        Assert.StartsWith(limit, Texts.T("booru.ui.page.limit", pages, results), StringComparison.Ordinal);
     }
 
     [Fact]

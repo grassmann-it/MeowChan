@@ -109,17 +109,21 @@ Deaktivieren des Plugins unter Plugins.
 
 ## Treffer in der Vorschau durchsehen
 
-**In Galerie öffnen** auf einer Trefferkarte öffnet eine größere Vorschau. Enter
+**Galerie** über den Ergebnissen und **In Galerie öffnen** auf einer Trefferkarte
+öffnen die Galerie. **In neuem Fenster öffnen** zeigt denselben Treffer im Popout. Enter
 oder ein Doppelklick auf den Kartenkörper eines noch nicht gespeicherten Treffers
 öffnet dieselbe Ansicht. Ist das Original schon lokal gespeichert, führen diese
 beiden Hauptgesten weiterhin zu **In Medien anzeigen**. Schaltflächen, Tags und
 Text innerhalb der Karte behalten ihre eigenen Aktionen.
 
-Die Ansicht vergrößert nur die bereits von der Suche geladene, begrenzte
-**Vorschau**, nicht das Original. Die Auflösung hängt von der Provider-Vorschau
-ab. Fehlt sie oder ist sie gesperrt, erscheint der entsprechende Hinweis statt
-des vorherigen Bilds. Öffnen, Blättern und Markieren laden weder Originale noch
-eine weitere Ergebnisseite nach.
+Beide Ansichten zeigen zuerst die bereits von der Suche geladene **Vorschau**, sofern
+sie verfügbar ist. Nur für den aktuell geöffneten Treffer kann die Galerie eine
+größere, vom Anbieter verkleinerte Fassung (**Sample**) nachladen. Dafür gelten
+die eingestellten Grenzen für Downloadgröße (MiB), Pixelzahl und Antwortfrist.
+Auch die dekodierte Bildbreite ist einstellbar. Beim Wechsel zu einem anderen
+Treffer oder beim Schließen bricht die Galerie den laufenden Sample-Abruf ab.
+**Original laden** oder das zugehörige Tastenkürzel reiht das Original ausdrücklich
+zum Download ein.
 
 | Taste oder Aktion | Wirkung in der Booru-Vorschau |
 | --- | --- |
