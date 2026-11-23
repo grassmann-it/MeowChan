@@ -14,6 +14,8 @@ internal static class MediaProvenanceText
         _ => string.Empty
     };
 
+    internal static string FactSize(long bytes) => Texts.T("media.fact.byteSize", bytes, SizeText.Format(bytes));
+
     internal static string LocalSize(long length) => Texts.T("media.provenance.localSize", length, SizeText.Format(length));
 
     internal static string Context(MediaAttachmentBinding? binding)

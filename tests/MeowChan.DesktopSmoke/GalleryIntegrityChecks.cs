@@ -63,15 +63,13 @@ internal static class GalleryIntegrityChecks
                 Border context = Find<Border>(viewer, "GalleryContext");
                 SelectableTextBlock[] text = context.GetVisualDescendants().OfType<SelectableTextBlock>().ToArray();
                 // UX round 3: binary size first, the exact byte count in brackets.
-                string unit = language == "de" ? "Bytes" : "bytes";
-                string localLabel = (language == "de" ? "Gespeicherte Datei: " : "Saved file: ")
-                    + MeowChan.Desktop.SizeText.Format(binding.Actual.Length, Texts.Culture) + " ("
-                    + binding.Actual.Length.ToString("N0", Texts.Culture) + " " + unit + ")";
-                string sourceLabel = (language == "de" ? "Anbieterangabe: " : "Source reported: ")
-                    + MeowChan.Desktop.SizeText.Format(binding.Provider.ExpectedSize!.Value, Texts.Culture) + " ("
-                    + binding.Provider.ExpectedSize!.Value.ToString("N0", Texts.Culture) + " " + unit + ")";
-                SelectableTextBlock local = text.Single(item => item.Text == localLabel);
-                SelectableTextBlock provider = text.Single(item => item.Text == expectedSummary + Environment.NewLine + sourceLabel);
+                string localValue = Texts.T("media.fact.byteSize", binding.Actual.Length, SizeText.Format(binding.Actual.Length, Texts.Culture));
+                long sourceSize = binding.Provider.ExpectedSize!.Value;
+                string sourceValue = Texts.T("media.fact.byteSize", sourceSize, SizeText.Format(sourceSize, Texts.Culture));
+                SelectableTextBlock local = text.Single(item => item.Name == "GalleryPostFileSize");
+                SelectableTextBlock provider = text.Single(item => item.Name == "GalleryPostSourceSize");
+                Require(local.Text == localValue && provider.Text == sourceValue, "File facts omit the localized binary size or exact byte count.");
+                Require(local.FontSize == provider.FontSize && local.FontWeight == provider.FontWeight, "Sizes use different fact typography.");
                 AssertVisibleText(summary, viewer);
                 // The context panel is a bounded ScrollViewer by design: at 640x480 it shows only part of its
                 // content. Each integrity line must fit completely once the user scrolls it into view.

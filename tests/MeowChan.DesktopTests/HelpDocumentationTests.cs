@@ -608,12 +608,6 @@ public sealed class HelpDocumentationTests
         var viewer = CSharpSource.Parse(Read("Desktop/GalleryViewer.cs"));
         Assert.Contains(viewer.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
             SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_close.HorizontalAlignment = HorizontalAlignment.Left")));
-        var context = viewer.Method("BuildContext");
-        var postWhere = Assert.Single(context.Calls("AddContext"), call => call.ArgumentList.Arguments.Any(argument =>
-            argument.Expression is LiteralExpressionSyntax name && name.Token.ValueText == "GalleryPostWhere"));
-        var postWhereAlignment = Assert.IsType<AssignmentExpressionSyntax>(postWhere.Parent!.Parent);
-        Assert.True(SyntaxFactory.AreEquivalent(postWhereAlignment.Right, SyntaxFactory.ParseExpression("TextAlignment.Left")));
-        Assert.True(postWhere.SpanStart < Assert.Single(context.Calls("PostDecisionSection")).SpanStart);
         var favorites = CSharpSource.Parse(Read("Desktop/GalleryViewer.Favorites.cs"));
         var starMargin = Assert.Single(favorites.DescendantNodes().OfType<PropertyDeclarationSyntax>(),
             property => property.Identifier.ValueText == "StarLeftMargin");

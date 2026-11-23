@@ -1511,9 +1511,6 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         try
         {
             var post = entry.Post;
-            AddContext(entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread
-                + (post != null ? " · #" + post.PostId : string.Empty), "workspace-meta", "GalleryPostWhere").TextAlignment = TextAlignment.Left;
-            // Review 15.11.: favourite and stars, then the medium's tags, stand on top of the card, with or without a post (GalleryViewer.PostPanel.cs).
             _context.Children.Add(PostDecisionSection());
             _context.Children.Add(BuildPostTagsSection(ContextCommand));
             _context.Children.Add(PostRule());
@@ -1536,12 +1533,9 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
                 IReadOnlyList<string>? provider = ProviderContext?.Invoke(entry);
                 if (provider == null) AddContext(Texts.T("gallery.noPost"));
                 else foreach (string line in provider) AddContext(line);
-                AddFileFacts(entry);
+                AddFileFacts(_context, entry);
                 return;
             }
-            string byline = string.Join(" · ", new[] { ArchivePresentation.PlainText(post.Author), post.PostedAt?.ToString("g", Texts.Culture) }
-                .Where(part => !string.IsNullOrWhiteSpace(part)));
-            if (byline.Length > 0) AddContext(byline, "workspace-meta", "GalleryPostByline");
             string subject = ArchivePresentation.PlainText(post.Subject);
             if (!string.IsNullOrWhiteSpace(subject)) AddContext(subject, null, "GalleryPostSubject").FontWeight = FontWeight.SemiBold;
             string text = ArchivePresentation.PlainText(post.Html);
@@ -1560,7 +1554,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
                 }
                 if (quotes.Children.Count > 0) _context.Children.Add(quotes);
             }
-            AddFileFacts(entry);
+            AddFileFacts(_context, entry);
             // The action at the bottom left: the post in its thread (T).
             StackPanel actions = new() { Name = "GalleryPostActions", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
             // I1b: the one action of the post card carries its command icon before the text (the label stays the content and the name).
@@ -1584,15 +1578,28 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         }
     }
 
-    // The file of the card: its name, the saved size (KiB/MiB with the exact byte count), its provenance and the historical note.
-    private void AddFileFacts(GalleryEntry entry)
+    private static void AddFileFacts(Panel panel, GalleryEntry entry)
     {
-        AddContext(entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName, "workspace-meta", "GalleryPostFile");
-        AddContext(MediaProvenanceText.LocalSize(entry.Asset.Length), "workspace-meta", "GalleryPostFileSize");
-        string provenance = MediaProvenanceText.Context(entry.AttachmentResolution?.Binding);
-        if (provenance.Length > 0) AddContext(provenance);
-        if (entry.Historical) AddContext(Texts.T("gallery.viewer8"), "workspace-help");
+        MediaFactGrid facts = new("GalleryPostFacts");
+        var post = entry.Post;
+        string location = entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ · " + entry.Key.Thread.Thread
+            + (post != null ? " · #" + post.PostId : string.Empty);
+        facts.Add(Texts.T("media.fact.location"), location, "GalleryPostWhere");
+        facts.Add(Texts.T("media.fact.author"), ArchivePresentation.PlainText(post?.Author));
+        facts.Add(Texts.T("media.fact.posted"), post?.PostedAt?.ToString("g", Texts.Culture));
+        facts.Add(Texts.T("media.fact.file"), entry.Asset.OriginalFileName ?? entry.Asset.RequestedFileName, "GalleryPostFile", fileName: true);
+        facts.Add(Texts.T("media.fact.saved"), MediaProvenanceText.FactSize(entry.Asset.Length), "GalleryPostFileSize");
+        var binding = entry.AttachmentResolution?.Binding;
+        if (binding?.Provider.ExpectedSize is long size)
+            facts.Add(Texts.T("media.fact.source"), MediaProvenanceText.FactSize(size), "GalleryPostSourceSize");
+        if (binding?.Provider.ProviderSizeHint is { } hint)
+            facts.Add(Texts.T("media.fact.sourceHint"), Texts.T("media.fact.sizeHint", hint.RawValue, hint.UnitLabel, hint.Precision));
+        panel.Children.Add(facts);
+        string provenance = MediaProvenanceText.Summary(binding);
+        if (provenance.Length > 0) AddContext(panel, provenance, "workspace-help");
+        if (entry.Historical) AddContext(panel, Texts.T("gallery.viewer8"), "workspace-help");
     }
+
     /// <summary>A "×" that closes the layer it sits in (help, post panel): 32×32, top right, tooltip "{what it does} · Esc".</summary>
     private static Button CloseLayerButton(string name, Action close)
     {
@@ -1615,13 +1622,15 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ToolTip.SetTip(button, tip);
     }
 
-    private SelectableTextBlock AddContext(string text, string? style = null, string? name = null)
+    private SelectableTextBlock AddContext(string text, string? style = null, string? name = null) =>
+        AddContext(_context, text, style ?? "workspace-post-body", name);
+
+    private static SelectableTextBlock AddContext(Panel panel, string text, string style, string? name = null)
     {
-        SelectableTextBlock line = new() { Text = text, Name = name, TextWrapping = TextWrapping.Wrap };
+        SelectableTextBlock line = new() { Text = text, Name = name, TextWrapping = TextWrapping.Wrap, Classes = { style } };
         // The meta and help classes bring their own muted foreground; the post's own text stays the full text colour.
-        if (style == null) line[!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        else line.Classes.Add(style);
-        _context.Children.Add(line);
+        if (style == "workspace-post-body") line[!SelectableTextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
+        panel.Children.Add(line);
         return line;
     }
     private void LayoutContext()

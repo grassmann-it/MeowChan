@@ -1057,6 +1057,11 @@
         <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" /><Setter Property="Foreground" Value="{DynamicResource Workspace.Muted}" />
         <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
+    <Style Selector="SelectableTextBlock.media-fact-value">
+        <Setter Property="FontSize" Value="{StaticResource Workspace.Text.Meta}" />
+        <Setter Property="FontWeight" Value="Normal" />
+        <Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" />
+    </Style>
     <Style Selector="ToggleButton.accent-preset"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="ToggleButton.accent-preset TextBlock"><Setter Property="Foreground" Value="{DynamicResource Workspace.Text}" /></Style>
     <Style Selector="ToggleButton.accent-preset:checked /template/ ContentPresenter#PART_ContentPresenter, ToggleButton.accent-preset:checked:pointerover /template/ ContentPresenter#PART_ContentPresenter">
