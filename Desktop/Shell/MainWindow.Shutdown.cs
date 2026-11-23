@@ -47,7 +47,7 @@ public partial class MainWindow
             return;
         }
 
-        if (_config.CloseToTray && e.CloseReason == WindowCloseReason.WindowClosing)
+        if (!TemporaryFolderSession && _config.CloseToTray && e.CloseReason == WindowCloseReason.WindowClosing)
         {
             MinimizeWindow();
             return;
@@ -180,10 +180,11 @@ public partial class MainWindow
             ConfirmCloseDuringArchiveDeletionAsync,
             () => _postBookmarkEditor?.PrepareToCloseAsync() ?? Task.FromResult(true),
             () => _postBookmarksDialog?.PrepareToCloseAsync() ?? Task.FromResult(true),
+            ConfirmTemporaryFolderCloseAsync,
         });
         if (!confirmed)
         {
-            Log.Information("Closing the application was kept back by a running permanent deletion or an open dialog with unsaved changes.");
+            Log.Information("A shutdown confirmation kept the application open.");
             if (IsArchiveDeletionRunning) _archiveDeletionDialog?.Activate();
             else if (_postBookmarkEditor is Window editor) editor.Activate();
             else if (_postBookmarksDialog is Window bookmarks) bookmarks.Activate();

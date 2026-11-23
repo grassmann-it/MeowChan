@@ -53,7 +53,7 @@ internal enum StartupMediaFolderProblem
 
 /// <summary>The <c>--media-folder &lt;folder&gt;</c> start argument as read from the command line. A problem never stops the
 /// start; the window explains it once the session is up.</summary>
-internal sealed record StartupMediaFolderArgument(string? Path, StartupMediaFolderProblem Problem);
+internal sealed record StartupMediaFolderArgument(string? Path, StartupMediaFolderProblem Problem, bool OpenMediaView = false);
 
 /// <summary>Reads <c>--media-folder &lt;folder&gt;</c> (or <c>=&lt;folder&gt;</c>) and removes it from the arguments. The folder
 /// is the one the "New profile" dialog picked: the new process registers it as a read-only folder source on its first start.</summary>
@@ -102,6 +102,8 @@ internal static class StartupMediaFolderCommandLine
 /// scripted starts) leaves the list as it is, so the variables keep their exact former behaviour.</summary>
 internal static class ProfileStartup
 {
+    internal static StartupFolderSession? FolderSession { get; set; }
+
     /// <summary>Set by the app's entry point for an ordinary start; false everywhere else (tests, smokes, tools).</summary>
     internal static bool RecordsInProfileList { get; set; }
 

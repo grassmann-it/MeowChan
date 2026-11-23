@@ -8,6 +8,7 @@ using Avalonia.Controls.Notifications;
 using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Persistence;
 using Serilog;
@@ -28,6 +29,21 @@ public partial class MainWindow
     /// <summary>The profile list file; smokes point it into their private folder. Null: the per-user location.</summary>
     internal string? ProfileRegistryPath { get; set; }
     internal Window? ProfileDialogWindow => _profileDialog;
+    internal bool TemporaryFolderSession { get; set; }
+    private bool _folderDiscardPromptOpen;
+
+    private async Task<bool> ConfirmTemporaryFolderCloseAsync()
+    {
+        if (!TemporaryFolderSession) return true;
+        if (_folderDiscardPromptOpen) return false;
+        _folderDiscardPromptOpen = true;
+        try
+        {
+            return await DialogPrompt.ConfirmAsync(this, Texts.T("profile.folderSession.temporary"),
+                Texts.T("profile.folderSession.discardHint"), Texts.T("profile.folderSession.discard"), Texts.T("profile.new.cancel"));
+        }
+        finally { _folderDiscardPromptOpen = false; }
+    }
 
     private bool CanUseProfiles => _restoreCompleted && !_isClosing && IsEnabled && _session.State == DesktopSessionState.Ready
         && !WorkspaceCommandBusy && !HasVisibleShellDialog() && _profileDialog == null;
@@ -167,7 +183,10 @@ public partial class MainWindow
             string[] others = await Task.Run(() => service.KnownProfileFolders()
                 .Where(path => !ProfileRegistry.SamePath(path, session.ProfileDirectory)).ToArray());
             StartupMediaFolderResult result = await StartupMediaFolderRegistration.RegisterAsync(session, argument, others);
-            if (_isClosing || result.MessageKey == null) return;
+            if (_isClosing) return;
+            if (argument.OpenMediaView && result.Status != StartupMediaFolderStatus.Refused)
+                NavigateWorkspace(WorkspacePage.Media);
+            if (result.MessageKey == null) return;
             ShowNotification(Texts.T("profile.menu"), StartupMediaFolderRegistration.Message(result),
                 result.Status == StartupMediaFolderStatus.Added ? NotificationType.Success : NotificationType.Warning, operation: "profile.mediaFolder");
         }
