@@ -21,12 +21,12 @@ internal static partial class BooruWorkbenchChecks
     {
         string profile = TemporaryWorkspacePaths.CreateDirectory("booru-viewer-placement-");
         string media = Path.Combine(profile, "media");
-        Directory.CreateDirectory(media);
         new Config
         {
             DownloadPath = media, AutomaticUpdateChecks = false, SaveUrlsOnExit = false, FirstRunSetupVersion = 1,
             MinimumFreeSpaceGiB = 0, CloseToTray = false, MinimizeToTray = false, WorkspaceMode = "Advanced", ShowBooruTools = true
         }.SaveConfig(profile);
+        Directory.CreateDirectory(media);
 
         var saved = await WithPopoutAsync(async (shell, popout) =>
         {
