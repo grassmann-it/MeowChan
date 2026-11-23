@@ -62,6 +62,7 @@ public sealed class BooruResultActionsTests
         fixture.Until(() => !ReferenceEquals(last, fixture.Hit("110"))
             && ReferenceEquals(fixture.Hit("110"), fixture.Window.FocusManager?.GetFocusedElement()), "the rebuilt hit's focus");
         Assert.Equal(("110", BooruLoadOrigin.Search, "cat"), Assert.Single(fixture.Queue.Loads));
+        Assert.True(fixture.Window.IsVisible);
         Assert.True(scroll.Offset.Y > 0);
         Assert.InRange(Bounds(fixture.Hit("110"), scroll).Center.Y, 0, scroll.Viewport.Height);
     });

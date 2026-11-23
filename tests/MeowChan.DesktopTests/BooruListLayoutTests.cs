@@ -14,6 +14,7 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Booru;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.PluginSdk;
@@ -378,6 +379,13 @@ public sealed class BooruListLayoutTests
         Rect action = Bounds(button, card);
         Assert.True(action.Top >= preview.Bottom - 1 && action.Left >= preview.Left - 1 && action.Right <= preview.Right + 1,
             $"{name}: {action} must be under {preview}");
+        if (name.StartsWith(BooruWorkbenchView.LoadPrefix, StringComparison.Ordinal))
+        {
+            Assert.Equal("download-cloud", IconButtons.KeyOf(Assert.IsType<Button>(button)));
+            Border icon = Assert.Single(button.GetVisualDescendants().OfType<Border>(), child =>
+                child.OpacityMask is ImageBrush brush && ReferenceEquals(brush.Source, CommandBindings.IconMask("download-cloud")));
+            Assert.True(action.Contains(Bounds(icon, card)));
+        }
     }
 
     private static Button[] ShownTags(Control card) => card.GetVisualDescendants().OfType<Button>()

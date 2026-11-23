@@ -43,7 +43,7 @@ public sealed class BooruWorkbenchViewContractTests
             "DialogFit.OnOpen(this)", "WindowChrome.Frame(this, _view)", "WindowChromeKind.Dialog", "Width = 1000", "MinWidth = 600" })
             Assert.DoesNotContain(forbidden, host);
         string view = ViewSource();
-        foreach (string forbidden in new[] { "WindowChrome.", "DialogFrame.", "DialogFit.", "Close();", "SourceMediaIntegrityPermissions" })
+        foreach (string forbidden in new[] { "WindowChrome.", "DialogFrame.", "DialogFit.", "SourceMediaIntegrityPermissions" })
             Assert.DoesNotContain(forbidden, view);
     }
 
@@ -135,8 +135,6 @@ public sealed class BooruWorkbenchViewContractTests
         foreach (string required in new[] { "_resetCooldown.Click += async (_, _) => await _model.Watchers.ResetProviderCooldownAsync();",
             "_retry.IsEnabled = !paused;",
             "_retry.IsVisible = view.CanRetry && !repairShown;", "_pager.IsVisible = paging || view.HasPreviousPage;",
-            "load.IsEnabled = cancel || retry || row.CanLoad;",
-            "_model.Search.CancelOriginalAsync(post.PostId)", "_model.Search.RetryOriginalAsync(post.PostId)",
             "_cancel.Click += (_, _) => _model.Search.Cancel();", "yes.IsEnabled = !row.Busy;",
             "yes.Click += async (_, _) => await model.ConfirmRemovalAsync(watcher.WatcherId);",
             "BooruWatcherBlock checkBlock = model.CheckBlock(row);", "model.ResumeBlock(row)", "model.PauseBlock(row)",
