@@ -83,8 +83,8 @@ internal sealed class FakeBooruSearchPort : IBooruSearchPort
     internal List<(string Query, int Page)> Searches { get; } = new();
     internal List<string> PostReads { get; } = new();
 
-    public string ProviderId => BooruUiFixtures.Source;
-    public string ProviderName => "Danbooru";
+    public string ProviderId { get; init; } = BooruUiFixtures.Source;
+    public string ProviderName { get; init; } = "Danbooru";
 
     internal int Requests { get { lock (_gate) return Searches.Count + PostReads.Count; } }
 

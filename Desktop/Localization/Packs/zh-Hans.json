@@ -3186,6 +3186,7 @@
     "booru.ui.noFilterNote": "结果完全按照 Danbooru 针对你的标签返回的内容显示。MeowChan 不会添加评级过滤，也不会添加额外的搜索词条。你加载的原图使用常规下载队列。",
     "booru.ui.tab.search": "搜索",
     "booru.ui.tab.watchers": "关注器（{0}）",
+    "booru.tabs.source": "搜索来源",
     "booru.ui.mode.label": "输入类型",
     "booru.ui.mode.tags": "标签搜索",
     "booru.ui.mode.post": "帖子链接或 ID",

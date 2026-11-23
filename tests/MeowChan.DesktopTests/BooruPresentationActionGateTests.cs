@@ -58,10 +58,11 @@ public sealed class BooruPresentationActionGateTests
         string gallery = Read("Desktop/Shell/MainWindow.GalleryActions.cs");
         string dialog = Read("Desktop/Views/Media/BooruMediaDetailsDialog.cs");
 
-        Assert.Contains("BooruWorkbenchServices? openedServices = CanOpenBooru ? _session.BooruServices : null;", gallery, StringComparison.Ordinal);
+        Assert.Contains("BooruWorkbenchServices? openedServices = CanOpenBooru ? _session.ActiveBooruServices.FirstOrDefault", gallery, StringComparison.Ordinal);
+        Assert.Contains("services.Search.ProviderId == identity.SourceId && services.Search.InstanceId == identity.InstanceId", gallery, StringComparison.Ordinal);
         Assert.Contains("openedServices is null ? null : () => IsBooruSearchAvailable(openedServices)", gallery, StringComparison.Ordinal);
-        Assert.Contains("ReferenceEquals(_session.BooruServices, openedServices)", gallery, StringComparison.Ordinal);
-        Assert.Contains("ReferenceEquals(page.Services, openedServices)", gallery, StringComparison.Ordinal);
+        Assert.Contains("_session.ActiveBooruServices.Contains(openedServices)", gallery, StringComparison.Ordinal);
+        Assert.Contains("page.Model.Sources.Contains(openedServices)", gallery, StringComparison.Ordinal);
         Assert.DoesNotContain("            UseAsBooruSearch);", gallery, StringComparison.Ordinal);
         Assert.Contains("if (IsSearchActionAvailable())", dialog, StringComparison.Ordinal);
         Assert.Contains("if (!IsSearchActionAvailable())", dialog, StringComparison.Ordinal);

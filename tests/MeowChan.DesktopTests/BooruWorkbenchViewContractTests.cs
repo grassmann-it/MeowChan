@@ -91,7 +91,7 @@ public sealed class BooruWorkbenchViewContractTests
         Assert.DoesNotContain("Cancel(", detach);
         string dispose = view[view.IndexOf("public void Dispose()", StringComparison.Ordinal)..];
         foreach (string required in new[] { "if (_closed) return;", "_closed = true;", "_clock.Stop();", "_clock.Tick -= OnClockTick;", "ChromeChanged = null;",
-            "Texts.Changed -= OnTextsChanged;", "_model.Search.Changed -= OnModelChanged;", "_model.Watchers.Changed -= OnModelChanged;",
+            "Texts.Changed -= OnTextsChanged;", "_model.Search.Changed -= OnModelChanged;", "_model.WatchersChanged -= OnModelChanged;",
             "foreach (CachedBitmap cached in _bitmaps.Values) cached.Bitmap.Dispose();", "_bitmaps.Clear();", "if (_ownsModel) _model.Dispose();" })
             Assert.Contains(required, dispose);
         string changed = Between(view, "private void OnModelChanged()", "private void OnTextsChanged(");
@@ -134,7 +134,7 @@ public sealed class BooruWorkbenchViewContractTests
             "_retry.IsEnabled = !paused;",
             "_retry.IsVisible = view.CanRetry && !repairShown;", "_pager.IsVisible = paging || view.HasPreviousPage;",
             "load.IsEnabled = cancel || retry || row.CanLoad;",
-            "_model.Search.CancelOriginalAsync(post.PostId)", "_model.Search.RetryOriginalAsync(post.PostId)",
+            "_model.Search.CancelOriginalAsync(post.PostId, post.Identity)", "_model.Search.RetryOriginalAsync(post.PostId, post.Identity)",
             "_cancel.Click += (_, _) => _model.Search.Cancel();", "yes.IsEnabled = !row.Busy;",
             "yes.Click += async (_, _) => await model.ConfirmRemovalAsync(watcher.WatcherId);",
             "BooruWatcherBlock checkBlock = model.CheckBlock(row);", "model.ResumeBlock(row)", "model.PauseBlock(row)",

@@ -3008,6 +3008,7 @@
     "booru.ui.tab.watchers": "Obserwacje ({0})",
     "booru.ui.tab.watchers.one": "Obserwacja ({0})",
     "booru.ui.tab.watchers.few": "Obserwacje ({0})",
+    "booru.tabs.source": "Źródło wyszukiwania",
     "booru.ui.mode.label": "Rodzaj danych",
     "booru.ui.mode.tags": "Wyszukiwanie tagów",
     "booru.ui.mode.post": "Link lub ID postu",

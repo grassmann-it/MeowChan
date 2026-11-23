@@ -226,9 +226,11 @@ internal sealed partial class BooruWorkbenchView
     internal static bool MatchesSearchShortcut(KeyEventArgs e, string command, EffectiveShortcutBindings bindings) =>
         bindings.Matches(e, command, "booru");
 
-    internal bool TryShowQueryInNewTab(string query)
+    internal bool TryShowQueryInNewTab(string query, IBooruSearchPort? source = null)
     {
+        if (source is not null && !_model.Sources.Any(item => ReferenceEquals(item.Search, source))) return false;
         if (!OpenSearchTab(copyCurrent: false)) return false;
+        if (source is not null) SearchTabs.SelectSource(source.ProviderId, source.InstanceId);
         ShowQuery(query);
         return true;
     }
@@ -448,7 +450,7 @@ internal sealed partial class BooruWorkbenchView
 
         BooruSearchModel model = _model.Search;
         BooruBulkView bulk = model.Bulk;
-        bool belongsToTab = bulk.TabId == tabs.ActiveId;
+        bool belongsToTab = bulk.TabId == tabs.ActiveId && bulk.Scope == (view.ProviderId, view.InstanceId);
         bool running = bulk.IsRunning && belongsToTab;
         string downloadIcon = running ? "square" : "download";
         if (IconButtons.KeyOf(_downloadAll) != downloadIcon)

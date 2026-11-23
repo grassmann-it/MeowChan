@@ -3186,6 +3186,7 @@
     "booru.ui.noFilterNote": "結果はDanbooruが指定したタグに対して返したとおりに表示されます。MeowChanは評価フィルターも追加の検索語も加えません。読み込んだオリジナルは通常のダウンロードキューを使います。",
     "booru.ui.tab.search": "検索",
     "booru.ui.tab.watchers": "監視（{0}）",
+    "booru.tabs.source": "検索ソース",
     "booru.ui.mode.label": "入力の種類",
     "booru.ui.mode.tags": "タグ検索",
     "booru.ui.mode.post": "投稿のリンクまたはID",

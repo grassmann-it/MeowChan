@@ -3379,6 +3379,7 @@
     "booru.ui.tab.watchers": "Наблюдатели ({0})",
     "booru.ui.tab.watchers.one": "Наблюдатель ({0})",
     "booru.ui.tab.watchers.few": "Наблюдателя ({0})",
+    "booru.tabs.source": "Источник поиска",
     "booru.ui.mode.label": "Тип ввода",
     "booru.ui.mode.tags": "Поиск по тегам",
     "booru.ui.mode.post": "Ссылка или ID публикации",

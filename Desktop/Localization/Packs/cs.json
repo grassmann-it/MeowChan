@@ -3007,6 +3007,7 @@
     "booru.ui.tab.watchers": "Sledování ({0})",
     "booru.ui.tab.watchers.one": "Sledování ({0})",
     "booru.ui.tab.watchers.few": "Sledování ({0})",
+    "booru.tabs.source": "Zdroj vyhledávání",
     "booru.ui.mode.label": "Typ vstupu",
     "booru.ui.mode.tags": "Hledání podle štítků",
     "booru.ui.mode.post": "Odkaz nebo ID příspěvku",

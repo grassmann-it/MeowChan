@@ -24,7 +24,7 @@ namespace MeowChan.PluginHost.Sources.Booru;
 /// </summary>
 public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
 {
-    private const string SourceId = DanbooruPostReference.ProviderId;
+    private readonly string _sourceId;
 
     private static readonly HashSet<string> UnavailableCodes = new(StringComparer.Ordinal)
     {
@@ -52,17 +52,22 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
     /// <param name="timeProvider">Clock for transient retry times (defaults to the system clock).</param>
     public BooruWatcherSearchPort(BooruSearchService search, BooruHostServices services,
         Func<CancellationToken, Task<IPluginWorkerClient?>> worker, TimeProvider? timeProvider = null)
+        : this(search, services, worker, DanbooruPostReference.ProviderId, timeProvider) { }
+
+    internal BooruWatcherSearchPort(BooruSearchService search, BooruHostServices services,
+        Func<CancellationToken, Task<IPluginWorkerClient?>> worker, string sourceId, TimeProvider? timeProvider)
     {
+        _sourceId = sourceId;
         _search = search ?? throw new ArgumentNullException(nameof(search));
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _worker = worker ?? throw new ArgumentNullException(nameof(worker));
         _time = timeProvider ?? TimeProvider.System;
     }
 
-    int IDanbooruWatcherSearchPort.PageSize => BooruSearchService.SearchLimit;
+    int IDanbooruWatcherSearchPort.PageSize => _search.PageSize(_sourceId);
 
     DateTimeOffset? IDanbooruWatcherSearchPort.GetProviderCooldownUntilUtc() =>
-        _services.TryGetCooldown(SourceId, out DateTimeOffset retryAt) ? retryAt : null;
+        _services.TryGetCooldown(_sourceId, out DateTimeOffset retryAt) ? retryAt : null;
 
     TimeSpan IDanbooruWatcherSearchPort.GetProviderCooldownMaximum() => _services.GetMaximumCooldown();
 
@@ -92,8 +97,8 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
             if (client is null) return new DanbooruWatcherSearchUnavailable("worker_unavailable");
 
             BooruSearchResult result = await (beforePostId is null
-                    ? port._search.SearchAsync(client, SourceId, providerQuery, 1, scope, cancellationToken)
-                    : port._search.SearchBeforeAsync(client, SourceId, providerQuery, beforePostId, scope, cancellationToken))
+                    ? port._search.SearchAsync(client, port._sourceId, providerQuery, 1, scope, cancellationToken)
+                    : port._search.SearchBeforeAsync(client, port._sourceId, providerQuery, beforePostId, scope, cancellationToken))
                 .ConfigureAwait(false);
             switch (result)
             {
@@ -102,7 +107,7 @@ public sealed class BooruWatcherSearchPort : IDanbooruWatcherSearchPort
                     List<BooruPostClaim> claims = new(snapshot.Page.Posts.Count);
                     try
                     {
-                        foreach (BooruPost post in snapshot.Page.Posts) claims.Add(BooruClaimMapper.Map(post));
+                        foreach (BooruPost post in snapshot.Page.Posts) claims.Add(BooruClaimMapper.Map(post, port._sourceId));
                     }
                     catch (Exception exception) when (exception is ArgumentException or InvalidDataException
                         or FormatException or OverflowException)

@@ -42,7 +42,7 @@ public sealed partial class MediaPage
     // "Findings: Found by a search; Found by a watcher ×2". Several claims on one saved file are listed, never merged away.
     private static string? ProviderFindings(BooruCatalogSnapshot? catalog, MediaLibraryEntry entry)
     {
-        if (catalog == null || entry.BooruPostId == null || BooruMediaProjection.Find(catalog, entry.BooruPostId) is not { } details) return null;
+        if (catalog == null || entry.BooruIdentity is not { } identity || BooruMediaProjection.Find(catalog, identity) is not { } details) return null;
         string[] kinds = details.Findings.GroupBy(finding => finding.Kind).OrderBy(group => group.Key)
             .Select(group => BooruMessages.Finding(group.Key) + (group.Count() > 1 ? " ×" + group.Count() : string.Empty)).ToArray();
         return kinds.Length == 0 ? null : Texts.T("booru.media.occurrence.findings", string.Join("; ", kinds));

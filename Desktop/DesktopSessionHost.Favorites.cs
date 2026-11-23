@@ -243,10 +243,10 @@ internal sealed partial class DesktopSessionHost
                     directories.AddRange(archived);
                 }
                 // A downloaded provider post is no archived thread: its folder is the one the catalog linked to its original.
-                if (BooruMediaIdentity.TryGetPostId(group.Key, out string booruPost))
+                if (BooruMediaIdentity.TryGetPostKey(group.Key, out var booruPost))
                 {
                     if (!booruCatalogRead) { booruCatalog = ReadBooruCatalog(); booruCatalogRead = true; }
-                    if (booruCatalog?.TryGetPost(BooruMediaIdentity.Source, booruPost) is { } booruRecord
+                    if (booruCatalog?.TryGetPost(booruPost) is { } booruRecord
                         && BooruMediaProjection.DirectoryOf(booruRecord) is { } booruDirectory)
                         directories.Add(booruDirectory);
                 }

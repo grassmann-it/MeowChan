@@ -13,6 +13,7 @@ using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
+using MeowChan.Booru;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using SkiaSharp;
@@ -81,7 +82,8 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     private readonly ContentControl _right = new() { Name = "BooruGalleryDockRight", IsVisible = false };
     private readonly ContentControl _bottom = new() { Name = "BooruGalleryDockBottom", IsVisible = false };
     private ImmutableArray<BooruResultRowView> _rows = ImmutableArray<BooruResultRowView>.Empty;
-    private string? _currentId;
+    private BooruPostKey? _currentPost;
+    private string? _currentId => _currentPost?.PostId;
     private byte[]? _previewBytes;
     private IImage? _previewBitmap;
     private IImage? _sampleBitmap;
@@ -201,9 +203,9 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
             ResetPost(null);
             return;
         }
-        if (_currentId != postId)
+        if (_currentPost != row.Post.Identity)
         {
-            ResetPost(postId);
+            ResetPost(row.Post.Identity);
             ShowPreview(row);
             _sample.Reset(Samples?.Invoke() != null && row.Post.SampleUrl is not null);
         }
@@ -222,13 +224,13 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         ResetPost(null);
     }
 
-    private void ResetPost(string? postId)
+    private void ResetPost(BooruPostKey? post)
     {
         _sample.Reset(offered: false);
         _requestSample = false;
-        _currentId = postId;
-        _toolbar.IsVisible = postId is not null;
-        if (postId is null)
+        _currentPost = post;
+        _toolbar.IsVisible = post is not null;
+        if (post is null)
         {
             _tags.Present(null);
             _right.IsVisible = false;
@@ -265,7 +267,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
     private void StartSampleIfVisible(BooruResultRowView row)
     {
         if (_requestSample && CanShowSample)
-            _sample.Start(Samples?.Invoke(), row.Post, SampleSettings, SampleDelay, Decode, bitmap => ApplySample(row.Post.PostId, bitmap));
+            _sample.Start(Samples?.Invoke(), row.Post, SampleSettings, SampleDelay, Decode, bitmap => ApplySample(row.Post.Identity, bitmap));
     }
 
     private (IImage? Bitmap, BooruGallerySampleState State) Decode(byte[] bytes, int width, int maximumPixels)
@@ -275,9 +277,9 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
         return (bitmap, bitmap is null ? BooruGallerySampleState.Failed : BooruGallerySampleState.Shown);
     }
 
-    private bool ApplySample(string postId, IImage? bitmap)
+    private bool ApplySample(BooruPostKey identity, IImage? bitmap)
     {
-        if (_disposed || !CanShowSample || _currentId != postId) return false;
+        if (_disposed || !CanShowSample || _currentPost != identity) return false;
         if (bitmap is not null)
         {
             _image.Source = bitmap;
@@ -287,7 +289,7 @@ internal sealed partial class BooruGalleryPanel : Border, IDisposable
             Release(_previewBitmap);
             _previewBitmap = null;
         }
-        if (_rows.FirstOrDefault(row => row.Post.PostId == postId) is { } row) Render(row);
+        if (_rows.FirstOrDefault(row => row.Post.Identity == identity) is { } row) Render(row);
         return true;
     }
 

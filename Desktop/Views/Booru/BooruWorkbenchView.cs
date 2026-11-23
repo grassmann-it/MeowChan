@@ -167,7 +167,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Content = buildLayout is null ? BuildLayout(Header, Body, Footer) : buildLayout(Header, Body, Footer);
 
         _model.Search.Changed += OnModelChanged;
-        _model.Watchers.Changed += OnModelChanged;
+        _model.WatchersChanged += OnModelChanged;
         Texts.Changed += OnTextsChanged;
         ShortcutService.Changed += OnModelChanged;
         _clock.Tick += OnClockTick;
@@ -181,7 +181,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     internal Control Footer { get; }
     internal string TitleText => _title.Text ?? string.Empty;
     internal event Action? ChromeChanged;
-    internal bool IsModeDropDownOpen => _mode.IsDropDownOpen;
+    internal bool IsModeDropDownOpen => _mode.IsDropDownOpen || _sourcePicker.IsDropDownOpen;
 
     // An unframed embedded host gets the same content, without dialog/window chrome or a Close action.
     private static Control BuildLayout(Control header, Control body, Control footer)
@@ -375,6 +375,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         AutomationProperties.SetLiveSetting(_noticeText, AutomationLiveSetting.Polite);
 
         StackPanel tab = new() { Spacing = 12, Margin = new Thickness(0, 12, 0, 0) };
+        tab.Children.Add(BuildSourcePicker());
         tab.Children.Add(searchToolbar);
         AutomationProperties.SetLiveSetting(_inputIssue, AutomationLiveSetting.Polite);
         tab.Children.Add(_inputIssue);
@@ -523,6 +524,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ComboBoxItem selected = modes[view.Mode == BooruInputMode.Post ? 1 : 0];
         if (!ReferenceEquals(_mode.SelectedItem, selected)) _mode.SelectedItem = selected;
         AutomationProperties.SetName(_mode, Texts.T("booru.ui.mode.label"));
+        RenderSourcePicker(view);
         if (_input.Text != view.Input) _input.Text = view.Input;
         _input.PlaceholderText = Texts.T(view.Mode == BooruInputMode.Post ? "booru.ui.input.placeholder.post" : "booru.ui.input.placeholder.tags");
         AutomationProperties.SetName(_input, Texts.T("booru.ui.input.label"));
@@ -825,9 +827,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             ? actionName + Environment.NewLine + BooruText.Original(post.OriginalAccess, withdrawn) : actionName));
         ToolTip.SetShowOnDisabled(load, true);
         if (why is not null) AutomationProperties.SetHelpText(load, why);
-        if (cancel) load.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
-        else if (retry) load.Click += async (_, _) => await _model.Search.RetryOriginalAsync(post.PostId);
-        else load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId);
+        if (cancel) load.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId, post.Identity);
+        else if (retry) load.Click += async (_, _) => await _model.Search.RetryOriginalAsync(post.PostId, post.Identity);
+        else load.Click += async (_, _) => await _model.Search.LoadOriginalAsync(post.PostId, post.Identity);
 
         WrapPanel actions = new() { Name = "BooruResultActions:" + post.PostId, Classes = { "workspace-toolbar" } };
         actions.Children.Add(load);
@@ -836,7 +838,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             Button cancelPending = new() { Name = CancelLoadPrefix + post.PostId, Content = Texts.T("booru.ui.cancel") };
             CommandBindings.EnsureIconBeforeText(cancelPending, CardMenuIcons.Cancel);
             AutomationProperties.SetName(cancelPending, $"{Texts.T("booru.ui.cancel")}: {Texts.T("booru.ui.post.title", post.PostId)}");
-            cancelPending.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId);
+            cancelPending.Click += async (_, _) => await _model.Search.CancelOriginalAsync(post.PostId, post.Identity);
             RegisterWorkViewAction(cancelPending, "booru.result.cancel", _resultWorkViewActions);
             actions.Children.Add(cancelPending);
         }
@@ -874,6 +876,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
 
     private Button CreateShowInMediaAction(string name, string accessibleName, string postId)
     {
+        BooruSearchView scope = _model.Search.View;
         Button show = new() { Name = name, Content = Texts.T("booru.ui.result.showInMedia") };
         CommandBindings.EnsureIconBeforeText(show, CommandCatalog.Get("thread.show-in-media").Icon);
         show.Classes.Add("ghost");
@@ -881,7 +884,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         ToolTip.SetTip(show, accessibleName);
         show.Click += async (_, _) =>
         {
-            if (_showInMedia is not { } navigate || !TryBeginLinkAction(out long revision)) return;
+            BooruSearchView current = _model.Search.View;
+            if (current.ProviderId != scope.ProviderId || current.InstanceId != scope.InstanceId
+                || _showInMedia is not { } navigate || !TryBeginLinkAction(out long revision)) return;
             try
             {
                 bool shown = await navigate(postId);
@@ -1327,10 +1332,13 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         if (watcher.LatestPostId is { } latest)
         {
             panel.Children.Add(new TextBlock { Text = Texts.T("booru.ui.watcher.latest", latest), Classes = { "workspace-meta" } });
-            if (_showInMedia != null && _isPostSavedInMedia?.Invoke(latest) == true)
+            BooruSearchView view = _model.Search.View;
+            if (_showInMedia != null && _model.Sources.Any(source => source.Search.ProviderId == view.ProviderId
+                    && source.Search.InstanceId == view.InstanceId) && _isPostSavedInMedia?.Invoke(latest) == true)
                 panel.Children.Add(CreateShowInMediaAction(WatcherShowInMediaPrefix + watcher.WatcherId,
                     Texts.T("booru.ui.watcher.showInMediaFor", latest, watcher.Query), latest));
-            if (BooruPostLinks.TryCanonical(latest, out string latestUrl))
+            if (MeowChan.Booru.BooruPostKey.IsLegacyScope(view.ProviderId, view.InstanceId)
+                && BooruPostLinks.TryCanonical(latest, out string latestUrl))
                 panel.Children.Add(CreateLinkActions(WatcherOpenPrefix + watcher.WatcherId, WatcherCopyPrefix + watcher.WatcherId, latestUrl,
                     Texts.T("booru.ui.watcher.latestOpenFor", latest, watcher.Query), Texts.T("booru.ui.watcher.latestCopyFor", latest, watcher.Query), _watcherWorkViewActions));
         }
@@ -1457,7 +1465,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         Texts.Changed -= OnTextsChanged;
         ShortcutService.Changed -= OnModelChanged;
         _model.Search.Changed -= OnModelChanged;
-        _model.Watchers.Changed -= OnModelChanged;
+        _model.WatchersChanged -= OnModelChanged;
         foreach (CachedBitmap cached in _bitmaps.Values) cached.Bitmap.Dispose();
         _bitmaps.Clear();
         if (_ownsModel) _model.Dispose();

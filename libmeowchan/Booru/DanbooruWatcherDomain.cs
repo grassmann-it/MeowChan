@@ -94,6 +94,7 @@ internal sealed record DanbooruWatcher
     }
 
     internal string WatcherId { get; init; }
+    internal string SourceId { get; init; } = ProviderId;
     internal DanbooruTagQuery Query { get; init; }
     internal string CanonicalQuery => Query.ProviderQuery;
     internal DanbooruWatcherState State { get; init; }
@@ -203,7 +204,7 @@ internal sealed record DanbooruWatcher
         if (watcher.State != DanbooruWatcherState.Checking)
             return Reject(watcher, "check_not_running");
         if (page is null
-            || !string.Equals(page.SourceId, ProviderId, StringComparison.Ordinal)
+            || !string.Equals(page.SourceId, watcher.SourceId, StringComparison.Ordinal)
             || !string.Equals(page.Query, watcher.CanonicalQuery, StringComparison.Ordinal)
             || page.Page != (watcher.Progress.NextPage == 0 ? 1 : watcher.Progress.NextPage))
             return Fail(watcher, "page_binding_mismatch");

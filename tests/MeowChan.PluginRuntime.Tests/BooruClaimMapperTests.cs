@@ -109,6 +109,21 @@ public sealed class BooruClaimMapperTests
     }
 
     [Fact]
+    public void EqualPostIdsKeepTheirBoundSourceAndCannotBeRelabelled()
+    {
+        BooruPost danbooru = new(new("danbooru", "42"), BooruFieldPresence.None);
+        BooruPost fake = danbooru with { Id = new("test-source", "42") };
+
+        BooruPostClaim first = BooruClaimMapper.Map(danbooru);
+        BooruPostClaim second = BooruClaimMapper.Map(fake, "test-source");
+
+        Assert.Equal(first.PostId, second.PostId);
+        Assert.NotEqual(first.Identity, second.Identity);
+        Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(fake));
+        Assert.Throws<InvalidDataException>(() => BooruClaimMapper.Map(danbooru, "test-source"));
+    }
+
+    [Fact]
     public void UsesTheHostBindingForAScopedClaim()
     {
         BooruPost post = new(new BooruPostId("test-source", "42"), BooruFieldPresence.None,

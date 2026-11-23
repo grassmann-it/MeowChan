@@ -2991,6 +2991,7 @@
     "booru.ui.tab.search": "Ricerca",
     "booru.ui.tab.watchers": "Monitoraggi ({0})",
     "booru.ui.tab.watchers.one": "Monitoraggio ({0})",
+    "booru.tabs.source": "Fonte di ricerca",
     "booru.ui.mode.label": "Tipo di input",
     "booru.ui.mode.tags": "Ricerca per tag",
     "booru.ui.mode.post": "Link o ID del post",

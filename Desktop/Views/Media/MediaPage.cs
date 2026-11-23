@@ -815,15 +815,15 @@ public sealed partial class MediaPage : UserControl
     /// <summary>The post address of a provider medium as the catalog states it, validated; null for any other entry.</summary>
     internal Uri? ProviderPostUrl(MediaLibraryEntry entry)
     {
-        if (entry.BooruPostId is not { } postId) return null;
+        if (entry.BooruIdentity is not { } identity) return null;
         BooruPostRecord? record = null;
         // The first read of a large catalog (tens of MiB) is slow: it never happens here, on the UI thread of a menu. Until the
         // background read has finished, the canonical address of the post is used; the catalog only refines it.
         if (_booruCatalogWarm)
-            try { record = ReadBooruCatalog?.Invoke()?.TryGetPost(BooruMediaIdentity.Source, postId); }
+            try { record = ReadBooruCatalog?.Invoke()?.TryGetPost(identity); }
             catch (Exception error) when (error is IOException or InvalidDataException or UnauthorizedAccessException or ObjectDisposedException) { }
         else WarmBooruCatalog();
-        return BooruMediaIdentity.PostUrl(postId, record?.Post.PostUrl);
+        return BooruMediaIdentity.PostUrl(identity, record?.Post.PostUrl);
     }
 
     private volatile bool _booruCatalogWarm;

@@ -46,17 +46,17 @@ public partial class MainWindow
 
     internal bool UseAsBooruSearch(string query) => OpenBooruSearchDraft(query).Opened;
 
-    private (bool Opened, int? Limit) OpenBooruSearchDraft(string query)
+    private (bool Opened, int? Limit) OpenBooruSearchDraft(string query, BooruWorkbenchServices? source = null)
     {
         if (!CanOpenBooru || !NavigateWorkspace(WorkspacePage.Booru) || _booruPage is not { } page)
             return default;
-        return OpenBooruSearchDraft(page, query);
+        return OpenBooruSearchDraft(page, query, source);
     }
 
     // Source tags and addresses hand over an editable query. The user submits it from the workbench.
-    private (bool Opened, int? Limit) OpenBooruSearchDraft(BooruPage page, string query)
+    private (bool Opened, int? Limit) OpenBooruSearchDraft(BooruPage page, string query, BooruWorkbenchServices? source = null)
     {
-        if (!page.View.TryShowQueryInNewTab(query)) return (false, page.View.SearchTabs.Limit);
+        if (!page.View.TryShowQueryInNewTab(query, source?.Search)) return (false, page.View.SearchTabs.Limit);
         Dispatcher.UIThread.Post(() =>
         {
             if (CanOpenBooru && _selectedPage == WorkspacePage.Booru && ReferenceEquals(_booruPage, page)

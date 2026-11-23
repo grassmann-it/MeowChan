@@ -33,14 +33,24 @@ internal sealed record BooruParsedInput(BooruInputKind Kind, string? Canonical =
 /// </summary>
 internal static class BooruInput
 {
-    internal static BooruParsedInput Parse(BooruInputMode mode, string? text)
+    internal static BooruParsedInput Parse(BooruInputMode mode, string? text, string sourceId = DanbooruPostReference.ProviderId)
     {
         if (string.IsNullOrWhiteSpace(text)) return new BooruParsedInput(BooruInputKind.Empty);
         // A full link can never be a tag query (':' and '/' are outside the tag subset), so a pasted
         // post link is recognized in either mode instead of failing with a tag error.
         if (mode == BooruInputMode.Post || text.Contains("://", System.StringComparison.Ordinal))
-            return ParsePost(text);
+            return sourceId == DanbooruPostReference.ProviderId ? ParsePost(text) : ParseScopedPost(text);
         return ParseTags(text);
+    }
+
+    private static BooruParsedInput ParseScopedPost(string text)
+    {
+        string id = text.Trim();
+        if (id.StartsWith('#')) id = id[1..];
+        if (DanbooruPostReference.IsValidPostId(id))
+            return new BooruParsedInput(BooruInputKind.Post, PostId: id);
+        return new BooruParsedInput(BooruInputKind.Invalid,
+            Issue: text.Contains("://", System.StringComparison.Ordinal) ? BooruInputIssue.PostLink : BooruInputIssue.PostId);
     }
 
     private static BooruParsedInput ParsePost(string text)

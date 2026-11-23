@@ -53,13 +53,14 @@ internal sealed class DanbooruWatcherHost : IAsyncDisposable
 
     internal DanbooruWatcherHost(BooruCatalogStore catalog, BooruOriginalQueue originals,
         IDanbooruWatcherSearchPort search, TimeProvider? timeProvider = null,
-        DanbooruWatcherSchedulerOptions? options = null, BooruProducerLifecycle? lifecycle = null)
+        DanbooruWatcherSchedulerOptions? options = null, BooruProducerLifecycle? lifecycle = null,
+        string sourceId = DanbooruWatcher.ProviderId)
     {
         ArgumentNullException.ThrowIfNull(catalog);
         _originals = originals ?? throw new ArgumentNullException(nameof(originals));
         _lifecycle = lifecycle;
         Scheduler = new DanbooruWatcherScheduler(catalog, search,
-            new DanbooruWatcherQueueAdmission(originals, catalog, timeProvider), timeProvider, options, lifecycle);
+            new DanbooruWatcherQueueAdmission(originals, catalog, timeProvider), timeProvider, options, lifecycle, sourceId);
     }
 
     /// <summary>The bindable service surface for the UI (status, check now, pause, resume, remove).</summary>
