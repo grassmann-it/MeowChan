@@ -55,8 +55,8 @@ internal static class ReadingPositionChecks
         Click(page.FindControl<Button>("ArchiveReadPosts")!);
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1000");
         await CheckWheelCaptureBatchAsync(window, page, expectedCaptures: 1);
-        Click(page.FindControl<Button>("NextPostsButton")!);
-        await WaitForAsync(async () => (await ReadPositionAsync(window))?.PostId == "1050");
+        await page.FocusPostAsync("1050");
+        await WaitForAsync(async () => (await ReadPositionAsync(window))?.SelectedPostId == "1050");
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await ReadPositionAsync(window))?.SelectedPostId == "1022");
         LocalReadingPosition? captured = await ReadPositionAsync(window);
@@ -93,7 +93,8 @@ internal static class ReadingPositionChecks
             window.UpdateLayout();
             Program.CaptureWindow(window, "smoke-settings-reading-position-error.png");
             Require(File.Exists(retained), "Failed forgetting destroyed the retained fixture.");
-            FooterNavigationChecks.RequireResumeAction(window);
+            // Failed deletion preserves the history, which keeps the book available.
+            FooterNavigationChecks.RequireResumeAction(window, expectedVisible: true);
         }
         finally { Directory.Delete(positionFile); File.Move(retained, positionFile); }
         Click(window.SettingsEditor.FindControl<Button>("ForgetReadingPositionButton")!);
@@ -136,26 +137,23 @@ internal static class ReadingPositionChecks
         await Program.WaitUntilAsync(() => reader.IsVisible && SelectedPost(page) == "1022");
         await commands.WaitAsync();
         delayedResume = window.ResumeLastReadingAsync();
-        Require(delayedResume.IsCompletedSuccessfully, "Continue reading should be unavailable while already reading.");
-        Func<bool>? pagedReaderUnchanged = null;
+        Func<bool>? readerUnchanged = null;
         try
         {
-            Click(page.FindControl<Button>("NextPostsButton")!);
-            await Program.WaitUntilAsync(() => page.FindControl<ListBox>("ArchivePosts")!.ItemsSource is IEnumerable<ArchivePostRow> rows
-                && rows.FirstOrDefault()?.Id == "1050");
-            pagedReaderUnchanged = page.CaptureReadingRequestGuard();
+            Require(!delayedResume.IsCompleted, "The reader-scope resume must wait for the held profile read.");
+            await page.FocusPostAsync("1050");
+            readerUnchanged = page.CaptureReadingRequestGuard();
         }
         finally { commands.Release(); }
         await delayedResume;
         await WaitForAsync(async () =>
         {
             LocalReadingPosition? position = await ReadPositionAsync(window);
-            return int.TryParse(position?.PostId, out int post) && post is >= 1050 and <= 1054;
+            return position?.SelectedPostId == "1050";
         });
-        Require(pagedReaderUnchanged?.Invoke() == true, "The reader-scope resume changed the newly chosen page.");
-        Require(reader.IsVisible && page.FindControl<ListBox>("ArchivePosts")!.ItemsSource is IEnumerable<ArchivePostRow> pagedRows
-            && pagedRows.FirstOrDefault()?.Id == "1050", "A reader-scope resume replaced a newer reader page.");
-        Program.CaptureWindow(window, "smoke-reading-position-reader-scope-pagination.png");
+        Require(readerUnchanged?.Invoke() == true, "The reader-scope resume changed the newly chosen post.");
+        Require(reader.IsVisible && SelectedPost(page) == "1050", "A reader-scope resume replaced a newer reader position.");
+        Program.CaptureWindow(window, "smoke-reading-position-reader-scope-position.png");
         await page.FocusPostAsync("1022");
         await WaitForAsync(async () => (await ReadPositionAsync(window))?.SelectedPostId == "1022");
         await ReaderLiveChecks.RunAsync(window);
@@ -418,7 +416,7 @@ internal static class ReadingPositionChecks
 
     // The shell reads the position through the same host action for its own resume state, and the host
     // refuses a second concurrent read by design (DesktopSessionBusyException). Wait until it is admitted.
-    private static async Task<LocalReadingPosition?> ReadPositionAsync(MainWindow window)
+    internal static async Task<LocalReadingPosition?> ReadPositionAsync(MainWindow window)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(15);
         while (true)

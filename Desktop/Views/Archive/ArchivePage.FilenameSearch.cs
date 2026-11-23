@@ -156,6 +156,7 @@ public partial class ArchivePage
             return; // No first-post fallback, selection mutation, gallery, or path/URL reconstruction.
         }
         await LoadThreadAsync(hit.Thread, true, view, null, operation);
+        await AwaitProjectionAsync();
         if (FilenameSearchMayReturn(operation) && ReferenceEquals(_thread, view)) ShowPost(hit.Post, operation);
     }
 

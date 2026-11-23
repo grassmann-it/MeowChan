@@ -348,24 +348,20 @@ public partial class ArchivePage
             ScrollViewer.SetBringIntoViewOnFocusChange(presenter, false);
     }
     internal bool ReaderShowsPosts => _showReader && ArchiveContentTabs.SelectedIndex == 0;
-    // The Media tab is shown: the posts list is not on screen, but paging and the post keys still move through the posts (the current post, the page,
-    // the reading position); the tab and the focus stay where they are, and the list is aligned to the current post when the user switches back.
+    // The post keys move through the list behind Media. The tab and its focus stay put until Posts is shown again.
     internal bool ReaderPostsInBackground => _showReader && ArchiveContentTabs.SelectedIndex == 1;
-    /// <summary>The reader's current post (the identity the position, the counters and the next step start from); null without a page of posts.</summary>
+    /// <summary>The reader's current post (the identity the position, the counters and the next step start from); null without posts.</summary>
     internal string? CurrentReaderPostId => _readerPostId;
-    // The post the posts list has to be aligned to on its next appearance (a background move selected it while the list was hidden).
-    private string? _postsAlignOnShow;
+    private ReaderAnchor? _postsAnchorOnShow;
     private void AlignPostsOnShow()
     {
-        if (_postsAlignOnShow is not { } post || _ended || !ReaderShowsPosts) return;
-        _postsAlignOnShow = null;
+        if (_postsAnchorOnShow is not { } anchor || _ended || !ReaderShowsPosts) return;
         int request = _readerFocusRequest;
         Dispatcher.UIThread.Post(() =>
         {
-            // The same alignment as a jump, without taking the focus from the tab header the user just used. A jump of any kind in between
-            // (it bumps the request) has its own target and wins.
-            if (!_ended && ReaderShowsPosts && request == _readerFocusRequest && _thread?.FindPostIndex(post) >= 0)
-                OpenActions.Start(() => FocusPostAsync(post, null, restoreFocus: false), "archive.reader.alignPosts");
+            if (_ended || !ReaderShowsPosts || request != _readerFocusRequest || !ReferenceEquals(anchor, _postsAnchorOnShow)) return;
+            _postsAnchorOnShow = null;
+            OpenActions.Start(() => RestoreReaderAnchorAsync(anchor, restoreFocus: false), "archive.reader.alignPosts");
         }, DispatcherPriority.Loaded);
     }
     internal Action<Control?>? OpenReaderRequested { get; set; }
@@ -505,7 +501,7 @@ public partial class ArchivePage
         ReaderFocusIntent? focusIntent = null, bool passiveOpen = false, Func<bool>? stillRequested = null)
     {
         // A live continuation can already be stale before its first dispatcher
-        // yield. Validate before ShowPost changes the page or selection.
+        // yield. Validate before ShowPost changes the tab or selection.
         if (_ended || IsFilenameSearchOpen || stillRequested?.Invoke() == false || _thread?.FindPostIndex(postId) is not >= 0
             || (interactionRevision.HasValue && interactionRevision != _readerInteractionRevision)) return;
         if (_projectionReady is { } preparing)
@@ -554,7 +550,7 @@ public partial class ArchivePage
         // replace an estimate on the next layout; retry only while the request
         // remains current, and correct offsets only after layout has settled.
         // A position that is already right is confirmed by one more layout: the neighbours realized around a
-        // freshly scrolled-to target (a new page, the last item of a list) can still move it afterwards.
+        // freshly scrolled-to target (a rebuilt view, the last item of a list) can still move it afterwards.
         bool confirmed = false;
         double? requestedOffset = null;
         ArchivePostRow? targetRow = null;
@@ -588,7 +584,7 @@ public partial class ArchivePage
             if (pass > 0 && syncPasses == 0) await Dispatcher.UIThread.InvokeAsync(() => { }, DispatcherPriority.Loaded);
             else if (syncPasses > 0) --syncPasses;
             if (!IsCurrent()) return;
-            ArchivePostRow? row = posts.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(post => post.Id == postId);
+            ArchivePostRow? row = FindPostRow(postId);
             if (row == null) return;
             targetRow = row;
             ++_readerLayoutRevision;
@@ -603,7 +599,7 @@ public partial class ArchivePage
             requestedOffset = null;
             // A target already realized near the viewport (the neighbour of a keyboard step) is aligned from where it really is: the
             // virtualizer's ScrollIntoView would first move it by estimated heights (off the viewport and back on a step up).
-            if ((pass == 0 && !RealizedNearViewport(posts, row)) || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(row);
+            if ((pass == 0 && !RealizedNearViewport(posts, row)) || offsetLost || posts.ContainerFromItem(row) == null) posts.ScrollIntoView(posts.SelectedIndex);
             posts.UpdateLayout();
             if (posts.ContainerFromItem(row) is not Control container) continue;
             FocusTarget(container);
@@ -638,7 +634,7 @@ public partial class ArchivePage
         if (!IsCurrent()) return;
         Finish(targetRow != null ? posts.ContainerFromItem(targetRow) as Control : null);
     }
-    // The data side of a post jump, for a list that is not on screen (the Media tab is shown): the page, the selected and current post, the reading position
+    // The data side of a post jump, for a list that is not on screen (the Media tab is shown): the selected and current post, the reading position
     // and the navigation state follow exactly as for FocusPostAsync; the layout passes and the focus do not (nothing is realized), and the list is aligned to the
     // post when the Posts tab is shown again (AlignPostsOnShow).
     private async Task MoveReaderPostInBackgroundAsync(string postId)
@@ -665,7 +661,7 @@ public partial class ArchivePage
         ++_readerFocusRequest; // supersedes a jump or a passive focus that is still settling
         ShowPost(postId, null, reveal: false, scroll: false, background: true);
         _readerPostId = postId;
-        _postsAlignOnShow = postId;
+        _postsAnchorOnShow = new ReaderAnchor(_thread!.Summary.Id, postId, 0, postId);
         UpdateReaderNavigation();
         ReaderPositionChanged(deliberate: true);
     }
@@ -708,19 +704,17 @@ public partial class ArchivePage
         catch (Exception exception) { if (_largeReader && request == _readerScopeRequest) Message(exception.Message, true); }
     }
 
-    // The position of the reader's current post in the shown order (the thread index under the identity).
-    private int ReaderPostIndex
+    private ArchivePostRow? FindPostRow(string? postId)
     {
-        get
-        {
-            if (_thread == null || Projection is not { } shown) return -1;
-            string? selected = (ArchivePosts.SelectedItem as ArchivePostRow)?.Id;
-            int retained = _readerPostId == null ? -1 : shown.PositionOf(_readerPostId);
-            return shown.PositionOf(selected
-                ?? (retained >= _postOffset && retained < _postOffset + ReaderPageSize ? _readerPostId : null)
-                ?? (_postOffset < shown.Count ? shown[_postOffset].Post.PostId : null) ?? string.Empty);
-        }
+        if (postId == null || Projection is not { } shown) return null;
+        int index = shown.PositionOf(postId);
+        return index >= 0 && index < ArchivePosts.ItemCount && ArchivePosts.Items[index] is ArchivePostRow row && row.Id == postId
+            ? row : null;
     }
+
+    // The position of the current post in the shown order.
+    private int ReaderPostIndex => ArchivePosts.SelectedIndex is >= 0 and var selected
+        ? selected : Projection is { Count: > 0 } shown && _readerPostId is { } retained ? shown.PositionOf(retained) : -1;
     private int ReaderThreadIndex => _thread == null ? -1 : Array.IndexOf(_readerThreads.ToArray(), _thread.Summary.Id);
 
     private void UpdateReaderNavigation()
@@ -781,14 +775,14 @@ public partial class ArchivePage
         bool compact = ReaderNavigationLayout.IsCompact(surface.Bounds.Width, _readerNavigationShowPosition);
         ReaderThreadPosition.IsVisible = ReaderPostPosition.IsVisible = !compact;
         ReaderThreadGroup.Spacing = ReaderPostGroup.Spacing = compact ? 2 : 0;
-        Control footer = tabs.SelectedIndex switch
+        Control? footer = tabs.SelectedIndex switch
         {
             1 => ArchiveMediaFooter,
             2 => ArchiveReferencesNavigation,
-            _ => ArchivePostNavigation
+            _ => null
         };
         double bottom = 16;
-        if (footer.IsEffectivelyVisible && footer.TranslatePoint(default, surface) is Point position)
+        if (footer is { IsEffectivelyVisible: true } && footer.TranslatePoint(default, surface) is Point position)
             bottom = Math.Max(bottom, surface.Bounds.Height - position.Y + 8);
         ReaderNavigation.Margin = new Thickness(0, 0, ReaderNavigationLayout.RightInset, bottom);
     }
@@ -1040,33 +1034,22 @@ public partial class ArchivePage
         return true;
     }
 
-    // The results-page gesture (Alt+PageUp/PageDown, Option-Command-arrows on macOS) also pages the thread's posts and the
-    // backlinks inside the reader: pagination.previous/next share it and never apply where the results list has the focus.
-    // It is decided from state (the selected tab, the offsets, the counts), never from whether a pager button is visible:
-    // a collapsed pager row, a work view or another layout hides the buttons, not the command.
+    // The shared paging shortcut still applies when the References tab shows backlinks.
     private bool TryPageByShortcut(KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing || _busy || _thread == null) return false;
+        if (e.Handled || ShortcutService.IsCapturing || ArchiveContentTabs.SelectedItem != ArchiveReferencesTab) return false;
         bool previous = ShortcutService.Current.Matches(e, "pagination.previous");
         if (!previous && !ShortcutService.Current.Matches(e, "pagination.next")) return false;
         bool readReady = CanRead && !_busy && !_ended && !IsFilenameSearchOpen;
-        ReaderPageTarget target = ReaderPaging.Target(previous, ArchiveContentTabs.SelectedItem == ArchiveReferencesTab,
-            readReady, _thread != null, _postOffset, ReaderPageSize, ShownPostCount, _backlinkPost != null, _referenceOffset, _referenceTotal, PageSize);
-        if (target == ReaderPageTarget.None) return false;
+        if (!ReaderPaging.CanPageReferences(previous, readReady, _thread != null, _backlinkPost != null,
+            _referenceOffset, _referenceTotal, PageSize)) return false;
         e.Handled = true;
         RoutedEventArgs click = new(Button.ClickEvent);
-        if (target == ReaderPageTarget.References) { if (previous) OnPreviousReferences(this, click); else OnNextReferences(this, click); }
-        else if (previous) OnPreviousPosts(this, click);
-        else OnNextPosts(this, click);
+        if (previous) OnPreviousReferences(this, click); else OnNextReferences(this, click);
         return true;
     }
 
-    // The inline reader (and the beside-the-list preview) has no reader tunnel: the paging gesture is one tunnel handler on the content tabs, so it
-    // reaches the posts list, the Media tile list and table and the References before their own key handling. A focused tile or row would
-    // otherwise consume Alt+PageUp/PageDown (a ListBox and a DataGrid take PageUp/PageDown whatever the modifier). Paging is a reader command, not a
-    // list key, as in the large reader (whose pane tunnel pages first); the keys the lists need (arrows, Home/End, plain and Shift/Ctrl PageUp/PageDown,
-    // Space/Enter, Select All) are not among its default gestures. Native editors keep their keys (the media sort, the page-size field).
-    private void InitializePostPageKeys() =>
+    private void InitializeReferencePageKeys() =>
         ArchiveContentTabs.AddHandler(KeyDownEvent, (_, e) =>
         {
             if (!_largeReader && !IsReaderDialogOpen && !KeyBelongsToNativeEditor(e)) TryPageByShortcut(e);
@@ -1400,25 +1383,26 @@ public partial class ArchivePage
         if (_thread == null) return null;
         ListBox list = ArchivePosts;
         string? selected = (list.SelectedItem as ArchivePostRow)?.Id;
-        // The realized cards keep their scroll position behind another tab (Media, References) and stay the anchor there. They are stale only after
-        // a background step or page is waiting for alignment (_postsAlignOnShow): then the anchor is the selected post or the page's first. A card
-        // whose row is not in the current ItemsSource belongs to a page that was replaced behind the tab and is never the anchor.
-        IEnumerable<ArchivePostRow>? current = list.ItemsSource as IEnumerable<ArchivePostRow>;
-        var visible = _postsAlignOnShow != null ? default : list.GetVisualDescendants().OfType<ListBoxItem>()
+        // A post step behind another tab takes precedence over the old realization until Posts is shown again.
+        if (_postsAnchorOnShow is { } pending && pending.Thread == _thread.Summary.Id) return pending;
+        var visible = list.GetRealizedContainers()
             .Select(item => (Item: item, Top: item.TranslatePoint(default, list)?.Y ?? double.NaN))
-            .Where(item => item.Item.DataContext is ArchivePostRow candidate && current?.Contains(candidate) == true
+            .Where(item => item.Item.DataContext is ArchivePostRow candidate && ReferenceEquals(FindPostRow(candidate.Id), candidate)
                 && item.Top < list.Bounds.Height && item.Top + item.Item.Bounds.Height > 0)
             .OrderBy(item => item.Top).FirstOrDefault();
         if (visible.Item?.DataContext is ArchivePostRow row)
             return new ReaderAnchor(_thread.Summary.Id, row.Id, visible.Top, selected);
-        string? post = (list.SelectedItem as ArchivePostRow)?.Id
-            ?? (Projection is { } shown ? (_postOffset < shown.Count ? shown[_postOffset].Post.PostId : null)
-                : _thread.GetPosts(_postOffset, 1).FirstOrDefault()?.PostId);
+        string? post = selected ?? _projectionSelectionPost ?? (Projection switch
+        {
+            { Count: > 0 } shown => shown[0].Post.PostId,
+            null when _thread.PostCount > 0 => _thread.Posts[0].PostId,
+            _ => null
+        });
         return post == null ? null : new ReaderAnchor(_thread.Summary.Id, post, 0, selected);
     }
 
     private async Task RestoreReaderAnchorAsync(ReaderAnchor anchor, bool restoreFocus = true,
-        ReaderFocusIntent? focusIntent = null, Func<bool>? stillRequested = null, Action? onRestored = null)
+        ReaderFocusIntent? focusIntent = null, Func<bool>? stillRequested = null, Action? onRestored = null, bool preserveTab = false)
     {
         if (_ended || stillRequested?.Invoke() == false || _thread?.Summary.Id != anchor.Thread) return;
         if (_projectionReady is { } preparing)
@@ -1430,9 +1414,15 @@ public partial class ArchivePage
         ReaderPostProjection? shown = Projection;
         if (_thread.FindPostIndex(anchor.PostId) < 0)
         {
-            string? fallback = shown is { Count: > 0 } ? shown[Math.Min(_postOffset, shown.Count - 1)].Post.PostId : null;
+            string? fallback = shown is { Count: > 0 } ? shown[0].Post.PostId : null;
             Message(Texts.T(fallback != null ? "reader.anchorUnavailable" : _thread.PostCount == 0 ? "archive.noPosts" : "reader.view.empty"));
-            if (fallback != null) await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus, focusIntent, stillRequested: stillRequested);
+            if (fallback == null) return;
+            if (preserveTab && ArchiveContentTabs.SelectedIndex != 0)
+            {
+                ArchivePosts.SelectedIndex = 0;
+                _postsAnchorOnShow = new ReaderAnchor(anchor.Thread, fallback, 0, fallback);
+            }
+            else await FocusPostAsync(fallback, _readerInteractionRevision, restoreFocus, focusIntent, stillRequested: stillRequested);
             return;
         }
         // A retained place in a post this view hides moves to the nearest shown post (it is no explicit jump).
@@ -1442,21 +1432,17 @@ public partial class ArchivePage
             if (nearest < 0) return;
             anchor = anchor with { PostId = shown[nearest].Post.PostId };
         }
+        if (preserveTab && ArchiveContentTabs.SelectedIndex != 0)
+        {
+            if ((FindPostRow(anchor.SelectedPostId) ?? FindPostRow(anchor.PostId)) is { } selected)
+                ArchivePosts.SelectedItem = selected;
+            _postsAnchorOnShow = anchor;
+            return;
+        }
         int request = _contentRequest;
         int interactionRevision = _readerInteractionRevision;
         int focusRequest = _readerFocusRequest + 1;
         ListBox list = ArchivePosts;
-        // RenderThread replaced the virtualizing panel. Realize its new index
-        // space from the origin before ScrollIntoView uses the retained target;
-        // the predecessor's offset can otherwise leave negative item positions
-        // at offset zero, where the final anchor delta cannot be applied.
-        ScrollViewer? initialScroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-        ++_readerLayoutRevision;
-        if (initialScroll != null) initialScroll.Offset = new Vector(initialScroll.Offset.X, 0);
-        list.UpdateLayout();
-        if (_ended || request != _contentRequest || focusRequest != _readerFocusRequest + 1
-            || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread
-            || stillRequested?.Invoke() == false) return;
         await FocusPostAsync(anchor.PostId, interactionRevision, restoreFocus, focusIntent, stillRequested: stillRequested);
         await Dispatcher.UIThread.InvokeAsync(() =>
         {
@@ -1464,13 +1450,13 @@ public partial class ArchivePage
                 || interactionRevision != _readerInteractionRevision || _thread?.Summary.Id != anchor.Thread
                 || stillRequested?.Invoke() == false) return;
             ++_readerLayoutRevision;
-            if (anchor.SelectedPostId != null && list.ItemsSource is IEnumerable<ArchivePostRow> rows)
+            if (FindPostRow(anchor.SelectedPostId) is { } selected)
             {
-                ArchivePostRow? selected = rows.FirstOrDefault(row => row.Id == anchor.SelectedPostId);
-                if (selected != null) { list.SelectedItem = selected; _readerPostId = selected.Id; }
+                list.SelectedItem = selected;
+                _readerPostId = selected.Id;
             }
             ScrollViewer? scroll = list.GetVisualDescendants().OfType<ScrollViewer>().FirstOrDefault();
-            ArchivePostRow? anchored = list.ItemsSource?.Cast<ArchivePostRow>().FirstOrDefault(row => row.Id == anchor.PostId);
+            ArchivePostRow? anchored = FindPostRow(anchor.PostId);
             if (scroll != null && anchored != null && list.ContainerFromItem(anchored) is Control container
                 && container.TranslatePoint(default, list) is Point position)
                 scroll.Offset = new Vector(scroll.Offset.X, Math.Max(0, scroll.Offset.Y + position.Y - anchor.Top));

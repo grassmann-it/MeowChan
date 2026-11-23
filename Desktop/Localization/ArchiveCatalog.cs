@@ -227,7 +227,7 @@ internal static class ArchiveCatalog
         ("archive.previous", "Previous", "Zurück"),
         ("archive.next", "Next", "Weiter"),
         ("archive.back", "Back to thread list", "Zurück zur Threadliste"),
-        ("archive.page", "{0}–{1} of {2}", "{0}–{1} von {2}"),
+        ("archive.itemRange", "{0}–{1} of {2}", "{0}–{1} von {2}"),
         ("archive.posts", "Posts", "Posts"),
         ("archive.media", "Saved media", "Gespeicherte Medien"),
         ("archive.postsCount", "{0} captured posts", "{0} erfasste Posts"),

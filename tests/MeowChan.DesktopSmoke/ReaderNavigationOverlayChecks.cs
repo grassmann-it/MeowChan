@@ -161,7 +161,7 @@ internal static class ReaderNavigationOverlayChecks
                 window.UpdateLayout();
             }, exception => Console.Error.WriteLine("SMOKE cleanup failed in ReaderNavigationOverlayChecks: " + exception));
         }
-        Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar/pagebar spacing, controlled toolbar wrapping with visible history label, the 40 dip navigation bar (arrow row, counters, compact form below 700 dip, whole-capsule hit-test, Auto/Always/Off) and adjacent centered pagination, four accessible commands, retained secondary tabs and dialog hit-test passed.");
+        Console.WriteLine("SMOKE reader navigation overlay: 24 EN/DE, Dark/Light, large and B/S/A minimum geometries plus both adaptive threshold edges and 12 explicit secondary-tab states; full-width, full-height overlaid viewport, idle auto-hide and show-on-move, scrollbar spacing, controlled toolbar wrapping with visible history label, the 40 dip navigation bar (arrow row, counters, compact form below 700 dip, whole-capsule hit-test, Auto/Always/Off), four accessible commands, retained secondary tabs and dialog hit-test passed.");
     }
 
     // Idle auto-hide (mode Auto): any pointer movement over the reader, the pointer over or near the bar, keyboard focus in it and a
@@ -495,30 +495,28 @@ internal static class ReaderNavigationOverlayChecks
         window.UpdateLayout(); window.UpdateLayout();
         Rect pad = Bounds(navigation, window);
         Rect surface = Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window);
-        Rect pageBar = Bounds(page.FindControl<Grid>("ArchivePostNavigation")!, window);
+        Require(page.FindControl<Grid>("ArchivePostNavigation") == null, "A pagination row still takes space from Posts.");
         Console.WriteLine("SMOKE reader navigation precondition: " + System.Text.Json.JsonSerializer.Serialize(new
         {
             mode = window.SessionHost.Config.WorkspaceMode, language = Texts.Language,
             theme = Application.Current!.RequestedThemeVariant?.ToString(), scale = window.RenderScaling,
             client = window.ClientSize.ToString(), navigation.IsVisible, navigation.IsEffectivelyVisible,
             navigation.IsMeasureValid, navigation.IsArrangeValid, localBounds = navigation.Bounds.ToString(),
-            pad = pad.ToString(), surface = surface.ToString(), pagebar = pageBar.ToString(),
+            pad = pad.ToString(), surface = surface.ToString(),
             arrows = new[] { "ReaderPreviousPost", "ReaderNextPost", "ReaderPreviousThread", "ReaderNextThread" }
                 .Select(name => new { name, bounds = Bounds(page.FindControl<Button>(name)!, window).ToString() }).ToArray()
         }));
         Require(page.FindControl<WrapPanel>("ReaderStatusLine")!.IsEffectivelyVisible,
             "The posts tab lost its reader status line.");
-        // NAVBAR-01: a 40 dip high capsule, at most 320 dip wide, inset at the lower right just above the page bar.
+        // NAVBAR-01: a 40 dip high capsule, at most 320 dip wide, inset at the lower right just inside the viewport.
         // One device pixel of tolerance for the border's layout rounding.
         double devicePixelDip = 1 / window.RenderScaling;
         Require(navigation.IsEffectivelyVisible && Math.Abs(pad.Height - ReaderNavigationLayout.BarHeight) <= devicePixelDip + 1e-6
             && pad.Width <= ReaderNavigationLayout.BarMaxWidth + devicePixelDip && pad.Width >= 100,
             "NAVBAR-01: the reader navigation is no longer a compact visible bar of 40 dip height and at most 320 dip width: " + pad);
-        Require(pad.Right <= surface.Right - 20 && pad.Bottom <= pageBar.Top - 7
-            && pad.Bottom >= pageBar.Top - 10 && pad.Top >= surface.Top,
-            "NAVBAR-01: the reader navigation is not inset at the lower right above the page bar: " + pad + " in " + surface + ", page bar " + pageBar);
+        Require(pad.Right <= surface.Right - 20 && Math.Abs(pad.Bottom - (surface.Bottom - 16)) <= 1 && pad.Top >= surface.Top,
+            "NAVBAR-01: the reader navigation is not inset at the lower right of the surface: " + pad + " in " + surface);
         CheckBarGeometry(window, page, pad, surface);
-        CheckPaginationGeometry(window, page, pageBar);
         ActionToolBar toolbar = page.FindControl<ActionToolBar>("ReaderToolbar")!;
         CheckToolbarGeometry(window, page, toolbar);
         ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
@@ -533,7 +531,7 @@ internal static class ReaderNavigationOverlayChecks
         Require(posts.Margin == default && Math.Abs(postBounds.Right - Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window).Right) <= 1
             && postBounds.Intersect(pad).Height > 0 && postBounds.Intersect(pad).Width > 0,
             "Navigation is not an overlay inside the full-width, full-height thread viewport.");
-        Console.WriteLine($"SMOKE reader navigation geometry: mode={window.SessionHost.Config.WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; pagebar={pageBar}; reservation={posts.Margin}.");
+        Console.WriteLine($"SMOKE reader navigation geometry: mode={window.SessionHost.Config.WorkspaceMode}; language={Texts.Language}; theme={Application.Current!.RequestedThemeVariant}; client={window.ClientSize}; scale={window.RenderScaling}; toolbar={toolbar.Bounds.Height}; viewport={scroll.Viewport}; posts={postBounds}; pad={pad}; reservation={posts.Margin}.");
         foreach (ScrollBar bar in posts.GetVisualDescendants().OfType<ScrollBar>()
             .Where(bar => bar.IsEffectivelyVisible && bar.Orientation == Orientation.Vertical && bar.Bounds.Width > 0))
             Require(Separated(Bounds(bar, window), pad, 4),
@@ -825,34 +823,6 @@ internal static class ReaderNavigationOverlayChecks
             bar = pad.ToString(), arrows = arrows.Select(arrow => arrow.ToString()).ToArray(),
             counters = new[] { threadCounter.Text, postCounter.Text }
         }));
-    }
-
-    private static void CheckPaginationGeometry(MainWindow window, ArchivePage page, Rect pageBar)
-    {
-        Button previous = page.FindControl<Button>("PreviousPostsButton")!;
-        Button next = page.FindControl<Button>("NextPostsButton")!;
-        TextBlock label = page.FindControl<TextBlock>("ArchivePostPage")!;
-        Rect before = Bounds(previous, window), after = Bounds(next, window), text = Bounds(label, window);
-        Rect available = Bounds((Control)page.FindControl<Grid>("ArchivePostNavigation")!.Parent!, window);
-        Console.WriteLine("SMOKE reader navigation pagination: " + System.Text.Json.JsonSerializer.Serialize(new
-        {
-            previous = before.ToString(), range = text.ToString(), next = after.ToString(),
-            group = pageBar.ToString(), available = available.ToString(), label = label.Text
-        }));
-        Require(previous.IsEffectivelyVisible && next.IsEffectivelyVisible && label.IsEffectivelyVisible
-            && !string.IsNullOrWhiteSpace(label.Text) && text.Width > 0,
-            "Reader pagination lost its visible arrows or range label.");
-        Require(Math.Abs(text.Left - before.Right - 8) <= 1
-            && Math.Abs(after.Left - text.Right - 8) <= 1
-            && Math.Abs(before.Center.Y - text.Center.Y) <= 1
-            && Math.Abs(after.Center.Y - text.Center.Y) <= 1,
-            "Reader page arrows are not immediately beside and aligned with the range label.");
-        // Diagnostic06 measured only a 5.68e-14-DIP floating-point remainder at the right edge.
-        Require(Math.Abs(text.Center.X - pageBar.Center.X) <= 1
-            && Math.Abs(pageBar.Center.X - available.Center.X) <= 1
-            && before.Left >= pageBar.Left - GeometryEpsilonDip
-            && after.Right <= pageBar.Right + GeometryEpsilonDip,
-            "Reader pagination is not a centered, contained group.");
     }
 
     private static Rect Bounds(Control control, Visual root) => new(control.TranslatePoint(default, root)

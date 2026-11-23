@@ -24,18 +24,18 @@ namespace MeowChan.DesktopTests;
 [Collection("Gallery viewer construction")]
 public sealed class ReaderEntryTests
 {
-    private const int Posts = 130; // three pages of the default reader page size
+    private const int Posts = 130;
 
     // ---- AR-01: enlarging keeps the place, opening another thread starts at the top, neither writes a reading position ----
 
     [Fact]
-    public async Task EnlargingTheShownThreadKeepsItsPageAndPostAndWritesNoReadingPosition()
+    public async Task EnlargingTheShownThreadKeepsItsPostAndWritesNoReadingPosition()
     {
         ArchivedThreadView view = await SeedAsync("1000");
         WithPage(page =>
         {
             Assert.True(page.LoadThreadAsync(view.Summary.Id, true, view).IsCompletedSuccessfully);
-            Show(page, view, 50, "p055");
+            Show(page, view, "p055");
             Assert.Equal("p055", page.CurrentReaderPostId);
             AddHistoryEntry(page, view);
             Assert.True(page.CanGoHistoryBack);
@@ -47,7 +47,7 @@ public sealed class ReaderEntryTests
             Pump(open);
 
             Assert.NotNull(pane);
-            Assert.Equal(50, PostOffset(page));
+            Assert.Equal(Posts, page.FindControl<ListBox>("ArchivePosts")!.ItemCount);
             Assert.Equal("p055", page.CurrentReaderPostId);
             Assert.Equal("p055", Assert.IsType<ArchivePostRow>(page.FindControl<ListBox>("ArchivePosts")!.SelectedItem).Id);
             Assert.True(page.CanGoHistoryBack, "enlarging is no jump to another thread: the way back to the last read place stays");
@@ -65,7 +65,7 @@ public sealed class ReaderEntryTests
                 ? new LocalReadingPosition(id.Source, id.Board, id.Thread!, "p077", 12, null)
                 : null;
             Assert.True(page.LoadThreadAsync(shown.Summary.Id, true, shown).IsCompletedSuccessfully);
-            Show(page, shown, 50, "p055");
+            Show(page, shown, "p055");
             List<LocalReadingPosition> written = [];
             page.ConsciousReadingPositionChanged += written.Add;
 
@@ -86,7 +86,7 @@ public sealed class ReaderEntryTests
         WithPage(page =>
         {
             Assert.True(page.LoadThreadAsync(shown.Summary.Id, true, shown).IsCompletedSuccessfully);
-            Show(page, shown, 50, "p055");
+            Show(page, shown, "p055");
             AddHistoryEntry(page, shown);
             List<LocalReadingPosition> written = [];
             page.ConsciousReadingPositionChanged += written.Add;
@@ -94,7 +94,7 @@ public sealed class ReaderEntryTests
             Task open = page.OpenReaderOnThreadAsync(other.Summary.Id, () => page.DetachReader(), other);
             Pump(open);
 
-            Assert.Equal(0, PostOffset(page));
+            Assert.Equal(0, page.FindControl<ListBox>("ArchivePosts")!.SelectedIndex);
             Assert.Equal("p000", page.CurrentReaderPostId);
             Assert.Equal(other.Summary.Id, page.CurrentThread?.Summary.Id);
             Assert.False(page.CanGoHistoryBack, "the history belongs to the thread it was made in");
@@ -231,11 +231,8 @@ public sealed class ReaderEntryTests
         throw new InvalidOperationException("The focused-enlarge view option is not registered.");
     }
 
-    private static void Show(ArchivePage page, ArchivedThreadView view, int offset, string postId) =>
-        typeof(ArchivePage).GetMethod("ShowCapturedView", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, [view, offset, postId]);
-
-    private static int PostOffset(ArchivePage page) =>
-        (int)typeof(ArchivePage).GetField("_postOffset", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(page)!;
+    private static void Show(ArchivePage page, ArchivedThreadView view, string postId) =>
+        typeof(ArchivePage).GetMethod("ShowCapturedView", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, [view, postId]);
 
     // A way back to a place of this thread, as a followed quote leaves it.
     private static void AddHistoryEntry(ArchivePage page, ArchivedThreadView view)
@@ -243,7 +240,7 @@ public sealed class ReaderEntryTests
         BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
         Type entry = typeof(ArchivePage).GetNestedType("ReaderHistoryEntry", BindingFlags.NonPublic)!;
         object replies = typeof(ArchivePage).GetMethod("CaptureInlineReplyState", flags)!.Invoke(page, null)!;
-        object created = Activator.CreateInstance(entry, view, 0, null, replies)!;
+        object created = Activator.CreateInstance(entry, view, null, replies)!;
         object history = typeof(ArchivePage).GetField("_history", flags)!.GetValue(page)!;
         history.GetType().GetMethod("AddLast", [entry])!.Invoke(history, [created]);
     }
