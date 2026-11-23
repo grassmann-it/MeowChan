@@ -192,6 +192,15 @@ public sealed class MediaTileEnterTests
 
     internal sealed class Fixture : IDisposable
     {
+        private static readonly FuncControlTemplate<ContentControl> BareContentTemplate = new((_, scope) =>
+        {
+            ContentPresenter presenter = new() { Name = "PART_ContentPresenter" };
+            presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
+            presenter[!ContentPresenter.ContentTemplateProperty] = new TemplateBinding(ContentControl.ContentTemplateProperty);
+            presenter.RegisterInNameScope(scope);
+            return presenter;
+        });
+
         private readonly MediaPage _page;
         private readonly Root _root = new();
 
@@ -237,27 +246,14 @@ public sealed class MediaTileEnterTests
             {
                 Setters =
                 {
-                    new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<ListBoxItem>((item, scope) =>
-                    {
-                        ContentPresenter presenter = new() { Name = "PART_ContentPresenter" };
-                        presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
-                        presenter[!ContentPresenter.ContentTemplateProperty] = new TemplateBinding(ContentControl.ContentTemplateProperty);
-                        presenter.RegisterInNameScope(scope);
-                        return presenter;
-                    }))
+                    new Setter(TemplatedControl.TemplateProperty, BareContentTemplate)
                 }
             });
             _root.Styles.Add(new Style(selector => selector.OfType<UserControl>())
             {
                 Setters =
                 {
-                    new Setter(TemplatedControl.TemplateProperty, new FuncControlTemplate<UserControl>((_, scope) =>
-                    {
-                        ContentPresenter presenter = new() { Name = "PART_ContentPresenter" };
-                        presenter[!ContentPresenter.ContentProperty] = new TemplateBinding(ContentControl.ContentProperty);
-                        presenter.RegisterInNameScope(scope);
-                        return presenter;
-                    }))
+                    new Setter(TemplatedControl.TemplateProperty, BareContentTemplate)
                 }
             });
             _root.Child = _page;
@@ -275,14 +271,37 @@ public sealed class MediaTileEnterTests
                 }
         }
 
-        /// <summary>Shows the media panel on a tile by its own state (no layout pass) and returns its "Open in gallery" button, a control inside the panel that can have the focus.</summary>
+        /// <summary>Presents the given panel row independently of grid selection and returns its visible "Open in gallery" button.</summary>
         internal Control ShowPanelOn(int index)
         {
-            ReaderMediaSidebar panel = PanelView = (ReaderMediaSidebar)typeof(MediaPage).GetMethod("EnsurePanel", InstanceNonPublic)!.Invoke(_page, null)!;
+            MediaLibraryTileRow row = Rows[index];
+            // Seed the shown row so the layout can attach the panel without starting an image load.
             Set("_panelShown", true);
-            Set("_panelRow", Rows[index]);
-            Set("_panelWanted", Rows[index]);
+            Set("_panelRow", row);
+            Set("_panelWanted", row);
+            _page.ApplySavedPanelWidth(_page.PageLayout.PanelWidth);
+            ReaderMediaSidebar panel = PanelView = Assert.IsType<ReaderMediaSidebar>(_page.Panel);
+            typeof(MediaPage).GetMethod("DescribePanel", InstanceNonPublic)!.Invoke(_page, [panel, row]);
+
+            // The action section exists only for a described medium. Materialize the presenters
+            // so the real key route goes through the sidebar and the page without a layout pass.
+            _page.ApplyTemplate();
+            _page.Presenter!.UpdateChild();
+            ScrollViewer details = panel.GetVisualDescendants().OfType<ScrollViewer>().Single(view => view.Name == "ReaderMediaSidebarDetails");
+            MaterializeContent(details);
+            foreach (ContentControl section in Assert.IsAssignableFrom<Panel>(details.Content).Children.OfType<ContentControl>())
+                MaterializeContent(section);
+            Assert.Contains(panel, panel.Open.GetVisualAncestors());
+            Assert.Contains(_page, panel.Open.GetVisualAncestors());
+            Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled && panel.Open.Focusable);
             return panel.Open;
+        }
+
+        private static void MaterializeContent(ContentControl control)
+        {
+            control.Template = BareContentTemplate;
+            control.ApplyTemplate();
+            control.Presenter!.UpdateChild();
         }
 
         internal Control Container(int index) => Grid.ContainerFromIndex(index)

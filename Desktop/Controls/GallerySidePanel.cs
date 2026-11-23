@@ -40,11 +40,11 @@ internal sealed class GallerySidePanel : MediaSidebarHeader
     private double? _dragStartX;
     private double _dragStartWidth;
 
-    internal GallerySidePanel(Button close)
+    internal GallerySidePanel(PanelCloseButton close)
         : this(close, new MediaSidebarTabs("GalleryPanel"), new MediaPositionPill("GalleryPanelHeaderCounter"),
             ContentSlot("GalleryPanelPostContent"), ContentSlot("GalleryPanelTagContent")) { }
 
-    private GallerySidePanel(Button close, MediaSidebarTabs tabs, MediaPositionPill position, ContentControl postSlot, ContentControl tagSlot)
+    private GallerySidePanel(PanelCloseButton close, MediaSidebarTabs tabs, MediaPositionPill position, ContentControl postSlot, ContentControl tagSlot)
         : base(tabs.Row, position, close, postSlot, tagSlot)
     {
         _tabs = tabs;
@@ -75,7 +75,7 @@ internal sealed class GallerySidePanel : MediaSidebarHeader
 
     internal ToggleButton PostButton => _tabs.Post;
     internal ToggleButton TagsButton => _tabs.Tags;
-    internal Button CloseButton { get; }
+    internal PanelCloseButton CloseButton { get; }
     internal Control Grip => _grip;
     internal ContentControl PostSlot => _postSlot;
     internal ContentControl TagSlot => _tagSlot;

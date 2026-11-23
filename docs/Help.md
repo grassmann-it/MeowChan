@@ -2134,24 +2134,23 @@ in the gallery's context menu and Ctrl+Shift+T (Command+Shift+T on macOS) open t
 tag panel for the shown medium; a running slideshow pauses. The panel takes the
 slot of the post panel and stays open while you page through the gallery. The same
 command, **Esc** or its close button closes it; **Shift+P** switches to the post panel.
-The live medium counter is at the top left of the side panel when shown. Below it,
-**Post | Tags** are on the left and × is on the right. The tabs wrap onto two lines
-when space is tight. The counter updates as you navigate, with localized position
-text and polite accessibility announcements. In the Tags panel, the media title
-is left-aligned above the favorite and rating controls. In the Post panel, the line
-with the source, board and thread is left-aligned above those controls and includes
-the post number when available. When the switch has focus, Left/Right selects
-the segment. Closing returns focus to
-the picture. Drag its left edge to resize it (280–480 DIP); the width is kept per
-layout profile. Below 900 DIP it overlays the picture.
+**Post | Tags** are on the left of the header, followed by the position pill and
+the close button. Both tabs show the same position, including the queue position
+in Tag mode. The counter updates as you navigate, with localized position text
+and polite accessibility announcements. Rating and favorite come first, followed
+by tags, post and file information, and full-width actions. The file name can be
+copied from its context menu. When the switch has focus, Left/Right selects the
+segment. Closing returns focus to the picture. Drag its left edge to resize it
+(280–480 DIP). The layout profile remembers the width. Below 900 DIP the panel
+overlays the picture.
 
-**Deutsch:** Wenn der Positionszähler angezeigt wird, steht er oben links im Galerie-Seitenpanel. Darunter
-stehen **Post | Tags** links und × rechts. Bei wenig Platz werden die Tabs auf zwei
-Zeilen verteilt. Beim Blättern aktualisiert sich der Zähler in der gewählten
-Sprache. Screenreader lesen die neue Position bei der nächsten Sprechpause vor.
-Im Tag-Panel steht der Medientitel linksbündig über den Favoriten- und Bewertungsfunktionen.
-Im Post-Panel ist dort die Zeile mit Quelle, Board und Thread linksbündig. Ist eine
-Post-Nummer verfügbar, steht sie ebenfalls in dieser Zeile.
+**Deutsch:** Im Kopf stehen **Post | Tags**, der Positionszähler und der
+Schließen-Knopf nebeneinander. Beide Tabs zeigen beim Taggen die Position in der
+Warteschlange. Beim Blättern aktualisiert sich der lokalisierte Zähler.
+Screenreader lesen die neue Position bei der nächsten Sprechpause vor. Auf
+Bewertung und Favorit folgen Tags, Angaben zum Post und zur Datei und die
+Aktionen. Über das Kontextmenü des Dateinamens lässt sich der vollständige Name
+kopieren.
 
 **Safe flow.** Nothing is assigned automatically. Type a name and press Enter to
 give your own tag to the shown medium; a new name creates a local own tag. With an

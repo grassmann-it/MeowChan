@@ -10,7 +10,7 @@ internal sealed class MediaPositionPill : Border
     private readonly TextBlock _label = new()
     {
         Classes = { WorkspaceChips.Label, "tnum" },
-        TextAlignment = TextAlignment.Center,
+        TextAlignment = TextAlignment.Left,
         TextTrimming = TextTrimming.CharacterEllipsis,
         MaxLines = 1
     };
@@ -31,10 +31,10 @@ internal sealed class MediaPositionPill : Border
 
     internal void Show(GalleryTagPanelPosition? position, bool marked = false)
     {
-        string? text = GalleryTagPanelCommands.CounterText(position, marked);
-        _label.Text = GalleryTagPanelCommands.ShortCounterText(position, marked);
+        string? text = MediaPositionText.Long(position, marked);
+        _label.Text = MediaPositionText.Short(position);
         ToolTip.SetTip(this, text);
         AutomationProperties.SetName(this, text);
-        IsVisible = text != null;
+        IsVisible = _label.Text != null;
     }
 }

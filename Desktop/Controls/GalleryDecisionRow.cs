@@ -22,13 +22,14 @@ internal sealed class GalleryDecisionRow : StackPanel
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
     /// <summary>Edge of a star glyph in dip.</summary>
-    private const int StarGlyphSize = 20;
+    private const int FavoriteGlyphSize = 20;
+    private readonly int _starGlyphSize;
     // The second row shares the first row's star and clear-button columns.
     private readonly Grid _group = new()
     {
         ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,2.5*"),
         RowDefinitions = new RowDefinitions("Auto,Auto"),
-        RowSpacing = 8
+        RowSpacing = 8, HorizontalAlignment = HorizontalAlignment.Left
     };
     // The full rating caption stays in the tooltip when trimmed.
     private readonly TextBlock _summary = new TrimTipTextBlock
@@ -36,8 +37,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         Classes = { "workspace-help" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis,
         VerticalAlignment = VerticalAlignment.Center
     };
-    private readonly TextBlock _favoriteLabel = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _favoriteLabel = new() { Classes = { "panel-action-label" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _favoriteContent;
+    private bool? _favoriteAvailable;
     private GalleryDecisionView _view = GalleryDecisionView.Unavailable;
     // The star the pointer is on (1 to 5): the stars up to it show as set. Never a state of the row, never a request.
     private int? _preview;
@@ -48,31 +50,32 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal GalleryDecisionRow(string name, bool compact = false)
     {
         Name = name;
-        if (compact) _group.MaxWidth = 264;
+        _starGlyphSize = compact ? 20 : 24;
+        _group.MaxWidth = compact ? 264 : 304;
         _group.ColumnDefinitions[6].MinWidth = WorkspaceMetrics.InputHeight;
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
         _favoriteContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8,
-            Children = { FavoriteStar.Create(false, StarGlyphSize), _favoriteLabel } };
+            Children = { FavoriteStar.Create(false, FavoriteGlyphSize), _favoriteLabel } };
         Grid.SetColumn(_favoriteLabel, 1);
         _favorite.Content = _favoriteContent;
         for (int index = 0; index < _stars.Length; index++)
         {
             int number = index + 1;
             ColumnDefinition column = _group.ColumnDefinitions[index];
-            column.MinWidth = compact ? StarGlyphSize + 4 : 40;
-            if (compact) column.MaxWidth = WorkspaceMetrics.InputHeight;
+            column.MinWidth = WorkspaceMetrics.RatingStarMinWidth;
+            column.MaxWidth = compact ? WorkspaceMetrics.InputHeight : WorkspaceMetrics.RatingPopoverStarSize;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
             if (!compact)
             {
-                star.Height = 40;
-                star.MinWidth = 40;
+                star.Height = WorkspaceMetrics.RatingPopoverStarSize;
             }
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
             Grid.SetColumn(star, index);
             _group.Children.Add(star);
         }
+        _clear.Width = _clear.Height = WorkspaceMetrics.InputHeight;
         _clear.Classes.Add(WorkspaceIcons.SquareClass);
         _clear.Classes.Add("subtle");
         _clear.Click += OnClear;
@@ -141,7 +144,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     {
         if (!_view.Available || value is < 1 or > 5) return false;
         if (value == null && !_view.Rating.HasValue && !_view.RatingMixed) return true; // nothing to remove: the key is the row's, it changes nothing
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         RatingRequested?.Invoke(value);
         return true;
     }
@@ -152,11 +155,11 @@ internal sealed class GalleryDecisionRow : StackPanel
     /// </summary>
     internal bool RequestFavorite(FavoriteKeyAction action)
     {
-        if (!_view.Available || !FavoriteVisible || action == FavoriteKeyAction.None) return false;
+        if (!_favorite.IsEnabled || !FavoriteVisible || action == FavoriteKeyAction.None) return false;
         bool wanted = action switch { FavoriteKeyAction.Add => true, FavoriteKeyAction.Remove => false, _ => _view.NextFavorite };
         bool all = _view.Favorite == GalleryDecisionCoverage.All, none = _view.Favorite == GalleryDecisionCoverage.None;
         if (action == FavoriteKeyAction.Add && all || action == FavoriteKeyAction.Remove && none) return true;
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         FavoriteRequested?.Invoke(wanted);
         return true;
     }
@@ -171,13 +174,14 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal Action? ReturnFocus { get; set; }
 
     /// <summary>Shows what the targets carry now.</summary>
-    internal void Show(GalleryDecisionView view)
+    internal void Show(GalleryDecisionView view, bool? favoriteAvailable = null)
     {
+        _favoriteAvailable = favoriteAvailable;
         _view = view ?? throw new ArgumentNullException(nameof(view));
         bool all = view.Favorite == GalleryDecisionCoverage.All;
-        _favorite.IsEnabled = view.Available;
+        _favorite.IsEnabled = favoriteAvailable ?? view.Available;
         _favorite.IsChecked = view.Favorite == GalleryDecisionCoverage.Some ? null : all;
-        _favoriteContent.Children[0] = FavoriteStar.Create(all, StarGlyphSize);
+        _favoriteContent.Children[0] = FavoriteStar.Create(all, FavoriteGlyphSize);
         // The label says what the targets carry: "Favorite", and "Favorite on some" while only some of a selection are.
         _favoriteLabel.Text = view.Favorite == GalleryDecisionCoverage.Some ? Texts.T("gallery.decision.favorite.some") : Texts.T("gallery.decision.favorite");
         int rating = view.RatingMixed ? 0 : view.Rating ?? 0;
@@ -227,7 +231,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         for (int index = 0; index < _stars.Length; index++)
         {
             ToggleButton star = _stars[index];
-            star.Content = FavoriteStar.Create(index < shown, StarGlyphSize, tinted: !previewing);
+            star.Content = FavoriteStar.Create(index < shown, _starGlyphSize, tinted: !previewing);
             star.Classes.Set("rating-preview", previewing && index < shown);
         }
     }
@@ -267,7 +271,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         AutomationProperties.SetAccessibilityView(_group, AccessibilityView.Content);
         AutomationProperties.SetControlTypeOverride(_group, AutomationControlType.Group);
         AutomationProperties.SetName(this, Texts.T("gallery.decision.name"));
-        Show(_view);
+        Show(_view, _favoriteAvailable);
     }
 
     private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => { if (_attached) Localize(); });
@@ -277,14 +281,14 @@ internal sealed class GalleryDecisionRow : StackPanel
     // A toggle button flips itself on click; the shown state is the view's, so it is set again before the request goes out.
     private void OnFavorite(object? sender, RoutedEventArgs e)
     {
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         FavoriteRequested?.Invoke(_view.NextFavorite);
         GiveFocusBack();
     }
 
     private void OnStar(int number)
     {
-        Show(_view);
+        Show(_view, _favoriteAvailable);
         RatingRequested?.Invoke(number);
         GiveFocusBack();
     }

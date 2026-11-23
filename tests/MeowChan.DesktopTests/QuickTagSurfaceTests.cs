@@ -1,6 +1,8 @@
 using System.Text.Json;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.VisualTree;
 using Avalonia.Input;
 using Avalonia.Layout;
 using MeowChan.Archive;
@@ -57,7 +59,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
     [Fact]
     public void GalleryHeaderCounterKeepsLiveTextVisibilityAndAccessibleNameInTheSidebar()
     {
-        GallerySidePanel panel = new(new Button());
+        GallerySidePanel panel = new(new PanelCloseButton("Close"));
         MediaPositionPill counter = panel.Position;
         Assert.Same(panel, counter.Parent);
         Assert.False(counter.Focusable);
@@ -79,24 +81,41 @@ public sealed class QuickTagSurfaceTests : IDisposable
         Assert.Same(panel, counter.Parent);
     }
 
-    [Fact]
-    public void GalleryKeepsTheTagTitleAboveTheRatingRowAndTheSidebarOwnsTheCounter()
+    [Theory]
+    [InlineData(240)]
+    [InlineData(280)]
+    [InlineData(360)]
+    [InlineData(480)]
+    public void GalleryTagsUsesTheSharedOrderAndAFullWidthEditorAction(int width) => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         PrivateTagStore store = new(temp.Path, lease);
         using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("a", 'a'))));
-        using QuickTagSurface surface = new(session);
+        using QuickTagSurface surface = new(session) { Width = width - 32, FocusOnAttach = false };
+        GalleryDecisionRow decision = new("Rating", compact: true);
+        MediaFactGrid facts = new("Facts");
+        facts.Add("File", "example.png", fileName: true);
         surface.UseSidebarHeader();
-        Assert.Same(surface.Title, Assert.Single(surface.Header.Children));
-        Assert.Equal(Avalonia.Media.TextAlignment.Left, surface.Title.TextAlignment);
-        Assert.False(surface.CloseButton.IsVisible);
-
-        var source = CSharpSource.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
-            Path.GetDirectoryName(ThisFile())!, "../../Desktop/GalleryViewer.TagPanel.cs"))));
-        Assert.Single(source.Method("ShowTagPanel").Calls("UseSidebarHeader", "surface"));
-        Assert.Single(source.Method("ReleaseTagPanel").Calls("RefreshPanelCounter"));
-    }
+        surface.DecisionContent = decision;
+        surface.SetSidebarInfo(facts, new PanelActionStack("Extra actions"));
+        Window window = new() { Width = 520, Height = 950, Content = surface };
+        try
+        {
+            window.Show();
+            window.UpdateLayout();
+            Assert.Empty(surface.Header.Children);
+            Assert.False(surface.CloseButton.IsVisible);
+            Assert.True(surface.FooterStacked);
+            Assert.Equal(surface.Footer.Bounds.Width, surface.AdvancedButton.Bounds.Width, 0.5);
+            double Top(Control control) => control.TranslatePoint(default, surface)!.Value.Y;
+            Assert.True(Top(decision) < Top(surface.Title));
+            Assert.True(Top(surface.Title) < Top(facts));
+            Assert.True(Top(facts) < Top(surface.AdvancedButton));
+        }
+        finally { window.Close(); }
+    });
 
     // ---- session: add, create, remove, status -------------------------------------------------------------------
 

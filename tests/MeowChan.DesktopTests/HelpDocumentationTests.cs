@@ -597,23 +597,13 @@ public sealed class HelpDocumentationTests
         Assert.Contains("far left of the header, before the title, with the favorite star directly to its right", text);
         Assert.Contains("Zoom steps, original export, saved ratings, frame saving, video rules, overlays and fullscreen stay under More in every view", text);
         Assert.Contains("Back to {target}", text);
-        Assert.Contains("The live medium counter is at the top left of the side panel", text);
-        Assert.Contains("Post | Tags are on the left and × is on the right", text);
-        Assert.Contains("The tabs wrap onto two lines when space is tight", text);
+        Assert.Contains("Post | Tags are on the left of the header, followed by the position pill and the close button", text);
+        Assert.Contains("Both tabs show the same position, including the queue position in Tag mode", text);
         Assert.Contains("The counter updates as you navigate, with localized position text and polite accessibility announcements", text);
-        Assert.Contains("the media title is left-aligned above the favorite and rating controls", text);
-        Assert.Contains("the line with the source, board and thread is left-aligned above those controls", text);
-        Assert.Contains("steht er oben links im Galerie-Seitenpanel", text);
-        Assert.Contains("der Medientitel linksbündig über den Favoriten- und Bewertungsfunktionen", text);
+        Assert.Contains("Auf Bewertung und Favorit folgen Tags, Angaben zum Post und zur Datei und die Aktionen", text);
         var viewer = CSharpSource.Parse(Read("Desktop/GalleryViewer.cs"));
         Assert.Contains(viewer.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
             SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_close.HorizontalAlignment = HorizontalAlignment.Left")));
-        var context = viewer.Method("BuildContext");
-        var postWhere = Assert.Single(context.Calls("AddContext"), call => call.ArgumentList.Arguments.Any(argument =>
-            argument.Expression is LiteralExpressionSyntax name && name.Token.ValueText == "GalleryPostWhere"));
-        var postWhereAlignment = Assert.IsType<AssignmentExpressionSyntax>(postWhere.Parent!.Parent);
-        Assert.True(SyntaxFactory.AreEquivalent(postWhereAlignment.Right, SyntaxFactory.ParseExpression("TextAlignment.Left")));
-        Assert.True(postWhere.SpanStart < Assert.Single(context.Calls("PostDecisionSection")).SpanStart);
         var favorites = CSharpSource.Parse(Read("Desktop/GalleryViewer.Favorites.cs"));
         var starMargin = Assert.Single(favorites.DescendantNodes().OfType<PropertyDeclarationSyntax>(),
             property => property.Identifier.ValueText == "StarLeftMargin");

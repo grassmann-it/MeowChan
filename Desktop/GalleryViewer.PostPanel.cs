@@ -94,7 +94,7 @@ internal sealed partial class GalleryViewer
 
     // ---- the tags of the shown medium ------------------------------------------------------------------------------------------
 
-    private Control BuildPostTagsSection(Func<Panel, string, string, Action, Button> command)
+    private Control BuildPostTagsSection()
     {
         StackPanel section = new() { Name = "GalleryPostTags", Spacing = 4 };
         IReadOnlyList<string>? names = _tagNames;
@@ -126,15 +126,12 @@ internal sealed partial class GalleryViewer
             if (count > limit) chips.Children.Add(TagChip(Texts.T("gallery.post.tags.more", count - limit), more: true, openTags));
             section.Children.Add(chips);
         }
-        Button edit = command(section, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"), openTags);
-        edit.Classes.Add("link");
-        edit.HorizontalAlignment = HorizontalAlignment.Left;
         return section;
     }
 
     private static Button TagChip(string text, bool more, Action open)
     {
-        Button chip = new() { Name = more ? "GalleryPostTagsMore" : "GalleryPostTag", Content = new TextBlock { Text = text, MaxLines = 1,
+        Button chip = new() { Name = more ? "GalleryPostTagsMore" : "GalleryPostTag", Content = new TextBlock { Text = text, Classes = { WorkspaceChips.Label }, MaxLines = 1,
                 TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center },
             HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center, Focusable = false };
         // An assigned tag rests on the accent tint like the reader's tag bar; "+N more" is the offered (outlined) form.
@@ -147,8 +144,7 @@ internal sealed partial class GalleryViewer
         return chip;
     }
 
-    private static Control PostRule() => new Border { Name = "GalleryPostRule", Height = 1, [!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Border"),
-        Focusable = false, IsHitTestVisible = false };
+
 
     // ---- R and "Rate and tag…": the Tags segment with the tag field focused -------------------------------------------------------
 

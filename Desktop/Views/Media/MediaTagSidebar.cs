@@ -283,7 +283,7 @@ internal sealed class MediaTagListRowView : Border
         Name = "MediaTagRowMark", Width = 12, Height = 12, Stretch = Stretch.None, StrokeThickness = 1.5, StrokeLineCap = PenLineCap.Round,
         VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false
     };
-    private readonly TextBlock _name = new() { Name = "MediaTagRowName", TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _name = new() { Name = "MediaTagRowName", Classes = { "workspace-body-text" }, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _count = new() { Name = "MediaTagRowCount", Classes = { "workspace-meta", "tnum" }, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right };
     private string? _geometry;
 

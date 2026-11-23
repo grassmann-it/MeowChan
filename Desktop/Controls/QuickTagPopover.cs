@@ -301,11 +301,11 @@ internal sealed class QuickTagPopover
         ArgumentNullException.ThrowIfNull(anchor);
         options ??= new QuickTagPopoverOptions();
         string title = string.IsNullOrWhiteSpace(label) ? Texts.T("tags.quick.heading") : Texts.T("tags.quick.title", label.Trim());
-        TextBlock heading = new() { Text = title, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1,
+        TextBlock heading = new() { Text = title, Classes = { "workspace-panel-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1,
             VerticalAlignment = VerticalAlignment.Center, Name = options.Name + "Title" };
         ToolTip.SetTip(heading, title);
-        Button close = new() { Name = options.Name + "Close", VerticalAlignment = VerticalAlignment.Center };
-        WorkspaceIcons.MakeSquare(close, WorkspaceIcons.Close, Texts.T("tags.quick.close"), Texts.T("tags.quick.closeTip"));
+        PanelCloseButton close = new(options.Name + "Close") { VerticalAlignment = VerticalAlignment.Center };
+        close.Localize(Texts.T("tags.quick.close"));
         // Same header as the surface: the title on the left, the × alone at the right edge, 24 dip of empty space between.
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,24,Auto"), Name = options.Name + "Header" };
         header.Children.Add(heading);
