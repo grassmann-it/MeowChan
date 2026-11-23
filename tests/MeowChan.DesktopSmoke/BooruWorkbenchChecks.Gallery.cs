@@ -43,6 +43,7 @@ internal static partial class BooruWorkbenchChecks
         Require(Config.LoadConfig(profile).ReadBooruViewerBounds() == saved, "Shutdown lost the open popout's last normal bounds on disk.");
         var restored = await WithPopoutAsync((_, popout) => Task.FromResult(popout.NormalBounds));
         Require(restored == saved, $"A fresh profile host reopened at {restored}, expected {saved}.");
+        Console.WriteLine("SMOKE booru popout: quitting with the popout open saved its normal bounds for the next profile host.");
 
         async Task<(Size Size, PixelPoint Position)?> WithPopoutAsync(
             Func<MainWindow, BooruResultViewerWindow, Task<(Size Size, PixelPoint Position)?>> check)
@@ -71,7 +72,7 @@ internal static partial class BooruWorkbenchChecks
             {
                 TaskCompletionSource closed = new(TaskCreationOptions.RunContinuationsAsynchronously);
                 shell.Closed += (_, _) => closed.TrySetResult();
-                shell.Close();
+                SmokeActionClick.Execute(shell.FindControl<MenuItem>("ExitMenuItem")!);
                 await closed.Task.WaitAsync(TimeSpan.FromSeconds(15));
             }
         }
