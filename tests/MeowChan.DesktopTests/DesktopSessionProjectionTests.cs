@@ -6,9 +6,15 @@ using MeowChan.Persistence;
 namespace MeowChan.DesktopTests;
 
 /// <summary>PF-01: the UI reads a complete published projection and never waits for the engine.</summary>
+[Collection("Avalonia global state")]
 public sealed class DesktopSessionProjectionTests
 {
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
+
+    // Host construction and settings saves publish into the process-wide shortcut registry.
+    // Keep the test on a fresh dispatcher until the host is disposed and posted refreshes have drained.
+    private static void OnDispatcher(Func<Task> test) =>
+        BooruComponentDispatcher.Run(() => BooruComponentDispatcher.Wait(test()));
 
     private sealed class Store : ISessionStore
     {
@@ -18,7 +24,7 @@ public sealed class DesktopSessionProjectionTests
     }
 
     [Fact]
-    public async Task StartingProjectionNeedsNoCaptureAndStartPublishesReadyBeforeCompletion()
+    public void StartingProjectionNeedsNoCaptureAndStartPublishesReadyBeforeCompletion() => OnDispatcher(async () =>
     {
         using TempDirectory directory = new();
         new Config().SaveConfig(directory.Path);
@@ -36,10 +42,10 @@ public sealed class DesktopSessionProjectionTests
             Assert.True(ready.Version > initial.Version);
         }
         finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
-    }
+    });
 
     [Fact]
-    public async Task EachHostHasItsOwnEpochAndVersionsOnlyIncrease()
+    public void EachHostHasItsOwnEpochAndVersionsOnlyIncrease() => OnDispatcher(async () =>
     {
         using TempDirectory first = new();
         using TempDirectory second = new();
@@ -61,10 +67,10 @@ public sealed class DesktopSessionProjectionTests
             await one.DisposeAsync().AsTask().WaitAsync(Timeout);
             await two.DisposeAsync().AsTask().WaitAsync(Timeout);
         }
-    }
+    });
 
     [Fact]
-    public async Task PauseCompletionHasAlreadyPublishedTheConfirmedState()
+    public void PauseCompletionHasAlreadyPublishedTheConfirmedState() => OnDispatcher(async () =>
     {
         using TempDirectory directory = new();
         new Config().SaveConfig(directory.Path);
@@ -80,10 +86,10 @@ public sealed class DesktopSessionProjectionTests
             Assert.False(host.Projection.IsPaused);
         }
         finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
-    }
+    });
 
     [Fact]
-    public async Task BurstOfInvalidationsIsCoalescedAndNotifiesObservers()
+    public void BurstOfInvalidationsIsCoalescedAndNotifiesObservers() => OnDispatcher(async () =>
     {
         using TempDirectory directory = new();
         new Config().SaveConfig(directory.Path);
@@ -106,10 +112,10 @@ public sealed class DesktopSessionProjectionTests
             Assert.False(host.Projection.IsStale);
         }
         finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
-    }
+    });
 
     [Fact]
-    public async Task ReadingTheProjectionNeverWaitsForAHeldCapture()
+    public void ReadingTheProjectionNeverWaitsForAHeldCapture() => OnDispatcher(async () =>
     {
         using TempDirectory directory = new();
         new Config().SaveConfig(directory.Path);
@@ -118,7 +124,7 @@ public sealed class DesktopSessionProjectionTests
         {
             await host.StartAsync().WaitAsync(Timeout);
             // A concurrent synchronous capture holds the capture lock; the published read is lock-free.
-            ManualResetEventSlim gate = new();
+            using ManualResetEventSlim gate = new();
             Task holder = Task.Factory.StartNew(() => host.HoldCaptureLockForTest(gate), TaskCreationOptions.LongRunning);
             try
             {
@@ -132,5 +138,5 @@ public sealed class DesktopSessionProjectionTests
             finally { gate.Set(); await holder.WaitAsync(Timeout); }
         }
         finally { await host.DisposeAsync().AsTask().WaitAsync(Timeout); }
-    }
+    });
 }
