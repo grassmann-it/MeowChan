@@ -137,10 +137,7 @@ public partial class App : Application
     private void ShowFolderStartup(IClassicDesktopStyleApplicationLifetime desktop, StartupFolderSession folderSession)
     {
         Texts.Initialize();
-        CultureInfo culture = CultureInfo.CurrentUICulture;
-        string language = Texts.Languages.Any(info => string.Equals(info.Code, culture.Name, StringComparison.OrdinalIgnoreCase))
-            ? culture.Name : culture.TwoLetterISOLanguageName;
-        Texts.SetLanguage(language);
+        Texts.SetLanguage(Texts.ResolveCulture(CultureInfo.CurrentUICulture));
         StartupFolderWindow chooser = new(folderSession, async (profile, temporary) =>
         {
             folderSession.SelectedProfile = profile;

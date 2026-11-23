@@ -141,6 +141,14 @@ public static class Texts
         Changed?.Invoke(null, EventArgs.Empty);
     }
 
+    internal static string ResolveCulture(CultureInfo culture)
+    {
+        State state = Volatile.Read(ref _state);
+        for (CultureInfo current = culture; current.Name.Length != 0; current = current.Parent)
+            if (state.Catalogs.TryGetValue(current.Name, out Catalog? catalog)) return catalog.Info.Code;
+        return "en";
+    }
+
     /// <summary>Unavailable saved languages fall back to English without preventing startup.</summary>
     public static void SetLanguage(string code)
     {
