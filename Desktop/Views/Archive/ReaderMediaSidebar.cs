@@ -706,6 +706,7 @@ internal sealed class ReaderMediaSidebar : Border
     internal void ConfigureFavorite(Func<bool>? available, Func<bool>? marked, Func<Task>? toggle,
         Func<string?>? error = null, Func<FavoriteStarHold>? hold = null)
     {
+        _decision.FavoriteVisible = available != null;
         _favoriteAvailable = available;
         _isFavorite = marked;
         _toggleFavorite = toggle;

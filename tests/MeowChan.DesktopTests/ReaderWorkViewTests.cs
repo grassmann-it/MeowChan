@@ -79,7 +79,7 @@ public sealed class ReaderWorkViewTests
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.Initialize();
         ReaderMediaSidebar sidebar = new();
-        sidebar.Describe("No. 22486939", "wide-example-file-1234567890.jpg", "500 KiB · 2001×3000",
+        sidebar.Describe("No. 22486939", "wide-example-" + new string('W', 100) + ".jpg", "500 KiB · 2001×3000",
             canOpen: true, postLinkTip: "Copy post reference", threadPosition: new(3, 37, false));
         sidebar.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
         Window window = new() { Content = sidebar, Width = 820, Height = 480, Classes = { MotionPolicy.OffClass } };

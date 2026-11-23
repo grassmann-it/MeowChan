@@ -47,7 +47,7 @@ public sealed class ReaderMediaPanelDecisionTests
             Click(decision.FavoriteButton);
             Assert.True(favorite);
             Assert.True(decision.FavoriteButton.IsChecked);
-            Control tags = sidebar.GetVisualDescendants().OfType<Control>().Single(control => control.Name == "ReaderMediaSidebarTags");
+            Control tags = sidebar.GetVisualDescendants().OfType<StackPanel>().Single(control => control.Name == "ReaderMediaSidebarTags");
             Assert.Contains(tags.GetVisualDescendants().OfType<TextBlock>(), block => block.Text == "sample");
             MediaFactGrid facts = Assert.Single(sidebar.GetVisualDescendants().OfType<MediaFactGrid>());
             Button edit = sidebar.GetVisualDescendants().OfType<Button>().Single(control => control.Name == "ReaderMediaSidebarEditTags");

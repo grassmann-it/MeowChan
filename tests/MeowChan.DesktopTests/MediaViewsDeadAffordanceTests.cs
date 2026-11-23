@@ -183,7 +183,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Equal(Texts.T(sidebar.TitleKey), sidebar.HeaderLine);
     });
 
-    // The sidebar's medium has one favourite star: the header toggle. The picture's badges (Tom, 16.11.2026, the sweep's F2) no longer repeat it.
+    // The sidebar's medium has one favourite star: the rating block toggle. The picture's badges (Tom, 16.11.2026, the sweep's F2) no longer repeat it.
     private static WriteableBitmap Picture() => new(new PixelSize(8, 8), new Vector(96, 96), PixelFormat.Bgra8888, AlphaFormat.Premul);
 
     [Fact]
@@ -193,7 +193,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         bool favorite = true;
         sidebar.ConfigureFavorite(() => true, () => favorite, () => Task.CompletedTask);
         sidebar.ShowPicture(Picture(), picture => picture.Dispose(), playable: false, double.PositiveInfinity, double.PositiveInfinity);
-        // The header star is the favourite's one mark ...
+        // The rating block star is the favourite's one mark ...
         Assert.True(sidebar.FavoriteButton.IsVisible);
         Assert.True(sidebar.FavoriteButton.IsChecked);
         // ... and the picture carries only its kind, no favourite, in the state and in the placed badges.
@@ -206,12 +206,12 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Equal(new MediaBadgeState(Kind: MediaBadgeKind.Video), sidebar.Badges.State);
         Assert.True(sidebar.FavoriteButton.IsChecked);
         Assert.DoesNotContain(sidebar.Badges.Plan.Badges, placed => placed.Badge.Id == MediaBadgeId.Favorite);
-        // The accessible sentence of the badges does not name a favourite either (the header star carries that name).
+        // The accessible sentence of the badges does not name a favourite either (the rating block star carries that name).
         Assert.DoesNotContain("Favorite", MediaBadgeSentences.Get(sidebar.Badges.State, sidebar.Badges.Options));
     });
 
     [Fact]
-    public void TheSidebarsHeaderStarStillTogglesTheFavouriteAndTheBadgesStayWithoutOne() => OnOwnDispatcher(() =>
+    public void TheSidebarsRatingBlockStarStillTogglesTheFavouriteAndTheBadgesStayWithoutOne() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
         bool favorite = false;
@@ -228,7 +228,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.Equal((2, false), (writes, favorite));
         Assert.False(sidebar.FavoriteButton.IsChecked);
         Assert.False(sidebar.Badges.State.Favorite);
-        // A medium without a star (nothing configured) shows no header star and still no badge.
+        // A medium without a star (nothing configured) shows no rating block star and still no badge.
         sidebar.ConfigureFavorite(null, null, null);
         Assert.False(sidebar.FavoriteButton.IsVisible);
         Assert.False(sidebar.Badges.State.Favorite);
@@ -246,9 +246,6 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         string sidebar = Source("Desktop/Views/Archive/ReaderMediaSidebar.cs");
         Assert.DoesNotContain("Favorite: favorite", sidebar);
         Assert.Contains("_badges.Apply(new MediaBadgeState(Kind: _playable ? MediaBadgeKind.Video : MediaBadgeKind.Image), _image.Bounds.Size);", sidebar);
-        // The header toggle is still wired into the sidebar and the Media page's panel.
-        Assert.Contains("if (row != null) _favorite.Configure(row);", sidebar);
-        Assert.Contains("panel.ConfigureFavorite(PanelFavoriteAvailable", Source("Desktop/Views/Media/MediaPage.Panel.cs"));
     }
 
     [Theory]

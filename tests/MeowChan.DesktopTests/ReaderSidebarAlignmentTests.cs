@@ -2,6 +2,7 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.VisualTree;
+using Avalonia.Threading;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -13,14 +14,22 @@ namespace MeowChan.DesktopTests;
 public sealed class ReaderSidebarAlignmentTests
 {
     [Fact]
-    public void FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation() => OnDispatcher(() =>
+    public void FullHeightSidebarKeepsTheStableHeaderAndPostsColumnIsolation() => BooruComponentDispatcher.Run(() =>
     {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
         Assert.Equal(32, ReaderMediaSidebar.HeaderLineHeight);
         Assert.Equal(8, ReaderMediaSidebar.HeaderTopInset);
         ArchivePage page = Page();
+        Window window = new() { Width = 1440, Height = 720, Content = page };
+        void LayoutAt(double height)
+        {
+            window.PlatformImpl!.Resize(new Size(1440, height), WindowResizeReason.User);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+        }
         try
         {
-            Grid root = page.FindControl<Grid>("ArchiveRoot")!;
+            window.Show();
             Grid pane = page.FindControl<Grid>("ArchiveReaderPane")!;
             Border posts = page.FindControl<Border>("ArchiveReaderContent")!;
             StackPanel postsHeader = Assert.Single(pane.Children.OfType<StackPanel>());
@@ -34,7 +43,7 @@ public sealed class ReaderSidebarAlignmentTests
             foreach (bool right in new[] { false, true })
             {
                 page.ApplyReaderMediaPreferences(preferences with { SidebarRight = right });
-                Layout(root, new Size(1440, 720));
+                LayoutAt(720);
                 ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
                 Assert.IsType<MediaSidebarHeader>(sidebar.HeaderRow);
                 GridSplitter splitter = Assert.Single(pane.Children.OfType<GridSplitter>());
@@ -45,7 +54,7 @@ public sealed class ReaderSidebarAlignmentTests
                 Assert.Equal(1, Grid.GetColumnSpan(postsHeader));
                 Assert.Equal(1, Grid.GetColumn(splitter));
                 sidebar.ShowEmpty();
-                Layout(root, new Size(1440, 720));
+                LayoutAt(720);
                 Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
                 Assert.False(sidebar.PositionPill.IsVisible);
                 Assert.False(sidebar.PostLink.IsVisible);
@@ -54,7 +63,7 @@ public sealed class ReaderSidebarAlignmentTests
 
                 string file = new string('W', 250) + ".png";
                 sidebar.Describe("No. 123", file, "100 MiB", true, "Copy post reference");
-                Layout(root, new Size(1440, 720));
+                LayoutAt(720);
                 double headerHeight = sidebar.HeaderRow.Bounds.Height;
                 double frameHeight = sidebar.Frame.Bounds.Height;
                 Assert.Equal(emptyHeight, headerHeight);
@@ -67,12 +76,12 @@ public sealed class ReaderSidebarAlignmentTests
                 Assert.True(sidebar.Open.TranslatePoint(default, sidebar)!.Value.Y
                     > metadata.TranslatePoint(default, sidebar)!.Value.Y);
 
-                Layout(root, new Size(1440, 900));
+                LayoutAt(900);
                 Assert.Equal(headerHeight, sidebar.HeaderRow.Bounds.Height);
                 Assert.Equal(180, sidebar.Frame.Bounds.Height - frameHeight);
                 Assert.Equal(pane.Bounds.Height, sidebar.Bounds.Height);
             }
         }
-        finally { page.EndLifetime(); }
+        finally { window.Close(); page.EndLifetime(); }
     });
 }
