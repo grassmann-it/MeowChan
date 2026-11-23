@@ -77,30 +77,33 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
 
     [Theory]
     [InlineData(240)]
-    [InlineData(400)]
-    public void PopoverStarsUseTheFullWidthAndHaveFortyDipTargets(int width) => BooruComponentDispatcher.Run(() =>
+    [InlineData(280)]
+    [InlineData(360)]
+    [InlineData(480)]
+    public void PopoverKeepsTheSameAxesWithLargerStarTargets(int width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        GalleryDecisionRow row = new("PopoverRow") { Width = width };
+        GalleryDecisionRow row = new("PopoverRow") { Width = width - 32 };
         row.Show(View(3));
-        Window window = new() { Width = 440, Height = 240, Content = row };
+        Window window = new() { Width = 520, Height = 240, Content = row };
         try
         {
             window.Show();
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
-            Assert.Equal(width, row.RatingGroup.Bounds.Width);
             Assert.All(row.StarButtons, star =>
             {
-                Assert.True(star.Bounds.Width >= 40);
-                Assert.True(star.Bounds.Height >= 40);
+                Assert.InRange(star.Bounds.Width, 24, 40);
+                Assert.Equal(40, star.Bounds.Height, 0.5);
                 Assert.InRange(Math.Abs(star.Bounds.Width - row.StarButtons[0].Bounds.Width), 0, 1);
             });
+            Assert.Equal(row.StarButtons[0].Bounds.Left, row.FavoriteButton.Bounds.Left, 0.5);
+            Assert.Equal(row.ClearButton.Bounds.Left, row.Summary.Bounds.Left, 0.5);
+            Assert.True(row.FavoriteButton.Bounds.Top > row.StarButtons[0].Bounds.Bottom);
+            Assert.True(row.Summary.Bounds.Top > row.ClearButton.Bounds.Bottom);
+            Assert.True(row.Summary.Bounds.Right <= row.Bounds.Width + 0.5);
         }
-        finally
-        {
-            window.Close();
-        }
+        finally { window.Close(); }
     });
 
     [Fact]

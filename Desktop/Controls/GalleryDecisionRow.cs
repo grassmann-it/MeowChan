@@ -22,7 +22,8 @@ internal sealed class GalleryDecisionRow : StackPanel
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
     /// <summary>Edge of a star glyph in dip.</summary>
-    private const int StarGlyphSize = 20;
+    private const int FavoriteGlyphSize = 20;
+    private readonly int _starGlyphSize;
     // The second row shares the first row's star and clear-button columns.
     private readonly Grid _group = new()
     {
@@ -49,31 +50,32 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal GalleryDecisionRow(string name, bool compact = false)
     {
         Name = name;
-        if (compact) _group.MaxWidth = 264;
+        _starGlyphSize = compact ? 20 : 24;
+        _group.MaxWidth = compact ? 264 : 304;
         _group.ColumnDefinitions[6].MinWidth = WorkspaceMetrics.InputHeight;
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
         _favoriteContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8,
-            Children = { FavoriteStar.Create(false, StarGlyphSize), _favoriteLabel } };
+            Children = { FavoriteStar.Create(false, FavoriteGlyphSize), _favoriteLabel } };
         Grid.SetColumn(_favoriteLabel, 1);
         _favorite.Content = _favoriteContent;
         for (int index = 0; index < _stars.Length; index++)
         {
             int number = index + 1;
             ColumnDefinition column = _group.ColumnDefinitions[index];
-            column.MinWidth = compact ? StarGlyphSize + 4 : 40;
-            if (compact) column.MaxWidth = WorkspaceMetrics.InputHeight;
+            column.MinWidth = WorkspaceMetrics.RatingStarMinWidth;
+            column.MaxWidth = compact ? WorkspaceMetrics.InputHeight : WorkspaceMetrics.RatingPopoverStarSize;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
             if (!compact)
             {
-                star.Height = 40;
-                star.MinWidth = 40;
+                star.Height = WorkspaceMetrics.RatingPopoverStarSize;
             }
             star.Click += (_, _) => OnStar(number);
             TransientHover.Attach(star, over => { if (over) Preview(number); else if (_preview == number) Preview(null); });
             Grid.SetColumn(star, index);
             _group.Children.Add(star);
         }
+        _clear.Width = _clear.Height = WorkspaceMetrics.InputHeight;
         _clear.Classes.Add(WorkspaceIcons.SquareClass);
         _clear.Classes.Add("subtle");
         _clear.Click += OnClear;
@@ -179,7 +181,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         bool all = view.Favorite == GalleryDecisionCoverage.All;
         _favorite.IsEnabled = favoriteAvailable ?? view.Available;
         _favorite.IsChecked = view.Favorite == GalleryDecisionCoverage.Some ? null : all;
-        _favoriteContent.Children[0] = FavoriteStar.Create(all, StarGlyphSize);
+        _favoriteContent.Children[0] = FavoriteStar.Create(all, FavoriteGlyphSize);
         // The label says what the targets carry: "Favorite", and "Favorite on some" while only some of a selection are.
         _favoriteLabel.Text = view.Favorite == GalleryDecisionCoverage.Some ? Texts.T("gallery.decision.favorite.some") : Texts.T("gallery.decision.favorite");
         int rating = view.RatingMixed ? 0 : view.Rating ?? 0;
@@ -229,7 +231,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         for (int index = 0; index < _stars.Length; index++)
         {
             ToggleButton star = _stars[index];
-            star.Content = FavoriteStar.Create(index < shown, StarGlyphSize, tinted: !previewing);
+            star.Content = FavoriteStar.Create(index < shown, _starGlyphSize, tinted: !previewing);
             star.Classes.Set("rating-preview", previewing && index < shown);
         }
     }

@@ -28,6 +28,9 @@ public static class WorkspaceMetrics
     internal const double MediaPanelSectionGap = 12;
     internal const double MediaFactLabelWidth = 120;
     internal const double MediaFactStackWidth = 260;
+    internal const double MediaPanelPositionMinWidth = 48;
+    internal const double RatingStarMinWidth = 24;
+    internal const double RatingPopoverStarSize = 40;
     /// <summary>Code mirror of Workspace.Inset.Section for code-built side panels whose host may override individual edges.</summary>
     public const double SectionInset = 16;
     /// <summary>A list row with a title and a meta line (16 dip padding above and below them together, on the 8 dip grid).</summary>

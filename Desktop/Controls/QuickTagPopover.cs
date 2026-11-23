@@ -305,7 +305,7 @@ internal sealed class QuickTagPopover
             VerticalAlignment = VerticalAlignment.Center, Name = options.Name + "Title" };
         ToolTip.SetTip(heading, title);
         Button close = new() { Name = options.Name + "Close", VerticalAlignment = VerticalAlignment.Center };
-        WorkspaceIcons.MakeSquare(close, WorkspaceIcons.Close, Texts.T("tags.quick.close"), Texts.T("tags.quick.closeTip"));
+        close.Localize(Texts.T("tags.quick.close"));
         // Same header as the surface: the title on the left, the × alone at the right edge, 24 dip of empty space between.
         Grid header = new() { ColumnDefinitions = new ColumnDefinitions("*,24,Auto"), Name = options.Name + "Header" };
         header.Children.Add(heading);
