@@ -38,11 +38,11 @@ public sealed class TrayStatsPresenterTests : IDisposable
             Shown = shown; TooltipOn = tooltipOn; MenuOn = menuOn;
             Hub = new IoStatsHub(Source, Clock, new IoStatsOptions { Persist = false, BackgroundIntervalMs = backgroundMs, TrayTooltip = tooltipOn });
             Attachment = Hub.Attach(null, () => new IoActivity(Active, Active > 0 ? 4 : 0, 0));
-            // The existing tray entries stay behind the three new ones.
             Menu.Items.Add(new NativeMenuItem { Header = "Open" });
             Presenter = new TrayStatsPresenter(Hub, Menu, new TrayStatsHost(
                 () => TooltipOn, () => MenuOn, () => Shown, () => Closing, () => (Paused, Paused ? 0 : Active),
                 tip => { Tooltip = tip; TooltipSets++; }, () => Opened++, action => action()), Clock);
+            Menu.Items.Add(new NativeMenuItem { Header = "Pause" });
         }
 
         internal void Activity(int active) { Active = active; Hub.NotifyActivityChanged(); }
@@ -219,16 +219,19 @@ public sealed class TrayStatsPresenterTests : IDisposable
     // --- the menu lines ---------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void TheMenuStartsWithThreeEnabledLinesAndASeparatorAndTheOldEntriesFollow()
+    public void ThreeEnabledLinesSitBetweenTheOpenEntryAndTheActions()
     {
         using Harness h = new();
-        Assert.Same(h.Presenter.RatesItem, h.Menu.Items[0]);
-        Assert.Same(h.Presenter.DiskItem, h.Menu.Items[1]);
-        Assert.Same(h.Presenter.DetailItem, h.Menu.Items[2]);
-        Assert.Same(h.Presenter.Separator, h.Menu.Items[3]);
-        Assert.Equal("Open", ((NativeMenuItem)h.Menu.Items[4]).Header);
+        Assert.Collection(h.Menu.Items,
+            item => Assert.Equal("Open", Assert.IsType<NativeMenuItem>(item).Header),
+            item => Assert.IsType<NativeMenuItemSeparator>(item),
+            item => Assert.Same(h.Presenter.RatesItem, item),
+            item => Assert.Same(h.Presenter.DiskItem, item),
+            item => Assert.Same(h.Presenter.DetailItem, item),
+            item => Assert.IsType<NativeMenuItemSeparator>(item),
+            item => Assert.Equal("Pause", Assert.IsType<NativeMenuItem>(item).Header));
         Assert.True(h.Presenter.RatesItem.IsEnabled && h.Presenter.DiskItem.IsEnabled && h.Presenter.DetailItem.IsEnabled);
-        Assert.True(h.Presenter.RatesItem.IsVisible && h.Presenter.DiskItem.IsVisible && h.Presenter.DetailItem.IsVisible && h.Presenter.Separator.IsVisible);
+        Assert.All(h.Menu.Items, item => Assert.True(item.IsVisible));
     }
 
     [Fact]
@@ -266,22 +269,41 @@ public sealed class TrayStatsPresenterTests : IDisposable
     }
 
     [Fact]
+    public void DownloadStateChangesRefreshTheLinesWithoutAnOpenEvent()
+    {
+        using Harness h = new(tooltipOn: false);
+        h.Presenter.Refresh();
+        Assert.Equal("Idle", h.Presenter.RatesItem.Header);
+        h.Active = 2;
+        h.Presenter.Refresh();
+        Assert.StartsWith("2 downloads active", Assert.IsType<string>(h.Presenter.RatesItem.Header));
+        h.Paused = true;
+        h.Presenter.Refresh();
+        Assert.Equal("Paused", h.Presenter.RatesItem.Header);
+    }
+
+    [Fact]
     public void TheMenuSettingHidesAndShowsTheLinesWithoutRestartAndTheTooltipSettingIsIndependent()
     {
         using Harness h = new(shown: false, menuOn: false, tooltipOn: false);
-        Assert.False(h.Presenter.RatesItem.IsVisible);
-        Assert.False(h.Presenter.Separator.IsVisible);
+        NativeMenuItemBase[] actions = h.Menu.Items.ToArray();
+        Assert.Equal(2, actions.Length);
         h.Source.Add("4chan", net: MiB);
         h.OpenMenu();
         Assert.Null(h.Presenter.RatesItem.Header); // hidden lines are not computed
-        Assert.Equal("MeowChan - Image Downloader", h.Tooltip);
+        Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
         h.MenuOn = true;
         h.Presenter.Refresh();
-        Assert.True(h.Presenter.RatesItem.IsVisible && h.Presenter.DetailItem.IsVisible && h.Presenter.Separator.IsVisible);
+        Assert.Equal(7, h.Menu.Items.Count);
+        Assert.Same(actions[0], h.Menu.Items[0]);
+        Assert.Same(actions[1], h.Menu.Items[^1]);
         Assert.Equal("Idle", h.Presenter.RatesItem.Header);
         Assert.Equal("Today ↓ 1.0 MiB", h.Presenter.DiskItem.Header);
         Assert.Equal("Disk: 0 B written", h.Presenter.DetailItem.Header);
-        Assert.Equal("MeowChan - Image Downloader", h.Tooltip); // tooltip setting still off: the legacy text
+        Assert.Equal("MeowChan · Image Downloader", h.Tooltip);
+        h.MenuOn = false;
+        h.Presenter.Refresh();
+        Assert.Equal(actions, h.Menu.Items);
     }
 
     [Fact]

@@ -7,7 +7,7 @@ using MeowChan.Desktop;
 namespace MeowChan;
 
 /// <summary>
-/// Network and disk statistics in the tray, text only (tooltip and two menu lines). The logic is <see cref="TrayStatsPresenter"/>;
+/// Network and disk statistics in the tray, text only (tooltip and three menu lines). The logic is <see cref="TrayStatsPresenter"/>;
 /// this file connects it to the window. Nothing here owns a timer.
 /// </summary>
 public partial class MainWindow
