@@ -63,7 +63,7 @@ internal static class TaggingModeChecks
             void CheckPill(int number)
             {
                 Require(ReferenceEquals(pill, viewer.SidePanel.Position) && pill.IsEffectivelyVisible
-                    && ((TextBlock)pill.Child!).Text == Texts.T("tags.quick.gallery.positionShort", number, 3)
+                    && pill.Label.Text == Texts.T("tags.quick.gallery.positionShort", number, 3)
                     && AutomationProperties.GetName(pill) == Texts.T("tagging.position", number, 3),
                     "The shared sidebar pill did not follow the queue position.");
             }

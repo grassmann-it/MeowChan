@@ -3,7 +3,6 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
-using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Interactivity;
@@ -49,10 +48,6 @@ public sealed class SidePanelDesignTests
     private static void Capture(Control frame, string variant, int width)
     {
         if (width is not (280 or 480) || Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN") != "1") return;
-        // Complete the theme's state transitions before exporting the visual.
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
-        BooruComponentDispatcher.Wait(Task.Delay(250));
-        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
         frame.UpdateLayout();
         using RenderTargetBitmap bitmap = new(new PixelSize((int)frame.Bounds.Width, (int)frame.Bounds.Height));
         bitmap.Render(frame);
@@ -170,7 +165,7 @@ public sealed class SidePanelDesignTests
         Border frame = (Border)panel.Parent!;
         GalleryControlTransfer.Cancel(frame); // The fixture supplies the presentation for this panel.
         frame.Margin = default;
-        Window window = new() { Width = 520, Height = 800, Content = frame, RequestedThemeVariant = ThemeVariant.Dark };
+        Window window = new() { Width = 520, Height = 800, Content = frame, Classes = { "motion-off" }, RequestedThemeVariant = ThemeVariant.Dark };
         try
         {
             window.Show();
@@ -239,7 +234,7 @@ public sealed class SidePanelDesignTests
         panel.ConfigureFavorite(() => true, () => false, () => Task.CompletedTask);
         using Bitmap picture = new(SamplePicture());
         panel.ShowPicture(picture, _ => { }, false, 1024, 768);
-        Window window = new() { Width = 520, Height = 800, Content = panel, RequestedThemeVariant = ThemeVariant.Dark };
+        Window window = new() { Width = 520, Height = 800, Content = panel, Classes = { "motion-off" }, RequestedThemeVariant = ThemeVariant.Dark };
         try
         {
             window.Show();
@@ -282,7 +277,7 @@ public sealed class SidePanelDesignTests
         // In the application the FlyoutPresenter supplies the overlay background behind this frame.
         frame[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Overlay");
         popover.Flyout.Content = null;
-        Window window = new() { Width = 520, Height = 600, Content = frame, RequestedThemeVariant = ThemeVariant.Dark };
+        Window window = new() { Width = 520, Height = 600, Content = frame, Classes = { "motion-off" }, RequestedThemeVariant = ThemeVariant.Dark };
         try
         {
             window.Show();
@@ -312,7 +307,7 @@ public sealed class SidePanelDesignTests
     {
         GalleryDecisionRow row = new("LocalizedDecision", compact: !popover);
         row[!Panel.BackgroundProperty] = new DynamicResourceExtension("Workspace.Panel");
-        Window window = new() { Width = 520, Height = 180, Content = row, RequestedThemeVariant = ThemeVariant.Dark };
+        Window window = new() { Width = 520, Height = 180, Content = row, Classes = { "motion-off" }, RequestedThemeVariant = ThemeVariant.Dark };
         try
         {
             window.Show();
