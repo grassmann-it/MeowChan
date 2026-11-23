@@ -9,17 +9,13 @@ namespace MeowChan.DesktopTests;
 public sealed class ReaderPassiveFocusFixtureTests
 {
     [Fact]
-    public void MissingAnchorRenderSuppliesTheProductionOptionalDefaultExplicitly()
+    public void MissingAnchorFixtureInvokesTheParameterlessProductionRender()
     {
         MethodInfo render = typeof(ArchivePage).GetMethod("RenderThread",
             BindingFlags.Instance | BindingFlags.NonPublic)!;
-        ParameterInfo argument = Assert.Single(render.GetParameters());
-        Assert.Equal(typeof(bool), argument.ParameterType);
-        Assert.True(argument.IsOptional);
-        Assert.Equal(true, argument.DefaultValue);
+        Assert.Empty(render.GetParameters());
         string source = Source();
-        Assert.Contains("GetMethod(\"RenderThread\", Private)!.Invoke(page, [true]);", source);
-        Assert.DoesNotContain("GetMethod(\"RenderThread\", Private)!.Invoke(page, null)", source);
+        Assert.Contains("GetMethod(\"RenderThread\", Private)!.Invoke(page, null);", source);
     }
 
     [Fact]
@@ -28,7 +24,7 @@ public sealed class ReaderPassiveFocusFixtureTests
         string source = Source();
         Assert.Contains("[page, false]", source);
         Assert.Contains("[id, \"__pf05_missing_post__\", 0d, selected]", source);
-        Assert.Contains(".Invoke(page, [anchor, true, intent, null, null])", source);
+        Assert.Contains(".Invoke(page, [anchor, true, intent, null, null, false])", source);
         Assert.Contains("await LocalizationCase(\"missing-anchor-new-search\", search, missing: true);", source);
         Assert.Contains("await LocalizationCase(\"missing-anchor-replace-own-post\", null, missing: true);", source);
         Assert.Contains("expected.IsKeyboardFocusWithin && latePostFocus == 0", source);
