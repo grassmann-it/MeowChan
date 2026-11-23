@@ -1,4 +1,5 @@
 using MeowChan.Archive;
+using MeowChan.Booru;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
@@ -95,10 +96,10 @@ public sealed class MediaPageTermFilterTests : IDisposable
     public void TheSourceTagIndexReadsTheProvidersTagsOfOneSnapshotOnce()
     {
         static BooruPostRecord Post(string source, string id, params string[] names) => new(source, id,
-            new BooruPostClaim(source, id, BooruPostClaimPresence.None, Tags: names.Select(name => new BooruPostClaimTag(name, BooruPostClaimTagCategory.General)).ToArray()),
+            new BooruPostClaim(source, id, BooruPostClaimPresence.Tags, Tags: names.Select(name => new BooruPostClaimTag(name, BooruPostClaimTagCategory.General)).ToArray()),
             DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch);
-        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.CurrentSchemaVersion,
-            [Post(BooruMediaIdentity.Source, "10", "Cat_Ears", "solo", "cat_ears", "with space"), Post("other", "11", "dog")], []);
+        BooruCatalogSnapshot catalog = new(BooruCatalogSnapshot.ScopedIdentitySchemaVersion,
+            [Post(BooruMediaIdentity.Source, "10", "Cat_Ears", "solo", "cat_ears", "with space"), Post("other", "10", "dog")], []);
         MediaSourceTagIndexCache cache = new();
         MediaSourceTagIndex index = cache.For(catalog);
         Assert.Same(index, cache.For(catalog));
@@ -106,9 +107,10 @@ public sealed class MediaPageTermFilterTests : IDisposable
         Assert.NotSame(index, cache.For(catalog));
         Assert.Same(MediaSourceTagIndex.Empty, cache.For(null));
         Assert.Equal(["cat_ears", "solo"], index.TagsOf(Entry(1, "10")));
-        Assert.Empty(index.TagsOf(Entry(2, "11"))); // another provider's post is not a Danbooru medium of this index
+        MediaLibraryEntry otherProvider = Entry(2, "10") with { Thread = BooruMediaIdentity.Thread(BooruPostKey.FromLegacy("other", "10")) };
+        Assert.Equal(["dog"], index.TagsOf(otherProvider));
         Assert.Empty(index.TagsOf(Entry(3)));
-        Assert.Equal(1, index.PostCount);
+        Assert.Equal(2, index.PostCount);
     }
 
     [Fact]
