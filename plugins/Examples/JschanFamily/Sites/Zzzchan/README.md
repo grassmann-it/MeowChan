@@ -39,7 +39,7 @@ file/post deletions from absence or offer posting, login or archive fallbacks.
 ## Evidence and acceptance limits
 
 Mappings were independently checked by bounded read-only JSON/HTML requests on
-2026-10-25; compact request/hash receipts are in `Evidence/metadata-probes.json`.
+2026-10-25.
 The original NW-00 sample confirmed a SHA-256-matching PNG. A second-board
 `/a/` JPEG follow-up returned 24,210 bytes and matched its provider SHA-256.
 These direct HTTP probes are schema/route/media observations, not production PluginHost, download queue,

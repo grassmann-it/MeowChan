@@ -6,7 +6,6 @@ using MeowChan.Storage;
 
 namespace MeowChan.Import;
 
-// Contract: docs/architecture/gesamtprogramm-2026-10-31/contracts/manual-import-v1.md
 /// <summary>
 /// How a manually imported file is named inside the media library. An import batch is no archived chan thread: it
 /// only borrows the <see cref="ResourceId"/> shape (source, board, thread) so favorites, ratings, the media index, the

@@ -71,10 +71,8 @@ package acceptance.
 
 ## Evidence and planned checks
 
-`Evidence/metadata-shapes-20261025.json` records four additional bounded public
-GETs: tech thread JSON and HTML, siberia catalog and a small siberia thread.
-All four returned200. The record retains exact URLs, times, response hashes and
-redacted mapping fields, without post bodies, authors or original filenames.
+On 2026-10-25, the tech thread JSON/HTML and the siberia catalog and
+thread returned HTTP 200.
 The two boards confirm files[]/id/file_path/thumb_path, opaque suffixes and JPG
 in addition to the prior PNG/WebP observations. The first two urllib requests
 used the default redirect handler and stayed at the requested final URL; the

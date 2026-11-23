@@ -109,7 +109,7 @@ class EvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             source = "tests/MeowChan.DesktopSmoke/MediaNativeInput.cs"
-            excluded = ["artifacts/media-ux-2026-10-28/workers/sol-media-smoke/Desktop/GalleryVideoPlayer.cs",
+            excluded = ["artifacts/smoke-output/source/Desktop/GalleryVideoPlayer.cs",
                         "artifacts/generated.cs", "tests/MeowChan.DesktopSmoke/obj/Generated.cs",
                         "tests/MeowChan.DesktopSmoke/bin/Generated.cs"]
             for name in [source, *excluded]:

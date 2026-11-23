@@ -15,14 +15,14 @@ is assumed.
 Native keys are sent only after matching the launched PID and accessible frame
 title to exactly one private X11 client. Only owned processes are cleaned up.
 
-Set these absolute paths from the actual W20 freeze. `MC_MANIFEST` is the complete
+Set these absolute paths from the source snapshot under test. `MC_MANIFEST` is the complete
 freeze file map, supporting either `files: {path: sha256}` or
 `files: {path: {sha256: ...}}` and `sourceDigest`/`source_digest`. Every listed
 source file is checked before launch. Assembly must be under the frozen source;
 build output hashes, helper/tool hashes and source-manifest hash are recorded.
 
 ```sh
-MC_TOOLS=/home/tomka/Desktop/oChan-ui-workers/boards/artifacts/ui-implementation/boards/accessibility-tools/root
+MC_TOOLS=/absolute/path/to/accessibility-tool-bundle
 # Set MC_SOURCE_ROOT, MC_MANIFEST, MC_SMOKE_DLL and fresh MC_NATIVE_EVIDENCE first.
 flock /tmp/meowchan-ui-1.0-build.lock python3 "$MC_SOURCE_ROOT/scripts/native-input/run-native.py" --source "$MC_SOURCE_ROOT" --source-manifest "$MC_MANIFEST" --assembly "$MC_SMOKE_DLL" --bundle "$MC_TOOLS" --suite plugins --language en --scale 1 --output "$MC_NATIVE_EVIDENCE/plugins-en-1x"
 flock /tmp/meowchan-ui-1.0-build.lock python3 "$MC_SOURCE_ROOT/scripts/native-input/run-native.py" --source "$MC_SOURCE_ROOT" --source-manifest "$MC_MANIFEST" --assembly "$MC_SMOKE_DLL" --bundle "$MC_TOOLS" --suite plugins --language de --scale 1 --output "$MC_NATIVE_EVIDENCE/plugins-de-1x"
