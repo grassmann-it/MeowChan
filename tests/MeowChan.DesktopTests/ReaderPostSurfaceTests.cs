@@ -198,7 +198,9 @@ public sealed class ReaderPostSurfaceTests
     public void QuotesAndBacklinksRetainNavigationNamesAndDisclosure()
     {
         XElement root = PostRoot();
-        XElement[] quoteButtons = root.Descendants(A + "Button").Where(element =>
+        XElement cards = Assert.Single(Source("Desktop/Views/Archive/ArchivePage.axaml").Descendants(A + "DataTemplate"),
+            template => (string?)template.Attribute(X + "Key") == "ReaderReplyCards");
+        XElement[] quoteButtons = root.Descendants(A + "Button").Concat(cards.Descendants(A + "Button")).Where(element =>
             (string?)element.Attribute("Click") == "OnQuoteClick").ToArray();
         Assert.Equal(2, quoteButtons.Length); // Keyboard quote row and the nested reply cards.
         XElement card = Assert.Single(quoteButtons, button => ((string?)button.Attribute("Classes"))?.Contains("reader-reply-card") == true);
@@ -215,9 +217,8 @@ public sealed class ReaderPostSurfaceTests
             Assert.Equal("reader.open-quote", Assert.Single(button.Attributes().Where(attribute =>
                 attribute.Name.LocalName == "CommandPresentation.Id")).Value);
         }
-        foreach (string binding in new[] { "{Binding Quotes}", "{Binding Replies}" })
-            Assert.Single(root.Descendants(A + "ItemsControl").Where(element =>
-                (string?)element.Attribute("ItemsSource") == binding));
+        Assert.Single(root.Descendants(A + "ItemsControl"), element => (string?)element.Attribute("ItemsSource") == "{Binding Quotes}");
+        Assert.Single(cards.Descendants(A + "ItemsControl"), element => (string?)element.Attribute("ItemsSource") == "{Binding Replies}");
         Assert.Empty(root.Descendants(A + "Expander")); // The header counter replaced the expander (I2).
         XElement toggle = Assert.Single(root.Descendants(A + "Button"), button => ((string?)button.Attribute("Classes"))?.Contains("reader-reply-toggle") == true);
         Assert.Equal("{Binding HasReplyToggle}", (string?)toggle.Attribute("IsVisible"));
@@ -225,15 +226,16 @@ public sealed class ReaderPostSurfaceTests
         Assert.Equal("{Binding ReplyToggleLabel}", (string?)toggle.Attribute("AutomationProperties.Name"));
         Assert.Equal("{Binding ReplyToggleLabel}", (string?)toggle.Attribute("ToolTip.Tip"));
         Assert.Contains(toggle.Descendants(A + "TextBlock"), text => (string?)text.Attribute("Text") == "{Binding BacklinkCountLabel}");
-        XElement cards = Assert.Single(root.Descendants(A + "StackPanel"), panel => (string?)panel.Attribute("IsVisible") == "{Binding RepliesExpanded}");
-        Assert.Contains(cards.Descendants(A + "Rectangle"), rail => (string?)rail.Attribute("Width") == "3"); // The left rail.
+        XElement inline = Assert.Single(root.Descendants(A + "ContentControl"), panel => (string?)panel.Attribute("IsVisible") == "{Binding RepliesExpanded}");
+        Assert.Equal("{StaticResource ReaderReplyCards}", (string?)inline.Attribute("ContentTemplate"));
+        Assert.Contains(cards.Descendants(A + "Rectangle"), rail => (string?)rail.Attribute("Width") == "4"); // The left rail.
         Assert.Contains(cards.Descendants(A + "Button"), more => (string?)more.Attribute("Click") == "OnMoreRepliesClick");
     }
 
     [Fact]
     public void InlineReferencesKeepAKeyboardRowAfterTheText()
     {
-        XElement root = PostRoot(); // One parsed document: the order check compares element identity.
+        XElement root = Posts(); // One parsed subtree: the order check compares element identity.
         XElement body = Assert.Single(root.Descendants(Desktop + "ReaderBodyTextBlock"));
         XElement keys = Assert.Single(body.ElementsAfterSelf(A + "ItemsControl"));
         Assert.Equal("{Binding Quotes}", (string?)keys.Attribute("ItemsSource"));
@@ -245,7 +247,7 @@ public sealed class ReaderPostSurfaceTests
         XElement collapsed = PostStyle("ItemsControl.reader-quote-keys:not(:focus-within):not(.reader-quotes-visible)");
         Assert.Equal("0", Setting(collapsed, "MaxHeight"));
         // Reading order: text, then quotes, then the nested replies.
-        XElement replies = Assert.Single(root.Descendants(A + "StackPanel"), panel => (string?)panel.Attribute("IsVisible") == "{Binding RepliesExpanded}");
+        XElement replies = Assert.Single(root.Descendants(A + "ContentControl"), panel => (string?)panel.Attribute("IsVisible") == "{Binding RepliesExpanded}");
         XElement[] order = root.Descendants().Where(element => element == body || element == keys || element == replies).ToArray();
         Assert.Equal(new[] { body, keys, replies }, order);
     }

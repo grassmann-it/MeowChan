@@ -133,8 +133,10 @@ public sealed class ReaderFontsTests
         XElement window = Assert.Single(styles.Elements(A + "Style").Where(element => (string?)element.Attribute("Selector") == "Window"));
         Assert.Contains(window.Elements(A + "Setter"), setter => (string?)setter.Attribute("Property") == "FontFamily"
             && (string?)setter.Attribute("Value") == "{DynamicResource " + ReaderFonts.UiFamilyResource + "}");
-        string page = File.ReadAllText(Path("Desktop/Views/Archive/ArchivePage.axaml"));
-        Assert.Single(System.Text.RegularExpressions.Regex.Matches(page, "reader-body"));
+        XElement page = Source("Desktop/Views/Archive/ArchivePage.axaml");
+        XElement[] readingText = page.Descendants().Where(element => (string?)element.Attribute("Classes") == "reader-body").ToArray();
+        Assert.Equal(2, readingText.Length);
+        Assert.All(readingText, element => Assert.Equal("ReaderBodyTextBlock", element.Name.LocalName));
         // App.ApplyControlLanguage republishes the fonts on every language change.
         string app = File.ReadAllText(Path("App.axaml.cs"));
         Assert.Contains("ReaderFonts.Apply(this, Texts.Language)", app);

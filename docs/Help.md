@@ -1889,7 +1889,9 @@ turning the preference off; it returns when space is available.
 **Reader only** is the default, so the sidebar toggle starts Off in the Archive view.
 Choose **Reader and Archive view** to show the sidebar in both.
 When enabled, it shows the selected post’s medium beside the posts, following
-Up/Down navigation. Choose left or right. A post with several media gets a thumbnail strip
+Up/Down navigation. A post without media shows its text and replies in the sidebar.
+You can scroll the details and load more replies without changing which replies are
+expanded under the post. Choose left or right. A post with several media gets a thumbnail strip
 under the picture (**Thumbnails in the media sidebar strip** sets how many show at once,
 12 by default, 2–40; a larger post slides a window along); click a thumbnail or use
 **Alt+Shift+Left** and **Alt+Shift+Right** to step through the post's media. The sidebar header holds the

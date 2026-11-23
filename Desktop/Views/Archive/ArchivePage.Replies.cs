@@ -60,6 +60,7 @@ public partial class ArchivePage
             UpdateFocusedReplies();
             foreach (ArchivePostRow row in rows)
                 if (row.RepliesExpanded && ArchivePosts.ContainerFromItem(row) != null) LoadExpandedReplies(row);
+            if (ArchivePosts.SelectedItem is ArchivePostRow selected) LoadSidebarPostReplies(selected);
             if (restoreLayout != null) await restoreLayout();
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { }

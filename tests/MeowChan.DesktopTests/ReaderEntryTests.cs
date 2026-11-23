@@ -192,10 +192,8 @@ public sealed class ReaderEntryTests
         Assert.Equal("reader.sidebar.loading", ReaderMediaSidebarRules.EmptyTextKey(loading: true, noPosts: true));
         Assert.Equal("reader.sidebar.noPosts", ReaderMediaSidebarRules.EmptyTextKey(loading: false, noPosts: true));
         Assert.Equal("reader.sidebar.empty", ReaderMediaSidebarRules.EmptyTextKey(loading: false, noPosts: false));
-        foreach (string key in new[] { "reader.sidebar.loading", "reader.sidebar.noPosts", "reader.sidebar.empty", "reader.sidebar.threadNoMedia" })
+        foreach (string key in new[] { "reader.sidebar.loading", "reader.sidebar.noPosts", "reader.sidebar.empty" })
             Assert.NotEqual(key, Texts.T(key));
-        Assert.Contains("thread", Texts.T("reader.sidebar.threadNoMedia"), StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("{0}", Texts.T("reader.sidebar.threadNoMedia"));
     }
 
     [Fact]
