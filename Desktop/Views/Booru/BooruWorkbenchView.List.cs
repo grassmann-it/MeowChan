@@ -18,19 +18,22 @@ namespace MeowChan.Desktop.Booru;
 
 internal sealed partial class BooruWorkbenchView
 {
-    private int ListDecodeWidth => (int)Math.Ceiling(Math.Max(ListLayout.At(double.PositiveInfinity).Width, ListLayout.WidePreviewHeight)
+    private int _renderedListDecodeEdge;
+
+    private int ListDecodeEdge => (int)Math.Ceiling(Math.Max(ListLayout.At(double.PositiveInfinity).Width, ListLayout.WidePreviewHeight)
         * (TopLevel.GetTopLevel(this)?.RenderScaling ?? 1));
 
     private bool UsedDecodeWidth(int width) => _resultView switch
     {
-        BooruResultView.List => width == ListDecodeWidth,
+        BooruResultView.List => width == _renderedListDecodeEdge,
         BooruResultView.Grid => width == 0,
         _ => false
     };
 
-    private void OnListScalingChanged(object? sender, EventArgs e)
+    private void OnListLayoutUpdated(object? sender, EventArgs e)
     {
-        if (_resultView == BooruResultView.List && !_closed) Render(force: true);
+        // The host has committed its render scaling by the time the new layout is published.
+        if (_resultView == BooruResultView.List && _renderedListDecodeEdge != ListDecodeEdge) OnModelChanged();
     }
 
     private Control CreateResultCard(BooruResultRowView row)
@@ -39,7 +42,7 @@ internal sealed partial class BooruWorkbenchView
         Border card = new() { Name = "BooruResult:" + post.PostId, Classes = { "workspace-card" } };
         // The wide band leaves 24 DIP for the command strip and card edge.
         card.Padding = new Thickness(12, 0);
-        Border frame = CreatePreview(row, 0, ListDecodeWidth);
+        Border frame = CreatePreview(row, 0, _renderedListDecodeEdge);
         if (frame.Child is Image image)
         {
             image.HorizontalAlignment = HorizontalAlignment.Center;

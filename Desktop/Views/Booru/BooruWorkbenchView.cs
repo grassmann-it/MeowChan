@@ -220,9 +220,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnAttachedToVisualTree(e);
-        if (e.RootVisual is TopLevel top) top.ScalingChanged += OnListScalingChanged;
         _attached = true;
         if (_closed) return;
+        LayoutUpdated += OnListLayoutUpdated;
         // Keep subscriptions through transient detaches: late results remain in the model and are
         // rendered here too, even if their queued notification ran while no host was attached.
         Render(force: true);
@@ -234,7 +234,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _attached = false;
         _clock.Stop();
         DismissResultViewer();
-        if (e.RootVisual is TopLevel top) top.ScalingChanged -= OnListScalingChanged;
+        LayoutUpdated -= OnListLayoutUpdated;
         base.OnDetachedFromVisualTree(e);
     }
 
@@ -609,11 +609,13 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _pageLimit.Text = Texts.T("booru.ui.page.limit", view.PagerLimits.Pages, view.PagerLimits.PostsPerPage);
         RenderResultViewBar(view);
 
-        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, ListLayout, TagsShown(), string.Join('|',
+        int decodeEdge = _resultView == BooruResultView.List ? ListDecodeEdge : 0;
+        string key = string.Join('\n', Texts.Language, view.Status, view.Page, view.ExecutedPostId, ListLayout, TagsShown(), decodeEdge, string.Join('|',
             view.Rows.Select(row => $"{row.Post.PostId}:{row.Load}:{row.LoadCode}:{row.Preview}:{row.PreviewBytes?.Length}")));
         if (force || key != _resultsKey)
         {
             _resultsKey = key;
+            _renderedListDecodeEdge = decodeEdge;
             _selectedResults.IntersectWith(view.Rows.Select(row => row.Post.PostId));
             _expandedTagPosts.IntersectWith(view.Rows.Select(row => row.Post.PostId));
             _resultWorkViewActions.Clear();
