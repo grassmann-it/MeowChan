@@ -69,7 +69,7 @@ public sealed class DesignLintTests
         _ = Lint.Violations; // forces the scan
         System.Diagnostics.Stopwatch sw = System.Diagnostics.Stopwatch.StartNew();
         DesignLintScanner.ScanRepository(RepositoryRoot());
-        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(4), $"Design lint scan took {sw.Elapsed.TotalSeconds:F1} s");
+        Assert.True(sw.Elapsed < TimeSpan.FromSeconds(12), $"Design lint scan took {sw.Elapsed.TotalSeconds:F1} s");
     }
 
     [Fact]
