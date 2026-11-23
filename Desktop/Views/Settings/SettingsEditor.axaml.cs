@@ -220,6 +220,7 @@ namespace MeowChan
         {
             ArgumentNullException.ThrowIfNull(config);
             InitializeComponent();
+            InitializeBooruListFields();
             InitializeResetIcons();
             CommandBindings.EnsureIconBeforeText(ThemeColorsButton, "sliders");
             CommandBindings.EnsureIconBeforeText(GalleryLayoutResetButton, "rotate-ccw");
@@ -269,6 +270,7 @@ namespace MeowChan
             LoadBooruSearchDraft(config);
             LoadTagQueueDraft(config);
             LoadBooruGalleryDraft(config);
+            LoadBooruListDraft(config);
             LoadTaggingDraft(config);
             LoadViewerDraft(config);
             LoadExportFilenameTemplateDraft(config);
@@ -817,6 +819,7 @@ namespace MeowChan
             LoadBooruSearchDraft(_config);
             LoadTagQueueDraft(_config);
             LoadBooruGalleryDraft(_config);
+            LoadBooruListDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
             LoadExportFilenameTemplateDraft(_config);
@@ -945,6 +948,7 @@ namespace MeowChan
                 RaiseReaderTextsChanged();
                 RaiseTagQueueTextsChanged();
                 RaiseBooruGalleryTextsChanged();
+                UpdateBooruListTexts();
                 RaiseViewerTextsChanged();
                 RaiseExportFilenameTemplateTextsChanged();
                 RaiseQuickTagTextsChanged();
@@ -1262,6 +1266,7 @@ namespace MeowChan
                 ApplyBooruSearchDraft(candidate);
                 ApplyTagQueueDraft(candidate);
                 ApplyBooruGalleryDraft(candidate);
+                candidate.BooruListLayout = CaptureBooruListDraft();
                 ApplyViewerDraft(candidate);
                 ApplyExportFilenameTemplateDraft(candidate);
                 ApplyQuickTagDraft(candidate);
@@ -1349,6 +1354,7 @@ namespace MeowChan
             LoadBooruSearchDraft(_config);
             LoadTagQueueDraft(_config);
             LoadBooruGalleryDraft(_config);
+            LoadBooruListDraft(_config);
             LoadTaggingDraft(_config);
             LoadViewerDraft(_config);
             LoadExportFilenameTemplateDraft(_config);

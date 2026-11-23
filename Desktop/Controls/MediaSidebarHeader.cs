@@ -5,55 +5,44 @@ using Avalonia.Layout;
 
 namespace MeowChan.Desktop.Controls;
 
-/// <summary>Keeps the post, media position and actions on a control-height row with room below for long file details.</summary>
-internal sealed class MediaSidebarHeader : Grid
+/// <summary>A control-height row for the tabs, the filling position pill and the close button.</summary>
+internal class MediaSidebarHeader : Grid
 {
     internal const double TopInset = 8;
+    internal const double HeaderGap = 8;
 
-    private readonly Control _heading;
-    private readonly TextBlock _metadata;
-    private readonly Control _position;
-    private readonly Control _actions;
+    private readonly MediaPositionPill _position;
+    private readonly Button _close;
 
-    internal MediaSidebarHeader(Control heading, TextBlock metadata, Control position, Control actions)
+    internal MediaSidebarHeader(Control leading, MediaPositionPill position, Button close, params Control[] body)
     {
-        _heading = heading;
-        _metadata = metadata;
         _position = position;
-        _actions = actions;
+        _close = close ?? throw new ArgumentNullException(nameof(close));
         RowDefinitions = new RowDefinitions { new(new GridLength(WorkspaceMetrics.InputHeight)), new(GridLength.Auto) };
-        ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto,Auto");
-        heading.Margin = new Thickness(0, 0, 8, 0);
-        heading.ClipToBounds = true;
-        position.Margin = new Thickness(8, 0, 0, 0);
-        actions.Margin = new Thickness(8, 0, 0, 0);
-        actions.HorizontalAlignment = HorizontalAlignment.Right;
-        SetColumn(position, 2);
-        SetColumn(actions, 3);
-        Children.Add(heading);
-        Children.Add(metadata);
+        ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto");
+        position.Margin = new Thickness(HeaderGap, 0, HeaderGap, 0);
+        close.Width = close.Height = WorkspaceMetrics.InputHeight;
+        close.HorizontalAlignment = HorizontalAlignment.Right;
+        close.VerticalAlignment = VerticalAlignment.Center;
+        Children.Add(leading);
         Children.Add(position);
-        Children.Add(actions);
+        SetColumn(position, 1);
+        foreach (Control child in body)
+        {
+            Children.Add(child);
+            SetRow(child, 1);
+            SetColumnSpan(child, 3);
+        }
+        Children.Add(close);
+        SetColumn(close, 2);
     }
 
     protected override Size MeasureOverride(Size availableSize)
     {
-        _heading.Measure(Size.Infinity);
-        _metadata.Measure(Size.Infinity);
-        _position.Measure(Size.Infinity);
-        _actions.Measure(Size.Infinity);
-        double textWidth = Math.Max(0, availableSize.Width - _actions.DesiredSize.Width);
-        double positionWidth = _position.DesiredSize.Width;
-        double counterReserve = Math.Min(positionWidth, ShrinkRowPanel.MinimumShrunkWidth + _position.Margin.Left);
-        double headingWidth = Math.Min(_heading.DesiredSize.Width, Math.Max(0, textWidth - counterReserve));
-        ColumnDefinitions[0].MaxWidth = headingWidth;
-        ColumnDefinitions[2].MaxWidth = Math.Max(0, textWidth - headingWidth);
-        double remaining = textWidth - headingWidth - positionWidth;
-        // Use the full width for the file when it would need more than two lines beside the controls.
-        bool stackMetadata = _metadata.IsVisible && remaining < _metadata.DesiredSize.Width / _metadata.MaxLines;
-        SetRow(_metadata, stackMetadata ? 1 : 0);
-        SetColumn(_metadata, stackMetadata ? 0 : 1);
-        SetColumnSpan(_metadata, stackMetadata ? 4 : 1);
+        Size rowSize = new(double.PositiveInfinity, WorkspaceMetrics.InputHeight);
+        _close.Measure(rowSize);
+        double reserve = _position.IsVisible ? ShrinkRowPanel.MinimumShrunkWidth + 2 * HeaderGap : 0;
+        ColumnDefinitions[0].MaxWidth = Math.Max(0, availableSize.Width - _close.DesiredSize.Width - reserve);
         return base.MeasureOverride(availableSize);
     }
 }

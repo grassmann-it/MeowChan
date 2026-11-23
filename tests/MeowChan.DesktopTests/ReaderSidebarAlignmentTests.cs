@@ -47,7 +47,8 @@ public sealed class ReaderSidebarAlignmentTests
                 sidebar.ShowEmpty();
                 Layout(root, new Size(1440, 720));
                 Assert.Equal(Texts.T("reader.sidebar.title"), AutomationProperties.GetName(sidebar));
-                Assert.DoesNotContain(sidebar.HeaderRow.GetVisualDescendants().OfType<TextBlock>(), text => text.IsVisible);
+                Assert.False(sidebar.PositionPill.IsVisible);
+                Assert.False(sidebar.PostLink.IsVisible);
                 double emptyHeight = sidebar.HeaderRow.Bounds.Height;
                 Assert.Equal(ReaderMediaSidebar.HeaderLineHeight, emptyHeight);
 
@@ -56,7 +57,7 @@ public sealed class ReaderSidebarAlignmentTests
                 Layout(root, new Size(1440, 720));
                 double headerHeight = sidebar.HeaderRow.Bounds.Height;
                 double frameHeight = sidebar.Frame.Bounds.Height;
-                Assert.InRange(headerHeight, emptyHeight, emptyHeight + ReaderMediaSidebar.HeaderLineHeight);
+                Assert.InRange(headerHeight, emptyHeight, emptyHeight + 2 * ReaderMediaSidebar.HeaderLineHeight);
                 TextBlock metadata = Assert.Single(sidebar.HeaderRow.GetVisualDescendants().OfType<TextBlock>(),
                     text => text.Name == "ReaderMediaSidebarHeader");
                 Assert.Equal(sidebar.HeaderLine, ToolTip.GetTip(metadata));

@@ -307,6 +307,16 @@ public partial class ArchivePage
             ? (current, post.Id, _mediaSidebar.FrameArea) : null;
     }
 
+    private Task OpenSidebarTagsAsync(Control anchor)
+    {
+        if (_mediaSidebar is not { } sidebar || SidebarMediaContext([sidebar]) is not { } shown
+            || _thread == null || _selectedThread is not { } thread) return Task.CompletedTask;
+        ArchiveAssetRow? asset = FindMatchingAsset(thread, shown.PostId, shown.Attachment.Attachment, _assets);
+        ArchiveMediaSubject subject = ResolveArchiveMediaSubject(asset, shown.Attachment, shown.PostId);
+        return OpenRateAndTagAsync(subject, anchor, null, QuickTagInitialFocus.TagInput, shown.Attachment.Label,
+            () => _mediaSidebarShown && ReferenceEquals(shown.Attachment, CurrentSidebarAttachment()));
+    }
+
     // A thumbnail of the sidebar's strip stands for its own file of the focused post: its attachment, post and the thumbnail as menu origin. From the keyboard the
     // strip itself is the source, and the menu is the focused (the selected, i.e. shown) thumbnail's. Shown tells whether that file is the one the sidebar shows.
     private (ArchiveAttachmentRow Attachment, string PostId, Control Origin, bool Shown)? SidebarStripContext(Control[] ancestors)
@@ -367,11 +377,13 @@ public partial class ArchivePage
     /// together. R, menus and captions focus the tag field; <paramref name="initialFocus"/> is an explicit star-focus opt-in.
     /// A file that cannot be tagged gets the stars and the reason as text, with focus on its stars.
     /// </summary>
-    private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, QuickTagInitialFocus initialFocus, string? label = null)
+    private async Task OpenRateAndTagAsync(ArchiveMediaSubject subject, Control origin, ArchiveAssetRow[]? selection, QuickTagInitialFocus initialFocus,
+        string? label = null, Func<bool>? current = null)
     {
         var thread = subject.Thread;
         ResourceId threadId = subject.ThreadId;
-        bool PopoverCurrent() => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId;
+        bool PopoverCurrent() => !_ended && _available && ReferenceEquals(_thread, thread) && _selectedThread == threadId
+            && (current?.Invoke() ?? true);
         if (!PopoverCurrent()) return;
         if (selection is { Length: > 1 })
         {

@@ -14,8 +14,8 @@ using MeowChan.Desktop.Motion;
 
 namespace MeowChan.DesktopTests;
 
-// Shared "Rate and tag…" decision row: the centered rating bar (five equal star cells and the remove button),
-// the favourite, then a short rating caption. Hover previews, one tab stop, the label of a partly favourite
+// Shared "Rate and tag…" decision row: five equal star cells and the remove button, with the favourite
+// and rating caption on the second row. Hover previews, one tab stop, the label of a partly favourite
 // selection, and the full help sentence stay intact. Controls without an application have no theme, so geometry is checked on the grid and
 // the real layout of the cells at the popover width and the narrow width belongs to the captures run centrally.
 [Collection("Localization")]
@@ -37,33 +37,43 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     // ---- the rating bar ---------------------------------------------------------------------------------------------------------
 
     [Theory, InlineData(336.0), InlineData(280.0), InlineData(160.0)]
-    public void TheFiveStarCellsAreEqualTouchAndFillTheRowBesideTheRemoveButton(double width)
+    public void TheFiveStarCellsShareAWidthAndSitBesideTheRemoveButton(double width) => BooruComponentDispatcher.Run(() =>
     {
-        GalleryDecisionRow row = new("DesignRow", compact: true);
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        GalleryDecisionRow row = new("DesignRow", compact: true) { Width = width };
         row.Show(View(3));
         Grid bar = Assert.IsType<Grid>(row.RatingGroup);
         Assert.Equal(7, bar.ColumnDefinitions.Count);
         Assert.All(bar.ColumnDefinitions.Take(5), column => Assert.Equal(GridUnitType.Star, column.Width.GridUnitType));
         Assert.Equal(new GridLength(8), bar.ColumnDefinitions[5].Width);
-        Assert.Equal(GridLength.Auto, bar.ColumnDefinitions[6].Width);
+        Assert.Equal(GridUnitType.Star, bar.ColumnDefinitions[6].Width.GridUnitType);
         Assert.Equal(new[] { 0, 1, 2, 3, 4 }, row.StarButtons.Select(Grid.GetColumn));
         Assert.Equal(6, Grid.GetColumn(row.ClearButton));
         Assert.All(row.StarButtons, star => Assert.Contains("rating-star", star.Classes));
         Assert.All(row.StarButtons, star => Assert.Equal(Avalonia.Layout.HorizontalAlignment.Stretch, star.HorizontalAlignment));
 
-        // Only the bar is laid out: a caption needs the platform's text services, which a test without an application does not have.
-        bar.Measure(new Size(width, double.PositiveInfinity));
-        bar.Arrange(new Rect(0, 0, width, bar.DesiredSize.Height));
-        Assert.InRange(bar.Bounds.Width, Math.Min(width, 200) - 0.5, Math.Min(width, 200) + 0.5);
-        Assert.InRange(bar.Bounds.Center.X, width / 2 - 0.5, width / 2 + 0.5);
-        double cell = (bar.Bounds.Width - 8 - row.ClearButton.Bounds.Width) / 5;
-        // Layout rounding snaps each cell to whole pixels, so a cell may differ from the exact fifth by up to one pixel.
-        Assert.All(row.StarButtons, star => Assert.InRange(star.Bounds.Width, cell - 1, cell + 1));
-        for (int index = 0; index < 4; index++)
-            Assert.Equal(row.StarButtons[index].Bounds.Right, row.StarButtons[index + 1].Bounds.Left, 3); // no gap: the hit area is continuous
-        Assert.Equal(0, row.StarButtons[0].Bounds.Left, 3);
-        Assert.InRange(row.ClearButton.Bounds.Right, bar.Bounds.Width - 1, bar.Bounds.Width + 1);
-    }
+        Assert.Equal(WorkspaceMetrics.InputHeight, bar.ColumnDefinitions[6].MinWidth);
+        Assert.All(bar.ColumnDefinitions.Take(5), column => Assert.Equal(WorkspaceMetrics.InputHeight, column.MaxWidth));
+        Assert.Equal(0, Grid.GetRow(row.ClearButton));
+        Assert.Equal(1, Grid.GetRow(row.Summary));
+        Assert.Equal(Grid.GetColumn(row.ClearButton), Grid.GetColumn(row.Summary));
+
+        Window window = new() { Content = row, Width = 400, Height = 240 };
+        try
+        {
+            window.Show();
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            double cellWidth = row.StarButtons[0].Bounds.Width;
+            Assert.True(cellWidth > 0);
+            Assert.All(row.StarButtons, star => Assert.Equal(cellWidth, star.Bounds.Width, 1));
+            for (int index = 0; index < row.StarButtons.Count - 1; index++)
+                Assert.Equal(row.StarButtons[index].Bounds.Right, row.StarButtons[index + 1].Bounds.Left, 0.5);
+            Assert.Equal(row.StarButtons[^1].Bounds.Right + 8, row.ClearButton.Bounds.Left, 0.5);
+            Assert.True(row.Summary.Bounds.Right <= bar.Bounds.Width + 0.5);
+        }
+        finally { window.Close(); }
+    });
 
     [Theory]
     [InlineData(240)]
@@ -239,13 +249,17 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
     // ---- the favourite line --------------------------------------------------------------------------------------------------------
 
     [Fact]
-    public void FavouriteAndRatingCaptionAreCenteredOnSeparateLines()
+    public void FavouriteAndRatingCaptionShareASecondRowUnderTheirColumns()
     {
         GalleryDecisionRow row = new("DesignRow");
-        Assert.Equal(new Control[] { row.RatingGroup, row.FavoriteButton, row.Summary }, row.Children);
-        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Center, row.FavoriteButton.HorizontalAlignment);
-        Assert.Equal(Avalonia.Media.TextAlignment.Center, row.Summary.TextAlignment);
-        Assert.Equal(8, row.Spacing);
+        Grid group = Assert.IsType<Grid>(Assert.Single(row.Children));
+        Assert.Equal(1, Grid.GetRow(row.FavoriteButton));
+        Assert.Equal(0, Grid.GetColumn(row.FavoriteButton));
+        Assert.Equal(row.StarButtons.Count, Grid.GetColumnSpan(row.FavoriteButton));
+        Assert.Equal(Avalonia.Layout.HorizontalAlignment.Left, row.FavoriteButton.HorizontalAlignment);
+        Assert.Equal(1, Grid.GetRow(row.Summary));
+        Assert.Equal(Grid.GetColumn(row.ClearButton), Grid.GetColumn(row.Summary));
+        Assert.Equal(8, group.RowSpacing);
     }
 
     [Fact]
@@ -332,6 +346,7 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.False(row.FavoriteButton.IsVisible);
         Assert.True(row.Summary.IsVisible);
         Assert.Equal(MediaRatingText.Value(3), row.Summary.Text);
-        Assert.Same(row.Summary, row.Children[^1]);
+        Assert.Same(row.RatingGroup, row.Summary.Parent);
+        Assert.Equal(1, Grid.GetRow(row.Summary));
     }
 }

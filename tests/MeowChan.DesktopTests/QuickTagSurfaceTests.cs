@@ -12,8 +12,6 @@ using MeowChan.Gallery;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace MeowChan.DesktopTests;
 
@@ -57,62 +55,47 @@ public sealed class QuickTagSurfaceTests : IDisposable
     }
 
     [Fact]
-    public void GalleryHeaderCounterKeepsLiveTextVisibilityAndAccessibleNameAfterMoving()
+    public void GalleryHeaderCounterKeepsLiveTextVisibilityAndAccessibleNameInTheSidebar()
+    {
+        GallerySidePanel panel = new(new Button());
+        MediaPositionPill counter = panel.Position;
+        Assert.Same(panel, counter.Parent);
+        Assert.False(counter.Focusable);
+        TextBlock label = Assert.IsType<TextBlock>(counter.Child);
+        Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping);
+        Assert.Equal(1, label.MaxLines);
+        Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
+        counter.Show(new(4, 27, false));
+        Assert.Equal("No. 4 / 27", label.Text);
+        Assert.Equal("Medium 4 of 27", AutomationProperties.GetName(counter));
+        Assert.Equal("Medium 4 of 27", ToolTip.GetTip(counter));
+        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(counter));
+        Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(label));
+        counter.Show(null);
+        Assert.False(counter.IsVisible);
+        counter.Show(new(5, 27, false));
+        Assert.True(counter.IsVisible);
+        Assert.Equal("No. 5 / 27", label.Text);
+        Assert.Same(panel, counter.Parent);
+    }
+
+    [Fact]
+    public void GalleryKeepsTheTagTitleAboveTheRatingRowAndTheSidebarOwnsTheCounter()
     {
         using TempDirectory temp = new();
         using ProfileLease lease = ProfileLease.Acquire(temp.Path);
         PrivateTagStore store = new(temp.Path, lease);
         using QuickTagSession session = new(QuickTagTarget.For(Single(store, Entry("a", 'a'))));
         using QuickTagSurface surface = new(session);
-        surface.CounterText = "Medium 4 of 27";
-        Border counter = surface.DetachCounter();
-        GallerySidePanel panel = new(new Button()) { HeaderCounter = counter };
-        Assert.DoesNotContain(counter, surface.Header.Children);
-        Assert.Same(counter, panel.HeaderCounter);
-        ContentControl slot = Assert.IsType<ContentControl>(counter.Parent);
-        Assert.Same(panel, slot.Parent);
-        Assert.False(slot.Focusable);
-        TextBlock label = Assert.IsType<TextBlock>(counter.Child);
-        Assert.Equal("Medium 4 of 27", label.Text);
-        Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping);
-        Assert.Equal(1, label.MaxLines);
-        Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
-        surface.CounterShortText = "No. 4 / 27";
-        Assert.Equal("No. 4 / 27", label.Text); // the chip shows the short text, the long one stays name and tooltip
-        Assert.Equal("Medium 4 of 27", AutomationProperties.GetName(counter));
-        Assert.Equal("Medium 4 of 27", ToolTip.GetTip(counter));
-        surface.CounterShortText = null;
-        surface.CounterText = "Medium 5 von mindestens 12345 · markiert";
-        Assert.Equal(surface.CounterText, label.Text);
-        Assert.Equal(surface.CounterText, AutomationProperties.GetName(counter));
-        Assert.Equal(surface.CounterText, ToolTip.GetTip(counter));
-        surface.CounterText = null; // tagging mode suppresses this counter in either header
-        Assert.False(counter.IsVisible);
-        surface.CounterText = "Medium 5 of 27";
-        Assert.True(counter.IsVisible);
-        panel.HeaderCounter = null;
-        Assert.Null(counter.Parent);
-    }
+        surface.UseSidebarHeader();
+        Assert.Same(surface.Title, Assert.Single(surface.Header.Children));
+        Assert.Equal(Avalonia.Media.TextAlignment.Left, surface.Title.TextAlignment);
+        Assert.False(surface.CloseButton.IsVisible);
 
-    [Fact]
-    public void GalleryMovesTheLiveBadgeToThePanelHeaderAndLeftAlignsTheTitleAboveTheRatingRow()
-    {
         var source = CSharpSource.Parse(File.ReadAllText(Path.GetFullPath(Path.Combine(
             Path.GetDirectoryName(ThisFile())!, "../../Desktop/GalleryViewer.TagPanel.cs"))));
-        var show = source.Method("ShowTagPanel");
-        var announce = Assert.Single(show.Calls("AnnounceCounter"));
-        var move = Assert.Single(show.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
-            SyntaxFactory.AreEquivalent(assignment.Left, SyntaxFactory.ParseExpression("_sidePanel.HeaderCounter")));
-        Assert.Single(move.Right.Calls("DetachCounter", "surface"));
-        Assert.True(announce.SpanStart < move.SpanStart);
-        Assert.Contains(show.DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
-            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression(
-                "surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Left")));
-        Assert.Contains(show.Calls("SetColumnSpan", "Grid"), call =>
-            SyntaxFactory.AreEquivalent(call.ArgumentList, SyntaxFactory.ParseArgumentList(
-                "(surface.Title, surface.Header.ColumnDefinitions.Count)")));
-        Assert.Contains(source.Method("ReleaseTagPanel").DescendantNodes().OfType<AssignmentExpressionSyntax>(), assignment =>
-            SyntaxFactory.AreEquivalent(assignment, SyntaxFactory.ParseExpression("_sidePanel.HeaderCounter = null")));
+        Assert.Single(source.Method("ShowTagPanel").Calls("UseSidebarHeader", "surface"));
+        Assert.Single(source.Method("ReleaseTagPanel").Calls("RefreshPanelCounter"));
     }
 
     // ---- session: add, create, remove, status -------------------------------------------------------------------

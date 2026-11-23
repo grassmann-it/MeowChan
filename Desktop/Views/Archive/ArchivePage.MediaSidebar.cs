@@ -182,6 +182,7 @@ public partial class ArchivePage
         splitter.DragCompleted += (_, _) => SaveMediaSidebarWidth();
         splitter.KeyUp += (_, _) => SaveMediaSidebarWidth();
         sidebar.Frame.SizeChanged += (_, _) => OnMediaSidebarFrameResized();
+        sidebar.OpenTagsAsync = OpenSidebarTagsAsync;
         sidebar.Open.Click += (_, e) => { e.Handled = true; OpenMediaSidebarMedia(); };
         sidebar.StripSelected += (_, index) => SelectMediaSidebarIndex(index);
         sidebar.StripActivated += (_, index) => { SelectMediaSidebarIndex(index); OpenMediaSidebarMedia(); };
@@ -732,7 +733,7 @@ public partial class ArchivePage
         ReaderMediaLoadTicket ticket = sidebar.Load.Begin(mediumKey, target);
         ThreadMediaPositions? media = _thread?.MediaPositions;
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
-        string? position = media != null && number is int at ? Texts.T("reader.sidebar.position", at, media.Count) : null;
+        GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
         sidebar.Describe(postLine, file.Name, size, row.OpenPreview != null, post.CopyNumberLabel, position);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);

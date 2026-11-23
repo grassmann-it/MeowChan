@@ -90,9 +90,9 @@ public sealed class MediaPagePanelLayoutTests
                 Assert.Equal(0, panel.Margin.Top);
                 Assert.Equal(0, panel.Margin.Bottom);
                 Assert.False(page.IsPanelHeaderLifted);
-                Assert.Equal(32, panel.HeaderRow.Bounds.Height);
+                Assert.Equal(32, panel.Segments.Bounds.Height);
                 Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
-                Assert.Equal(40, panel.Card.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(8 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
                 Assert.True(panel.Card.Bounds.Height > 0);
                 Assert.Equal(panel.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y + panel.Card.Bounds.Height);
             }
@@ -111,13 +111,9 @@ public sealed class MediaPagePanelLayoutTests
             Assert.True(panel.Frame.Bounds.Height > 0);
 
             page.ApplyLayout(page.PageLayout with { PanelWidth = Config.MediaPanelWidthMinimum }, save: false);
-            panel.Describe("No. 123", "media.png", "10 MiB", canOpen: true, threadPosition: "1234567890 of 1234567891");
+            panel.Describe("No. 123", "media.png", "10 MiB", canOpen: true, threadPosition: new(1234567890, 1234567891, false));
             ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));
-            TextBlock counter = Assert.Single(panel.HeaderRow.GetVisualDescendants().OfType<TextBlock>(),
-                item => item.Name == "ReaderMediaSidebarThreadPosition");
-            Assert.True(counter.Bounds.Width > 0);
-            Point center = counter.TranslatePoint(new Point(0, counter.Bounds.Height / 2), panel.HeaderRow)!.Value;
-            Assert.Equal(16, center.Y, 0.5);
+            GalleryMeasuredGeometryTests.AssertSidebarHeader(panel.HeaderRow, panel.Segments, panel.PositionPill, panel.Close);
             Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
 
             page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);

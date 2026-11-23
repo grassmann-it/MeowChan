@@ -276,6 +276,7 @@ public partial class SettingsEditor
         // The tagging queue limits and the media-page widths; the widths keep their loaded baseline (the merge on save compares with it).
         LoadTagQueueDraft(defaults, captureBaseline: false);
         LoadBooruGalleryDraft(defaults);
+        LoadBooruListDraft(defaults);
     }
 
     private void ResetUpdatesDraft()

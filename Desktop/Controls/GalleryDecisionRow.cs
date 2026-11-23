@@ -18,18 +18,23 @@ namespace MeowChan.Desktop.Controls;
 
 internal sealed class GalleryDecisionRow : StackPanel
 {
-    private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" }, HorizontalAlignment = HorizontalAlignment.Center };
+    private readonly ToggleButton _favorite = new() { Classes = { "media-control", "rating-favorite" }, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly ToggleButton[] _stars = new ToggleButton[5];
     private readonly Button _clear = new();
     /// <summary>Edge of a star glyph in dip.</summary>
     private const int StarGlyphSize = 20;
-    // The rating bar: five equal star columns, an 8 dip gap and the remove button (a fixed 32 dip square).
-    private readonly Grid _group = new() { ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,Auto") };
-    // The rating value gets its own centered line, with the full text available in the tooltip when trimmed.
+    // The second row shares the first row's star and clear-button columns.
+    private readonly Grid _group = new()
+    {
+        ColumnDefinitions = new ColumnDefinitions("*,*,*,*,*,8,2.5*"),
+        RowDefinitions = new RowDefinitions("Auto,Auto"),
+        RowSpacing = 8
+    };
+    // The full rating caption stays in the tooltip when trimmed.
     private readonly TextBlock _summary = new TrimTipTextBlock
     {
         Classes = { "workspace-help" }, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis,
-        TextAlignment = TextAlignment.Center, VerticalAlignment = VerticalAlignment.Center
+        VerticalAlignment = VerticalAlignment.Center
     };
     private readonly TextBlock _favoriteLabel = new() { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _favoriteContent;
@@ -43,8 +48,8 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal GalleryDecisionRow(string name, bool compact = false)
     {
         Name = name;
-        Spacing = 8;
-        if (compact) _group.MaxWidth = 200;
+        if (compact) _group.MaxWidth = 264;
+        _group.ColumnDefinitions[6].MinWidth = WorkspaceMetrics.InputHeight;
         _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
         _favorite.IsThreeState = true;
         _favoriteContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8,
@@ -54,6 +59,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         for (int index = 0; index < _stars.Length; index++)
         {
             int number = index + 1;
+            ColumnDefinition column = _group.ColumnDefinitions[index];
+            column.MinWidth = compact ? StarGlyphSize + 4 : 40;
+            if (compact) column.MaxWidth = WorkspaceMetrics.InputHeight;
             ToggleButton star = _stars[index] = new ToggleButton { Name = name + "Rating" + number, Classes = { "rating-star" } };
             if (!compact)
             {
@@ -69,11 +77,16 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.Classes.Add("subtle");
         _clear.Click += OnClear;
         _clear.VerticalAlignment = VerticalAlignment.Center;
+        _clear.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(_clear, 6);
+        Grid.SetRow(_favorite, 1);
+        Grid.SetColumnSpan(_favorite, _stars.Length);
+        Grid.SetRow(_summary, 1);
+        Grid.SetColumn(_summary, 6);
         _group.Children.Add(_clear);
+        _group.Children.Add(_favorite);
+        _group.Children.Add(_summary);
         Children.Add(_group);
-        Children.Add(_favorite);
-        Children.Add(_summary);
         _favorite.Click += OnFavorite;
         AddHandler(PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
         AddHandler(PointerReleasedEvent, (_, _) => _restoreFocus = false, RoutingStrategies.Bubble, handledEventsToo: true);
@@ -182,7 +195,7 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);
         Paint();
         _summary.Text = GalleryDecisionText.Caption(view);
-        // The group's help is the full sentence (rating and favourite); the caption below the favourite shows the rating alone.
+        // The group's help is the full sentence (rating and favourite); the caption below the clear button shows the rating alone.
         AutomationProperties.SetHelpText(_group, ShortcutHelp.Append(GalleryDecisionText.Summary(view),
             ShortcutHelp.Commands(_keyContext ?? "gallery", Enumerable.Range(1, 5).Select(number => "media.rating.set-" + number)
                 .Append("media.rating.clear").ToArray())));

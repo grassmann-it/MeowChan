@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
-using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
@@ -72,14 +70,8 @@ internal sealed partial class GalleryViewer
         surface.UseSectionInset();
         surface.Suggestions = controller.Suggestions;
         surface.TargetLabel = GalleryTagPanelCommands.LabelOf(entry);
-        SetPanelCounter(surface, controller, entry);
         surface.MarkedCount = _marks.Count;
-        AnnounceCounter(surface);
-        // The panel header owns the position. The title above the stars spans the tag surface.
-        _sidePanel.HeaderCounter = surface.DetachCounter();
-        Grid.SetColumn(surface.Title, 0);
-        Grid.SetColumnSpan(surface.Title, surface.Header.ColumnDefinitions.Count);
-        surface.Title.TextAlignment = Avalonia.Media.TextAlignment.Left;
+        surface.UseSidebarHeader();
         _tagExtra = new StackPanel { Spacing = 8, Name = TagPanelName + "Sections" };
         _tagReason = new TextBlock { Name = TagPanelName + "Reason", Classes = { "workspace-help" }, TextWrapping = Avalonia.Media.TextWrapping.Wrap, IsVisible = false };
         _threadSection = new GalleryThreadTagSection(TagPanelName + "Thread") { IsVisible = false };
@@ -105,7 +97,6 @@ internal sealed partial class GalleryViewer
         _tagController = controller;
         _tagSurface = surface;
         if (_tagging != null) CoupleTaggingPanel(surface, controller); // the tagging mode's undo and stamp (PT3)
-        surface.CloseButton.IsVisible = false; // the host's × at the right edge of the header closes the panel
         ShowUnavailableReason(controller.UnavailableReason);
         surface.LoadSourceTags();
         _tagPanelOpen = true;
@@ -158,7 +149,6 @@ internal sealed partial class GalleryViewer
             if (surface != null) { surface.ExtraUndo = null; surface.DecisionContent = null; }
             _decisionRow = null;
         }
-        _sidePanel.HeaderCounter = null;
         if (ReferenceEquals(_sidePanel.TagContent, surface)) _sidePanel.TagContent = null;
         _sidePanel.Segment = GallerySidePanelSegment.Post;
         _threadSection?.Dispose();
@@ -169,7 +159,7 @@ internal sealed partial class GalleryViewer
         // The post context was not kept current meanwhile.
         _contextDirty = true;
         EndFreeTagModeWithPanel(); // M1: a Tag mode without a walk is the panel; it ends with it
-        RefreshPostPanelPosition();
+        RefreshPanelCounter();
         return true;
     }
 
@@ -192,14 +182,14 @@ internal sealed partial class GalleryViewer
         if (sameMedium)
         {
             // Only the position may have changed (more threads resolved).
-            SetPanelCounter(surface, controller, entry);
+            RefreshPanelCounter();
             RefreshDecisionRow();
             return;
         }
         bool hadFocus = surface.IsKeyboardFocusWithin;
         GalleryTagPanelFrame frame = controller.Frame(entry);
         surface.Retarget(frame.Target, frame.Label);
-        SetPanelCounter(surface, controller, entry);
+        RefreshPanelCounter();
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         if (_threadSection is { IsVisible: true } section) section.Model = frame.UnavailableReason == null ? controller.OpenThreadTags() : null;
@@ -273,28 +263,10 @@ internal sealed partial class GalleryViewer
         GalleryTagPanelFrame frame = controller.Frame(controller.Entry);
         surface.Retarget(frame.Target, frame.Label);
         // The owner's position may already be on the next medium (a move was requested): the counter names that one.
-        SetPanelCounter(surface, controller, controller.ShownEntry());
+        RefreshPanelCounter();
         surface.MarkedCount = controller.Marks.Count;
         ShowUnavailableReason(frame.UnavailableReason);
         RefreshDecisionRow();
-    }
-
-    // QW1: in the tagging mode the position stands once, between the arrows ("Queue 3 of 27"); the panel head shows no second counter.
-    private string? PanelCounter(string? counter) => GalleryChromePlan.PanelCounter(counter, IsTagMode);
-
-    // The position badge uses the short text, with the full text as its tooltip and accessible name.
-    private void SetPanelCounter(QuickTagSurface surface, GalleryTagPanelController controller, GalleryEntry entry)
-    {
-        surface.CounterShortText = PanelCounter(controller.ShortCounterFor(entry));
-        surface.CounterText = PanelCounter(controller.CounterFor(entry));
-    }
-
-    // The tagging mode started or ended under an open panel: its counter chip follows (shown outside the mode, away inside it).
-    private void RefreshPanelCounter()
-    {
-        if (_tagController is { } controller && _tagSurface is { } surface)
-            SetPanelCounter(surface, controller, controller.ShownEntry());
-        else RefreshPostPanelPosition();
     }
 
     // ---- favorite and rating (PT6) ------------------------------------------------------------------------------------------
@@ -373,16 +345,6 @@ internal sealed partial class GalleryViewer
         QuickTagSurface? surface = _tagSurface;
         if (surface == null) return;
         Dispatcher.UIThread.Post(() => { if (ReferenceEquals(surface, _tagSurface)) surface.Refresh(); });
-    }
-
-    // "Medium 4 of 27" is announced politely when it changes.
-    private static void AnnounceCounter(QuickTagSurface surface)
-    {
-        foreach (Border counter in surface.Header.Children.OfType<Border>().Where(item => item.Name == TagPanelName + "Counter"))
-        {
-            AutomationProperties.SetLiveSetting(counter, AutomationLiveSetting.Polite);
-            if (counter.Child is TextBlock label) AutomationProperties.SetLiveSetting(label, AutomationLiveSetting.Polite);
-        }
     }
 
     /// <summary>
