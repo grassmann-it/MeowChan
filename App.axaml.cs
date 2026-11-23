@@ -97,12 +97,13 @@ public partial class App : Application
                     Log.Error("Video runtime startup check failed: {Kind}: {Diagnostic}", video.Kind, video.Diagnostic);
                     ShowStartupFailure(desktop, Texts.T(video.MessageKey));
                 }
+                else if (ProfileStartup.FolderSession is { } folderSession)
+                {
+                    ShowFolderStartup(desktop, folderSession);
+                }
                 else
                 {
-                    MainWindow main = CreateMainWindow();
-                    desktop.MainWindow = main;
-                    UnhandledErrors.Presenter = main.ShowUnexpectedError;
-                    main.Closed += (_, _) => UnhandledErrors.Presenter = null;
+                    SetMainWindow(desktop, CreateMainWindow());
                 }
             }
             catch (SettingsRecoveryRequiredException recovery)
@@ -130,6 +131,41 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    private void ShowFolderStartup(IClassicDesktopStyleApplicationLifetime desktop, StartupFolderSession folderSession)
+    {
+        Texts.Initialize();
+        CultureInfo culture = CultureInfo.CurrentUICulture;
+        string language = Texts.Languages.Any(info => string.Equals(info.Code, culture.Name, StringComparison.OrdinalIgnoreCase))
+            ? culture.Name : culture.TwoLetterISOLanguageName;
+        Texts.SetLanguage(language);
+        StartupFolderWindow chooser = new(folderSession, (profile, temporary) =>
+        {
+            folderSession.SelectedProfile = profile;
+            ProfileStartup.MediaFolder = folderSession.Registration;
+            try
+            {
+                MainWindow main = CreateMainWindow();
+                main.TemporaryFolderSession = temporary;
+                SetMainWindow(desktop, main);
+                main.Show();
+            }
+            catch
+            {
+                folderSession.SelectedProfile = null;
+                ProfileStartup.MediaFolder = null;
+                throw;
+            }
+        });
+        desktop.MainWindow = chooser;
+    }
+
+    private static void SetMainWindow(IClassicDesktopStyleApplicationLifetime desktop, MainWindow main)
+    {
+        desktop.MainWindow = main;
+        UnhandledErrors.Presenter = main.ShowUnexpectedError;
+        main.Closed += (_, _) => UnhandledErrors.Presenter = null;
     }
 
     private static void ShowStartupFailure(IClassicDesktopStyleApplicationLifetime desktop, string message)
