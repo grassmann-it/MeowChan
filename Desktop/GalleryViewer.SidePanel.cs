@@ -1,8 +1,6 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 
@@ -16,9 +14,7 @@ namespace MeowChan.Desktop;
 internal sealed partial class GalleryViewer
 {
     private GallerySidePanel _sidePanel = null!;
-    private readonly TextBlock _postPanelPosition = new TextBlock { Name = "GalleryPostPanelPosition",
-        VerticalAlignment = VerticalAlignment.Center,
-        TextTrimming = TextTrimming.CharacterEllipsis, Classes = { "tnum" } }.MetaText();
+    private GalleryTagPanelPosition? _sidebarPosition;
     private double _panelWidth = Config.GalleryPanelWidthDefault;
 
     internal GallerySidePanel SidePanel => _sidePanel;
@@ -76,13 +72,12 @@ internal sealed partial class GalleryViewer
         RefreshCloseLayerButton(_sidePanel.CloseButton, Texts.T("gallery.panel.close"));
     }
 
-    private void RefreshPostPanelPosition()
+    private void RefreshPanelCounter()
     {
-        if (_sidePanel == null || _tagPanelOpen) return;
-        string? text = ThreadPositions != null && !IsTagMode ? _position.Text : null;
-        _postPanelPosition.Text = text;
-        ToolTip.SetTip(_postPanelPosition, text);
-        _sidePanel.HeaderCounter = string.IsNullOrEmpty(text) ? null : _postPanelPosition;
+        if (_sidePanel == null) return;
+        GalleryTagPanelPosition? position = GalleryChromePlan.PanelCounter(_tagOwner?.CounterPosition ?? _sidebarPosition, IsTagMode);
+        bool marked = _tagController is { } controller && controller.IsMarked(controller.ShownEntry());
+        _sidePanel.Position.Show(position, marked);
     }
 
     private void OnSidePanelSegmentRequested(GallerySidePanelSegment segment, bool focusContent)

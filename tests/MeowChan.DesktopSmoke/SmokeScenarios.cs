@@ -95,6 +95,7 @@ internal static partial class SmokeScenarios
         Alternative("reader-conversation", "MEOWCHAN_READER_CONVERSATION_ONLY", "--reader-ux"),
         Alternative("reader-display", "MEOWCHAN_READER_DISPLAY_ONLY", "--reader-ux"),
         Alternative("reader-media-sidebar", "MEOWCHAN_READER_MEDIA_SIDEBAR_ONLY", "--reader-ux"),
+        Alternative("reader-sidebar-header", "MEOWCHAN_READER_SIDEBAR_HEADER_ONLY", "--reader-ux"),
         Alternative("reader-inline-video", "MEOWCHAN_READER_INLINE_VIDEO_ONLY", "--reader-ux") with { NightlyEnvironment = [Video] },
         // The registry run uses the first requirement; under --reader-ux it acts only with READER_GROUPS.
         Nested("reader-groups-restore", "MEOWCHAN_READER_GROUPS_RESTORE_ONLY", "MEOWCHAN_URSA_NATIVE_SUITE=groups", "--reader-ux"),

@@ -342,7 +342,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private IReadOnlyList<QuickTagSuggestion> _shown = Array.Empty<QuickTagSuggestion>();
     private string _targetLabel = string.Empty;
     private string? _counterText;
-    private string? _counterShortText;
     private int _markedCount;
     // A short host notice (a mark was set or refused) in the polite status line; it gives way to the next step's status.
     private string? _notice;
@@ -484,18 +483,17 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal void UseSectionInset() =>
         _flow[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
 
-    /// <summary>Moves the live counter to a containing header; this surface still owns its text, visibility and updates.</summary>
-    internal Border DetachCounter()
+    /// <summary>Leaves the title in this surface when the sidebar owns the counter and close button.</summary>
+    internal void UseSidebarHeader()
     {
         Header.Children.Remove(_counter);
-        _counter.Margin = default;
-        // Keep the position badge on one line within the width given by the host.
-        _counterLabel.TextWrapping = TextWrapping.NoWrap;
-        _counterLabel.TextAlignment = TextAlignment.Center;
-        _counterLabel.TextTrimming = TextTrimming.CharacterEllipsis;
-        _counterLabel.MaxLines = 1;
-        return _counter;
+        _close.IsVisible = false;
+        Header.Children.Remove(_close);
+        Header.ColumnDefinitions = new ColumnDefinitions("*");
+        Grid.SetColumn(_title, 0);
+        _title.TextAlignment = TextAlignment.Left;
     }
+
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
     internal Grid Footer { get; }
     /// <summary>True while the footer buttons are stacked, one per line at full width.</summary>
@@ -526,13 +524,6 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         get => _counterText;
         set { _counterText = value; RefreshTexts(); }
-    }
-
-    /// <summary>The short form shown on the chip ("No. 4 / 27") while <see cref="CounterText"/> stays its tooltip and accessible name; null shows the full text.</summary>
-    internal string? CounterShortText
-    {
-        get => _counterShortText;
-        set { _counterShortText = value; RefreshTexts(); }
     }
 
     /// <summary>How many media the host has marked ("3 marked" with a clear button under the field); 0 hides the bar.</summary>
@@ -932,7 +923,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         TagCoverage coverage = _session.Coverage();
         string? counter = _counterText ?? (_session.IsSelection && coverage.Total > 1 ? Texts.Count("tags.quick.files", coverage.Total) : null);
         _counter.IsVisible = !string.IsNullOrEmpty(counter);
-        _counterLabel.Text = (_counterText != null ? _counterShortText : null) ?? counter ?? string.Empty;
+        _counterLabel.Text = counter ?? string.Empty;
         AutomationProperties.SetName(_counter, counter ?? string.Empty);
         ToolTip.SetTip(_counter, counter);
 

@@ -248,13 +248,18 @@ internal sealed class ReaderMediaSidebar : Border
     private readonly TextBlock _title = new() { Name = "ReaderMediaSidebarHeader", TextTrimming = TextTrimming.CharacterEllipsis,
         TextWrapping = TextWrapping.Wrap, MaxLines = 2, LineHeight = HeaderLineHeight / 2, VerticalAlignment = VerticalAlignment.Center };
     private readonly StackPanel _headerActions = new() { Orientation = Orientation.Horizontal, Spacing = 8, VerticalAlignment = VerticalAlignment.Center };
-    private readonly TextBlock _threadPosition = new TextBlock { Name = "ReaderMediaSidebarThreadPosition",
-        IsVisible = false, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis,
-        Classes = { "tnum" } }.MetaText();
+    private readonly MediaPositionPill _positionPill = new("ReaderMediaSidebarThreadPosition");
+    private readonly MediaSidebarTabs _tabs = new("ReaderMediaSidebar");
+    private readonly Grid _headerDetails = new()
+    {
+        ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,Auto"), ColumnSpacing = 8
+    };
+    private GalleryTagPanelPosition? _threadPosition;
+    private bool _openingTags;
     private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
     // The "No. 75" part of the header line as a link (the reader's sidebar: a click copies the post's reference, as the post's own "No." does). The hand shows while a click opens the medium.
     private readonly Button _postLink = new() { Name = "ReaderMediaSidebarPostLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
-        VerticalAlignment = VerticalAlignment.Center };
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
@@ -335,6 +340,9 @@ internal sealed class ReaderMediaSidebar : Border
     internal Control Card => _card;
     /// <summary>The header line above the card (post, file, size and its buttons).</summary>
     internal Control HeaderRow => _header;
+    internal MediaPositionPill PositionPill => _positionPill;
+    internal Control Segments => _tabs.Row;
+    internal Func<Control, Task>? OpenTagsAsync { get; set; }
     /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
     internal const double HeaderTopInset = MediaSidebarHeader.TopInset;
     /// <summary>The height of the primary header row, shared with workspace controls.</summary>
@@ -417,9 +425,17 @@ internal sealed class ReaderMediaSidebar : Border
         _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
         _headerActions.Children.Add(_favorite);
         _headerActions.Children.Add(Open);
-        _headerActions.Children.Add(Close);
         _headingHost = new Grid { Children = { _heading, _postLink } };
-        _header = new MediaSidebarHeader(_headingHost, _title, _threadPosition, _headerActions)
+        Grid.SetColumn(_headerActions, 1);
+        Grid.SetRow(_title, 1);
+        Grid.SetColumnSpan(_title, 2);
+        _headerDetails.Children.Add(_headingHost);
+        _headerDetails.Children.Add(_headerActions);
+        _headerDetails.Children.Add(_title);
+        _tabs.Post.Click += (_, _) => SelectPost();
+        _tabs.Tags.Click += (_, _) => OpenActions.Start(SelectTagsAsync, "media.tags.edit");
+        _tabs.SelectTags(false);
+        _header = new MediaSidebarHeader(_tabs.Row, _positionPill, Close, _headerDetails)
         {
             Name = "ReaderMediaSidebarHeaderRow", Margin = new Thickness(0, HeaderTopInset, 0, 0)
         };
@@ -486,6 +502,8 @@ internal sealed class ReaderMediaSidebar : Border
         string title = Texts.T(TitleKey);
         AutomationProperties.SetName(this, title);
         RefreshHeader();
+        _tabs.Localize(postCommandId: null);
+        _positionPill.Show(_threadPosition);
         string stripName = Texts.T("reader.sidebar.strip");
         AutomationProperties.SetName(_strip, stripName);
         ToolTip.SetTip(_strip, stripName);
@@ -536,22 +554,51 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null, string? threadPosition = null)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null, GalleryTagPanelPosition? threadPosition = null)
     {
         _postLine = postLine; _fileName = fileLine; _detail = detailLine; _postLinkTip = postLinkTip ?? string.Empty;
         SetThreadPosition(threadPosition);
         RefreshHeader();
         Open.IsEnabled = canOpen;
-        Open.IsVisible = true;
+        Open.IsVisible = canOpen || fileLine.Length > 0;
+        _tabs.Tags.IsEnabled = fileLine.Length > 0 && OpenTagsAsync != null;
         AutomationProperties.SetName(_image, fileLine);
         UpdateFrameCursor();
     }
 
-    internal void SetThreadPosition(string? text)
+    internal void SetThreadPosition(GalleryTagPanelPosition? position)
     {
-        _threadPosition.Text = text;
-        _threadPosition.IsVisible = !string.IsNullOrEmpty(text);
-        ToolTip.SetTip(_threadPosition, text);
+        _threadPosition = position;
+        _positionPill.Show(position);
+    }
+
+    private void SelectPost()
+    {
+        if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, _tabs.Tags)) popover.Close();
+        _tabs.SelectTags(false);
+    }
+
+    private async Task SelectTagsAsync()
+    {
+        if (_openingTags)
+        {
+            _tabs.SelectTags(true);
+            return;
+        }
+        if (OpenTagsAsync is not { } openTags) { _tabs.SelectTags(false); return; }
+        _openingTags = true;
+        _tabs.SelectTags(true);
+        try
+        {
+            await openTags(_tabs.Tags);
+            // A blocked editor can be opened synchronously by the host.
+            if (QuickTagPopover.Current is { } popover && ReferenceEquals(popover.Anchor, _tabs.Tags)) await popover.Result;
+        }
+        finally
+        {
+            _openingTags = false;
+            _tabs.SelectTags(false);
+        }
     }
 
     /// <summary>The "No." of the header line was clicked (only while the host described the post with a tip, see <see cref="Describe"/>).</summary>
@@ -586,6 +633,7 @@ internal sealed class ReaderMediaSidebar : Border
         _headingHost.IsVisible = link || _heading.IsVisible;
         _title.Text = metadata;
         _title.IsVisible = metadata.Length > 0;
+        _headerDetails.IsVisible = _headingHost.IsVisible || _title.IsVisible;
         ToolTip.SetTip(_title, HeaderLine);
     }
 
