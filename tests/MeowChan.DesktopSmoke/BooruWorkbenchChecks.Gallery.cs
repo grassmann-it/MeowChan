@@ -219,11 +219,11 @@ internal static partial class BooruWorkbenchChecks
             nextPage.BringIntoView();
             await native.ClickAsync(nextPage);
             await Program.WaitUntilAsync(() => page.Model.Search.View.IsBusy);
-            Require(toggle.Third.Focus(NavigationMethod.Tab), "Could not move focus to the view switch while paging.");
+            Require(help.Focus(NavigationMethod.Tab), "Could not move focus to the search help while paging.");
             pageReady.SetResult();
             await Picture("301", focused: false);
             await SettleAsync(window);
-            Require(toggle.Third.IsFocused, $"The page response stole focus from the view switch: {Describe(FocusedControl())}.");
+            Require(help.IsFocused, $"The page response stole focus from the search help: {Describe(FocusedControl())}.");
 
             window.Width = 760;
             await Program.WaitUntilAsync(() => Math.Abs(window.ClientSize.Width - 760) <= 1);
