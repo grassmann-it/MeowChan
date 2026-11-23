@@ -277,8 +277,9 @@ public sealed class GalleryDecisionRowDesignTests : IDisposable
         Assert.Equal("Center", settings["VerticalContentAlignment"]);
         Assert.Equal("{StaticResource Workspace.FocusAdorner}", settings["FocusAdorner"]);
         Assert.Equal(settings["MinHeight"], settings["Height"]);
-        Assert.DoesNotContain("Background", settings.Keys); // existing media-control theme/state colors stay intact
-        Assert.DoesNotContain("Foreground", settings.Keys);
+        Assert.Equal("Transparent", settings["Background"]);
+        Assert.Equal("{DynamicResource Workspace.Text}", settings["Foreground"]);
+        Assert.Equal("{DynamicResource Workspace.ControlBorder}", settings["BorderBrush"]);
         foreach (GalleryDecisionCoverage coverage in Enum.GetValues<GalleryDecisionCoverage>())
         {
             GalleryDecisionView view = View(3, coverage);
