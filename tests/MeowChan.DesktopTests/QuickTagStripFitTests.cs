@@ -221,7 +221,8 @@ public sealed class QuickTagStripFitTests : IDisposable
             Assert.True(Row("Field") < Row("Body"), "the assigned block follows the field");
             Assert.True(Row("Body") < Row("SuggestionArea"), "assigned tags come before the suggestions");
             Assert.True(Row("SuggestionArea") < Row("Status") && Row("Status") < Row("Actions"));
-            Assert.All(layout.RowDefinitions, row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType)); // the whole sequence scrolls
+            Assert.Equal(new GridLength(32), layout.RowDefinitions[0].Height);
+            Assert.All(layout.RowDefinitions.Skip(1), row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType));
             Assert.Equal(GridUnitType.Auto, layout.RowDefinitions[Row("Body")].Height.GridUnitType);
             Grid area = Assert.IsType<Grid>(Child("SuggestionArea"));
             Assert.Equal(2, Grid.GetRow(surface.MoreButton));

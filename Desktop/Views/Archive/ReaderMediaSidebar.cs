@@ -243,24 +243,21 @@ internal sealed class ReaderMediaFollowThrottle
 /// </summary>
 internal sealed class ReaderMediaSidebar : Border
 {
-    private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", Classes = { "workspace-meta" } };
+    private readonly TextBlock _heading = new() { Name = "ReaderMediaSidebarHeading", Classes = { "workspace-panel-title" }, MinWidth = 64,
+        VerticalAlignment = VerticalAlignment.Center, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly MediaPositionPill _positionPill = new("ReaderMediaSidebarThreadPosition");
-    private readonly MediaSidebarTabs _tabs = new("ReaderMediaSidebar");
     private readonly MediaPanelSections _sections = new() { Name = "ReaderMediaSidebarSections" };
-    private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 4 };
+    private readonly StackPanel _info = new() { Name = "ReaderMediaSidebarInfo", Spacing = 8 };
     private readonly MediaFactGrid _facts = new("ReaderMediaSidebarFacts");
     private readonly PanelActionStack _actions = new("ReaderMediaSidebarActions");
     private string? _location, _author, _posted, _provenance;
     private long? _savedBytes, _sourceBytes;
     private MediaProviderSizeHint? _sourceHint;
     private bool _historical;
-    private readonly TextBlock _provenanceNote = new() { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
+    private readonly TextBlock _provenanceNote = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private GalleryTagPanelPosition? _threadPosition;
     private bool _openingTags;
-    private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty, _postLinkTip = string.Empty;
-    // The "No. 75" part of the header line as a link (the reader's sidebar: a click copies the post's reference, as the post's own "No." does). The hand shows while a click opens the medium.
-    private readonly Button _postLink = new() { Name = "ReaderMediaSidebarPostLink", Classes = { "link" }, IsVisible = false, Padding = new Thickness(0), MinHeight = 0,
-        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
+    private string _postLine = string.Empty, _fileName = string.Empty, _detail = string.Empty;
     private readonly Grid _frame = new() { ClipToBounds = true, Background = Brushes.Transparent };
     private readonly Image _image = new() { Stretch = Stretch.Uniform, IsVisible = false, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center };
     private readonly Border _placeholder = new() { IsHitTestVisible = false };
@@ -353,7 +350,7 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>The header line above the card (post, file, size and its buttons).</summary>
     internal Control HeaderRow => _header;
     internal MediaPositionPill PositionPill => _positionPill;
-    internal Control Segments => _tabs.Row;
+    internal TextBlock Title => _heading;
     internal Func<Control, Task>? OpenTagsAsync { get; set; }
     internal string DecisionKeyContext { set => _decision.KeyContext = value; }
     internal GalleryDecisionRow DecisionRow => _decision;
@@ -430,9 +427,6 @@ internal sealed class ReaderMediaSidebar : Border
             GalleryRequested?.Invoke(this, EventArgs.Empty);
         };
 
-        _postLink.Click += (_, e) => { e.Handled = true; PostLinkClicked?.Invoke(this, EventArgs.Empty); };
-        _info.Children.Add(_heading);
-        _info.Children.Add(_postLink);
         _info.Children.Add(_facts);
         _info.Children.Add(_provenanceNote);
         _actions.Children.Add(Open);
@@ -451,13 +445,8 @@ internal sealed class ReaderMediaSidebar : Border
             if (!e.Handled && _decision.RouteStarKey(e)) e.Handled = true;
         }, RoutingStrategies.Tunnel);
         Open.PropertyChanged += (_, e) => { if (e.Property == IsEnabledProperty) UpdateFrameCursor(); };
-        _tabs.Post.Click += (_, _) => SelectPost();
-        _tabs.Tags.Click += (_, _) => OpenActions.Start(() => SelectTagsAsync(_tabs.Tags), "media.tags.edit");
-        _tabs.SelectTags(false);
-        _header = new MediaSidebarHeader(_tabs.Row, _positionPill, Close)
-        {
-            Name = "ReaderMediaSidebarHeaderRow", Margin = new Thickness(0, HeaderTopInset, 0, 0)
-        };
+        _header = new MediaSidebarHeader(_heading, _positionPill, Close) { Name = "ReaderMediaSidebarHeaderRow" };
+        _card.Margin = new Thickness(0, WorkspaceMetrics.MediaPanelSectionGap, 0, 0);
 
         ScrollViewer.SetHorizontalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Auto);
         ScrollViewer.SetVerticalScrollBarVisibility(_strip, Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled);
@@ -535,7 +524,6 @@ internal sealed class ReaderMediaSidebar : Border
         PanelActionStack.Present(Open, CommandCatalog.Get("gallery.open").Icon);
         CommandBindings.Apply(_editTags, "media.tags.edit");
         PanelActionStack.Present(_editTags, CommandCatalog.Get("media.tags.edit").Icon);
-        _tabs.Localize(postCommandId: null);
         RefreshTags();
         RefreshDecisions();
         _positionPill.Show(_threadPosition);
@@ -580,10 +568,10 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>
     /// The header line and the controls of the medium in its post; shown at once, before the picture is ready.
     /// </summary>
-    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, string? postLinkTip = null, GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null)
+    internal void Describe(string postLine, string fileLine, string detailLine, bool canOpen, GalleryTagPanelPosition? threadPosition = null, long? savedBytes = null)
     {
         if (_postLine != postLine || _fileName != fileLine || _threadPosition != threadPosition) _decisionFailure = null;
-        _postLine = postLine; _fileName = fileLine; _detail = detailLine; _postLinkTip = postLinkTip ?? string.Empty;
+        _postLine = postLine; _fileName = fileLine; _detail = detailLine;
         _savedBytes = savedBytes;
         _location = _author = _posted = _provenance = null;
         _sourceBytes = null;
@@ -608,22 +596,10 @@ internal sealed class ReaderMediaSidebar : Border
         _positionPill.Show(position);
     }
 
-    private void SelectPost()
-    {
-        if (QuickTagPopover.Current is { } popover && (ReferenceEquals(popover.Anchor, _tabs.Tags) || ReferenceEquals(popover.Anchor, _editTags))) popover.Close();
-        _tabs.SelectTags(false);
-    }
-
     private async Task SelectTagsAsync(Control anchor)
     {
-        if (_openingTags)
-        {
-            _tabs.SelectTags(true);
-            return;
-        }
-        if (OpenTagsAsync is not { } openTags) { _tabs.SelectTags(false); return; }
+        if (_openingTags || OpenTagsAsync is not { } openTags) return;
         _openingTags = true;
-        _tabs.SelectTags(true);
         try
         {
             await openTags(anchor);
@@ -633,15 +609,8 @@ internal sealed class ReaderMediaSidebar : Border
         finally
         {
             _openingTags = false;
-            _tabs.SelectTags(false);
         }
     }
-
-    /// <summary>The "No." of the header line was clicked (only while the host described the post with a tip, see <see cref="Describe"/>).</summary>
-    internal event EventHandler? PostLinkClicked;
-
-    /// <summary>The post number link of the header line (smokes and tests).</summary>
-    internal Button PostLink => _postLink;
 
     /// <summary>The text of the header line now (smokes and tests read it); the plain title while nothing is known.</summary>
     internal string HeaderLine
@@ -655,16 +624,8 @@ internal sealed class ReaderMediaSidebar : Border
 
     private void RefreshFacts()
     {
-        bool link = _postLine.Length > 0 && _postLinkTip.Length > 0;
-        _postLink.IsVisible = link;
-        if (link)
-        {
-            _postLink.Content = _postLine;
-            ToolTip.SetTip(_postLink, _postLinkTip);
-            AutomationProperties.SetName(_postLink, _postLinkTip);
-        }
-        _heading.Text = _postLine.Length == 0 && _fileName.Length == 0 && ShowEmptyTitle ? Texts.T(TitleKey) : _postLine;
-        _heading.IsVisible = !link && _heading.Text.Length > 0;
+        _heading.Text = _postLine.Length > 0 ? _postLine : _fileName.Length > 0 ? _fileName : ShowEmptyTitle ? Texts.T(TitleKey) : string.Empty;
+        ToolTip.SetTip(_heading, _heading.Text);
         _facts.Children.Clear();
         _facts.Add(Texts.T("media.fact.location"), _location);
         _facts.Add(Texts.T("media.fact.author"), _author);
@@ -677,7 +638,7 @@ internal sealed class ReaderMediaSidebar : Border
         _provenanceNote.Text = string.Join(Environment.NewLine, new[] { _provenance, _historical ? Texts.T("gallery.viewer8") : null }
             .Where(text => !string.IsNullOrEmpty(text)));
         _provenanceNote.IsVisible = _provenanceNote.Text.Length > 0;
-        _sections.Info = link || _heading.IsVisible || _facts.Children.Count > 0 ? _info : null;
+        _sections.Info = _provenanceNote.IsVisible || _facts.Children.Count > 0 ? _info : null;
     }
 
     internal void SetSourceFacts(string location, string? author, string? posted, long? savedBytes, long? sourceBytes,
@@ -734,7 +695,6 @@ internal sealed class ReaderMediaSidebar : Border
 
     private void RefreshTags()
     {
-        _tabs.Tags.IsEnabled = _editTags.IsVisible;
         if (_fileName.Length == 0) { _sections.Tags = null; return; }
         int count = _tags?.Count ?? 0;
         StackPanel tags = new() { Name = "ReaderMediaSidebarTags", Spacing = 4 };
@@ -746,7 +706,7 @@ internal sealed class ReaderMediaSidebar : Border
             foreach (string tag in _tags!) chips.Children.Add(WorkspaceChips.CreateBadge("ReaderMediaSidebarTag", tag));
             tags.Children.Add(chips);
         }
-        else tags.Children.Add(new TextBlock { Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap,
+        else tags.Children.Add(new TextBlock { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap,
             Text = _tagsBlocked ?? Texts.T("tags.quick.assigned.empty") });
         _sections.Tags = tags;
     }

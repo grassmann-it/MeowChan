@@ -170,7 +170,7 @@ public sealed class ThreadMediaCountTests
         viewer.SetPosition(Texts.T("reader.sidebar.position", position.Number, position.Count), false, false, position);
         Assert.Equal("2 of 2", viewer.PositionText);
         MediaPositionPill galleryPill = viewer.SidePanel.Position;
-        Assert.Equal("No. 2 / 2", Assert.IsType<TextBlock>(galleryPill.Child).Text);
+        Assert.Equal("No. 2 / 2", galleryPill.Label.Text);
         Assert.Equal("Medium 2 of 2", MediaPositionText.Long(position));
         Assert.Equal("Thread attachments: 2", MediaPositionText.Long(new(0, positions.Count, false)));
 
@@ -179,7 +179,7 @@ public sealed class ThreadMediaCountTests
         MediaPositionPill counter = sidebar.PositionPill;
         Assert.True(counter.IsVisible);
         Assert.Equal(galleryPill.Classes.ToArray(), counter.Classes.ToArray());
-        Assert.Equal("No. 2 / 2", Assert.IsType<TextBlock>(counter.Child).Text);
+        Assert.Equal("No. 2 / 2", counter.Label.Text);
         sidebar.ShowEmpty();
         Assert.False(counter.IsVisible);
     });

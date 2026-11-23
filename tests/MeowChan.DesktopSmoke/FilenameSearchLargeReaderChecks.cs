@@ -1,3 +1,4 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Threading;
@@ -44,9 +45,13 @@ internal static class FilenameSearchLargeReaderChecks
         long revision = before.Summary.Revision;
         string[] rows = f.Rows();
         object? selected = f.Posts.SelectedItem;
+        bool VisiblePost(int index) => f.Posts.ContainerFromIndex(index) is Control card
+            && card.TranslatePoint(default, f.Posts) is Point top && top.Y < f.Posts.Bounds.Height
+            && top.Y + card.Bounds.Height > 0;
         Require(before.Summary.Id == Origin && before.PostCount == 251
-            && before.FindPostIndex(Post) == 250 && rows.SequenceEqual(new[] { Post })
-            && selected is ArchivePostRow { Id: Post }, "Nontrivial original revision/page/selection missing.");
+            && before.FindPostIndex(Post) == 250 && rows.Length == before.PostCount && rows[250] == Post
+            && selected is ArchivePostRow { Id: Post } && VisiblePost(250) && !VisiblePost(0),
+            "The initial full list did not retain the selected deep post.");
         if (scenario == "tab-return") f.DelayReturn = f.Hold();
         Click(UnifiedSearchEntry.ReaderScope(f.Page, MeowChan.Desktop.Controls.SearchScope.FileName)); // AP2 product entry
         Task run = f.Page.FilenameSearchTask;
@@ -90,11 +95,10 @@ internal static class FilenameSearchLargeReaderChecks
             Require(hits.Length == 4 && dialog.Session.Current.Total == 4,
                 "Complete catalog search must include both claims in both distinct resources.");
             Require(hits.Count(hit => hit.Thread == Origin && hit.Post == "p000") == 1
-                && !rows.Contains("p000", StringComparer.Ordinal)
                 && hits.All(hit => (hit.Thread == Origin || hit.Thread == Target)
                     && (hit.Post == "p000" || hit.Post == Post)
                     && hit.OriginalName == Needle + ".png"),
-                "Actual search omitted the current reader's off-page claim or returned an unexpected claim.");
+                "Actual search omitted the current reader's offscreen claim or returned an unexpected claim.");
             ListBox results = Named<ListBox>(dialog, "FilenameSearchResults");
             // The dialog renders session changes through a posted Refresh; give that turn a chance before judging.
             try { await UntilAsync(() => results.Items.Count == 4); }
@@ -137,11 +141,11 @@ internal static class FilenameSearchLargeReaderChecks
                 if (scenario == "close-navigation") f.ReaderWindow.Close();
                 else
                 {
-                    f.Reattach(); // Actual AttachReader legitimately re-renders rows; not late filename publication.
+                    await f.ReattachAsync(); // Actual AttachReader legitimately rebuilds the post rows.
                     Require(ReferenceEquals(before, f.Page.CurrentThread)
                         && f.Page.CurrentThread.Summary.Revision == revision && f.Rows().SequenceEqual(rows)
                         && f.Posts.SelectedItem is ArchivePostRow { Id: Post },
-                        "Reattach itself lost old revision/page/selected post.");
+                        "Reattach itself lost old revision/list/selected post.");
                     selected = f.Posts.SelectedItem; // Exact post-boundary object must now survive late read return.
                 }
                 Require(token.IsCancellationRequested && !run.IsCompleted && f.Page.IsFilenameSearchOpen,
@@ -181,8 +185,9 @@ internal static class FilenameSearchLargeReaderChecks
                     ArchivedThreadView view = f.Page.CurrentThread!;
                     Require(view.Summary.Id == Target && view.Summary.Revision == hit.CatalogThreadRevision
                         && !ReferenceEquals(view, before) && view.FindPostIndex(Post) == 250
-                        && f.Rows().SequenceEqual(new[] { Post }) && f.Posts.SelectedItem is ArchivePostRow { Id: Post },
-                        "Positive large-reader return lost exact resource/revision/offscreen page/selection.");
+                        && f.Rows().SequenceEqual(rows) && f.Posts.SelectedItem is ArchivePostRow { Id: Post },
+                        "Positive large-reader return lost exact resource/revision/offscreen post/selection.");
+                    await UntilAsync(() => VisiblePost(250));
                     CapturedAttachment attachment = view.GetPosts(250, 1).Single().Attachments!.Single();
                     Require(attachment.Position == hit.Position && attachment.Variant == hit.Variant
                         && attachment.OriginalFileName == hit.OriginalName
@@ -201,7 +206,7 @@ internal static class FilenameSearchLargeReaderChecks
                         f.Named<TabControl>("ArchiveContentTabs").SelectedIndex = 0;
                         await SmokeDispatcher.SettleAsync();
                         Require(ReferenceEquals(view, f.Page.CurrentThread)
-                            && ReferenceEquals(targetSelection, f.Posts.SelectedItem) && f.Rows().SequenceEqual(new[] { Post }),
+                            && ReferenceEquals(targetSelection, f.Posts.SelectedItem) && f.Rows().SequenceEqual(rows),
                             "Post-return tab roundtrip changed frozen revision or selected post.");
                     }
                     // Positive large-reader close is admitted only AFTER real filename return/drain.
@@ -219,7 +224,7 @@ internal static class FilenameSearchLargeReaderChecks
         void Unchanged() => Require(ReferenceEquals(before, f.Page.CurrentThread)
             && f.Page.CurrentThread.Summary.Revision == revision && f.Rows().SequenceEqual(rows)
             && ReferenceEquals(selected, f.Posts.SelectedItem),
-            "Rejected/null/invalidated return changed old snapshot revision/page/selection.");
+            "Rejected/null/invalidated return changed old snapshot revision/list/selection.");
     }
 
     private sealed class Barrier
@@ -297,14 +302,13 @@ internal static class FilenameSearchLargeReaderChecks
                 await f.Page.LoadThreadAsync(Origin).WaitAsync(Deadline);
                 await counts.Task.WaitAsync(Deadline);
                 Require(f.Page.CurrentThread is { PostCount: 251 }
-                    && f.Rows().Length == 50 && f.Rows()[0] == "p000" && !f.Rows().Contains(Post),
-                    "Initial production reader page must exclude the eventual p250 navigation target.");
+                    && f.Rows().Length == 251 && f.Rows()[0] == "p000" && f.Rows()[250] == Post
+                    && f.Posts.ContainerFromIndex(250) == null,
+                    "The deep target must belong to the full list and start outside the realization window.");
                 await f.Page.MediaLoadTask.WaitAsync(Deadline);
                 await f.Page.ArchiveMediaCountTask.WaitAsync(Deadline);
-                var finalCounts = Signal<bool>();
-                f.Page.BeforeInlineReplyCountsPublicationAsync = _ => { finalCounts.TrySetResult(true); return Task.CompletedTask; };
-                f.Page.ShowPost(Post);
-                await finalCounts.Task.WaitAsync(Deadline);
+                await f.Page.FocusPostAsync(Post);
+                await Program.WaitUntilAsync(() => f.Posts.ContainerFromIndex(250) != null);
                 await SmokeDispatcher.SettleAsync();
                 f.ReaderWindow.UpdateLayout();
                 Require(f.ReaderWindow.IsVisible && f.ReaderWindow.TryGetPlatformHandle()?.Handle is nint handle && handle != 0
@@ -335,16 +339,18 @@ internal static class FilenameSearchLargeReaderChecks
             barrier.Returned.TrySetResult(reader);
             return reader; // Real consumer owns/disposes it; no fake reader or cancelled-task shortcut.
         }
-        internal void Reattach()
+        internal async Task ReattachAsync()
         {
             // Same production snapshot/anchor restoration primitive used by MainWindow's close path.
             // AttachReader re-renders rows; restoring an actual captured origin is not assigning fake fields.
             Action restore = Page.CaptureGalleryOrigin(restoreReaderFocus: false);
             ReaderWindow.Content = null;
+            // The fixture crosses two native layout roots. Let the old window finish detaching the pane.
+            await SmokeDispatcher.SettleAsync();
             Page.AttachReader(Pane);
             _attached = true;
             restore();
-            Require(ReferenceEquals(TopLevel.GetTopLevel(Pane), PageWindow), "Actual pane not reattached to backing page.");
+            await UntilAsync(() => ReferenceEquals(TopLevel.GetTopLevel(Pane), PageWindow));
         }
         internal async Task ReplaceTargetAsync()
         {

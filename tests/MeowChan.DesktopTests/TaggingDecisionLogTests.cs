@@ -416,7 +416,7 @@ public sealed class TaggingDecisionLogTests : IDisposable
         public TagQueueSnapshot? Current => real.Current;
     }
 
-    private sealed class FakeWriter : ITaggingQueueWriter
+    internal sealed class FakeWriter : ITaggingQueueWriter
     {
         internal bool Fail, Missing;
         internal TagQueueSnapshot? Snapshot;

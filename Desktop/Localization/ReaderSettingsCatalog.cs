@@ -18,8 +18,6 @@ internal static class ReaderSettingsCatalog
         ("settings.reader.replyLines.hint", "Limits the text excerpt in each reply card.", "Begrenzt den Textausschnitt jeder Antwortkarte."),
         ("settings.reader.expandReplies", "Expand replies automatically", "Antworten automatisch aufklappen"),
         ("settings.reader.expandReplies.hint", "Opens the reply cards under every post as soon as it appears, so posts with only images show their comments right away. A post you collapse by hand stays collapsed while the thread is open.", "Öffnet die Antwortkarten unter jedem Post, sobald er erscheint, damit Posts nur mit Bildern gleich ihre Kommentare zeigen. Ein von Hand eingeklappter Post bleibt eingeklappt, solange der Thread offen ist."),
-        ("settings.reader.pageSize", "Posts per reader page", "Posts je Readerseite"),
-        ("settings.reader.pageSize.hint", "Changing this keeps the current reading position in view.", "Eine Änderung hält die aktuelle Lesestelle im Blick."),
         ("settings.reader.threadingDepth", "Maximum conversation indentation depth", "Maximale Einrücktiefe der Gesprächsansicht"),
         ("settings.reader.threadingDepth.hint", "Deeper replies remain visible at the last indentation level.", "Tiefere Antworten bleiben auf der letzten Einrückstufe sichtbar."),
         ("settings.gallery.fitUpscalePercent", "Maximum enlargement (%)", "Höchstens vergrößern auf (%)"),

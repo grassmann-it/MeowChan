@@ -20,6 +20,7 @@ internal sealed class PanelActionStack : StackPanel
 
     internal static void Stretch(Button button)
     {
+        button.Classes.Set("panel-action", true);
         button.HorizontalAlignment = HorizontalAlignment.Stretch;
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Height = WorkspaceMetrics.InputHeight;

@@ -5,17 +5,19 @@ using Avalonia.Layout;
 
 namespace MeowChan.Desktop.Controls;
 
-/// <summary>A control-height row for the tabs, the filling position pill and the close button.</summary>
+/// <summary>A control-height row for the tabs, the centred position pill and the close button.</summary>
 internal class MediaSidebarHeader : Grid
 {
-    internal const double TopInset = 8;
+    internal const double TopInset = WorkspaceMetrics.SectionInset;
     internal const double HeaderGap = 8;
 
     private readonly MediaPositionPill _position;
     private readonly Button _close;
+    private readonly Control _leading;
 
     internal MediaSidebarHeader(Control leading, MediaPositionPill position, Button close, params Control[] body)
     {
+        _leading = leading;
         _position = position;
         _close = close ?? throw new ArgumentNullException(nameof(close));
         RowDefinitions = new RowDefinitions { new(new GridLength(WorkspaceMetrics.InputHeight)), new(GridLength.Auto) };
@@ -41,8 +43,11 @@ internal class MediaSidebarHeader : Grid
     {
         Size rowSize = new(double.PositiveInfinity, WorkspaceMetrics.InputHeight);
         _close.Measure(rowSize);
-        double reserve = _position.IsVisible ? WorkspaceMetrics.MediaPanelPositionMinWidth + 2 * HeaderGap : 0;
-        ColumnDefinitions[0].MaxWidth = Math.Max(0, availableSize.Width - _close.DesiredSize.Width - reserve);
+        double free = Math.Max(0, availableSize.Width - _close.DesiredSize.Width);
+        double reserve = WorkspaceMetrics.MediaPanelPositionMinWidth + 2 * HeaderGap;
+        _position.IsVisible = _position.HasPosition && free >= reserve + Math.Max(64, _leading.MinWidth);
+        ColumnDefinitions[0].MaxWidth = _position.IsVisible ? free - reserve : free;
+        _leading.MaxWidth = ColumnDefinitions[0].MaxWidth;
         return base.MeasureOverride(availableSize);
     }
 }

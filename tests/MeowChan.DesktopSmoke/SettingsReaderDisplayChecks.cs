@@ -34,7 +34,6 @@ internal static class SettingsReaderDisplayChecks
         (nameof(SettingsEditor.ReaderPreviewDelayMs), 450),
         (nameof(SettingsEditor.ReaderReplyStep), 7),
         (nameof(SettingsEditor.ReaderReplyLines), 6),
-        (nameof(SettingsEditor.ReaderPageSize), 80),
         (nameof(SettingsEditor.ReaderThreadingDepth), 9),
     };
 
@@ -107,7 +106,7 @@ internal static class SettingsReaderDisplayChecks
             Config saved = Config.LoadConfig();
             Require(saved.ReaderThumbnailWidth == 360 && saved.ReaderFoldLines == 36 && saved.ReaderPreviewLines == 12
                 && saved.ReaderPreviewDelayMs == 450 && saved.ReaderReplyStep == 7 && saved.ReaderReplyLines == 6
-                && saved.ReaderPageSize == 80 && saved.ReaderThreadingDepth == 9 && saved.GalleryFitMaxUpscalePercent == 350
+                && saved.ReaderThreadingDepth == 9 && saved.GalleryFitMaxUpscalePercent == 350
                 && saved.PostFilterRuleLimit == 333 && saved.HiddenPostLimit == 12_000
                 && saved.ReaderDateStyle == "SinceOp" && saved.ReaderSpoilers == "Hover" && saved.GalleryFitUpscaleLimited,
                 "The saved settings file did not contain the complete Reader P1 draft.");
@@ -118,7 +117,7 @@ internal static class SettingsReaderDisplayChecks
             Require(page.ReaderThumbnailWidth == 360 && page.ReaderDateStyle == ReaderDateStyle.SinceOp
                 && page.ReaderSpoilerModePreference == ReaderSpoilerMode.Hover && page.ReaderFoldLinesPreference == 36
                 && page.QuotePreviewMaxLines == 12 && page.QuotePreviewDelayMilliseconds == 450
-                && page.InlineReplyPageSize == 7 && page.ReplyCardMaxLines == 6 && page.ReaderPageSize == 80
+                && page.InlineReplyPageSize == 7 && page.ReplyCardMaxLines == 6
                 && page.ReaderThreadingDepth == 9,
                 "The saved Reader P1 values did not reach the live reader.");
             // The production shell configures both reader and gallery from this same saved config.
@@ -215,7 +214,6 @@ internal static class SettingsReaderDisplayChecks
             TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
             Button sentinel = page.FindControl<Button>("ArchiveOpenGallery")!;
             await SettingsSectionChecks.OpenAsync(editor, "settings.reading-media");
-            SetNumber(editor, nameof(SettingsEditor.ReaderPageSize), 50);
             SetNumber(editor, nameof(SettingsEditor.ReaderThumbnailWidth), 240);
             SetNumber(editor, nameof(SettingsEditor.ReaderThreadingDepth), 6);
             Select(editor.ReaderDateStyleChoices, "System", item => editor.SelectedReaderDateStyle = item);
@@ -247,12 +245,12 @@ internal static class SettingsReaderDisplayChecks
                         + "), sentinel focused " + sentinel.IsFocused + " attached " + sentinel.IsAttachedToVisualTree() + ", focus "
                         + (TopLevel.GetTopLevel(sentinel)?.FocusManager?.GetFocusedElement() as Control)?.Name + ", tab " + tabs.SelectedIndex);
                     Require(renders == 1, "Date-only apply did not coalesce to one render: " + renders);
-                    ArchivePostRow row = list.ItemsSource!.Cast<ArchivePostRow>().First(item => item.Quotes.Count > 0);
+                    ArchivePostRow row = (ArchivePostRow)list.SelectedItem!;
                     ReaderDateStyle selectedStyle = Enum.Parse<ReaderDateStyle>(style);
                     Require(row.Posted == ReaderDateText.Posted(page.CurrentThread!.Posts[row.ThreadIndex].PostedAt, selectedStyle, FixtureDate)
                         && row.PostedFull == ReaderDateText.PostedFull(page.CurrentThread.Posts[row.ThreadIndex].PostedAt),
                         "Reader date or independent full-date tooltip value was lost.");
-                    page.RequestQuotePreview(row.Quotes[0], sentinel, default, immediate: true);
+                    page.RequestQuotePreview(row.Quotes[0], sentinel, default, immediate: true, pointer: false);
                     CapturedPost quoted = page.CurrentThread.Posts.Single(post => post.PostId == row.Quotes[0].Quote.Target!.PostId);
                     Require(page.IsQuotePreviewOpen && page.FindControl<TextBlock>("QuotePreviewHeader")!.Text!
                         .EndsWith(ReaderDateText.Posted(quoted.PostedAt, selectedStyle, FixtureDate), StringComparison.Ordinal),
@@ -285,17 +283,16 @@ internal static class SettingsReaderDisplayChecks
             try
             {
                 SetNumber(editor, nameof(SettingsEditor.ReaderThumbnailWidth), 480);
-                SetNumber(editor, nameof(SettingsEditor.ReaderPageSize), 20);
                 SetNumber(editor, nameof(SettingsEditor.ReaderThreadingDepth), 1);
                 Select(editor.ReaderDateStyleChoices, "SinceOp", item => editor.SelectedReaderDateStyle = item);
                 await SaveAsync(editor);
                 await page.WaitForReaderViewAsync().WaitAsync(TimeSpan.FromSeconds(15));
                 await SmokeDispatcher.SettleAsync();
-                CheckAnchor(list, originalAnchor, "combined width/page/depth/date");
+                CheckAnchor(list, originalAnchor, "combined width/depth/date");
                 ArchivePostRow[] rows = list.ItemsSource!.Cast<ArchivePostRow>().ToArray();
-                Require(combinedRenders == 1 && rows.Length == 20 && rows.All(row => row.Depth <= 1 && row.SuppressReplyToggle)
+                Require(combinedRenders == 1 && rows.Length == page.Projection!.Count && rows.All(row => row.Depth <= 1 && row.SuppressReplyToggle)
                     && rows.Any(row => row.Depth == 1) && sentinel.IsFocused,
-                    "Combined apply rendered an intermediate projection, lost depth/paging or stole focus.");
+                    "Combined apply rendered an intermediate projection, lost the depth limit or part of the shown order or stole focus.");
             }
             finally { list.PropertyChanged -= CombinedChanged; }
 
@@ -529,7 +526,7 @@ internal static class SettingsReaderDisplayChecks
         left.ReaderThumbnailWidth == right.ReaderThumbnailWidth && left.ReaderFoldLines == right.ReaderFoldLines
         && left.ReaderPreviewLines == right.ReaderPreviewLines && left.ReaderPreviewDelayMs == right.ReaderPreviewDelayMs
         && left.ReaderReplyStep == right.ReaderReplyStep && left.ReaderReplyLines == right.ReaderReplyLines
-        && left.ReaderPageSize == right.ReaderPageSize && left.ReaderThreadingDepth == right.ReaderThreadingDepth
+        && left.ReaderThreadingDepth == right.ReaderThreadingDepth
         && left.GalleryFitMaxUpscalePercent == right.GalleryFitMaxUpscalePercent
         && left.PostFilterRuleLimit == right.PostFilterRuleLimit && left.HiddenPostLimit == right.HiddenPostLimit
         && left.ReaderDateStyle == right.ReaderDateStyle && left.ReaderSpoilers == right.ReaderSpoilers

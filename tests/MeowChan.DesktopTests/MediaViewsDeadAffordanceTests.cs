@@ -153,33 +153,19 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     });
 
     [Fact]
-    public void TheHeadersPostNumberIsALinkWhenTheHostGaveItATipAndTheLineStaysWhole() => OnOwnDispatcher(() =>
+    public void TheHeaderNamesThePostOrFileAndKeepsTheFullAccessibleLine() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
-        int clicks = 0;
-        sidebar.PostLinkClicked += (_, _) => clicks++;
-        sidebar.Describe("No. 75", "cat.png", "880 KiB", canOpen: true, postLinkTip: "Copy >>75");
-        Assert.True(sidebar.PostLink.IsVisible);
-        Assert.Equal("No. 75", sidebar.PostLink.Content);
-        Assert.Equal("Copy >>75", ToolTip.GetTip(sidebar.PostLink));
-        Assert.Equal("No. 75 · cat.png · 880 KiB", sidebar.HeaderLine); // smokes and the screen reader still read one line
-        Assert.Contains("link", sidebar.PostLink.Classes);
-        RoutedEventArgs click = new(Button.ClickEvent);
-        sidebar.PostLink.RaiseEvent(click);
-        Assert.Equal(1, clicks);
-        Assert.True(click.Handled); // the picture and the header are not activated by it
-
-        // A post without a medium: the number alone is still the link.
-        sidebar.Describe("No. 75", string.Empty, string.Empty, canOpen: false, postLinkTip: "Copy >>75");
-        Assert.True(sidebar.PostLink.IsVisible);
-        Assert.Equal("No. 75", sidebar.HeaderLine);
-
-        // The media page's panel gives no tip: its line is the plain text, as before.
-        sidebar.Describe("Post 12", "dog.png", "1 KiB", canOpen: true);
-        Assert.False(sidebar.PostLink.IsVisible);
-        Assert.Equal("Post 12 · dog.png · 1 KiB", sidebar.HeaderLine);
+        sidebar.Describe("No. 75", "cat.png", "880 KiB", canOpen: true);
+        Assert.Equal("No. 75", sidebar.Title.Text);
+        Assert.Equal(sidebar.Title.Text, ToolTip.GetTip(sidebar.Title));
+        Assert.Equal("No. 75 · cat.png · 880 KiB", sidebar.HeaderLine);
+        sidebar.Describe("No. 75", string.Empty, string.Empty, canOpen: false);
+        Assert.Equal("No. 75", sidebar.Title.Text);
+        sidebar.Describe(string.Empty, "dog.png", "1 KiB", canOpen: true);
+        Assert.Equal("dog.png", sidebar.Title.Text);
         sidebar.ShowEmpty();
-        Assert.False(sidebar.PostLink.IsVisible);
+        Assert.Empty(sidebar.Title.Text!);
         Assert.Equal(Texts.T(sidebar.TitleKey), sidebar.HeaderLine);
     });
 
@@ -251,7 +237,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void TheArchivePageWiresTheNumberLinkToTheSameCopyAsThePostsOwnNumber(bool hasMedia) => BooruComponentDispatcher.Run(() =>
+    public void TheSidebarNamesThePostAndItsCardKeepsTheCopyAction(bool hasMedia) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         ArchivePage page = new();
@@ -271,16 +257,14 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
             Control card = posts.ItemTemplate!.Build(post)!;
             card.DataContext = post;
             var number = Assert.Single(card.GetLogicalDescendants().OfType<Button>(), button => button.Classes.Contains("reader-post-number"));
-            Assert.True(sidebar.PostLink.IsVisible);
-            Assert.Equal(post.NumberLabel, sidebar.PostLink.Content);
-            Assert.Equal(ToolTip.GetTip(number), ToolTip.GetTip(sidebar.PostLink));
-            Assert.Equal(post.CopyNumberLabel, ToolTip.GetTip(sidebar.PostLink));
+            Assert.Equal(post.NumberLabel, sidebar.Title.Text);
+            Assert.Equal(post.NumberLabel, ToolTip.GetTip(sidebar.Title));
+            Assert.Equal(post.CopyNumberLabel, ToolTip.GetTip(number));
 
             List<string> copied = new();
             page.CopyPostReference = text => { copied.Add(text); return Task.CompletedTask; };
             number.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            sidebar.PostLink.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Assert.Equal(new[] { ">>75", ">>75" }, copied);
+            Assert.Equal(new[] { ">>75" }, copied);
         }
         finally { page.EndLifetime(); }
     });

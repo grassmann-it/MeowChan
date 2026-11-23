@@ -213,7 +213,6 @@ public sealed class NarrowContentLayoutTests
         // The page title row belongs to the shared page-header fix (the narrow-setup package); the page-title class decides there.
         ["nav.archive"] = "page title: shared page header fix",
         // Short numeric ranges ("51–100 of 340") between the pager's two buttons, centred; they never reach a narrow reader's width.
-        ["ArchivePostPage"] = "pager range",
         ["ArchiveReferencesPage"] = "pager range",
     };
 

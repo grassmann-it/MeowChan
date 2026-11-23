@@ -24,8 +24,6 @@ public partial class SettingsEditor
     public int ReaderReplyStepMaximum => Config.ReaderReplyStepMaximum;
     public int ReaderReplyLinesMinimum => Config.ReaderReplyLinesMinimum;
     public int ReaderReplyLinesMaximum => Config.ReaderReplyLinesMaximum;
-    public int ReaderPageSizeMinimum => Config.ReaderPageSizeMinimum;
-    public int ReaderPageSizeMaximum => Config.ReaderPageSizeMaximum;
     public int ReaderThreadingDepthMinimum => Config.ReaderThreadingDepthMinimum;
     public int ReaderThreadingDepthMaximum => Config.ReaderThreadingDepthMaximum;
     public int ReadingHistoryLimitMinimum => Config.ReadingHistoryLimitMinimum;
@@ -100,11 +98,6 @@ public partial class SettingsEditor
     public bool ReaderExpandReplies { get => _readerExpandReplies; set => SetField(ref _readerExpandReplies, value, nameof(ReaderExpandReplies)); }
     public string ReaderExpandRepliesLabel => Texts.T("settings.reader.expandReplies");
     public string ReaderExpandRepliesHint => Texts.T("settings.reader.expandReplies.hint");
-    private decimal? _readerPageSize;
-    public decimal? ReaderPageSize { get => _readerPageSize; set => SetField(ref _readerPageSize, value, nameof(ReaderPageSize)); }
-    public string ReaderPageSizeLabel => Texts.T("settings.reader.pageSize");
-    public string ReaderPageSizeHint => Texts.T("settings.reader.pageSize.hint") + " " + Texts.T("settings.reader.range", Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum);
-    public string ReaderPageSizeHelp => FieldHelp(nameof(ReaderPageSizeInput), ReaderPageSizeHint);
     private decimal? _readerThreadingDepth;
     public decimal? ReaderThreadingDepth { get => _readerThreadingDepth; set => SetField(ref _readerThreadingDepth, value, nameof(ReaderThreadingDepth)); }
     public string ReaderThreadingDepthLabel => Texts.T("settings.reader.threadingDepth");
@@ -396,8 +389,6 @@ public partial class SettingsEditor
         ReaderReplyLines = config.ReaderReplyLines;
         ResetNumber(ReaderReplyLinesInput, ReaderReplyLines.Value);
         ReaderExpandReplies = config.ReaderExpandReplies;
-        ReaderPageSize = config.ReaderPageSize;
-        ResetNumber(ReaderPageSizeInput, ReaderPageSize.Value);
         ReaderThreadingDepth = config.ReaderThreadingDepth;
         ResetNumber(ReaderThreadingDepthInput, ReaderThreadingDepth.Value);
         GalleryFitMaxUpscalePercent = config.GalleryFitMaxUpscalePercent;
@@ -484,7 +475,6 @@ public partial class SettingsEditor
         candidate.ReaderReplyStep = GetInteger(ReaderReplyStep, ReaderReplyStepLabel, Config.ReaderReplyStepMinimum, Config.ReaderReplyStepMaximum);
         candidate.ReaderReplyLines = GetInteger(ReaderReplyLines, ReaderReplyLinesLabel, Config.ReaderReplyLinesMinimum, Config.ReaderReplyLinesMaximum);
         candidate.ReaderExpandReplies = ReaderExpandReplies;
-        candidate.ReaderPageSize = GetInteger(ReaderPageSize, ReaderPageSizeLabel, Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum);
         candidate.ReaderThreadingDepth = GetInteger(ReaderThreadingDepth, ReaderThreadingDepthLabel, Config.ReaderThreadingDepthMinimum, Config.ReaderThreadingDepthMaximum);
         candidate.GalleryFitMaxUpscalePercent = CaptureGalleryFitCap();
         candidate.GalleryMaxZoomPercent = GetInteger(GalleryMaxZoomPercent, GalleryMaxZoomPercentLabel, Config.GalleryMaxZoomPercentMinimum, Config.GalleryMaxZoomPercentMaximum);
@@ -546,7 +536,6 @@ public partial class SettingsEditor
         yield return (ReaderPreviewDelayMsInput, ReaderPreviewDelayMs, ReaderPreviewDelayMsLabel, string.Empty, Config.ReaderPreviewDelayMsMinimum, Config.ReaderPreviewDelayMsMaximum, true);
         yield return (ReaderReplyStepInput, ReaderReplyStep, ReaderReplyStepLabel, string.Empty, Config.ReaderReplyStepMinimum, Config.ReaderReplyStepMaximum, true);
         yield return (ReaderReplyLinesInput, ReaderReplyLines, ReaderReplyLinesLabel, string.Empty, Config.ReaderReplyLinesMinimum, Config.ReaderReplyLinesMaximum, true);
-        yield return (ReaderPageSizeInput, ReaderPageSize, ReaderPageSizeLabel, string.Empty, Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum, true);
         yield return (ReaderThreadingDepthInput, ReaderThreadingDepth, ReaderThreadingDepthLabel, string.Empty, Config.ReaderThreadingDepthMinimum, Config.ReaderThreadingDepthMaximum, true);
         yield return (GalleryFitMaxUpscalePercentInput, GalleryFitMaxUpscalePercent, GalleryFitMaxUpscalePercentLabel, string.Empty, Config.GalleryFitMaxUpscalePercentMinimum, Config.GalleryFitMaxUpscalePercentMaximum, true);
         yield return (GalleryMaxZoomPercentInput, GalleryMaxZoomPercent, GalleryMaxZoomPercentLabel, string.Empty, Config.GalleryMaxZoomPercentMinimum, Config.GalleryMaxZoomPercentMaximum, true);
@@ -591,10 +580,6 @@ public partial class SettingsEditor
                 case SettingsFieldId.ReaderThumbnailWidth:
                     ReaderThumbnailWidth = _config.ReaderThumbnailWidth;
                     ResetNumber(ReaderThumbnailWidthInput, _config.ReaderThumbnailWidth);
-                    break;
-                case SettingsFieldId.ReaderPageSize:
-                    ReaderPageSize = _config.ReaderPageSize;
-                    ResetNumber(ReaderPageSizeInput, _config.ReaderPageSize);
                     break;
                 case SettingsFieldId.ReaderDateStyle:
                     SelectedReaderDateStyle = ReaderDateStyleChoices.FirstOrDefault(item => item.Value == _config.ReaderDateStyle) ?? SelectedReaderDateStyle;
@@ -722,7 +707,6 @@ public partial class SettingsEditor
         nameof(ReaderReplyStepLabel), nameof(ReaderReplyStepHint), nameof(ReaderReplyStepHelp),
         nameof(ReaderReplyLinesLabel), nameof(ReaderReplyLinesHint), nameof(ReaderReplyLinesHelp),
         nameof(ReaderExpandRepliesLabel), nameof(ReaderExpandRepliesHint),
-        nameof(ReaderPageSizeLabel), nameof(ReaderPageSizeHint), nameof(ReaderPageSizeHelp),
         nameof(ReaderThreadingDepthLabel), nameof(ReaderThreadingDepthHint), nameof(ReaderThreadingDepthHelp),
         nameof(GalleryFitMaxUpscalePercentLabel), nameof(GalleryFitMaxUpscalePercentHint), nameof(GalleryFitMaxUpscalePercentHelp),
         nameof(GalleryMaxZoomPercentLabel), nameof(GalleryMaxZoomPercentHint), nameof(GalleryMaxZoomPercentHelp),
@@ -769,7 +753,6 @@ public partial class SettingsEditor
         nameof(ReaderPreviewDelayMsHelp),
         nameof(ReaderReplyStepHelp),
         nameof(ReaderReplyLinesHelp),
-        nameof(ReaderPageSizeHelp),
         nameof(ReaderThreadingDepthHelp),
         nameof(GalleryFitMaxUpscalePercentHelp),
         nameof(GalleryMaxZoomPercentHelp),

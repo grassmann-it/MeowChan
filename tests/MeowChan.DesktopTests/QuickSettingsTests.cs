@@ -41,7 +41,7 @@ public sealed class QuickSettingsTests : IDisposable
             SettingsFieldId.ReaderInlineVideoAutoplayMuted, SettingsFieldId.GalleryVideoRepeat, SettingsFieldId.VideoStartMuted, SettingsFieldId.VideoVolume,
             SettingsFieldId.ReaderSidebarVideoAutoplay, SettingsFieldId.ReaderSidebarVideoLoop, SettingsFieldId.ReaderSidebarVideoStartMuted,
             SettingsFieldId.ReaderPostWidth, SettingsFieldId.ReadingFontSize, SettingsFieldId.ReaderDateStyle, SettingsFieldId.ReaderSpoilers,
-            SettingsFieldId.ReaderPageSize, SettingsFieldId.ReaderExpandReplies
+            SettingsFieldId.ReaderExpandReplies
         }, Reader.Fields.Select(field => field.Id));
         foreach (string moved in new[] { SettingsFieldId.ReadingHistoryLimit, SettingsFieldId.ReadingHistoryMenuEntries, SettingsFieldId.ReaderHoverEnlargeSize,
             SettingsFieldId.ReaderHoverEnlargeDelayMs, SettingsFieldId.ReaderMediaSidebarWidth, SettingsFieldId.ReaderMediaSidebarMinimumWidth,
@@ -88,13 +88,11 @@ public sealed class QuickSettingsTests : IDisposable
         Assert.False(thumbs.TryCreateChange((thumbs.Maximum + 1).ToString(), out _));
         Assert.False(thumbs.TryCreateChange("12 px", out _));
         Assert.False(thumbs.TryCreateChange("", out _));
-        QuickIntegerField pages = (QuickIntegerField)Field(SettingsFieldId.ReaderPageSize);
-        Assert.Equal((Config.ReaderPageSizeMinimum, Config.ReaderPageSizeMaximum), (pages.Minimum, pages.Maximum));
         Config config = new();
-        Assert.True(pages.TryCreateChange("100", out Action<Config>? change));
+        Assert.True(thumbs.TryCreateChange("300", out Action<Config>? change));
         change(config);
-        Assert.Equal(100, config.ReaderPageSize);
-        Assert.Equal("100", pages.Read(config));
+        Assert.Equal(300, config.ReaderThumbnailWidth);
+        Assert.Equal("300", thumbs.Read(config));
         config.Validate();
     }
 
@@ -200,7 +198,7 @@ public sealed class QuickSettingsTests : IDisposable
         Gates gates = new();
         int saves = 0;
         QuickSettingsApplier applier = new(_ => { Interlocked.Increment(ref saves); return Task.CompletedTask; }, delay: gates.Delay);
-        applier.Set(Field(SettingsFieldId.ReaderPageSize), "60");
+        applier.Set(Field(SettingsFieldId.ReaderThumbnailWidth), "260");
         await WaitUntilAsync(() => gates.Count == 1);
         await applier.FlushAsync();
         Assert.Equal(1, saves);
@@ -243,21 +241,21 @@ public sealed class QuickSettingsTests : IDisposable
         List<IReadOnlyList<string>> applied = new();
         QuickSettingsApplier applier = new(_ =>
         {
-            if (Interlocked.Increment(ref calls) == 1) throw new ArgumentOutOfRangeException("ReaderPageSize", "outside its range"); // thrown synchronously, as Validate does
+            if (Interlocked.Increment(ref calls) == 1) throw new ArgumentOutOfRangeException("ReaderThumbnailWidth", "outside its range"); // thrown synchronously, as Validate does
             return Task.CompletedTask;
         }, delay: (_, _) => Task.CompletedTask);
         applier.Failed += (ids, error) => failures.Add((ids, error));
         applier.Applied += applied.Add;
 
-        applier.Set(Field(SettingsFieldId.ReaderPageSize), "60");
+        applier.Set(Field(SettingsFieldId.ReaderThumbnailWidth), "260");
         await applier.FlushAsync();
         Assert.Single(failures);
         Assert.Contains("outside its range", failures[0].Error.Message);
-        Assert.Equal(new[] { SettingsFieldId.ReaderPageSize }, failures[0].Ids);
+        Assert.Equal(new[] { SettingsFieldId.ReaderThumbnailWidth }, failures[0].Ids);
         Assert.Empty(applied);
         Assert.Equal(0, applier.PendingCount);
 
-        applier.Set(Field(SettingsFieldId.ReaderPageSize), "80");
+        applier.Set(Field(SettingsFieldId.ReaderThumbnailWidth), "280");
         await applier.FlushAsync();
         Assert.Equal(2, calls);
         Assert.Single(applied);

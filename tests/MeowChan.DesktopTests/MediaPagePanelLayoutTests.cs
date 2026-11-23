@@ -90,14 +90,14 @@ public sealed class MediaPagePanelLayoutTests
                 Assert.Equal(0, panel.Margin.Top);
                 Assert.Equal(0, panel.Margin.Bottom);
                 Assert.False(page.IsPanelHeaderLifted);
-                Assert.Equal(32, panel.Segments.Bounds.Height);
-                Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
-                Assert.Equal(8 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(32, panel.HeaderRow.Bounds.Height);
+                Assert.Equal(16, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+                Assert.Equal(28 + panel.HeaderRow.Bounds.Height, panel.Card.TranslatePoint(default, panel)!.Value.Y);
                 Assert.True(panel.Card.Bounds.Height > 0);
                 ScrollViewer details = panel.GetVisualDescendants().OfType<ScrollViewer>()
                     .Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
                 Control last = details.IsVisible ? details : panel.Card;
-                Assert.Equal(panel.Bounds.Height, last.TranslatePoint(default, panel)!.Value.Y + last.Bounds.Height, 0.5);
+                Assert.Equal(panel.Bounds.Height - 16, last.TranslatePoint(default, panel)!.Value.Y + last.Bounds.Height, 0.5);
             }
             Layout(height);
             double firstFrame = panel.Frame.Bounds.Height;
@@ -116,8 +116,8 @@ public sealed class MediaPagePanelLayoutTests
             page.ApplyLayout(page.PageLayout with { PanelWidth = Config.MediaPanelWidthMinimum }, save: false);
             panel.Describe("No. 123", "media.png", "10 MiB", canOpen: true, threadPosition: new(1234567890, 1234567891, false));
             ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));
-            GalleryMeasuredGeometryTests.AssertSidebarHeader(panel.HeaderRow, panel.Segments, panel.PositionPill, panel.Close);
-            Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+            GalleryMeasuredGeometryTests.AssertSidebarHeader(panel.HeaderRow, panel.Title, panel.PositionPill, panel.Close);
+            Assert.Equal(16, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
 
             page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
             ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));

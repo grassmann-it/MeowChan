@@ -128,7 +128,8 @@ public sealed class QuickTagScrollFlowTests
                 Grid suggestionArea = content.Children.OfType<Grid>().Single(child => child.Name?.EndsWith("SuggestionArea") == true);
                 Assert.Empty(assignedBlock.GetVisualDescendants().OfType<ScrollViewer>());
                 Assert.Empty(suggestionArea.GetVisualDescendants().OfType<ScrollViewer>());
-                Assert.All(content.RowDefinitions, row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType));
+                Assert.Equal(new GridLength(32), content.RowDefinitions[0].Height);
+                Assert.All(content.RowDefinitions.Skip(1), row => Assert.Equal(GridUnitType.Auto, row.Height.GridUnitType));
                 Assert.False(scroll.Focusable);
                 Assert.Equal(1, KeyboardNavigation.GetTabIndex(surface.Header));
                 Assert.True(surface.AssignedButtons.Select(item => item.Chip.TranslatePoint(default, assignedBlock)!.Value.Y).Distinct().Count() > 3);

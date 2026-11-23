@@ -187,7 +187,7 @@ public partial class ArchivePage
             ReaderFindText hit = result.Texts[result.Hits[_threadFindCursor].TextIndex];
             if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId);
             ShowPost(hit.PostId);
-            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId); // The page may have been rebuilt around the hit.
+            if (hit.Field == ReaderFindField.Body) ExpandPostForFind(hit.PostId);
         }
         LocalizeThreadFind();
     }
