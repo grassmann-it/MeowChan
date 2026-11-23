@@ -272,22 +272,32 @@ public sealed class BooruGalleryInlineTests
             using SKBitmap source = new(640, 320);
             using SKImage pixels = SKImage.FromBitmap(source);
             using SKData bytes = pixels.Encode(SKEncodedImageFormat.Png, 100);
-            firstSample.SetResult(bytes.ToArray());
+            byte[] sampleBytes = bytes.ToArray();
+            // The popout now expects another preview identity while the viewer still has the old one.
+            typeof(BooruResultViewerWindow).GetField("_shownEntry", Private)!
+                .SetValue(popup, BooruResultViewerWindow.CreatePreviewEntry(model.Search.View.Rows[0]));
+            firstSample.SetResult(sampleBytes);
+            await BooruTestSupport.WaitAsync(() => !caption.Text!.Contains(Texts.T("booru.gallery.sample.loading")), "the rejected sample to finish");
+            Assert.Same(preview, image.Source);
+            Assert.DoesNotContain(Texts.T("booru.gallery.shown.sample"), caption.Text);
+
+            image.RaiseEvent(Press(Key.Space, image)); // Refresh the same post.
             await BooruTestSupport.WaitAsync(() => caption.Text!.Contains(Texts.T("booru.gallery.shown.sample")), "the sample caption");
             Assert.NotSame(preview, image.Source);
             Assert.Equal(300, Assert.IsType<Bitmap>(image.Source).PixelSize.Width);
-            Assert.Equal(new[] { "101" }, harness.Previews.SampleRequests);
+            Assert.Equal(new[] { "101", "101" }, harness.Previews.SampleRequests);
             Assert.Equal((2 * MiB, 16L * MiB), harness.Previews.SampleLimits[0]);
 
             image.RaiseEvent(Press(Key.Right, image));
-            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 2, "the next post's sample request");
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 3, "the next post's sample request");
             image.RaiseEvent(Press(Key.Right, image));
             await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 1, "cancellation after leaving the next post");
             Assert.Equal("103", popup.CurrentPostId);
-            Assert.Equal(new[] { "101", "102" }, harness.Previews.SampleRequests);
+            Assert.Contains(Texts.T("booru.gallery.sample.none"), caption.Text);
+            Assert.Equal(new[] { "101", "101", "102" }, harness.Previews.SampleRequests);
             Assert.Empty(harness.Queue.Loads);
             image.RaiseEvent(Press(Key.Left, image));
-            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 3, "the revisited post's sample request");
+            await BooruTestSupport.WaitAsync(() => harness.Previews.SampleRequests.Count == 4, "the revisited post's sample request");
             popup.Close();
             await popup.Cleanup;
             await BooruTestSupport.WaitAsync(() => Volatile.Read(ref canceledSamples) == 2, "cancellation after closing the popout");

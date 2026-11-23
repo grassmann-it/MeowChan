@@ -48,17 +48,18 @@ internal sealed class BooruGallerySampleLoader
 
     internal void Start(IBooruSamplePort? port, BooruPostView post, Func<BooruGallerySampleLimits>? settings,
         TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
-        Func<IImage?, bool> adopt)
+        Func<IImage, bool> adopt, Action changed)
     {
         if (State != BooruGallerySampleState.Deferred || port is null) return;
         Limits = settings?.Invoke() ?? BooruGallerySampleLimits.FromSettings();
         State = BooruGallerySampleState.Loading;
         BooruGallerySampleLimits limits = Limits;
-        OpenActions.Start(() => LoadAsync(port, post, limits, delay, decode, adopt), "booru.gallery.sample");
+        OpenActions.Start(() => LoadAsync(port, post, limits, delay, decode, adopt, changed), "booru.gallery.sample");
     }
 
     private async Task LoadAsync(IBooruSamplePort port, BooruPostView post, BooruGallerySampleLimits limits,
-        TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode, Func<IImage?, bool> adopt)
+        TimeSpan delay, Func<byte[], int, int, (IImage? Image, BooruGallerySampleState State)> decode,
+        Func<IImage, bool> adopt, Action changed)
     {
         using CancellationTokenSource cancellation = new();
         _cancel = () => { try { cancellation.Cancel(); } catch (ObjectDisposedException) { } };
@@ -90,8 +91,13 @@ internal sealed class BooruGallerySampleLoader
             {
                 if (token.IsCancellationRequested) return;
                 _cancel = null;
+                if (image is not null)
+                {
+                    if (adopt(image)) image = null;
+                    else state = BooruGallerySampleState.Deferred;
+                }
                 State = state;
-                if (adopt(image)) image = null;
+                changed();
             }
         }
         finally { (image as IDisposable)?.Dispose(); }
