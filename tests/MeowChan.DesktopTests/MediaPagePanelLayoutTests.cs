@@ -109,17 +109,21 @@ public sealed class MediaPagePanelLayoutTests
             filters.IsVisible = true;
             Layout(height + 200);
             Assert.True(panel.Frame.Bounds.Height > 0);
+
+            page.ApplyLayout(page.PageLayout with { PanelWidth = Config.MediaPanelWidthMinimum }, save: false);
+            panel.Describe("No. 123", "media.png", "10 MiB", canOpen: true, threadPosition: "1234567890 of 1234567891");
+            ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));
+            TextBlock counter = Assert.Single(panel.HeaderRow.GetVisualDescendants().OfType<TextBlock>(),
+                item => item.Name == "ReaderMediaSidebarThreadPosition");
+            Assert.True(counter.Bounds.Width > 0);
+            Point center = counter.TranslatePoint(new Point(0, counter.Bounds.Height / 2), panel.HeaderRow)!.Value;
+            Assert.Equal(16, center.Y, 0.5);
+            Assert.Equal(8, panel.HeaderRow.TranslatePoint(default, panel)!.Value.Y);
+
             page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
-            LayoutWithoutPanel();
+            ReaderMediaSidebarLayoutTests.Layout(page, new Size(width, height));
             Assert.False(panel.IsVisible);
             Assert.Equal(host.Bounds.Width, surface.Bounds.Width + surface.Margin.Left + surface.Margin.Right);
-
-            void LayoutWithoutPanel()
-            {
-                page.InvalidateMeasure();
-                page.Measure(new Size(width, height));
-                page.Arrange(new Rect(0, 0, width, height));
-            }
         });
     }
 }

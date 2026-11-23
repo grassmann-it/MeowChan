@@ -17,7 +17,7 @@ namespace MeowChan.Desktop.Controls;
 internal enum GallerySidePanelSegment { Post, Tags }
 
 /// <summary>
-/// The gallery side panel shows the medium counter at the left above the Post and Tags switches, with the close button at the right.
+/// The gallery side panel shows the medium counter and the Post and Tags switches on one row with the close button.
 /// Below the header, only the content slot for <see cref="Segment"/> is visible.
 /// A 6-dip grip on the left edge drags the width (<see cref="Config.GalleryPanelWidthMinimum"/>–<see cref="Config.GalleryPanelWidthMaximum"/>).
 /// The host only shows state and raises requests: which segment may be shown, what closing does and where the width is kept is
@@ -29,13 +29,14 @@ internal sealed class GallerySidePanel : Grid
     internal const string WidthPreferenceKey = "gallery.panelWidth";
     internal const double GripWidth = 6;
     // The grip lies on the outer edge of the bordered slot (workspace-section, inset 16), not on the content.
-    private const double SlotInset = 16;
-    private readonly ToggleButton _post = new() { Name = "GalleryPanelPost", Classes = { "media-control" } };
-    private readonly ToggleButton _tags = new() { Name = "GalleryPanelTags", Classes = { "media-control" } };
-    private readonly WrapPanel _segment = new() { Name = "GalleryPanelSegment", ItemSpacing = 4, LineSpacing = 4,
-        ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center };
+    private const double SlotInset = WorkspaceMetrics.SectionInset;
+    private readonly ToggleButton _post = new() { Name = "GalleryPanelPost", Classes = { "media-control" }, Height = WorkspaceMetrics.InputHeight };
+    private readonly ToggleButton _tags = new() { Name = "GalleryPanelTags", Classes = { "media-control" }, Height = WorkspaceMetrics.InputHeight };
+    private readonly ShrinkRowPanel _segment = new() { Name = "GalleryPanelSegment", Spacing = 4, ClipToBounds = true,
+        HorizontalAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center };
     private readonly ContentControl _headerCounter = new() { Name = "GalleryPanelHeaderCounter", Focusable = false,
-        HorizontalContentAlignment = HorizontalAlignment.Left };
+        HorizontalContentAlignment = HorizontalAlignment.Left, VerticalAlignment = VerticalAlignment.Center,
+        Margin = new Thickness(0, 0, 8, 0), ClipToBounds = true };
     private readonly ContentControl _postSlot = new() { Name = "GalleryPanelPostContent", Focusable = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly ContentControl _tagSlot = new() { Name = "GalleryPanelTagContent", Focusable = false, IsVisible = false, Margin = new Thickness(0, 12, 0, 0) };
     private readonly Border _grip = new() { Name = "GalleryPanelResize", Width = GripWidth, Background = Brushes.Transparent, Focusable = false,
@@ -50,21 +51,21 @@ internal sealed class GallerySidePanel : Grid
     {
         CloseButton = close ?? throw new ArgumentNullException(nameof(close));
         Name = "GallerySidePanel";
-        RowDefinitions = new RowDefinitions("Auto,Auto,*");
-        ColumnDefinitions = new ColumnDefinitions("*,Auto");
+        RowDefinitions = new RowDefinitions { new(new GridLength(WorkspaceMetrics.InputHeight)), new(GridLength.Star) };
+        ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto");
         _segment.Children.Add(_post);
         _segment.Children.Add(_tags);
-        _segment.Margin = new Thickness(0, 0, 24, 0);
+        close.Margin = new Thickness(24, 0, 0, 0);
         close.HorizontalAlignment = HorizontalAlignment.Right;
         close.VerticalAlignment = VerticalAlignment.Center;
-        // Child order is the focus order: segment, the shown content, then the close button.
-        Children.Add(_segment); SetRow(_segment, 1);
-        Children.Add(_headerCounter); SetColumnSpan(_headerCounter, 2);
-        Children.Add(_postSlot); SetRow(_postSlot, 2); SetColumnSpan(_postSlot, 2);
-        Children.Add(_tagSlot); SetRow(_tagSlot, 2); SetColumnSpan(_tagSlot, 2);
-        Children.Add(close); SetRow(close, 1); SetColumn(close, 1);
-        _grip.Margin = new Thickness(-SlotInset, -SlotInset, 0, -SlotInset);
-        Children.Add(_grip); SetRowSpan(_grip, 3);
+        // Keep the segment and counter in reading order, then the content and close button in tab order.
+        Children.Add(_segment); SetColumn(_segment, 1);
+        Children.Add(_headerCounter);
+        Children.Add(_postSlot); SetRow(_postSlot, 1); SetColumnSpan(_postSlot, 3);
+        Children.Add(_tagSlot); SetRow(_tagSlot, 1); SetColumnSpan(_tagSlot, 3);
+        Children.Add(close); SetColumn(close, 2);
+        _grip.Margin = new Thickness(-SlotInset, -MediaSidebarHeader.TopInset, 0, -SlotInset);
+        Children.Add(_grip); SetRowSpan(_grip, 2);
         _post.Click += (_, _) => OnSegmentClick(GallerySidePanelSegment.Post);
         _tags.Click += (_, _) => OnSegmentClick(GallerySidePanelSegment.Tags);
         _grip.PointerPressed += OnGripPressed;
@@ -84,11 +85,24 @@ internal sealed class GallerySidePanel : Grid
     internal ContentControl PostSlot => _postSlot;
     internal ContentControl TagSlot => _tagSlot;
 
-    /// <summary>The live medium counter above the Post and Tags switches.</summary>
+    /// <summary>The live medium counter beside the Post and Tags switches.</summary>
     internal Control? HeaderCounter
     {
         get => _headerCounter.Content as Control;
         set => _headerCounter.Content = value;
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        Size rowSize = new(double.PositiveInfinity, WorkspaceMetrics.InputHeight);
+        _segment.Measure(rowSize);
+        CloseButton.Measure(rowSize);
+        double room = Math.Max(0, availableSize.Width - CloseButton.DesiredSize.Width);
+        // Give the tabs their full labels if possible, while keeping a visible part of the counter.
+        double counterReserve = ShrinkRowPanel.MinimumShrunkWidth + _headerCounter.Margin.Right;
+        ColumnDefinitions[0].MaxWidth = _headerCounter.Content is Control { IsVisible: true }
+            ? Math.Min(room, Math.Max(counterReserve, room - _segment.DesiredSize.Width)) : 0;
+        return base.MeasureOverride(availableSize);
     }
 
     /// <summary>The post card (built and kept by the viewer).</summary>
@@ -141,7 +155,7 @@ internal sealed class GallerySidePanel : Grid
     private static void Present(ToggleButton button, string label, string commandId, string? reason)
     {
         if (button.Content is TextBlock text) text.Text = label;
-        else button.Content = new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap };
+        else button.Content = new TextBlock { Text = label, TextTrimming = TextTrimming.CharacterEllipsis };
         AutomationProperties.SetName(button, label);
         string tip = CommandCatalog.ShortcutDisplay(commandId) is string gesture ? label + " · " + gesture : label;
         if (reason != null) tip = reason;

@@ -48,7 +48,7 @@ internal static class GalleryActionsCatalog
         ("gallery.panel.post", "Post", "Post"),
         ("gallery.panel.tags", "Tags", "Tags"),
         ("gallery.panel.segments", "Panel content", "Panelinhalt"),
-        ("gallery.panel.segmentHelp", "The left and right arrow keys switch between post and tags. When shown, the media position is centered above the tabs.", "Die Pfeiltasten links und rechts wechseln zwischen Post und Tags. Wenn die Medienposition angezeigt wird, steht sie mittig über den Tabs."),
+        ("gallery.panel.segmentHelp", "The left and right arrow keys switch between post and tags. When shown, the media position is next to the tabs.", "Die Pfeiltasten links und rechts wechseln zwischen Post und Tags. Wenn die Medienposition angezeigt wird, steht sie neben den Tabs."),
         ("gallery.panel.close", "Close panel", "Panel schließen"),
         ("gallery.panel.resize", "Panel width: drag to change ({0}–{1})", "Panelbreite: zum Ändern ziehen ({0}–{1})")
     };

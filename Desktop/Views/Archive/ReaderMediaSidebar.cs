@@ -336,7 +336,7 @@ internal sealed class ReaderMediaSidebar : Border
     /// <summary>The header line above the card (post, file, size and its buttons).</summary>
     internal Control HeaderRow => _header;
     /// <summary>Space above the header line, included in the vertical budget of the header and card.</summary>
-    internal const double HeaderTopInset = 8;
+    internal const double HeaderTopInset = MediaSidebarHeader.TopInset;
     /// <summary>The height of the primary header row, shared with workspace controls.</summary>
     internal const double HeaderLineHeight = WorkspaceMetrics.InputHeight;
     internal Image Picture => _image;

@@ -261,8 +261,9 @@ public sealed class ReaderMediaSidebarLayoutTests
         Rect emptyHeader = view.HeaderRow.Bounds;
         Rect emptyCard = view.Card.Bounds;
         Assert.Equal(32, emptyHeader.Height);
+        string positionText = Texts.T("reader.sidebar.position", 1234567890, 1234567891);
         view.Describe("No. 123", new string('x', 500) + ".png", "100 MiB · 50000×100", true,
-            "Copy post reference", "12345678 of 12345679");
+            "Copy post reference", positionText);
         view.ConfigureFavorite(() => true, () => true, () => Task.CompletedTask);
         view.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity);
         Layout();
@@ -277,7 +278,12 @@ public sealed class ReaderMediaSidebarLayoutTests
         Assert.Equal(view.HeaderLine, ToolTip.GetTip(metadata));
         Assert.True(At(view.Open).X >= At(view.FavoriteButton).X + view.FavoriteButton.Bounds.Width);
         Assert.Equal(headerRow.Bounds.Width, At(view.Close).X + view.Close.Bounds.Width, 0.5);
-        Assert.True(At(position).X + position.Bounds.Width <= headerRow.Bounds.Width + 0.5);
+        Assert.True(position.Bounds.Width > 0);
+        Assert.Equal(positionText, ToolTip.GetTip(position));
+        Assert.Equal(At(view.Close).Y + view.Close.Bounds.Height / 2, At(position).Y + position.Bounds.Height / 2, 0.5);
+        Assert.True(At(view.PostLink).X + view.PostLink.Bounds.Width + 8 <= At(position).X + 0.5);
+        Assert.True(At(position).X + position.Bounds.Width + 8 <= At(view.FavoriteButton).X + 0.5);
+        Assert.Equal(width == 240, Assert.Single(position.TextLayout.TextLines).HasCollapsed);
         Rect header = view.HeaderRow.Bounds;
         Rect card = view.Card.Bounds;
         Assert.Equal(view.Card.Bounds.Height, view.Frame.Bounds.Height);
