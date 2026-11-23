@@ -98,13 +98,15 @@ internal static partial class QuickTagNativeTypingChecks
             posts.SelectedItem = b;
             page.ToggleMediaSidebar();
             page.ToggleMediaSidebar();
+            await Settle(window);
             posts.SelectedItem = a;
             page.SelectMediaSidebarIndex(1);
             posts.SelectedItem = b;
             Check(page.MediaSidebar!.HeaderLine.Contains("picture-482-second.jpg", StringComparison.Ordinal),
                 "The test missed the Reader follow interval.");
             edit.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
-            Check(captured?.EntryKey == savedA.EntryKey, "Edit tags captured the selected post instead of the displayed attachment.");
+            Check(captured != null && Equals(MediaTagSubjects.Of(captured), subjectA),
+                $"Edit tags captured {captured?.EntryKey.ToString() ?? "nothing"} at {page.MediaSidebar.HeaderLine}; expected {savedA.EntryKey} (edit visible={edit.IsEffectivelyVisible}).");
             await Program.WaitUntilAsync(() => page.MediaSidebar.HeaderLine.Contains("picture-481.jpg", StringComparison.Ordinal));
             page.TagPopoverAsync = open;
             edit.Focus();

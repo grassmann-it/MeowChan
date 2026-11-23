@@ -504,7 +504,6 @@ internal sealed class ReaderMediaSidebar : Border
         KeyboardNavigation.SetTabNavigation(this, KeyboardNavigationMode.Continue);
         AutomationProperties.SetLiveSetting(_live, AutomationLiveSetting.Polite);
         AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; Localize(); };
-        IsEffectivelyVisibleChanged += (_, _) => { if (!IsEffectivelyVisible) InvalidateTagEditor(); };
         DetachedFromVisualTree += (_, _) =>
         {
             Texts.Changed -= OnLanguageChanged;
