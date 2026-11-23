@@ -76,7 +76,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     private readonly ToggleButton _toolsToggle;
     private bool _mediaFocus;
     private readonly TextBlock _quality = new() { TextWrapping = TextWrapping.Wrap };
-    private readonly StackPanel _context = new() { Spacing = 12 };
+    private readonly MediaPanelSections _context = new();
     private readonly Border _contextPanel = new() { Name = "GalleryContext", Classes = { "workspace-section" }, IsVisible = false };
     private readonly Grid _body = new() { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
     private readonly Grid _visualRoot = new() { Background = Brushes.Transparent, ClipToBounds = true, RowDefinitions = new RowDefinitions("*,Auto,Auto") };
@@ -1479,8 +1479,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ++_contextGeneration; // Invalidate callbacks retained by controls from an older entry/revision/language.
         _provenance.Text = MediaProvenanceText.Summary(_entry?.AttachmentResolution?.Binding);
         _provenance.IsVisible = !_mediaFocus && !string.IsNullOrEmpty(_provenance.Text);
-        if (_entry == null) { _context.Children.Clear(); _contextDirty = false; return; }
-        if (!PostContextVisible) { _contextDirty = true; return; }
+        if (_entry == null) { ClearPostSections(); _contextDirty = false; return; }
+        if (!PostContextVisible) { _contextDirty = true; RefreshTagPanelInfo(_entry); return; }
         BuildContext();
     }
 
@@ -1500,68 +1500,26 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         _contextDirty = false;
         int generation = _contextGeneration;
         Interlocked.Increment(ref _contextBuilds);
-        _context.Children.Clear();
+        ClearPostSections();
         if (_entry == null) return;
         GalleryEntry entry = _entry;
         Button ContextCommand(Panel panel, string name, string label, Action action) => Command(panel, name, label, () =>
         {
-            if (generation == _contextGeneration && _contextOpen) action();
+            if (generation == _contextGeneration && PostContextVisible) action();
         });
-        // V2: the post as a card. The host's header (segment and ×) is GallerySidePanel; the card starts with where the post is.
         try
         {
-            var post = entry.Post;
-            _context.Children.Add(PostDecisionSection());
-            _context.Children.Add(BuildPostTagsSection(ContextCommand));
-            _context.Children.Add(PostRule());
-            IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
-            if (associations.Count > 1)
+            GalleryPostParts parts = BuildPostParts(entry, ContextCommand);
+            _context.Rating = PostDecisionSection();
+            _context.Tags = BuildPostTagsSection();
+            _context.Info = parts.Info;
+            if (_tagNames != null)
             {
-                ComboBox selector = new() { Name = "GalleryPostAssociation", HorizontalAlignment = HorizontalAlignment.Stretch,
-                    ItemsSource = associations.Select(value => "#" + value.Post!.PostId + " · " + (value.Attachment?.Position + 1)).ToArray(),
-                    SelectedIndex = associations.ToList().FindIndex(value => value.Post?.PostId == entry.Post?.PostId && value.Attachment?.Position == entry.Attachment?.Position) };
-                AutomationProperties.SetName(selector, Texts.T("gallery.viewer9"));
-                selector.SelectionChanged += (_, _) =>
-                {
-                    if (generation != _contextGeneration || !_contextOpen || selector.SelectedIndex < 0 || selector.SelectedIndex >= associations.Count) return;
-                    InvalidateMediaMenu(); _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
-                };
-                _context.Children.Add(selector);
+                Button edit = ContextCommand(parts.Actions, "GalleryPostTagsEdit", Texts.T("gallery.post.tags.edit"),
+                    () => OnSidePanelSegmentRequested(GallerySidePanelSegment.Tags, focusContent: true));
+                PanelActionStack.Present(edit, CommandCatalog.Get("media.tags.edit").Icon);
             }
-            if (post == null)
-            {
-                IReadOnlyList<string>? provider = ProviderContext?.Invoke(entry);
-                if (provider == null) AddContext(Texts.T("gallery.noPost"));
-                else foreach (string line in provider) AddContext(line);
-                AddFileFacts(_context, entry);
-                return;
-            }
-            string subject = ArchivePresentation.PlainText(post.Subject);
-            if (!string.IsNullOrWhiteSpace(subject)) AddContext(subject, null, "GalleryPostSubject").FontWeight = FontWeight.SemiBold;
-            string text = ArchivePresentation.PlainText(post.Html);
-            if (!string.IsNullOrWhiteSpace(text)) AddContext(text, null, "GalleryPostText");
-            // Quotes as a row of offered chips; a click opens the quoted post as before.
-            if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
-            {
-                WrapPanel quotes = new() { Name = "GalleryPostQuotes", ItemSpacing = 8, LineSpacing = 8 };
-                foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
-                {
-                    if (quote.Target == null || quote.IsExternal) continue;
-                    Button chip = ContextCommand(quotes, "GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); });
-                    CommandBindings.BindExisting(chip, "reader.open-quote"); // a key bound to "Show quoted post" opens the focused chip, as in the reader
-                    WorkspaceChips.MarkOffered(chip);
-                    chip.Tag = quote.Target;
-                }
-                if (quotes.Children.Count > 0) _context.Children.Add(quotes);
-            }
-            AddFileFacts(_context, entry);
-            // The action at the bottom left: the post in its thread (T).
-            StackPanel actions = new() { Name = "GalleryPostActions", Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Left };
-            // I1b: the one action of the post card carries its command icon before the text (the label stays the content and the name).
-            CommandBindings.ShowIconBeforeText(
-                ContextCommand(actions, "GalleryReadPost", Texts.T("gallery.viewer10"), () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); }),
-                CommandCatalog.Get("gallery.show-in-thread").Icon);
-            _context.Children.Add(actions);
+            _context.Actions = parts.Actions.Children.Count > 0 ? parts.Actions : null;
         }
         finally
         {
@@ -1576,6 +1534,67 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
                 (replacement ?? _context.GetVisualDescendants().OfType<Button>().FirstOrDefault())?.Focus(NavigationMethod.Tab);
             }
         }
+    }
+
+    private void ClearPostSections()
+    {
+        _context.Rating = null;
+        _context.Tags = null;
+        _context.Info = null;
+        _context.Actions = null;
+    }
+
+    private readonly record struct GalleryPostParts(StackPanel Info, PanelActionStack Actions);
+
+    private GalleryPostParts BuildPostParts(GalleryEntry entry, Func<Panel, string, string, Action, Button> command)
+    {
+        StackPanel info = new() { Name = "GalleryPostInfo", Spacing = 8 };
+        PanelActionStack actions = new("GalleryPostActions");
+        IReadOnlyList<GalleryEntry> associations = _associationIndex?.For(entry.Key) ?? Array.Empty<GalleryEntry>();
+        if (associations.Count > 1)
+        {
+            ComboBox selector = new() { Name = "GalleryPostAssociation", HorizontalAlignment = HorizontalAlignment.Stretch,
+                ItemsSource = associations.Select(value => "#" + value.Post!.PostId + " · " + (value.Attachment?.Position + 1)).ToArray(),
+                SelectedIndex = associations.ToList().FindIndex(value => value.Post?.PostId == entry.Post?.PostId && value.Attachment?.Position == entry.Attachment?.Position) };
+            AutomationProperties.SetName(selector, Texts.T("gallery.viewer9"));
+            int generation = _contextGeneration;
+            selector.SelectionChanged += (_, _) =>
+            {
+                if (generation != _contextGeneration || !_contextOpen || selector.SelectedIndex < 0 || selector.SelectedIndex >= associations.Count) return;
+                InvalidateMediaMenu(); _entry = associations[selector.SelectedIndex]; UpdateContext(); AssociationRequested?.Invoke(_entry);
+            };
+            info.Children.Add(selector);
+        }
+        if (entry.Post is { } post)
+        {
+            string subject = ArchivePresentation.PlainText(post.Subject);
+            if (!string.IsNullOrWhiteSpace(subject)) AddContext(info, subject, "workspace-post-body", "GalleryPostSubject").FontWeight = FontWeight.SemiBold;
+            string text = ArchivePresentation.PlainText(post.Html);
+            if (!string.IsNullOrWhiteSpace(text)) AddContext(info, text, "workspace-post-body", "GalleryPostText");
+            if (Uri.TryCreate(entry.ThreadUrl, UriKind.Absolute, out Uri? threadUrl) && threadUrl.Scheme is "http" or "https")
+            {
+                WrapPanel quotes = new() { Name = "GalleryPostQuotes", ItemSpacing = 8, LineSpacing = 8 };
+                foreach (ArchiveQuote quote in ArchiveQuoteParser.Parse(entry.Key.Thread, entry.ThreadUrl!, post))
+                {
+                    if (quote.Target == null || quote.IsExternal) continue;
+                    Button chip = command(quotes, "GalleryQuote", quote.Label, () => { PauseSlideshow(); QuoteRequested?.Invoke(quote); });
+                    CommandBindings.BindExisting(chip, "reader.open-quote");
+                    WorkspaceChips.MarkOffered(chip);
+                    chip.Tag = quote.Target;
+                }
+                if (quotes.Children.Count > 0) info.Children.Add(quotes);
+            }
+            Button show = command(actions, "GalleryReadPost", Texts.T("gallery.viewer10"),
+                () => { PauseSlideshow(); ReadPostRequested?.Invoke(entry); });
+            PanelActionStack.Present(show, CommandCatalog.Get("gallery.show-in-thread").Icon);
+        }
+        else
+        {
+            IReadOnlyList<string> provider = ProviderContext?.Invoke(entry) ?? [Texts.T("gallery.noPost")];
+            foreach (string line in provider) AddContext(info, line, "workspace-post-body");
+        }
+        AddFileFacts(info, entry);
+        return new(info, actions);
     }
 
     private static void AddFileFacts(Panel panel, GalleryEntry entry)
@@ -1621,9 +1640,6 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         AutomationProperties.SetHelpText(button, tip);
         ToolTip.SetTip(button, tip);
     }
-
-    private SelectableTextBlock AddContext(string text, string? style = null, string? name = null) =>
-        AddContext(_context, text, style ?? "workspace-post-body", name);
 
     private static SelectableTextBlock AddContext(Panel panel, string text, string style, string? name = null)
     {
@@ -1978,7 +1994,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         ClearBitmaps(); _entry = null; _info = null; _restore = null;
         _provenance.Text = string.Empty; _provenance.IsVisible = false;
         _exportOriginal.IsEnabled = false; _saveFrame.IsEnabled = false;
-        _associationIndex = null; _context.Children.Clear(); _contextDirty = false; ++_contextGeneration;
+        _associationIndex = null; ClearPostSections(); _contextDirty = false; ++_contextGeneration;
         ReleaseTagPanel(); _contextOpen = false; _videoSuspended = false; SetHelp(false); LayoutContext(); UpdateContextButton();
         if (_video != null) await _video.DisposeAsync();
         // Native stop/disposal has completed. Release the overlay as a subtree;

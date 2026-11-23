@@ -298,10 +298,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     // The field with what sits around it: an optional decision row above (PT6), the field, the marks bar under it.
     private readonly StackPanel _fieldArea;
     private Control? _decisionContent;
+    private MediaPanelSections? _sidebarSections;
+    private ContentControl? _sidebarActions;
     // The hairline between the decision row and the field (12 dip of air on both sides: the field area's 8 plus the line's own 4).
     private Border? _decisionDivider;
     private IQuickTagExtraUndo? _extraUndo;
-    private readonly TextBlock _title = new() { FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _title = new() { Classes = { "quick-tag-title" }, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly Button _close = new();
     private readonly IdentitySuggestionBox _input = new() { ProtectComposition = true };
     private readonly TextBlock _suggestionsHeading = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
@@ -483,15 +485,31 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     internal void UseSectionInset() =>
         _flow[!ScrollViewer.PaddingProperty] = new DynamicResourceExtension("Workspace.Inset.Section");
 
-    /// <summary>Leaves the title in this surface when the sidebar owns the counter and close button.</summary>
+    /// <summary>Uses the gallery header and the shared panel section order.</summary>
     internal void UseSidebarHeader()
     {
-        Header.Children.Remove(_counter);
+        if (_sidebarSections != null) return;
+        Grid layout = (Grid)_flow.Content!;
+        Control suggestionArea = layout.Children[3];
+        layout.Children.Clear();
+        Header.Children.Clear();
         _close.IsVisible = false;
-        Header.Children.Remove(_close);
-        Header.ColumnDefinitions = new ColumnDefinitions("*");
-        Grid.SetColumn(_title, 0);
-        _title.TextAlignment = TextAlignment.Left;
+        StackPanel tags = new() { Name = _name + "Tags", Spacing = 8,
+            Children = { _title, _fieldArea, _upper, suggestionArea, _status } };
+        _sidebarActions = new ContentControl { IsVisible = false };
+        PanelActionStack actions = new(_name + "ActionStack") { Children = { _sidebarActions, Footer } };
+        _sidebarSections = new MediaPanelSections { Tags = tags, Actions = actions };
+        _flow.Content = _sidebarSections;
+        ApplyFooterMode();
+        RefreshTexts();
+    }
+
+    internal void SetSidebarInfo(Control info, PanelActionStack actions)
+    {
+        if (_sidebarSections == null || _sidebarActions == null) return;
+        _sidebarSections.Info = info;
+        _sidebarActions.Content = actions.Children.Count > 0 ? actions : null;
+        _sidebarActions.IsVisible = _sidebarActions.Content != null;
     }
 
     /// <summary>The footer: undo, stamp and the tag editor, in a row (wide host) or stacked (narrow host).</summary>
@@ -598,6 +616,11 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         set
         {
             if (ReferenceEquals(_decisionContent, value)) return;
+            if (_sidebarSections != null)
+            {
+                _sidebarSections.Rating = _decisionContent = value;
+                return;
+            }
             if (_decisionContent != null) _fieldArea.Children.Remove(_decisionContent);
             if (_decisionDivider != null) { _fieldArea.Children.Remove(_decisionDivider); _decisionDivider = null; }
             _decisionContent = value;
@@ -918,7 +941,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     {
         if (_disposed) return;
         string label = _targetLabel.Trim();
-        _title.Text = label.Length == 0 ? Texts.T("tags.quick.heading") : Texts.T("tags.quick.title", label);
+        _title.Text = _sidebarSections != null || label.Length == 0 ? Texts.T("tags.quick.heading") : Texts.T("tags.quick.title", label);
         ToolTip.SetTip(_title, _title.Text);
         TagCoverage coverage = _session.Coverage();
         string? counter = _counterText ?? (_session.IsSelection && coverage.Total > 1 ? Texts.Count("tags.quick.files", coverage.Total) : null);
@@ -1034,7 +1057,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
     private static void BuildFooterButton(Button button, string icon)
     {
         ContentControl slot = new() { Width = 16, Height = 16, Tag = icon, Focusable = false, IsHitTestVisible = false, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, FooterGap, 0) };
-        TextBlock text = new() { TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
+        TextBlock text = new() { Classes = { "panel-action-label" }, TextTrimming = TextTrimming.CharacterEllipsis, TextWrapping = TextWrapping.NoWrap, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(text, 1);
         button.Content = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), Children = { slot, text } };
         button.HorizontalContentAlignment = HorizontalAlignment.Left;
@@ -1070,13 +1093,14 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         {
             Grid.SetRow(buttons[index], stacked ? index : 0);
             Grid.SetColumn(buttons[index], stacked ? 0 : index);
-            buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+            if (_sidebarSections != null) PanelActionStack.Stretch(buttons[index]);
+            else buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         }
     }
 
     private void ApplyFooterMode()
     {
-        ApplyFooterLayout(_compact);
+        ApplyFooterLayout(_sidebarSections != null || _compact);
         SetFooterLabel(_undo, Texts.T("tags.quick.undo"));
         SetFooterLabel(_stamp, Texts.T("tags.quick.stamp.button"));
         SetFooterLabel(_advanced, Texts.T("tags.quick.advanced"));
