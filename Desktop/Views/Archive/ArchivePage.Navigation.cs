@@ -21,7 +21,7 @@ public partial class ArchivePage
     private ArchiveSearchSpec _query = new ArchiveSearchSpec();
     private sealed record InlineReplyState(string PostId, bool Expanded, bool Loaded, int? Count,
         int Offset, IReadOnlyList<ArchiveQuoteRow> Replies, string? Error, bool AutoExpanded = false);
-    private sealed record ReaderHistoryEntry(ArchivedThreadView View, int Offset, ReaderAnchor? Anchor,
+    private sealed record ReaderHistoryEntry(ArchivedThreadView View, ReaderAnchor? Anchor,
         IReadOnlyList<InlineReplyState> Replies);
 
     private InlineReplyState[] CaptureInlineReplyState() =>
@@ -187,9 +187,9 @@ public partial class ArchivePage
             {
                 // Keep a bounded immutable navigation history, independent of later captures.
                 if (_history.Count == 32) _history.RemoveFirst();
-                _history.AddLast(new ReaderHistoryEntry(_thread, _postOffset, originAnchor, CaptureInlineReplyState()));
+                _history.AddLast(new ReaderHistoryEntry(_thread, originAnchor, CaptureInlineReplyState()));
             }
-            ShowCapturedView(resolved.View, resolved.PostIndex.Value / PageSize * PageSize, resolved.Post!.PostId);
+            ShowCapturedView(resolved.View, resolved.Post!.PostId);
             await FocusPostAsync(resolved.Post.PostId);
             if (!_ended && request == _referenceRequest) _ = FlashPostAsync(resolved.Post.PostId);
         }
@@ -199,7 +199,7 @@ public partial class ArchivePage
     }
     /// <summary>
     /// The large reader's entry for a thread (the "Large reader" button, Enter and double-click on a row, the menu entries, Downloads): the embedded
-    /// reader's own thread keeps its page, selected post and scroll place (the same anchor the paging and the live refresh keep); another thread starts
+    /// reader's own thread keeps its selected post and scroll place (the same anchor live refresh keeps); another thread starts
     /// at its first post, a jump of any kind (a quote, "Show in thread", a bookmark) goes its own way and wins over both.
     /// <paramref name="openReader"/> moves the pane to the large reader; the place is taken before that, while the pane still lies where the user left it.
     /// </summary>
@@ -211,7 +211,7 @@ public partial class ArchivePage
         return LoadThreadAsync(id, resetPage: kept == null, preparedThread, null, entryAnchor: kept);
     }
 
-    private void ShowCapturedView(ArchivedThreadView view, int offset, string? postId = null)
+    private void ShowCapturedView(ArchivedThreadView view, string? postId)
     {
         InvalidateFilenameSearch();
         if (_unreadMark?.Thread != view.Summary.Id) _unreadMark = null;
@@ -224,20 +224,14 @@ public partial class ArchivePage
         CloseThreadFind();
         _thread = view;
         ReaderSnapshotLoaded();
-        _postOffset = offset;
-        // With a post, the page is the one that holds it in the shown order (the offset is the thread's own page).
-        _projectionPagePost = postId;
+        _readerPostId = null;
+        _projectionSelectionPost = postId;
+        _postsAnchorOnShow = null;
         _assets = Array.Empty<ArchiveAssetRow>();
         _showReader = true;
         RenderThread();
         UpdateLayoutMode();
         ArchiveContentTabs.SelectedIndex = 0;
-        ListBox posts = ArchivePosts;
-        if (posts.ItemsSource is IEnumerable<ArchivePostRow> rows && postId != null)
-        {
-            posts.SelectedItem = rows.FirstOrDefault(post => post.Id == postId);
-            posts.ScrollIntoView(posts.SelectedItem!);
-        }
         Message(string.Empty);
         MediaLoadTask = LoadMediaAsync(view);
     }
@@ -270,7 +264,7 @@ public partial class ArchivePage
         ReaderHistoryEntry previous = _history.Last.Value;
         _history.RemoveLast();
         CancelReferences();
-        ShowCapturedView(previous.View, previous.Offset);
+        ShowCapturedView(previous.View, previous.Anchor?.SelectedPostId ?? previous.Anchor?.PostId);
         RestoreInlineReplyState(previous.Replies);
         if (previous.Anchor != null) await RestoreReaderAnchorAsync(previous.Anchor);
         ReaderPositionChanged(deliberate: true);

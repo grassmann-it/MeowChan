@@ -83,33 +83,17 @@ internal static class ReaderStabilityChecks
 
         await CheckDelayedReplyCountsAsync(window, page, posts);
 
-        TracePagination("before-focus-1000", window, page, posts);
-        await page.FocusPostAsync("1000");
-        TracePagination("after-focus-1000", window, page, posts);
-        Click(page.FindControl<Button>("NextPostsButton")!);
-        TracePagination("after-next-page-click", window, page, posts);
-        await Flush(window);
-        TracePagination("after-page-flush", window, page, posts);
-        // Preserve Press's Focus + routed Down sequence; observe the actual
-        // source and task without another wait, retry, or state adjustment.
-        Button nextPosts = page.FindControl<Button>("NextPostsButton")!;
-        Task previousNavigation = page.ReaderNavigationTask;
-        bool focusRequested = nextPosts.Focus();
-        TracePagination("after-down-source-focus", window, page, posts, new { focusRequested });
-        KeyEventArgs paginationDown = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down };
-        nextPosts.RaiseEvent(paginationDown);
-        TracePagination("after-down-event", window, page, posts, new
-        {
-            paginationDown.Handled,
-            source = (paginationDown.Source as Control)?.Name ?? paginationDown.Source?.GetType().Name,
-            navigationTaskChanged = !ReferenceEquals(previousNavigation, page.ReaderNavigationTask)
-        });
+        object? items = posts.ItemsSource;
+        await page.FocusPostAsync("1050");
+        page.ShowReaderNavigation();
+        Button nextPost = page.FindControl<Button>("ReaderNextPost")!;
+        Require(nextPost.Focus(), "The post navigator could not be focused.");
+        nextPost.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Down });
         await page.ReaderNavigationTask;
-        TracePagination("after-navigation-task", window, page, posts);
         await Flush(window);
-        TracePagination("before-pagination-gate", window, page, posts);
-        Require((posts.SelectedItem as ArchivePostRow)?.Id == "1051", "Pagination reused a previous page's navigation post.");
-        Visible(posts, "1051", "pagination-down");
+        Require((posts.SelectedItem as ArchivePostRow)?.Id == "1051" && ReferenceEquals(items, posts.ItemsSource),
+            "Down did not continue from the selected post in the same list.");
+        Visible(posts, "1051", "continuous-down");
 
         await page.FocusPostAsync("1000");
         posts.SelectedItem = posts.ItemsSource!.Cast<ArchivePostRow>().ElementAt(1);
@@ -123,7 +107,7 @@ internal static class ReaderStabilityChecks
         for (int index = 166; index >= 0; index--) await Navigate(Key.Up, (1000 + index).ToString());
         Require(posts.ItemsPanelRoot is VirtualizingStackPanel, "Reader navigation disabled virtualization.");
         Require(posts.GetVisualDescendants().OfType<ListBoxItem>().Count() < 50,
-            "Mixed reader realized an entire 50-post page.");
+            "Mixed reader realized too many cards.");
 
         ScrollViewer wheelTarget = posts.GetVisualDescendants().OfType<ScrollViewer>().First();
         using (Pointer pointer = new(Pointer.GetNextFreeId(), PointerType.Mouse, true))
@@ -240,7 +224,7 @@ internal static class ReaderStabilityChecks
                 return Task.CompletedTask;
             }, error => Console.Error.WriteLine("SMOKE cleanup failed restoring reader Tab fixture: " + error));
         }
-        Console.WriteLine("SMOKE mixed reader stability: 168 variable posts, all forward/backward boundaries, settled target visibility, native scopes, pagination, selection availability, virtualized realization and reversible Tab scope passed.");
+        Console.WriteLine("SMOKE mixed reader stability: 168 variable posts, all forward/backward boundaries, settled target visibility, native scopes, continuous scrolling, selection availability, virtualized realization and reversible Tab scope passed.");
 
         async Task Navigate(Key key, string expected)
         {
@@ -277,13 +261,13 @@ internal static class ReaderStabilityChecks
         };
         try
         {
-            Task navigation = page.FocusPostAsync("1049");
-            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
-            // Navigation remains usable while the current page's counts are pending.
-            await navigation.WaitAsync(TimeSpan.FromSeconds(5));
+            // A refresh starts one count read for the whole list. Navigation uses that list while counts are held.
+            await page.LoadThreadAsync(Thread, resetPage: false).WaitAsync(TimeSpan.FromSeconds(10));
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            await page.FocusPostAsync("1049").WaitAsync(TimeSpan.FromSeconds(10));
             await Flush(window);
             Require(posts.ItemsSource!.Cast<ArchivePostRow>().All(row => !row.BacklinkCount.HasValue),
-                "Delayed-count fixture did not hold current-page count publication.");
+                "Delayed-count fixture did not hold count publication for the thread.");
             Require((posts.SelectedItem as ArchivePostRow)?.Id == "1049", "Delayed counts changed the selected target.");
             Visible(posts, "1049", "reply counts held");
             Console.WriteLine("SMOKE delayed reply counts: initial target visible; releasing counts.");
@@ -305,46 +289,6 @@ internal static class ReaderStabilityChecks
             window.Width = width;
             await Program.WaitUntilAsync(() => PresentationChecks.MatchesRequestedSize(window, width, height));
             await Flush(window);
-        }
-    }
-
-    private static void TracePagination(string stage, MainWindow window, ArchivePage page, ListBox posts, object? action = null)
-    {
-        try
-        {
-            ArchivePostRow[] rows = posts.ItemsSource?.Cast<ArchivePostRow>().ToArray() ?? Array.Empty<ArchivePostRow>();
-            Control? focused = window.FocusManager?.GetFocusedElement() as Control;
-            Button? next = page.FindControl<Button>("NextPostsButton");
-            Task navigation = page.ReaderNavigationTask;
-            object? State(string field) => typeof(ArchivePage).GetField(field,
-                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(page);
-            Console.WriteLine("SMOKE reader pagination state: " + System.Text.Json.JsonSerializer.Serialize(new
-            {
-                stage, action, page.IsBusy, page.IsMediaLoading, page.IsReaderDialogOpen, page.ReaderShowsPosts,
-                thread = page.CurrentThread?.Summary.Id.ToString(), postCount = page.CurrentThread?.PostCount,
-                selectedId = (posts.SelectedItem as ArchivePostRow)?.Id, posts.SelectedIndex,
-                selectedBelongsToItems = rows.Any(row => ReferenceEquals(row, posts.SelectedItem)),
-                itemCount = rows.Length, firstId = rows.FirstOrDefault()?.Id, lastId = rows.LastOrDefault()?.Id,
-                postOffset = State("_postOffset"), retainedPostId = State("_readerPostId"),
-                contentRequest = State("_contentRequest"), focusRequest = State("_readerFocusRequest"),
-                interactionRevision = State("_readerInteractionRevision"), largeReader = State("_largeReader"), ended = State("_ended"),
-                navigationTask = new { navigation.Id, status = navigation.Status.ToString(), navigation.IsCompleted },
-                mediaTask = new { page.MediaLoadTask.Id, status = page.MediaLoadTask.Status.ToString(), page.MediaLoadTask.IsCompleted },
-                focus = focused == null ? null : new { type = focused.GetType().Name, focused.Name,
-                    root = TopLevel.GetTopLevel(focused)?.GetType().Name, focused.IsEffectivelyVisible, focused.IsEffectivelyEnabled },
-                nextButton = next == null ? null : new { next.Name, next.IsVisible, next.IsEffectivelyVisible,
-                    next.IsEnabled, next.IsEffectivelyEnabled, next.Focusable, attached = next.IsAttachedToVisualTree(),
-                    nativeArrowOwner = page.ReaderArrowBelongsToNativeControl(next),
-                    ancestors = next.GetSelfAndVisualAncestors().Select(node => node.GetType().Name + ":" + (node as Control)?.Name).ToArray() },
-                tabIndex = page.FindControl<TabControl>("ArchiveContentTabs")?.SelectedIndex,
-                pageLabel = page.FindControl<TextBlock>("ArchivePostPage")?.Text,
-                readerHostVisible = window.FindControl<ContentControl>("ReaderHost")?.IsVisible
-            }));
-        }
-        catch (Exception exception)
-        {
-            // Diagnostics must not replace the unchanged selection/visibility gate.
-            Console.WriteLine("SMOKE reader pagination diagnostic failed: " + exception.GetType().Name + ": " + exception.Message);
         }
     }
 

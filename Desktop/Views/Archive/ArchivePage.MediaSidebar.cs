@@ -193,7 +193,6 @@ public partial class ArchivePage
         sidebar.PictureActivated += (_, _) => OnMediaSidebarPictureActivated();
         sidebar.GalleryRequested += (_, _) => OpenMediaSidebarMedia();
         // The "No." of its header line copies the post's reference like the post's own number does.
-        sidebar.PostLinkClicked += (_, _) => { if (!_ended && ArchivePosts.SelectedItem is ArchivePostRow post) _ = CopyPostReferenceAsync(post); };
         CreateSidebarVideo(sidebar);
         sidebar.Close.Click += (_, e) => { e.Handled = true; CloseMediaSidebar(); };
         // The sidebar's keys reach the reader's view shortcuts too (the toggle, the reader's other switches), in either host.
@@ -317,7 +316,7 @@ public partial class ArchivePage
             if (_largeReader) ReaderHostingStep("sidebar.12");
             // Span the embedded reader's header and content rows, just as the large
             // reader spans its frame. No negative lift or padding tied to the posts.
-            ApplyMediaSidebarInsets(sidebar, archiveView);
+            sidebar.Margin = default;
             if (_largeReader) ReaderHostingStep("sidebar.13");
             if (archiveView) sidebar.BorderThickness = new Thickness(0);
             else sidebar[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
@@ -760,7 +759,7 @@ public partial class ArchivePage
             // A post the view shows as a stub or whose media the view hides names that; a thread in which no post has media says so once.
             string reason = post.IsStub || post.HasMediaHiddenLine ? Texts.T("reader.sidebar.hidden", post.Id)
                 : ThreadHasPostMedia() ? Texts.T("reader.sidebar.noMedia", post.Id) : Texts.T("reader.sidebar.threadNoMedia");
-            sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false, post.CopyNumberLabel);
+            sidebar.Describe(post.NumberLabel, string.Empty, string.Empty, false);
             sidebar.ConfigureFavorite(null);
             // A final text: the frame is empty with the reason, never the previous post's picture dimmed under it.
             sidebar.ShowNoMedia(reason);
@@ -780,7 +779,7 @@ public partial class ArchivePage
         ThreadMediaPositions? media = _thread?.MediaPositions;
         int? number = media?.NumberOf(post.Id, row.Attachment.Position);
         GalleryTagPanelPosition? position = media != null && number is int at ? new(at, media.Count, false) : null;
-        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, post.CopyNumberLabel, position);
+        sidebar.Describe(postLine, file.Name, string.Empty, row.OpenPreview != null, position);
         if (ticket.SameMedium && _sidebarShownDetail.Length > 0) sidebar.SetDetail(_sidebarShownDetail);
         sidebar.ConfigureFavorite(row);
         RefreshMediaSidebarDecisions();

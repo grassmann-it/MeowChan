@@ -63,7 +63,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
         MediaPositionPill counter = panel.Position;
         Assert.Same(panel, counter.Parent);
         Assert.False(counter.Focusable);
-        TextBlock label = Assert.IsType<TextBlock>(counter.Child);
+        TextBlock label = counter.Label;
         Assert.Equal(Avalonia.Media.TextWrapping.NoWrap, label.TextWrapping);
         Assert.Equal(1, label.MaxLines);
         Assert.Equal(Avalonia.Media.TextTrimming.CharacterEllipsis, label.TextTrimming);
@@ -654,7 +654,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
             Assert.Equal("Undo the last tag change, steps left: 2", AutomationProperties.GetName(surface.UndoButton));
             Assert.True(surface.UndoButton.IsEnabled);
             Assert.Equal("Added “blue_eyes”.", surface.Status.Text);
-            Assert.Contains("workspace-help", surface.Status.Classes);
+            Assert.Contains("workspace-meta", surface.Status.Classes);
             Assert.Equal(AutomationLiveSetting.Polite, AutomationProperties.GetLiveSetting(surface.Status));
             Assert.Equal("Tags for 1699999999123.jpg", AutomationProperties.GetName(surface));
             Assert.Equal("Suggestions: 1, assigned: 2. Escape closes.", AutomationProperties.GetHelpText(surface));
@@ -749,9 +749,9 @@ public sealed class QuickTagSurfaceTests : IDisposable
         {
             Grid header = surface.Header;
             Assert.Equal(header.ColumnDefinitions.Count - 1, Grid.GetColumn(surface.CloseButton));
-            Assert.Equal(1, Grid.GetColumn(surface.Title));
-            Assert.Equal(24, header.ColumnDefinitions[^2].Width.Value); // empty gap without any action
-            Assert.DoesNotContain(header.Children, child => Grid.GetColumn(child) == header.ColumnDefinitions.Count - 2);
+            Assert.Equal(0, Grid.GetColumn(surface.Title));
+            Assert.Equal(new Control[] { surface.Title, surface.CloseButton }, header.Children.ToArray());
+            Assert.Equal(8, header.ColumnSpacing);
             Assert.Equal(1, KeyboardNavigation.GetTabIndex(surface.Header)); // the close button is the last tab stop
             Assert.Contains(WorkspaceIcons.SquareClass, surface.CloseButton.Classes);
             Assert.Equal(WorkspaceIcons.Close, WorkspaceIcons.KeyOf(surface.CloseButton.Content));

@@ -34,7 +34,7 @@ public sealed class ArchiveInitialReaderSelectionTests
     }
 
     [Fact]
-    public async Task RebuildingThePageRetainsSelectionButAnotherThreadWithOverlappingIdsStartsAtFirst()
+    public async Task RebuildingTheListRetainsSelectionButAnotherThreadWithOverlappingIdsStartsAtFirst()
     {
         ArchivedThreadView first = await SeedAsync("one"), second = await SeedAsync("two");
         WithPage(page =>
@@ -42,7 +42,7 @@ public sealed class ArchiveInitialReaderSelectionTests
             Assert.True(page.LoadThreadAsync(first.Summary.Id, true, first).IsCompletedSuccessfully);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             posts.SelectedItem = Rows(posts).Last();
-            typeof(ArchivePage).GetMethod("RenderThread", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, [false]);
+            typeof(ArchivePage).GetMethod("RenderThread", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, null);
             Assert.Same(Rows(posts).Last(), posts.SelectedItem);
             Assert.True(page.LoadThreadAsync(second.Summary.Id, true, second).IsCompletedSuccessfully);
             Assert.Same(Rows(posts).First(), posts.SelectedItem);
@@ -57,10 +57,10 @@ public sealed class ArchiveInitialReaderSelectionTests
         WithPage(page =>
         {
             typeof(ArchivePage).GetMethod("ShowCapturedView", BindingFlags.Instance | BindingFlags.NonPublic)!
-                .Invoke(page, [view, 0, "p2"]);
+                .Invoke(page, [view, "p2"]);
             ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
             Assert.Equal("p2", Assert.IsType<ArchivePostRow>(posts.SelectedItem).Id);
-            typeof(ArchivePage).GetMethod("RenderThread", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, [false]);
+            typeof(ArchivePage).GetMethod("RenderThread", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(page, null);
             Assert.Equal("p2", Assert.IsType<ArchivePostRow>(posts.SelectedItem).Id);
             Assert.False(posts.IsKeyboardFocusWithin);
         });

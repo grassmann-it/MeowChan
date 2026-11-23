@@ -102,7 +102,6 @@ public sealed partial class MediaPage
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
         // The full-height panel owns the header and card, with a horizontal inset from both edges.
-        panel.Padding = new Thickness(16, 0, 16, 0);
         panel.Localize();
         panel.ShowEmpty();
         // The drag handle's name and tip exist from the start, not only after the first language change.
@@ -361,7 +360,7 @@ public sealed partial class MediaPage
     {
         MediaLibraryEntry entry = row.Entry;
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
-            : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
+            : row.IsProviderMedium ? Texts.T("reader.postNumber", entry.BooruPostId!) : string.Empty;
         panel.Describe(postLine, row.Name, _panelDimensions, OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
             threadPosition: PanelPositionOf(row), savedBytes: entry.Length);
         // Each write freezes the panel row even when the grid refreshes its selection.

@@ -358,8 +358,12 @@ internal sealed class QuickTagPopover
         if (_closed) return;
         if (_decisionRunning) { row.Show(SafeView(decision)); return; }
         _decisionRunning = true;
+        row.SetError(null);
         try { await write(); }
-        catch (Exception error) when (error is not OutOfMemoryException) { /* the host reports it; the row shows the real state below */ }
+        catch (Exception error) when (error is not OutOfMemoryException)
+        {
+            if (!_closed) row.SetError(Texts.T("gallery.decision.status.failed"));
+        }
         finally
         {
             _decisionRunning = false;

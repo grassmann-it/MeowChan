@@ -1,10 +1,18 @@
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Text.RegularExpressions;
+using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Gallery;
+using MeowChan.Interfaces;
+using MeowChan.Persistence;
+using MeowChan.Storage;
 
 namespace MeowChan.DesktopTests;
 
@@ -12,8 +20,8 @@ namespace MeowChan.DesktopTests;
 /// The star of a post's file line (Tom's review of 15.11.2026, "kazantip025.jpg (74 KiB) ☆" did nothing, in the embedded and the large reader alike).
 /// The cause was the hit surface, not the wiring: ArchiveFavoriteButton had its own style key, so no "ToggleButton.…" style reached it, its fill stayed
 /// unset, and the star drawing is no hit target, so a real pointer went through to the post card (a routed Click, as the older smokes raised, still
-/// worked). These tests pin the surface rule and the wiring rule for recycled and late cards without a window (Avalonia controls belong to one thread
-/// and share icon caches, so this class builds none); the real pointer is the reader-post-star smoke's (XTest in a private Xvfb).
+/// worked). The late-card test uses the real virtualized list in a headless window on an owned dispatcher.
+/// The reader-post-star smoke verifies the real pointer with XTest in a private Xvfb.
 /// </summary>
 [Collection("Localization")]
 public sealed class ReaderPostStarTests : IDisposable
@@ -112,32 +120,95 @@ public sealed class ReaderPostStarTests : IDisposable
     }
 
     [Fact]
-    public void ALateCardIsWiredThroughItsRowNotThroughItsContainer()
+    public void ALateCardIsWiredThroughItsRowNotThroughItsContainer() => BooruComponentDispatcher.Run(() =>
     {
-        // The page wires the rows of the shown page (data), not the realized cards: a card made later (scrolling, a page change, the large reader)
-        // shows a row that is already wired, and a row wired after its card exists is picked up by the refresh that follows the wiring.
-        ArchiveAttachmentRow late = new(new CapturedAttachment(0, "late", OriginalFileName: "late.jpg"));
-        var star = ArchiveFavoriteButton.Callbacks(late);
-        Assert.False(ArchiveFavoriteButton.ReadState(star.Available, star.Marked, star.Error).Available);
-        bool favorite = false;
-        late.FavoriteAvailable = () => true;
-        late.IsFavorite = () => favorite;
-        late.ToggleFavoriteAsync = () => { favorite = !favorite; return Task.CompletedTask; };
-        Assert.True(ArchiveFavoriteButton.ReadState(star.Available, star.Marked, star.Error).Available);
-        star.Toggle();
-        Assert.True(favorite);
-        string commands = Source("Desktop/Views/Archive/ArchivePage.MediaCommands.cs");
-        Assert.Contains("if (ArchivePosts.ItemsSource is System.Collections.IEnumerable posts)", commands);
-        Assert.Contains("foreach (ArchiveAttachmentRow row in post.Attachments)", commands);
-        Assert.Matches(@"_favoriteErrors\.GetValueOrDefault\(FavoriteAssetKey\.From\(entry\.Key\.Thread, entry\.Asset\)\);\s*\}\s*RefreshArchiveFavoriteControls\(\);", commands);
-        // Every page the reader shows is followed by the wiring: RenderThread ends in RenderMedia, which wires first.
-        string page = Source("Desktop/Views/Archive/ArchivePage.axaml.cs");
-        Assert.Matches(@"private void RenderMedia\(\)\s*\{\s*ConfigureArchiveMediaFavorites\(\);", page);
-        // (A page that only changed behind the Media tab skips the media list's rebuild but not the wiring.)
-        int render = page.IndexOf("private void RenderThread(bool refreshMedia = true)", StringComparison.Ordinal);
-        Assert.True(render >= 0 && page.IndexOf("if (refreshMedia) RenderMedia(); else ConfigureArchiveMediaFavorites();", render, StringComparison.Ordinal)
-            < page.IndexOf("private readonly record struct PostRowContext", StringComparison.Ordinal));
-    }
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        using TempDirectory media = new();
+        ResourceId thread = new("star-fixture", "reader", "1000");
+        const string url = "https://offline.invalid/reader/1000";
+        CapturedAttachment first = new(0, "first", Url: url + "/first.jpg", OriginalFileName: "first.jpg");
+        CapturedAttachment late = new(0, "late", Url: url + "/late.jpg", OriginalFileName: "late.jpg");
+        var assets = new[] { first, late }.Select(attachment => new MediaAssetReference(
+            attachment.MediaId!, attachment.MediaId!, attachment.Variant, attachment.OriginalFileName!,
+            Path.Combine(media.Path, attachment.OriginalFileName!), 3, new string('a', 64), attachment.Url!,
+            attachment.OriginalFileName, IsCurrent: true)).ToArray();
+        MediaAssetSnapshot manifest = new(media.Path, MediaManifestStatus.Available, 3, "fixture", assets);
+        const int count = 65;
+        CapturedPost[] captured = Enumerable.Range(0, count).Select(index => new CapturedPost((1000 + index).ToString(),
+            index, PostFieldPresence.All, Html: "Saved post " + index,
+            Attachments: index == 0 ? [first] : index == count - 1 ? [late] : [])).ToArray();
+        ArchivedThreadView view = new(new ArchiveThreadSummary(thread, url, "Post stars", media.Path,
+            ThreadSourceState.Archived, true, DateTimeOffset.UnixEpoch, DateTimeOffset.UnixEpoch, count, 1),
+            captured, [media.Path], decimalPostOrder: true);
+        TaskCompletionSource<MediaAssetSnapshot> inventory = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        List<GalleryEntry> writes = new();
+        ArchivePage page = new(_ => throw new InvalidOperationException("The thread snapshot is already loaded."),
+            (_, _) => Task.CompletedTask, _ => { }, (_, token) => inventory.Task.WaitAsync(token))
+        {
+            IsAvailable = true,
+            IsArchiveFavorite = entry => writes.Any(write => write.Key == entry.Key),
+            ToggleArchiveFavoriteAsync = entry => { writes.Add(entry); return Task.CompletedTask; }
+        };
+        Window window = new() { Content = page, Width = 1320, Height = 720 };
+        try
+        {
+            window.Show();
+            BooruComponentDispatcher.Wait(page.LoadThreadAsync(thread, preparedThread: view));
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+            ArchivePostRow firstRow = Assert.IsType<ArchivePostRow>(posts.Items[0]);
+            ArchivePostRow lateRow = Assert.IsType<ArchivePostRow>(posts.Items[count - 1]);
+            ArchiveFavoriteButton earlyStar = StarFor(posts, firstRow);
+            Assert.False(earlyStar.IsEnabled);
+            Assert.Equal(Texts.T("archive.favoriteLoading"), ToolTip.GetTip(earlyStar));
+            Assert.Null(posts.ContainerFromItem(lateRow));
+
+            inventory.SetResult(manifest);
+            BooruComponentDispatcher.Wait(page.MediaLoadTask);
+            Assert.Same(earlyStar, StarFor(posts, firstRow));
+            Assert.True(earlyStar.IsEnabled);
+            Assert.Null(posts.ContainerFromItem(lateRow));
+            ArchiveAttachmentRow lateAttachment = Assert.Single(lateRow.Attachments);
+            Assert.True(lateAttachment.FavoriteAvailable?.Invoke());
+
+            posts.ScrollIntoView(lateRow);
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            ArchiveFavoriteButton lateStar = StarFor(posts, lateRow);
+            Assert.True(lateStar.IsEnabled);
+            Assert.False(lateStar.IsChecked);
+            lateStar.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            GalleryEntry write = Assert.Single(writes);
+            Assert.Equal(thread, write.Key.Thread);
+            Assert.Equal(assets[1], write.Asset);
+            Assert.True(lateStar.IsChecked);
+            ArchiveAttachmentRow firstAttachment = Assert.Single(firstRow.Attachments);
+            Assert.False(firstAttachment.IsFavorite?.Invoke());
+
+            const string failure = "Favorite write failed";
+            page.ToggleArchiveFavoriteAsync = _ => Task.FromException(new InvalidOperationException(failure));
+            lateStar.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Equal(failure, lateAttachment.FavoriteError?.Invoke());
+            Assert.Null(firstAttachment.FavoriteError?.Invoke());
+            Assert.Contains(failure, Assert.IsType<string>(ToolTip.GetTip(lateStar)));
+
+            // A render behind Saved media must wire the new rows even while Posts is hidden.
+            TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+            tabs.SelectedIndex = 1;
+            Texts.SetLanguage("de");
+            BooruComponentDispatcher.Wait(page.ReaderLocalizationTask);
+            Assert.Equal(1, tabs.SelectedIndex);
+            ArchivePostRow rebuilt = Assert.IsType<ArchivePostRow>(posts.Items[count - 1]);
+            Assert.NotSame(lateRow, rebuilt);
+            Assert.Null(posts.ContainerFromItem(rebuilt));
+            Assert.True(Assert.Single(rebuilt.Attachments).IsFavorite?.Invoke());
+        }
+        finally { page.EndLifetime(); window.Close(); BooruComponentDispatcher.Wait(page.MediaLoadTask); }
+    });
+
+    private static ArchiveFavoriteButton StarFor(ListBox posts, ArchivePostRow row) => Assert.Single(
+        Assert.IsAssignableFrom<Control>(posts.ContainerFromItem(row)).GetVisualDescendants().OfType<ArchiveFavoriteButton>());
 
     [Fact]
     public void TheReadersThumbnailDrawsNoStarBecauseTheFileLinesStarIsTheOneAndStaysTheToggle()

@@ -330,11 +330,10 @@ internal static class ArchivePageChecks
             && !page.FindControl<Grid>("ArchiveListPane")!.IsVisible, "The narrow status overlay check requires the stacked reader.");
         Show(text);
         Rect box = Bounds(overlay), reader = Bounds(readerContent);
-        Grid postPager = page.FindControl<Grid>("ArchivePostNavigation")!;
-        Console.WriteLine($"SMOKE archive narrow status overlay reader: overlay={box}, reader={reader}, postPager={(postPager.IsEffectivelyVisible ? Bounds(postPager).ToString() : "hidden")}, page={Bounds(page)}");
+        Console.WriteLine($"SMOKE archive narrow status overlay reader: overlay={box}, reader={reader}, page={Bounds(page)}");
         Require(overlay.IsEffectivelyVisible && message.IsEffectivelyVisible && Inside(reader, box)
-            && (!postPager.IsEffectivelyVisible || box.Bottom <= Bounds(postPager).Top + 1),
-            $"The narrow archive status overlay is not shown inside the stacked reader above its post pager: overlay={box}, reader={reader}.");
+            && page.FindControl<Grid>("ArchivePostNavigation") == null,
+            $"The narrow status overlay must stay inside the reader's continuous viewport: overlay={box}, reader={reader}.");
         Program.CaptureWindow(window, "smoke-archive-status-overlay-narrow-reader.png");
         expireMessage.Invoke(page, Array.Empty<object?>());
         window.UpdateLayout();

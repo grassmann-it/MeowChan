@@ -895,7 +895,6 @@ public sealed class HelpDocumentationTests
         { "Reader display settings", "Quote preview delay (ms)", ReaderDisplayLimits.PreviewDelayDefault, ReaderDisplayLimits.PreviewDelayMinimum, ReaderDisplayLimits.PreviewDelayMaximum },
         { "Reader display settings", "Reply cards per step", ReaderDisplayLimits.ReplyStepDefault, ReaderDisplayLimits.ReplyStepMinimum, ReaderDisplayLimits.ReplyStepMaximum },
         { "Reader display settings", "Lines per reply card", ReaderDisplayLimits.ReplyLinesDefault, ReaderDisplayLimits.ReplyLinesMinimum, ReaderDisplayLimits.ReplyLinesMaximum },
-        { "Reader display settings", "Posts per reader page", ArchivePage.ReaderPageSizeDefault, ArchivePage.ReaderPageSizeMinimum, ArchivePage.ReaderPageSizeMaximum },
         { "Reader display settings", "Maximum conversation indentation depth", ReaderConversationTree.DepthDefault, ReaderConversationTree.DepthMinimum, ReaderConversationTree.DepthMaximum },
         { "Gallery Fit enlargement", "Maximum enlargement (%)", GalleryFitPreferences.MaxUpscalePercentDefault, GalleryFitPreferences.MaxUpscalePercentMinimum, GalleryFitPreferences.MaxUpscalePercentMaximum },
         { "Gallery Fit enlargement", "Maximum zoom (%)", GalleryZoomLimits.MaxPercentDefault, GalleryZoomLimits.MaxPercentMinimum, GalleryZoomLimits.MaxPercentMaximum }
@@ -914,13 +913,13 @@ public sealed class HelpDocumentationTests
     }
 
     [Fact]
-    public void ReaderAndGalleryNumericTablesCoverAllTwelveFieldsWithoutDuplicates()
+    public void ReaderAndGalleryNumericTablesCoverAllElevenFieldsWithoutDuplicates()
     {
-        // Eight reader numbers, separate Fit and manual zoom caps, and two post-filter store limits.
+        // Seven reader numbers, separate Fit and manual zoom caps, and two post-filter store limits.
         foreach (string heading in new[] { "Reader display settings", "Gallery Fit enlargement" })
             Assert.Equal(ReaderAndGalleryLimits().Where(row => (string)row[0] == heading).Select(row => (string)row[1]).Order(StringComparer.Ordinal),
                 TableRows(heading).Select(row => row[0]).Order(StringComparer.Ordinal));
-        Assert.Equal(12, ReaderAndGalleryLimits().Count + Limits().Count(row => (string)row[0] is "Post filter rules" or "Individually hidden posts"));
+        Assert.Equal(11, ReaderAndGalleryLimits().Count + Limits().Count(row => (string)row[0] is "Post filter rules" or "Individually hidden posts"));
     }
 
     [Fact]
@@ -933,14 +932,14 @@ public sealed class HelpDocumentationTests
         Assert.Equal(ReaderSpoilerMode.Hide, ReaderDisplayLimits.ClampSpoilerMode((ReaderSpoilerMode)(-1)));
         Assert.Contains("System format (default), Weekday and seconds, Since opening post and Relative to now", display);
         Assert.Contains("Keep hidden (default), Show on hover and Always show", display);
-        Assert.Contains("current reading position in view", display);
-        Assert.Contains("not the archive thread-list page size", display);
-        Assert.Contains("not refreshed by a timer", display);
+        Assert.Contains("applying a saved change keeps your place", display, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("when the list is rendered", display);
         Assert.Contains("Changes stay in the Settings draft until Save succeeds", display);
         Assert.Contains("Discard draft restores the saved values", display);
         Assert.Contains("a failed save does not apply the draft", display);
 
         string reading = Plain(Section(Read(Help), "Images, search and navigation"));
+        Assert.Contains("The Posts tab scrolls continuously from the opening post to the final reply", reading);
         Assert.Contains("The conversation switch is session-only", reading);
         Assert.Contains("deeper replies stay visible at the last indentation level", reading);
         Assert.Contains("not a provider conversation function and sends no requests", reading);
