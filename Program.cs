@@ -42,7 +42,7 @@ internal static partial class Program
             Console.Error.WriteLine(exception.Message);
             return 2;
         }
-        using StartupFolderSession? folderSession = startupFolder == null ? null : new StartupFolderSession(startupFolder);
+        StartupFolderSession? folderSession = startupFolder == null ? null : new StartupFolderSession(startupFolder);
         ProfileStartup.FolderSession = folderSession;
         // The desktop host owns logging; constructing a library session never changes it.
         var logging = new LoggerConfiguration().MinimumLevel.Information().WriteTo.Console(DesktopLog.ConsoleFormatter);
@@ -57,7 +57,12 @@ internal static partial class Program
         }
         finally
         {
+            // The desktop has exited. Give the separately fenced discard step time
+            // to finish, even when the temporary drive is slow.
+            ShutdownWatchdog? watchdog = folderSession?.WindowShutdownWatchdog;
+            watchdog?.Disarm();
             removed = folderSession?.RemoveTemporaryProfile() != false;
+            watchdog?.Arm(ShutdownExit.WatchdogGrace, () => "the folder session ended, but the process did not exit");
             ProfileStartup.FolderSession = null;
             Log.CloseAndFlush();
         }

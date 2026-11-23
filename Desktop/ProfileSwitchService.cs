@@ -59,14 +59,19 @@ internal sealed class ProfileSwitchService
     internal string CurrentDownloadPath { get; }
     internal ProfileRegistry? Registry => _registry;
     private readonly Func<int> _limit;
+    private readonly bool _temporarySession;
 
     internal ProfileSwitchService(ProfileRegistry? registry, IProfileLauncher launcher, string currentProfile, string currentDownloadPath,
-        Func<int> limit, ILogger? logger = null)
+        Func<int> limit, ILogger? logger = null, bool temporarySession = false)
     {
         _registry = registry; _launcher = launcher; _limit = limit; _logger = logger ?? Log.Logger;
         CurrentProfile = ProfileLease.NormalizeDirectory(currentProfile);
         CurrentDownloadPath = ProfileLease.NormalizeDirectory(currentDownloadPath);
+        _temporarySession = temporarySession;
     }
+
+    internal string SuggestDownloadFolder(string slug) => ProfileOpenPolicy.SuggestDownloadFolder(
+        _temporarySession ? Config.GetDefaultDownloadPath() : CurrentDownloadPath, slug);
 
     /// <summary>The list as it is; an empty list without a known registry location.</summary>
     internal ProfileRegistrySnapshot ReadList() =>
@@ -174,7 +179,7 @@ internal sealed class ProfileSwitchService
                 id = null;
             }
         }
-        (string? note, object? argument) = List(target, request.Name, id, includeCurrent: true);
+        (string? note, object? argument) = List(target, request.Name, id);
         ProfileActionResult started = Start(target, request.MediaFolder == null ? null : ProfileLease.NormalizeDirectory(request.MediaFolder.Trim()));
         return started.Status == ProfileActionStatus.Started ? started with { ListNoteKey = note, ListNoteArgument = argument } : started;
     }
@@ -227,13 +232,13 @@ internal sealed class ProfileSwitchService
         }
     }
 
-    private (string? Note, object? Argument) List(string target, string name, Guid? id, bool includeCurrent)
+    private (string? Note, object? Argument) List(string target, string name, Guid? id)
     {
         if (_registry == null) return ("profile.note.listUnavailable", null);
         try
         {
             int limit = _limit();
-            if (includeCurrent) _registry.Register(CurrentProfile, null, null, null, limit);
+            if (!_temporarySession) _registry.Register(CurrentProfile, null, null, null, limit);
             return _registry.Register(target, name, id, null, limit) switch
             {
                 ProfileRegistryChange.LimitReached => ("profile.note.listFull", limit),

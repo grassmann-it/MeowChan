@@ -65,6 +65,8 @@ public partial class MainWindow
         if (!ShutdownExit.ProcessExitAllowed) return;
         _shutdownWatchdog ??= new ShutdownWatchdog();
         _shutdownWatchdog.Arm(ShutdownExit.WatchdogGrace, () => "the window closed, but the process did not end");
+        if (TemporaryFolderSession && ProfileStartup.FolderSession is { } folderSession)
+            folderSession.WindowShutdownWatchdog = _shutdownWatchdog;
         // S4 F1: the lifetime ends with its last window. A window the hide disowned that refused its own close (a dialog that asks
         // about its draft on a programmatic close) would keep it running until the watchdog: the app is shut down instead, which closes
         // every window still open without asking. Posted, so this window's own close has finished first.

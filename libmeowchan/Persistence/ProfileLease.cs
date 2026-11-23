@@ -18,6 +18,7 @@ namespace MeowChan.Persistence;
 public sealed class ProfileLease : IDisposable
 {
     private const string LockName = ".meowchan-profile.lock";
+    internal const string DiscardMarkerName = ".meowchan-profile.discard";
     private const string LegacyLockName = ".ochan-profile.lock";
     private const string MarkerName = ".meowchan-profile.protocol";
     private const string MarkerValue = "MeowChan profile protocol v1\n";
@@ -38,12 +39,12 @@ public sealed class ProfileLease : IDisposable
     /// <summary>Write limits of the profile's private lists (user settings); the defaults are the former fixed values.</summary>
     internal ProfileStoreLimits StoreLimits { get; } = new();
 
-    private ProfileLease(string profileDirectory, FileStream lockStream, bool wasEmpty)
+    private ProfileLease(string profileDirectory, FileStream lockStream, bool wasEmpty, ProfileDirectoryIdentity? identity)
     {
         ProfileDirectory = profileDirectory;
         _lockStream = lockStream;
         WasEmptyAtAcquisition = wasEmpty;
-        _directoryIdentity = ProfileDirectoryIdentity.TryCapture(profileDirectory);
+        _directoryIdentity = identity;
         _admission = new ProfileAdmission();
     }
 
@@ -56,6 +57,8 @@ public sealed class ProfileLease : IDisposable
     {
         string directory = NormalizeDirectory(profileDirectory);
         Directory.CreateDirectory(directory);
+        ProfileDirectoryIdentity? identity = ProfileDirectoryIdentity.TryCapture(directory);
+        ThrowIfDiscarding(directory);
         string lockPath = Path.Combine(directory, LockName);
 
         FileStream stream;
@@ -81,6 +84,8 @@ public sealed class ProfileLease : IDisposable
 
         try
         {
+            identity?.EnsureMatches(directory);
+            ThrowIfDiscarding(directory);
             bool wasEmpty = !Directory.EnumerateFileSystemEntries(directory)
                 .Any(entry => !createdLock || Path.GetFileName(entry) != LockName);
             if (!HasProtocolMarker(directory))
@@ -106,13 +111,26 @@ public sealed class ProfileLease : IDisposable
                 }
             }
 
-            return new ProfileLease(directory, stream, wasEmpty);
+            return new ProfileLease(directory, stream, wasEmpty, identity);
         }
         catch
         {
             stream.Dispose();
             throw;
         }
+    }
+
+    internal static FileStream AcquireDiscardLock(string directory) =>
+        AcquireLock(Path.Combine(directory, LockName), FileMode.OpenOrCreate, FileAccess.ReadWrite);
+
+    internal static FileStream AcquireDiscardMarker(string marker) =>
+        AcquireLock(marker, FileMode.Open, FileAccess.Read, FileShare.Delete);
+
+    private static void ThrowIfDiscarding(string directory)
+    {
+        try { File.GetAttributes(Path.Combine(directory, DiscardMarkerName)); }
+        catch (FileNotFoundException) { return; }
+        throw new IOException("The profile is being discarded.");
     }
 
     /// <summary>
@@ -189,7 +207,7 @@ public sealed class ProfileLease : IDisposable
         }
     }
 
-    private static FileStream AcquireLock(string path, FileMode mode, FileAccess access)
+    private static FileStream AcquireLock(string path, FileMode mode, FileAccess access, FileShare windowsShare = FileShare.None)
     {
         // On Unix, .NET backs FileShare.None with flock(LOCK_EX | LOCK_NB), which
         // does not block either; a conflict would surface only as a generic
@@ -201,7 +219,7 @@ public sealed class ProfileLease : IDisposable
         // the conversion fails while any other descriptor holds a lock, and no
         // other process can convert or acquire one while ours is exclusive.
         if (OperatingSystem.IsWindows())
-            return new FileStream(path, mode, access, FileShare.None);
+            return new FileStream(path, mode, access, windowsShare);
 
         FileStream stream = new FileStream(path, mode, access, FileShare.ReadWrite);
         try

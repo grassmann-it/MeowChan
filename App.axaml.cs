@@ -11,6 +11,7 @@ using Serilog;
 using System;
 using System.Globalization;
 using System.Linq;
+using System.Threading.Tasks;
 
 namespace MeowChan;
 
@@ -136,17 +137,17 @@ public partial class App : Application
     private void ShowFolderStartup(IClassicDesktopStyleApplicationLifetime desktop, StartupFolderSession folderSession)
     {
         Texts.Initialize();
-        CultureInfo culture = CultureInfo.CurrentUICulture;
-        string language = Texts.Languages.Any(info => string.Equals(info.Code, culture.Name, StringComparison.OrdinalIgnoreCase))
-            ? culture.Name : culture.TwoLetterISOLanguageName;
-        Texts.SetLanguage(language);
-        StartupFolderWindow chooser = new(folderSession, (profile, temporary) =>
+        Texts.SetLanguage(Texts.ResolveCulture(CultureInfo.CurrentUICulture));
+        StartupFolderWindow chooser = new(folderSession, async (profile, temporary) =>
         {
             folderSession.SelectedProfile = profile;
             ProfileStartup.MediaFolder = folderSession.Registration;
+            DesktopSessionHost? adopted = null;
             try
             {
-                MainWindow main = CreateMainWindow();
+                if (!temporary)
+                    adopted = await Task.Run(() => new DesktopSessionHost(profile, readOnlyStartupSource: folderSession.Source));
+                MainWindow main = adopted == null ? CreateMainWindow() : new MainWindow(adopted);
                 main.TemporaryFolderSession = temporary;
                 SetMainWindow(desktop, main);
                 main.Show();
@@ -155,6 +156,7 @@ public partial class App : Application
             {
                 folderSession.SelectedProfile = null;
                 ProfileStartup.MediaFolder = null;
+                if (adopted != null) await adopted.DisposeAsync();
                 throw;
             }
         });

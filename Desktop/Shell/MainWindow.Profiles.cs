@@ -104,7 +104,7 @@ public partial class MainWindow
     {
         string? path = ProfileRegistryPath ?? ProfileRegistry.DefaultFilePath();
         return new ProfileSwitchService(path == null ? null : new ProfileRegistry(path), ProfileLauncher, _session.ProfileDirectory,
-            _config.DownloadPath, () => _config.ProfileRegistryLimit);
+            _config.DownloadPath, () => _config.ProfileRegistryLimit, temporarySession: TemporaryFolderSession);
     }
 
     private void OpenProfileFolder() { if (!_isClosing) OpenDirectory(_session.ProfileDirectory); }

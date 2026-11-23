@@ -76,7 +76,7 @@ public sealed class StartupMediaFolderSessionTests
             string temporaryProfile = start.PrepareTemporaryProfile("en", [selectedProfile]);
             Assert.StartsWith(temporaryProfile + Path.DirectorySeparatorChar, Config.LoadConfig(temporaryProfile).DownloadPath);
 
-            await using (DesktopSessionHost selected = new(selectedProfile, Array.Empty<IImageBoard>()))
+            await using (DesktopSessionHost selected = new(selectedProfile, Array.Empty<IImageBoard>(), readOnlyStartupSource: media))
             {
                 await selected.StartAsync();
                 Assert.Equal("profile.status.inUse", start.ProfileProblem(selectedProfile, []));
@@ -136,5 +136,64 @@ public sealed class StartupMediaFolderSessionTests
         Assert.True(start.RemoveTemporaryProfile());
         Assert.False(Directory.Exists(temporary));
         Assert.Equal("keep", File.ReadAllText(marker));
+    }
+
+    [Fact]
+    public async Task ASecondProfileOpenCannotWinDuringDiscard()
+    {
+        using TempDirectory root = new();
+        using StartupFolderSession start = new(root.Path);
+        string temporary = start.PrepareTemporaryProfile("en", []);
+        TaskCompletionSource locked = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        using ManualResetEventSlim resume = new();
+        TimeSpan timeout = TimeSpan.FromSeconds(10);
+        Task<bool> discard = Task.Run(() => start.RemoveTemporaryProfile(() =>
+        {
+            locked.SetResult();
+            if (!resume.Wait(timeout)) throw new TimeoutException();
+        }));
+        try
+        {
+            await locked.Task.WaitAsync(timeout);
+            await Task.Run(() => Assert.Throws<IOException>(() =>
+            {
+                using ProfileLease unexpected = ProfileLease.Acquire(temporary);
+            })).WaitAsync(timeout);
+            Assert.True(File.Exists(Path.Combine(temporary, ".meowchan-profile.protocol")));
+        }
+        finally { resume.Set(); }
+        Assert.True(await discard.WaitAsync(timeout));
+        Assert.False(Directory.Exists(temporary));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AnInterruptedDiscardResumesOnlyForTheMarkedDirectory(bool alreadyMoved)
+    {
+        using TempDirectory root = new();
+        string original = Directory.CreateDirectory(Path.Combine(root.Path, TemporaryProfileDiscard.Prefix + "marked")).FullName;
+        string unrelated = Directory.CreateDirectory(Path.Combine(root.Path, TemporaryProfileDiscard.Prefix + "unmarked")).FullName;
+        string remaining = Path.Combine(original, "media", "remaining");
+        Directory.CreateDirectory(Path.GetDirectoryName(remaining)!);
+        File.WriteAllText(remaining, "left after interruption");
+        ProfileDirectoryIdentity identity = ProfileDirectoryIdentity.Capture(original);
+        string pending = original;
+        if (alreadyMoved)
+            pending = TemporaryProfileDiscard.Quarantine(original, identity);
+        else
+            File.WriteAllText(Path.Combine(pending, ProfileLease.DiscardMarkerName), identity.DiscardToken);
+        Assert.Throws<IOException>(() =>
+        {
+            using ProfileLease unexpected = ProfileLease.Acquire(pending);
+        });
+
+        using ProfileLease? replacement = alreadyMoved ? ProfileLease.Acquire(original) : null;
+        File.WriteAllText(Path.Combine(unrelated, ProfileLease.DiscardMarkerName), identity.DiscardToken);
+        TemporaryProfileDiscard.RetryPending(root.Path);
+
+        Assert.Equal(alreadyMoved, Directory.Exists(original));
+        Assert.False(Directory.Exists(pending));
+        Assert.True(Directory.Exists(unrelated));
     }
 }

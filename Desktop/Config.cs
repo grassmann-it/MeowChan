@@ -1581,7 +1581,7 @@ namespace MeowChan
             }
         }
 
-        private static string GetDefaultDownloadPath() => GetDefaultDownloadPath("MeowChan");
+        internal static string GetDefaultDownloadPath() => GetDefaultDownloadPath("MeowChan");
 
         private static string GetDefaultDownloadPath(string productDirectory)
         {
