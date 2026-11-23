@@ -188,18 +188,29 @@ internal sealed partial class BooruWorkbenchView
         BooruSearchView before = search.View;
         int page = before.Page + delta;
         Control pagerButton = delta < 0 ? _previous : _next;
-        IFocusManager? focus = TopLevel.GetTopLevel(this)?.FocusManager;
+        TopLevel? topLevel = TopLevel.GetTopLevel(this);
+        IFocusManager? focus = topLevel?.FocusManager;
         IInputElement? origin = focus?.GetFocusedElement();
         bool fromPager = ReferenceEquals(origin, pagerButton);
-        await search.GoToPageAsync(page);
+        bool focusMoved = false;
+        topLevel?.AddHandler(GotFocusEvent, TrackFocus, handledEventsToo: true);
+        try { await search.GoToPageAsync(page); }
+        finally { topLevel?.RemoveHandler(GotFocusEvent, TrackFocus); }
         BooruSearchView after = search.View;
-        if (_closed || SearchTabs.ActiveId != tab || after.Page != page || after.ExecutedQuery != before.ExecutedQuery
+        if (_closed || focusMoved || SearchTabs.ActiveId != tab || after.Page != page || after.ExecutedQuery != before.ExecutedQuery
             || _resultView != BooruResultView.Gallery || after.Rows.IsEmpty) return;
         // The pager can lose focus when the busy state hides it. Any other active focus takes priority.
         IInputElement? focused = focus?.GetFocusedElement();
-        if (!(fromPager && (focused is null || ReferenceEquals(focused, origin))
-            || ReferenceEquals(origin, _gallery.Stage) && ReferenceEquals(focused, origin))) return;
+        bool pagerLostFocus = fromPager && (focused is null || ReferenceEquals(focused, topLevel));
+        bool stillAtOrigin = ReferenceEquals(focused, origin) && (fromPager || ReferenceEquals(origin, _gallery.Stage));
+        if (topLevel is Window { IsActive: false } || !(pagerLostFocus || stillAtOrigin)) return;
         Render(force: false);
         FocusGalleryStage();
+
+        void TrackFocus(object? sender, FocusChangedEventArgs e)
+        {
+            if (e.Source is IInputElement target && !ReferenceEquals(target, origin) && !ReferenceEquals(target, topLevel))
+                focusMoved = true;
+        }
     }
 }
