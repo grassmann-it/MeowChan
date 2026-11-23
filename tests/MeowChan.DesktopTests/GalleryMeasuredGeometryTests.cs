@@ -11,9 +11,6 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
-using MeowChan.Persistence;
-using MeowChan.Storage;
-using MeowChan.Tags;
 
 namespace MeowChan.DesktopTests;
 
@@ -92,49 +89,57 @@ public sealed class GalleryMeasuredGeometryTests
         }
     });
 
-    private static Rect BoundsIn(Control control, GallerySidePanel panel)
+    internal static void AssertSidebarHeader(Control header, Control segment, MediaPositionPill pill, Button close)
     {
-        Point origin = Assert.IsType<Point>(control.TranslatePoint(default, panel));
-        return new Rect(origin, control.Bounds.Size);
+        Rect BoundsIn(Control child) => new(Assert.IsType<Point>(child.TranslatePoint(default, header)), child.Bounds.Size);
+        Rect tabs = BoundsIn(segment);
+        Rect position = BoundsIn(pill);
+        Rect cross = BoundsIn(close);
+        Assert.True(pill.IsEffectivelyVisible);
+        Assert.True(position.Width > 0 && position.Height > 0, $"Position bounds: {position}");
+        Assert.Equal(0, tabs.Left, 0.5);
+        Assert.Equal(0, tabs.Top, 0.5);
+        Assert.Equal(32, tabs.Height, 0.5);
+        Assert.Equal(32, cross.Height, 0.5);
+        Assert.Equal(tabs.Right + MediaSidebarHeader.HeaderGap, position.Left, 0.5);
+        Assert.Equal(cross.Left - MediaSidebarHeader.HeaderGap, position.Right, 0.5);
+        Assert.Equal(header.Bounds.Width, cross.Right, 0.5);
+        Assert.Equal(cross.Center.Y, position.Center.Y, 0.5);
     }
 
-    private static void AssertHeaderRow(Control counter, GallerySidePanel panel)
+    private static void AssertHeaderRow(GallerySidePanel panel)
     {
-        Rect bounds = BoundsIn(counter, panel);
-        Rect post = BoundsIn(panel.PostButton, panel);
-        Rect tags = BoundsIn(panel.TagsButton, panel);
-        Rect close = BoundsIn(panel.CloseButton, panel);
-        Assert.True(counter.IsEffectivelyVisible);
-        Assert.True(bounds.Width > 0 && bounds.Height > 0, $"Counter bounds: {bounds}");
-        Assert.InRange(bounds.Left, -0.5, 0.5);
-        Assert.True(bounds.Right + 8 <= post.Left + 0.5);
-        Assert.True(post.Right + 4 <= tags.Left + 0.5);
-        Assert.True(tags.Right + 8 <= close.Left + 0.5);
-        Assert.Equal(panel.Bounds.Width, close.Right, 0.5);
-        foreach (Rect tabOrClose in new[] { post, tags, close })
-        {
-            Assert.True(tabOrClose.Width > 0);
-            Assert.Equal(32, tabOrClose.Height);
-            Assert.Equal(0, tabOrClose.Top, 0.5);
-            Assert.Equal(tabOrClose.Center.Y, bounds.Center.Y, 0.5);
-        }
+        Control segment = Assert.IsAssignableFrom<Control>(panel.PostButton.Parent);
+        AssertSidebarHeader(panel, segment, panel.Position, panel.CloseButton);
+        Assert.Equal(panel.PostButton.Bounds.Right + 4, panel.TagsButton.Bounds.Left, 0.5);
+        Assert.Equal(32, panel.PostButton.Bounds.Height);
+        Assert.Equal(32, panel.TagsButton.Bounds.Height);
     }
 
     [Theory]
     [InlineData(280)]
-    [InlineData(320)]
+    [InlineData(360)]
     [InlineData(480)]
-    public void ThreadMediaCounterSharesTheHeaderRowWithTabsAndClose(double width) => WithSidePanel(width, panel =>
+    public void ThreadMediaCounterSharesTheSameLayoutInBothTabs(double width) => WithSidePanel(width, panel =>
     {
-        TextBlock counter = new() { Text = "1 of 18" };
-        panel.HeaderCounter = counter;
-        panel.UpdateLayout();
-        AssertHeaderRow(counter, panel);
+        panel.Position.Show(new(16, 23, false));
 
-        panel.HeaderCounter = null;
+        foreach (GallerySidePanelSegment tab in Enum.GetValues<GallerySidePanelSegment>())
+        {
+            panel.Segment = tab;
+            panel.UpdateLayout();
+            AssertHeaderRow(panel);
+            MediaPositionPill pill = Assert.Single(panel.Children.OfType<MediaPositionPill>());
+            Assert.Same(panel.Position, pill);
+            Assert.Contains(WorkspaceChips.Badge, pill.Classes);
+            Assert.Equal("No. 16 / 23", Assert.IsType<TextBlock>(pill.Child).Text);
+            Assert.Equal("Medium 16 of 23", ToolTip.GetTip(pill));
+        }
+
+        panel.Position.Show(null);
         panel.UpdateLayout();
-        Assert.Equal(0, BoundsIn(panel.PostButton, panel).Left, 0.5);
-        Assert.Equal(0, BoundsIn(panel.PostButton, panel).Top, 0.5);
+        Assert.False(panel.Position.IsVisible);
+        Assert.Equal(0, ((Control)panel.PostButton.Parent!).Bounds.Left, 0.5);
     });
 
     [Theory]
@@ -159,21 +164,14 @@ public sealed class GalleryMeasuredGeometryTests
         panel.UpdateLayout();
         double tabHeight = ((Control)panel.PostButton.Parent!).Bounds.Height;
 
-        using TempDirectory temp = new();
-        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
-        PrivateTagStore store = new(temp.Path, lease);
-        using QuickTagSession session = new(QuickTagTarget.For(QuickTagSurfaceTests.Single(store, QuickTagSurfaceTests.Entry("a", 'a'))));
-        using QuickTagSurface surface = new(session);
         GalleryTagPanelPosition position = new(183, 197, false);
-        surface.CounterShortText = GalleryTagPanelCommands.ShortCounterText(position, marked: true);
-        surface.CounterText = GalleryTagPanelCommands.CounterText(position, marked: true);
-        Border counter = surface.DetachCounter();
-        panel.HeaderCounter = counter;
+        panel.Position.Show(position, marked: true);
+        panel.Segment = GallerySidePanelSegment.Tags;
         panel.UpdateLayout();
 
-        AssertHeaderRow(counter, panel);
-        TextBlock label = Assert.IsType<TextBlock>(counter.Child);
-        Assert.Equal(surface.CounterShortText, label.Text);
+        AssertHeaderRow(panel);
+        TextBlock label = Assert.IsType<TextBlock>(panel.Position.Child);
+        Assert.Equal(GalleryTagPanelCommands.ShortCounterText(position, marked: true), label.Text);
         Assert.True(label.Bounds.Width > 0 && label.Bounds.Height > 0);
         Assert.Equal(tabHeight, ((Control)panel.PostButton.Parent!).Bounds.Height, 0.5);
     });
@@ -181,20 +179,20 @@ public sealed class GalleryMeasuredGeometryTests
     [Fact]
     public void AtVeryNarrowWidthsTheCounterEllipsizesAndRecoversWhenWidened() => WithSidePanel(140, panel =>
     {
-        TextBlock counter = new() { Text = "Medium 12345 of at least 67890", TextTrimming = TextTrimming.CharacterEllipsis };
-        panel.HeaderCounter = counter;
+        panel.Position.Show(new(12345, 67890, true));
         panel.UpdateLayout();
 
-        AssertHeaderRow(counter, panel);
-        Assert.True(Assert.Single(counter.TextLayout.TextLines).HasCollapsed);
+        AssertHeaderRow(panel);
+        TextBlock label = Assert.IsType<TextBlock>(panel.Position.Child);
+        Assert.True(Assert.Single(label.TextLayout.TextLines).HasCollapsed);
 
         for (int width = 144; width <= 480; width += 4)
         {
             panel.Width = width;
             panel.UpdateLayout();
-            AssertHeaderRow(counter, panel);
+            AssertHeaderRow(panel);
         }
-        Assert.False(Assert.Single(counter.TextLayout.TextLines).HasCollapsed);
+        Assert.False(Assert.Single(label.TextLayout.TextLines).HasCollapsed);
     });
 
     [Fact]

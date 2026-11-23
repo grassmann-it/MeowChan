@@ -16,7 +16,7 @@ namespace MeowChan.DesktopSmoke;
 // it, Escape inside it closes only it, the right side mirrors it, and closing the reader puts the pane back into the archive split.
 internal static class ReaderMediaSidebarChecks
 {
-    internal static async Task RunAsync(MainWindow window)
+    internal static async Task RunAsync(MainWindow window, bool headerOnly = false)
     {
         window.Width = 1600; window.Height = 960;
         SmokeNavigation.GoTo(window, MainWindow.WorkspacePage.Archive);
@@ -40,12 +40,49 @@ internal static class ReaderMediaSidebarChecks
         Require(host.Content is Grid { Name: "ReaderLargeFrame" } && pane.Parent == host.Content, "The large reader is not framed for the sidebar.");
         // On by default: the large reader shows the sidebar at once. It is switched off once for the plain-pane checks and back on below.
         await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.MediaSidebar!.IsEffectivelyVisible);
+        ReaderMediaSidebar sidebar = page.MediaSidebar!;
+        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+        // A post with media: its picture (or an explaining placeholder) shows, decoded through the gallery cache.
+        ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();
+        ArchivePostRow? withMedia = rows.FirstOrDefault(row => row.ShowsMedia);
+        Require(withMedia != null, "The reader fixture has no post with media.");
+        posts.SelectedItem = withMedia;
+        await Program.WaitUntilAsync(() => page.MediaSidebarTask.IsCompleted);
+        await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
+        await page.MediaSidebarTask;
+        Require(sidebar.Shown != null || sidebar.StatusText.Length > 0, "The sidebar shows neither the medium nor a reason.");
+        // The position pill fills the gap between the tabs and the close button.
+        Require(sidebar.HeaderLine.Contains(withMedia!.Id, StringComparison.Ordinal) && !sidebar.HeaderLine.Contains('\n', StringComparison.Ordinal),
+            "The sidebar header does not name the post.");
+        Require(sidebar.Open.IsEffectivelyVisible && sidebar.Close.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
+        await Flush();
+        Rect InHeader(Control control) => new(control.TranslatePoint(default, sidebar.HeaderRow)!.Value, control.Bounds.Size);
+        Rect tabs = InHeader(sidebar.Segments), pill = InHeader(sidebar.PositionPill), close = InHeader(sidebar.Close);
+        Require(sidebar.PositionPill.IsEffectivelyVisible && pill.Width > 0
+            && Math.Abs(tabs.Left) <= 1 && Math.Abs(close.Right - sidebar.HeaderRow.Bounds.Width) <= 1
+            && Math.Abs(tabs.Right + MediaSidebarHeader.HeaderGap - pill.Left) <= 1
+            && Math.Abs(pill.Right + MediaSidebarHeader.HeaderGap - close.Left) <= 1,
+            "The reader header tabs, filling position pill and close button are misaligned.");
+        using (MediaNativeInput native = new(window))
+        {
+            await native.MoveAsync(sidebar.Frame);
+            await Program.WaitUntilAsync(() => sidebar.Close.Opacity == 1);
+            Program.CaptureWindow(window, "smoke-reader-media-sidebar-header.png");
+        }
+        ToggleButton tagsTab = ((Panel)sidebar.Segments).Children.OfType<ToggleButton>().Last();
+        Click(tagsTab);
+        await Program.WaitUntilAsync(() => QuickTagPopover.Current?.Anchor == tagsTab);
+        Require(tagsTab.IsChecked == true, "The Tags tab did not select the sidebar's editor.");
+        QuickTagPopover.Current!.Close();
+        await Program.WaitUntilAsync(() => tagsTab.IsChecked == false);
+        await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia!.Id, StringComparison.Ordinal));
+        if (headerOnly) return;
+
         page.ToggleMediaSidebar();
         await Program.WaitUntilAsync(() => !page.IsMediaSidebarShown);
         Require(!page.IsMediaSidebarShown && KeyboardNavigation.GetTabNavigation(pane) == KeyboardNavigationMode.Cycle,
             "Without the sidebar the pane lost its own Tab cycle.");
 
-        ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
         // R11/RL1: while the sidebar is off and the reader wide enough, its row in the settings popover names the shortcut (and nothing turned it on).
         await ReaderSettingsProbe.CheckGearRoutesAsync(page, window);
         QuickSettingsSurface settings = await ReaderSettingsProbe.OpenAsync(page);
@@ -58,7 +95,6 @@ internal static class ReaderMediaSidebarChecks
         {
             page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.MediaSidebar!.IsEffectivelyVisible);
-            ReaderMediaSidebar sidebar = page.MediaSidebar!;
             Grid frame = (Grid)host.Content!;
             Require(page.FocusedMediaPresentedElsewhere, "The inline enlargement did not step back for the sidebar.");
             Require(KeyboardNavigation.GetTabNavigation(frame) == KeyboardNavigationMode.Cycle
@@ -78,25 +114,7 @@ internal static class ReaderMediaSidebarChecks
                     + ", min " + frame.ColumnDefinitions[0].MinWidth + ", max " + frame.ColumnDefinitions[0].MaxWidth + "), configured " + page.ReaderMedia.SidebarWidth
                     + ", frame " + frame.Bounds.Size + ", sidebar " + sidebar.Bounds.Size + ", window " + window.Bounds.Size);
 
-            // A post with media: its picture (or an explaining placeholder) shows, decoded through the gallery cache.
-            ArchivePostRow[] rows = posts.Items.OfType<ArchivePostRow>().ToArray();
-            ArchivePostRow? withMedia = rows.FirstOrDefault(row => row.ShowsMedia);
-            Require(withMedia != null, "The reader fixture has no post with media.");
             posts.SelectedItem = withMedia;
-            await Program.WaitUntilAsync(() => page.MediaSidebarTask.IsCompleted);
-            await Task.Delay(ReaderMediaSidebarRules.FollowIntervalMs * 2);
-            await page.MediaSidebarTask;
-            Require(sidebar.Shown != null || sidebar.StatusText.Length > 0, "The sidebar shows neither the medium nor a reason.");
-            // The post number starts the header, and the actions end it.
-            Require(sidebar.HeaderLine.Contains(withMedia!.Id, StringComparison.Ordinal) && !sidebar.HeaderLine.Contains('\n', StringComparison.Ordinal),
-                "The sidebar header does not name the post.");
-            Require(sidebar.Open.IsEffectivelyVisible && sidebar.Close.IsEffectivelyVisible, "The header lost its gallery button or its cross.");
-            await Flush();
-            double postLeft = sidebar.PostLink.TranslatePoint(default, sidebar.HeaderRow)!.Value.X;
-            double closeRight = sidebar.Close.TranslatePoint(new Point(sidebar.Close.Bounds.Width, 0), sidebar.HeaderRow)!.Value.X;
-            Require(Math.Abs(postLeft) <= 1 && Math.Abs(closeRight - sidebar.HeaderRow.Bounds.Width) <= 1,
-                "The post number and header actions must sit at opposite edges.");
-            await Program.WaitUntilAsync(() => sidebar.LiveText.Contains(withMedia!.Id, StringComparison.Ordinal));
 
             // Held ↓: many selection changes, at most one decode start per interval; the sidebar ends on the last selected post.
             int start = Array.IndexOf(rows, withMedia);
@@ -239,7 +257,6 @@ internal static class ReaderMediaSidebarChecks
             Require(!page.IsMediaSidebarShown, "The archive view showed the sidebar while it is set to the large reader only.");
             page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => page.IsMediaSidebarShown && page.IsMediaSidebarInArchiveView && page.MediaSidebar!.IsEffectivelyVisible);
-            ReaderMediaSidebar sidebar = page.MediaSidebar!;
             Require(page.ReaderMedia.Sidebar && page.ReaderMedia.SidebarAlways, "The archive view's switch did not choose Always.");
             Require(sidebar.Parent == pane && Grid.GetRow(sidebar) == 0 && Grid.GetRowSpan(sidebar) == 2
                 && Grid.GetColumn(sidebar) == (page.ReaderMedia.SidebarRight ? 2 : 0)

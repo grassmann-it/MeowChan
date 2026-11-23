@@ -487,7 +487,7 @@ public partial class MainWindow
             : Texts.T("thread.media.total", position.Count);
         _gallery.SetPosition(TaggingPositionText(_galleryEntries[_galleryIndex]) ?? label,
             ready && _galleryIndex > 0,
-            ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count));
+            ready && (_galleryIndex + 1 < _galleryEntries.Count || _galleryThreadIndex < _galleryThreads.Count), position);
     }
 
     private GalleryTagPanelPosition? GalleryListPosition() =>

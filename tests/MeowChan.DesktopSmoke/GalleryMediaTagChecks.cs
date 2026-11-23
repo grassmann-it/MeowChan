@@ -84,19 +84,21 @@ internal static class GalleryMediaTagChecks
                 {
                     viewer.PanelWidth = width;
                     window.UpdateLayout(); // the existing gallery close button does not prove the new header slot has been templated
-                    Border counter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Missing header counter.");
+                    MediaPositionPill counter = viewer.SidePanel.Position;
                     Require(counter.IsEffectivelyVisible && !viewer.TagSurface!.Header.Children.Contains(counter), "Counter was duplicated or hidden.");
                     Require(Avalonia.Automation.AutomationProperties.GetName(counter) == Texts.T("tags.quick.gallery.position", 1, 2)
                         && Avalonia.Automation.AutomationProperties.GetLiveSetting(counter) == Avalonia.Automation.AutomationLiveSetting.Polite
                         && counter.Child is TextBlock liveLabel
                         && Avalonia.Automation.AutomationProperties.GetLiveSetting(liveLabel) == Avalonia.Automation.AutomationLiveSetting.Polite
                         && liveLabel.Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
-                        "The moved counter lost localization or polite announcements.");
+                        "The position pill lost localization or polite announcements.");
                     GallerySidePanel panel = viewer.SidePanel;
                     Rect InPanel(Control control) => new(control.TranslatePoint(default, panel)!.Value, control.Bounds.Size);
                     Rect position = InPanel(counter), post = InPanel(panel.PostButton), tagsTab = InPanel(panel.TagsButton), close = InPanel(panel.CloseButton);
-                    Require(position.Width > 0 && Math.Abs(position.Left) <= 1
-                        && position.Right <= post.Left && post.Right <= tagsTab.Left && tagsTab.Right <= close.Left
+                    Require(position.Width > 0 && Math.Abs(post.Left) <= 1
+                        && post.Right <= tagsTab.Left
+                        && Math.Abs(position.Left - tagsTab.Right - MediaSidebarHeader.HeaderGap) <= 1
+                        && Math.Abs(close.Left - position.Right - MediaSidebarHeader.HeaderGap) <= 1
                         && Math.Abs(close.Right - panel.Bounds.Width) <= 1
                         && new[] { post, tagsTab, close }.All(control => control.Height == 32 && Math.Abs(control.Center.Y - position.Center.Y) <= 1),
                         $"The gallery header is misaligned (counter {position}, Post {post}, Tags {tagsTab}, Close {close}).");
@@ -104,12 +106,15 @@ internal static class GalleryMediaTagChecks
                     Program.CaptureWindow(window, $"smoke-gallery-counter-header-{counterLanguage}-{width}.png");
                 }
             }
+            MediaPositionPill sharedPill = viewer.SidePanel.Position;
             viewer.PanelWidth = panelWidth;
             Texts.SetLanguage("en");
             viewer.SidePanel.PostButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             await UntilAsync(() => !viewer.IsTagPanelOpen && viewer.SidePanel.Segment == MeowChan.Desktop.Controls.GallerySidePanelSegment.Post);
             Require(viewer.CaptureState().ContextOpen && viewer.SidePanel.PostButton.IsChecked == true, "The Post segment did not take the side panel over.");
-            Require(viewer.SidePanel.HeaderCounter == null, "The released tag surface left a stale counter in the header.");
+            Require(ReferenceEquals(sharedPill, viewer.SidePanel.Position) && sharedPill.IsEffectivelyVisible
+                && ((TextBlock)sharedPill.Child!).Text == Texts.T("tags.quick.gallery.positionShort", 1, 2),
+                "The Post tab did not keep the same position pill as Tags.");
             window.UpdateLayout();
             var where = viewer.SidePanel.PostSlot.GetVisualDescendants().OfType<SelectableTextBlock>().Single(line => line.Name == "GalleryPostWhere");
             Require(where.TextAlignment == Avalonia.Media.TextAlignment.Left, "The Post metadata is not left-aligned.");
@@ -138,12 +143,12 @@ internal static class GalleryMediaTagChecks
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == unbound.EntryKey && marking.MarkBar.IsVisible);
             marking.MarkedClearButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
             Require(viewer.Marks.Count == 0 && !marking.MarkBar.IsVisible && !marking.Session.IsSelection, "The clear button left marks.");
-            Border movedCounter = viewer.SidePanel.HeaderCounter as Border ?? throw new InvalidOperationException("Navigation lost the header counter.");
+            MediaPositionPill movedCounter = viewer.SidePanel.Position;
             Require(movedCounter.Child is TextBlock movedLabel && movedLabel.Text == Texts.T("tags.quick.gallery.positionShort", 2, 2)
                 && Avalonia.Automation.AutomationProperties.GetName(movedCounter) == Texts.T("tags.quick.gallery.position", 2, 2)
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedCounter) == Avalonia.Automation.AutomationLiveSetting.Polite
                 && Avalonia.Automation.AutomationProperties.GetLiveSetting(movedLabel) == Avalonia.Automation.AutomationLiveSetting.Polite,
-                "Navigation did not update the reparented polite live region's text and accessible name.");
+                "Navigation did not update the position pill text and accessible name.");
             // Rate from the stars and keep the same keys available for text on the bound medium's tag field.
             viewer.TagSurface.Execute(new MeowChan.Desktop.Controls.QuickTagKeyRoute(MeowChan.Desktop.Controls.QuickTagKeyAction.Previous));
             await UntilAsync(() => viewer.TagPanelController!.Entry.EntryKey == bound.EntryKey && marking.Input.IsEffectivelyEnabled);

@@ -110,6 +110,8 @@ public sealed partial class MediaPage
         Avalonia.Automation.AutomationProperties.SetName(_panelHandle, resize);
         ToolTip.SetTip(_panelHandle, resize);
         panel.Frame.SizeChanged += (_, _) => OnPanelFrameResized();
+        panel.OpenTagsAsync = anchor => _panelRow is { } row
+            ? RunMediaCommandOnPanelAsync("media.tags.edit", row, anchor) : Task.CompletedTask;
         panel.Open.Click += (_, e) => { e.Handled = true; StartOpenPanelMedia(); };
         panel.GalleryRequested += (_, _) => StartOpenPanelMedia();
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
@@ -336,8 +338,8 @@ public sealed partial class MediaPage
         // A refresh of the same medium (a larger frame, a changed setting) is no news for a screen reader: only another medium is announced.
         if (!same)
         {
-            (int number, int total) = PanelPositionOf(row);
-            ScheduleAnnouncement(Texts.T("media.panel.region", number, total,
+            GalleryTagPanelPosition position = PanelPositionOf(row);
+            ScheduleAnnouncement(Texts.T("media.panel.region", position.Number, position.Count,
                 ReaderMediaSidebarRules.FileText(new CapturedAttachmentText(row.Name, entry.Length))));
         }
         if (ticket.UpToDate)
@@ -366,7 +368,7 @@ public sealed partial class MediaPage
         string postLine = entry.PostId != null ? Texts.T("reader.postNumber", entry.PostId)
             : row.IsProviderMedium ? Texts.T("booru.media.tile.post", entry.BooruPostId!) : string.Empty;
         panel.Describe(postLine, row.Name, PanelDetail(), OpenGallery != null && entry.Presence == MediaLibraryPresence.Present,
-            threadPosition: PanelPositionText(row));
+            threadPosition: PanelPositionOf(row));
         // The star reads the panel's row when it is asked, so a new presentation (own state changed) needs no new wiring.
         panel.ConfigureFavorite(PanelFavoriteAvailable, () => _panelRow?.State?.Favorite == MediaLibraryFlag.Yes,
             () => _panelRow is { } current ? ToggleTileFavoriteAsync(current.Entry) : Task.CompletedTask);

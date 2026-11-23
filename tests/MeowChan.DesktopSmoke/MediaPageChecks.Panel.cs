@@ -6,6 +6,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Gallery;
 using MeowChan.Interfaces;
@@ -68,7 +69,7 @@ internal static partial class MediaPageChecks
             // By thread: B's post file (200), A's post file (100), A's file without a post.
             Require(rows.Length == 3 && rows[0].Entry.PostId == "200" && rows[1].Entry.PostId == "100" && rows[2].Entry.PostId == null,
                 "The panel fixture's order is wrong: " + string.Join(",", rows.Select(row => row.Name + ":" + row.Entry.PostId)));
-            TextBlock position = C<TextBlock>(panel, "ReaderMediaSidebarThreadPosition");
+            TextBlock position = (TextBlock)panel.PositionPill.Child!;
 
             // The panel shows exactly this row: its header names the medium, the picture is named after it.
             async Task<Bitmap?> ShowsAsync(int index, string how, bool picture)
@@ -85,7 +86,7 @@ internal static partial class MediaPageChecks
                 Require(row.Entry.PostId is { } post ? header.Contains(Texts.T("reader.postNumber", post), StringComparison.Ordinal)
                         : rows.All(other => other.Entry.PostId is not { } otherPost || !header.Contains(Texts.T("reader.postNumber", otherPost), StringComparison.Ordinal)),
                     how + ": the header's post line does not match " + row.Name + " (post " + (row.Entry.PostId ?? "none") + "): '" + header + "'");
-                Require(position.IsEffectivelyVisible && position.Text == Texts.T("reader.sidebar.position", index + 1, rows.Length),
+                Require(position.IsEffectivelyVisible && position.Text == Texts.T("tags.quick.gallery.positionShort", index + 1, rows.Length),
                     how + ": the header position does not match the visible results: '" + position.Text + "'");
                 // Navigation stays in the grid, with the position in the header.
                 string[] overlay = Avalonia.VisualTree.VisualExtensions.GetVisualDescendants(panel).OfType<Control>().Select(control => control.Name ?? string.Empty)
@@ -110,23 +111,26 @@ internal static partial class MediaPageChecks
             Require(Math.Abs(panelTop - hostTop) <= 1 && Math.Abs(panel.Bounds.Bottom - panelHost.Bounds.Height) <= 1,
                 "The media sidebar divider must reach both host edges.");
             Require(!page.IsPanelHeaderLifted && Math.Abs(TopOf(panel.HeaderRow) - panelTop - 8) <= 1
-                    && Math.Abs(panel.HeaderRow.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight) <= 1,
+                    && Math.Abs(panel.Segments.Bounds.Height - ReaderMediaSidebar.HeaderLineHeight) <= 1,
                 "The title/actions line must be inset inside the full-height sidebar.");
             TextBlock heading = C<TextBlock>(panel, "ReaderMediaSidebarHeading");
             Point InHeader(Control control) => control.TranslatePoint(default, panel.HeaderRow)!.Value;
-            Require(Math.Abs(InHeader(heading).X) <= 1 && InHeader(position).X < InHeader(panel.Open).X
+            Require(Math.Abs(InHeader(panel.Segments).X) <= 1 && Math.Abs(InHeader(heading).X) <= 1
+                && InHeader(heading).Y >= ReaderMediaSidebar.HeaderLineHeight
+                && Math.Abs(InHeader(panel.PositionPill).X - panel.Segments.Bounds.Width - MediaSidebarHeader.HeaderGap) <= 1
+                && Math.Abs(InHeader(panel.PositionPill).X + panel.PositionPill.Bounds.Width + MediaSidebarHeader.HeaderGap - InHeader(panel.Close).X) <= 1
                 && Math.Abs(InHeader(panel.Close).X + panel.Close.Bounds.Width - panel.HeaderRow.Bounds.Width) <= 1,
-                "The post number, position and actions are misaligned.");
-            Require(Math.Abs(TopOf(panel.Card) - panelTop - 40) <= 1,
-                "Insetting the Media header moved the top of the viewer.");
+                "The tabs, post number, position and actions are misaligned.");
+            Require(Math.Abs(TopOf(panel.Card) - panelTop - 8 - panel.HeaderRow.Bounds.Height) <= 1,
+                "The card must begin below the Media header.");
             Require(Math.Abs(TopOf(panel.Card) + panel.Card.Bounds.Height - (hostTop + panelHost.Bounds.Height)) <= 1,
                 "The media card must consume the host height below the title line.");
             page.SetBooruMode(true, save: false);
             TextBlock tagsTitle = C<TextBlock>(page.TagSidebar, "MediaTagSidebarTitle");
             double CentreY(Control control) => TopOf(control) + control.Bounds.Height / 2;
             await PanelUntilAsync(() => tagsTitle.IsEffectivelyVisible && tagsTitle.Bounds.Height > 0
-                    && Math.Abs(CentreY(tagsTitle) - CentreY(panel.HeaderRow)) <= 2,
-                () => $"Tags and Media header centres: {CentreY(tagsTitle)} and {CentreY(panel.HeaderRow)}, tags visible: {tagsTitle.IsEffectivelyVisible}.");
+                    && Math.Abs(CentreY(tagsTitle) - CentreY(panel.Segments)) <= 2,
+                () => $"Tags and Media header centres: {CentreY(tagsTitle)} and {CentreY(panel.Segments)}, tags visible: {tagsTitle.IsEffectivelyVisible}.");
             page.SetBooruMode(false, save: false);
 
             // A fit change refreshes the current medium without announcing it again.

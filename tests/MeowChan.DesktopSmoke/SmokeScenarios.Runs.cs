@@ -46,6 +46,7 @@ internal static partial class SmokeScenarios
     {
         "video-lifecycle" => VideoLifecycleChecks.RunAsync(),
         "window-minimum" => WindowMinimumChecks.RunAsync(window),
+        "reader-sidebar-header" => ReaderMediaSidebarChecks.RunAsync(window, headerOnly: true),
         "reader-owned-navigation" or "reader-gallery-roundtrip" or "reader-list-gallery-return"
             => ReaderUxChecks.RunJourneyAsync(window, id),
         _ => ReaderUxChecks.RunAsync(window)
