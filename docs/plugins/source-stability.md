@@ -1,9 +1,7 @@
 # Source stability — when a bundled chan leaves "experimental"
 
-Status 11.11.2026: **criteria contract for 1.1.0 (QUELLEN110 · Q1).** The user approved
-writing the criteria down. Reclassifying any concrete chan still needs its own live
-acceptance (Q2, per-chan approval) and the old-profile decision (Q3). Plan and per-chan
-evidence status: [QUELLEN110](../architecture/gesamtprogramm-2026-10-31/pakete/QUELLEN110-stabile-quellen.md).
+Reclassifying a source requires live acceptance for that source and a decision
+on how existing profiles retain their plugin selections and permissions.
 
 Scope: sources that ship as bundled MeowChan plugins. "Stable" says MeowChan's adapter
 has been checked against the live site as described here. It is no promise about the

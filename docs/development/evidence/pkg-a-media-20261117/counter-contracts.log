@@ -1,8 +1,0 @@
-Test run for /tmp/commandcode-1000/-home-tomka-Desktop-oChan/5c761842-173e-465a-a2e7-aabd8ea57e21/scratchpad/wt/ledger-20-detach/tests/MeowChan.DesktopTests/bin/Debug/net10.0/MeowChan.DesktopTests.dll (.NETCoreApp,Version=v10.0)
-VSTest version 18.0.2-dev (x64)
-
-Starting test execution, please wait...
-A total of 1 test files matched the specified pattern.
-Results File: /tmp/commandcode-1000/-home-tomka-Desktop-oChan/5c761842-173e-465a-a2e7-aabd8ea57e21/scratchpad/wt/ledger-20-detach/docs/development/evidence/pkg-a-media-20261117/counter-contracts.trx
-
-Passed!  - Failed:     0, Passed:     9, Skipped:     0, Total:     9, Duration: 4 s - MeowChan.DesktopTests.dll (net10.0)

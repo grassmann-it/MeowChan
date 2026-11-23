@@ -78,9 +78,6 @@ The [documentation contract test](../../tests/test_plugin_documentation.py)
 checks the counts and delivery split against both allowlists. Registration,
 fixture, live, restart and packaged checks remain separate gates; these counts
 are not a published release or packaged/native-platform acceptance result.
-For the historical source-only baseline, see the
-[dated local validation results](../architecture/1.0.0/source-erweiterungen/README.md#lokaler-abschlussnachweis)
-for the tested candidate and its limits.
 
 A plugin references `MeowChan.PluginSdk` and the delivered framework libraries.
 It does not reference `libmeowchan`, Avalonia, the desktop application or host

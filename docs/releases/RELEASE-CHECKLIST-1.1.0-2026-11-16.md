@@ -16,8 +16,7 @@ release-gate report and uploaded evidence as well.
 - [ ] `Directory.Build.props` reports version `1.1.0` in the candidate build.
 - [ ] The candidate SHA is recorded in every package/source evidence file and is
       identical across source, packages, upgrade fixtures, and native artifacts.
-- [ ] The branch is frozen before the final run; no merge, force-push, or Claude
-      worktree changes are introduced after the run starts.
+- [ ] Freeze the branch before the final run and keep its SHA fixed throughout.
 - [ ] The final candidate is tagged exactly `v1.1.0` (not a preview tag), and the
       tag points to the SHA validated by the final run.
 - [ ] The GitHub release is created from `v1.1.0`, with the release notes reviewed

@@ -1,11 +1,11 @@
-# UX regression register — 1.1.0 final Astra review
+# UX regression register — 1.1.0
 
 Recorded 2026-11-16 from user dogfooding. This is a review checklist, not a claim of release acceptance.
 
 ## Evidence and version discipline
 
 The reported Archive screenshots and running desktop were traced to local Debug build
-`69c088a47b58811ef0ac02fb5d87cb241ca727df` in `/home/tomka/Desktop/oChan`.
+`69c088a47b58811ef0ac02fb5d87cb241ca727df`.
 The active candidate run `43953373716` tests `5ca63aa3d645ee1d113e498b5fc3e4dc3f252f26`.
 Do not classify an old-build screenshot as a regression of the newer candidate without reproduction.
 Source-level fixes or contract tests alone do not prove native mouse/keyboard delivery or rendered geometry.
@@ -16,7 +16,7 @@ Source-level fixes or contract tests alone do not prove native mouse/keyboard de
 
 - **Report:** Archive List/Table occupies only a small area at the left of its row, with a large gap before the overflow button (⋮).
 - **Expected:** The joined pair shares the available width up to the overflow slot, with intentional normal spacing. Preserve readable labels, joined borders and an accessible overflow target.
-- **Corrected status:** Claude's `5c9f6150e` implements `ActionToolBar.Stretch`, but Astra's actual GUI snapshot `9ac380f15` still reproduces the gap. At 1440×920, left pane x16–345, List/Table x16–163 and overflow around x336 leave roughly 157 px unused. A contained commit did **not** prove the native layout fixed. Sol is correcting the measured current defect; native retake required. Evidence: `/tmp/ochan-astra-max-visual-20261116-2222/screenshots/005-archive-list-reader-en-dark-1440.png`.
+- **Recorded status:** `5c9f6150e` introduced `ActionToolBar.Stretch`. The native capture at `9ac380f15` still shows about 157 px unused at 1440×920. The native retest was pending at this checkpoint.
 - **Cross-view review:** Archive, reader's Saved media tab, Media, Tagging and comparable segmented controls. Inspect full width, half-screen and narrow windows, not only a fixed smoke size; English and long German labels; light/dark themes and display scaling.
 - **Regression evidence:** Measure actual segment/group/overflow bounds after resizing in both directions. Overflow decisions must still use natural sizes; no oscillation, clipping, inaccessible actions or unwanted line breaks.
 - **Do not overcorrect:** Whitespace that separates unrelated groups is useful. Fill the control's intended area, not every blank pixel of the window.
@@ -63,7 +63,7 @@ The final review must explicitly distinguish an unmerged patch, a later regressi
 on a sibling surface, and simply running an older checkout. Never resolve that distinction by blindly
 merging every worker branch or discarding another worker's changes.
 
-## Final Astra pass and acceptance record
+## Acceptance record
 
 For each class, record the final commit/build identity, surface, window dimensions/scaling, theme/language,
 mouse or keyboard route, screenshot/test evidence, and outcome. Use full-screen, half-screen and narrow
