@@ -1,3 +1,4 @@
+using MeowChan.Archive;
 using MeowChan.Persistence;
 using MeowChan.Storage;
 using MeowChan.Tags;
@@ -40,6 +41,45 @@ public sealed class TagRuleTests
         Assert.Equal("girl", hidden.Input.OriginalName);
         Assert.Empty(hidden.Parents);
         Assert.Equal("long_hair", rules.Project(input with { OriginalName = "long_hair" }).Canonical!.Display);
+    }
+
+    [Fact]
+    public void ProviderClaimsSurvivePreviewApplyUndoAndReloadIncludingUnmappableTags()
+    {
+        using TempDirectory temp = new();
+        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
+        BooruCatalogStore catalog = new(temp.Path, lease);
+        BooruPostClaimTag[] original =
+        [
+            new("Girl", BooruPostClaimTagCategory.Character),
+            new("portrait", BooruPostClaimTagCategory.General),
+            new(new string('x', PrivateTagName.MaximumScalars + 1), BooruPostClaimTagCategory.Artist)
+        ];
+        catalog.UpsertPost(new BooruPostClaim("danbooru", "100", BooruPostClaimPresence.Tags, Tags: original),
+            DateTimeOffset.UnixEpoch);
+        byte[] raw = File.ReadAllBytes(catalog.FilePath);
+        BooruPostClaim post = Assert.Single(catalog.Read().Posts).Post;
+        MediaTagSubject subject = Bound("100");
+        TagRuleInput[] inputs = post.Tags.Select(tag => Provider(tag.Name, subject)).ToArray();
+        PrivateTagStore tags = new(temp.Path, lease);
+        TagRuleSet rules = new([
+            new(TagRuleKind.Alias, "girl", "1girl"),
+            new(TagRuleKind.Parent, "1girl", "person"),
+            new(TagRuleKind.Ignore, "portrait")
+        ]);
+
+        TagRulePreview preview = tags.PreviewTagRules(rules, inputs, expectedRevision: 0);
+
+        Assert.Equal(original.Select(tag => tag.Name), preview.Projections.Select(row => row.Input.OriginalName));
+        Assert.True(preview.Projections[1].IsIgnored);
+        Assert.False(preview.Projections[2].IsIgnored);
+        Assert.Equal(TagNameError.TooManyScalars, preview.Projections[2].MappingError);
+        Assert.Equal(["1girl", "person"], preview.Changes.Select(change => change.Name.Display));
+        TagRuleCommit applied = tags.ApplyTagRules(preview);
+        Assert.Equal(2, applied.Commit.Snapshot.TagsOf(subject).Count);
+        Assert.Empty(tags.UndoTagRules(applied.Undo!).Snapshot.Tags);
+        Assert.Equal(raw, File.ReadAllBytes(catalog.FilePath));
+        Assert.Equal(original, Assert.Single(new BooruCatalogStore(temp.Path, lease).Read().Posts).Post.Tags);
     }
 
     [Fact]
