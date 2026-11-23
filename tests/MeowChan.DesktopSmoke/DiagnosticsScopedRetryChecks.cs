@@ -14,7 +14,9 @@ using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Feedback;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.WorkViews;
 using MeowChan.Downloader;
+using MeowChan.Http;
 using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopSmoke;
@@ -140,6 +142,8 @@ internal static class DiagnosticsScopedRetryChecks
             Click(page, "DiagnosticClearFilters"); await FlushAsync();
             await CheckAcknowledgementAsync(page);
 
+            await CheckGroupedScopeAsync(window, page, grid, View(first, second), calls);
+
             // Storage retry stays its separate target-check action, never a watch batch.
             DownloadTargetWaitState storage = (DownloadTargetWaitState)Activator.CreateInstance(typeof(DownloadTargetWaitState),
                 Private, null, new object[] { "/fixture/storage", "disk-full", DateTimeOffset.UtcNow }, null)!;
@@ -214,6 +218,68 @@ internal static class DiagnosticsScopedRetryChecks
             Texts.SetLanguage(language);
             typeof(MainWindow).GetMethod("NavigateWorkspace", Private)!.Invoke(window, new object[] { previousPage, true });
         }
+    }
+
+    private static async Task CheckGroupedScopeAsync(MainWindow window, DiagnosticsPage page, DataGrid grid,
+        DesktopSessionView fixture, List<DiagnosticTarget> calls)
+    {
+        DesktopThreadEntry first = fixture.Threads[0], second = fixture.Threads[1];
+        // A closed group remains in the filtered scope, and the detail follows the
+        // stable entry key when a fresh snapshot replaces the selected row.
+        DesktopThreadEntry withMedia = first with { Snapshot = first.Snapshot with
+        {
+            MediaFailures = new Dictionary<string, FailureInfo> { ["image"] = new(FailureKind.Network, "Missing image") }
+        } };
+        DesktopThreadEntry withRequest = second with { Snapshot = second.Snapshot with
+        {
+            RequestProgress = new RequestPolicyProgress(RequestPolicyPhase.Cooldown, TimeSpan.FromSeconds(30), 2)
+        } };
+        page.Refresh(fixture with { Threads = [withMedia, withRequest] }, true);
+        var details = page.FindControl<TextBox>("DiagnosticDetails")!;
+        var summary = page.FindControl<TextBlock>("DiagnosticFilterSummary")!;
+        string GroupsLabel(string key, int count) => Texts.T(key) + " · " + Texts.Count("diagnostics.groupEntries", count);
+        Button? GroupButton(string label) => grid.GetVisualDescendants().OfType<Button>()
+            .FirstOrDefault(button => button.Classes.Contains("diagnostic-group-toggle") && AutomationProperties.GetName(button) == label);
+        grid.SelectedItem = Entries(grid).Single(entry => entry.Target?.WatchId == first.WatchId && entry.Kind == DiagnosticKind.Check);
+        Button? problemsGroup = null;
+        await Program.WaitUntilAsync(() =>
+        {
+            window.UpdateLayout();
+            problemsGroup = GroupButton(GroupsLabel("diagnostics.groupProblems", 3));
+            return problemsGroup != null && GroupButton(GroupsLabel("diagnostics.groupActivity", 1)) != null;
+        });
+        using (MediaNativeInput native = new(window))
+            await native.ClickButtonAsync(problemsGroup!);
+        await Program.WaitUntilAsync(() => grid.SelectedItem == null && details.IsVisible);
+        Require(summary.Text!.EndsWith(Texts.Count("diagnostics.retryableTargets", 2), StringComparison.Ordinal),
+            "Collapsing a group changed the filtered retry scope.");
+        withMedia = withMedia with { Snapshot = withMedia.Snapshot with { LastCheckFailure = new(FailureKind.Network, "Updated problem") } };
+        page.Refresh(fixture with { Threads = [withMedia, withRequest] }, true);
+        await FlushAsync();
+        Require(grid.SelectedItem == null && details.Text!.Contains("Updated problem", StringComparison.Ordinal),
+            "Collapsed refresh dropped the exact selected entry or reopened its group.");
+        page.ApplyWorkView(WorkView.Simple);
+        Require(grid.SelectedItem is DiagnosticEntry { Summary: "Updated problem" },
+            "A different WorkView did not restore its expanded default.");
+        page.ApplyWorkView(WorkView.Advanced);
+        Require(grid.SelectedItem == null && details.IsVisible,
+            "Returning to a WorkView lost the closed group or selected detail.");
+        window.UpdateLayout();
+        GroupButton(GroupsLabel("diagnostics.groupProblems", 3))!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Require(grid.SelectedItem is DiagnosticEntry { Summary: "Updated problem" } refreshed && refreshed.Target?.WatchId == first.WatchId,
+            "Expansion did not restore the refreshed selected row.");
+        page.SetProblemsOnly(true);
+        page.FindControl<TextBox>("DiagnosticTextFilter")!.Text = "#1";
+        await FlushAsync();
+        window.UpdateLayout();
+        Require(Entries(grid).Length == 2 && GroupButton(GroupsLabel("diagnostics.groupProblems", 2)) != null
+            && GroupButton(GroupsLabel("diagnostics.groupActivity", 1)) == null
+            && summary.Text!.EndsWith(Texts.Count("diagnostics.retryableTargets", 1), StringComparison.Ordinal),
+            "The group and retry counts diverged from the filter or counted the same watch twice.");
+        calls.Clear(); Click(page, "RetryDiagnosticFilteredButton"); await IdleAsync(page);
+        Require(calls.Select(target => target.WatchId).SequenceEqual(new[] { first.WatchId }),
+            "The filtered retry submitted a target outside the displayed count.");
+        Click(page, "DiagnosticClearFilters"); await FlushAsync();
     }
 
     private static async Task CheckAcknowledgementAsync(DiagnosticsPage page)

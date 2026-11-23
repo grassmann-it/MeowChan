@@ -58,7 +58,8 @@ public partial class DiagnosticsPage
     private void OnDiagnosticContextPointer(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not DataGrid grid || !e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
-        DataGridRow? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault();
+        var ancestors = (e.Source as Visual)?.GetSelfAndVisualAncestors();
+        DataGridRow? row = ancestors?.OfType<DataGridRow>().FirstOrDefault();
         _diagnosticPointerContextHandled = true;
         if (row?.DataContext is DiagnosticEntry entry)
         {
@@ -68,7 +69,18 @@ public partial class DiagnosticsPage
             _diagnosticContextPrepared = true;
             if (grid.ContextMenu?.ItemCount > 0) grid.ContextMenu.Open(grid);
         }
-        else { MeowChan.Desktop.Controls.DataGridSelection.Clear(grid); grid.ContextMenu?.Close(); _diagnosticContextPrepared = false; }
+        else if (ancestors?.OfType<DataGridRowGroupHeader>().Any() != true)
+        {
+            if (grid == DiagnosticGrid)
+            {
+                _diagnosticLead = null;
+                _diagnosticSelection = [];
+            }
+            DataGridSelection.Clear(grid);
+            grid.ContextMenu?.Close();
+            _diagnosticContextPrepared = false;
+            RefreshSelection();
+        }
         e.Handled = true;
     }
 

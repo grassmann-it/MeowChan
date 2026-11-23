@@ -21,6 +21,8 @@ namespace MeowChan
         public string ReadingFontSize { get; set; } = "Normal";
         public string ArchiveThreadLayout { get; set; } = "List";
         public double ArchiveSplitWidth { get; set; } = Config.ArchiveSplitWidthDefault;
+        public bool DiagnosticsProblemsCollapsed { get; set; }
+        public bool DiagnosticsActivityCollapsed { get; set; }
         [JsonConverter(typeof(DesktopPreferenceColumnWidthsConverter))]
         public Dictionary<string, double> ColumnWidths { get; set; } = new(StringComparer.Ordinal);
         public Dictionary<string, bool> ColumnVisibility { get; set; } = new(StringComparer.Ordinal);
@@ -31,6 +33,8 @@ namespace MeowChan
             CompactDensity = CompactDensity, ArchiveMediaTiles = ArchiveMediaTiles,
             ReadingFontSize = ReadingFontSize, ArchiveThreadLayout = ArchiveThreadLayout,
             ArchiveSplitWidth = ArchiveSplitWidth,
+            DiagnosticsProblemsCollapsed = DiagnosticsProblemsCollapsed,
+            DiagnosticsActivityCollapsed = DiagnosticsActivityCollapsed,
             ColumnWidths = ColumnWidths == null ? new(StringComparer.Ordinal) : new(ColumnWidths, StringComparer.Ordinal),
             ColumnVisibility = ColumnVisibility == null ? new(StringComparer.Ordinal) : new(ColumnVisibility, StringComparer.Ordinal),
             ColumnOrder = ColumnOrder == null ? new(StringComparer.Ordinal) : new(ColumnOrder, StringComparer.Ordinal)
