@@ -104,7 +104,9 @@ public sealed class QuickWinMenusDeleteTests : IDisposable
         string cards = Read("Desktop/Views/Booru/BooruWorkbenchView.CardMenus.cs");
         string view = Read("Desktop/Views/Booru/BooruWorkbenchView.cs");
         Assert.Contains("AttachCardMenu(", view);
-        Assert.Contains("ComposeResultMenu(", view);
+        string list = Read("Desktop/Views/Booru/BooruWorkbenchView.List.cs");
+        Assert.Contains("AttachCardMenu(", list);
+        Assert.Contains("ComposeResultMenu(", list);
         Assert.Contains("ComposeWatcherMenu(", view);
         Assert.Contains("new ContextMenuHost(", cards);
         Assert.Contains("Press(", cards);

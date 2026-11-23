@@ -80,14 +80,16 @@ public sealed class BooruWorkbenchViewContractTests
     }
 
     [Fact]
-    public void TransientDetachStopsOnlyTheClockAndFinalDisposeUnsubscribesAndRespectsOwnership()
+    public void DetachRetainsModelObserversAndFinalDisposeUnsubscribesAndRespectsOwnership()
     {
         string view = ViewSource();
         string detach = Between(view, "protected override void OnDetachedFromVisualTree(", "internal BooruWorkbenchModel Model");
         Assert.Contains("_attached = false;", detach);
         Assert.Contains("_clock.Stop();", detach);
         Assert.DoesNotContain("Dispose(", detach);
-        Assert.DoesNotContain("Changed -=", detach);
+        Assert.DoesNotContain("Texts.Changed -=", detach);
+        Assert.DoesNotContain("_model.Search.Changed -=", detach);
+        Assert.DoesNotContain("_model.Watchers.Changed -=", detach);
         Assert.DoesNotContain("Cancel(", detach);
         string dispose = view[view.IndexOf("public void Dispose()", StringComparison.Ordinal)..];
         foreach (string required in new[] { "if (_closed) return;", "_closed = true;", "_clock.Stop();", "_clock.Tick -= OnClockTick;", "ChromeChanged = null;",
@@ -154,7 +156,7 @@ public sealed class BooruWorkbenchViewContractTests
         Assert.Contains("bytes.Length > MaximumPreviewBytes", view);
         Assert.Contains("(long)codec.Info.Width * codec.Info.Height > 40_000_000", view);
         Assert.Contains("if (cached is not null) cached.Bitmap.Dispose();", view);
-        Assert.Contains("_bitmaps[id].Bitmap.Dispose();", view);
+        Assert.Contains("_bitmaps[key].Bitmap.Dispose();", view);
     }
 
     private static string Between(string source, string start, string end)

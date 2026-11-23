@@ -123,7 +123,9 @@ public sealed class SettingsResetCoverageTests : IDisposable
         probes.Where(probe => !HiddenAliases.Contains(probe.Name, StringComparer.Ordinal));
 
     private static Control Twin(SettingsEditor defaults, string name) =>
-        defaults.FindControl<Control>(name) ?? throw new InvalidOperationException("The default editor has no input " + name + ".");
+        defaults.FindControl<Control>(name)
+        ?? defaults.GetLogicalDescendants().OfType<Control>().SingleOrDefault(control => control.Name == name)
+        ?? throw new InvalidOperationException("The default editor has no input " + name + ".");
 
     private static string StateOf(Control input) => input switch
     {
