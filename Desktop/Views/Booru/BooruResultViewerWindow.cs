@@ -200,12 +200,10 @@ internal sealed class BooruResultViewerWindow : Window, IAsyncDisposable
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Handled || ShortcutService.IsCapturing) return;
+        if (e.Handled || ShortcutService.IsCapturing || BooruGalleryToolbar.ChildOwnsKeys(e)) return;
         _toolbar.RouteKey(e, _viewer);
         if (e.Handled || e.KeyModifiers == KeyModifiers.None && e.Key is Key.Space or Key.Enter) return;
         using var context = EffectiveShortcutBindings.EnterKeyContext("gallery");
-        // Let the read-only tags keep the platform's copy and text-selection gestures.
-        if (e.Source is Visual source && source.GetSelfAndVisualAncestors().Contains(_tags)) return;
         // Permit only image-view commands through to the composed viewer; local-media commands,
         // slideshow, rating and tagging do not apply to a result that has not been downloaded.
         if (e.Key == Key.Tab || new[] { "gallery.fit", "gallery.actual-size", "gallery.zoom-in", "gallery.zoom-out", "gallery.rotate" }

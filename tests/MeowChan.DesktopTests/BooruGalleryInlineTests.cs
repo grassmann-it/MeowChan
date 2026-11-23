@@ -305,6 +305,57 @@ public sealed class BooruGalleryInlineTests
     });
 
     [Fact]
+    public void GalleryTagsScrollWithTheKeyboardWithoutMovingThePost() => OnDispatcher(async () =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        BooruUiHarness harness = Harness(out BooruWorkbenchModel model, out BooruWorkbenchView view);
+        using (model)
+        using (view)
+        using (WindowScope window = new(view))
+        {
+            string[] tags = Enumerable.Range(1, 250).Select(index => $"long_gallery_tag_{index}").ToArray();
+            harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+                BooruUiFixtures.Page(query, page, true, BooruUiFixtures.Post("101", tags: tags),
+                    BooruUiFixtures.Post("102"), BooruUiFixtures.Post("103"))));
+            await SearchAsync(harness, model, view);
+            Assert.True(view.OpenGallery("101"));
+            Window host = Assert.IsType<Window>(TopLevel.GetTopLevel(view));
+            await CheckTagsAsync(host, view.Gallery, () => view.Gallery.CurrentPostId);
+
+            TextBox input = new() { Text = "Editable text" };
+            view.Gallery.SetDock(BooruGalleryDock.Left, input);
+            host.UpdateLayout();
+            Assert.True(input.Focus());
+            input.RaiseEvent(Press(Key.End, input));
+            Assert.True(input.IsFocused);
+            Assert.Equal("101", view.Gallery.CurrentPostId);
+
+            Assert.True(view.OpenResultViewer("101"));
+            BooruResultViewerWindow popup = Assert.Single(host.OwnedWindows.OfType<BooruResultViewerWindow>());
+            await CheckTagsAsync(popup, popup, () => popup.CurrentPostId);
+        }
+
+        static async Task CheckTagsAsync(Window host, Control gallery, Func<string?> currentPost)
+        {
+            host.UpdateLayout();
+            BooruGalleryTags tags = Assert.Single(gallery.GetVisualDescendants().OfType<BooruGalleryTags>());
+            Assert.True(tags.Extent.Height > tags.Viewport.Height);
+            Assert.True(tags.Focus());
+            double before = tags.Offset.Y;
+            tags.RaiseEvent(Press(Key.Down, tags));
+            await BooruTestSupport.WaitAsync(() => tags.Offset.Y > before, "the tag panel to scroll down");
+            Assert.True(tags.IsFocused);
+            Assert.Equal("101", currentPost());
+
+            SelectableTextBlock text = tags.GetVisualDescendants().OfType<SelectableTextBlock>().First();
+            Assert.True(text.Focus());
+            text.RaiseEvent(Press(Key.Right, text));
+            Assert.True(text.IsFocused);
+            Assert.Equal("101", currentPost());
+        }
+    });
+
+    [Fact]
     public void WatchersCancelDelayedSamplesAndAHiddenShellPageCancelsAnActiveSample() => OnDispatcher(async () =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
