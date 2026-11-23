@@ -4332,7 +4332,7 @@
     "gallery.panel.post": "投稿",
     "gallery.panel.tags": "タグ",
     "gallery.panel.segments": "パネルの内容",
-    "gallery.panel.segmentHelp": "左右の矢印キーで投稿とタグを切り替えます。メディアの位置が表示される場合は、タブの上の中央に表示されます。",
+    "gallery.panel.segmentHelp": "左右の矢印キーで投稿とタグを切り替えます。メディアの位置が表示される場合は、タブの横に表示されます。",
     "gallery.panel.close": "パネルを閉じる",
     "gallery.panel.resize": "パネルの幅: ドラッグで変更（{0}–{1}）",
     "media.selection.queue": "タグ付けキューに追加",

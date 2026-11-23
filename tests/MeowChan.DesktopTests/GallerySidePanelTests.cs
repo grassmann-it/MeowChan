@@ -29,13 +29,13 @@ public sealed class GallerySidePanelTests : IDisposable
     [Theory]
     [InlineData(140)]
     [InlineData(148)]
-    public void WrappedSegmentsStayAboveTheContentAndTheCounterIsLeftAligned(int width) => BooruComponentDispatcher.Run(() =>
+    public void NarrowHeaderLeavesTheTagContentBelowTheTabs(int width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Texts.SetLanguage("fr");
         GallerySidePanel panel = Panel(out Button close);
         panel.Width = width;
-        close.Width = close.Height = 40;
+        close.Width = close.Height = 32;
         panel.Segment = GallerySidePanelSegment.Tags;
         panel.HeaderCounter = new TextBlock { Text = "1 / 2" };
         Window window = new() { Width = 360, Height = 240, Content = panel };
@@ -45,13 +45,13 @@ public sealed class GallerySidePanelTests : IDisposable
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
             Control segment = (Control)panel.PostButton.Parent!;
-            Assert.True(panel.TagsButton.Bounds.Top >= panel.PostButton.Bounds.Bottom);
+            Assert.Equal(panel.PostButton.Bounds.Top, panel.TagsButton.Bounds.Top);
             Assert.True(segment.Bounds.Top + panel.TagsButton.Bounds.Bottom <= panel.TagSlot.Bounds.Top);
             Assert.True(close.Bounds.Left - segment.Bounds.Right >= 23);
             Control counter = Assert.IsType<TextBlock>(panel.HeaderCounter);
             Point origin = counter.TranslatePoint(default, panel)!.Value;
             Assert.InRange(origin.X, -0.5, 0.5);
-            Assert.True(origin.Y + counter.Bounds.Height <= segment.Bounds.Top);
+            Assert.Equal(close.Bounds.Center.Y, origin.Y + counter.Bounds.Height / 2, 0.5);
         }
         finally
         {
@@ -155,13 +155,19 @@ public sealed class GallerySidePanelTests : IDisposable
     {
         GallerySidePanel panel = Panel(out Button close);
         Control segment = (Control)panel.PostButton.Parent!;
+        TextBlock counter = new() { Text = "1 of 18" };
+        panel.HeaderCounter = counter;
+        Control counterHost = Assert.IsType<ContentControl>(counter.Parent);
         int Index(Control control) => panel.Children.IndexOf(control);
-        Assert.True(Index(segment) < Index(panel.PostSlot));
+        Assert.True(Index(segment) < Index(counterHost));
+        Assert.True(Index(counterHost) < Index(panel.PostSlot));
+        Assert.True(Index(counterHost) < Index(panel.TagSlot));
         Assert.True(Index(panel.PostSlot) < Index(close));
         Assert.True(Index(panel.TagSlot) < Index(close));
         // The close button is the last focusable child; the grip and the slots themselves take no focus.
         Assert.Equal(close, panel.Children.Where(child => child.Focusable).Last());
         Assert.False(panel.Grip.Focusable);
+        Assert.False(counterHost.Focusable);
         Assert.False(panel.PostSlot.Focusable);
         Assert.False(panel.TagSlot.Focusable);
         // Within the segment: Post before Tags.
@@ -169,7 +175,7 @@ public sealed class GallerySidePanelTests : IDisposable
         // The close button stands alone at the right edge, 24 dip at least from the segment.
         Assert.True(Grid.GetColumn(close) > Grid.GetColumn(segment));
         Assert.Equal(Grid.GetRow(segment), Grid.GetRow(close));
-        Assert.True(segment.Margin.Right >= 24);
+        Assert.True(close.Margin.Left >= 24);
     }
 
     // ---- width ----

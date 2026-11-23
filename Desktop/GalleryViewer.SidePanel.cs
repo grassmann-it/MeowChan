@@ -1,4 +1,5 @@
 using System;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -57,6 +58,8 @@ internal sealed partial class GalleryViewer
             _panelWidth = width;
             PanelWidthChanged?.Invoke(width);
         };
+        double inset = WorkspaceMetrics.SectionInset;
+        _contextPanel.Padding = new Thickness(inset, MediaSidebarHeader.TopInset, inset, inset);
         _contextPanel.Child = _sidePanel;
         SyncSidePanel();
     }

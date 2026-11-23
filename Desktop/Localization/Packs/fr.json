@@ -4369,7 +4369,7 @@
     "gallery.panel.post": "Message",
     "gallery.panel.tags": "Étiquettes",
     "gallery.panel.segments": "Contenu du panneau",
-    "gallery.panel.segmentHelp": "Les flèches gauche et droite basculent entre le message et les étiquettes. Lorsqu’elle est affichée, la position du média est centrée au-dessus des onglets.",
+    "gallery.panel.segmentHelp": "Les flèches gauche et droite basculent entre le message et les étiquettes. Lorsqu’elle est affichée, la position du média apparaît à côté des onglets.",
     "gallery.panel.close": "Fermer le panneau",
     "gallery.panel.resize": "Largeur du panneau : faites glisser pour la modifier ({0}–{1})",
     "media.selection.queue": "Ajouter à la file d’étiquetage",

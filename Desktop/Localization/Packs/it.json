@@ -4375,7 +4375,7 @@
     "gallery.panel.post": "Post",
     "gallery.panel.tags": "Tag",
     "gallery.panel.segments": "Contenuto del pannello",
-    "gallery.panel.segmentHelp": "Le frecce sinistra e destra passano dal post ai tag e viceversa. Quando è visibile, la posizione del contenuto multimediale è centrata sopra le schede.",
+    "gallery.panel.segmentHelp": "Le frecce sinistra e destra passano dal post ai tag e viceversa. Quando è visibile, la posizione del contenuto multimediale è accanto alle schede.",
     "gallery.panel.close": "Chiudi il pannello",
     "gallery.panel.resize": "Larghezza del pannello: trascina per modificarla ({0}–{1})",
     "media.selection.queue": "Aggiungi alla coda di tagging",
