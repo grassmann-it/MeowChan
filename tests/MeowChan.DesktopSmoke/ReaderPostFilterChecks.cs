@@ -121,12 +121,12 @@ internal static partial class ReaderPostFilterChecks
             ArchiveQuoteRow quote = Row("705")!.Quotes.Single();
             Require(page.QuotePreviewRow == null, "A preview is open before the check.");
             ArchiveQuoteRow hiddenQuote = new(new ArchiveQuote(new ArchivePostId(id, "704"), new ArchivePostId(id, "703"), ">>703", null));
-            page.RequestQuotePreview(hiddenQuote, list, default, immediate: true);
+            page.RequestQuotePreview(hiddenQuote, list, default, immediate: true, pointer: false);
             await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen,
                 () => $"quote preview not open; pointer over list {list.IsPointerOver}; window active {window.IsActive}");
             Require(page.QuotePreviewShowsFilterNote, "The quote preview of a hidden post has no note.");
             page.CloseQuotePreview();
-            page.RequestQuotePreview(quote, list, default, immediate: true);
+            page.RequestQuotePreview(quote, list, default, immediate: true, pointer: false);
             await Program.WaitUntilAsync(() => page.IsQuotePreviewOpen, () => "second quote preview not open");
             Require(page.QuotePreviewShowsFilterNote, "The quote preview of a placeholder has no note.");
             page.CloseQuotePreview();
