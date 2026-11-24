@@ -257,6 +257,44 @@ public sealed class BoardArchiveWindowTests
         static SourcePost Post(string text) => new("123", 0, SourceFieldPresence.Text, Text: text, TextFormat: SourceTextFormat.PlainText);
     }
 
+    [Fact]
+    public async Task AWaitingBoardReadCanCancelBeforeTheActiveReadFinishes()
+    {
+        using TempDirectory profile = new();
+        BoardArchiveHostTests.Configure(profile.Path);
+        DelayedRead<string[]> reads = new(["123"], ["124"]);
+        await using var worker = new BoardArchiveHostTests.ArchiveWorker { ReadIds = (_, token) => reads.RunAsync(token) };
+        using PluginSourceImageBoard source = worker.CreateSource();
+        await using DesktopSessionHost host = OwnedUiDispatcher.CreateHost(() => new DesktopSessionHost(profile.Path, [source],
+            updateSessionFactory: (directory, config) => new UpdateSession(directory, config, disableEnvironment: () => "1")));
+        await host.StartAsync().WaitAsync(TimeSpan.FromSeconds(15));
+        Assert.True(host.State == DesktopSessionState.Ready, host.StartupError);
+        BoardArchiveLocation board = Assert.IsType<BoardArchiveLocation>(host.FindBoardArchive("https://archive.test/a/archive"));
+
+        using CancellationTokenSource deadline = new(TimeSpan.FromSeconds(15));
+        using CancellationTokenSource waitingToken = new();
+        Task<IReadOnlyList<BoardArchiveThread>?> active = host.ReadBoardArchiveAsync(board, deadline.Token);
+        try
+        {
+            await reads.Started.Task.WaitAsync(deadline.Token);
+            Task<IReadOnlyList<BoardArchiveThread>?> waiting = host.ReadBoardArchiveAsync(board, waitingToken.Token);
+            Assert.False(waiting.IsCompleted);
+            waitingToken.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting.WaitAsync(TimeSpan.FromSeconds(5)));
+            Assert.True(waiting.IsCanceled);
+            Assert.False(active.IsCompleted);
+            Assert.False(reads.Canceled.Task.IsCompleted);
+            Assert.Equal(1, reads.Calls);
+
+            Task<IReadOnlyList<BoardArchiveThread>?> retry = host.ReadBoardArchiveAsync(board, deadline.Token);
+            reads.Release.SetResult();
+            Assert.Equal("123", Assert.Single((await active.WaitAsync(deadline.Token))!).Id);
+            Assert.Equal("124", Assert.Single((await retry.WaitAsync(deadline.Token))!).Id);
+            Assert.Equal(2, reads.Calls);
+        }
+        finally { reads.Release.TrySetResult(); }
+    }
+
     private sealed class DelayedRead<T>(T first, T latest)
     {
         private int _calls;

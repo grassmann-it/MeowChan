@@ -100,7 +100,7 @@ public sealed class BoardArchiveHostTests
     [Theory]
     [InlineData(PostOrderKind.StableOrdinal, "later", "a1", 10)]
     [InlineData(PostOrderKind.StableOrdinal, "123", "a1", 10)]
-    [InlineData(PostOrderKind.DecimalPostId, "92233720368547758080", "9223372036854775808", 30)]
+    [InlineData(PostOrderKind.DecimalPostId, "100000000000000000000", "99999999999999999999", 30)]
     public async Task PreviewUsesTheDeclaredPostOrder(PostOrderKind order, string last, string first, int firstOrdinal)
     {
         await using var worker = new ArchiveWorker(order: order)
