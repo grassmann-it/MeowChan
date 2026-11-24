@@ -465,8 +465,10 @@ internal sealed partial class ReaderMediaSidebar : Border
         TrackDecisionPress(_headerFavorite);
         AddHandler(PointerReleasedEvent, (_, e) =>
         {
-            if (e.InitialPressMouseButton != MouseButton.Left || !_decisionPresses.Remove(e.Pointer, out int revision)
+            if (e.GetCurrentPoint(this).Properties.PointerUpdateKind != PointerUpdateKind.LeftButtonReleased
+                || !_decisionPresses.Remove(e.Pointer, out int revision)
                 || revision == _mediumRevision) return;
+            // A recycled decision button would otherwise click with the new medium's callbacks.
             e.Handled = true;
             e.Pointer.Capture(null);
         }, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -638,7 +640,7 @@ internal sealed partial class ReaderMediaSidebar : Border
     {
         button.AddHandler(PointerPressedEvent, (_, e) =>
         {
-            if (e.GetCurrentPoint(button).Properties.IsLeftButtonPressed)
+            if (e.GetCurrentPoint(button).Properties.PointerUpdateKind == PointerUpdateKind.LeftButtonPressed)
                 _decisionPresses[e.Pointer] = _mediumRevision;
         }, RoutingStrategies.Tunnel);
         button.PointerCaptureLost += (_, e) => _decisionPresses.Remove(e.Pointer);
