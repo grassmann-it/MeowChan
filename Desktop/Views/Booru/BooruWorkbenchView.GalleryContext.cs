@@ -9,10 +9,12 @@ namespace MeowChan.Desktop.Booru;
 
 internal sealed partial class BooruWorkbenchView
 {
+    private ContextMenuHost? _galleryContextHost;
+
     private void AttachGalleryResultContext()
     {
         Control stage = _gallery.Stage;
-        _ = new ContextMenuHost(stage, () => ShownResult() is { } result ? ComposeResultMenu(result) : null, FocusGalleryStage);
+        _galleryContextHost = new ContextMenuHost(stage, () => ShownResult() is { } result ? ComposeResultMenu(result) : null, FocusGalleryStage);
         ResultActions? pressed = null;
         MiddleClickTracker middle = new();
         stage.AddHandler(InputElement.PointerPressedEvent, (_, e) =>

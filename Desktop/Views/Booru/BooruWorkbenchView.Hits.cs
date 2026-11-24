@@ -115,7 +115,7 @@ internal sealed partial class BooruWorkbenchView
         {
             if (result.IsCurrent()) FocusHit(postId);
         });
-        bool Activate() => result.IsCurrent() && OpenGallery(postId);
+        bool Activate() => result.IsCurrent() && OpenHostedGallery(postId);
         card.DoubleTapped += (_, e) =>
         {
             if (ItemActivation.IsCardDoubleClick(e, card)) e.Handled = Activate();

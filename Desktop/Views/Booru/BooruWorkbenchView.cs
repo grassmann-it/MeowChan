@@ -234,6 +234,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         _attached = false;
+        CloseHostedGallery(restoreFocus: false);
         _clock.Stop();
         DismissResultViewer();
         LayoutUpdated -= OnListLayoutUpdated;
@@ -1189,7 +1190,9 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
     {
         if (_closed) return;
         _closed = true;
+        CloseHostedGallery(restoreFocus: false);
         DismissResultViewer();
+        _galleryContextHost?.Dispose();
         _gallery.Dispose();
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();

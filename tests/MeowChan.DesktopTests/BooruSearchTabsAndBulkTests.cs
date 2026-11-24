@@ -111,13 +111,13 @@ public sealed class BooruSearchTabsAndBulkTests : IDisposable
         int a = tabs.Add(false);
         await BooruTestSupport.SearchAsync(_model, "dog");
         int b = tabs.Add(false);
-        Assert.False(tabs.Close(BooruSearchTabs.PrimaryId));
         Assert.True(tabs.Close(b));
         Assert.Equal(a, tabs.ActiveId);
         Assert.Equal("dog", _model.View.ExecutedQuery);
         Assert.True(tabs.Close(a));
         Assert.Equal(BooruSearchTabs.PrimaryId, tabs.ActiveId);
         Assert.Equal("cat", _model.View.ExecutedQuery);
+        Assert.False(tabs.Close(BooruSearchTabs.PrimaryId));
     }
 
     [Fact]

@@ -33,9 +33,10 @@ public sealed class BooruResultActionsTests
         fixture.Search("cat");
         ContextGestures.MenuKey(fixture.Hit("101"));
         ContextMenu grid = Assert.IsType<ContextMenu>(fixture.Hit("101").ContextMenu);
-        string[] ids = MenuProbe.Entries(grid).Select(item => item.Id).ToArray();
-        Assert.Contains("gallery.open", ids);
-        Assert.Contains(BooruWorkbenchView.MenuShowInMedia, ids);
+        string[] ids = [BooruWorkbenchView.MenuLoad, BooruWorkbenchView.MenuDownloadSelected, BooruWorkbenchView.MenuShowInMedia,
+            "gallery.open", BooruWorkbenchView.MenuOpenPost, BooruWorkbenchView.MenuCopyLink, "booru.menu.copy-tags",
+            BooruWorkbenchView.MenuWatchTags, "booru.menu.selection"];
+        Assert.Equal(ids, MenuProbe.Entries(grid).Select(item => item.Id));
         grid.Close();
         fixture.View.SetResultView(BooruResultView.List, save: false);
         fixture.Settle();
@@ -45,6 +46,21 @@ public sealed class BooruResultActionsTests
         Assert.Equal(ids, MenuProbe.Entries(list).Select(item => item.Id));
         list.Close();
         ContextGestures.DoubleClick(hit, new Point(12, 12));
+        BooruResultViewer hosted = Assert.Single(fixture.Window.GetVisualDescendants().OfType<BooruResultViewer>());
+        Assert.Same(fixture.Window, TopLevel.GetTopLevel(hosted));
+        Assert.Equal("101", hosted.CurrentPostId);
+        Control viewport = Find<Control>(hosted, "GalleryViewport");
+        ContextGestures.RightClick(viewport);
+        ContextMenu hostedMenu = Assert.Single(hosted.GetVisualDescendants().OfType<GalleryViewer>()).ContextMenu!;
+        Assert.Equal(ids, MenuProbe.Entries(hostedMenu).Select(item => item.Id));
+        hostedMenu.Close();
+        fixture.Settle();
+        Key(fixture.Window, PhysicalKey.Escape);
+        fixture.Settle();
+        Assert.Empty(fixture.Window.GetVisualDescendants().OfType<BooruResultViewer>());
+        Assert.Same(fixture.Hit("101"), fixture.Window.FocusManager?.GetFocusedElement());
+        Assert.True(fixture.View.OpenGallery("101"));
+        fixture.Settle();
         Assert.Equal("101", fixture.View.Gallery.CurrentPostId);
         Assert.Empty(fixture.LocallyOpened);
 
@@ -55,6 +71,69 @@ public sealed class BooruResultActionsTests
         gallery.Close();
         ContextGestures.MiddleClick(stage);
         Assert.Equal(Url("101"), Assert.Single(fixture.Harness.Links.Opened));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ResultMenusCopyAndQueueTheFrozenSelectionAndOfferTheWatcherWizard(bool outsideSelection) => Run(() =>
+    {
+        using Fixture fixture = new();
+        fixture.Search("cat");
+        foreach (string id in new[] { "102", "101" })
+        {
+            Border hit = fixture.Hit(id);
+            ContextGestures.KeyStroke(hit, Avalonia.Input.Key.Space, PhysicalKey.Space);
+        }
+        string target = outsideSelection ? "103" : "102";
+        ContextMenu Open() => OpenContext(fixture.Window, fixture.Hit(target));
+        string[] ids = outsideSelection ? ["103"] : ["101", "102"];
+        string expectedTags = string.Join(" ", ids.SelectMany(id => fixture.Row(id).Post.Tags)
+            .Select(tag => tag.Name).Distinct(StringComparer.OrdinalIgnoreCase));
+        Click(Item(Open(), "booru.menu.copy-tags"));
+        Assert.Equal(expectedTags, BooruComponentDispatcher.Wait(fixture.Window.Clipboard!.TryGetTextAsync()));
+
+        Click(Item(Open(), BooruWorkbenchView.MenuWatchTags));
+        fixture.Until(() => fixture.Window.OwnedWindows.Any(window => window.Name == "BooruWatcherWizard"), "the Watcher wizard");
+        Window wizard = Assert.Single(fixture.Window.OwnedWindows.Where(window => window.Name == "BooruWatcherWizard"));
+        Assert.NotNull(Find<SelectableTextBlock>(wizard, "BooruWatcherQuery"));
+        wizard.Close();
+        fixture.Settle();
+
+        Click(Item(Open(), BooruWorkbenchView.MenuDownloadSelected));
+        fixture.Until(() => fixture.Queue.Loads.Count == ids.Length, "the selected originals to enter the queue");
+        Assert.Equal(ids, fixture.Queue.Loads.Select(load => load.Id));
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void SearchTabMenusActOnTheTabThatWasOpened(bool separate) => Run(() =>
+    {
+        using Fixture fixture = new(separate);
+        fixture.Search("cat");
+        int first = fixture.View.SearchTabs.ActiveId;
+        Click(Find<Button>(fixture.View, BooruWorkbenchView.NewSearchTabName));
+        fixture.Search("sky");
+        int second = fixture.View.SearchTabs.ActiveId;
+
+        ContextMenu MenuFor(int id)
+        {
+            TabItem tab = Assert.Single(fixture.View.GetVisualDescendants().OfType<TabItem>(), item => Equals(item.Tag, id));
+            ContextGestures.MenuKey(tab);
+            return Assert.IsType<ContextMenu>(tab.ContextMenu);
+        }
+
+        Click(Item(MenuFor(first), "booru.tab.duplicate"));
+        int duplicate = fixture.View.SearchTabs.ActiveId;
+        Assert.Equal("cat", fixture.View.Model.Search.View.ExecutedQuery);
+        Click(Item(MenuFor(second), "booru.tab.close-right"));
+        Assert.DoesNotContain(duplicate, fixture.View.SearchTabs.Ids);
+
+        Click(Item(MenuFor(second), "booru.tab.close-others"));
+        Assert.Equal(second, Assert.Single(fixture.View.SearchTabs.Ids));
+        Assert.Equal("sky", fixture.View.Model.Search.View.ExecutedQuery);
+        Assert.False(Item(MenuFor(second), "booru.tab.close").IsEnabled);
     });
 
     [Theory]

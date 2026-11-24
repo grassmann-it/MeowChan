@@ -4,6 +4,7 @@ using System.Linq;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
@@ -17,17 +18,63 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         System.Threading.Tasks.Task cleanup = _resultViewer?.DisposeAsync().AsTask()
             ?? System.Threading.Tasks.Task.CompletedTask;
         Dispose();
-        await cleanup;
+        await System.Threading.Tasks.Task.WhenAll(cleanup, _hostedGalleryCleanup);
     }
 
     private HashSet<string> _selectedResults = new(StringComparer.Ordinal);
     private BooruResultViewerWindow? _resultViewer;
+    private BooruResultViewer? _hostedGallery;
+    private System.Threading.Tasks.Task _hostedGalleryCleanup = System.Threading.Tasks.Task.CompletedTask;
     private (Size Size, PixelPoint Position)? _viewerBounds;
     internal (Size Size, PixelPoint Position)? OpenViewerBounds => _resultViewer?.NormalBounds;
     internal Func<(Size Size, PixelPoint Position)?>? RestoreViewerBounds { get; set; }
     internal Action<(Size Size, PixelPoint Position)>? SaveViewerBounds { get; set; }
 
     private void DismissResultViewer() => _resultViewer?.Close();
+
+    internal bool OpenHostedGallery(string postId)
+    {
+        if (_closed || OverlayLayer.GetOverlayLayer(this) is not { } layer
+            || !_model.Search.View.Rows.Any(row => row.Post.PostId == postId)) return false;
+        if (_hostedGallery?.CurrentPostId == postId) return true;
+        CloseHostedGallery(restoreFocus: false);
+        int tab = SearchTabs.ActiveId;
+        BooruResultViewer gallery = new(_model.Search, postId, _selectedResults, () => Render(force: true),
+            () => CloseHostedGallery(restoreFocus: SearchTabs.ActiveId == tab),
+            openPost: url => OpenActions.Start(() => OpenLinkAsync(url), "booru.viewer.openPost"),
+            sampleSettings: ReadGallerySampleSettings, composeMenu: ComposeResultMenuAt);
+        _hostedGallery = gallery;
+        _gallery.SuspendSamples(true);
+        layer.Children.Add(gallery);
+        SetCursor(postId);
+        return true;
+    }
+
+    private void CloseHostedGallery(bool restoreFocus)
+    {
+        if (_hostedGallery is not { } gallery) return;
+        _hostedGallery = null;
+        if (gallery.Parent is Panel layer) layer.Children.Remove(gallery);
+        _hostedGalleryCleanup = System.Threading.Tasks.Task.WhenAll(_hostedGalleryCleanup, gallery.DisposeAsync().AsTask());
+        OpenActions.Start(() => _hostedGalleryCleanup, "booru.gallery.dispose");
+        _gallery.SuspendSamples(false);
+        if (!restoreFocus || _closed || !_attached || !IsEffectivelyVisible || !IsSearchItem(_tabs.SelectedItem)) return;
+        SetCursor(gallery.CurrentPostId);
+        if (_resultView == BooruResultView.Gallery)
+        {
+            ShowInGallery(_model.Search.View, requestSample: true);
+            FocusGalleryStage();
+        }
+        else FocusHit(gallery.CurrentPostId);
+    }
+
+    private ContextMenuBuilder? ComposeResultMenuAt(string postId)
+    {
+        BooruSearchView view = _model.Search.View;
+        return view.Rows.FirstOrDefault(row => row.Post.PostId == postId) is { } hit
+            ? ComposeResultMenu(new ResultActions(this, BooruResultTarget.From(view, hit)))
+            : null;
+    }
 
     internal bool OpenResultViewer(string postId)
     {
@@ -37,7 +84,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         _resultViewer?.Close();
         BooruResultViewerWindow viewer = new(_model.Search, postId, _selectedResults, () => Render(force: true),
             openPost: url => OpenActions.Start(() => OpenLinkAsync(url), "booru.viewer.openPost"),
-            sampleSettings: ReadGallerySampleSettings);
+            sampleSettings: ReadGallerySampleSettings, composeMenu: ComposeResultMenuAt);
         if ((_viewerBounds ??= RestoreViewerBounds?.Invoke()) is { } bounds) viewer.RestoreNormalBounds(owner, bounds);
         _resultViewer = viewer;
         _gallery.SuspendSamples(true);
@@ -84,7 +131,7 @@ internal sealed partial class BooruWorkbenchView : IAsyncDisposable
         else CommandBindings.ShowIconBeforeText(open, icon);
         AutomationProperties.SetName(open, CommandCatalog.Label("gallery.open") + ": " + Texts.T("booru.ui.post.title", postId));
         if (compact) ToolTip.SetTip(open, AutomationProperties.GetName(open));
-        open.Click += (_, _) => { if (result.IsCurrent()) OpenGallery(postId); };
+        open.Click += (_, _) => { if (result.IsCurrent()) OpenHostedGallery(postId); };
         CheckBox select = new() { Name = "BooruSelect:" + postId, Content = Texts.T("media.tile.selected"), IsChecked = _selectedResults.Contains(postId) };
         AutomationProperties.SetName(select, Texts.T("media.tile.selected") + ": " + Texts.T("booru.ui.post.title", postId));
         if (compact)

@@ -1,5 +1,6 @@
 using System;
 using System.Linq;
+using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
@@ -12,6 +13,8 @@ namespace MeowChan.Desktop.Booru;
 internal sealed partial class BooruWorkbenchView
 {
     internal const string MenuLoad = "booru.menu.load";
+    internal const string MenuDownloadSelected = "booru.menu.download-selected";
+    internal const string MenuWatchTags = "booru.menu.watch-tags";
     internal const string MenuShowInMedia = "booru.menu.show-in-media";
     internal const string MenuOpenPost = "booru.menu.open-post";
     internal const string MenuCopyLink = "booru.menu.copy-link";
@@ -34,11 +37,16 @@ internal sealed partial class BooruWorkbenchView
     /// <summary>Gives a card its context menu; <paramref name="compose"/> is called at every opening, so the entries are current. <paramref name="fallbackFocus"/>
     /// takes the focus when an entry rebuilt the cards (the hit's own card again).</summary>
     private static void AttachCardMenu(Border card, Func<ContextMenuBuilder?> compose, Action? fallbackFocus = null) =>
-        _ = new ContextMenuHost(card, compose, fallbackFocus);
+        ContextMenuHost.Install(card, compose, fallbackFocus);
 
     private ContextMenuBuilder? ComposeResultMenu(ResultActions result)
     {
         if (!result.IsCurrent() || result.CurrentRow() is not { } row) return null;
+        if (!_selectedResults.Contains(result.PostId)) SelectResultForContext(result.PostId);
+        BooruSearchView view = _model.Search.View;
+        BooruResultTarget[] selected = view.Rows.Where(hit => _selectedResults.Contains(hit.Post.PostId))
+            .Select(hit => BooruResultTarget.From(view, hit)).ToArray();
+        bool CanDownload(BooruResultTarget target) => _model.Search.ResultRow(target) is { CanLoad: true } or { CanRetry: true };
         ContextMenuBuilder menu = new ContextMenuBuilder().Named(Texts.T("booru.ui.post.title", result.PostId));
         ResultCommand[] commands = result.Commands(row).ToArray();
         foreach (ResultCommand command in commands.Where(command => command.Action is ResultAction.Load or ResultAction.Cancel or ResultAction.Retry))
@@ -46,18 +54,25 @@ internal sealed partial class BooruWorkbenchView
             string id = command.Action == ResultAction.Cancel && row.CanRetry ? "booru.menu.cancel-original" : MenuLoad;
             AddResultItem(menu, result, command, id);
         }
+        menu.Item(MenuDownloadSelected, Texts.T("booru.selection.download") + $" ({selected.Length:N0})",
+            () => OpenActions.Start(DownloadSelectedAsync, MenuDownloadSelected),
+            availableWhen: () => result.IsCurrent() && selected.Any(CanDownload), icon: CardMenuIcons.Load);
         if (commands.Any(command => command.Action == ResultAction.ShowInMedia))
             menu.Command("thread.show-in-media", () => result.Run(ResultAction.ShowInMedia), entryId: MenuShowInMedia,
                 showShortcut: false, availableWhen: () => result.IsCurrent() && result.CanRun(ResultAction.ShowInMedia));
-        menu.Command("gallery.open", () => OpenGallery(result.PostId), showShortcut: false, availableWhen: result.IsCurrent);
+        menu.Command("gallery.open", () => OpenHostedGallery(result.PostId), showShortcut: false, availableWhen: result.IsCurrent);
         menu.Section();
         foreach (ResultCommand link in commands.Where(command => command.Action is ResultAction.Open or ResultAction.Copy))
             AddResultItem(menu, result, link, link.Action == ResultAction.Open ? MenuOpenPost : MenuCopyLink);
-        string tags = string.Join(" ", row.Post.Tags.Select(tag => tag.Name).Distinct(StringComparer.OrdinalIgnoreCase));
+        var sourceTags = selected.SelectMany(hit => hit.Post.Tags).DistinctBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase).ToArray();
+        string tags = string.Join(" ", sourceTags.Select(tag => tag.Name));
         if (tags.Length > 0)
             menu.Item("booru.menu.copy-tags", Texts.T("booru.menu.copyTags"),
                 () => OpenActions.Start(() => MenuClipboard.CopyAsync(this, tags), "booru.menu.copy-tags"),
                 availableWhen: result.IsCurrent, icon: "copy");
+        menu.Item(MenuWatchTags, Texts.T("booru.wizard.title"),
+            () => OpenActions.Start(() => OpenWatcherWizardAsync(sourceTags, result.IsCurrent), MenuWatchTags),
+            availableWhen: () => sourceTags.Length > 0 && result.IsCurrent(), icon: "eye");
         menu.Section().Check("booru.menu.selection", Texts.T("media.tile.selected"), _selectedResults.Contains(result.PostId), () =>
         {
             if (!result.IsCurrent()) return;
@@ -65,6 +80,38 @@ internal sealed partial class BooruWorkbenchView
             Render(force: true);
         });
         return menu;
+
+        async Task DownloadSelectedAsync()
+        {
+            foreach (BooruResultTarget target in selected)
+            {
+                if (!result.IsCurrent()) return;
+                BooruResultRowView? current = _model.Search.ResultRow(target);
+                if (current?.CanRetry == true) await _model.Search.RetryOriginalAsync(target.Post.PostId, target);
+                else if (current?.CanLoad == true) await _model.Search.LoadOriginalAsync(target.Post.PostId, target);
+            }
+        }
+    }
+
+    private void SelectResultForContext(string postId)
+    {
+        _selectedResults.Clear();
+        _selectedResults.Add(postId);
+        foreach (Control control in _results.GetVisualDescendants().OfType<Control>())
+        {
+            if (control is CheckBox check && control.Name is { } checkName && checkName.StartsWith("BooruSelect:", StringComparison.Ordinal))
+                check.IsChecked = checkName == "BooruSelect:" + postId;
+            else if (control is Border border && control.Name is { } name)
+            {
+                if (name.StartsWith("BooruTileSelected:", StringComparison.Ordinal))
+                    WorkspaceChips.ShowSelection(border, name == "BooruTileSelected:" + postId);
+                else if (name.StartsWith("BooruTileBar:", StringComparison.Ordinal))
+                    border.IsVisible = name == "BooruTileBar:" + postId;
+                else if (border.Classes.Contains("booru-tile"))
+                    border.Classes.Set("booru-tile-selected", name == "BooruResult:" + postId);
+            }
+        }
+        if (_resultView == BooruResultView.Gallery) ShowInGallery(_model.Search.View);
     }
 
     private static void AddResultItem(ContextMenuBuilder menu, ResultActions result, ResultCommand command, string id) =>

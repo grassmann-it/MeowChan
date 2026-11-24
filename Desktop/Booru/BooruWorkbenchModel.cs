@@ -36,18 +36,27 @@ internal sealed class BooruWorkbenchModel : IDisposable
             Search.SetNotice(new BooruNotice(BooruNoticeKind.Warning, "booru.ui.watcher.createNeedsTags"));
             return false;
         }
+        return await CreateWatcherAsync(query).ConfigureAwait(false);
+    }
+
+    internal async Task<bool> CreateWatcherAsync(string query, Func<bool>? isCurrent = null)
+    {
+        void Notify(BooruNotice notice)
+        {
+            if (isCurrent?.Invoke() != false) Search.SetNotice(notice);
+        }
         if (Watchers.HasWatcherFor(query))
         {
-            Search.SetNotice(new BooruNotice(BooruNoticeKind.Info, "booru.ui.watcher.duplicate", new object?[] { query }));
+            Notify(new BooruNotice(BooruNoticeKind.Info, "booru.ui.watcher.duplicate", new object?[] { query }));
             return false;
         }
-        BooruWatcherCommandResult result = await Watchers.CreateAsync(query).ConfigureAwait(false);
+        BooruWatcherCommandResult result = await Watchers.CreateAsync(query);
         if (result.Status == BooruWatcherCommandStatus.Done)
         {
-            Search.SetNotice(new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.created", new object?[] { query }));
+            Notify(new BooruNotice(BooruNoticeKind.Success, "booru.ui.watcher.created", new object?[] { query }));
             return true;
         }
-        Search.SetNotice(new BooruNotice(BooruNoticeKind.Error, "booru.ui.watcher.createFailed",
+        Notify(new BooruNotice(BooruNoticeKind.Error, "booru.ui.watcher.createFailed",
             new object?[] { result.Code ?? result.Status.ToString() }));
         return false;
     }
