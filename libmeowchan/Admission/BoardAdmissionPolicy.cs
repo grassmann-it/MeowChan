@@ -16,14 +16,28 @@ public sealed record BoardAdmissionDecision(bool Included, string Reason);
 /// <summary>Literal ordinal case-insensitive matching. Includes are ORed; excludes win. Explicit choices override text rules.</summary>
 public sealed class BoardAdmissionPolicy
 {
+    internal const int MinimumWatcherIntervalMinutes = 1, MaximumWatcherIntervalMinutes = 1440;
+
     public IReadOnlyList<ThreadTextRule> Rules { get; }
     public IReadOnlyDictionary<string, ThreadAdmissionException> Exceptions { get; }
+    public string? WatcherName { get; }
+    public int? WatcherIntervalMinutes { get; }
     public static BoardAdmissionPolicy All { get; } = new(Array.Empty<ThreadTextRule>());
 
     public BoardAdmissionPolicy(IEnumerable<ThreadTextRule> rules,
         IReadOnlyDictionary<string, ThreadAdmissionException>? exceptions = null)
+        : this(rules, exceptions, null, null)
+    {
+    }
+
+    public BoardAdmissionPolicy(IEnumerable<ThreadTextRule> rules,
+        IReadOnlyDictionary<string, ThreadAdmissionException>? exceptions, string? watcherName, int? watcherIntervalMinutes)
     {
         ArgumentNullException.ThrowIfNull(rules);
+        if (watcherIntervalMinutes is < MinimumWatcherIntervalMinutes or > MaximumWatcherIntervalMinutes)
+            throw new ArgumentOutOfRangeException(nameof(watcherIntervalMinutes));
+        WatcherName = string.IsNullOrWhiteSpace(watcherName) ? null : watcherName.Trim();
+        WatcherIntervalMinutes = watcherIntervalMinutes;
         ThreadTextRule[] copied = rules.Select(rule =>
         {
             if (rule == null || !Enum.IsDefined(rule.Field) || !Enum.IsDefined(rule.Action)
@@ -62,4 +76,7 @@ public sealed class BoardAdmissionPolicy
 
 public sealed record BoardAdmissionTarget(string Url, bool IsBoard, bool AlreadyWatching);
 public sealed record BoardAdmissionPreview(string Url, string Name, BoardAdmissionPolicy Policy,
-    IReadOnlyList<BoardCatalogThread> Threads);
+    IReadOnlyList<BoardCatalogThread> Threads)
+{
+    internal string? BoardCode { get; init; }
+}

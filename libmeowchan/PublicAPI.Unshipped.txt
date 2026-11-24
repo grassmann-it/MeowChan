@@ -1,2 +1,5 @@
 #nullable enable
+MeowChan.Admission.BoardAdmissionPolicy.BoardAdmissionPolicy(System.Collections.Generic.IEnumerable<MeowChan.Admission.ThreadTextRule!>! rules, System.Collections.Generic.IReadOnlyDictionary<string!, MeowChan.Admission.ThreadAdmissionException>? exceptions, string? watcherName, int? watcherIntervalMinutes) -> void
+MeowChan.Admission.BoardAdmissionPolicy.WatcherIntervalMinutes.get -> int?
+MeowChan.Admission.BoardAdmissionPolicy.WatcherName.get -> string?
 static MeowChan.Favorites.FavoriteOriginalExporter.ExportAsync(System.Collections.Generic.IReadOnlyList<MeowChan.Favorites.FavoriteExportAsset!>! assets, string! destinationDirectory, string? filenameTemplate, System.Threading.CancellationToken cancellationToken = default(System.Threading.CancellationToken)) -> System.Threading.Tasks.Task<MeowChan.Favorites.FavoriteExportResult!>!
