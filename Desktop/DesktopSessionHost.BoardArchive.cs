@@ -36,7 +36,8 @@ internal sealed partial class DesktopSessionHost
         => RunInteractiveAsync(nameof(ReadBoardArchiveAsync), board.Uri.AbsoluteUri, () =>
         {
             EnsureBoardArchiveReady();
-            return ReadArchiveWhenAdmittedAsync(() => ArchiveSource(board.Uri).ReadBoardArchiveAsync(board.Uri, token), token);
+            return ReadArchiveWhenAdmittedAsync(
+                cancellation => ArchiveSource(board.Uri).ReadBoardArchiveAsync(board.Uri, cancellation), token);
         }, captureAfter: false);
 
     internal Task<BoardArchiveThreadDetails?> ReadBoardArchiveThreadAsync(BoardArchiveThread thread, CancellationToken token)
@@ -45,7 +46,7 @@ internal sealed partial class DesktopSessionHost
             EnsureBoardArchiveReady();
             PluginSourceImageBoard source = ArchiveSource(new Uri(thread.Url));
             BoardArchiveThreadDetails? details = await ReadArchiveWhenAdmittedAsync(
-                () => source.ReadBoardArchiveThreadAsync(thread.Url, token), token).ConfigureAwait(false);
+                cancellation => source.ReadBoardArchiveThreadAsync(thread.Url, cancellation), token).ConfigureAwait(false);
             return details == null ? null : details with { AlreadyWatching = _registry.ClassifyAdmission(thread.Url)?.AlreadyWatching == true };
         }, captureAfter: false);
 
@@ -58,12 +59,14 @@ internal sealed partial class DesktopSessionHost
         if (_downloadQueue.IsPaused) throw new BoardArchivePausedException();
     }
 
-    private static async Task<T> ReadArchiveWhenAdmittedAsync<T>(Func<Task<T>> read, CancellationToken token)
+    private async Task<T> ReadArchiveWhenAdmittedAsync<T>(Func<CancellationToken, Task<T>> read, CancellationToken token)
     {
+        using CancellationTokenSource lifetime = CancellationTokenSource.CreateLinkedTokenSource(token, _startupCancellation.Token);
+        token = lifetime.Token;
         while (true)
         {
             token.ThrowIfCancellationRequested();
-            try { return await read().ConfigureAwait(false); }
+            try { return await read(token).ConfigureAwait(false); }
             catch (SourceCheckDeferredException deferred) when (deferred is { InitialNoSend: true, ReasonCode: "admission" })
             {
                 await Task.Delay(deferred.Remaining(DateTimeOffset.UtcNow), token).ConfigureAwait(false);
