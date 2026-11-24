@@ -181,7 +181,7 @@ discarded-task	Desktop/Views/Archive/ArchivePage.InlineVideo.cs	6
 discarded-task	Desktop/Views/Archive/ArchivePage.Live.cs	3
 discarded-task	Desktop/Views/Archive/ArchivePage.MediaActivation.cs	2
 discarded-task	Desktop/Views/Archive/ArchivePage.MediaCommands.cs	1
-discarded-task	Desktop/Views/Archive/ArchivePage.MediaSidebar.cs	3
+discarded-task	Desktop/Views/Archive/ArchivePage.MediaSidebar.cs	2
 discarded-task	Desktop/Views/Archive/ArchivePage.Navigation.cs	1
 discarded-task	Desktop/Views/Archive/ArchivePage.PostBookmarks.cs	7
 discarded-task	Desktop/Views/Archive/ArchivePage.PreviewReservation.cs	1
