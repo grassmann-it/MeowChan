@@ -81,7 +81,6 @@ internal sealed record QuickTagPopoverOptions
     internal TagRecentList? Recent { get; init; }
     /// <summary>The profile's stamp set (PT5), the same one the gallery panel shows; null gives the popover an empty stamp.</summary>
     internal QuickTagStamp? Stamp { get; init; }
-    internal Action<TagId>? FilterMediaByTag { get; init; }
 
     /// <summary>A session over <paramref name="target"/> with these limits (undo depth) and this stamp.</summary>
     internal QuickTagSession NewSession(IQuickTagTarget target) =>
@@ -247,10 +246,10 @@ internal sealed class QuickTagPopover
                 ShortcutContext = options.TooltipKeyContext ?? "gallery",
                 TargetLabel = label ?? string.Empty,
                 ReadSourceTags = options.ReadSourceTags,
-                FilterMediaByTag = options.FilterMediaByTag,
                 NavigationEnabled = false
             };
             surface = createdSurface;
+            if (TopLevel.GetTopLevel(anchor) is MainWindow window) surface.FilterMediaByTag = window.FilterFromOwnedTag;
             creationProbe?.Invoke();
             if (options.Suggestions is { } source)
             {

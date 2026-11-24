@@ -44,7 +44,6 @@ internal sealed class MediaTagSidebar : UserControl
     private IReadOnlyList<MediaFilterTerm> _terms = Array.Empty<MediaFilterTerm>();
     private IReadOnlyList<MediaTagListItem> _items = Array.Empty<MediaTagListItem>();
     private ContextMenuTarget? _menuTarget;
-    private ContextMenuHost? _menuHost;
     private bool _localizing;
 
     /// <summary>Called for a gesture on a tag row: the row's term (included polarity) and the change the gesture makes.</summary>
@@ -110,7 +109,7 @@ internal sealed class MediaTagSidebar : UserControl
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         AttachedToVisualTree += (_, _) =>
         {
-            _menuHost = WorkspaceChips.AttachMenu(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));
+            ContextMenuHost.Install(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));
             // Tunnel handlers on this control run newest first. Capture before the host handles a key or a Ctrl+press.
             _menuTarget = new ContextMenuTarget(_list);
         };
@@ -118,8 +117,6 @@ internal sealed class MediaTagSidebar : UserControl
         {
             _menuTarget?.Detach();
             _menuTarget = null;
-            _menuHost?.Dispose();
-            _menuHost = null;
         };
         Localize();
     }

@@ -399,9 +399,9 @@ internal sealed partial class BooruWorkbenchView
             .Item("booru.tab.close", Texts.T("booru.tabs.close"), () => CloseSearchTab(id),
                 availableWhen: () => SearchTabs.Ids.Count > 1 && SearchTabs.Ids.Contains(id), icon: "x")
             .Item("booru.tab.close-others", Texts.T("booru.tabs.closeOthers"), () => CloseTabs(otherTabs),
-                availableWhen: () => otherTabs.Length > 0 && SearchTabs.Ids.Contains(id), icon: "x-square")
+                availableWhen: () => otherTabs.Length > 0 && SearchTabs.Ids.Contains(id), icon: "x")
             .Item("booru.tab.close-right", Texts.T("booru.tabs.closeRight"), () => CloseTabs(rightTabs),
-                availableWhen: () => rightTabs.Length > 0 && SearchTabs.Ids.Contains(id), icon: "x-square");
+                availableWhen: () => rightTabs.Length > 0 && SearchTabs.Ids.Contains(id), icon: "x");
 
         void CloseTabs(int[] ids)
         {

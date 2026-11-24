@@ -27,10 +27,7 @@ public partial class MainWindow
     internal Func<GalleryEntry?, Task>? AfterMediaTagResolutionForTests { get; set; }
 
     /// <summary>The saved quick tag limits (TP5) and the panel's ranking adapter over <paramref name="context"/>, for every popover host.</summary>
-    internal QuickTagPopoverOptions TagPopoverDefaults(TagContext context) => QuickTagSettings.PopoverOptions(_config, context, QuickTagRecent, QuickTagStampSet) with
-    {
-        FilterMediaByTag = tag => OpenActions.Start(() => ShowGalleryTagInMediaAsync(tag), "tags.filter-include")
-    };
+    internal QuickTagPopoverOptions TagPopoverDefaults(TagContext context) => QuickTagSettings.PopoverOptions(_config, context, QuickTagRecent, QuickTagStampSet);
 
     private QuickTagPopoverOptions PopoverOptions(TagContext context, Func<bool> isCurrent, bool restoreFocus, string name) => TagPopoverDefaults(context) with
     {

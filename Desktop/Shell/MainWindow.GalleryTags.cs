@@ -91,12 +91,13 @@ public partial class MainWindow
             page.FilterToTag(tag.Value);
     }
 
+    internal void FilterFromOwnedTag(TagId tag) => OpenActions.Start(() => ShowGalleryTagInMediaAsync(tag), "tags.filter-include");
+
     private ContextMenuBuilder BuildSidebarTagMenu(Control chip, string name)
     {
         PrivateTagDefinition? definition = PrivateTagName.TryCreate(name, out var parsed, out _)
             ? _session.GetPublishedPrivateTagSnapshot().Snapshot?.Find(parsed) : null;
-        ContextMenuBuilder menu = OwnTagChipMenu.IdentityActions(chip, name, definition?.Id,
-            tag => OpenActions.Start(() => ShowGalleryTagInMediaAsync(tag), "tags.filter-include"));
+        ContextMenuBuilder menu = OwnTagChipMenu.IdentityActions(chip, name, definition?.Id, FilterFromOwnedTag);
         if (definition == null) return menu;
         QuickTagStamp stamp = QuickTagStampSet;
         bool included = stamp.Contains(definition.Name);
