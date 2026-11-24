@@ -22,6 +22,7 @@ Their masks were rendered with `rsvg-convert -w 48 -h 48` (rsvg-convert 2.62.4 /
 with a 48 × 48 mask rendered using `rsvg-convert` 2.62.4 / Cairo 1.18.6.
 `trending-up`/`trending-down` (download priority) and `maximize-2` (fit one
 column) are unchanged from the same pinned release and rendered like `shuffle`.
+`hard-drive` (footer disk activity) is from the same release and rendered the same way.
 `chevrons-up` and `chevrons-down` (move to the start or the end of the tagging queue) are two stacked chevrons in the same stroke
 style, written as SVG and rendered with the same renderer and size; Feather's own chevrons-up/down use the same two polylines.
 `chevron-down` and `chevron-up` (the open/closed state arrow of the tagging selection state) are the single-polyline mirrors of `chevron-left`,

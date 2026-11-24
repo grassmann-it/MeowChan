@@ -28,6 +28,7 @@ public sealed class IconMaskCatalogGuardTests
     [InlineData("trending-up")]
     [InlineData("trending-down")]
     [InlineData("maximize-2")]
+    [InlineData("hard-drive")]
     public void StandaloneMenuIconsResolveToPackagedAlphaMasks(string icon) =>
         BooruComponentDispatcher.Run(() => AssertMask(icon, "menu"));
 

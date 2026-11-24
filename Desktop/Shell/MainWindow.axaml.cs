@@ -1351,8 +1351,8 @@ public partial class MainWindow : Window
         bool paused = _session.Projection.IsPaused;
         MenuItem menu = PauseMenuItem;
         menu.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
-        CommandBindings.Apply(menu, "session.pause", label: () => Texts.T(paused ? "action.resume" : "action.pause"));
-        menu.Icon = CommandBindings.Icon("session.pause", 16, paused ? "paused" : "running");
+        CommandBindings.ApplyStateful(menu, "session.pause", state: () => paused ? "paused" : "running",
+            label: () => Texts.T(paused ? "action.resume" : "action.pause"));
         Button button = PauseButton;
         button.IsEnabled = enabled && !_session.Projection.IsPauseTransitioning;
         if (_lastPauseIcon != paused)

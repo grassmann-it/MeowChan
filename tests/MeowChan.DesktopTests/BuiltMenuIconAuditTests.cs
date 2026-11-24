@@ -12,7 +12,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Plugins;
 using MeowChan.Desktop.Stats;
 using MeowChan.Desktop.Updates;
-using MeowChan.Desktop.WorkViews;
+using MeowChan.PluginHost.Activation;
 using MeowChan.PluginSdk;
 using Xunit.Sdk;
 
@@ -87,8 +87,9 @@ public sealed class BuiltMenuIconAuditTests
             FirstRunSetupVersion = 1, HeaderTagline = TaglinePicker.ModeFixed, HeaderTaglineFixedId = "cats",
             AutomaticUpdateChecks = false
         }.SaveConfig(profile.Path);
+        using var updates = new UpdateServiceTests.FakeHandler { Body = UpdateServiceTests.Release("9.9.9") };
         await using DesktopSessionHost session = new(profile.Path, [],
-            updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
+            updateSessionFactory: (path, config) => new UpdateSession(path, config, new HttpClient(updates), disableEnvironment: () => null));
         await using MainWindow window = new(session);
         window.Show();
         await window.StartupTimingRestoreTask;
@@ -124,6 +125,14 @@ public sealed class BuiltMenuIconAuditTests
         Assert.False(update.IsVisible);
         Assert.NotNull(update.Icon);
         Assert.Null(update.Gesture);
+        await session.Updates.CheckAsync();
+        await BooruTestSupport.WaitAsync(() => update.IsVisible, "available update in the tray");
+        Assert.Equal(Texts.T("updates.available", "9.9.9"), update.Header);
+        Texts.SetLanguage("de");
+        await BooruTestSupport.WaitAsync(() => Equals(update.Header, Texts.T("updates.available", "9.9.9")), "localized tray reminder");
+        await BooruTestSupport.WaitAsync(() => Equals(another.Header, Texts.T("shell.tagline.menuAnother")), "localized tagline");
+        var settings = Assert.Single(menu.Items.OfType<MenuItem>(), row => Equals(row.Tag, "tagline.settings"));
+        Assert.Equal(CommandCatalog.Label("navigation.settings"), settings.Header);
         string RowId(NativeMenuItem item) => ReferenceEquals(item, stats.RatesItem) ? "rate"
             : ReferenceEquals(item, stats.DiskItem) ? "disk"
             : ReferenceEquals(item, stats.DetailItem) ? "detail" : item.Header ?? "";
@@ -143,7 +152,8 @@ public sealed class BuiltMenuIconAuditTests
             var schema = new SettingsSchema("1", []);
             SourceDescription Alpha(string id) => new(id, id, new Uri("https://fixture.invalid"), SourceCapabilities.None, [], [], schema);
             var description = new PluginDescription("fixture", "Fixture", "1", "1", "", [Alpha("alpha"), Alpha("beta")], [], schema, []);
-            var entry = new PluginCatalogEntry("fixture", "fixture", null, null, description, null, null, []);
+            var candidate = new PluginCandidateSnapshot("fixture", "fixture", null, description, true, null);
+            var entry = new PluginCatalogEntry("fixture", "fixture", candidate.CandidateId, null, description, null, candidate, []);
             Field(typeof(PluginsPage), "_catalog").SetValue(page, new PluginCatalogSnapshot(new(0, [], []), [entry], []));
             Field(typeof(PluginsPage), "_selectedKey").SetValue(page, entry.Key);
             List<string> opened = [];
@@ -164,7 +174,7 @@ public sealed class BuiltMenuIconAuditTests
             ContextMenu sourcesMenu = Assert.IsType<ContextMenu>(page.PluginActionMenu);
             MenuIconAudit.Verify("plugin-sources", sourcesMenu.Items.OfType<Control>());
             MenuItem first = Assert.IsType<MenuItem>(sourcesMenu.Items[0]);
-            Assert.Equal("alpha · alpha", first.Header);
+            Assert.Equal("alpha · alpha", Assert.IsType<TextBlock>(first.Header).Text);
             first.Command!.Execute(null);
             Assert.Equal(new[] { "beta", "alpha" }, opened);
         }
@@ -187,6 +197,7 @@ public sealed class BuiltMenuIconAuditTests
             Width = 1600;
             Height = 900;
             Show();
+            Activate();
             Dispatcher.UIThread.RunJobs();
             UpdateLayout();
         }
