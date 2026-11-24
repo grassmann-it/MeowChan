@@ -83,7 +83,7 @@ internal sealed class FolderSourcesPanel : UserControl
         Render();
     }
 
-    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(Render);
+    private void OnLanguageChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(() => Render());
 
     /// <summary>Reads the folder sources and their activity off the UI thread, then shows them.</summary>
     internal async void Refresh()
