@@ -517,7 +517,13 @@ internal static partial class GalleryPlaybackFeatureChecks
             Console.WriteLine("SMOKE native-video edge controls UNSUPPORTED: actionable docked fallback verified; no edge/transparent-video PASS claimed.");
             return;
         }
-        async Task CenterAsync() => await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .45, viewer.Bounds.Height * .3));
+        // Windows video chrome can live in VideoView's owned window.
+        Task MoveInPictureAsync(double x, double y)
+        {
+            Control surface = (Control?)controls.GetVisualAncestors().OfType<NativeVideoOverlayRoot>().FirstOrDefault() ?? viewer;
+            return native.MoveAsync(surface, new Point(surface.Bounds.Width * x, surface.Bounds.Height * y));
+        }
+        Task CenterAsync() => MoveInPictureAsync(.45, .3);
         object ObserveEdges() => new
         {
             viewer = viewer.Bounds.ToString(), body = Find<Grid>(viewer, "GalleryViewport").Bounds.ToString(),
@@ -539,26 +545,24 @@ internal static partial class GalleryPlaybackFeatureChecks
         Button controlsHint = RequireEdgeIndicator(viewer, "GalleryControlsEdgeIndicator");
         Button postIndicator = RequireEdgeIndicator(viewer, "GalleryPostEdgeIndicator");
         Require(!Visible(post), "Post overlay was visible before its right-edge activation.");
-        // Center motion reveals the footer while both transient edge affordances
-        // remain visible during the short motion window.
         bool CenterMotionVisible() => Visible(controls)
-            && MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
+            && !controlsHint.IsEffectivelyVisible && !controlsHint.IsHitTestVisible
             && MediaInteractionSmokeHelpers.EdgeHintVisible(postIndicator);
         bool CenterMotionHidden() => !Visible(controls)
             && !MediaInteractionSmokeHelpers.EdgeHintVisible(controlsHint)
             && !MediaInteractionSmokeHelpers.EdgeHintVisible(postIndicator);
-        await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .40, viewer.Bounds.Height * .32));
-        await UntilAsync(CenterMotionVisible, "Actual center motion did not reveal controls and both edge hints.");
+        await MoveInPictureAsync(.40, .32);
+        await UntilAsync(CenterMotionVisible, "Actual center motion did not show the footer, remove its reveal target and show the post hint.");
         Require(!Visible(post), "Center motion opened the post panel.");
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-motion-hints.png");
         await UntilAsync(CenterMotionHidden, "Center-motion controls/hint did not expire after native pointer idle.");
         await HoldAsync(TimeSpan.FromMilliseconds(1600), () => Require(CenterMotionHidden()
             && !Visible(controls) && !Visible(post), "Stationary timer ticks revived controls or opened panels."));
         Program.CaptureWindow(fixture.Window, "smoke-gallery-edge-idle-hints.png");
-        await native.MoveAsync(viewer, new Point(viewer.Bounds.Width * .48, viewer.Bounds.Height * .34));
-        await UntilAsync(CenterMotionVisible, "New native center motion did not renew controls and both edge hints.");
+        await MoveInPictureAsync(.48, .34);
+        await UntilAsync(CenterMotionVisible, "New native center motion did not reveal the footer and post hint with the controls target removed.");
         Require(!Visible(post), "Renewing center motion opened the post panel.");
-        Console.WriteLine("SMOKE edge hint lifecycle PASS: native center motion -> controls plus both edge hints -> idle expiry -> stationary ticks stay hidden -> new motion renews.");
+        Console.WriteLine("SMOKE edge hint lifecycle PASS: native center motion reveals the footer and post hint, with the controls target removed; idle hides the footer until fresh motion.");
         await BottomAsync();
         await UntilAsync(() => Visible(controls), "Bottom-edge hover did not reveal transport.");
         await native.ClickAsync(Find<Button>(viewer, "GallerySlideshowToggle"));
@@ -755,7 +759,7 @@ internal static partial class GalleryPlaybackFeatureChecks
         // Actual codec/integrity failure coverage is separate in GalleryErrorInteractionChecks.
         await HoldAsync(TimeSpan.FromMilliseconds(650), () => Require(!Visible(controls), "Notification pinned controls."));
         Console.WriteLine("SMOKE edge panels PASS: " + JsonSerializer.Serialize(new
-        { backend = native.Backend, scale = fixture.Window.RenderScaling, centerDoesNotReveal = true,
+        { backend = native.Backend, scale = fixture.Window.RenderScaling, centerRevealsWithoutControlsHint = true,
             slideshowPointerFocusDoesNotPin = true, bottomReveals = true, rightPostReveals = true, hoverPreferenceWrites = preferenceWrites }));
     }
 

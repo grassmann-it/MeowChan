@@ -171,7 +171,23 @@ internal sealed partial class GalleryViewer
                 return GalleryEdgeHandleVisual.Compose(button, chevron);
             })
         };
-        SetEdgeIndicatorLabel(indicator, EdgeIndicatorLabel(post));
+        var tip = new ToolTip();
+        ToolTip.SetTip(indicator, tip);
+        void RefreshLabel()
+        {
+            string label = EdgeIndicatorLabel(post);
+            AutomationProperties.SetName(indicator, label);
+            AutomationProperties.SetHelpText(indicator, label);
+            tip.Content = label;
+        }
+        void OnLanguageChanged(object? sender, EventArgs e)
+        {
+            if (Dispatcher.UIThread.CheckAccess()) RefreshLabel();
+            else Dispatcher.UIThread.Post(() => { if (indicator.IsAttachedToVisualTree()) RefreshLabel(); });
+        }
+        indicator.AttachedToVisualTree += (_, _) => { Texts.Changed += OnLanguageChanged; RefreshLabel(); };
+        indicator.DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
+        RefreshLabel();
         return indicator;
     }
 
@@ -190,6 +206,9 @@ internal sealed partial class GalleryViewer
             indicator.GotFocus += (_, _) => UpdateEdgeIndicatorArtwork();
             indicator.LostFocus += (_, _) => UpdateEdgeIndicatorArtwork();
         }
+        _controlsEdgeIndicator.AddHandler(PointerReleasedEvent, (_, _) => UpdateEdgeIndicatorArtwork(),
+            RoutingStrategies.Bubble, handledEventsToo: true);
+        _controlsEdgeIndicator.PointerCaptureLost += (_, _) => UpdateEdgeIndicatorArtwork();
         _controlsEdgeIndicator.Click += (_, e) =>
         {
             RevealOverlayControls();
@@ -257,29 +276,14 @@ internal sealed partial class GalleryViewer
         MoveOverlayControl(_close, OverlayHost);
         Grid.SetRow(_close, _nativeOverlayFallback && !_nativeOverlayActive ? 1 : 0); Grid.SetRowSpan(_close, 1);
         UpdateCornerChrome();
-        // Keep a hovered handle hit-testable through reveal until the pointer leaves.
-        // Otherwise its pending click/tap could land on the media or transport below.
-        // Keep the bottom affordance visible for the same short motion window as
-        // the chevron. Real centre motion also reveals the footer, but the edge
-        // affordance must remain observable and native-targetable until that motion
-        // hint expires; otherwise the footer reveal consumes the only visual cue.
-        bool motionHint = EdgeIndicatorArtworkVisible(_controlsEdgeIndicator);
-        bool controls = OverlayControlsEffective && (_overlayHidden || _pointerOnControlsIndicator || motionHint);
         bool post = PostOverlayEffective && (!_contextOpen || _pointerOnPostIndicator) && _entry != null;
-        bool controlsHadFocus = _controlsEdgeIndicator.IsKeyboardFocusWithin;
         bool postHadFocus = _postEdgeIndicator.IsKeyboardFocusWithin;
-        _controlsEdgeIndicator.IsVisible = controls;
         _postEdgeIndicator.IsVisible = post;
-        // Apply artwork and hit ownership after visibility is assigned: the transparent
-        // handle remains a real target when its chevron has already expired.
         UpdateEdgeIndicatorArtwork();
         double transportInset = OverlayControlsEffective && _overlayFooter.IsVisible ? _overlayFooter.Bounds.Height + 8
             : !_nativeOverlayActive && _entry?.Kind == SavedMediaKind.Video ? _video?.TransportBottomInset ?? 0 : 0;
         _postEdgeIndicator.Margin = new Thickness(4, 4, 4, transportInset + 4);
-        SetEdgeIndicatorLabel(_controlsEdgeIndicator, EdgeIndicatorLabel(post: false));
-        SetEdgeIndicatorLabel(_postEdgeIndicator, EdgeIndicatorLabel(post: true));
         // A Tab reveal or placement change must not leave focus on a hidden handle.
-        if (controlsHadFocus && !controls) FocusRevealedPanel(OverlayControlsEffective ? _overlayFooter : _chrome);
         if (postHadFocus && !post)
         {
             if (_contextOpen) FocusRevealedPanel(_contextPanel);
@@ -295,28 +299,36 @@ internal sealed partial class GalleryViewer
 
     private void UpdateEdgeIndicatorArtwork()
     {
-        foreach (Button indicator in new[] { _controlsEdgeIndicator, _postEdgeIndicator })
-        {
-            indicator.ApplyTemplate();
-            bool shown = EdgeIndicatorArtworkVisible(indicator);
-            // The transparent hit-test surface wraps the chevron so the full 44-DIP
-            // handle remains native-targetable. Search the template descendants,
-            // rather than only the direct child, so motion still reveals the artwork.
-            if (indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is { } chevron)
-                chevron.Opacity = shown ? 1 : 0;
-            // No invisible target after release/expiry. Motion over the root's edge
-            // band and keyboard traversal can reveal the handle again without a click.
-            bool controlsHandleOwnsInput = !ReferenceEquals(indicator, _controlsEdgeIndicator)
-                || _overlayHidden || _pointerOnControlsIndicator;
-            indicator.IsHitTestVisible = controlsHandleOwnsInput && indicator.IsVisible && shown;
-        }
+        if (_terminalRetirement || _viewerInteractionStopped) return;
+        // The pressed button and its captured pointer identify a gesture on this handle.
+        bool pressPending = _interactionAvailable && IsGalleryWindowActive && _controlsEdgeIndicator.IsPressed
+            && _pressedPointers.Any(pointer => IsControlsHandleTarget(pointer.Captured));
+        var controls = _overlayHidden || pressPending
+            ? GalleryControlsHandle.Resolve(OverlayControlsEffective, _overlayHidden, pressPending,
+                EdgeIndicatorArtworkVisible(_controlsEdgeIndicator))
+            : default;
+        bool controlsHadFocus = _controlsEdgeIndicator.IsKeyboardFocusWithin;
+        if (!controls.Present || !_overlayHidden) _pointerOnControlsIndicator = false;
+        _controlsEdgeIndicator.IsHitTestVisible = controls.HitTest;
+        SetEdgeIndicatorArtwork(_controlsEdgeIndicator, controls.Artwork);
+        _controlsEdgeIndicator.IsVisible = controls.Present;
+        if (controlsHadFocus && !controls.Present) FocusRevealedPanel(OverlayControlsEffective ? _overlayFooter : _chrome);
+
+        bool postArtwork = EdgeIndicatorArtworkVisible(_postEdgeIndicator);
+        SetEdgeIndicatorArtwork(_postEdgeIndicator, postArtwork);
+        _postEdgeIndicator.IsHitTestVisible = _postEdgeIndicator.IsVisible && postArtwork;
     }
 
-    private static void SetEdgeIndicatorLabel(Button indicator, string label)
+    private bool IsControlsHandleTarget(object? target) => target is Visual visual
+        && (ReferenceEquals(visual, _controlsEdgeIndicator) || _controlsEdgeIndicator.IsVisualAncestorOf(visual));
+
+    private void SetEdgeIndicatorArtwork(Button indicator, bool shown)
     {
-        AutomationProperties.SetName(indicator, label);
-        AutomationProperties.SetHelpText(indicator, label);
-        ToolTip.SetTip(indicator, label);
+        indicator.ApplyTemplate();
+        if (indicator.GetVisualDescendants().OfType<Avalonia.Controls.Shapes.Path>().FirstOrDefault() is not { } chevron) return;
+        chevron.Opacity = shown ? 1 : 0;
+        if (ReferenceEquals(indicator, _controlsEdgeIndicator) && chevron.GetVisualParent() is Border face)
+            face.Opacity = chevron.Opacity;
     }
 
     private void InitializeOverlayInteraction()
@@ -594,17 +606,21 @@ internal sealed partial class GalleryViewer
         _lastPointer = e.Pointer;
         if (sender is Control surface && surface.IsAttachedToVisualTree())
             _lastPointerScreen = surface.PointToScreen(e.GetPosition(surface));
-        RefreshHoverGeometry();
+        RefreshHoverGeometryAtPointer(e is PointerPressedEventArgs && e.Pointer.Type != PointerType.Mouse);
     }
 
-    private void RefreshHoverGeometry()
+    private void RefreshHoverGeometry() => RefreshHoverGeometryAtPointer(contactPress: false);
+
+    private void RefreshHoverGeometryAtPointer(bool contactPress)
     {
         if (_terminalRetirement || _viewerInteractionStopped) return;
         bool wasControls = _controlsHot || _pointerInControls || _pointerOnControlsIndicator;
         bool wasPost = _postHot || _pointerInPost || _pointerOnPostIndicator;
         _controlsHot = _postHot = _pointerInControls = _pointerInPost = false;
         _pointerOnControlsIndicator = _pointerOnPostIndicator = false;
-        if (HasCurrentGalleryPointer && _lastPointerScreen is PixelPoint pixel)
+        // A fresh touch/pen press provides a position without moving the mouse hover target.
+        if ((HasCurrentGalleryPointer || contactPress && IsGalleryWindowActive && _interactionAvailable)
+            && _lastPointerScreen is PixelPoint pixel)
         {
             Control surface = _nativeOverlayActive ? _nativeVideoOverlay : _body;
             // A closed TopLevel may remain in the parent chain after its
@@ -617,7 +633,7 @@ internal sealed partial class GalleryViewer
             _pointerInControls = Inside(_overlayFooter) || Inside(_chrome) || Inside(_infoOverlay)
                 || _video?.TransportControl is Control transport && Inside(transport);
             _pointerInPost = Inside(_contextPanel);
-            _pointerOnControlsIndicator = Inside(_controlsEdgeIndicator);
+            _pointerOnControlsIndicator = _overlayHidden && Inside(_controlsEdgeIndicator);
             _pointerOnPostIndicator = Inside(_postEdgeIndicator);
             if (surface.IsAttachedToVisualTree())
             {
@@ -684,19 +700,23 @@ internal sealed partial class GalleryViewer
         }
     }
 
-    private void RevealHoveredPanels()
+    private void RevealHoveredPanels() => RevealPanelsAtPointer(allowControlsContact: false);
+
+    private void RevealPanelsAtPointer(bool allowControlsContact)
     {
         if (_terminalRetirement || _viewerInteractionStopped) return;
         // Ordinary motion should neither reveal chrome nor scan every popup in the shell.
-        bool controls = _controlsHot || _pointerOnControlsIndicator && _overlayHidden && !_pointerInPost;
+        // An actionable handle takes its own click. The idle handle still extends the bottom reveal zone.
+        bool controls = _controlsHot || _pointerOnControlsIndicator && !_controlsEdgeIndicator.IsHitTestVisible && !_pointerInPost;
         bool post = _postHot || _pointerOnPostIndicator && !_contextOpen && !_pointerInControls;
         if (!controls && !post) { UpdateViewerInteractionTimer(); return; }
         if (!IsGalleryWindowActive || !_interactionAvailable || HasGalleryDialog || HasGalleryPopup) return;
         // A pan/seek drag or focused keyboard task is not a request to open another panel.
-        if (!GalleryEdgeHover.CanReveal(HasGalleryCapture,
+        bool captured = HasGalleryCapture;
+        if (!GalleryEdgeHover.CanReveal(captured && !allowControlsContact,
             HasSelectedPostText || HasSelectedControlsText, KeyboardPanelFocus, _helpOpen)) return;
         if (controls && OverlayControlsEffective) RevealOverlayControls();
-        if (post && PostOverlayEffective && !_contextOpen && !_suppressPostHoverUntilExit && _entry != null)
+        if (post && !captured && PostOverlayEffective && !_contextOpen && !_suppressPostHoverUntilExit && _entry != null)
             OpenEdgePostContext();
         UpdateViewerInteractionTimer();
     }
@@ -721,7 +741,7 @@ internal sealed partial class GalleryViewer
             _indicatorExpiryTimer.Stop();
             _indicatorExpiryTimer.Start();
             RevealCorner(); // clean media while idle, the way back and the star return with the mouse
-            RevealControlsOnMotion();
+            if (!IsControlsHandleTarget(e.Source)) RevealControlsOnMotion();
         }
         RevealHoveredPanels();
         UpdateEdgeIndicators();
@@ -735,6 +755,7 @@ internal sealed partial class GalleryViewer
         // rather than retaining artwork with no remaining expiry callback.
         _lastIndicatorMotion = null;
         UpdateEdgeIndicatorArtwork();
+        RefreshHoverGeometry();
     }
 
     private void OnOverlayPointerMovedOrExited(object? sender, PointerEventArgs e)
@@ -762,9 +783,12 @@ internal sealed partial class GalleryViewer
         if (_terminalRetirement || _viewerInteractionStopped) return;
         _keyboardInteraction = false;
         bool hidden = _overlayHidden, postWasOpen = _contextOpen;
+        bool contact = e.Pointer.Type != PointerType.Mouse;
+        // Ignore the new contact's implicit capture when it begins in the bottom reveal zone.
+        bool allowControlsContact = contact && !HasGalleryCapture;
         RememberPointer(sender, e);
-        if (e.Pointer.Type != PointerType.Mouse) RevealCorner(); // a touch has no motion to bring the pair back
-        RevealHoveredPanels();
+        if (contact) RevealCorner(); // a touch has no motion to bring the pair back
+        RevealPanelsAtPointer(allowControlsContact);
         _pressedPointers.Add(e.Pointer);
         if (!e.Handled && ReferenceEquals(e.Source, _nativeVideoOverlay)) _nativeVideoOverlay.Focus(NavigationMethod.Pointer);
         if (e.Handled || !(hidden && !_overlayHidden || !postWasOpen && _hoverContextOpen)) return;

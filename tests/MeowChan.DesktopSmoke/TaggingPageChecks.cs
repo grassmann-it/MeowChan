@@ -256,6 +256,7 @@ internal static class TaggingPageChecks
             Require(!tagging.StartButton.IsEnabled, "Start stays enabled on an empty queue.");
             CheckProgress(tagging, open: 0, finished: 0);
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
+            await CheckQueueWalkProgressAsync(window, tagging);
             await CheckGalleryCommandAsync(window, tagging);
             Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE/RU/JA captures.");
         }
@@ -405,12 +406,16 @@ internal static class TaggingPageChecks
         tagging.Refresh();
     }
 
-    private static void CheckProgress(TaggingPage tagging, int open, int finished)
+    private static void CheckProgress(TaggingPage tagging, int open, int finished, int skipped = 0)
     {
+        int total = open + finished + skipped;
+        int decided = finished + skipped;
         Require(tagging.ProgressText.IsEffectivelyVisible
-            && tagging.ProgressText.Text == Texts.Count("tagging.page.progress.results", open + finished, finished, open + finished),
+            && tagging.ProgressText.Text == Texts.Count("tagging.page.progress.results", total, decided, total),
             "Progress: " + tagging.ProgressText.Text);
-        Require(Equals(ToolTip.GetTip(tagging.ProgressText), Texts.T("tagging.page.progress", open, finished, 0)), "Missing progress breakdown.");
+        Require(Equals(ToolTip.GetTip(tagging.ProgressText), Texts.T("tagging.page.progress", open, finished, skipped)), "Missing progress breakdown.");
+        double expected = total == 0 ? 0 : (double)decided / total * 100;
+        Require(Math.Abs(ProgressTrack(tagging).Value - expected) < 0.001, "The track did not match the decisions.");
     }
 
     private static async Task CheckHeaderWidthAsync(MainWindow window, TaggingPage tagging)
@@ -780,6 +785,114 @@ internal static class TaggingPageChecks
                 && Equals(ToolTip.GetTip(segment), Texts.T(key + ".hint")), "Missing view segment semantics for " + name);
             Require(segment.Content is StackPanel visual && visual.Children.OfType<TextBlock>().Single() is { } label
                 && label.Text == name && label.IsEffectivelyVisible == labelsVisible, "Wrong label presentation for " + name);
+        }
+    }
+
+    private static async Task CheckQueueWalkProgressAsync(MainWindow window, TaggingPage tagging)
+    {
+        DesktopSessionHost session = window.SessionHost;
+        MediaLibrarySnapshot library = await MediaLibraryIndexBuilder.BuildAsync(session.OpenArchiveReaderAsync, MediaAssetReader.OpenAsync);
+        TagQueueItem a = TagQueueItem.From(library.Entries.Single(entry => entry.PostId == "100"), DateTimeOffset.UtcNow)!;
+        TagQueueItem b = TagQueueItem.From(library.Entries.Single(entry => entry.PostId == "200"), DateTimeOffset.UtcNow)!;
+        await session.EnqueueTagQueueAsync([Item(1), a, b, .. Enumerable.Range(4, 198).Select(Item)]);
+        await session.SetTagQueueCursorAsync(1);
+        await Program.WaitUntilAsync(() => tagging.Queue.Count == 201 && tagging.Queue.Cursor == 1 && tagging.StartButton.IsEffectivelyEnabled);
+        ContentControl host = window.FindControl<ContentControl>("GalleryHost")!;
+        KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        try
+        {
+            CheckProgress(tagging, open: 201, finished: 0);
+            GalleryViewer viewer = await StartWalkAsync();
+            CheckPosition(viewer, a, 2, 201);
+            Program.CaptureWindow(window, "smoke-tagging-queue-position.png");
+            GalleryViewerChecksAccess.Click(viewer, "GalleryNext");
+            await Program.WaitUntilAsync(() => viewer.TagPanelController?.Entry.Post?.PostId == b.PostId);
+            CheckPosition(viewer, b, 3, 201);
+            await ReturnAsync(viewer, b);
+            await Program.WaitUntilAsync(() => tagging.Queue.Cursor == 2);
+            CheckProgress(tagging, open: 201, finished: 0);
+            Require(AutomationProperties.GetName(tagging.StartButton) == "Continue tagging (no. 3)", "Resume did not follow the browsed medium.");
+
+            string groupId = (await session.CreateTagQueueGroupAsync("Progress regression", [a.Key, b.Key])).Groups.Single().Id;
+            await Program.WaitUntilAsync(() => tagging.GroupChoices.Any(choice => choice.Id == groupId));
+            tagging.GroupBox.SelectedItem = tagging.GroupChoices.Single(choice => choice.Id == groupId);
+            tagging.Filter = TaggingQueueFilter.Open;
+            Require(AutomationProperties.GetHelpText(tagging.StartButton)?.Contains(Texts.T("tagging.page.lastShown", b.Name, 2, 2), StringComparison.Ordinal) == true,
+                "The resume tooltip did not use the group ordinal.");
+            CheckProgress(tagging, open: 2, finished: 0);
+
+            viewer = await StartWalkAsync();
+            CheckPosition(viewer, b, 2, 2);
+            // Resume rotates the walk: finishing its first medium advances to the earlier open group entry.
+            viewer.Focus();
+            Press(viewer, Key.Enter, primary);
+            await Program.WaitUntilAsync(() => State(b) == TagQueueState.Done && viewer.TagPanelController?.Entry.Post?.PostId == a.PostId);
+            CheckPosition(viewer, a, 1, 2);
+            viewer.Focus();
+            Press(viewer, Key.S);
+            await Program.WaitUntilAsync(() => State(a) == TagQueueState.Skipped && window.GalleryTagging is { Busy: false, Steps: 2 });
+            Require(window.GalleryTagging!.Progress() == (1, 1, 0), "The gallery did not report one finished and one skipped.");
+            viewer.Focus();
+            Press(viewer, Key.Back);
+            await Program.WaitUntilAsync(() => State(a) == TagQueueState.Open && window.GalleryTagging is { Busy: false, Steps: 1 });
+            await ReturnAsync(viewer, a);
+            Require(tagging.SelectedGroupId == groupId && tagging.Filter == TaggingQueueFilter.Open && tagging.Rows.Count == 1,
+                "The group or status filter was lost on return.");
+            CheckProgress(tagging, open: 1, finished: 1);
+
+            viewer = await StartWalkAsync();
+            CheckPosition(viewer, a, 1, 2);
+            viewer.Focus();
+            Press(viewer, Key.S);
+            await Program.WaitUntilAsync(() => State(a) == TagQueueState.Skipped && window.GalleryTagging is { Busy: false, Steps: 1 });
+            await ReturnAsync(viewer, a);
+            tagging.Filter = TaggingQueueFilter.Open;
+            Require(tagging.Rows.Count == 0 && !tagging.StartButton.IsEffectivelyEnabled, "No open entries should remain in the group.");
+            CheckProgress(tagging, open: 0, finished: 1, skipped: 1);
+            Texts.SetLanguage("de");
+            await SettleAsync(window);
+            CheckProgress(tagging, open: 0, finished: 1, skipped: 1);
+            Program.CaptureWindow(window, "smoke-tagging-group-progress.png");
+            Texts.SetLanguage("en");
+            await SettleAsync(window);
+            tagging.GroupBox.SelectedIndex = 0;
+            CheckProgress(tagging, open: 199, finished: 1, skipped: 1);
+            await session.DeleteTagQueueGroupAsync(groupId);
+        }
+        finally
+        {
+            Texts.SetLanguage("en");
+            tagging.Filter = TaggingQueueFilter.All;
+            await session.ClearTagQueueAsync();
+            await Program.WaitUntilAsync(() => tagging.Queue.Count == 0);
+        }
+
+        TagQueueState? State(TagQueueItem item) =>
+            session.GetTagQueue()?.Items.FirstOrDefault(entry => entry.Key == item.Key)?.State;
+
+        async Task<GalleryViewer> StartWalkAsync()
+        {
+            Require(tagging.StartButton.Focus(NavigationMethod.Tab), "The Start button could not take focus.");
+            PressSpace(tagging.StartButton);
+            await Program.WaitUntilAsync(() => host.IsVisible && window.GalleryTagging != null);
+            await GalleryViewerChecksAccess.WaitForLayoutAsync(window);
+            return (GalleryViewer)host.Content!;
+        }
+
+        async Task ReturnAsync(GalleryViewer viewer, TagQueueItem item)
+        {
+            GalleryViewerChecksAccess.Click(viewer, "GalleryClose");
+            await Program.WaitUntilAsync(() => !host.IsVisible && window.SelectedPage == MainWindow.WorkspacePage.Tagging
+                && tagging.SelectedCount == 1 && tagging.ShownList.SelectedItem is TaggingQueueRow row && row.Key == item.Key);
+            await window.GalleryCleanupTask;
+        }
+
+        static void CheckPosition(GalleryViewer viewer, TagQueueItem item, int number, int total)
+        {
+            Require(viewer.TagPanelController?.Entry.Post?.PostId == item.PostId
+                && viewer.SidePanel.Position.IsEffectivelyVisible
+                && AutomationProperties.GetName(viewer.SidePanel.Position) == Texts.T("tagging.position", number, total),
+                $"The gallery did not show {item.Name} at queue position {number} of {total}.");
         }
     }
 
