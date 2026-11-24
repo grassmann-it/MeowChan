@@ -29,6 +29,8 @@ internal static class CountCatalog
         ("media.untagged.hint.one", "Show only the {0} medium without media tags: a place to start tagging", "Nur das {0} Medium ohne Medien-Tags zeigen: ein Startpunkt fürs Taggen"),
         ("downloads.searchCount.one", "{0} result", "{0} Treffer"),
         ("downloads.searchActive.one", "{0} result · {1}", "{0} Treffer · {1}"),
+        ("downloads.searchShowBoards.one", "Show {0} matching board", "{0} passendes Board anzeigen"),
+        ("downloads.searchShowThreads.one", "Show {0} matching thread", "{0} passenden Thread anzeigen"),
         ("search.count.one", "{0} result", "{0} Treffer"),
         ("media.breakdown.field.name.one", "{0} in a file name", "{0} in einem Dateinamen"),
         ("media.breakdown.field.title.one", "{0} in a thread title", "{0} in einem Thread-Titel"),
