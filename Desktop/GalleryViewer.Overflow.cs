@@ -47,7 +47,10 @@ internal sealed partial class GalleryViewer
         internal Func<string>? LabelSource { get; init; }
     }
 
-    private readonly StackPanel _overflowPanel = new() { Name = "GalleryOverflowMenu", Spacing = 2, MinWidth = 280 };
+    private readonly StackPanel _overflowPanel = new()
+    {
+        Name = "GalleryOverflowMenu", Spacing = 2, MinWidth = 280, MaxWidth = MenuLayout.DefaultMaximumWidth
+    };
     private readonly Button _overflowButton = new() { Name = "GalleryMore", Classes = { "command-icon" } };
     private readonly Flyout _overflowFlyout = new() { Placement = PlacementMode.TopEdgeAlignedRight };
     private readonly List<Button> _overflowButtons = new();
