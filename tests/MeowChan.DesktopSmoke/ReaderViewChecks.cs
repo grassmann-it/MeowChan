@@ -123,13 +123,14 @@ internal static class ReaderViewChecks
             await WaitForPost(ordinal);
             if (!ReaderMediaSidebarRules.IsOn(page.ReaderMedia, true)) page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => page.CanStepMediaSidebar(1));
-            string? MediaPosition() => page.MediaSidebar!.GetVisualDescendants().OfType<TextBlock>()
-                .Single(text => text.Name == "ReaderMediaSidebarThreadPosition").Text;
-            await Program.WaitUntilAsync(() => MediaPosition() == Texts.T("reader.sidebar.position", 2, 3));
+            MediaPositionPill position = page.MediaSidebar!.PositionPill;
+            bool ShowsPosition(int number) => position.IsEffectivelyVisible
+                && Equals(ToolTip.GetTip(position), MediaPositionText.Long(new(number, 3, false)));
+            await Program.WaitUntilAsync(() => ShowsPosition(2));
             page.StepMediaSidebar(1);
-            await Program.WaitUntilAsync(() => MediaPosition() == Texts.T("reader.sidebar.position", 3, 3));
+            await Program.WaitUntilAsync(() => ShowsPosition(3));
             page.StepMediaSidebar(-1);
-            await Program.WaitUntilAsync(() => MediaPosition() == Texts.T("reader.sidebar.position", 2, 3));
+            await Program.WaitUntilAsync(() => ShowsPosition(2));
             Require(Landed(ordinal), "Stepping the media navigator moved the selected post.");
             await Program.WaitUntilAsync(() => (list.SelectedItem as ArchivePostRow)?.BacklinkCount == 1);
 

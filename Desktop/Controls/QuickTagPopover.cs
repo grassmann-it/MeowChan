@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Automation;
@@ -65,7 +66,9 @@ internal enum QuickTagInitialFocus { TagInput, Rating }
 /// still offers the stars and says the reason as text.</param>
 /// <param name="FocusFallback">Where the keyboard goes after the popover closed when the control it was opened from is gone or hidden (the page's
 /// selected post, tile or list); see <see cref="QuickTagPopoverOptions.FocusFallback"/>.</param>
-internal sealed record RateAndTagRequest(QuickTagInitialFocus InitialFocus = QuickTagInitialFocus.TagInput, string? TagsBlocked = null, Func<bool>? FocusFallback = null);
+/// <param name="SidebarToken">The lifetime of the displayed sidebar target, from resolution through tag writes. Tile and menu requests use the default.</param>
+internal sealed record RateAndTagRequest(QuickTagInitialFocus InitialFocus = QuickTagInitialFocus.TagInput, string? TagsBlocked = null,
+    Func<bool>? FocusFallback = null, CancellationToken SidebarToken = default);
 
 /// <summary>What a host passes besides the target: the suggestion source, the guard and the tag dialog hand-over.</summary>
 internal sealed record QuickTagPopoverOptions
@@ -355,6 +358,7 @@ internal sealed class QuickTagPopover
 
     private async Task RunDecisionAsync(GalleryDecisionRow row, QuickTagPopoverDecision decision, Func<Task> write)
     {
+        CheckCurrent();
         if (_closed) return;
         if (_decisionRunning) { row.Show(SafeView(decision)); return; }
         _decisionRunning = true;
@@ -383,6 +387,8 @@ internal sealed class QuickTagPopover
     {
         ArgumentNullException.ThrowIfNull(showAt);
         if (_closed || _shown) return this;
+        CheckCurrent();
+        if (_closed) return this;
         Current?.Close(QuickTagPopoverCloseReason.Replaced);
         _shown = true;
         Current = this;
@@ -568,6 +574,7 @@ internal sealed class QuickTagPopover
 
     private void OnGuardedRootKey(object? sender, KeyEventArgs e)
     {
+        CheckCurrent();
         if (_closed || !_shown || _keyGuardRoot == null) return;
         TopLevel root = _keyGuardRoot;
         if (GuardedRootKey(e, visual => ReferenceEquals(TopLevel.GetTopLevel(visual), root), _frame, Surface != null) is not { } action) return;

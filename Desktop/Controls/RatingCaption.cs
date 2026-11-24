@@ -15,6 +15,9 @@ internal sealed class RatingCaption : TextBlock
 
     internal RatingCaption()
     {
+        // LCD text assumes an opaque, matching background. This caption is drawn over the panel's composited surface.
+        TextOptions.SetTextRenderingMode(this, TextRenderingMode.Antialias);
+        TextAlignment = TextAlignment.Left;
         RenderTransformOrigin = RelativePoint.TopLeft;
         RenderTransform = _scale;
         ClipToBounds = false;

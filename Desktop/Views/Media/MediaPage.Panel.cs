@@ -109,8 +109,8 @@ public sealed partial class MediaPage
         Avalonia.Automation.AutomationProperties.SetName(_panelHandle, resize);
         ToolTip.SetTip(_panelHandle, resize);
         panel.Frame.SizeChanged += (_, _) => OnPanelFrameResized();
-        panel.OpenTagsAsync = anchor => _panelRow is { } row
-            ? RunMediaCommandOnPanelAsync("media.tags.edit", row, anchor) : Task.CompletedTask;
+        panel.OpenTagsAsync = (anchor, token) => _panelRow is { } row
+            ? OpenPanelTagsAsync(row, anchor, token) : Task.CompletedTask;
         panel.Open.Click += (_, e) => { e.Handled = true; StartOpenPanelMedia(); };
         panel.GalleryRequested += (_, _) => StartOpenPanelMedia();
         panel.PictureActivated += (_, _) => OnPanelPictureActivated();
@@ -175,6 +175,7 @@ public sealed partial class MediaPage
     {
         if (_panelObscured == covers) return;
         _panelObscured = covers;
+        if (covers) _panel?.InvalidateTagEditor();
         if (covers) { _ = PausePanelVideo(); return; }
         if (_panelDirty && _panelShown) { _panelDirty = false; RefreshPanel(); }
     }
@@ -198,6 +199,7 @@ public sealed partial class MediaPage
         _panelFollowTimer?.Stop();
         _panelAnnounceTimer?.Stop();
         _panelThrottle.Reset();
+        _panel?.InvalidateTagEditor();
         _panelRow = _panelWanted = null;
         _panelDimensions = string.Empty;
         OfferPanelVideo(null);
@@ -241,7 +243,8 @@ public sealed partial class MediaPage
         if (sameMedium)
         {
             // Same tile in a new list: no new decode, only the header and the star.
-            _panelRow = _panelWanted = pick;
+            SetPanelRow(pick);
+            _panelWanted = pick;
             DescribePanel(_panel, pick!);
             return;
         }
@@ -263,7 +266,8 @@ public sealed partial class MediaPage
 
     private void RequestPanel(MediaLibraryTileRow? row)
     {
-        if (!ReferenceEquals(_panelWanted, row)) CancelPanelLoad(); // retire now, not after the follow throttle
+        if (!ReferenceEquals(_panelWanted, row)) CancelPanelLoad();
+        if (!SamePanelTagTarget(_panelWanted?.Entry, row?.Entry)) _panel?.InvalidateTagEditor();
         _panelWanted = row;
         long now = _panelClock.ElapsedMilliseconds;
         if (_panelThrottle.Request(now)) { RefreshPanel(); return; }
@@ -316,7 +320,7 @@ public sealed partial class MediaPage
         CancelPanelLoad();
         MediaLibraryTileRow? row = _panelWanted;
         bool same = row != null && _panelRow != null && MediaLibraryTileKey.Of(row.Tile) == MediaLibraryTileKey.Of(_panelRow.Tile);
-        _panelRow = row;
+        SetPanelRow(row);
         if (!same) { _panelDimensions = string.Empty; }
         if (row == null)
         {
@@ -354,6 +358,13 @@ public sealed partial class MediaPage
         CancellationTokenSource loading = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _panelLoading = loading;
         PanelTask = LoadPanelAsync(panel, row, mediumKey, ticket, target, loading.Token);
+    }
+
+    private void SetPanelRow(MediaLibraryTileRow? row)
+    {
+        bool changed = !SamePanelTagTarget(_panelRow?.Entry, row?.Entry);
+        _panelRow = row;
+        if (changed) _panel?.InvalidateTagEditor();
     }
 
     private void DescribePanel(ReaderMediaSidebar panel, MediaLibraryTileRow row)
@@ -522,12 +533,24 @@ public sealed partial class MediaPage
 
     // ---- keys and the menu -----------------------------------------------------------------------------------------------------------
 
-    private void OnPanelGridKeyDown(object? sender, KeyEventArgs e) => TryRoutePanelKey(e, fromPanel: false);
+    private void OnPanelGridKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!TryDismissPanelTagEditor(e)) TryRoutePanelKey(e, fromPanel: false);
+    }
+
+    internal bool TryDismissPanelTagEditor(KeyEventArgs e)
+    {
+        if (e.Handled || ShortcutService.IsCapturing || e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None
+            || e.Source is not Visual source || !source.GetSelfAndVisualAncestors().Contains(this)
+            || _panel?.InvalidateTagEditor() != true) return false;
+        e.Handled = true;
+        return true;
+    }
 
     private void OnPanelKeyDown(object? sender, KeyEventArgs e)
     {
         _panelPointerContext.Reset(); // a key ends a pointer gesture whose release never came
-        if (!TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
+        if (!TryDismissPanelTagEditor(e) && !TryRoutePanelKey(e, fromPanel: true)) TryRoutePanelPageKey(e); // the page's own keys (R, T, Q, I, Ctrl+E ...): MediaPage.PanelKeys.cs
     }
 
     private bool TryRoutePanelKey(KeyEventArgs e, bool fromPanel)
