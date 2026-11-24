@@ -102,7 +102,7 @@ public sealed class StatisticsCurrentRatesLayoutTests
         finally
         {
             window.Close();
-            page.EndLifetime();
+            page.Dispose();
         }
     });
 
@@ -134,7 +134,7 @@ public sealed class StatisticsCurrentRatesLayoutTests
             clock.Advance(TimeSpan.Zero);
             Assert.Equal(2, ShowRate(true, "0 B/s").Series.Count);
         }
-        finally { page.EndLifetime(); }
+        finally { page.Dispose(); }
 
         IoStatsSnapshot ShowRate(bool fresh, string displayed)
         {
@@ -161,14 +161,14 @@ public sealed class StatisticsCurrentRatesLayoutTests
             Assert.Contains("statistics", EffectiveShortcutBindings.ExecutionContexts("menu.context-open"));
             Assert.Null(KeyContextHost.Current);
 
-            page.EndLifetime();
+            page.Dispose();
             KeyEventArgs retiredKey = new() { RoutedEvent = InputElement.KeyDownEvent, Key = Key.F2 };
             page.ResetButton.RaiseEvent(retiredKey);
             Assert.Null(KeyContextHost.ContextOf(retiredKey));
         }
         finally
         {
-            page.EndLifetime();
+            page.Dispose();
             window.Close();
         }
     });

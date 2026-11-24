@@ -21,7 +21,7 @@ internal static class StatisticsReadabilityChecks
         {
             Persist = false, SampleIntervalMs = 2500, HistorySamples = 300
         });
-        StatisticsPage page = new();
+        using StatisticsPage page = new();
         page.Attach(hub, null);
         // This isolated page fixture has no MainWindow work-view. Its intended compact/expanded
         // variants are selected explicitly by the page's actual source-viewport width.
@@ -107,7 +107,6 @@ internal static class StatisticsReadabilityChecks
         }
         finally
         {
-            page.EndLifetime();
             host.Close();
             Texts.SetLanguage(language);
         }

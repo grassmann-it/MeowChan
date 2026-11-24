@@ -22,11 +22,10 @@ namespace MeowChan;
 /// what the window hands it through <see cref="Apply"/>; it owns no sampling timer and holds no claim on the hub, so a page nobody
 /// looks at costs nothing.
 /// </summary>
-public partial class StatisticsPage : UserControl
+public partial class StatisticsPage : UserControl, IDisposable
 {
     private readonly ObservableCollection<StatisticsRow> _rows = [];
     private readonly IDisposable _pageKeyContext;
-    private readonly DispatcherTimer _statusHide = new() { Interval = TimeSpan.FromSeconds(5) };
     private IoStatsHub? _hub;
     private Func<string, string?>? _sourceName;
     private IoStatsSnapshot? _last;
@@ -34,6 +33,7 @@ public partial class StatisticsPage : UserControl
     private bool _resetting;
     private string? _resetStatusKey;
     private bool _ended;
+    private IDisposable? _statusHide;
     private bool _restoreResetFocus;
     private long _resetFocusGeneration;
     private readonly Thickness _pageMargin;
@@ -55,11 +55,6 @@ public partial class StatisticsPage : UserControl
         ApplyCurrentRates(null);
         AttachedToVisualTree += (_, _) => Texts.Changed += OnLanguageChanged;
         DetachedFromVisualTree += (_, _) => Texts.Changed -= OnLanguageChanged;
-        _statusHide.Tick += (_, _) =>
-        {
-            _statusHide.Stop();
-            ResetStatusPanel.IsVisible = false;
-        };
     }
 
     /// <summary>Hosted in the Status page, which already has the page title, hint and status line: the page then shows no title
@@ -82,13 +77,20 @@ public partial class StatisticsPage : UserControl
         _sourceName = sourceName;
     }
 
-    internal void EndLifetime()
+    public void Dispose()
     {
-        if (_ended) return;
+        Dispose(disposing: true);
+        GC.SuppressFinalize(this);
+    }
+
+    protected virtual void Dispose(bool disposing)
+    {
+        if (!disposing || _ended) return;
         _ended = true;
         _pageKeyContext.Dispose();
-        DisposeRowMenus();
-        _statusHide.Stop();
+        _gridMenu?.Dispose();
+        _compactMenu?.Dispose();
+        _statusHide?.Dispose();
         ResetConfirmation.Hide();
         Texts.Changed -= OnLanguageChanged;
     }
@@ -299,7 +301,7 @@ public partial class StatisticsPage : UserControl
     {
         CloseConfirmation(focusReset: false);
         ResetStatusPanel.IsVisible = false;
-        _statusHide.Stop();
+        _statusHide?.Dispose();
     }
 
     internal void FocusContent()
@@ -315,7 +317,7 @@ public partial class StatisticsPage : UserControl
     {
         if (_ended || _hub == null || _resetting) return;
         ResetStatusPanel.IsVisible = false;
-        _statusHide.Stop();
+        _statusHide?.Dispose();
         _restoreResetFocus = true;
         ++_resetFocusGeneration;
         // Where Reset sits under More, the popup cannot anchor the question: it closes with this very click, and a question
@@ -386,8 +388,8 @@ public partial class StatisticsPage : UserControl
             _resetStatusKey = cleared ? "stats.reset.done" : "stats.reset.failed";
             StatisticsStatus.Text = Texts.T(_resetStatusKey);
             ResetStatusPanel.IsVisible = true;
-            _statusHide.Stop();
-            _statusHide.Start();
+            _statusHide?.Dispose();
+            _statusHide = DispatcherTimer.RunOnce(() => ResetStatusPanel.IsVisible = false, TimeSpan.FromSeconds(5));
         }
         finally
         {

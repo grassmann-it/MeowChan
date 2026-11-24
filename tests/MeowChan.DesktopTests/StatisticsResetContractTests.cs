@@ -55,7 +55,7 @@ public sealed class StatisticsResetContractTests
             Assert.Equal(IoStatsLoadStatus.Ok, saved.Status);
             Assert.Empty(saved.Days.Days);
         }
-        finally { page.EndLifetime(); }
+        finally { page.Dispose(); }
     });
 
     private static async Task<string?> ResetAndReadStatusAsync(StatisticsPage page)
