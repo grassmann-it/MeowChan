@@ -950,8 +950,8 @@ public sealed class HelpDocumentationTests
     public void ContinueReadingHelpMatchesRoutingHistoryFallbackAndReaderStatusSemantics()
     {
         string help = Plain(Read(Help));
-        Assert.Contains("it remains visible while the reader or gallery is open", help, StringComparison.Ordinal);
-        Assert.Contains("Inside the reader or gallery, left-click opens the history list", help, StringComparison.Ordinal);
+        Assert.Contains("The book opens the newest saved place", help, StringComparison.Ordinal);
+        Assert.Contains("The arrow opens the history list", help, StringComparison.Ordinal);
         Assert.Contains($"default {Config.ReadingHistoryLimitDefault}, {Config.ReadingHistoryLimitMinimum}–{Config.ReadingHistoryLimitMaximum}", help, StringComparison.Ordinal);
         Assert.Contains($"default {Config.ReadingHistoryMenuEntriesDefault}, {Config.ReadingHistoryMenuEntriesMinimum}–{Config.ReadingHistoryMenuEntriesMaximum}", help, StringComparison.Ordinal);
         Assert.Contains("the next captured post is used when one exists, otherwise the last captured post", help, StringComparison.Ordinal);
