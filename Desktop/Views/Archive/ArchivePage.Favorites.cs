@@ -32,7 +32,8 @@ public partial class ArchivePage
     private sealed record FavoriteOverviewRow(FavoriteEntry Entry, bool Missing)
     {
         public string Label => (Missing ? Texts.T("viewer.favorites.missing") + " · " : string.Empty) + FavoriteLabel(Entry);
-        public string Identity => Entry.Key.MediaIdentifier + " · " + Entry.Key.Variant + " · SHA-256: " + Entry.Key.Sha256;
+        public string Identity => Entry.Key.MediaIdentifier + " · " + Entry.Key.Variant + " · "
+            + Texts.T("archive.media.sha256", Entry.Key.Sha256);
     }
 
     private enum FavoriteScope { CurrentThread, SelectedThreads, FilteredThreads, All }
@@ -311,7 +312,7 @@ public partial class ArchivePage
 
     private static string FavoriteLabel(FavoriteEntry entry) =>
         entry.Key.Thread.Source + " /" + entry.Key.Thread.Board + "/ " + entry.Key.Thread.Thread + " · " +
-        (entry.OriginalFileName ?? entry.Key.MediaIdentifier) + " · " + entry.Length.ToString("N0", Texts.Culture) + " bytes";
+        (entry.OriginalFileName ?? entry.Key.MediaIdentifier) + " · " + MediaProvenanceText.FactSize(entry.Length);
 
     internal async Task OpenOriginalExportAsync(IReadOnlyList<FavoriteExportAsset> frozenAssets, Control? origin = null,
         int missingCount = 0, string? scopeLabel = null)
