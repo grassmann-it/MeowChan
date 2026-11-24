@@ -345,6 +345,9 @@ public partial class MainWindow
         { e.Handled = true; await CheckDownloadSelectionAsync(boards, DownloadsMatches(e, "watch.retry-media")); return; }
         if (boards && DownloadsMatches(e, "board.filters"))
         { e.Handled = true; if (LeadBoard is BoardRow row) await OpenBoardAdmissionAsync(row); return; }
+        if (boards && DownloadsMatches(e, "board.browse-archive") && LeadBoard is { Url: var boardUrl }
+            && _session.FindBoardArchive(boardUrl, fromBoard: true) is { } archive)
+        { e.Handled = true; await OpenActions.RunAsync(() => OpenBoardArchiveAsync(archive, grid), "board.browse-archive"); return; }
         if (DownloadsMatches(e, "rules.edit-scope"))
         { e.Handled = true; OnEditSelectionRules(sender, new RoutedEventArgs()); return; }
         if (DownloadsMatches(e, "location.open-folder"))
