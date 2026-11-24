@@ -17,15 +17,19 @@ namespace MeowChan.DesktopTests;
 [Collection("Gallery viewer construction")]
 public sealed class ReaderMediaLayoutSwitchTests
 {
+    private static readonly string[] MediaToolNames =
+    [
+        "ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveFavoritesFilter",
+        "ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable"
+    ];
+
     [Fact]
     public void TheMediaToolsBarEndsWithTheJoinedGridAndTablePair()
     {
         BooruComponentDispatcher.Run(() => WithPage(page =>
         {
             ActionToolBar bar = page.FindControl<ActionToolBar>("ReaderMediaTools")!;
-            Assert.Equal(new[] { "ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveFavoritesFilter",
-                "ArchiveMediaColumnsButton", "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable" },
-                bar.Items.OfType<Control>().Select(item => item.Name));
+            Assert.Equal(MediaToolNames, bar.Items.OfType<Control>().Select(item => item.Name));
             ToggleButton grid = page.FindControl<ToggleButton>("ArchiveMediaLayoutTiles")!;
             ToggleButton table = page.FindControl<ToggleButton>("ArchiveMediaLayoutTable")!;
             ToolbarGapPatternTests.AssertJoinedToggleClasses(grid.Classes, "segment-first");

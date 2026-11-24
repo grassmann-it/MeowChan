@@ -28,6 +28,7 @@ namespace MeowChan.DesktopTests;
 public sealed class SavedMediaReaderTests
 {
     private static readonly ResourceId ThreadId = new("fixture", "g", "42");
+    private static readonly string[] FooterActions = ["ArchiveEditRatingButton", "PreviewArchiveMediaButton", "ArchiveManageRatingsButton"];
 
     [Theory]
     [InlineData(false)]
@@ -66,7 +67,7 @@ public sealed class SavedMediaReaderTests
             DataGridRow row = table.GetVisualDescendants().OfType<DataGridRow>()
                 .Single(item => ReferenceEquals(item.DataContext, rows[0]));
             Border background = row.GetVisualDescendants().OfType<Border>().Single(item => item.Name == "BackgroundBorder");
-            Assert.True(background.BorderThickness.Left >= 3);
+            Assert.Equal(new Thickness(3, 1, 1, 1), background.BorderThickness);
             Visual[] outlines = row.GetVisualDescendants().Where(item => item is Control { Name: "CurrencyVisual" or "FocusVisual" }).ToArray();
             Assert.NotEmpty(outlines);
             Assert.All(outlines, outline => Assert.Equal(0, outline.Opacity));
@@ -104,7 +105,7 @@ public sealed class SavedMediaReaderTests
         TextBlock total = page.FindControl<TextBlock>("ArchiveThreadMediaTotal")!;
         Assert.True(total.IsEffectivelyVisible);
         Assert.Equal(Texts.T("thread.media.total", 1), total.Text);
-        foreach (string name in new[] { "ArchiveEditRatingButton", "PreviewArchiveMediaButton", "ArchiveManageRatingsButton" })
+        foreach (string name in FooterActions)
         {
             Button action = page.FindControl<Button>(name)!;
             Assert.True(action.IsEffectivelyVisible);

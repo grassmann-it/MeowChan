@@ -669,7 +669,7 @@
                                         <ToggleButton x:Name="ArchiveMediaLayoutTable" desktop:ActionToolBar.Group="2" desktop:ActionToolBar.End="True" wv:WorkViewElement.Id="reader.media.layout-table" Content="Table" Classes="toolbar-toggle segment segment-last" MinWidth="64" MinHeight="{StaticResource Workspace.Size.Control}" Click="OnMediaLayoutClick" />
                                     </desktop:ActionToolBar>
                                     <Grid x:Name="ArchiveMediaSurface" Grid.Row="1">
-                                        <DataGrid x:Name="ArchiveMediaGrid" Classes="row-focus" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
+                                        <controls:RowFocusDataGrid x:Name="ArchiveMediaGrid" Classes="row-focus" IsReadOnly="True" AutoGenerateColumns="False" CanUserSortColumns="False" SelectionMode="Extended" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped" GridLinesVisibility="None" PointerReleased="OnArchiveColumnsReleased">
                                             <DataGrid.Columns>
                                                 <DataGridTemplateColumn Width="*" MinWidth="220" SortMemberPath="Name"><DataGridTemplateColumn.CellTemplate><DataTemplate x:DataType="desktop:ArchiveAssetRow"><TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding Name}" /></DataTemplate></DataGridTemplateColumn.CellTemplate></DataGridTemplateColumn>
                                                 <DataGridTemplateColumn Width="96" MinWidth="88">
@@ -690,7 +690,7 @@
                                                 </DataGridTemplateColumn>
                                                 <DataGridTextColumn Width="130" MinWidth="100" Binding="{Binding RatingLabel, DataType=desktop:ArchiveAssetRow}" />
                                             </DataGrid.Columns>
-                                        </DataGrid>
+                                        </controls:RowFocusDataGrid>
                                         <ListBox x:Name="ArchiveMediaTiles" Classes="workspace-selection-bar" IsVisible="False" SelectionMode="Multiple" ScrollViewer.HorizontalScrollBarVisibility="Disabled" ScrollViewer.VerticalScrollBarVisibility="Auto" SelectionChanged="OnMediaSelected" DoubleTapped="OnMediaDoubleTapped">
                                             <ListBox.Styles><Style Selector="ListBoxItem"><Setter Property="Padding" Value="0" /><Setter Property="Margin" Value="0" /><Setter Property="HorizontalContentAlignment" Value="Stretch" /><Setter Property="VerticalContentAlignment" Value="Stretch" /></Style></ListBox.Styles>
                                             <!-- The tile panel is made in code (ArchivePage.TileSize.cs): its cell follows the tile size. -->
