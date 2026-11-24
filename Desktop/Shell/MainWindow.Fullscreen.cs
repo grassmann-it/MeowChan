@@ -825,10 +825,14 @@ public partial class MainWindow
             if (MeowChan.Desktop.Controls.SearchBox.OwnsEscape(e.Source)) return;
             if (e.Source is Visual inputVisual && inputVisual.GetSelfAndVisualAncestors().Any(v => v is Ursa.Controls.AutoCompleteBox)) return;
             if (e.Source is Control control && control.GetLogicalAncestors().Prepend(control).OfType<ComboBox>().Any(combo => combo.IsDropDownOpen)) return;
-            if (_selectedPage == WorkspacePage.Tagging && _taggingPage is { StampOpen: true } tagging)
+            if (_selectedPage == WorkspacePage.Tagging && _taggingPage is { } tagging)
             {
-                e.Handled = tagging.DismissStampByEscape();
-                return;
+                if (tagging.TryDismissClearQuestion()) { e.Handled = true; return; }
+                if (tagging.StampOpen)
+                {
+                    e.Handled = tagging.DismissStampByEscape();
+                    return;
+                }
             }
             if (DismissShellMenu() || DismissShellHelp() || (_gallery != null && !_gallerySuspended && _gallery.TryDismissOverlay()) ||
                 (_selectedPage == WorkspacePage.Media && _mediaPage?.TryDismissPanelTagEditor(e) == true) ||
@@ -840,6 +844,8 @@ public partial class MainWindow
             if (_selectedPage == WorkspacePage.Sources && _pluginsPage?.IsDiscardConfirmationOpen == true)
             { _pluginsPage.CancelDiscardConfirmation(); e.Handled = true; return; }
             if (_selectedPage == WorkspacePage.Sources && _gallery == null && !_largeReaderOpen && _sourcesPage?.TryDismissMergedLayer() == true)
+            { e.Handled = true; return; }
+            if (_selectedPage == WorkspacePage.Settings && _settingsEditor?.TryDismissFolderSourceRemoval() == true)
             { e.Handled = true; return; }
             if (WindowState == WindowState.FullScreen) { e.Handled = true; LeaveFullscreen(); return; }
             if (_gallery != null && !_gallerySuspended) { e.Handled = true; CloseGallery(); return; }

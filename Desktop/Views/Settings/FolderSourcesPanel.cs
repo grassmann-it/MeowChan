@@ -183,19 +183,13 @@ internal sealed class FolderSourcesPanel : UserControl
             Button yes = new() { Name = "FolderSourceRemoveConfirm", Content = Texts.T("folderSource.remove.confirm") };
             Button no = new() { Name = "FolderSourceRemoveKeep", Content = Texts.T("folderSource.remove.keep") };
             yes.Classes.Add("danger"); no.Classes.Add("subtle");
-            void KeepSource()
-            {
-                _confirmRemove = null;
-                Render();
-            }
             yes.Click += async (_, _) => { _confirmRemove = null; await RunAsync(() => _services.Remove(root.Id)); };
-            no.Click += (_, _) => KeepSource();
+            no.Click += (_, _) => TryDismissRemoveConfirmation();
             StackPanel confirmation = new() { Spacing = 4, Children = { ask, new WrapPanel { ItemSpacing = 8, Children = { no, yes } } } };
             confirmation.KeyDown += (_, e) =>
             {
-                if (e.Key != Key.Escape || e.KeyModifiers != KeyModifiers.None) return;
-                e.Handled = true;
-                KeepSource();
+                if (e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+                    e.Handled = TryDismissRemoveConfirmation();
             };
             row.Children.Add(confirmation);
             Dispatcher.UIThread.Post(() => no.Focus());
@@ -203,6 +197,14 @@ internal sealed class FolderSourcesPanel : UserControl
         Border card = new() { Child = row, Padding = new Thickness(12), CornerRadius = new CornerRadius(5) };
         card.Classes.Add("workspace-card");
         return card;
+    }
+
+    internal bool TryDismissRemoveConfirmation()
+    {
+        if (!IsEffectivelyVisible || _confirmRemove is not { } id || !_views.Any(view => view.Root.Id == id)) return false;
+        _confirmRemove = null;
+        Render();
+        return true;
     }
 
     private static string ScanText(FolderSourceRoot root) => root.LastScanStatus switch

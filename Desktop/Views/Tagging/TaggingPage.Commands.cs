@@ -85,7 +85,7 @@ public sealed partial class TaggingPage
         _retryLoad.Click += (_, _) => OpenActions.Start(RetryLoadAsync, "tagging.retry");
         _clearYes.Click += async (_, _) => await ClearAllAsync();
         _clearNo.Click += (_, _) => CloseClearQuestion(focusClear: true);
-        _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
+        _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) e.Handled = TryDismissClearQuestion(); };
 
         _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
         _list.AddHandler(PointerPressedEvent, OnContextPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
@@ -415,6 +415,13 @@ public sealed partial class TaggingPage
         if (!focusClear) return;
         if (_clear.IsEffectivelyVisible) _clear.Focus();
         else FocusContent();
+    }
+
+    internal bool TryDismissClearQuestion()
+    {
+        if (!_clearConfirm.IsEffectivelyVisible) return false;
+        CloseClearQuestion(focusClear: true);
+        return true;
     }
 
     /// <summary>Empties the queue. A damaged file is kept next to its place and replaced by an empty queue (the store's recovery).</summary>
