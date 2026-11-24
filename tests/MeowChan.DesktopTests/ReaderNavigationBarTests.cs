@@ -1,16 +1,20 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
+using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
+using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Localization;
+using MeowChan.Desktop.Motion;
 
 namespace MeowChan.DesktopTests;
 
-// The reader navigation bar (a two-part capsule: thread arrows with the thread counter, post arrows with the post counter) and its two
-// settings. The controls need Avalonia's platform, which this test host does not start, so what they do (placement, compact form, hit
-// testing, the modes) is driven in the reader smoke (ReaderNavigationOverlayChecks, NAVBAR-01..07). Here: the settings (default, clamp,
-// round trip, copies, transfer), their rows and texts in every language, and the markup and source contracts the bar relies on.
+// The reader navigation capsule, its settings and translated text. The hosted test drives the modes and compact form.
 [Collection("Localization")]
 public sealed class ReaderNavigationBarTests : IDisposable
 {
@@ -224,21 +228,94 @@ public sealed class ReaderNavigationBarTests : IDisposable
     }
 
     [Fact]
-    public void TheBarCodeFollowsTheModesAndTheCompactRule()
+    public async Task TheHostedBarFollowsTheModesAndTheCompactRule()
     {
-        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
-        // Off removes it, Always never hides it and starts no timer, Auto keeps the idle logic.
-        Assert.Contains("ReaderNavigation.IsVisible = _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff;", reader);
-        Assert.Contains("internal bool ReaderNavigationShown => _largeReader && _readerNavigationMode != Config.ReaderNavigationModeOff", reader);
-        Assert.Contains("_readerNavigationMode == Config.ReaderNavigationModeAlways ||", reader);
-        Assert.Contains("if (!_largeReader || _readerNavigationMode != Config.ReaderNavigationModeAuto) return;", reader);
-        Assert.Contains("ReaderNavigationLayout.IsCompact(surface.Bounds.Width, _readerNavigationShowPosition)", reader);
-        Assert.Contains("ReaderNavigationLayout.CounterText(index, count)", reader);
-        Assert.Contains("\"reader.nav.threadPosition\"", reader);
-        Assert.Contains("\"reader.nav.postPosition\"", reader);
-        Assert.Contains("\"reader.nav.name\"", reader);
-        // The counters are not a live region: the post list already announces the selection.
-        Assert.DoesNotContain("SetLiveSetting", reader);
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView thread = await archive.CaptureAsync(new ResourceId("offline", "reader", "1"), "Navigation fixture",
+            [new("1", 0, PostFieldPresence.All, Html: "First post"), new("2", 1, PostFieldPresence.All, Html: "Second post")]);
+        archive.Run(page =>
+        {
+            Window window = new() { Content = page, Width = 1100, Height = 750, Classes = { MotionPolicy.OffClass } };
+            try
+            {
+                window.Show();
+                ReaderArchiveTestFixture.Load(page, thread);
+                page.ApplyReaderMediaPreferences(ReaderMediaPreferences.From(new Config { ReaderMediaSidebar = false }));
+                page.SetReaderScope([thread.Summary.Id]);
+                page.ReaderNavigationMode = Config.ReaderNavigationModeAlways;
+                Assert.False(Find<WrapPanel>(page, "ReaderNavigation").IsEffectivelyVisible);
+
+                window.Content = page.DetachReader();
+                window.PlatformImpl!.Activated?.Invoke();
+                Settle();
+                var navigation = Find<WrapPanel>(window, "ReaderNavigation");
+                var bar = Find<Border>(window, "ReaderNavigationBar");
+                var threadPosition = Find<TextBlock>(window, "ReaderThreadPosition");
+                var postPosition = Find<TextBlock>(window, "ReaderPostPosition");
+                Assert.True(bar.IsEffectivelyVisible && navigation.IsHitTestVisible);
+                Assert.Equal("Reader navigation", AutomationProperties.GetName(bar));
+                AssertCounter(threadPosition, "1 / 1", "Thread 1 of 1");
+                AssertCounter(postPosition, "1 / 2", "Post 1 of 2");
+
+                page.ReaderNavigationShowPosition = false;
+                Settle();
+                Assert.False(threadPosition.IsEffectivelyVisible || postPosition.IsEffectivelyVisible);
+                page.ReaderNavigationShowPosition = true;
+                Settle();
+                Assert.True(threadPosition.IsEffectivelyVisible && postPosition.IsEffectivelyVisible);
+                BooruReviewTestPlatform.Resize(window, 620);
+                Assert.True(bar.IsEffectivelyVisible);
+                Assert.False(threadPosition.IsEffectivelyVisible || postPosition.IsEffectivelyVisible);
+                BooruReviewTestPlatform.Resize(window, 1100);
+                Assert.True(threadPosition.IsEffectivelyVisible && postPosition.IsEffectivelyVisible);
+
+                var tabs = Find<TabControl>(window, "ArchiveContentTabs");
+                object? posts = tabs.SelectedItem;
+                tabs.SelectedItem = Find<TabItem>(window, "ArchiveMediaTab");
+                Settle();
+                Assert.False(bar.IsEffectivelyVisible || navigation.IsHitTestVisible);
+                tabs.SelectedItem = posts;
+                Settle();
+                Assert.True(bar.IsEffectivelyVisible && navigation.IsHitTestVisible);
+
+                page.ReaderNavigationMode = Config.ReaderNavigationModeOff;
+                Settle();
+                Assert.False(bar.IsEffectivelyVisible || navigation.IsHitTestVisible);
+                Assert.True(page.TryNavigateReaderByKey(new KeyEventArgs { Key = Key.Down, PhysicalKey = PhysicalKey.ArrowDown }));
+                BooruComponentDispatcher.Wait(page.ReaderNavigationTask);
+                Assert.Equal("2", page.CurrentReaderPostId);
+                Assert.False(bar.IsEffectivelyVisible || navigation.IsHitTestVisible);
+
+                page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
+                page.ReaderNavigationMode = Config.ReaderNavigationModeAuto;
+                Assert.True(navigation.IsHitTestVisible);
+                BooruComponentDispatcher.WaitUntil(() => !navigation.IsHitTestVisible, "idle reader navigation to stop taking pointer input");
+                Assert.Equal(0, navigation.Opacity);
+                page.ShowReaderNavigation();
+                Settle();
+                Assert.True(bar.IsEffectivelyVisible && navigation.IsHitTestVisible);
+                AssertCounter(postPosition, "2 / 2", "Post 2 of 2");
+            }
+            finally { window.Close(); }
+
+            void Settle()
+            {
+                Dispatcher.UIThread.RunJobs();
+                window.UpdateLayout();
+            }
+        }, hosted: true);
+
+        static T Find<T>(Visual root, string id) where T : Control =>
+            Assert.Single(root.GetVisualDescendants().OfType<T>(), control => AutomationProperties.GetAutomationId(control) == id);
+
+        static void AssertCounter(TextBlock counter, string text, string sentence)
+        {
+            Assert.True(counter.IsEffectivelyVisible);
+            Assert.Equal(text, counter.Text);
+            Assert.Equal(sentence, AutomationProperties.GetName(counter));
+            Assert.Equal(sentence, ToolTip.GetTip(counter));
+            Assert.Equal(AutomationLiveSetting.Off, AutomationProperties.GetLiveSetting(counter));
+        }
     }
 
     [Fact]
