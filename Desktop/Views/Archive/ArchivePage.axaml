@@ -326,8 +326,12 @@
                             <controls:SearchBox x:Name="ReaderFilenameQuery" Width="240" MaxLength="512" IsVisible="False" />
                             <controls:SearchBox x:Name="ReaderHashQuery" Width="240" MaxLength="256" IsVisible="False" />
                             <Button x:Name="ReaderFindSearch" IsVisible="False" Click="OnReaderScopeSearchClick" />
-                            <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
-                            <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
+                            <StackPanel x:Name="ReaderFindNavigation" Orientation="Horizontal" Spacing="{StaticResource Workspace.Space.4}">
+                                <Button x:Name="ReaderFindPrevious" Click="OnPreviousThreadFind" />
+                                <TextBlock x:Name="ReaderFindPosition" VerticalAlignment="Center"
+                                           AutomationProperties.LiveSetting="Polite" />
+                                <Button x:Name="ReaderFindNext" Click="OnNextThreadFind" />
+                            </StackPanel>
                             <Button x:Name="ReaderFindRetry" Click="OnRetryThreadFind" IsVisible="False" />
                         </WrapPanel>
                     </StackPanel>
@@ -342,7 +346,7 @@
                     </WrapPanel>
                     </StackPanel>
                     <StackPanel x:Name="ReaderFindDetails" IsVisible="False" Spacing="{StaticResource Workspace.Space.4}">
-                        <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ReaderFindStatus" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite" />
                         <controls:SearchCarryOffer x:Name="ReaderFindCarryOffer" />
                         <TextBlock x:Name="ReaderFindExcerpt" TextWrapping="Wrap" />
                     </StackPanel>

@@ -1438,7 +1438,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         Localize();
         ApplyFooterMode();
         Refresh();
-        if (FocusOnAttach) Dispatcher.UIThread.Post(() => { if (_attached && !_disposed) _input.Focus(); }, DispatcherPriority.Input);
+        if (FocusOnAttach) Dispatcher.UIThread.Post(() => { if (FocusOnAttach && _attached && !_disposed) _input.Focus(); }, DispatcherPriority.Input);
     }
 
     private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)

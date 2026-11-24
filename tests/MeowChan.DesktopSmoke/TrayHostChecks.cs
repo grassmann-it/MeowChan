@@ -2,6 +2,8 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Commands;
+using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.Stats;
 using Tmds.DBus.Protocol;
 
@@ -50,9 +52,7 @@ internal static class TrayHostChecks
         await CheckIndependentPreferencesAsync(window);
         Click(window, "WindowMinimizeButton");
         await AssertHiddenAsync(window, "first minimize");
-        CheckTrayStatistics(window);
-        await ControlAsync("activate");
-        await AssertRestoredAsync(window, "DBus tray activation");
+        await CheckTrayMenuAsync(window);
 
         Click(window, "WindowCloseButton");
         await AssertHiddenAsync(window, "first close");
@@ -83,23 +83,87 @@ internal static class TrayHostChecks
         Console.WriteLine("SMOKE tray host: native DBus registration; actual Activate toggled visible/hidden/minimized windows independent of minimize preference; Open menu item only restored; first minimize/close removed taskbar access; host loss, watcher restart and watcher loss remained reachable.");
     }
 
-    // Text-only statistics in the tray: two filled lines and a separator ahead of the old entries, and no sampling timer while the
-    // window is hidden and nothing downloads (the tray holds its claim, but the hub starts a timer only for active downloads).
-    private static void CheckTrayStatistics(MainWindow window)
+    private static async Task CheckTrayMenuAsync(MainWindow window)
     {
         TrayIcon icon = TrayIcon.GetIcons(Application.Current!)!.Single();
-        NativeMenu menu = icon.Menu ?? throw new InvalidOperationException("The tray icon has no menu.");
-        if (menu.Items[0] is not NativeMenuItem rates || menu.Items[1] is not NativeMenuItem disk || menu.Items[2] is not NativeMenuItem detail || menu.Items[3] is not NativeMenuItemSeparator)
-            throw new InvalidOperationException("The tray menu does not start with the three statistics lines and a separator.");
-        if (!rates.IsEnabled || !disk.IsEnabled || !detail.IsEnabled || !rates.IsVisible || string.IsNullOrEmpty(rates.Header) || string.IsNullOrEmpty(disk.Header) || string.IsNullOrEmpty(detail.Header))
-            throw new InvalidOperationException("The tray statistics lines are not enabled and filled: '" + rates.Header + "' / '" + disk.Header + "' / '" + detail.Header + "'.");
         IoStatsHub hub = window.SessionHost.IoStats;
         if (hub.SamplingMode != IoStatsVisibility.None)
             throw new InvalidOperationException("A sampling timer runs while the window is hidden and idle: " + hub.SamplingMode + ".");
-        if (icon.ToolTipText is null || !icon.ToolTipText.StartsWith("MeowChan", StringComparison.Ordinal) || icon.ToolTipText.Length > TrayStatsModel.MaxTooltipLength)
-            throw new InvalidOperationException("Unexpected tray tooltip: " + icon.ToolTipText);
-        Console.WriteLine("SMOKE tray statistics: lines '" + rates.Header + "' / '" + disk.Header + "' / '" + detail.Header + "', tooltip '" + icon.ToolTipText + "', hidden timers=" + hub.ActiveTimerCount + ".");
+
+        Config original = window.SessionHost.Config.Clone();
+        Config candidate = original.Clone();
+        candidate.ShortcutBindings = candidate.ShortcutBindings.Set("session.pause", [ShortcutGesture.Parse("Primary+Shift+F10")]);
+        await window.SessionHost.ApplySettingsAsync(candidate);
+        await Program.WaitUntilAsync(() => CommandBindings.Gesture("session.pause")?.Key == Avalonia.Input.Key.F10);
+        string PauseLabel(string action) => $"{Texts.T(action)} · {Texts.T("key.ctrl")}+{Texts.T("key.shift")}+F10";
+        string pause = PauseLabel("action.pause");
+        string resume = PauseLabel("action.resume");
+        string idle = Texts.T("stats.tray.menuIdle");
+        string paused = Texts.T("stats.tray.menuPaused");
+        await Program.WaitUntilAsync(() => icon.Menu!.Items.OfType<NativeMenuItem>().Any(item => item.Header == pause));
+        await AssertMenuGroupsAsync(pause, idle);
+        if (icon.ToolTipText is not { Length: <= TrayStatsModel.MaxTooltipLength } runningTooltip
+            || !runningTooltip.StartsWith("MeowChan · ", StringComparison.Ordinal))
+            throw new InvalidOperationException("Unexpected running tray tooltip: " + icon.ToolTipText);
+        await ClickMenuEntryAsync(pause);
+        await Program.WaitUntilAsync(() => window.SessionHost.Projection.IsPaused && !window.SessionHost.Projection.IsPauseTransitioning
+            && icon.ToolTipText == "MeowChan · " + Texts.T("tray.tooltipPaused")
+            && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
+        await AssertMenuGroupsAsync(resume, paused);
+        string language = Texts.Language;
+        try
+        {
+            Texts.SetLanguage(language == "de" ? "en" : "de");
+            await AssertMenuGroupsAsync(PauseLabel("action.resume"), Texts.T("stats.tray.menuPaused"));
+        }
+        finally { Texts.SetLanguage(language); }
+
+        await ClickMenuEntryAsync(paused);
+        await AssertRestoredAsync(window, "statistics value click");
+        await Program.WaitUntilAsync(() => window.StatisticsSegmentShown);
+
+        candidate.StatsTrayMenu = false;
+        candidate.StatsTrayTooltip = false;
+        await window.SessionHost.ApplySettingsAsync(candidate);
+        await Program.WaitUntilAsync(() => !icon.Menu!.Items.OfType<NativeMenuItem>().Any(item => item.Header == paused));
+        await AssertMenuGroupsAsync(resume, state: null);
+        await ClickMenuEntryAsync(resume);
+        await Program.WaitUntilAsync(() => !window.SessionHost.Projection.IsPaused && !window.SessionHost.Projection.IsPauseTransitioning
+            && icon.ToolTipText == "MeowChan · Image Downloader" && window.FindControl<Button>("AddUrlButton")!.IsEnabled);
+        await AssertMenuGroupsAsync(pause, state: null);
+
+        if (!window.ShowStatus(StatusSegment.Diagnostics) || !window.DiagnosticsSegmentShown)
+            throw new InvalidOperationException("Could not switch to Diagnostics before testing the tray's Status entry.");
+        await ClickMenuEntryAsync(CommandLabel("navigation.status"));
+        await Program.WaitUntilAsync(() => window.StatisticsSegmentShown);
+        await window.SessionHost.ApplySettingsAsync(original);
+        Console.WriteLine("SMOKE tray menu: native separators, statistics visibility and navigation, pause/resume and rebound shortcut passed.");
     }
+
+    private static async Task AssertMenuGroupsAsync(string pause, string? state)
+    {
+        List<string> expected = [CommandLabel("app.show")];
+        if (state != null)
+        {
+            expected.AddRange(["", state, Texts.T("stats.tray.today", "0 B"), Texts.T("stats.tray.diskWritten", "0 B"), ""]);
+        }
+        expected.AddRange([CommandLabel("location.open-folder"), CommandLabel("watch.import-clipboard"), pause, "",
+            CommandLabel("navigation.status"), CommandLabel("navigation.settings"), "", CommandLabel("app.quit")]);
+
+        using DBusConnection connection = new(DBusAddress.Session!);
+        await connection.ConnectAsync();
+        string[] entries = await connection.CallMethodAsync(CreateRequest(connection, "MenuEntries"), static (message, _) =>
+        {
+            var reader = message.GetBodyReader();
+            return reader.ReadArrayOfString();
+        }).WaitAsync(TimeSpan.FromSeconds(5));
+        if (!entries.SequenceEqual(expected))
+            throw new InvalidOperationException($"Unexpected native tray menu. Expected [{string.Join(" | ", expected)}], got [{string.Join(" | ", entries)}].");
+    }
+
+    private static string CommandLabel(string id) => CommandCatalog.Label(id) + (MainWindow.TrayShortcut(id) is { Length: > 0 } shortcut ? "  " + shortcut : "");
+
+    private static Task ClickMenuEntryAsync(string label) => ControlAsync("click-menu-item:" + label);
 
     private static async Task CheckIndependentPreferencesAsync(MainWindow window)
     {
@@ -157,15 +221,15 @@ internal static class TrayHostChecks
     {
         using DBusConnection connection = new(DBusAddress.Session!);
         await connection.ConnectAsync();
-        await connection.CallMethodAsync(CreateControl(connection, command)).WaitAsync(TimeSpan.FromSeconds(5));
+        await connection.CallMethodAsync(CreateRequest(connection, "Control", command)).WaitAsync(TimeSpan.FromSeconds(5));
     }
 
-    private static MessageBuffer CreateControl(DBusConnection connection, string command)
+    private static MessageBuffer CreateRequest(DBusConnection connection, string method, string? command = null)
     {
         using var writer = connection.GetMessageWriter();
         writer.WriteMethodCallHeader(destination: "org.meowchan.TraySmoke", path: "/StatusNotifierWatcher",
-            @interface: "org.meowchan.TraySmoke", member: "Control", signature: "s");
-        writer.WriteString(command);
+            @interface: "org.meowchan.TraySmoke", member: method, signature: command == null ? null : "s");
+        if (command != null) writer.WriteString(command);
         return writer.CreateMessage();
     }
 }
