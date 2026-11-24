@@ -21,6 +21,7 @@ namespace MeowChan;
 
 internal sealed class BoardArchiveWindow : Window
 {
+    private readonly WindowChromeBar _caption;
     private readonly Func<BoardArchiveLocation, CancellationToken, Task<IReadOnlyList<BoardArchiveThread>?>> _read;
     private readonly Func<BoardArchiveThread, CancellationToken, Task<BoardArchiveThreadDetails?>> _readDetails;
     private readonly Func<BoardArchiveThread, Task<DesktopAdmissionResult>> _add;
@@ -70,21 +71,22 @@ internal sealed class BoardArchiveWindow : Window
         Grid.SetRow(_openingPost, 2);
         body.Children.Add(_openingPost);
         AutomationProperties.SetLiveSetting(_status, AutomationLiveSetting.Polite);
-        DialogWindow.Frame(this, DialogFrame.Build(header, new Border { Child = body, Classes = { "workspace-dialog-body" } },
+        _caption = DialogWindow.Frame(this, DialogFrame.Build(header, new Border { Child = body, Classes = { "workspace-dialog-body" } },
             DialogFooter.Build(_watch, [_close, _retry, _open], _status, statusAbove: true), fillBody: true), modal: true);
 
         Opened += async (_, _) =>
         {
-            _opened = true;
+            if (_closed) return;
+            if (!_opened)
+            {
+                _opened = true;
+                Texts.Changed += OnTextsChanged;
+            }
+            ApplyTexts();
+            RefreshControls();
             await LoadBoardAsync(focusList: true);
         };
-        Closed += (_, _) =>
-        {
-            _closed = true;
-            Texts.Changed -= OnTextsChanged;
-            _catalogRead?.Cancel();
-            _detailRead?.Cancel();
-        };
+        Closed += (_, _) => EndLifetime();
         _boards.SelectionChanged += async (_, _) => { if (_opened && !_closed) await LoadBoardAsync(); };
         _rows.SelectionChanged += async (_, _) =>
         {
@@ -112,7 +114,22 @@ internal sealed class BoardArchiveWindow : Window
         DialogEscape.Attach(this);
         ApplyTexts();
         RefreshControls();
-        Texts.Changed += OnTextsChanged;
+    }
+
+    internal async Task ShowOwnedAsync(Window owner)
+    {
+        try { await ShowDialog(owner); }
+        finally { EndLifetime(); }
+    }
+
+    private void EndLifetime()
+    {
+        if (_closed) return;
+        _closed = true;
+        Texts.Changed -= OnTextsChanged;
+        _caption.Detach();
+        _catalogRead?.Cancel();
+        _detailRead?.Cancel();
     }
 
     private async Task LoadBoardAsync(bool focusList = false)
