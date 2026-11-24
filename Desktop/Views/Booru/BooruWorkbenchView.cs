@@ -390,8 +390,14 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _resultsArea.Children.Add(_results);
         _resultsArea.Children.Add(BuildBottomBar());
         _resultScroll.Content = _resultsArea;
-        Grid layout = new() { RowDefinitions = new RowDefinitions("Auto,*"), RowSpacing = 8, Children = { tab, _resultScroll } };
+        Grid layout = new()
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"), RowDefinitions = new RowDefinitions("Auto,*"),
+            RowSpacing = 8, Children = { tab, _resultScroll }
+        };
+        Grid.SetColumnSpan(tab, 2);
         Grid.SetRow(_resultScroll, 1);
+        InstallMediaSidebar(layout);
         return layout;
     }
 
@@ -634,6 +640,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
             PruneBitmaps(view.Rows);
         }
         RenderTagDraft(view);
+        RenderMediaSidebar(view);
     }
 
     private void RenderWatchers(BooruWatcherListView view, bool force)
@@ -1191,6 +1198,7 @@ internal sealed partial class BooruWorkbenchView : UserControl, IDisposable
         _closed = true;
         DismissResultViewer();
         _gallery.Dispose();
+        DisposeMediaSidebar();
         Interlocked.Increment(ref _linkActionRevision);
         _clock.Stop();
         _clock.Tick -= OnClockTick;

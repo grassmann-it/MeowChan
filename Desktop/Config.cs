@@ -860,6 +860,8 @@ namespace MeowChan
             get => _booruPageView;
             set => _booruPageView = Desktop.Booru.BooruResultViews.Parse(value).ToString();
         }
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
+        public bool BooruMediaSidebar { get; set; } = true;
         private string _booruTileSize = nameof(Desktop.MediaTileSize.Medium);
         [JsonConverter(typeof(DesktopPreferenceStringConverter))]
         public string BooruTileSize
@@ -2200,6 +2202,7 @@ namespace MeowChan
                 ArchiveMediaTileSize = ArchiveMediaTileSize,
                 TaggingPageView = TaggingPageView,
                 BooruPageView = BooruPageView,
+                BooruMediaSidebar = BooruMediaSidebar,
                 BooruTileSize = BooruTileSize,
                 TaggingPreviewColumn = TaggingPreviewColumn,
                 TaggingStampBlock = TaggingStampBlock,
@@ -2496,6 +2499,7 @@ namespace MeowChan
             ArchiveMediaTileSize = source.ArchiveMediaTileSize;
             TaggingPageView = source.TaggingPageView;
             BooruPageView = source.BooruPageView;
+            BooruMediaSidebar = source.BooruMediaSidebar;
             BooruTileSize = source.BooruTileSize;
             TaggingPreviewColumn = source.TaggingPreviewColumn;
             TaggingStampBlock = source.TaggingStampBlock;

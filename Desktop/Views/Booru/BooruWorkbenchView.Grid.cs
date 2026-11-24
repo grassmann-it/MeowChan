@@ -232,6 +232,7 @@ internal sealed partial class BooruWorkbenchView
         };
         _viewBar.Children.Add(_sizeGroup);
         _viewBar.Children.Add(_viewToggle);
+        _viewBar.Children.Add(_mediaToggle);
         return _viewBar;
     }
 
