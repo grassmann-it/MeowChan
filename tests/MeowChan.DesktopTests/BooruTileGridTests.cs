@@ -60,14 +60,46 @@ public sealed class BooruTileGridTests
     [InlineData(BooruRating.Questionable, "Q")]
     [InlineData(BooruRating.Explicit, "E")]
     [InlineData(BooruRating.Unknown, "?")]
-    public void ProviderRatingHasPlainTextAndKeepsZeroScore(BooruRating rating, string code)
+    public void ProviderRatingHasPlainTextAndKeepsZeroScore(BooruRating rating, string code) => OnDispatcher(async () =>
     {
         BooruPostView post = BooruUiFixtures.Post("42", rating: rating, score: 0);
         Assert.Equal("#42 · " + code + " · 0", BooruTileMetrics.Line(post.PostId, post.Rating, post.Score));
         Assert.Contains(BooruText.Rating(rating), BooruText.ProviderRatingAndScore(post));
         Assert.Contains("0", BooruText.ProviderRatingAndScore(post));
         Assert.Equal("#42 · " + code, BooruTileMetrics.Line(post.PostId, post.Rating, null));
-    }
+
+        BooruPostView withoutScore = BooruPostView.From(BooruUiFixtures.Post("43", rating: rating).Post with
+        {
+            Fields = BooruFieldPresence.All & ~BooruFieldPresence.Score,
+            Score = null
+        });
+        BooruUiHarness harness = new();
+        harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
+            BooruUiFixtures.Page(query, page, true, post, withoutScore)));
+        using BooruWorkbenchModel model = new(harness.Services);
+        using BooruWorkbenchView view = new(model, ownsModel: false);
+        view.RestoreResultView(BooruResultView.Grid, MediaTileSize.Medium);
+
+        await BooruTestSupport.SearchAsync(model.Search, "cat");
+        await BooruTestSupport.WaitAsync(() => view.TilePanel?.Children.Count == 2, "the tiles");
+
+        string ratingLabel = "Danbooru rating: " + BooruText.Rating(rating);
+        AssertTile("42", "#42 · " + code + " · 0", ratingLabel + " · Score: 0");
+        AssertTile("43", "#43 · " + code, ratingLabel);
+
+        void AssertTile(string id, string line, string providerFacts)
+        {
+            string automationId = "BooruResult:" + id;
+            Border tile = Assert.Single(view.TilePanel!.Children.OfType<Border>(), child => child.Name == automationId);
+            TextBlock label = Assert.Single(tile.GetLogicalDescendants().OfType<TextBlock>(), text => text.Name == "BooruTileLine:" + id);
+            Assert.Equal(line, label.Text);
+            Assert.Equal(providerFacts, Assert.IsType<string>(ToolTip.GetTip(tile)));
+            Assert.True(tile.Focusable);
+            Assert.True(tile.IsTabStop);
+            Assert.Equal("Post #" + id + " · " + providerFacts, AutomationProperties.GetName(tile));
+            Assert.Equal(automationId, AutomationProperties.GetAutomationId(tile));
+        }
+    });
 
     [Fact]
     public void TheLineUnderATileIsIdRatingCodeAndScoreAndLeavesOutAMissingScore()
