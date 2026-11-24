@@ -302,25 +302,13 @@ public sealed class MediaTileEnterTests
             ReaderMediaSidebar panel = PanelView = Assert.IsType<ReaderMediaSidebar>(_page.Panel);
             typeof(MediaPage).GetMethod("DescribePanel", InstanceNonPublic)!.Invoke(_page, [panel, row]);
 
-            // The action section exists only for a described medium. Materialize the presenters
-            // so the real key route goes through the sidebar and the page without a layout pass.
+            // Attach the header to the page so the real key event bubbles through both.
             _page.ApplyTemplate();
             _page.Presenter!.UpdateChild();
-            ScrollViewer details = panel.GetVisualDescendants().OfType<ScrollViewer>().Single(view => view.Name == "ReaderMediaSidebarDetails");
-            MaterializeContent(details);
-            foreach (ContentControl section in Assert.IsAssignableFrom<Panel>(details.Content).Children.OfType<ContentControl>())
-                MaterializeContent(section);
             Assert.Contains(panel, panel.Open.GetVisualAncestors());
             Assert.Contains(_page, panel.Open.GetVisualAncestors());
             Assert.True(panel.Open.IsEffectivelyVisible && panel.Open.IsEffectivelyEnabled && panel.Open.Focusable);
             return panel.Open;
-        }
-
-        private static void MaterializeContent(ContentControl control)
-        {
-            control.Template = BareContentTemplate;
-            control.ApplyTemplate();
-            control.Presenter!.UpdateChild();
         }
 
         internal Control Container(int index) => Grid.ContainerFromIndex(index)

@@ -576,7 +576,7 @@ public sealed class RateAndTagMediaPageKeyTests
         Assert.True(fixture.LastHandled);
         Opened open = Assert.Single(opened);
         Assert.Same(fixture.Entries[2], open.Entry);
-        Assert.Equal("ReaderMediaSidebarEditTags", open.Anchor.Name);
+        Assert.Same(fixture.PanelView!.InfoToggle, open.Anchor);
         Assert.Equal(QuickTagInitialFocus.TagInput, open.Request.InitialFocus);
         Assert.Equal(new[] { 0, 1 }, fixture.Grid.Selection.SelectedIndexes.ToArray());
     });

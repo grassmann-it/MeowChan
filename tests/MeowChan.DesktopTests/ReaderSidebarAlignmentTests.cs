@@ -66,7 +66,7 @@ public sealed class ReaderSidebarAlignmentTests
             LayoutAt(720);
             double headerHeight = sidebar.HeaderRow.Bounds.Height;
             double frameHeight = sidebar.Frame.Bounds.Height;
-            ScrollViewer details = sidebar.GetVisualDescendants().OfType<ScrollViewer>().Single(s => s.Name == "ReaderMediaSidebarDetails");
+            Control details = sidebar.Details;
             double occupied = frameHeight + details.Bounds.Height;
             Assert.Equal(emptyHeight, headerHeight);
             Assert.False(details.IsVisible);

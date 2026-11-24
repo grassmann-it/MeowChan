@@ -291,7 +291,7 @@ public sealed class ReaderMediaSidebarLayoutTests
             Assert.Equal(48, view.HeaderRow.Bounds.Height);
             Assert.Equal(height, view.Bounds.Height);
             Assert.Equal(view.Padding.Top, view.HeaderRow.TranslatePoint(default, view)!.Value.Y);
-            ScrollViewer details = view.GetVisualDescendants().OfType<ScrollViewer>().Single(scroller => scroller.Name == "ReaderMediaSidebarDetails");
+            Control details = view.Details;
             double detailsHeight = details.IsVisible ? details.Bounds.Height + details.Margin.Top : 0;
             Assert.Equal(height - view.Padding.Top - view.Padding.Bottom - view.HeaderRow.Bounds.Height - 8 - detailsHeight, view.Card.Bounds.Height, 1);
         }

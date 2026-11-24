@@ -3,6 +3,9 @@ using System.Runtime.CompilerServices;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Automation;
+using Avalonia.Headless;
+using Avalonia.Input.Raw;
 using Avalonia.Input;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Interactivity;
@@ -312,35 +315,114 @@ public sealed class SidePanelDesignTests
     });
 
     [Theory, InlineData(false), InlineData(true)]
-    public void ReaderAndMediaShareTheTitlePreviewAndSections(bool media) => Run(() =>
+    public void DockedReaderAndMediaBarsFitEachLanguageAndProtectThePicture(bool media) => Run(() =>
     {
-        ReaderMediaSidebar panel = new() { DecisionKeyContext = media ? "media" : "reader", OpenTagsAsync = (_, _) => Task.CompletedTask };
-        panel.Describe(media ? "No. 200" : "No. 1051", "evening.jpg", "640×480", true, new(1, 55, false), 2048);
-        panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Always" });
-        panel.SetSourceFacts("Archive /g/ · 42", null, null, 2048, media ? null : 2048, null);
-        panel.SetTags(["landscape"], null);
+        string host = media ? "media" : "reader";
+        Control? editorAnchor = null;
+        ReaderMediaSidebar panel = new() { DecisionKeyContext = host, BorderThickness = new Thickness(1, 0),
+            OpenTagsAsync = (anchor, _) => { editorAnchor = anchor; return Task.CompletedTask; } };
+        using Bitmap picture = new(SamplePicture());
+        panel.Describe("No. 22490087", "evening.jpg", "1920×1080", true, new(2, 64, false), 2300000, "sample");
         panel.ConfigureRating(() => true, () => 3, _ => Task.CompletedTask);
         panel.ConfigureFavorite(() => true, () => false, () => Task.CompletedTask);
-        using Bitmap picture = new(SamplePicture());
-        panel.ShowPicture(picture, _ => { }, false, 1024, 768);
-        Window window = new() { Width = 520, Height = 800, Content = panel, Classes = { "motion-off" }, RequestedThemeVariant = ThemeVariant.Dark };
+        panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, "sample", picture.PixelSize);
+        panel.SetSourceFacts("Thread · Evening sky", "Alex", "25.11.2026", 2300000, null, null);
+        Window window = new() { Width = 740, Height = 900, Content = panel, Classes = { "motion-off" } };
         try
         {
             window.Show();
-            foreach (int width in Widths)
+            var bar = Assert.Single(panel.GetVisualDescendants().OfType<MediaInfoBar>());
+            T Find<T>(string name) where T : Control => bar.GetVisualDescendants().OfType<T>().Single(c => c.Name == name);
+            Button facts = Find<Button>("ReaderMediaSidebarFactSummary"), edit = Find<Button>("ReaderMediaSidebarEditTags");
+            Button more = Find<Button>("ReaderMediaSidebarMore");
+            foreach (string language in BuiltInLanguages.Concat(Texts.BundledPackCodes()))
             {
-                panel.Width = width;
-                Settle(window);
-                Capture(panel, media ? "media" : "reader", width);
-                AssertCompactHeader(panel);
-                Assert.Contains("workspace-panel-title", panel.Title.Classes);
-                Near(8, In(panel.HeaderRow, panel).Top);
-                Near(In(panel.HeaderRow, panel).Bottom + 8, In(panel.Card, panel).Top);
-                Near(In(panel.Card, panel).Bottom + 8, In(panel.DecisionRow, panel).Top);
-                double left = panel.Padding.Left, right = width - panel.Padding.Right;
-                Rating(window, panel.DecisionRow, panel, left, right, false);
-                Sections(Assert.Single(panel.GetVisualDescendants().OfType<MediaPanelSections>()), panel, left, right, width);
+                Texts.SetLanguage(language);
+                foreach (int width in new[] { 240, 320, 480, 700 })
+                {
+                    panel.Width = width;
+                    foreach (bool tagged in new[] { false, true })
+                    {
+                        panel.SetTags(tagged ? ["sky", "autumn", "clouds", "evening", "stargazing", "blue hour", "landscape"] : [], null);
+                        Settle(window);
+                        AssertCompactHeader(panel);
+                        Assert.True(bar.IsEffectivelyVisible);
+                        Assert.False(panel.DecisionRow.FavoriteButton.IsEffectivelyVisible);
+                        Near(In(panel.Card, panel).Bottom + 8, In(bar, panel).Top);
+                        double height = In(bar, panel).Bottom - In(panel.Card, panel).Bottom;
+                        Near((width == 700 ? 40 : 68) + (tagged ? 28 : 0), height);
+                        Assert.InRange(height, 0, 337 * 0.34);
+                        Button last = width == 240 ? more : edit;
+                        var tag = Find<Button>(tagged ? "ReaderMediaSidebarTagsToggle" : "ReaderMediaSidebarTagsEmpty");
+                        Assert.True(last.IsEffectivelyVisible);
+                        Assert.Equal(width != 240, panel.DecisionRow.ClearButton.IsEffectivelyVisible);
+                        Near(0, In(panel.DecisionRow.StarButtons[0], bar).Left);
+                        Near(bar.Bounds.Width, In(last, bar).Right);
+                        Near(In(last, bar).Center.Y, In(tag, bar).Center.Y);
+                        Near(In(last, bar).Center.Y, In(panel.DecisionRow.StarButtons[0], bar).Center.Y);
+                        Assert.Equal(width >= 480, edit.GetVisualDescendants().OfType<TextBlock>().Any(t => t.IsEffectivelyVisible));
+                        Assert.False(string.IsNullOrWhiteSpace(AutomationProperties.GetName(tag)));
+                        Assert.Empty(bar.GetVisualDescendants().OfType<MediaFactGrid>());
+                        if (language is "en" or "de" or "ru" && width is 320 or 480)
+                        {
+                            foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
+                            {
+                                window.RequestedThemeVariant = theme;
+                                Settle(window);
+                                Capture(panel, $"{host}-{language}-{theme.Key}-{(tagged ? "tags" : "empty")}", width);
+                            }
+                        }
+                        if (!tagged)
+                        {
+                            tag.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                            Assert.Same(tag, editorAnchor);
+                        }
+                    }
+                }
             }
+            panel.Width = 320;
+            panel.SetTags(Enumerable.Range(1, 40).Select(i => "tag " + i).ToArray(), null);
+            Settle(window);
+            var chips = Find<Panel>("ReaderMediaSidebarTags");
+            Button extra = Find<Button>("ReaderMediaSidebarMoreTags");
+            int displayed = chips.Children.Count(c => c.IsEffectivelyVisible && c != extra);
+            Assert.InRange(displayed, 1, 39);
+            Assert.Equal("+" + (40 - displayed).ToString(Texts.Culture), extra.Content);
+            extra.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Assert.Same(extra, editorAnchor);
+            double expandedHeight = bar.Bounds.Height;
+            ToggleButton toggle = Find<ToggleButton>("ReaderMediaSidebarTagsToggle");
+            toggle.Focus(NavigationMethod.Tab);
+            window.KeyPressQwerty(PhysicalKey.Space, RawInputModifiers.None);
+            window.KeyReleaseQwerty(PhysicalKey.Space, RawInputModifiers.None);
+            Settle(window);
+            Assert.False(chips.IsEffectivelyVisible);
+            Near(expandedHeight - 28, bar.Bounds.Height);
+
+            Rect card = In(panel.Card, panel), image = In(panel.Picture, panel);
+            facts.Focus(NavigationMethod.Tab);
+            foreach (PhysicalKey key in new[] { PhysicalKey.Enter, PhysicalKey.Space })
+            {
+                window.KeyPressQwerty(key, RawInputModifiers.None);
+                window.KeyReleaseQwerty(key, RawInputModifiers.None);
+                Settle(window);
+                Flyout flyout = Assert.IsType<Flyout>(facts.Flyout);
+                Assert.True(flyout.IsOpen);
+                ScrollViewer content = Assert.IsType<ScrollViewer>(flyout.Content);
+                Assert.Contains(content.GetVisualDescendants().OfType<MediaFactGrid>().Single().GetVisualDescendants()
+                    .OfType<SelectableTextBlock>(), text => text.Text == "evening.jpg");
+                Assert.Equal(card, In(panel.Card, panel));
+                Assert.Equal(image, In(panel.Picture, panel));
+                window.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                window.KeyReleaseQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+                Settle(window);
+                Assert.False(flyout.IsOpen);
+                Assert.True(facts.IsFocused);
+            }
+            panel.SetTags([], "read only");
+            var empty = Find<Button>("ReaderMediaSidebarTagsEmpty");
+            Assert.False(empty.IsEnabled);
+            Assert.Equal("read only", ToolTip.GetTip(empty));
         }
         finally { window.Close(); }
     });

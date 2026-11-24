@@ -197,7 +197,7 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
     });
 
     [Fact]
-    public void TheSidebarsRatingBlockStarStillTogglesTheFavouriteAndTheBadgesStayWithoutOne() => OnOwnDispatcher(() =>
+    public void OnlyTheSidebarHeaderTogglesTheFavourite() => OnOwnDispatcher(() =>
     {
         ReaderMediaSidebar sidebar = new();
         bool favorite = false;
@@ -209,8 +209,8 @@ public sealed class MediaViewsDeadAffordanceTests : IDisposable
         Assert.NotSame(header, detail);
         Assert.True(header.IsEnabled);
         Assert.False(header.IsChecked);
-        Assert.True(detail.IsVisible);
-        detail.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Assert.False(detail.IsVisible);
+        header.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Assert.Equal((1, true), (writes, favorite));
         Assert.True(header.IsChecked);
         Assert.True(detail.IsChecked);

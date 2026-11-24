@@ -35,6 +35,15 @@ public sealed class MediaFirstSidebarTests
         Assert.True(bindings.Matches(KeyI(KeyModifiers.Meta), "media.details", "media"));
         Assert.True(bindings.Matches(KeyI(KeyModifiers.Meta | KeyModifiers.Shift), "import.open", "shell"));
         Assert.True(CommandRouter.IsNativeInput(new TextBox(), Key.I));
+        foreach (string context in new[] { "reader", "media" })
+        {
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.T, KeyModifiers = KeyModifiers.Meta | KeyModifiers.Shift },
+                "media.tags.edit", context));
+            Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.F }, "favorites.toggle", context));
+            for (int value = 0; value <= 5; value++)
+                Assert.True(bindings.Matches(new KeyEventArgs { Key = Key.D0 + value, KeyModifiers = KeyModifiers.Shift },
+                    value == 0 ? "media.rating.clear" : "media.rating.set-" + value, context));
+        }
     }
 
     [Fact]
@@ -70,15 +79,15 @@ public sealed class MediaFirstSidebarTests
     {
         var preferences = ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" };
         bool docked = false;
-        foreach (var (free, expected) in new[] { (170, true), (150, true), (140, true), (130, false), (150, false), (165, true) })
+        foreach (var (free, expected) in new[] { (104, true), (103, true), (80, true), (79, false), (103, false), (104, true) })
         {
             Size inner = new(302, 300 + 58 + free);
             var result = ReaderMediaSidebarRules.InfoLayout(preferences, null, inner, new(1080, 1080), 0, docked,
-                double.PositiveInfinity, inner.Height + 18);
+                double.PositiveInfinity, 60);
             Assert.Equal(expected, result.Docked);
             docked = result.Docked;
             Assert.Equal(result, ReaderMediaSidebarRules.InfoLayout(preferences, null, inner, new(1080, 1080), 0, docked,
-                double.PositiveInfinity, inner.Height + 18));
+                double.PositiveInfinity, 60));
         }
     }
 
@@ -92,14 +101,14 @@ public sealed class MediaFirstSidebarTests
         Describe(1, "asset-a");
         panel.ShowPicture(picture, _ => { }, false, double.PositiveInfinity, double.PositiveInfinity, "asset-a", picture.PixelSize);
         panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Auto" });
-        Window window = new() { Width = 320, Height = 548, Content = panel };
+        Window window = new() { Width = 320, Height = 484, Content = panel };
         try
         {
             window.Show();
             Settle(window);
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
             // For a square picture in this panel, window height minus width and 56 DIP is the free height.
-            window.PlatformImpl!.Resize(new Size(320, 526), WindowResizeReason.User);
+            window.PlatformImpl!.Resize(new Size(320, 468), WindowResizeReason.User);
             Settle(window);
             Assert.True(panel.DecisionRow.IsEffectivelyVisible);
             Describe(6, "asset-a");
@@ -272,7 +281,7 @@ public sealed class MediaFirstSidebarTests
             window.Activate();
             void Settle() { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
             Settle();
-            var details = panel.GetVisualDescendants().OfType<ScrollViewer>().Single(c => c.Name == "ReaderMediaSidebarDetails");
+            Control details = panel.Details;
             var overlay = panel.GetVisualDescendants().OfType<Border>().Single(c => c.Name == "ReaderMediaSidebarOverlay");
             Rect In(Control c) => new(c.TranslatePoint(default, panel)!.Value, c.Bounds.Size);
             void Capture(string layout)
@@ -282,6 +291,8 @@ public sealed class MediaFirstSidebarTests
                 result.Render(panel);
                 result.Save(Path.Combine(dir, $"112-mf-reader-{orientation}-{layout}-{width}.png"), PngBitmapEncoderOptions.Default);
             }
+            panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
+            Settle();
             if (!string.IsNullOrEmpty(Environment.GetEnvironmentVariable("MEOWCHAN_CAPTURE_PANEL_DESIGN")))
             {
                 foreach (string mode in new[] { "Off", "Overlay", "Auto", "Always" })
@@ -291,7 +302,7 @@ public sealed class MediaFirstSidebarTests
                     Settle();
                     Capture(mode.ToLowerInvariant());
                 }
-                panel.ConfigureInfo(ReaderMediaPreferences.Default);
+                panel.ConfigureInfo(ReaderMediaPreferences.Default with { MediaSidebarInfo = "Off" });
                 Settle();
             }
             SidePanelDesignTests.AssertCompactHeader(panel);
@@ -394,6 +405,10 @@ public sealed class MediaFirstSidebarTests
             Assert.False(details.IsVisible);
             Assert.Equal(false, panel.InfoToggle.IsChecked);
             Assert.Contains(Texts.T("settings.reader.mediaSidebarInfo.shortHeight"), ToolTip.GetTip(panel.InfoToggle)?.ToString());
+            window.PlatformImpl.Resize(new Size(width, 392), WindowResizeReason.User);
+            Settle();
+            Assert.True(details.IsVisible);
+            Assert.True(panel.Frame.Bounds.Height >= ReaderMediaSidebarRules.MinimumPictureHeight);
         }
         finally { window.Close(); Texts.SetLanguage(previous); }
     });
