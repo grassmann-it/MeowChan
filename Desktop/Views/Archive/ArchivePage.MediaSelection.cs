@@ -59,7 +59,9 @@ public partial class ArchivePage
         if (source is not Visual visual) return;
         ArchiveAssetRow? row = visual.GetSelfAndVisualAncestors().OfType<Control>().Select(control => control.DataContext)
             .OfType<ArchiveAssetRow>().FirstOrDefault();
-        if (row != null) _mediaLead = row;
+        if (row == null || ReferenceEquals(row, _mediaLead)) return;
+        _mediaLead = row;
+        if (SelectedMediaCount > 1) FollowSavedMediaSelection();
     }
 
     private Control VisibleMediaList => _mediaTiles ? ArchiveMediaTiles : ArchiveMediaGrid;
@@ -120,6 +122,7 @@ public partial class ArchivePage
         SetMediaSelection(Array.Empty<ArchiveAssetRow>());
         ++_mediaPositionRequest;
         UpdateActions();
+        FollowSavedMediaSelection();
     }
 
     internal void SelectAllMedia()

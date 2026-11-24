@@ -110,7 +110,7 @@ internal static class ReaderNavigationOverlayChecks
                         "Secondary media capture lost its requested language or theme.");
                     await CheckSecondaryNavigationAsync(window, page);
                     CheckSecondaryMediaGeometry(window, page, tiles);
-                    string presentation = tiles ? "tiles" : "table";
+                    string presentation = tiles ? "grid" : "table";
                     Program.CaptureWindow(window, $"smoke-reader-navigation-secondary-media-{presentation}-barebones-640-{code}-{variant.ToString().ToLowerInvariant()}.png");
                 }
                 tabs.SelectedIndex = 2;
@@ -445,7 +445,8 @@ internal static class ReaderNavigationOverlayChecks
                     tabs.SelectedIndex = 1;
                     page.MediaTilesPreference = tiles;
                     await page.MediaLoadTask;
-                    await PairAsync($"media-{(tiles ? "tiles" : "table")}-{key}");
+                    await Dispatcher.UIThread.InvokeAsync(window.UpdateLayout, DispatcherPriority.Background);
+                    Program.CaptureWindow(window, $"media-{(tiles ? "grid" : "table")}-{key}-hidden.png", directory);
                 }
                 tabs.SelectedIndex = 2;
                 await PairAsync($"references-{key}");
@@ -561,25 +562,31 @@ internal static class ReaderNavigationOverlayChecks
         // The References tab exists only while captured replies are listed; with none it is not there to be chosen.
         Require(!page.FindControl<TabItem>("ArchiveReferencesTab")!.IsVisible || page.FindControl<ListBox>("ArchiveReferences")!.ItemCount > 0,
             "The References tab is shown without any reference.");
-        Control reservedContent = tabs.SelectedIndex == 1
-            ? page.FindControl<Grid>("ArchiveMediaSurface")! : page.FindControl<ListBox>("ArchiveReferences")!;
-        Rect pad = Bounds(navigation, window), content = Bounds(reservedContent, window);
+        bool savedMedia = tabs.SelectedIndex == 1;
+        Control reservedContent = savedMedia ? page.FindControl<Grid>("ArchiveMediaSurface")! : page.FindControl<ListBox>("ArchiveReferences")!;
+        Rect content = Bounds(reservedContent, window);
         WrapPanel status = page.FindControl<WrapPanel>("ReaderStatusLine")!;
         Require(!status.IsVisible && !status.IsEffectivelyVisible,
             "The large reader retains its posts-only status line on a secondary tab.");
         Console.WriteLine("SMOKE reader navigation secondary: " + System.Text.Json.JsonSerializer.Serialize(new
         {
             tab = tabs.SelectedIndex, language = Texts.Language, theme = window.ActualThemeVariant.ToString(),
-            scale = window.RenderScaling, client = window.ClientSize.ToString(), pad = pad.ToString(),
+            scale = window.RenderScaling, client = window.ClientSize.ToString(), pad = navigation.IsEffectivelyVisible ? Bounds(navigation, window).ToString() : null,
             contentName = reservedContent.Name, content = content.ToString(),
             reservation = reservedContent.Margin.ToString(), navigation.IsEffectivelyVisible,
             statusVisible = status.IsVisible, statusEffectivelyVisible = status.IsEffectivelyVisible
         }));
-        Require(navigation.IsEffectivelyVisible && Contains(Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window), pad),
-            "Reader navigation disappeared or is clipped on a secondary tab.");
-        // The content runs to the right edge and the bar floats over it; the last row can scroll clear of the bar.
         Require(reservedContent.Margin == default && Math.Abs(content.Right - Bounds(tabs, window).Right) <= 24,
             "Secondary-tab content does not use the full width: " + content + " in " + Bounds(tabs, window));
+        if (savedMedia)
+        {
+            Require(!navigation.IsVisible && !navigation.IsEffectivelyVisible && !navigation.IsHitTestVisible,
+                "Reader navigation covers Saved media.");
+            return;
+        }
+        Rect pad = Bounds(navigation, window);
+        Require(navigation.IsEffectivelyVisible && Contains(Bounds(page.FindControl<Grid>("ReaderContentSurface")!, window), pad),
+            "Reader navigation disappeared or is clipped on the References tab.");
         Require(pad.Right <= content.Right && pad.Left >= content.Left && pad.Bottom <= content.Bottom + 1,
             "The bar does not float over its secondary-tab content: " + pad + " over " + content);
         // NAVBAR-05: the whole capsule takes the pointer. A point on a counter (full form) or in the gap beside the separator (every form)
@@ -650,14 +657,14 @@ internal static class ReaderNavigationOverlayChecks
             : list.GetVisualDescendants().OfType<DataGridRowsPresenter>().First();
         Rect viewportBox = Bounds(viewport, window), listBox = Bounds(list, window);
         Rect tabBox = Bounds(page.FindControl<TabControl>("ArchiveContentTabs")!, window);
-        Rect pad = Bounds(page.FindControl<WrapPanel>("ReaderNavigation")!, window);
         Rect visibleViewport = viewportBox.Intersect(listBox).Intersect(tabBox).Intersect(new Rect(default(Point), window.ClientSize));
         var items = list.GetVisualDescendants().OfType<Control>()
             .Where(control => (tiles ? control is ArchiveMediaTileView : control is DataGridRow)
                 && control.IsEffectivelyVisible && control.DataContext is ArchiveAssetRow)
             .Select(control => Bounds(control, window).Intersect(visibleViewport)).ToArray();
-        string[] controlNames = { "ArchiveMediaMode", "ArchiveMediaColumnsButton", "ArchiveFavoritesFilter", "ArchiveRatingFilter",
-            "ArchiveMediaSort", "ArchiveVersionScope", "ArchiveEditRatingButton", "PreviewArchiveMediaButton" };
+        string[] controlNames = { "ArchiveMediaLayoutTiles", "ArchiveMediaLayoutTable", "ArchiveMediaColumnsButton",
+            "ArchiveFavoritesFilter", "ArchiveRatingFilter", "ArchiveMediaSort", "ArchiveVersionScope",
+            "ArchiveEditRatingButton", "PreviewArchiveMediaButton" };
         // A control the bar moved under "More" is detached while the popup is closed (and keeps a stale IsEffectivelyVisible); only
         // the controls on the bar take part in the viewport geometry, the others are checked as "on the bar or under More" below.
         var controls = controlNames.Select(name => page.FindControl<Control>(name))
@@ -679,9 +686,8 @@ internal static class ReaderNavigationOverlayChecks
             "The media viewport has no usable visible asset tile or table row.");
         foreach (var item in controls)
         {
-            Require(item.Box.Width > 0 && item.Box.Height > 0 && Contains(tabBox, item.Box)
-                && Separated(item.Box, pad, 4),
-                item.Control.Name + " is clipped or crowded by navigation on the small reader media tab.");
+            Require(item.Box.Width > 0 && item.Box.Height > 0 && Contains(tabBox, item.Box),
+                item.Control.Name + " is clipped on the small reader media tab.");
             Rect overlap = item.Box.Intersect(visibleViewport);
             Require(overlap.Width <= 1 || overlap.Height <= 1, item.Control.Name + " overlaps the media viewport.");
         }
