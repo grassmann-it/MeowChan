@@ -117,6 +117,10 @@ public sealed class BooruSearchTabPersistenceTests
         {"version":1,"providerId":"danbooru","activeIndex":0,"tabs":[null],"allTabsClosable":true,
          "draft":{"mode":0,"input":"invalid","query":null,"postId":null,"page":0,"isEnd":true,"empty":false,"rows":[]}}
         """)]
+    [InlineData("""
+        {"version":1,"providerId":"danbooru","activeIndex":1,"tabs":[null,null],"allTabsClosable":true,
+         "draft":{"mode":0,"input":"ambiguous","query":null,"postId":null,"page":1,"isEnd":true,"empty":false,"rows":[]}}
+        """)]
     [InlineData("{\"version\":2,\"providerId\":\"danbooru\",\"activeIndex\":0,\"tabs\":[null]}")]
     public async Task InvalidOrFutureFilesAreQuarantinedAndTheNextSaveWorks(string contents)
     {

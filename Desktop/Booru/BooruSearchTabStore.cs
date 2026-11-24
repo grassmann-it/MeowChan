@@ -94,7 +94,8 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
     private sealed record ScopedV1State(int ActiveIndex, ScopedV1Target?[] Tabs);
     private sealed record ScopedV1Target(string? SourceId = null, string? InstanceId = null, string? PostId = null,
         string? Query = null, int Page = 1);
-    private sealed record LegacyFile(int Version, string ProviderId, int ActiveIndex, LegacyTab?[] Tabs);
+    private sealed record LegacyFile(int Version, string ProviderId, int ActiveIndex, LegacyTab?[] Tabs,
+        bool AllTabsClosable = false, LegacyTab? Draft = null);
     private sealed record LegacyTab(BooruInputMode Mode, string Input, string? Query, string? PostId,
         int Page, bool IsEnd, bool Empty, BooruSearchTabRow[] Rows,
         int MaximumPage = BooruSearchModel.MaximumPage, int PostsPerPage = BooruSearchModel.PageSize);
@@ -272,6 +273,13 @@ internal sealed class BooruSearchTabStore(ProfileLease lease, ILogger? logger = 
             if (HasVersion(root, "version", LegacyVersion) && root.Deserialize<LegacyFile>(Json) is { } legacy
                 && BooruPostKey.IsToken(legacy.ProviderId) && legacy.Tabs is not null)
             {
+                if (legacy.Draft is { } draft)
+                {
+                    // The 1.1.2 writer stores the start draft beside a single null tab. V2 keeps that slot.
+                    if (legacy.Tabs is not [null])
+                        throw new InvalidDataException("The saved Booru start draft has no empty start slot.");
+                    legacy.Tabs[0] = draft;
+                }
                 return (new(legacy.ActiveIndex, Array.ConvertAll(legacy.Tabs, tab => tab is null ? null
                     : new BooruSearchTabTarget(legacy.ProviderId, BooruPostKey.DefaultInstance, tab.PostId, tab.Query,
                         tab.Page, tab.Mode, tab.Input, tab.IsEnd, tab.Empty, tab.Rows, tab.MaximumPage, tab.PostsPerPage))), true);
