@@ -541,19 +541,6 @@ internal static class ShowcaseCaptures
 /// <summary>Production window/session with provider admission disabled for the offline showcase.</summary>
 internal sealed class ShowcaseSmokeApp : App
 {
-    protected override MainWindow CreateMainWindow()
-    {
-        DesktopSessionHost session = new(Config.GetConfigDirectory(), providers: Array.Empty<IImageBoard>());
-        try
-        {
-            // MainWindow owns the session once constructed.
-            return new MainWindow(session);
-        }
-        catch
-        {
-            try { session.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
-            catch (Exception cleanupFailure) { Console.Error.WriteLine("SMOKE showcase session cleanup failed: " + cleanupFailure); }
-            throw;
-        }
-    }
+    protected override MainWindow CreateMainWindow() => MainWindow.CreateWithSessionFactory(
+        static () => new DesktopSessionHost(Config.GetConfigDirectory(), providers: Array.Empty<IImageBoard>()));
 }
