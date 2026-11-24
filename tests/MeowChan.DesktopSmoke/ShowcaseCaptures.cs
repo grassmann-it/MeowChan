@@ -541,6 +541,18 @@ internal static class ShowcaseCaptures
 /// <summary>Production window/session with provider admission disabled for the offline showcase.</summary>
 internal sealed class ShowcaseSmokeApp : App
 {
-    protected override MainWindow CreateMainWindow() => new(new DesktopSessionHost(
-        Config.GetConfigDirectory(), providers: Array.Empty<IImageBoard>()));
+    protected override MainWindow CreateMainWindow()
+    {
+        DesktopSessionHost? session = new(Config.GetConfigDirectory(), providers: Array.Empty<IImageBoard>());
+        try
+        {
+            var window = new MainWindow(session);
+            session = null; // MainWindow owns the session after construction.
+            return window;
+        }
+        finally
+        {
+            session?.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        }
+    }
 }
