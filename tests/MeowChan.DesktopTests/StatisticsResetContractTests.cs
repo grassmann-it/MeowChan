@@ -20,10 +20,10 @@ public sealed class StatisticsResetContractTests
         using TempDirectory dir = new();
         IoManualClock clock = new(new DateTimeOffset(2026, 11, 14, 12, 0, 0, TimeSpan.Zero));
         IoStatsOptions options = new() { Persist = true };
-        StatisticsPage page = new();
         string path = Path.Combine(dir.Path, IoStatsStore.FileName);
         File.WriteAllText(path, """{"version":1,"days":[{"day":"2026-11-14","sources":{"fixture":{"down":456}}}]}""");
         File.WriteAllText(path + ".bak", """{"version":1,"days":[{"day":"2026-11-14","sources":{"fixture":{"down":123}}}]}""");
+        StatisticsPage page = new();
         try
         {
             using (ProfileLease lease = ProfileLease.Acquire(dir.Path))

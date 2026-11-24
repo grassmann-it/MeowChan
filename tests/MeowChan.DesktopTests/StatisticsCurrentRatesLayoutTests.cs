@@ -20,7 +20,7 @@ public sealed class StatisticsCurrentRatesLayoutTests
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         AvaloniaLocator.CurrentMutable.Bind<FontManagerOptions>().ToConstant(ReaderFonts.ManagerOptions());
-        StatisticsPage page = new();
+        using StatisticsPage page = new();
         Window window = new() { Width = width, Height = 600, Content = page };
         try
         {
@@ -102,7 +102,6 @@ public sealed class StatisticsCurrentRatesLayoutTests
         finally
         {
             window.Close();
-            page.Dispose();
         }
     });
 
@@ -114,27 +113,24 @@ public sealed class StatisticsCurrentRatesLayoutTests
         IoFakeSource source = new();
         using IoStatsHub hub = new(source, clock, new IoStatsOptions { Persist = false, SampleIntervalMs = 1000 });
         using IoStatsSubscription claim = hub.Subscribe(IoStatsVisibility.Window);
-        StatisticsPage page = new();
+        using StatisticsPage page = new();
         page.Attach(hub, null);
-        try
-        {
-            Assert.Equal(0, ShowRate(false, "—").Series.Count);
-            source.Add("4chan", net: 1024);
-            clock.Advance(TimeSpan.FromSeconds(1));
-            Assert.Equal(1, ShowRate(true, "1 KiB/s").Series.Count);
 
-            hub.Configure(hub.Options with { SampleIntervalMs = 2000 });
-            Assert.Equal(0, ShowRate(false, "—").Series.Count);
-            source.Add("4chan", net: 4096);
-            clock.Advance(TimeSpan.FromSeconds(2));
-            Assert.Equal(1, ShowRate(true, "2 KiB/s").Series.Count);
+        Assert.Equal(0, ShowRate(false, "—").Series.Count);
+        source.Add("4chan", net: 1024);
+        clock.Advance(TimeSpan.FromSeconds(1));
+        Assert.Equal(1, ShowRate(true, "1 KiB/s").Series.Count);
 
-            clock.AdvanceWithoutCallbacks(TimeSpan.FromSeconds(7));
-            Assert.Equal(1, ShowRate(false, "—").Series.Count);
-            clock.Advance(TimeSpan.Zero);
-            Assert.Equal(2, ShowRate(true, "0 B/s").Series.Count);
-        }
-        finally { page.Dispose(); }
+        hub.Configure(hub.Options with { SampleIntervalMs = 2000 });
+        Assert.Equal(0, ShowRate(false, "—").Series.Count);
+        source.Add("4chan", net: 4096);
+        clock.Advance(TimeSpan.FromSeconds(2));
+        Assert.Equal(1, ShowRate(true, "2 KiB/s").Series.Count);
+
+        clock.AdvanceWithoutCallbacks(TimeSpan.FromSeconds(7));
+        Assert.Equal(1, ShowRate(false, "—").Series.Count);
+        clock.Advance(TimeSpan.Zero);
+        Assert.Equal(2, ShowRate(true, "0 B/s").Series.Count);
 
         IoStatsSnapshot ShowRate(bool fresh, string displayed)
         {
@@ -150,7 +146,7 @@ public sealed class StatisticsCurrentRatesLayoutTests
     public void StatisticsRoutesKeysInItsContextUntilThePageEnds() => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
-        StatisticsPage page = new();
+        using StatisticsPage page = new();
         Window window = new() { Content = page };
         try
         {
@@ -166,10 +162,6 @@ public sealed class StatisticsCurrentRatesLayoutTests
             page.ResetButton.RaiseEvent(retiredKey);
             Assert.Null(KeyContextHost.ContextOf(retiredKey));
         }
-        finally
-        {
-            page.Dispose();
-            window.Close();
-        }
+        finally { window.Close(); }
     });
 }
