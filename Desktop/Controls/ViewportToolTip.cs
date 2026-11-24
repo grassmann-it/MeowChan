@@ -31,9 +31,11 @@ internal static class ViewportToolTip
 
         double x = Math.Clamp(visibleTarget.Center.X - size.Width / 2, area.Left, area.Right - size.Width);
         double y = visibleTarget.Bottom + size.Height <= area.Bottom ? visibleTarget.Bottom : visibleTarget.Top - size.Height;
-        placement.AnchorRectangle = new Rect(target.Bounds.Size);
-        placement.Anchor = PopupAnchor.TopLeft;
-        placement.Gravity = PopupGravity.BottomRight;
-        placement.Offset = new Point(x, Math.Clamp(y, area.Top, area.Bottom - size.Height));
+        // Avalonia has already translated the anchor rectangle into the popup parent's coordinates.
+        double popupCenter = x + placement.Deflate.Left + size.Deflate(placement.Deflate).Width / 2;
+        placement.Anchor = PopupAnchor.Top;
+        placement.Gravity = PopupGravity.Bottom;
+        placement.Offset = new Point(popupCenter - placement.AnchorRectangle.Width / 2,
+            Math.Clamp(y, area.Top, area.Bottom - size.Height) + placement.Deflate.Top);
     }
 }
