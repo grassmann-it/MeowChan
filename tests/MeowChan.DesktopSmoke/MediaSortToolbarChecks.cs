@@ -30,6 +30,8 @@ internal static partial class MediaPageChecks
         Texts.SetLanguage("en");
         List<(MediaLibrarySort Sort, MediaLibrarySortDirection Direction)> saved = new();
         MediaPage page = new(host.OpenArchiveReaderAsync) { SaveSortAsync = (sort, direction) => { saved.Add((sort, direction)); return Task.CompletedTask; } };
+        // This fixture sweeps the toolbar's own width. The page journey covers the default open media panel.
+        page.ApplyLayout(page.PageLayout with { Panel = false }, save: false);
         Window window = new() { Width = 1100, Height = 800, Content = page, Title = "Media sort toolbar — diagnostic", ShowInTaskbar = false };
         try
         {
@@ -82,7 +84,8 @@ internal static partial class MediaPageChecks
             Require(page.SortDirection == MediaLibrarySortDirection.Reversed && Order().SequenceEqual(byName.Reverse()),
                 "Reversed must be the mirror of the default order: " + string.Join(",", byName) + " / " + string.Join(",", Order()));
             sort.SelectedIndex = (int)MediaLibrarySort.Random;
-            Require(!direction.IsEnabled, "The random order has no direction.");
+            Require(!direction.IsEnabled && C<Button>(page, "MediaShuffle").IsEffectivelyVisible
+                && !page.HeaderMoreIds.Contains("media.toolbar.shuffle"), "The wide toolbar must offer Shuffle in place of a sort direction.");
             sort.SelectedIndex = (int)MediaLibrarySort.Name;
 
             // What the user chose is handed over for saving (the shell writes it as a direct preference, except the random order: the last other choice stays).
@@ -141,6 +144,24 @@ internal static partial class MediaPageChecks
             // The page presents in the background here (BackgroundPresentEntries = 0); the view re-applies the tools after that.
             await Program.WaitUntilAsync(() => page.HeaderMoreIds.SequenceEqual(["media.toolbar.layout", "media.toolbar.focus", "media.toolbar.refresh", "media.toolbar.shuffle", "media.toolbar.export-all", "media.toolbar.manage-ratings"]),
                 () => "While the order is random the narrow row must also hold Shuffle again under More: " + string.Join(",", page.HeaderMoreIds));
+            window.Width = 760;
+            await UntilAsync(() => Math.Abs(page.Bounds.Width - 760) < 0.5);
+            await page.PresentTask;
+            RequireToolbarFits("compact (760)");
+            Require(!C<Button>(page, "MediaShuffle").IsEffectivelyVisible, "At 760 DIP Shuffle must be offered through More.");
+            MenuFlyout menu = (MenuFlyout)more.Flyout!;
+            menu.ShowAt(more);
+            MenuItem shuffle = menu.Items.OfType<MenuItem>().Single(item => Equals(item.Header, Texts.T("media.shuffle")));
+            await UntilAsync(() => menu.IsOpen && shuffle.IsEffectivelyVisible && shuffle.Bounds.Width > 0);
+            int presentations = page.PresentCount;
+            int requests = page.PresentRunCount;
+            SmokeActionClick.Execute(shuffle);
+            await page.PresentTask;
+            Require(page.PresentRunCount == requests + 1 && page.PresentCount == presentations + 1
+                && page.Sort == MediaLibrarySort.Random && page.Tiles.Count == 3,
+                "Shuffle from More must present the same three tiles once in random order.");
+            menu.Hide();
+            Console.WriteLine($"SMOKE media Shuffle at 760 DIP: invoked through More at measured row width {page.ToolbarRow.Bounds.Width:0.##}.");
             sort.SelectedIndex = 0;
             window.Width = MediaToolbarLayout.CompactWidth + 80; // inside the Reduced stage whatever the page padding is
             await UntilAsync(() => page.ToolbarLevel == MediaToolbarLayout.Level.Reduced);

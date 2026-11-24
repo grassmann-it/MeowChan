@@ -1,1 +1,4 @@
 #nullable enable
+MeowChan.PluginSdk.CatalogReadRequest.IsArchive.get -> bool
+MeowChan.PluginSdk.CatalogReadRequest.IsArchive.init -> void
+MeowChan.PluginSdk.SourceResourceKind.BoardArchive = 2 -> MeowChan.PluginSdk.SourceResourceKind

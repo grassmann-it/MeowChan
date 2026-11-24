@@ -10,7 +10,12 @@ public sealed record SourceValidators(string? EntityTag = null, DateTimeOffset? 
     string? Revision = null);
 
 public sealed record CatalogReadRequest(SourceBoardId Board, string? Cursor = null, int? Page = null,
-    SourceValidators? Validators = null, bool HasSnapshot = false);
+    SourceValidators? Validators = null, bool HasSnapshot = false)
+{
+    /// <summary>Reads the archive declared by a BoardArchive route. The live catalog has its own validators.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsArchive { get; init; }
+}
 
 public sealed record ThreadReadRequest(SourceThreadId Thread, SourceValidators? Validators = null,
     bool HasSnapshot = false);
