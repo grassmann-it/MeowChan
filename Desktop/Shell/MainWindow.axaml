@@ -504,7 +504,7 @@
 
                                     <Border BorderBrush="{DynamicResource Workspace.Border}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
                                         <StackPanel Spacing="{StaticResource Workspace.Space.8}">
-                                            <Button x:Name="InspectorRemoveButton" wv:WorkViewElement.Id="downloads.inspector.remove" Tag="action.remove" Classes="localized subtle danger" Content="Remove" Click="OnInspectorRemoveClick" />
+                                            <Button x:Name="InspectorRemoveButton" wv:WorkViewElement.Id="downloads.inspector.remove" Tag="command.watch.remove" Classes="localized subtle danger" Content="Stop watching" Click="OnInspectorRemoveClick" />
                                             <TextBlock x:Name="InspectorRemoveHint" Classes="workspace-meta" TextWrapping="Wrap" />
                                         </StackPanel>
                                     </Border>

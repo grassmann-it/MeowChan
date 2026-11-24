@@ -331,7 +331,7 @@ public partial class MainWindow
         CommandBindings.ApplyLabeled(InspectorOpenBrowserButton, "location.open-source", Texts.T("action.openBrowser"));
         CommandBindings.ApplyLabeled(InspectorMediaRetryButton, "watch.retry-media", Texts.T("work.retry"));
         CommandBindings.ApplyLabeled(InspectorCopyUrlButton, "selection.copy-links", Texts.T("action.copyUrl"));
-        CommandBindings.ApplyLabeled(InspectorRemoveButton, "watch.remove", Texts.T("action.remove"));
+        CommandBindings.Apply(InspectorRemoveButton, "watch.remove", iconWithLabel: true);
         // Offers and notices of the shell that carried a word only: the same catalog icons as the rest of the page.
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionAccept, "plus");
         CommandBindings.EnsureIconBeforeText(ClipboardSuggestionDismiss, "x");

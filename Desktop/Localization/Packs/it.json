@@ -2958,7 +2958,7 @@
     "archive.delete.summary": "Eliminare definitivamente {0} e {1} ({2})?",
     "archive.delete.ratings": "Verranno rimosse {0} valutazioni dei media.",
     "archive.delete.confirm": "Elimina le voci e i relativi file",
-    "archive.delete.effects": "Il monitoraggio di questi thread verrà interrotto. Le relative voci di archivio, i file di loro proprietà i preferiti e le associazioni dei tag verranno eliminati. Le board monitorate non aggiungeranno di nuovo questi thread. Le esportazioni e i file non correlati restano disponibili.",
+    "archive.delete.effects": "Il monitoraggio di questi thread verrà interrotto. Le relative voci di archivio, i file associati, i preferiti e le associazioni dei tag verranno eliminati. Le board monitorate non aggiungeranno di nuovo questi thread. Le esportazioni e i file non correlati restano disponibili.",
     "archive.delete.retained": "Mantenuti: ",
     "archive.delete.shared": "Condivisi con altri thread: ",
     "archive.delete.blocked": "Questa selezione non può essere eliminata completamente. Controlla i dettagli o seleziona meno thread.",

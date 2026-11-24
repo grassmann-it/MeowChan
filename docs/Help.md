@@ -2650,9 +2650,10 @@ another selection; changed content or protection may prevent further deletion.
 
 ## Permanently deleting archived threads
 
-In Archive, select one or more threads and choose **Delete permanently…** from
+In Archive, select one or more threads and choose **Delete from archive…** from
 the context menu, or press **Shift+Delete**. Review the thread count, local file
-count, size and paths before confirming. Cancel leaves everything unchanged.
+count, size and paths before choosing **Delete archive entries and files**.
+Cancel leaves everything unchanged.
 This removes captured posts, indexed search data, manifest-owned originals and
 versions, favorites and cached video posters. Watched boards keep these threads
 excluded; you can explicitly enable them again through board exclusions.
@@ -2665,7 +2666,7 @@ cleaned up; if that fails, the deletion result offers **Retry rating cleanup**.
 Exports and unrelated files remain available. Directories shared with unselected
 archived threads or with unverifiable ownership block deletion. Changed files or
 other failures are reported; affected archive records remain for another attempt.
-Ordinary **Delete** only removes watches and keeps the archive and media.
+**Stop watching** (ordinary **Delete**) removes watches and keeps the archive and media.
 
 ## Portable HTML export
 
