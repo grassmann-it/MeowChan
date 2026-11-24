@@ -165,6 +165,7 @@ public sealed class SavedMediaReaderTests
         ReaderMediaSidebar sidebar = Assert.IsType<ReaderMediaSidebar>(page.MediaSidebar);
         WaitUntil(() => sidebar.HeaderLine.Contains(saved.Version, StringComparison.Ordinal) && sidebar.Close.IsEffectivelyVisible);
         Assert.True(sidebar.Close.Focus());
+        Assert.True(sidebar.Close.IsFocused);
         long before = store.Load().Revision;
         PressKey(window, PhysicalKey.H);
         BooruComponentDispatcher.Wait(page.PostFilterTask);
@@ -172,8 +173,12 @@ public sealed class SavedMediaReaderTests
         Assert.False(filters.IsHidden(ThreadId, selected.Id));
 
         tabs.SelectedIndex = 0;
+        posts.ScrollIntoView(selected);
         Layout(window);
-        Assert.True(posts.Focus());
+        Assert.Same(selected, posts.SelectedItem);
+        ListBoxItem card = Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromItem(selected));
+        Assert.True(card.Focus(NavigationMethod.Tab));
+        Assert.True(card.IsFocused);
         PressKey(window, PhysicalKey.H);
         BooruComponentDispatcher.Wait(page.PostFilterTask);
         Assert.True(filters.IsHidden(ThreadId, selected.Id));
