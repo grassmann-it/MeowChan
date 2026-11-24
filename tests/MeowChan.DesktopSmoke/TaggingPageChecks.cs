@@ -258,6 +258,7 @@ internal static class TaggingPageChecks
             Program.CaptureWindow(window, "smoke-tagging-page-empty.png");
             await CheckQueueWalkProgressAsync(window, tagging);
             await CheckGalleryCommandAsync(window, tagging);
+            await CheckPanelAsync(window, tagging);
             Console.WriteLine("SMOKE tagging-page: footer button and More entry, progress, Delete/Alt+Down, context menu, selection bar, grid view and switch, stamp, filter, work views, clear; Light/Dark EN/DE/RU/JA captures.");
         }
         finally
@@ -988,6 +989,69 @@ internal static class TaggingPageChecks
         GalleryViewerChecksAccess.Click(opened, "GalleryClose");
         await window.GalleryCleanupTask.WaitAsync(deadline);
         Console.WriteLine("SMOKE tagging-page gallery: missing bytes and missing manifest warn, an old visit cannot open, and a current visit opens the chosen medium.");
+    }
+
+    private static async Task CheckPanelAsync(MainWindow window, TaggingPage tagging)
+    {
+        double oldWidth = window.Width;
+        TaggingViewMode oldView = tagging.ViewMode;
+        string language = Texts.Language;
+        string theme = window.SessionHost.Config.Theme;
+        bool enabled = window.SessionHost.Config.TaggingPagePanel;
+        KeyModifiers primary = OperatingSystem.IsMacOS() ? KeyModifiers.Meta : KeyModifiers.Control;
+        try
+        {
+            tagging.SetViewMode(TaggingViewMode.List, save: false);
+            tagging.RestorePanelEnabled(true);
+            await ResizeAsync(window, 1400);
+            ReaderMediaSidebar panel = tagging.GetVisualDescendants().OfType<ReaderMediaSidebar>()
+                .Single(control => control.Name == "TaggingPanel");
+            Require(panel.IsEffectivelyVisible, "The tagging sidebar is missing beside the list.");
+            tagging.FocusContent();
+            Press(tagging.ShownList, Key.M, primary | KeyModifiers.Shift);
+            Require(!panel.IsEffectivelyVisible, "The sidebar command did not close the tagging panel.");
+            Press(tagging.ShownList, Key.M, primary | KeyModifiers.Shift);
+            Require(panel.IsEffectivelyVisible, "The sidebar command did not reopen the tagging panel.");
+
+            foreach (string variant in new[] { "Light", "Dark" })
+            {
+                string folder = Path.Combine(Path.GetTempPath(), "W112-73-Abnahme", variant.ToLowerInvariant());
+                Directory.CreateDirectory(folder);
+                await SetThemeAsync(window, variant);
+                foreach (string locale in new[] { "en", "de" })
+                {
+                    await FooterNavigationChecks.PersistLanguageAsync(window, locale);
+                    await ReopenAsync(window, tagging);
+                    Program.CaptureWindow(window, $"list-1400-{locale}.png", folder);
+                }
+
+                await FooterNavigationChecks.PersistLanguageAsync(window, "en");
+                await ReopenAsync(window, tagging);
+                tagging.SetViewMode(TaggingViewMode.Grid, save: false);
+                await SettleAsync(window);
+                Require(panel.IsEffectivelyVisible, "Switching to tiles hid the tagging sidebar.");
+                Program.CaptureWindow(window, "grid-1400-en.png", folder);
+                tagging.SetViewMode(TaggingViewMode.List, save: false);
+                await ResizeAsync(window, 900);
+                Require(!panel.IsEffectivelyVisible && window.SessionHost.Config.TaggingPagePanel,
+                    "The narrow page did not fold the panel while keeping the saved choice.");
+                Program.CaptureWindow(window, "list-900-collapsed.png", folder);
+                await ResizeAsync(window, 1400);
+            }
+            panel.Close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            Require(!panel.IsEffectivelyVisible && tagging.ShownList.IsKeyboardFocusWithin,
+                "The panel close button did not return focus to the results.");
+        }
+        finally
+        {
+            await window.SessionHost.SaveViewPreferencesAsync(config => config.TaggingPagePanel = enabled);
+            tagging.RestorePanelEnabled(enabled);
+            tagging.SetViewMode(oldView, save: false);
+            await SetThemeAsync(window, theme);
+            await FooterNavigationChecks.PersistLanguageAsync(window, language);
+            await ReopenAsync(window, tagging);
+            if (double.IsFinite(oldWidth)) await ResizeAsync(window, oldWidth);
+        }
     }
 
     // UX-LEDGER-08: exercise the real selection model and rendered containers. Source-text checks alone

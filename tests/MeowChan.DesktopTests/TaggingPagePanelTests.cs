@@ -1,8 +1,10 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Headless;
 using Avalonia.Input;
 using Avalonia.Input.Raw;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop;
@@ -59,6 +61,30 @@ public sealed class TaggingPagePanelTests
                 Assert.True(index > 0);
                 Assert.Equal($"file-{index + 1}.png", panel.Title.Text);
                 Assert.Equal($"{index + 1} / 12", panel.PositionPill.Bare);
+                Assert.InRange(panel.Bounds.Width, 359.5, 360.5);
+                Grid listArea = page.GetVisualDescendants().OfType<Grid>().Single(control => control.Name == "TaggingListArea");
+                double panelTop = panel.TranslatePoint(default, page)!.Value.Y;
+                Assert.InRange(panelTop - listArea.TranslatePoint(default, page)!.Value.Y, -0.5, 0.5);
+                Assert.InRange(panelTop + panel.Bounds.Height - page.Bounds.Height, -0.5, 0.5);
+                Assert.All(panel.GetVisualDescendants().OfType<Button>().Where(button => button.IsEffectivelyVisible),
+                    button => Assert.False(button.Focusable, button.Name));
+
+                ToggleButton toggle = page.GetVisualDescendants().OfType<ToggleButton>().Single(control => control.Name == "TaggingPanelToggle");
+                GridSplitter handle = page.GetVisualDescendants().OfType<GridSplitter>().Single(control => control.Name == "TaggingPanelHandle");
+                BooruReviewTestPlatform.Resize(window, 900);
+                Assert.False(panel.IsEffectivelyVisible);
+                Assert.False(handle.IsEffectivelyVisible);
+                Assert.True(toggle.IsEffectivelyEnabled);
+                Assert.True(toggle.IsChecked);
+                Assert.Contains(Texts.T("tagging.page.panel.narrow"), Assert.IsType<string>(ToolTip.GetTip(toggle)));
+
+                BooruReviewTestPlatform.Resize(window, 1400);
+                Assert.True(panel.IsEffectivelyVisible);
+                Rect header = page.Header.Bounds;
+                toggle.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                window.UpdateLayout();
+                Assert.False(panel.IsEffectivelyVisible);
+                Assert.Equal(header, page.Header.Bounds);
             }
             finally { window.Close(); }
         }
