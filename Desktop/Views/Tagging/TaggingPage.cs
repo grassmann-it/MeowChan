@@ -239,6 +239,10 @@ public sealed partial class TaggingPage : UserControl, IDisposable
         body.Children.Add(_emptyState);
         Grid listArea = new() { Name = "TaggingListArea", RowDefinitions = new RowDefinitions("Auto,*"),
             Children = { BuildSelectionBar() } };
+        AutomationProperties.SetAutomationId(listArea, "TaggingListArea");
+        AutomationProperties.SetAutomationId(_header, "TaggingHeader");
+        AutomationProperties.SetAutomationId(_columnHeader, "TaggingColumns");
+        AutomationProperties.SetAutomationId(_filter, "TaggingFilter");
         _columnHeaderSurface.Child = _columnHeader;
         Grid table = new() { Name = "TaggingTable", RowDefinitions = new RowDefinitions("Auto,*"), Children = { _columnHeaderSurface } };
         Grid.SetRow(body, 1);

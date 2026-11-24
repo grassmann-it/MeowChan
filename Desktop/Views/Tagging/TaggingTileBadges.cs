@@ -61,10 +61,10 @@ internal sealed class TaggingTileBadges
     /// Shows the badges of <paramref name="row"/> in a slot, over a picture of this shown size (the picture only places the play mark: the corners
     /// follow the slot, which a slot that is not known yet, the default, leaves to the picture); null (a recycled tile with no entry) takes them off.
     /// </summary>
-    internal void Show(TaggingQueueRow? row, int? tagCount, Size picture, Size slot = default)
+    internal void Show(TaggingQueueRow? row, int? tagCount, Size picture, Size slot = default, bool favorite = false, int? rating = null)
     {
         if (row == null) { _hasRow = false; _state = default; _view.Clear(); return; }
-        MediaBadgeState state = StateOf(row, tagCount);
+        MediaBadgeState state = StateOf(row, tagCount) with { Favorite = favorite, Rating = rating };
         _hasRow = true;
         _state = state;
         _view.Apply(state, picture, slot);

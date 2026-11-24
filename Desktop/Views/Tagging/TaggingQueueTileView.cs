@@ -24,6 +24,7 @@ internal sealed class TaggingQueueTileView : Border
 
     private readonly Func<TagQueueItem, int?>? _tagCount;
     private readonly MediaTileAppearance _appearance;
+    private readonly Func<TagQueueItem, (bool Favorite, int? Rating, string? Description)>? _decisionOf;
     private readonly TaggingThumbnail _preview;
     private readonly TaggingTileBadges _badges = new();
     private readonly Border _selected = WorkspaceChips.CreateSelectionCheck("TaggingTileSelected");
@@ -36,8 +37,12 @@ internal sealed class TaggingQueueTileView : Border
     internal const double CheckInset = 4, CheckGap = 4;
     private IDisposable? _selection;
 
-    internal TaggingQueueTileView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, MediaTileAppearance appearance = default)
+    internal TaggingQueueTileView(TaggingThumbnails? thumbnails = null, Func<TagQueueItem, int?>? tagCount = null, MediaTileAppearance appearance = default,
+        Func<TagQueueItem, (bool Favorite, int? Rating, string? Description)>? decisionOf = null)
     {
+        AutomationProperties.SetAutomationId(this, "TaggingQueueTile");
+        AutomationProperties.SetAutomationId(_badges.View, "TaggingTileBadges");
+        _decisionOf = decisionOf;
         _tagCount = tagCount;
         _appearance = appearance.CellWidth > 0 ? appearance : MediaTileMetrics.Standard;
         MaxWidth = _appearance.CellWidth;
@@ -91,7 +96,8 @@ internal sealed class TaggingQueueTileView : Border
         Row = row;
         int? tags = row == null ? null : _tagCount?.Invoke(row.Item);
         _preview.Item = row?.Item;
-        _badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size);
+        (bool favorite, int? rating, _) = row == null ? default : _decisionOf?.Invoke(row.Item) ?? default;
+        _badges.Show(row, tags, _preview.PictureSize, _preview.Bounds.Size, favorite, rating);
         PlaceCheck();
         _name.Text = row?.Name;
         _number.Text = row == null ? null : "#" + row.NumberText;

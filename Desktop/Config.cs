@@ -880,6 +880,7 @@ namespace MeowChan
         public bool TaggingPreviewColumn { get; set; } = true;
 
         /// <summary>Show the media sidebar beside the tagging queue when the page is wide enough.</summary>
+        [JsonConverter(typeof(DesktopPreferenceTrueBooleanConverter))]
         public bool TaggingPagePanel { get; set; } = true;
         // TG1: the stamp block of the tagging page: "Auto" (follows the work view: closed in Barebones), "Open" or "Closed" once chosen.
         private string _taggingStampBlock = nameof(TaggingStampBlockState.Auto);

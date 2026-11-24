@@ -1,5 +1,4 @@
 using System;
-using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -37,17 +36,23 @@ public sealed partial class TaggingPage
     };
     private readonly ToggleButton _panelToggle = new() { Name = "TaggingPanelToggle", Focusable = false };
     private readonly ReaderMediaFollowThrottle _panelThrottle = new();
-    private readonly Stopwatch _panelClock = Stopwatch.StartNew();
     private readonly HeldKeyLatch _panelFavoriteKey = new();
     private ReaderMediaSidebar? _taggingPanel;
-    private DispatcherTimer? _panelFollowTimer, _panelAnnounceTimer;
+    private DispatcherTimer? _panelAnnounceTimer;
+    private CancellationTokenSource? _panelFollowDelay;
     private CancellationTokenSource? _panelLoading;
     private TaggingQueueRow? _panelRow, _panelWanted;
-    private bool _panelEnabled = true, _panelTooNarrow, _panelFollowsPosted, _panelResizePending, _panelWriting, _panelOpening, _panelMissing;
+    private bool _panelEnabled = true, _panelTooNarrow, _panelFollowsPosted, _panelCursorPending, _panelResizePending;
+    private bool _panelWriting, _panelOpening;
+    private bool? _panelFileAvailable;
+    private string? _panelMediaKey;
     private string _panelAnnouncement = string.Empty;
     private MediaPanelSide? _panelIconSide;
     private ReaderMediaPreferences _panelInfo = ReaderMediaPreferences.Default;
 
+    internal TimeProvider PanelClock { get; init; } = TimeProvider.System;
+    internal Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap Image, GalleryImageInfo Info)>> DecodePanelImageAsync
+        { get; init; } = GalleryImageCache.DecodeAsync;
     internal Func<MediaPageLayout>? ReadPanelLayout { get; set; }
     internal Action<int>? SavePanelWidth { get; set; }
     internal Action<bool>? SavePanelEnabled { get; set; }
@@ -81,6 +86,15 @@ public sealed partial class TaggingPage
 
     private void InitializePanel()
     {
+        AutomationProperties.SetAutomationId(_panelToggle, "TaggingPanelToggle");
+        AutomationProperties.SetAutomationId(_panelHandle, "TaggingPanelHandle");
+        AutomationProperties.SetAutomationId(_status, "TaggingStatus");
+        foreach (ListBox list in new[] { _list, _grid })
+        {
+            AutomationProperties.SetAutomationId(list, list.Name);
+            list.ContainerPrepared += (_, e) =>
+                AutomationProperties.SetAutomationId(e.Container, list.Name + "Entry" + (e.Index + 1));
+        }
         _panelToggle.Click += (_, _) => TogglePanel();
         _panelHandle.DragCompleted += (_, _) => CommitPanelWidth();
         _panelHandle.KeyUp += (_, _) => CommitPanelWidth();
@@ -190,9 +204,18 @@ public sealed partial class TaggingPage
         panel[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.CardEdge");
         panel.Styles.Add(new Style(selector => selector.Is<Button>()) { Setters = { new Setter(FocusableProperty, false) } });
         panel.ConfigureInfo(_panelInfo);
-        panel.SaveInfoMode = mode => SavePanelInfoMode?.Invoke(mode);
+        panel.SaveInfoMode = mode =>
+        {
+            _panelInfo = _panelInfo with { MediaSidebarInfo = mode };
+            SavePanelInfoMode?.Invoke(mode);
+        };
+        AutomationProperties.SetAutomationId(panel, "TaggingPanel");
+        AutomationProperties.SetAutomationId(panel.Frame, "ReaderMediaSidebarFrame");
+        AutomationProperties.SetAutomationId(panel.Picture, "ReaderMediaSidebarPicture");
+        AutomationProperties.SetName(panel, CommandCatalog.Label(PanelCommand));
         panel.Open.Click += (_, _) => OpenPanelGallery();
         panel.PictureActivated += (_, _) => OpenPanelGallery();
+        panel.GalleryRequested += (_, _) => OpenPanelGallery();
         panel.Close.Click += (_, _) =>
         {
             TagQueueKey? cursor = _panelRow?.Key;
@@ -230,6 +253,7 @@ public sealed partial class TaggingPage
     {
         if (!IsPanelShown || _tagBusy) return;
         TaggingQueueRow? row = RowForPanel(_panelWanted?.Key) ?? PanelCursor();
+        CancelPanelFollow();
         _panelThrottle.Reset();
         SetPanelTarget(row);
     }
@@ -238,31 +262,61 @@ public sealed partial class TaggingPage
     {
         if (_rendering || _tagBusy || !IsPanelShown) return;
         _panelResizePending |= resize;
+        _panelCursorPending |= !resize;
         if (_panelFollowsPosted) return;
         _panelFollowsPosted = true;
-        Dispatcher.UIThread.Post(() =>
+        Dispatcher.UIThread.Post(FollowPanel, DispatcherPriority.Input);
+    }
+
+    private void FollowPanel()
+    {
+        _panelFollowsPosted = false;
+        bool resizing = _panelResizePending;
+        bool followCursor = _panelCursorPending;
+        _panelResizePending = _panelCursorPending = false;
+        if ((!resizing && !followCursor) || _rendering || _tagBusy || !IsPanelShown) return;
+
+        TaggingQueueRow? pending = RowForPanel(_panelWanted?.Key);
+        TaggingQueueRow? wanted = followCursor
+            ? RowForPanel(FocusedResultKey()) ?? (_panelThrottle.Pending ? pending : null) ?? PanelCursor()
+            : pending ?? RowForPanel(_panelRow?.Key) ?? PanelCursor();
+        if (!resizing && wanted?.Key == _panelWanted?.Key && wanted?.Key == _panelRow?.Key) return;
+        if (wanted?.Key != _panelWanted?.Key) CancelPanelLoad();
+        _panelWanted = wanted;
+        long now = PanelMilliseconds();
+        if (_panelThrottle.Request(now))
         {
-            _panelFollowsPosted = false;
-            bool resizing = _panelResizePending;
-            _panelResizePending = false;
-            if (_rendering || _tagBusy || !IsPanelShown) return;
-            TaggingQueueRow? wanted = PanelCursor();
-            if (!resizing && wanted?.Key == _panelWanted?.Key) return;
-            if (wanted?.Key != _panelWanted?.Key) CancelPanelLoad();
-            _panelWanted = wanted;
-            long now = _panelClock.ElapsedMilliseconds;
-            if (_panelThrottle.Request(now)) { SetPanelTarget(wanted); return; }
-            DispatcherTimer timer = _panelFollowTimer ??= PanelTimer(() =>
-            {
-                if (IsPanelShown && !_tagBusy && _panelThrottle.Tick(_panelClock.ElapsedMilliseconds))
-                    SetPanelTarget(_panelWanted);
-            });
-            if (!timer.IsEnabled)
-            {
-                timer.Interval = TimeSpan.FromMilliseconds(_panelThrottle.Remaining(now));
-                timer.Start();
-            }
-        }, DispatcherPriority.Input);
+            CancelPanelFollow();
+            SetPanelTarget(wanted);
+        }
+        else if (_panelFollowDelay == null)
+            _ = FollowPanelAfterDelayAsync(_panelThrottle.Remaining(now));
+    }
+
+    private long PanelMilliseconds() => (long)PanelClock.GetElapsedTime(0, PanelClock.GetTimestamp()).TotalMilliseconds;
+
+    private async Task FollowPanelAfterDelayAsync(long milliseconds)
+    {
+        using CancellationTokenSource delay = new();
+        _panelFollowDelay = delay;
+        try
+        {
+            await Task.Delay(TimeSpan.FromMilliseconds(milliseconds), PanelClock, delay.Token);
+            if (!ReferenceEquals(_panelFollowDelay, delay) || _tagBusy || !IsPanelShown) return;
+            if (_panelThrottle.Tick(PanelMilliseconds())) SetPanelTarget(_panelWanted);
+        }
+        catch (OperationCanceledException) when (delay.IsCancellationRequested) { }
+        finally
+        {
+            if (ReferenceEquals(_panelFollowDelay, delay)) _panelFollowDelay = null;
+        }
+    }
+
+    private void CancelPanelFollow()
+    {
+        CancellationTokenSource? delay = _panelFollowDelay;
+        _panelFollowDelay = null;
+        delay?.Cancel();
     }
 
     private static DispatcherTimer PanelTimer(Action action)
@@ -275,10 +329,13 @@ public sealed partial class TaggingPage
     internal void StopPanel()
     {
         CancelPanelLoad();
-        _panelFollowTimer?.Stop();
+        CancelPanelFollow();
         _panelAnnounceTimer?.Stop();
         _panelThrottle.Reset();
         _panelRow = _panelWanted = null;
+        _panelMediaKey = null;
+        _panelFileAvailable = null;
+        _panelResizePending = _panelCursorPending = false;
         _taggingPanel?.InvalidateTagEditor();
         _taggingPanel?.ResetInfoOverride();
         _taggingPanel?.ShowEmpty();
@@ -294,36 +351,48 @@ public sealed partial class TaggingPage
     private void SetPanelTarget(TaggingQueueRow? row)
     {
         if (_taggingPanel is not { } panel) return;
-        bool changed = _panelRow?.Key != row?.Key;
-        if (changed) CancelPanelLoad();
         _panelWanted = _panelRow = row;
         if (row == null)
         {
-            panel.ShowEmpty();
-            if (changed) AnnouncePanel(Texts.T("tagging.page.panel.empty"));
+            bool hadMedium = _panelMediaKey != null;
+            StopPanel();
+            if (hadMedium) AnnouncePanel(Texts.T("tagging.page.panel.empty"));
             return;
         }
-        if (changed)
-        {
-            _panelMissing = false;
-            panel.ShowPlaceholder(Texts.T("reader.sidebar.loading"));
-        }
+
         MediaLibraryEntry entry = EntryOf(row.Item);
         string key = string.Join("\n", row.Key, entry.Sha256, entry.Length, entry.Variant, entry.AttachmentRevisionKey);
+        bool changed = key != _panelMediaKey;
+        if (changed)
+        {
+            CancelPanelLoad();
+            _panelMediaKey = key;
+            _panelFileAvailable = null;
+            panel.ShowPlaceholder(Texts.T("reader.sidebar.loading"));
+        }
+
+        GalleryTagPanelPosition position = DescribePanel(panel, row, entry, key);
+        if (changed) AnnouncePanel(Texts.T("media.panel.region", position.Number, position.Count, row.Name));
+        if (panel.Load.Awaiting || _panelFileAvailable == false) return;
         (double Width, double Height) target = PanelTarget(panel);
+        ReaderMediaLoadTicket ticket = panel.Load.Begin(key, target);
+        if (ticket.UpToDate) return;
+        _ = LoadTaggingPanelAsync(panel, entry, key, ticket, target);
+    }
+
+    private GalleryTagPanelPosition DescribePanel(ReaderMediaSidebar panel, TaggingQueueRow row, MediaLibraryEntry entry, string key)
+    {
         GalleryTagPanelPosition position = new(PanelIndex(row.Key) + 1, _rows.Count, More: false);
         string? post = entry.PostId ?? entry.BooruPostId;
         PixelSize? source = panel.Load.ShownKey == key ? panel.Load.ShownSource : null;
+        string? blocked = PanelTagBlocked(entry);
+        panel.OpenTagsAsync = blocked == null ? (anchor, token) => TagRowAsync(row, anchor, token) : null;
         panel.Describe(post != null ? Texts.T("reader.postNumber", post) : string.Empty, row.Name,
             source is { } size ? $"{size.Width}×{size.Height}" : string.Empty, OpenGallery != null,
             threadPosition: position, savedBytes: entry.Length, mediumKey: key);
         panel.SetSourceFacts(row.SourceText, null, null, entry.Length, null, null);
         RefreshPanelActions();
-        if (changed) AnnouncePanel(Texts.T("media.panel.region", position.Number, position.Count, row.Name));
-        if (panel.Load.Awaiting || _panelMissing) return;
-        ReaderMediaLoadTicket ticket = panel.Load.Begin(key, target);
-        if (ticket.UpToDate) return;
-        _ = LoadTaggingPanelAsync(panel, entry, key, ticket, target);
+        return position;
     }
 
     private (double Width, double Height) PanelTarget(ReaderMediaSidebar panel)
@@ -346,16 +415,19 @@ public sealed partial class TaggingPage
             {
                 MediaAssetSnapshot manifest = await MediaAssetReader.OpenAsync(entry.Directory!, token);
                 MediaAssetReference? asset = MediaTileThumbnails.Matching(manifest, entry);
-                if (asset == null || !File.Exists(asset.Path))
+                bool available = asset != null && File.Exists(asset.Path);
+                if (Current() && _panelFileAvailable != available && _panelRow is { } row)
                 {
-                    if (Current()) { _panelMissing = true; RefreshPanelActions(); }
-                    return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
+                    _panelFileAvailable = available;
+                    DescribePanel(panel, row, entry, key);
                 }
+                if (!available || asset == null)
+                    return new ReaderMediaSidebarContent.Unavailable("archive.notSaved");
                 if (entry.Kind == SavedMediaKind.Image)
                 {
                     GalleryEntry saved = new(new GalleryAssetKey(entry.Thread, manifest.Directory, asset.AssetId),
                         manifest, asset, null, null, !asset.IsCurrent, entry.Unassigned);
-                    (Bitmap image, GalleryImageInfo info) = await GalleryImageCache.DecodeAsync(saved, new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
+                    (Bitmap image, GalleryImageInfo info) = await DecodePanelImageAsync(saved, new GalleryDecodeRequest.Fit(target.Width, target.Height), token);
                     return new ReaderMediaSidebarContent.Picture(image, GalleryImageCache.Shared.Release, info.StillFrame, new PixelSize(info.Width, info.Height));
                 }
                 if (entry.Kind == SavedMediaKind.Video)

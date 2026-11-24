@@ -429,7 +429,7 @@ public sealed partial class TaggingPage
         MediaLibraryUserData? data = _userData;
         if (MediaLibraryFilterEngine.AssetKey(entry) == null || data == null
             || !(id == "favorites.toggle" ? data.FavoritesAvailable : data.RatingsAvailable)) return;
-        if (_panelRow?.Key == row.Key && _panelMissing) return;
+        if (_panelRow?.Key == row.Key && _panelFileAvailable == false) return;
         _panelWriting = true;
         try
         {
@@ -447,27 +447,33 @@ public sealed partial class TaggingPage
         if (_taggingPanel is not { } panel || _panelRow is not { } row) return;
         MediaLibraryEntry entry = EntryOf(row.Item);
         MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, _userData ?? MediaLibraryUserData.Unavailable);
-        bool Current() => !_queueWork.Ended && !_tagBusy && !_panelMissing && !_panelWriting && IsPanelShown;
+        bool Current() => !_queueWork.Ended && !_tagBusy && _panelFileAvailable != false && !_panelWriting && IsPanelShown;
         bool Writable() => Current() && ExecutePanelDecisionAsync != null;
         panel.Open.IsEnabled = OpenGallery != null && Current();
         panel.ConfigureFavorite(() => Writable() && state.Favorite != MediaLibraryFlag.Unknown,
             () => state.Favorite == MediaLibraryFlag.Yes, () => WritePanelDecisionAsync("favorites.toggle", row));
         panel.ConfigureRating(() => Writable() && state.RatingKnown, () => state.UserRating,
             value => WritePanelDecisionAsync(value is int stars ? "media.rating.set-" + stars : "media.rating.clear", row));
-        string? blocked = _panelMissing ? MediaMenuReasons.NotSaved
-            : (entry.BooruPostId != null || BooruMediaIdentity.IsBooruThread(entry.Thread)) ? Texts.T("booru.media.tags.unavailable")
-            : !state.TagsKnown ? MediaMenuReasons.TagsUnknown
-            : !state.CanEditMediaTags ? Texts.T("tags.media.unsupported")
-            : TagServices == null ? MediaMenuReasons.Unavailable : null;
-        panel.OpenTagsAsync = blocked == null ? (anchor, token) => TagRowAsync(row, anchor, token) : null;
-        panel.SetTags(state.CanEditMediaTags ? state.MediaTags : null, blocked);
+        panel.SetTags(state.CanEditMediaTags ? state.MediaTags : null, PanelTagBlocked(entry));
+    }
+
+    private string? PanelTagBlocked(MediaLibraryEntry entry)
+    {
+        if (entry.BooruPostId != null || BooruMediaIdentity.IsBooruThread(entry.Thread))
+            return Texts.T("booru.media.tags.unavailable");
+        if (_panelFileAvailable != true)
+            return _panelFileAvailable == false ? MediaMenuReasons.NotSaved : Texts.T("reader.sidebar.loading");
+        MediaLibraryEntryState state = MediaLibraryEntryState.Of(entry, _userData ?? MediaLibraryUserData.Unavailable);
+        if (!state.TagsKnown) return MediaMenuReasons.TagsUnknown;
+        if (!state.CanEditMediaTags) return Texts.T("tags.media.unsupported");
+        return TagServices == null ? MediaMenuReasons.Unavailable : null;
     }
 
     private void OpenPanelGallery() => OpenActions.Start(OpenPanelGalleryAsync, "tagging.panel.gallery");
 
     private async Task OpenPanelGalleryAsync()
     {
-        if (_tagBusy || _panelOpening || _panelMissing || _panelRow is not { } row || OpenGallery is not { } open) return;
+        if (_tagBusy || _panelOpening || _panelFileAvailable == false || _panelRow is not { } row || OpenGallery is not { } open) return;
         int index = PanelIndex(row.Key);
         if (index < 0) return;
         _panelOpening = true;
