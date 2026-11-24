@@ -112,6 +112,7 @@ internal static partial class SmokeScenarios
         Mode("plugins", NormalPass),
         Nested("plugin-reselection", "MEOWCHAN_PLUGIN_RESELECTION_ONLY", "--plugins"),
         Nested("plugin-change-review", "MEOWCHAN_PLUGIN_CHANGE_REVIEW_ONLY", "--plugins"),
+        Nested("plugin-draft-footer", "MEOWCHAN_PLUGIN_DRAFT_FOOTER_ONLY", "--plugins"),
         Nested("plugin-page-captures", "MEOWCHAN_PLUGIN_PAGE_CAPTURES_ONLY", "--plugins"),
         Mode("archive-cleanup", "archive cleanup: private preview, explicit confirmation, real deletion, durable invariants and controlled failures"),
         Mode("shell-load", "shell load: bounded offline gallery/load fixture, separate process watchdog, correlated UI/commit/resource measurements"),

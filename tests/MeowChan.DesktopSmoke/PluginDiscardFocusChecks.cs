@@ -33,7 +33,7 @@ internal static partial class PluginManagementChecks
                 return trigger.IsAttachedToVisualTree() && trigger.IsEffectivelyVisible && trigger.IsEffectivelyEnabled
                     && trigger.Bounds.Width > 0 && trigger.Bounds.Height > 0;
             });
-            await RevealAsync(window, trigger);
+            Require(FullyVisibleWithin(trigger, page), "The fixed Discard action is outside the page.");
             Require(trigger.Focus(NavigationMethod.Tab) && trigger.IsFocused, "Delayed-discard trigger could not receive actual focus.");
             page.RequestDiscardSelectedDraft();
             PopConfirm popup = await WaitForOwnedDiscardPopupAsync(window, page, trigger);

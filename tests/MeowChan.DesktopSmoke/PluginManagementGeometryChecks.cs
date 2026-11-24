@@ -15,7 +15,7 @@ internal static partial class PluginManagementChecks
         string phase = requireDetails ? "selected-details" : "native-resize-before-selection";
         Button back = page.FindControl<Button>("PluginBack")!;
         Grid list = page.FindControl<Grid>("PluginListPane")!;
-        ScrollViewer details = page.FindControl<ScrollViewer>("PluginDetailsPane")!;
+        Border details = page.FindControl<Border>("PluginDetailCard")!;
         string? lastState = null;
         string State()
         {
