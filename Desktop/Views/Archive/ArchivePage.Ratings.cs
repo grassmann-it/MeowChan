@@ -63,11 +63,19 @@ public partial class ArchivePage
         set { _manageMediaRatings = value; ArchiveManageRatingsButton.IsEnabled = !_ended && value != null; }
     }
     private Func<Task>? _manageMediaRatings;
-    private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e)
+    private async void OnManageMediaRatingsClick(object? sender, RoutedEventArgs e) => await ManageSelectedMediaRatingsAsync();
+
+    private async Task ManageSelectedMediaRatingsAsync()
     {
         if (_ended || ManageMediaRatingsAsync == null) return;
+        FocusSelectedMedia();
         try { await ManageMediaRatingsAsync(); }
         catch (Exception error) { if (!_ended) Message(error.Message, true); }
+        finally
+        {
+            if (!_ended && ArchiveMediaTab.IsSelected && TopLevel.GetTopLevel(VisibleMediaList)?.FocusManager?.GetFocusedElement() is null)
+                FocusSelectedMedia();
+        }
     }
     // The button is "Rate and tag" (Tom's decision of 15.11.: no rating menu): the popover with the stars on top and the tag field under them, for the
     // selected file of the list. A button the toolbar keeps under "More" is no anchor while that menu is closed: the popover then opens on "More" (A19),
@@ -75,6 +83,7 @@ public partial class ArchivePage
     private void OnEditMediaRatingClick(object? sender, RoutedEventArgs e)
     {
         if (_selectedThread == null || SelectedMediaRow() == null) return;
+        FocusSelectedMedia();
         OpenActions.Start(() => OpenRateAndTagForFocusAsync(initialFocus: QuickTagInitialFocus.TagInput, ArchiveEditRatingButton), "media.rating.edit");
     }
     /// <summary>The control the "Rate and tag" popover opens on for <paramref name="button"/>: the button, "More" when the toolbar reduced it, the media list otherwise.</summary>

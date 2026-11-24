@@ -59,6 +59,7 @@ internal sealed class ArchiveFavoriteButton : ToggleButton
     internal ArchiveFavoriteButton()
     {
         Name = "ArchiveMediaFavorite";
+        AutomationProperties.SetAutomationId(this, Name);
         Focusable = false;
         IsTabStop = false;
         Padding = new Avalonia.Thickness(8);
