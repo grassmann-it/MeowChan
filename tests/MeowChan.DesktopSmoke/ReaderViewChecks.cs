@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
 using Avalonia.Styling;
@@ -128,14 +129,19 @@ internal static class ReaderViewChecks
             await WaitForPost(ordinal);
             if (!ReaderMediaSidebarRules.IsOn(page.ReaderMedia, true)) page.ToggleMediaSidebar();
             await Program.WaitUntilAsync(() => page.CanStepMediaSidebar(1));
+            // The header line shows the position; the pill only carries its value and the long text.
             MediaPositionPill position = page.MediaSidebar!.PositionPill;
-            bool ShowsPosition(int number) => position.IsEffectivelyVisible
+            TextBlock? Shown() => page.MediaSidebar.GetVisualDescendants().OfType<TextBlock>()
+                .FirstOrDefault(text => AutomationProperties.GetAutomationId(text) == "ReaderMediaSidebarPosition");
+            bool ShowsPosition(int number) => Shown() is { IsEffectivelyVisible: true } shown
+                && shown.Text == $"{number} / 3"
                 && Equals(ToolTip.GetTip(position), MediaPositionText.Long(new(number, 3, false)));
-            await Program.WaitUntilAsync(() => ShowsPosition(2));
+            string PositionDetails() => $"Header position '{Shown()?.Text}', visible {Shown()?.IsEffectivelyVisible}, long text '{ToolTip.GetTip(position)}'.";
+            await Program.WaitUntilAsync(() => ShowsPosition(2), PositionDetails);
             page.StepMediaSidebar(1);
-            await Program.WaitUntilAsync(() => ShowsPosition(3));
+            await Program.WaitUntilAsync(() => ShowsPosition(3), PositionDetails);
             page.StepMediaSidebar(-1);
-            await Program.WaitUntilAsync(() => ShowsPosition(2));
+            await Program.WaitUntilAsync(() => ShowsPosition(2), PositionDetails);
             Require(Landed(ordinal), "Stepping the media navigator moved the selected post.");
             await Program.WaitUntilAsync(() => (list.SelectedItem as ArchivePostRow)?.BacklinkCount == 1);
 
