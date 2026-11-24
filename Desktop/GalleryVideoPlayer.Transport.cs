@@ -51,6 +51,7 @@ internal sealed partial class GalleryVideoPlayer
     private MenuItem _playerMenuSaveFrame = null!;
     private MenuItem _playerMenuRepeat = null!;
     private MenuItem _playerMenuRotate = null!;
+    private string? _playerMenuLanguage;
 
     // The speaker and, above it, the volume as a vertical slider. The slider is drawn on a zero-size canvas so opening it
     // never changes the layout of the row, and it stays in this visual tree (pointer and focus remain the gallery's).
@@ -86,6 +87,10 @@ internal sealed partial class GalleryVideoPlayer
 
     private IReadOnlyList<VideoAudioTrackChoice> _audioTrackChoices = Array.Empty<VideoAudioTrackChoice>();
     private int _audioTrackCurrent = -1;
+    private readonly Func<int, int?>? _selectAudioTrackOverride;
+
+    // The selector returns the transport's readback of the active track, or no observation on failure.
+    internal GalleryVideoPlayer(Func<int, int?> selectAudioTrack) : this() => _selectAudioTrackOverride = selectAudioTrack;
 
     /// <summary>The full-screen button of the transport was pressed (the viewer owns the window).</summary>
     internal event Action? FullscreenRequested;
@@ -381,13 +386,24 @@ internal sealed partial class GalleryVideoPlayer
             current = playback.Player.AudioTrack;
         }
         catch (Exception) { return; } // A track list is a convenience; it never fails the playback.
-        Post(generation, () => { _audioTrackChoices = tracks; _audioTrackCurrent = current; });
+        Post(generation, () => ObserveAudioTracks(tracks, current));
     });
+
+    internal void ObserveAudioTracks(IReadOnlyList<VideoAudioTrackChoice> tracks, int current)
+    {
+        _audioTrackChoices = tracks;
+        _audioTrackCurrent = current;
+    }
 
     private void SelectAudioTrack(int id)
     {
         if (IsDisposed || !_playPause.IsEnabled) return;
         long generation = _generation;
+        if (_selectAudioTrackOverride is { } select)
+        {
+            ApplySelection(select(id));
+            return;
+        }
         _ = CommandAsync(playback =>
         {
             int current;
@@ -397,8 +413,13 @@ internal sealed partial class GalleryVideoPlayer
                 current = playback.Player.AudioTrack;
             }
             catch (Exception) { return; }
-            Post(generation, () => _audioTrackCurrent = current);
+            ApplySelection(current);
         });
+
+        void ApplySelection(int? current)
+        {
+            if (current is int selected) Post(generation, () => _audioTrackCurrent = selected);
+        }
     }
 
     /// <summary>Switches to the next audio track of a medium that has more than one (command "Next audio track").</summary>
@@ -476,18 +497,14 @@ internal sealed partial class GalleryVideoPlayer
 
     private void RefreshPlayerMenu()
     {
-        _playerMenuSpeed.Header = Texts.T("viewer.video.speedMenu");
         _playerMenuSpeed.IsEnabled = _speed.IsEnabled;
-        RefreshRateItems(_playerMenuRates);
         // The audio track entry exists only for a medium with more than one track.
-        _playerMenuAudio.Header = Texts.T("viewer.video.audioTrack");
         _playerMenuAudio.Items.Clear();
-        for (int index = 0; index < _audioTrackChoices.Count; index++)
+        foreach (VideoAudioTrackChoice track in _audioTrackChoices)
         {
-            VideoAudioTrackChoice track = _audioTrackChoices[index];
             MenuItem item = new()
             {
-                Header = AudioTrackLabel(track, index), ToggleType = MenuItemToggleType.Radio, GroupName = "GalleryVideoAudioTracks",
+                Tag = track, ToggleType = MenuItemToggleType.Radio, GroupName = "GalleryVideoAudioTracks",
                 IsChecked = track.Id == _audioTrackCurrent
             };
             item.Click += (_, _) => SelectAudioTrack(track.Id);
@@ -495,10 +512,24 @@ internal sealed partial class GalleryVideoPlayer
         }
         _playerMenuAudio.IsVisible = _audioTrackChoices.Count > 1;
         _playerMenuAudio.IsEnabled = _playPause.IsEnabled;
+        RefreshPlayerMenuLabels();
+        _playerMenuRepeat.IsChecked = _intent.LoopEnabled;
+    }
+
+    private void RefreshPlayerMenuLabels()
+    {
+        _playerMenuLanguage = Texts.Language;
+        _playerMenuSpeed.Header = Texts.T("viewer.video.speedMenu");
+        _playerMenuAudio.Header = Texts.T("viewer.video.audioTrack");
+        RefreshRateItems(_playerMenuRates);
+        for (int index = 0; index < _playerMenuAudio.Items.Count; index++)
+        {
+            var item = (MenuItem)_playerMenuAudio.Items[index]!;
+            item.Header = AudioTrackLabel((VideoAudioTrackChoice)item.Tag!, index);
+        }
         CommandBindings.Refresh(_playerMenuSaveFrame);
         CommandBindings.Refresh(_playerMenuRotate);
         CommandBindings.Refresh(_playerMenuRepeat);
-        _playerMenuRepeat.IsChecked = _intent.LoopEnabled;
     }
 
     // ---- presentation, enabled state, medium change ------------------------------------------------------------------
@@ -513,6 +544,7 @@ internal sealed partial class GalleryVideoPlayer
 
     private void RefreshTransportExtras()
     {
+        if (_playerMenu.IsOpen && _playerMenuLanguage != Texts.Language) RefreshPlayerMenuLabels();
         UpdateTransportExtrasEnabled();
         RefreshAbLoopPresentation();
         _frameStep.Content = TransportIcon("video.frame-step", 18);
