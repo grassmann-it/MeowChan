@@ -219,7 +219,7 @@ public sealed class BooruHitKeyboardTests
         using (model) using (view)
         {
             List<Border> cards = await SearchAsync(harness, model, view);
-            WrapPanel actions = cards[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
+            Panel actions = cards[0].GetLogicalDescendants().OfType<Panel>().Single(panel => panel.Name == "BooruResultActions:101");
             foreach (string name in new[] { BooruWorkbenchView.LoadPrefix + "101", BooruWorkbenchView.OpenPostPrefix + "101", BooruWorkbenchView.CopyLinkPrefix + "101" })
                 Assert.Contains(actions.Children.OfType<Button>(), button => button.Name == name);
 
@@ -228,7 +228,7 @@ public sealed class BooruHitKeyboardTests
             {
                 await Task.Delay(30);
                 Assert.Equal(3, Cards(view).Count);
-                WrapPanel rebuilt = Cards(view)[0].GetLogicalDescendants().OfType<WrapPanel>().Single(panel => panel.Name == "BooruResultActions:101");
+                Panel rebuilt = Cards(view)[0].GetLogicalDescendants().OfType<Panel>().Single(panel => panel.Name == "BooruResultActions:101");
                 Assert.Contains(rebuilt.Children.OfType<Button>(), button => button.Name == BooruWorkbenchView.OpenPostPrefix + "101");
             }
             finally { Texts.SetLanguage("en"); }

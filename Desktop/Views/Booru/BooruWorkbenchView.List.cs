@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using Avalonia;
@@ -7,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
@@ -20,8 +22,16 @@ internal sealed partial class BooruWorkbenchView
 {
     private int _renderedListDecodeEdge;
 
-    private int ListDecodeEdge => (int)Math.Ceiling(Math.Max(ListLayout.At(double.PositiveInfinity).Width, ListLayout.WidePreviewHeight)
-        * (TopLevel.GetTopLevel(this)?.RenderScaling ?? 1));
+    private int ListDecodeEdge
+    {
+        get
+        {
+            BooruListLayoutSettings layout = ListLayout;
+            int edge = Math.Max(layout.At(double.PositiveInfinity).Width, Math.Max(layout.MediumRowHeight, layout.WideRowHeight));
+            edge = Math.Max(edge, layout.NarrowPreviewHeight + BooruListLayoutSettings.ActionHeight);
+            return (int)Math.Ceiling(edge * (TopLevel.GetTopLevel(this)?.RenderScaling ?? 1));
+        }
+    }
 
     private bool UsedDecodeWidth(int width) => _resultView switch
     {
@@ -39,31 +49,51 @@ internal sealed partial class BooruWorkbenchView
     private Control CreateResultCard(BooruResultRowView row, ResultActions result)
     {
         BooruPostView post = row.Post;
-        Border card = new() { Name = "BooruResult:" + post.PostId, Classes = { "workspace-card" } };
-        // The wide band leaves 24 DIP for the command strip and card edge.
-        card.Padding = new Thickness(12, 0);
+        string postId = post.PostId;
+        Border card = new()
+        {
+            Name = "BooruResult:" + postId, Classes = { "workspace-card" }, Padding = new Thickness(12, 0)
+        };
         Border frame = CreatePreview(row, 0, _renderedListDecodeEdge);
         if (frame.Child is Image image)
         {
             image.HorizontalAlignment = HorizontalAlignment.Center;
             image.VerticalAlignment = VerticalAlignment.Center;
+            frame[!Border.BackgroundProperty] = new DynamicResourceExtension("Workspace.Background");
         }
         Control preview = WithPreviewCorners(frame, post, 0);
-
-        WrapPanel commands = new() { Name = "BooruResultActions:" + post.PostId, ItemSpacing = 4, LineSpacing = 4 };
-        AddResultCommands(row, result, commands);
-        commands.Children.Add(CreateResultViewerActions(result, compact: true));
-        StackPanel picture = new() { Name = "BooruResultPicture:" + post.PostId, Children = { preview, commands } };
-
-        StackPanel facts = new()
+        if (preview is Panel corners && corners.Children.Count > 1 && corners.Children[1] is Border kind)
         {
-            Name = "BooruResultFacts:" + post.PostId,
-            Spacing = 4,
-            Children =
-            {
-                new TextBlock { Text = Texts.T("booru.ui.post.title", post.PostId), Classes = { "card-title" }, TextWrapping = TextWrapping.Wrap },
-                CreateDetails(post)
-            }
+            kind.HorizontalAlignment = HorizontalAlignment.Left;
+            kind.Margin = new Thickness(4, 4, 0, 0);
+        }
+
+        WrapPanel viewerActions = CreateResultViewerActions(result, compact: true);
+        Button gallery = (Button)viewerActions.Children[0];
+        CheckBox select = (CheckBox)viewerActions.Children[1];
+        viewerActions.Children.Clear();
+        select.Classes.Add("booru-tile-select");
+        select.HorizontalAlignment = HorizontalAlignment.Right;
+        select.VerticalAlignment = VerticalAlignment.Top;
+        select.Margin = new Thickness(0, 4, 4, 0);
+
+        Panel picture = new() { Name = "BooruResultPicture:" + postId, Children = { preview, select } };
+        Border local = WorkspaceChips.CreateCornerMark("BooruResultLocal:" + postId, HorizontalAlignment.Right, VerticalAlignment.Bottom);
+        local.Margin = new Thickness(0, 0, 4, 4);
+        WorkspaceChips.SetCornerMark(local, row.Load == BooruRowLoad.AlreadyLoaded ? BooruTileMetrics.LocalMark : null, Texts.T("booru.ui.tile.local"));
+        picture.Children.Add(local);
+
+        Border selectionBar = new()
+        {
+            Name = "BooruListSelectionBar:" + postId, Classes = { "booru-tile-bar" },
+            IsVisible = _selectedResults.Contains(postId), IsHitTestVisible = false
+        };
+        AutomationProperties.SetAccessibilityView(selectionBar, AccessibilityView.Raw);
+
+        TextBlock facts = CreateListFacts(post);
+        TextBlock title = new()
+        {
+            Text = Texts.T("booru.ui.post.title", postId), Classes = { "card-title" }, TextWrapping = TextWrapping.Wrap
         };
 
         StackPanel notices = new() { Spacing = 4 };
@@ -74,21 +104,15 @@ internal sealed partial class BooruWorkbenchView
                 Text = BooruText.Original(post.OriginalAccess, withdrawn), TextWrapping = TextWrapping.Wrap,
                 FontWeight = FontWeight.Medium, Classes = { "workspace-warning" }
             });
-        if (BooruText.Load(row) is { } loadText)
-        {
-            TextBlock state = new() { Text = loadText, TextWrapping = TextWrapping.Wrap };
-            state.Classes.Add(row.Load switch
-            {
-                BooruRowLoad.Queued or BooruRowLoad.AlreadyQueued or BooruRowLoad.AlreadyLoaded => "workspace-status-success",
-                BooruRowLoad.Handing => "workspace-meta",
-                BooruRowLoad.Failed or BooruRowLoad.DownloadFailed or BooruRowLoad.LinkFailed or BooruRowLoad.RefusalPending => "workspace-error",
-                _ => "workspace-warning"
-            });
-            notices.Children.Add(state);
-        }
 
-        card.Child = new BooruListCardLayout(card, ListLayout, picture, preview, frame, facts, CreateTags(post, result), notices);
-        ConfigureHitCard(card, row, result);
+        BooruListTagFlow tags = CreateTags(post, result, card);
+        card.Child = new BooruListCardLayout(card, ListLayout, picture, preview, frame, new BooruListFacts(postId, title, facts),
+            CreateListActionRow(row, result, gallery, card), tags, notices, selectionBar);
+        ConfigureHitCard(card, row, result, menu =>
+        {
+            menu.Section().Command("gallery.open", () => { if (result.IsCurrent()) OpenGallery(postId); }, showShortcut: false);
+            tags.AddFoldAction(menu);
+        });
         return card;
     }
 
@@ -115,37 +139,25 @@ internal sealed partial class BooruWorkbenchView
         }
     }
 
-    private static Grid CreateDetails(BooruPostView post)
+    private static TextBlock CreateListFacts(BooruPostView post)
     {
-        ColumnDefinition labelColumn = new(GridLength.Auto) { SharedSizeGroup = "BooruFactLabel" };
-        Grid list = new() { Name = DetailsPrefix + post.PostId, ColumnSpacing = 8, RowSpacing = 2 };
-        list.ColumnDefinitions.Add(labelColumn);
-        list.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
-        WorkViewElement.SetId(list, "booru.result.details");
+        List<string> values = [];
+        List<string> descriptions = [];
 
-        void Add(string termKey, string value)
+        void Add(string term, string value, string? compact = null)
         {
-            int row = list.RowDefinitions.Count;
-            list.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            string termText = Texts.T(termKey);
-            TextBlock term = new() { Text = termText, Classes = { "workspace-meta" }, VerticalAlignment = VerticalAlignment.Top };
-            AutomationProperties.SetAccessibilityView(term, AccessibilityView.Raw);
-            TextBlock detail = new() { Text = value, TextWrapping = TextWrapping.Wrap, Classes = { "tnum" } };
-            detail[!TextBlock.FontSizeProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Text.Meta");
-            AutomationProperties.SetName(detail, termText + ": " + value);
-            Grid.SetRow(term, row);
-            Grid.SetRow(detail, row);
-            Grid.SetColumn(detail, 1);
-            list.Children.Add(term);
-            list.Children.Add(detail);
+            values.Add(compact ?? value);
+            descriptions.Add(Texts.T("booru.ui.post.field." + term) + ": " + value);
         }
 
-        string rating = BooruText.Rating(post.Rating);
-        if (post.Rating != BooruRating.Unknown && !string.IsNullOrEmpty(post.RawRating)
-            && !string.Equals(post.RawRating, post.Rating.ToString(), StringComparison.OrdinalIgnoreCase))
-            rating += " (" + post.RawRating + ")";
-        Add("booru.ui.post.field.rating", rating);
-        if (post.FavoriteCount is { } favorites) Add("booru.ui.post.field.favorites", favorites.ToString(Texts.Culture));
+        if (post.Rating != BooruRating.Unknown || !string.IsNullOrEmpty(post.RawRating))
+        {
+            string rating = BooruText.Rating(post.Rating);
+            if (!string.IsNullOrEmpty(post.RawRating)
+                && !string.Equals(post.RawRating, post.Rating.ToString(), StringComparison.OrdinalIgnoreCase))
+                rating += " (" + post.RawRating + ")";
+            Add("rating", rating);
+        }
         if (post.Original is { } original)
         {
             StringBuilder media = new();
@@ -153,13 +165,77 @@ internal sealed partial class BooruWorkbenchView
                 media.Append(width.ToString(CultureInfo.InvariantCulture)).Append('×').Append(height.ToString(CultureInfo.InvariantCulture));
             if (!string.IsNullOrEmpty(original.Extension))
                 media.Append(media.Length > 0 ? " " : string.Empty).Append(original.Extension.TrimStart('.'));
-            if (original.ExpectedSize is { } size)
-                media.Append(media.Length > 0 ? " " : string.Empty).Append(Size(size));
-            if (media.Length > 0) Add("booru.ui.post.field.file", media.ToString());
+            string? size = original.ExpectedSize is { } bytes ? Size(bytes) : null;
+            string file = media.ToString();
+            if (file.Length > 0) values.Add(file);
+            if (size != null) values.Add(size);
+            if (file.Length > 0 || size != null)
+                descriptions.Add(Texts.T("booru.ui.post.field.file") + ": " + string.Join(' ', new[] { file, size }).Trim());
         }
-        if (post.Score is { } score) Add("booru.ui.post.field.score", score.ToString(Texts.Culture));
-        if (post.CreatedAt is { } created) Add("booru.ui.post.field.created", created.ToLocalTime().ToString("d", Texts.Culture));
-        return list;
+        if (post.Score is { } score) Add("score", score.ToString(Texts.Culture), Texts.T("booru.ui.result.short.score", score));
+        if (post.FavoriteCount is { } favorites)
+            Add("favorites", favorites.ToString(Texts.Culture), Texts.T("booru.ui.result.short.favorites", favorites));
+        if (post.CreatedAt is { } created) Add("created", created.ToLocalTime().ToString("d", Texts.Culture));
+
+        TextBlock details = new()
+        {
+            Name = DetailsPrefix + post.PostId, Classes = { "workspace-meta", "tnum" },
+            Text = string.Join(" · ", values), TextWrapping = TextWrapping.Wrap, IsVisible = values.Count > 0
+        };
+        string accessible = string.Join(Environment.NewLine, descriptions);
+        AutomationProperties.SetName(details, accessible);
+        ToolTip.SetTip(details, accessible);
+        WorkViewElement.SetId(details, "booru.result.details");
+        return details;
+    }
+}
+
+internal sealed class BooruListFacts : Panel
+{
+    private const double InlineGap = 20;
+    private const double InlineMinimumWidth = 560;
+    private const double StackedGap = 4;
+
+    private readonly TextBlock _title;
+    private readonly TextBlock _details;
+    private Rect _detailsSlot;
+
+    internal BooruListFacts(string postId, TextBlock title, TextBlock details)
+    {
+        Name = "BooruResultFacts:" + postId;
+        _title = title;
+        _details = details;
+        Children.AddRange([title, details]);
+    }
+
+    protected override Size MeasureOverride(Size availableSize)
+    {
+        double width = availableSize.Width;
+        _title.Measure(availableSize);
+        _details.Measure(new Size(double.PositiveInfinity, availableSize.Height));
+        _detailsSlot = default;
+        double titleHeight = _title.DesiredSize.Height;
+        if (!_details.IsVisible) return new Size(width, titleHeight);
+
+        double detailsX = _title.DesiredSize.Width + InlineGap;
+        if (width >= InlineMinimumWidth && detailsX + _details.DesiredSize.Width <= width)
+        {
+            double offset = Math.Max(0, (titleHeight - _details.DesiredSize.Height) / 2);
+            _detailsSlot = new Rect(detailsX, offset, _details.DesiredSize.Width, _details.DesiredSize.Height);
+        }
+        else
+        {
+            _details.Measure(availableSize);
+            _detailsSlot = new Rect(0, titleHeight + StackedGap, width, _details.DesiredSize.Height);
+        }
+        return new Size(width, Math.Max(titleHeight, _detailsSlot.Bottom));
+    }
+
+    protected override Size ArrangeOverride(Size finalSize)
+    {
+        _title.Arrange(new Rect(_title.DesiredSize));
+        _details.Arrange(_detailsSlot);
+        return finalSize;
     }
 }
 
@@ -168,8 +244,8 @@ internal sealed class BooruListCardLayout : Panel
 {
     private const double Gap = 12;
     private const double TextInset = 8;
-    private const double StackedFactsWidth = 224;
-    private const double PreferredFactsWidth = 320;
+    private const double StackedTextWidth = 224;
+    private const double TagTopInset = 36;
 
     private readonly Border _card;
     private readonly BooruListLayoutSettings _settings;
@@ -177,12 +253,14 @@ internal sealed class BooruListCardLayout : Panel
     private readonly Control _preview;
     private readonly Control _frame;
     private readonly Control _facts;
+    private readonly BooruResultActionRow _actions;
     private readonly BooruListTagFlow _tags;
     private readonly Panel _notices;
-    private Rect _pictureSlot, _factsSlot, _tagsSlot, _noticesSlot;
+    private readonly Border _selectionBar;
+    private Rect _pictureSlot, _factsSlot, _actionsSlot, _tagsSlot, _noticesSlot;
 
     internal BooruListCardLayout(Border card, BooruListLayoutSettings settings, Control picture, Control preview,
-        Control frame, Control facts, BooruListTagFlow tags, Panel notices)
+        Control frame, Control facts, BooruResultActionRow actions, BooruListTagFlow tags, Panel notices, Border selectionBar)
     {
         _card = card;
         _settings = settings;
@@ -190,9 +268,11 @@ internal sealed class BooruListCardLayout : Panel
         _preview = preview;
         _frame = frame;
         _facts = facts;
+        _actions = actions;
         _tags = tags;
         _notices = notices;
-        Children.AddRange([picture, facts, tags, notices]);
+        _selectionBar = selectionBar;
+        Children.AddRange([picture, facts, actions, tags, notices, selectionBar]);
     }
 
     protected override Size MeasureOverride(Size availableSize)
@@ -201,31 +281,41 @@ internal sealed class BooruListCardLayout : Panel
         double verticalEdges = _card.Padding.Top + _card.Padding.Bottom + _card.BorderThickness.Top + _card.BorderThickness.Bottom;
         double width = double.IsFinite(availableSize.Width) ? availableSize.Width : _settings.MediumFrom;
         var band = _settings.At(width + horizontalEdges);
-        double previewWidth = Math.Min(width, band.Width);
-        _preview.Width = _frame.Width = previewWidth;
-        _preview.Height = _frame.Height = band.Height;
-        _picture.Measure(new Size(previewWidth, double.PositiveInfinity));
-        _pictureSlot = new Rect(0, 0, previewWidth, _picture.DesiredSize.Height);
-
-        double remaining = width - previewWidth - Gap;
-        bool stacked = remaining < StackedFactsWidth;
+        double remaining = width - band.Width - Gap;
+        bool stacked = remaining < StackedTextWidth;
         bool tagsAlongside = band.Tier > 0 && !stacked;
-        double factsWidth = stacked ? width : tagsAlongside ? Math.Min(PreferredFactsWidth, remaining / 2) : remaining;
-        _facts.Measure(new Size(factsWidth, double.PositiveInfinity));
-        _factsSlot = new Rect(stacked ? 0 : previewWidth + Gap,
-            stacked ? _pictureSlot.Bottom + TextInset : TextInset, factsWidth, _facts.DesiredSize.Height);
+        double pictureWidth = stacked ? width : band.Width;
+        double textX = stacked ? 0 : pictureWidth + Gap;
+        double textWidth = stacked ? width : remaining;
+        double rowHeight = band.RowHeight - verticalEdges;
+        double factsY = stacked ? band.Height + TextInset : TextInset;
+        _facts.Measure(new Size(textWidth, double.PositiveInfinity));
+        _factsSlot = new Rect(textX, factsY, textWidth, _facts.DesiredSize.Height);
+        _actions.Measure(new Size(textWidth, BooruListLayoutSettings.ActionHeight));
 
-        double tagX = tagsAlongside ? _factsSlot.Right + Gap : 0;
-        double tagTop = tagsAlongside ? TextInset : Math.Max(_factsSlot.Bottom, _pictureSlot.Bottom) + TextInset;
-        double tagWidth = Math.Max(0, width - tagX);
-        _tags.SetLayout(band.Tier == 2 && tagsAlongside ? 2 : 1,
-            Math.Max(0, band.RowHeight - verticalEdges - tagTop - TextInset));
-        _tags.Measure(new Size(tagWidth, double.PositiveInfinity));
-        _tagsSlot = new Rect(tagX, tagTop, tagWidth, _tags.DesiredSize.Height);
+        double minimumPicture = tagsAlongside ? Math.Max(band.Height, rowHeight) : band.Height + BooruListLayoutSettings.ActionHeight;
+        double actionsBottom = Math.Max(minimumPicture, _factsSlot.Bottom + TextInset + _actions.DesiredSize.Height);
+        double tagsX = tagsAlongside ? textX : 0;
+        double tagsY = tagsAlongside ? Math.Max(TagTopInset, _factsSlot.Bottom + TextInset)
+            : actionsBottom + TextInset;
+        double tagsWidth = tagsAlongside ? textWidth : width;
+        double reserveBelowTags = tagsAlongside ? TextInset + _actions.DesiredSize.Height : TextInset;
+        _tags.SetHeightBudget(rowHeight - tagsY - reserveBelowTags);
+        _tags.Measure(new Size(tagsWidth, double.PositiveInfinity));
+        _tagsSlot = new Rect(tagsX, tagsY, tagsWidth, _tags.DesiredSize.Height);
+        if (tagsAlongside) actionsBottom = Math.Max(actionsBottom, _tagsSlot.Bottom + reserveBelowTags);
+        _actionsSlot = new Rect(textX, actionsBottom - _actions.DesiredSize.Height, textWidth, _actions.DesiredSize.Height);
 
-        double height = Math.Max(_pictureSlot.Bottom, Math.Max(_factsSlot.Bottom, _tagsSlot.Bottom) + TextInset);
+        double pictureHeight = stacked ? band.Height : actionsBottom;
+        _preview.Width = _frame.Width = pictureWidth;
+        _preview.Height = _frame.Height = pictureHeight;
+        _pictureSlot = new Rect(0, 0, pictureWidth, pictureHeight);
+        _picture.Measure(_pictureSlot.Size);
+
+        double height = tagsAlongside ? actionsBottom : Math.Max(rowHeight, _tagsSlot.Bottom + TextInset);
         _notices.Measure(new Size(width, double.PositiveInfinity));
         _noticesSlot = new Rect(0, height, width, _notices.DesiredSize.Height);
+        _selectionBar.Measure(new Size(BooruTileMetrics.SelectionBar, height));
         return new Size(width, _noticesSlot.Bottom + (_notices.Children.Count > 0 ? TextInset : 0));
     }
 
@@ -233,8 +323,11 @@ internal sealed class BooruListCardLayout : Panel
     {
         _picture.Arrange(_pictureSlot);
         _facts.Arrange(_factsSlot);
+        _actions.Arrange(_actionsSlot);
         _tags.Arrange(_tagsSlot);
         _notices.Arrange(_noticesSlot);
+        _selectionBar.Arrange(new Rect(-_card.Padding.Left - _card.BorderThickness.Left, -_card.BorderThickness.Top,
+            BooruTileMetrics.SelectionBar, finalSize.Height + _card.BorderThickness.Top + _card.BorderThickness.Bottom));
         return finalSize;
     }
 }

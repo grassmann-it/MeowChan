@@ -29,7 +29,7 @@ public sealed class BooruListLayoutTests
     private static readonly string[] ActionPrefixes =
     [
         BooruWorkbenchView.LoadPrefix, BooruWorkbenchView.OpenPostPrefix, BooruWorkbenchView.CopyLinkPrefix,
-        "BooruView:", "BooruSelect:"
+        "BooruView:"
     ];
 
     public static TheoryData<string> Languages()
@@ -47,7 +47,7 @@ public sealed class BooruListLayoutTests
         using Fixture fixture = new();
         foreach ((int width, double frameWidth, double frameHeight, double budget) in new[]
         {
-            (800, 160d, 104d, 248d), (1152, 192d, 128d, 200d), (1840, 224d, 144d, 168d)
+            (800, 160d, 128d, 248d), (1280, 192d, 198d, 200d), (1600, 224d, 166d, 168d), (1920, 224d, 166d, 168d)
         })
         {
             fixture.ResizeViewport(width);
@@ -58,7 +58,7 @@ public sealed class BooruListLayoutTests
                     ?? throw new InvalidOperationException("The headless window did not render.");
                 rendered.Save($"/tmp/112-booru-{width}.png", PngBitmapEncoderOptions.Default);
             }
-            AssertBands(fixture, frameWidth, frameHeight, budget, tagsBelow: width < 900, twoColumns: width > 1400);
+            AssertBands(fixture, frameWidth, frameHeight, budget, tagsBelow: width < 900);
         }
 
         fixture.ResizeViewport(1840, 700);
@@ -81,15 +81,15 @@ public sealed class BooruListLayoutTests
         using Fixture fixture = new(separate: true);
         foreach ((int width, int expected, int height) in new[]
         {
-            (800, 160, 104), (899, 160, 104), (900, 192, 128), (1152, 192, 128),
-            (1400, 192, 128), (1401, 224, 144), (1840, 224, 144)
+            (800, 160, 128), (899, 160, 128), (900, 192, 198), (1152, 192, 198),
+            (1400, 192, 198), (1401, 224, 166), (1840, 224, 166)
         })
         {
             fixture.ResizeViewport(width);
             Border card = fixture.Card("101");
             Near(width, card.Bounds.Width);
             AssertBands(fixture, expected, height, width < 900 ? 248 : width <= 1400 ? 200 : 168,
-                tagsBelow: width < 900, twoColumns: width > 1400);
+                tagsBelow: width < 900);
         }
     });
 
@@ -128,73 +128,107 @@ public sealed class BooruListLayoutTests
         Assert.Single(fixture.Harness.Search.Searches);
     });
 
+    // Tom's 20:30 decision moves stored 12 to fit-to-space. Fable B keeps category priority
+    // and the remaining chips as tab stops, with keyboard access to folding in the card menu.
     [Theory]
     [InlineData(0)]
     [InlineData(12)]
     [InlineData(200)]
-    public void TagFoldAccountsForEveryOmittedTagAndReturnsFocusToTheSameHit(int limit) => Run(() =>
+    public void TagFoldAccountsForEveryOmittedTagAndReturnsFocusToTheSameHit(int legacyLimit) => Run(() =>
     {
-        using Fixture fixture = new(tagCount: 200, tagLimit: limit);
+        using Fixture fixture = new(tagCount: 200, tagLimit: legacyLimit);
         fixture.ResizeViewport(800);
         Border card = fixture.Card("101");
         Button[] visible = ShownTags(card);
-        if (limit == 0) Assert.Empty(visible);
-        else Assert.InRange(visible.Length, 1, limit);
-        if (limit != 0)
+        if (legacyLimit == 0) Assert.Empty(visible);
+        else
         {
+            Assert.InRange(visible.Length, 13, 199);
             Button longChip = visible[0];
             Assert.Contains(new string('n', 300), AutomationProperties.GetName(longChip));
             Assert.InRange(longChip.Bounds.Width, 1, 240);
+            Assert.Contains(visible, chip => chip.Name!.EndsWith("meta_tag_199", StringComparison.Ordinal));
         }
 
         Button more = Toggle(card, "101");
         Assert.Equal(Texts.T("booru.ui.tags.more", 200 - visible.Length), more.Content);
-        Assert.True(more.Focus());
-        Press(fixture.Window, PhysicalKey.Enter);
+        Assert.False(more.IsTabStop);
+        Assert.False(more.Focusable);
+        Assert.True(card.Focus());
+        ContextMenu menu = BooruResultActionsTests.OpenContext(fixture.Window, card);
+        BooruResultActionsTests.Click(BooruResultActionsTests.Item(menu, "booru.menu.fold-tags"));
         fixture.Settle();
         Border expanded = fixture.Card("101");
+        Assert.Same(card, expanded);
         Assert.Equal(200, ShownTags(expanded).Length);
         Assert.Equal(Texts.T("booru.ui.tags.less"), Toggle(expanded, "101").Content);
-        Assert.Same(Toggle(expanded, "101"), fixture.Window.FocusManager!.GetFocusedElement());
+        Assert.Same(card, fixture.Window.FocusManager!.GetFocusedElement());
         Assert.Equal(Texts.T("booru.ui.tags.more", 200 - ShownTags(fixture.Card("102")).Length), Toggle(fixture.Card("102"), "102").Content);
         Assert.True(expanded.Bounds.Height > 248);
 
-        Press(fixture.Window, PhysicalKey.Enter);
+        BooruResultActionsTests.Click(Toggle(expanded, "101"));
         fixture.Settle();
         Assert.Equal(visible.Length, ShownTags(fixture.Card("101")).Length);
-        Assert.Same(Toggle(fixture.Card("101"), "101"), fixture.Window.FocusManager!.GetFocusedElement());
+        Assert.Same(card, fixture.Window.FocusManager!.GetFocusedElement());
+        Assert.Single(fixture.Harness.Search.Searches);
     });
 
-    [Fact]
-    public void ExactlyTwelveTagsFitWithoutAFoldButtonAtWideWidth() => Run(() =>
+    [Theory]
+    [InlineData(12)]
+    [InlineData(29)]
+    public void AllTagsFitWithoutAFoldButtonAtWideWidth(int tagCount) => Run(() =>
     {
-        using Fixture fixture = new(tagCount: 12);
-        fixture.ResizeViewport(1840);
+        using Fixture fixture = new(tagCount: tagCount, tagLimit: 12);
+        fixture.ResizeViewport(1920);
         Border card = fixture.Card("101");
-        Assert.Equal(12, ShownTags(card).Length);
+        Assert.Equal(tagCount, ShownTags(card).Length);
         Assert.False(Toggle(card, "101").IsTabStop);
         Assert.Equal(0, Toggle(card, "101").Opacity);
+        Assert.False(Toggle(card, "101").IsHitTestVisible);
     });
 
     [Fact]
-    public void WideTagColumnsKeepEachCategoryTogetherWhenTagsWrap() => Run(() =>
+    public void CategoriesContinueOnTheSameLineAndTheirFirstChipTravelsWithTheMark() => Run(() =>
     {
         using Fixture fixture = new(tagCount: 29);
-        fixture.ResizeViewport(1401);
-        BooruResultActionsTests.Click(Toggle(fixture.Card("101"), "101"));
-        fixture.Settle();
-
+        fixture.ResizeViewport(1600);
         Border card = fixture.Card("101");
         Control tags = Find<Control>(card, "BooruListTags:101");
-        double middle = Bounds(tags, card).Center.X;
-        BooruPostView post = fixture.Model.Search.View.Rows[0].Post;
-        string prefix = BooruWorkbenchView.ResultTagPrefix + "101:";
-        var shown = ShownTags(card).ToDictionary(chip => chip.Name![prefix.Length..], chip => Bounds(chip, card).Center.X > middle);
-        Assert.Equal(post.Tags.Length, shown.Count);
-        Assert.Contains(true, shown.Values);
-        Assert.Contains(false, shown.Values);
-        foreach (var category in post.Tags.GroupBy(tag => tag.Category))
-            Assert.Single(category.Select(tag => shown[tag.Name]).Distinct());
+        string source = Texts.T("booru.ui.tags.label");
+        Assert.Equal(source, AutomationProperties.GetName(tags));
+        Assert.DoesNotContain(tags.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == source);
+
+        Button artistChip = ShownTags(card)[0];
+        Button copyrightChip = ShownTags(card)[1];
+        TextBlock copyright = Assert.Single(tags.GetVisualDescendants().OfType<TextBlock>(),
+            text => text.Text == BooruText.TagCategory(BooruTagCategory.Copyright) + ":");
+        Near(Bounds(artistChip, card).Right + 12, Bounds(copyright, card).Left);
+        Near(Bounds(artistChip, card).Center.Y, Bounds(copyright, card).Center.Y);
+        Near(Bounds(copyrightChip, card).Center.Y, Bounds(copyright, card).Center.Y);
+        Assert.Equal(source, ToolTip.GetTip(copyright));
+        Assert.Equal(29, ShownTags(card).Length);
+        Assert.Contains(ShownTags(card), chip => Bounds(chip, card).Left > Bounds(tags, card).Center.X);
+    });
+
+    [Fact]
+    public void DenseRowsUseTheAvailableHeightAndCanBeRestrictedByTagLines() => Run(() =>
+    {
+        using Fixture automatic = new(tagCount: 200, singleCategory: true);
+        foreach ((int width, int lines) in new[] { (1280, 5), (1600, 4), (1920, 4) })
+        {
+            automatic.ResizeViewport(width);
+            Border card = automatic.Card("101");
+            Button[] chips = ShownTags(card);
+            Assert.Equal(lines, chips.Select(chip => Bounds(chip, card).Top).Distinct().Count());
+            Assert.Equal(Texts.T("booru.ui.tags.more", 200 - chips.Length), Toggle(card, "101").Content);
+            Assert.True(Toggle(card, "101").IsHitTestVisible);
+        }
+        using Fixture limited = new(tagCount: 200, config: new Config { BooruListTagLines = 1 });
+        limited.ResizeViewport(1920);
+        Border limitedCard = limited.Card("101");
+        Button[] limitedChips = ShownTags(limitedCard);
+        Assert.Single(limitedChips.Select(chip => Bounds(chip, limitedCard).Top).Distinct());
+        Assert.Equal(Texts.T("booru.ui.tags.more", 200 - limitedChips.Length), Toggle(limitedCard, "101").Content);
     });
 
     [Fact]
@@ -232,9 +266,15 @@ public sealed class BooruListLayoutTests
         Border local = fixture.Card("101");
         Border retry = fixture.Card("102");
         Assert.Null(fixture.Model.Search.View.Rows[1].Post.Score);
-        Assert.Equal(4, Find<Grid>(retry, BooruWorkbenchView.DetailsPrefix + "102").RowDefinitions.Count);
+        TextBlock details = Find<TextBlock>(retry, BooruWorkbenchView.DetailsPrefix + "102");
+        Assert.Equal(4, details.Text!.Split(" · ").Length - 1); // File size has its own separator.
+        Assert.DoesNotContain(Texts.T("booru.ui.post.field.score"), AutomationProperties.GetName(details));
         CheckAction(local, BooruWorkbenchView.ShowInMediaPrefix + "101", "101");
         CheckAction(retry, BooruWorkbenchView.RetryLoadPrefix + "102", "102");
+        Assert.Equal(Texts.T("booru.ui.result.short.again"), Find<Button>(local, BooruWorkbenchView.LoadPrefix + "101").Content);
+        Assert.Equal(Texts.T("booru.ui.result.short.again"), Find<Button>(retry, BooruWorkbenchView.RetryLoadPrefix + "102").Content);
+        Assert.Contains("KiB", Find<TextBlock>(local, "BooruListStatus:101").Text);
+        Assert.True(Find<Border>(local, "BooruResultLocal:101").IsVisible);
         Border withdrawn = fixture.Card("104");
         Rect badge = Bounds(Find<Border>(withdrawn, "BooruResultWithdrawn:104"), withdrawn);
         Assert.True(Bounds(fixture.Frame("104"), withdrawn).Contains(badge));
@@ -271,8 +311,14 @@ public sealed class BooruListLayoutTests
     [Fact]
     public void ProfileDefaultsLimitsTransferAndEditorResetsRoundTrip() => Run(() =>
     {
-        Config old = JsonSerializer.Deserialize("{}", ConfigJsonContext.Default.Config)!;
+        Config old = JsonSerializer.Deserialize("""{"BooruResultTagsShown":12}""", ConfigJsonContext.Default.Config)!;
         Assert.Equal(BooruListLayoutSettings.Default, old.BooruListLayout);
+        Assert.Equal(0, old.BooruListTagLines);
+        old.BooruListTagLines = -1;
+        Assert.Throws<ArgumentOutOfRangeException>(old.Validate);
+        old.BooruListTagLines = 13;
+        Assert.Throws<ArgumentOutOfRangeException>(old.Validate);
+        old.BooruListTagLines = 0;
         old.BooruListPreviewWidth = 127;
         Assert.Throws<ArgumentOutOfRangeException>(old.Validate);
         old.BooruListPreviewWidth = 321;
@@ -286,7 +332,7 @@ public sealed class BooruListLayoutTests
         old.BooruListWideRowHeight = 167;
         Assert.Throws<ArgumentOutOfRangeException>(old.Validate);
 
-        Config config = new() { BooruListPreviewWidth = 256, BooruListWideAbove = 1360, BooruListWideRowHeight = 196 };
+        Config config = new() { BooruListPreviewWidth = 256, BooruListWideAbove = 1360, BooruListWideRowHeight = 196, BooruListTagLines = 2 };
         config.Validate();
         Config restarted = JsonSerializer.Deserialize(JsonSerializer.Serialize(config, ConfigJsonContext.Default.Config),
             ConfigJsonContext.Default.Config)!;
@@ -308,6 +354,11 @@ public sealed class BooruListLayoutTests
             NumericUpDown input = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
                 control => control.Name == "BooruListPreviewWidthInput");
             Assert.Equal(256, input.Value);
+            NumericUpDown tagLines = Assert.Single(editor.GetLogicalDescendants().OfType<NumericUpDown>(),
+                control => control.Name == "BooruListTagLinesInput");
+            Assert.Equal(2, tagLines.Value);
+            editor.ComposeRowMenu(tagLines)!.ToModel().Entries.Single(entry => entry.CommandId == "settings.reset-default").Invoke!();
+            Assert.Equal(0, tagLines.Value);
             editor.ComposeRowMenu(input)!.ToModel().Entries.Single(entry => entry.CommandId == "settings.reset-default").Invoke!();
             Assert.Equal(192, input.Value);
             editor.ResetDraft(SettingsEditor.SettingsResetScope.WorkerBudgets);
@@ -328,60 +379,73 @@ public sealed class BooruListLayoutTests
             BooruComponentDispatcher.Wait(BooruTestSupport.WaitAsync(() => !editor.IsBusy, "Booru layout settings save"));
             Assert.False(editor.HasError, editor.ErrorMessage);
             Assert.Equal(300, saved!.BooruListPreviewWidth);
+            Assert.Equal(0, saved.BooruListTagLines);
         }
         finally { editor.EndLifetime(); }
     });
 
-    private static void AssertBands(Fixture fixture, double width, double height, double budget, bool tagsBelow, bool twoColumns)
+    // Fable B §2 and §4 replace the shared facts axis and split columns with full-width text.
+    // W112-69 §B2, §B4 place the reserved action strip at the image edge and the checkbox on the image.
+    private static void AssertBands(Fixture fixture, double width, double height, double budget, bool tagsBelow)
     {
         Border first = fixture.Card("101");
         Border second = fixture.Card("102");
         Assert.Contains("workspace-card", first.Classes);
-        Assert.Contains(first.GetVisualDescendants().OfType<TextBlock>(), text => text.Classes.Contains("card-title"));
+        TextBlock title = Assert.Single(first.GetVisualDescendants().OfType<TextBlock>(), text => text.Classes.Contains("card-title"));
         Near(width, fixture.Frame("101").Bounds.Width);
         Near(height, fixture.Frame("101").Bounds.Height);
         Assert.InRange(first.Bounds.Height, height, budget + 1);
         Assert.InRange(second.Bounds.Height, height, budget + 1);
+
+        Rect frame = Bounds(fixture.Frame("101"), first);
+        Rect actions = Bounds(Find<Panel>(first, "BooruResultActions:101"), first);
+        Rect facts = Bounds(Find<Control>(first, "BooruResultFacts:101"), first);
+        Rect details = Bounds(Find<TextBlock>(first, BooruWorkbenchView.DetailsPrefix + "101"), first);
+        Rect tags = Bounds(Find<Control>(first, "BooruListTags:101"), first);
+        Near(actions.Bottom, frame.Bottom);
+        Near(facts.Left, actions.Left);
+        Near(24, actions.Height);
+        Assert.True(frame.Contains(Bounds(Find<CheckBox>(first, "BooruSelect:101"), first)));
+        Assert.True(details.Top >= facts.Top);
+        if (!tagsBelow)
+        {
+            Assert.True(details.Left > Bounds(title, first).Right);
+            Near(facts.Left, tags.Left);
+            Near(facts.Right, tags.Right);
+            Assert.True(tags.Top >= facts.Bottom && tags.Bottom <= actions.Top);
+        }
+        else
+        {
+            Assert.True(tags.Top >= frame.Bottom && tags.Top >= facts.Bottom);
+            Near(frame.Left, tags.Left);
+        }
         foreach (string prefix in ActionPrefixes) CheckAction(first, prefix + "101", "101");
-        double[] axes = new[] { first, second }.SelectMany(card =>
-            card.GetVisualDescendants().OfType<Grid>().Where(grid => grid.Name?.StartsWith(BooruWorkbenchView.DetailsPrefix, StringComparison.Ordinal) == true)
-                .SelectMany(grid => grid.Children.OfType<TextBlock>()).Where(text => Grid.GetColumn(text) == 1)
-                .Select(text => Bounds(text, card).Left)).ToArray();
-        Assert.Equal(10, axes.Length);
-        Assert.All(axes, x => Near(axes[0], x));
         Assert.All(ShownTags(first), chip =>
         {
             ChipOutline outline = Assert.IsType<ChipOutline>(chip.Content);
             Assert.Contains(WorkspaceChips.Source, outline.Classes);
             Assert.Contains(WorkspaceChips.Compact, outline.Classes);
+            Assert.True(chip.IsTabStop);
+            Assert.True(tags.Contains(Bounds(chip, first)));
         });
-        Rect facts = Bounds(Find<Control>(first, "BooruResultFacts:101"), first);
-        Rect tags = Bounds(Find<Control>(first, "BooruListTags:101"), first);
-        if (tagsBelow) Assert.True(tags.Top >= facts.Bottom);
-        else
-        {
-            Assert.True(tags.Left >= facts.Right && tags.Top < facts.Bottom);
-            if (twoColumns)
-            {
-                Rect[] chips = ShownTags(first).Select(chip => Bounds(chip, first)).ToArray();
-                Assert.True(chips.Any(chip => chip.Left > tags.Center.X && chip.Top < facts.Bottom),
-                    $"No chips in the right half of tag area {tags} above {facts.Bottom}: {string.Join("; ", chips)}");
-                Assert.Contains(chips, chip => chip.Right < tags.Center.X && chip.Top < facts.Bottom);
-            }
-        }
     }
 
     private static void CheckAction(Border card, string name, string postId)
     {
-        Rect preview = Bounds(Find<Border>(card, "BooruPreviewFrame:" + postId), card);
-        Control button = Find<Control>(card, name);
+        Panel row = Find<Panel>(card, "BooruResultActions:" + postId);
+        Button button = Find<Button>(row, name);
         Assert.True(button.IsEffectivelyVisible);
+        Assert.False(button.Focusable);
+        Assert.False(button.IsTabStop);
         Rect action = Bounds(button, card);
-        Assert.True(action.Top >= preview.Bottom - 1 && action.Left >= preview.Left - 1 && action.Right <= preview.Right + 1,
-            $"{name}: {action} must be under {preview}");
+        Assert.True(Bounds(row, card).Contains(action), $"{name}: {action} in {Bounds(row, card)}");
+        TextBlock label = Assert.Single(button.GetVisualDescendants().OfType<TextBlock>(), text => text.Text == (string?)button.Content);
+        Rect labelBounds = Bounds(label, card);
+        Assert.True(action.Contains(labelBounds));
+        Assert.NotEmpty(AutomationProperties.GetName(button)!);
         if (name.StartsWith(BooruWorkbenchView.LoadPrefix, StringComparison.Ordinal))
         {
-            Assert.Equal("download-cloud", IconButtons.KeyOf(Assert.IsType<Button>(button)));
+            Assert.Equal("download-cloud", IconButtons.KeyOf(button));
             Border icon = Assert.Single(button.GetVisualDescendants().OfType<Border>(), child =>
                 child.OpacityMask is ImageBrush brush && ReferenceEquals(brush.Source, CommandBindings.IconMask("download-cloud")));
             Assert.True(action.Contains(Bounds(icon, card)));
@@ -424,10 +488,10 @@ public sealed class BooruListLayoutTests
         internal Panel Results => Find<Panel>(Window, BooruWorkbenchView.ResultsName);
         private ScrollViewer Scroll => Find<ScrollViewer>(Window, "BooruResultScroll");
 
-        internal Fixture(bool separate = false, int tagCount = 29, int tagLimit = 12, bool states = false, Config? config = null)
+        internal Fixture(bool separate = false, int tagCount = 29, int tagLimit = 12, bool states = false, Config? config = null, bool singleCategory = false)
         {
             config ??= new Config { BooruResultTagsShown = tagLimit };
-            BooruPostView[] posts = Enumerable.Range(101, 4).Select(id => Post(id, tagCount, states)).ToArray();
+            BooruPostView[] posts = Enumerable.Range(101, 4).Select(id => Post(id, tagCount, states, singleCategory)).ToArray();
             byte[] landscape = Preview(2048, 1291, new SKColor(53, 100, 132));
             byte[] portrait = Preview(600, 950, new SKColor(117, 65, 125));
             byte[] small = Preview(56, 36, new SKColor(88, 122, 79));
@@ -501,7 +565,7 @@ public sealed class BooruListLayoutTests
             Settle();
         }
 
-        private static BooruPostView Post(int id, int tagCount, bool states)
+        private static BooruPostView Post(int id, int tagCount, bool states, bool singleCategory)
         {
             string[] names =
             [
@@ -509,8 +573,16 @@ public sealed class BooruListLayoutTests
                 "1boy", "blue_hat", "english_text", "green_nails", "long_hair", "closed_eyes", "retro_coloring", "wide_shot"
             ];
             BooruTag[] tags = Enumerable.Range(0, tagCount).Select(index => new BooruTag(
-                tagCount == 200 && index == 0 ? new string('n', 300) : index < names.Length ? names[index] : "general_tag_" + index,
-                index switch { 0 => BooruTagCategory.Artist, 1 or 2 => BooruTagCategory.Copyright, 3 or 4 or 5 => BooruTagCategory.Character, _ => BooruTagCategory.General })).ToArray();
+                tagCount == 200 && index == 0 ? new string('n', 300) : index < names.Length ? names[index] :
+                    (index >= tagCount - 2 && !singleCategory ? "meta_tag_" : "general_tag_") + index,
+                singleCategory ? BooruTagCategory.General : index switch
+                {
+                    0 => BooruTagCategory.Artist,
+                    1 or 2 => BooruTagCategory.Copyright,
+                    3 or 4 or 5 => BooruTagCategory.Character,
+                    _ when index >= tagCount - 2 => BooruTagCategory.Meta,
+                    _ => BooruTagCategory.General
+                })).ToArray();
             var post = BooruUiFixtures.Post(id.ToString(System.Globalization.CultureInfo.InvariantCulture), rawRating: "General").Post;
             var original = post.Media!.Single(media => media.Role == BooruMediaRole.Original);
             return BooruPostView.From(post with
