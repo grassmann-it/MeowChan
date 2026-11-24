@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 using Avalonia.Input;
 using MeowChan.Desktop;
@@ -50,31 +51,42 @@ public sealed partial class MediaPage
         if (CommandBindings.Matches(e, "media.tags.edit"))
         {
             e.Handled = true;
-            OpenActions.Start(() => RunMediaCommandOnPanelAsync("media.tags.edit", row, panel.Frame), "media.panel.tags");
+            OpenActions.Start(panel.EditTagsAsync, "media.panel.tags");
             return true;
         }
         foreach (string id in MediaShortcutCommands)
         {
             if (!CommandBindings.Matches(e, id)) continue;
             e.Handled = true;
-            OpenActions.Start(() => RunMediaCommandOnPanelAsync(id, row, panel.Frame), "media.panel.key");
+            if (id == "media.rating.edit") OpenActions.Start(panel.EditTagsAsync, "media.panel.tags");
+            else OpenActions.Start(() => RunMediaCommandOnPanelAsync(id, row), "media.panel.key");
             return true;
         }
         return false;
     }
 
-    // The menu command of the panel's medium (the same rules as RunMediaCommandByShortcutAsync, with the panel's tile instead of the selection).
-    private Task RunMediaCommandOnPanelAsync(string id, MediaLibraryTileRow row, Avalonia.Controls.Control anchor)
+    // Tiles coalesce equal bytes. A private tag belongs to the visible occurrence and revision.
+    private static bool SamePanelTagTarget(MediaLibraryEntry? left, MediaLibraryEntry? right) =>
+        ReferenceEquals(left, right) || left is not null && right is not null && left.Thread == right.Thread
+        && left.ThreadRevision == right.ThreadRevision && left.PostId == right.PostId && left.Position == right.Position
+        && left.AttachmentRevisionKey == right.AttachmentRevisionKey
+        && left.Directory == right.Directory && left.AssetId == right.AssetId && left.MediaId == right.MediaId && left.Variant == right.Variant
+        && left.Sha256 == right.Sha256 && left.Length == right.Length && left.LocalSlot == right.LocalSlot && left.Presence == right.Presence
+        && left.Historical == right.Historical && left.Unassigned == right.Unassigned && left.BooruPostId == right.BooruPostId
+        && left.ImportItemId == right.ImportItemId && left.FolderItemId == right.FolderItemId;
+
+    private Task OpenPanelTagsAsync(MediaLibraryTileRow row, Avalonia.Controls.Control anchor, CancellationToken token)
     {
-        if ((id is "media.rating.edit" or "media.tags.edit") && !_lifetime.IsCancellationRequested && !_selectionBusy)
-        {
-            // R on the panel's medium: as on the grid, a refusal says why (the index is being built, the file is not saved) instead of doing nothing.
-            if (_building != null) { ShowSelectionNote(Texts.T("media.selection.reason.building")); return Task.CompletedTask; }
-            if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return Task.CompletedTask; }
-            return OpenRateAndTagAsync(row.Entry, row, anchor,
-                () => !_lifetime.IsCancellationRequested && _building == null && IsEffectivelyVisible,
-                initialFocus: QuickTagInitialFocus.TagInput, useSelection: false);
-        }
+        if (_lifetime.IsCancellationRequested || _selectionBusy) return Task.CompletedTask;
+        if (_building != null) { ShowSelectionNote(Texts.T("media.selection.reason.building")); return Task.CompletedTask; }
+        if (row.Entry.Presence != MediaLibraryPresence.Present) { ShowSelectionNote(MediaMenuReasons.NotSaved); return Task.CompletedTask; }
+        bool Current() => !token.IsCancellationRequested && !_lifetime.IsCancellationRequested && _building == null
+            && _panelShown && !_panelObscured && IsEffectivelyVisible && SamePanelTagTarget(row.Entry, _panelRow?.Entry);
+        return OpenRateAndTagAsync(row.Entry, row, anchor, Current, QuickTagInitialFocus.TagInput, sidebarToken: token);
+    }
+
+    private Task RunMediaCommandOnPanelAsync(string id, MediaLibraryTileRow row)
+    {
         if (id == "media.next-untagged") { SelectNextUntagged(); return Task.CompletedTask; }
         if (_lifetime.IsCancellationRequested || _building != null || _selectionBusy || ExecuteMediaMenuActionAsync == null || row.Entry.Presence != MediaLibraryPresence.Present)
             return Task.CompletedTask;
