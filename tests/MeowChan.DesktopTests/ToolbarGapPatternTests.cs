@@ -115,7 +115,8 @@ public sealed class ToolbarGapPatternTests
         Button outlined = new() { Content = "Outlined", Classes = { "bar-button" } };
         ToggleButton toggle = new() { Content = "Toggle" };
         ToggleButton toolbarToggle = new() { Content = "Sidebar", Classes = { "toolbar-toggle" }, IsChecked = true };
-        ToggleButton segment = new() { Content = "List", Classes = { "toolbar-toggle", "segment", "segment-first" } };
+        TextBlock segmentLabel = new() { Text = "List" };
+        ToggleButton segment = new() { Content = segmentLabel, Classes = { "toolbar-toggle", "segment", "segment-first" } };
         SplitButton split = new() { Content = "Split" };
         ActionToolBar bar = new() { Items = { plain, outlined, toggle, toolbarToggle, segment, split } };
         Window window = new() { Width = 1000, Height = 200, Content = bar, RequestedThemeVariant = ThemeVariant.Dark, Classes = { MotionPolicy.OffClass } };
@@ -163,7 +164,17 @@ public sealed class ToolbarGapPatternTests
 
             var segmentState = (IPseudoClasses)segment.Classes;
             segmentState.Set(":pressed", true);
-            Assert.Equal(Colors.Magenta, ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.SegmentPressed"), ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.ControlBorder"), ColorOf(Presenter(segment).BorderBrush));
+            segment.IsChecked = true;
+            Assert.Equal(Token("Workspace.SegmentPressed"), ColorOf(Presenter(segment).Background));
+            Assert.Equal(Token("Workspace.Accent"), ColorOf(Presenter(segment).BorderBrush));
+            Assert.Equal(Token("Workspace.Text"), ColorOf(segmentLabel.Foreground));
+            segmentState.Set(":pressed", false);
+            Assert.Equal(Token("Workspace.ToolbarToggleSurface"), ColorOf(Presenter(segment).Background));
+            Assert.Equal(Colors.White, ColorOf(segmentLabel.Foreground));
+            segment.IsChecked = false;
+            segmentState.Set(":pressed", true);
             segment.IsEnabled = false;
             Assert.Equal(Colors.Transparent, ColorOf(Presenter(segment).Background));
             Assert.Equal(Token("Workspace.Muted"), ColorOf(Presenter(segment).Foreground));

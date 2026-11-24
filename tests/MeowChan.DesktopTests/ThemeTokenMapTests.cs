@@ -55,7 +55,7 @@ public sealed class ThemeTokenMapTests
         Dictionary<string, XElement> resources = Resources(theme);
         var workspaceColours = resources.Where(pair => pair.Value.Name == A + "SolidColorBrush" &&
             pair.Key.StartsWith("Workspace.", StringComparison.Ordinal)).Select(pair => pair.Key);
-        var expectedColours = ThemeTokens.Seeds.Append("Workspace.ToolbarToggleSurface");
+        var expectedColours = ThemeTokens.Seeds.Concat(["Workspace.ToolbarToggleSurface", "Workspace.SegmentPressed"]);
         Assert.Equal(expectedColours.Order(StringComparer.Ordinal), workspaceColours.Order(StringComparer.Ordinal));
         Assert.Equal(ThemeTokenClassification.Variation, ThemeTokens.ForTheme(theme).Classify("Workspace.ToolbarToggleSurface"));
         foreach (string seed in ThemeTokens.Seeds)
@@ -103,8 +103,10 @@ public sealed class ThemeTokenMapTests
             "CheckBoxCheckedDisabledBackground", "CheckBoxCheckedDisabledBorderBrush", "CheckBoxCardCheckedDisabledBorderBrush",
             "RadioButtonCheckIconDisabledBackground", "RadioButtonCheckIconDisabledBorderBrush", "SliderThumbDisabledBorderBrush",
             "ToggleSwitchContainerCheckedDisabledBackground");
+        Add(ThemeTokenVariation.PrimaryPressedAccent, "#5586CC", "#662F05",
+            "ButtonSolidPrimaryPressedBackground", "ButtonSolidPrimaryPressedBorderBrush");
+        Add(ThemeTokenVariation.SegmentPressed, "#363C45", "#CAC2B6", "Workspace.SegmentPressed");
         Add(ThemeTokenVariation.PressedAccent, "#6AA7FF", "#662F05",
-            "ButtonSolidPrimaryPressedBackground", "ButtonSolidPrimaryPressedBorderBrush",
             "CheckBoxCheckedPressedBackground", "CheckBoxCheckedPressedBorderBrush",
             "RadioButtonCheckIconPressedBackground", "RadioButtonCheckIconPressedBorderBrush", "SliderThumbPressedBorderBrush",
             "ToggleSwitchContainerCheckedPressedBackground");
