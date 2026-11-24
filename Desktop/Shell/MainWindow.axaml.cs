@@ -68,7 +68,11 @@ public partial class MainWindow : Window
 
     public MainWindow() : this(null) { }
 
-    internal MainWindow(DesktopSessionHost? session)
+    internal MainWindow(DesktopSessionHost? session) : this(session, static () => new DesktopSessionHost()) { }
+
+    internal static MainWindow CreateWithSessionFactory(Func<DesktopSessionHost> createSession) => new(null, createSession);
+
+    private MainWindow(DesktopSessionHost? session, Func<DesktopSessionHost> createSession)
     {
         RecordStartupTiming(StartupTimingPoint.ConstructorBegin);
         // The quick tag popover swallows the repeats of the key that opened it (R held a little long), so it must know which keys are down.
@@ -81,11 +85,11 @@ public partial class MainWindow : Window
             throw;
         }
         InitializeGlyphIcons();
-        _session = session ?? new DesktopSessionHost();
+        _session = session ?? createSession();
         _config = _session.Config;
-        InitializeStartupWindowSize();
         try
         {
+            InitializeStartupWindowSize();
             AttachStartupTiming();
             using (MeowChan.Diagnostics.PerformanceDiagnostics.Measure("startup.ctor.texts-init")) Texts.Initialize(Path.Combine(_session.ProfileDirectory, "LanguagePacks"));
             Texts.SetLanguage(_config.Language);
@@ -161,17 +165,20 @@ public partial class MainWindow : Window
         }
         catch
         {
-            DetachStartupTiming();
-            Texts.Changed -= OnLanguageChanged;
-            _session.ProjectionPublished -= OnSessionChanged;
-            _session.StartupPreviewChanged -= OnStartupPreviewChanged;
-            _session.CatalogReadableChanged -= OnCatalogReadableChanged;
-            DisposeWorkspace();
-            DisposeWorkspacePages();
-            _sessionRefresh?.Dispose();
-            StopClipboardMonitor();
-            DisposeTrayIcon();
-            _session.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            try
+            {
+                DetachStartupTiming();
+                Texts.Changed -= OnLanguageChanged;
+                _session.ProjectionPublished -= OnSessionChanged;
+                _session.StartupPreviewChanged -= OnStartupPreviewChanged;
+                _session.CatalogReadableChanged -= OnCatalogReadableChanged;
+                DisposeWorkspace();
+                DisposeWorkspacePages();
+                _sessionRefresh?.Dispose();
+                StopClipboardMonitor();
+                DisposeTrayIcon();
+            }
+            finally { _session.DisposeAsync().AsTask().GetAwaiter().GetResult(); }
             throw;
         }
     }
