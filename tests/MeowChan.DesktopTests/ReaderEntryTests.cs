@@ -1,18 +1,13 @@
-using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Platform;
-using Avalonia.Threading;
+using Avalonia.Interactivity;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Downloader;
 using MeowChan.Interfaces;
-using MeowChan.Persistence;
-using ArchiveCatalog = MeowChan.Archive.ArchiveCatalog;
 
 namespace MeowChan.DesktopTests;
 
@@ -31,10 +26,11 @@ public sealed class ReaderEntryTests
     [Fact]
     public async Task EnlargingTheShownThreadKeepsItsPostAndWritesNoReadingPosition()
     {
-        ArchivedThreadView view = await SeedAsync("1000");
-        WithPage(page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAsync(archive, "1000");
+        archive.Run(page =>
         {
-            Assert.True(page.LoadThreadAsync(view.Summary.Id, true, view).IsCompletedSuccessfully);
+            ReaderArchiveTestFixture.Load(page, view);
             Show(page, view, "p055");
             Assert.Equal("p055", page.CurrentReaderPostId);
             AddHistoryEntry(page, view);
@@ -44,7 +40,7 @@ public sealed class ReaderEntryTests
 
             Control? pane = null;
             Task open = page.OpenReaderOnThreadAsync(view.Summary.Id, () => pane = page.DetachReader(), view);
-            Pump(open);
+            BooruComponentDispatcher.Wait(open);
 
             Assert.NotNull(pane);
             Assert.Equal(Posts, page.FindControl<ListBox>("ArchivePosts")!.ItemCount);
@@ -58,19 +54,20 @@ public sealed class ReaderEntryTests
     [Fact]
     public async Task OpeningAnotherThreadUsesItsSavedReadingPlaceWithoutPublishingANewPosition()
     {
-        ArchivedThreadView shown = await SeedAsync("1000"), other = await SeedAsync("2000");
-        WithPage(page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView shown = await SeedAsync(archive, "1000"), other = await SeedAsync(archive, "2000");
+        archive.Run(page =>
         {
             page.ReadingPlaceFor = id => id == other.Summary.Id
                 ? new LocalReadingPosition(id.Source, id.Board, id.Thread!, "p077", 12, null)
                 : null;
-            Assert.True(page.LoadThreadAsync(shown.Summary.Id, true, shown).IsCompletedSuccessfully);
+            ReaderArchiveTestFixture.Load(page, shown);
             Show(page, shown, "p055");
             List<LocalReadingPosition> written = [];
             page.ConsciousReadingPositionChanged += written.Add;
 
             Task open = page.OpenReaderOnThreadAsync(other.Summary.Id, () => page.DetachReader(), other);
-            Pump(open);
+            BooruComponentDispatcher.Wait(open);
 
             Assert.Equal(other.Summary.Id, page.CurrentThread?.Summary.Id);
             Assert.Equal("p077", page.CurrentReaderPostId);
@@ -82,17 +79,18 @@ public sealed class ReaderEntryTests
     [Fact]
     public async Task OpeningAnotherThreadInTheLargeReaderStartsAtItsFirstPostWithoutReadingPositionOrBackHistory()
     {
-        ArchivedThreadView shown = await SeedAsync("1000"), other = await SeedAsync("2000");
-        WithPage(page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView shown = await SeedAsync(archive, "1000"), other = await SeedAsync(archive, "2000");
+        archive.Run(page =>
         {
-            Assert.True(page.LoadThreadAsync(shown.Summary.Id, true, shown).IsCompletedSuccessfully);
+            ReaderArchiveTestFixture.Load(page, shown);
             Show(page, shown, "p055");
             AddHistoryEntry(page, shown);
             List<LocalReadingPosition> written = [];
             page.ConsciousReadingPositionChanged += written.Add;
 
             Task open = page.OpenReaderOnThreadAsync(other.Summary.Id, () => page.DetachReader(), other);
-            Pump(open);
+            BooruComponentDispatcher.Wait(open);
 
             Assert.Equal(0, page.FindControl<ListBox>("ArchivePosts")!.SelectedIndex);
             Assert.Equal("p000", page.CurrentReaderPostId);
@@ -103,17 +101,25 @@ public sealed class ReaderEntryTests
     }
 
     [Fact]
-    public void TheReaderOpensDoNotPublishAReadingPositionByThemselves()
+    public async Task TheReaderOpensDoNotPublishAReadingPositionByThemselves()
     {
-        string gallery = Source("Desktop/Views/Archive/ArchivePage.Gallery.cs");
-        string readPosts = gallery[gallery.IndexOf("private async void OnReadPostsClick", StringComparison.Ordinal)..];
-        readPosts = readPosts[..readPosts.IndexOf("private void OnVersionScopeChanged", StringComparison.Ordinal)];
-        Assert.DoesNotContain("ReaderPositionChanged", readPosts);
-        Assert.Contains("OpenReaderOnThreadAsync(selectedThread,", readPosts);
-        string load = Source("Desktop/Views/Archive/ArchivePage.axaml.cs");
-        Assert.Contains("focusIntent: focusIntent, passiveOpen: true)", load);
-        string reader = Source("Desktop/Views/Archive/ArchivePage.Reader.cs");
-        Assert.Contains("ReaderPositionChanged(deliberate: !interactionRevision.HasValue && !passiveOpen)", reader);
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAsync(archive, "1000");
+        archive.Run(page =>
+        {
+            List<LocalReadingPosition> written = [];
+            page.ConsciousReadingPositionChanged += written.Add;
+            ReaderArchiveTestFixture.Load(page, view);
+            Assert.Empty(written);
+
+            Control? largeReader = null;
+            page.OpenReaderRequested = _ => largeReader = page.DetachReader();
+            page.FindControl<Button>("ArchiveReadPosts")!.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+            BooruComponentDispatcher.WaitUntil(() => largeReader != null && !page.IsBusy && page.CurrentThread?.Summary.Id == view.Summary.Id
+                && page.CurrentReaderPostId == "p000", "the same thread to open in the large reader");
+            BooruComponentDispatcher.Wait(page.MediaLoadTask);
+            Assert.Empty(written);
+        });
     }
 
     // ---- AR-03: the reader toolbar without a thread ----
@@ -121,8 +127,9 @@ public sealed class ReaderEntryTests
     [Fact]
     public async Task ThreadActionsOfTheReaderToolbarAreDisabledWithTheOpenAThreadReasonUntilAThreadIsShown()
     {
-        ArchivedThreadView view = await SeedAsync("1000");
-        WithPage(page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAsync(archive, "1000");
+        archive.Run(page =>
         {
             string reason = Texts.T("reader.thread.openFirst");
             Assert.NotEqual("reader.thread.openFirst", reason);
@@ -136,7 +143,7 @@ public sealed class ReaderEntryTests
                 Assert.DoesNotContain(Texts.T("archive.command.busy"), tip);
                 Assert.True(ToolTip.GetShowOnDisabled(button), name);
             }
-            Assert.True(page.LoadThreadAsync(view.Summary.Id, true, view).IsCompletedSuccessfully);
+            ReaderArchiveTestFixture.Load(page, view);
             Assert.Null(page.ReaderThreadActionsReason);
             Assert.True(page.FindControl<Button>("ReaderFindOpen")!.IsEnabled);
             Assert.True(page.FindControl<Button>("ReaderThreadOpen")!.IsEnabled);
@@ -169,19 +176,33 @@ public sealed class ReaderEntryTests
 
     // ---- O2-01: focus after the large reader closed ----
 
-    [Fact]
-    public void AReaderOriginThatIsGoneOrCannotTakeFocusResolvesToTheFallbackOrNothing()
-    {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AReaderOriginThatIsGoneOrCannotTakeFocusResolvesToTheFallbackOrNothing(bool removeOrigin) =>
         BooruComponentDispatcher.Run(() =>
         {
-            Assert.Null(ReaderOriginFocus.Resolve(null));
-            // Without a window nothing is attached to a visual tree: no control is a target (a detached row is never focused).
-            Assert.Null(ReaderOriginFocus.Resolve(new ListBoxItem(), new DataGrid()));
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            Button origin = new();
+            ListBox fallback = new() { ItemsSource = new[] { "first", "selected" }, SelectedIndex = 1 };
+            StackPanel panel = new() { Children = { origin, fallback } };
+            Window window = new() { Content = panel, Width = 640, Height = 480 };
+            try
+            {
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                window.UpdateLayout();
+                Assert.True(origin.Focus());
+                if (removeOrigin) panel.Children.Remove(origin);
+                else origin.IsEnabled = false;
+
+                Assert.Null(ReaderOriginFocus.Resolve(origin));
+                Control selected = Assert.IsAssignableFrom<Control>(fallback.ContainerFromIndex(1));
+                Assert.True(ReaderOriginFocus.Resolve(origin, fallback)?.Focus());
+                Assert.Same(selected, window.FocusManager?.GetFocusedElement());
+            }
+            finally { window.Close(); }
         });
-        string reader = Source("Desktop/Shell/MainWindow.Reader.cs");
-        Assert.Contains("RestoreReaderOriginFocus(_readerOriginFocus, _readerOriginPage)", reader);
-        Assert.DoesNotContain("_readerOriginFocus?.Focus()", reader);
-    }
 
     // ---- RD-03 / RD-04 / RD-05: the media sidebar's empty texts and the focused-enlarge setting ----
 
@@ -201,10 +222,11 @@ public sealed class ReaderEntryTests
     [Fact]
     public async Task ASidebarThatPresentsTheFocusedMediaSaysSoWhenTheFocusedEnlargeSwitchIsToggled()
     {
-        ArchivedThreadView view = await SeedAsync("1000");
-        WithPage(page =>
+        using ReaderArchiveTestFixture archive = new();
+        ArchivedThreadView view = await SeedAsync(archive, "1000");
+        archive.Run(page =>
         {
-            Assert.True(page.LoadThreadAsync(view.Summary.Id, true, view).IsCompletedSuccessfully);
+            ReaderArchiveTestFixture.Load(page, view);
             TextBlock message = page.FindControl<TextBlock>("ArchiveMessage")!;
             Action toggle = FocusedEnlargeToggle(page);
             string note = Texts.T("reader.view.focusedEnlarge.inSidebar");
@@ -250,46 +272,14 @@ public sealed class ReaderEntryTests
             ThreadActivity.Pending, ThreadSourceState.Active, null, saved, saved, new Dictionary<string, FailureInfo>(), null, new DownloadCounts(0, 0))
         { Content = content };
 
-    private static void Pump(Task task)
-    {
-        Stopwatch elapsed = Stopwatch.StartNew();
-        while (!task.IsCompleted && elapsed.Elapsed < TimeSpan.FromSeconds(5))
-        {
-            Dispatcher.UIThread.RunJobs();
-            Thread.Sleep(1);
-        }
-        Dispatcher.UIThread.RunJobs();
-    }
-
     private static string Source(string relative, [CallerFilePath] string file = "") =>
         File.ReadAllText(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(file)!, "../..", relative)));
 
-    private static void WithPage(Action<ArchivePage> test)
-    {
-        BooruComponentDispatcher.Run(() =>
-        {
-            using IDisposable scope = AvaloniaLocator.EnterScope();
-            AvaloniaLocator.CurrentMutable.Bind<ICursorFactory>().ToConstant(new DeadAffordanceGuard.RecordingCursorFactory());
-            TokenApplication.Bind();
-            ArchivePage page = new(_ => Task.FromResult<ArchiveReader>(null!), (_, _) => Task.CompletedTask, _ => { });
-            try { page.IsReadable = true; test(page); }
-            finally { (page as IDisposable)?.Dispose(); }
-        });
-    }
-
-    private static async Task<ArchivedThreadView> SeedAsync(string threadId)
+    private static Task<ArchivedThreadView> SeedAsync(ReaderArchiveTestFixture archive, string threadId)
     {
         ResourceId id = new("synthetic-A", "board-A", threadId);
-        using TempDirectory temp = new();
-        using ProfileLease lease = ProfileLease.Acquire(temp.Path);
-        await using (ArchiveCatalog catalog = await ArchiveCatalog.OpenAsync(temp.Path, lease))
-        {
-            CapturedPost[] posts = Enumerable.Range(0, Posts).Select(i => new CapturedPost(
-                "p" + i.ToString("D3"), i, PostFieldPresence.All, Html: "synthetic stored text " + i)).ToArray();
-            await catalog.CaptureAsync(new(id, "https://example.invalid/not-acquired", "Reader entry " + threadId,
-                ThreadSourceState.NotFound, DateTimeOffset.UnixEpoch, Path.Combine(temp.Path, "uncreated-media"), posts));
-        }
-        await using ArchiveReader reader = await ArchiveReader.OpenAsync(temp.Path);
-        return (await reader.ReadThreadAsync(id))!;
+        CapturedPost[] posts = Enumerable.Range(0, Posts).Select(i => new CapturedPost(
+            "p" + i.ToString("D3"), i, PostFieldPresence.All, Html: "synthetic stored text " + i)).ToArray();
+        return archive.CaptureAsync(id, "Reader entry " + threadId, posts);
     }
 }
