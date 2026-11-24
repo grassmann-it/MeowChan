@@ -19,6 +19,7 @@ using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.WorkViews;
 using MeowChan.Storage;
 using MeowChan.Gallery;
+using MeowChan.Interfaces;
 using Semi.Avalonia.DataGrid;
 
 namespace MeowChan.DesktopTests;
@@ -49,11 +50,11 @@ public sealed class SavedMediaReaderTests
         Assert.True(page.IsMediaSidebarShown);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(17, 11));
-        window.KeyPressQwerty(grid ? PhysicalKey.Right : PhysicalKey.Down, RawInputModifiers.None);
+        window.KeyPressQwerty(grid ? PhysicalKey.ArrowRight : PhysicalKey.ArrowDown, RawInputModifiers.None);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[1].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(19, 13));
         Assert.Equal(1, grid ? tiles.SelectedIndex : table.SelectedIndex);
-        window.KeyPressQwerty(grid ? PhysicalKey.Left : PhysicalKey.Up, RawInputModifiers.None);
+        window.KeyPressQwerty(grid ? PhysicalKey.ArrowLeft : PhysicalKey.ArrowUp, RawInputModifiers.None);
         WaitUntil(() => sidebar.HeaderLine.Contains(rows[0].Version, StringComparison.Ordinal)
             && sidebar.Load.ShownSource == new PixelSize(17, 11));
         Assert.Equal(0, grid ? tiles.SelectedIndex : table.SelectedIndex);
@@ -217,11 +218,11 @@ public sealed class SavedMediaReaderTests
             Assert.True(((Control)page.Grid.ContainerFromIndex(0)!).Focus(NavigationMethod.Tab));
             WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
 
-            window.KeyPressQwerty(PhysicalKey.Right, RawInputModifiers.None);
+            window.KeyPressQwerty(PhysicalKey.ArrowRight, RawInputModifiers.None);
             WaitUntil(() => ReferenceEquals(rows[1], page.PanelRow));
             Assert.Equal(1, page.Grid.SelectedIndex);
 
-            window.KeyPressQwerty(PhysicalKey.Left, RawInputModifiers.None);
+            window.KeyPressQwerty(PhysicalKey.ArrowLeft, RawInputModifiers.None);
             WaitUntil(() => ReferenceEquals(rows[0], page.PanelRow));
             Assert.Equal(0, page.Grid.SelectedIndex);
         }
