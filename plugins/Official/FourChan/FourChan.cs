@@ -30,6 +30,8 @@ public sealed class FourChanPlugin : ISourcePlugin
                 new(SourceResourceKind.Board, "boards.4chan.org", "/{board}/catalog", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
                 new(SourceResourceKind.Board, "boards.4channel.org", "/{board}/", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
                 new(SourceResourceKind.Board, "boards.4channel.org", "/{board}/catalog", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.BoardArchive, "boards.4chan.org", "/{board}/archive", IsCanonical: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
+                new(SourceResourceKind.BoardArchive, "boards.4channel.org", "/{board}/archive", LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord },
                 new(SourceResourceKind.Thread, "boards.4chan.org", "/{board}/thread/{thread}", IsCanonical: true, AllowTitleSegment: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord, ThreadIdentifierKind = RouteIdentifierKind.Decimal },
                 new(SourceResourceKind.Thread, "boards.4channel.org", "/{board}/thread/{thread}", AllowTitleSegment: true, LowercaseBoardId: true) { BoardIdentifierKind = RouteIdentifierKind.AsciiWord, ThreadIdentifierKind = RouteIdentifierKind.Decimal } },
                 new HttpHostDeclaration[] { new("a.4cdn.org", HttpHostPurpose.Metadata), new("i.4cdn.org", HttpHostPurpose.OriginalMedia) }, EmptySettings, PostOrderKind.DecimalPostId)
@@ -43,20 +45,35 @@ public sealed class FourChanPlugin : ISourcePlugin
     {
         if (!FourChanParser.ValidBoard(request.Board.SourceId, request.Board.BoardId) || request.Cursor is not null || request.Page is not null)
             return new CatalogFailure(request.Board, new FailureDetail("invalid_request", "This source reads one complete board catalog without a cursor or page."));
+        string endpoint = request.IsArchive ? "archive.json" : "catalog.json";
+        SourceValidators? sentValidators = request.HasSnapshot && (!request.IsArchive || HasValidator(request.Validators))
+            ? request.Validators : null;
         HostHttpResult result = await context.Http.SendAsync(new HostHttpRequest("4chan", HostHttpMethod.Get,
-            new Uri($"https://a.4cdn.org/{request.Board.BoardId}/catalog.json"), Validators: request.HasSnapshot ? request.Validators : null), cancellationToken);
+            new Uri($"https://a.4cdn.org/{request.Board.BoardId}/{endpoint}"), Validators: sentValidators), cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (result is HostHttpDeferred deferred) return new CatalogDeferred(request.Board, deferred.RetryAt, deferred.ReasonCode, deferred.HttpStatusCode);
         if (result is HostHttpFailure failure) return new CatalogFailure(request.Board, failure.Failure);
         HostHttpResponse response = (HostHttpResponse)result;
         if (response.StatusCode == 304)
-            return request.HasSnapshot && HasValidator(response.Validators ?? request.Validators) ? new CatalogUnchanged(request.Board, (response.Validators ?? request.Validators)!)
+        {
+            SourceValidators? validators = request.IsArchive ? sentValidators : response.Validators ?? request.Validators;
+            if (request.IsArchive && sentValidators != null)
+                validators = new(response.Validators?.EntityTag ?? sentValidators.EntityTag,
+                    response.Validators?.LastModified ?? sentValidators.LastModified,
+                    response.Validators?.Revision ?? sentValidators.Revision);
+            return request.HasSnapshot && HasValidator(validators) ? new CatalogUnchanged(request.Board, validators!)
                 : new CatalogFailure(request.Board, new FailureDetail("unexpected_304", "A 304 requires an accepted snapshot.", 304));
+        }
+        if (request.IsArchive && response.StatusCode == 404)
+            return new CatalogFailure(request.Board, new FailureDetail("archive_unavailable", "This board has no archive endpoint.", 404));
         if (response.StatusCode != 200) return new CatalogFailure(request.Board, HttpFailure(response));
         if (response.Body.Length > SdkLimits.MaximumMetadataBytes) return new CatalogFailure(request.Board, new FailureDetail("metadata_too_large", "Metadata exceeds the SDK body limit."));
         try
         {
-            IReadOnlyList<FourChanParser.CatalogEntry> entries = FourChanParser.ParseCatalog(Encoding.UTF8.GetString(response.Body), cancellationToken);
+            string json = Encoding.UTF8.GetString(response.Body);
+            IReadOnlyList<FourChanParser.CatalogEntry> entries = request.IsArchive
+                ? FourChanParser.ParseArchive(json, cancellationToken)
+                : FourChanParser.ParseCatalog(json, cancellationToken);
             return new CatalogSnapshot(new SourceCatalogSnapshot(request.Board, entries.Select(entry => new SourceThreadReference(
                 new SourceThreadId("4chan", request.Board.BoardId, entry.Id), FourChanParser.ThreadUri(request.Board.BoardId, entry.Id),
                 entry.Title, entry.Text, SourceTextFormat.Html)).ToArray(), true, Validators: response.Validators));
@@ -120,6 +137,26 @@ internal static class FourChanParser
     internal static bool ValidId(string id) => id.Length is > 0 and <= 256 && id.All(char.IsAsciiDigit);
     internal static Uri ThreadUri(string board, string id) => new($"https://boards.4chan.org/{board}/thread/{id}");
     internal static Uri ThreadEndpoint(string board, string id) => new($"https://a.4cdn.org/{board}/thread/{id}.json");
+
+#if !MEOWCHAN_CORE
+    internal static IReadOnlyList<CatalogEntry> ParseArchive(string json, CancellationToken cancellationToken)
+    {
+        using JsonDocument document = JsonDocument.Parse(json.Length > 0 && json[0] == '\uFEFF' ? json[1..] : json);
+        if (document.RootElement.ValueKind != JsonValueKind.Array) throw new InvalidDataException("Archive must be an array.");
+        List<CatalogEntry> entries = new();
+        HashSet<long> ids = new();
+        foreach (JsonElement entry in document.RootElement.EnumerateArray())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (entry.ValueKind != JsonValueKind.Number || !entry.TryGetInt64(out long id) || id <= 0)
+                throw new InvalidDataException("Invalid archive thread ID.");
+            if (!ids.Add(id)) continue;
+            if (entries.Count == SdkLimits.MaximumCollectionCount) throw new InvalidDataException("The archive exceeds the SDK collection limit.");
+            entries.Add(new CatalogEntry(id.ToString(CultureInfo.InvariantCulture), null, null));
+        }
+        return entries;
+    }
+#endif
 
     internal static IReadOnlyList<CatalogEntry> ParseCatalog(string json, CancellationToken cancellationToken = default)
     {

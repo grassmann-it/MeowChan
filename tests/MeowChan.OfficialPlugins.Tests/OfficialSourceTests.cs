@@ -43,10 +43,11 @@ public sealed class OfficialSourceTests
         SourceDescription source = plugin.Describe().Sources.Single();
         using HttpClient client = new(new LibraryTransport("", ""));
         IImageBoard provider = eightKun ? new EightKunImageBoard(client) : new FourChanImageBoard(client);
-        Assert.Equal(eightKun ? 5 : 6, source.Routes.Count);
+        Assert.Equal(eightKun ? 5 : 8, source.Routes.Count);
         foreach (UrlRoute route in source.Routes)
         {
             Assert.Equal(RouteIdentifierKind.AsciiWord, route.BoardIdentifierKind);
+            if (route.Kind == SourceResourceKind.BoardArchive) continue; // Archive URLs are browse-only in the host adapter.
             if (route.Kind == SourceResourceKind.Thread) Assert.Equal(RouteIdentifierKind.Decimal, route.ThreadIdentifierKind);
             string path = route.PathTemplate.Replace("{board}", "G", StringComparison.Ordinal)
                 .Replace("{thread}", "000123", StringComparison.Ordinal);
@@ -342,6 +343,73 @@ public sealed class OfficialSourceTests
         Assert.IsType<ThreadFailure>(await plugin.ReadThreadAsync(Request(eightKun) with { Thread = new SourceThreadId("wrong", "../g", "123") }, Context(http)));
         Assert.IsType<CatalogFailure>(await plugin.ReadCatalogAsync(new(new SourceBoardId(eightKun ? "8kun" : "4chan", "g"), Cursor: "unexpected"), Context(http)));
         Assert.Empty(http.Requests);
+    }
+
+    [Theory]
+    [InlineData("[42,7,42,150]", new[] { "42", "7", "150" })]
+    [InlineData("[]", new string[0])]
+    public async Task FourChanArchiveReadsOnlyCanonicalIdsInProviderOrder(string json, string[] ids)
+    {
+        FourChanPlugin plugin = new();
+        CatalogReadRequest request = new(new SourceBoardId("4chan", "g")) { IsArchive = true };
+        FixtureHttp http = new(Response(200, json));
+        CatalogSnapshot result = Assert.IsType<CatalogSnapshot>(await plugin.ReadCatalogAsync(request, Context(http)));
+        Assert.Empty(SdkValidation.ValidateCatalogResult(request, result, plugin.Describe().Sources.Single()));
+        Assert.Equal(ids, result.Snapshot.Threads.Select(thread => thread.Id.ThreadId));
+        Assert.All(result.Snapshot.Threads, thread =>
+        {
+            Assert.Equal("https://boards.4chan.org/g/thread/" + thread.Id.ThreadId, thread.Url.AbsoluteUri);
+            Assert.Null(thread.Title);
+            Assert.Null(thread.OpeningText);
+        });
+        Assert.Equal("https://a.4cdn.org/g/archive.json", Assert.Single(http.Requests).Url.AbsoluteUri);
+    }
+
+    [Theory]
+    [InlineData("{\"ids\":[4]}")]
+    [InlineData("[42,\"7\"]")]
+    [InlineData("[0]")]
+    [InlineData("[-1]")]
+    [InlineData("[1.5]")]
+    [InlineData("[9223372036854775808]")]
+    [InlineData("[null]")]
+    [InlineData("[[1]]")]
+    public async Task FourChanArchiveRejectsMalformedObservations(string json)
+    {
+        CatalogReadRequest request = new(new SourceBoardId("4chan", "g")) { IsArchive = true };
+        var result = Assert.IsType<CatalogFailure>(await new FourChanPlugin().ReadCatalogAsync(request,
+            Context(new FixtureHttp(Response(200, json)))));
+        Assert.Equal("invalid_metadata", result.Failure.Code);
+    }
+
+    [Fact]
+    public async Task FourChanArchiveRequiresASentValidatorForUnchangedAndKeepsItAcrossAHeaderless304()
+    {
+        FourChanPlugin plugin = new();
+        CatalogReadRequest request = new(new SourceBoardId("4chan", "g"), Validators: Validators) { IsArchive = true };
+        FixtureHttp noBaseline = new(Response(304, ""));
+        Assert.Equal("unexpected_304", Assert.IsType<CatalogFailure>(await plugin.ReadCatalogAsync(request, Context(noBaseline))).Failure.Code);
+        Assert.Null(Assert.Single(noBaseline.Requests).Validators);
+
+        FixtureHttp noValidator = new(Response(304, ""));
+        Assert.IsType<CatalogFailure>(await plugin.ReadCatalogAsync(request with { HasSnapshot = true, Validators = null }, Context(noValidator)));
+        Assert.Null(Assert.Single(noValidator.Requests).Validators);
+
+        FixtureHttp http = new(Response(304, "") with { Validators = new SourceValidators() });
+        CatalogUnchanged unchanged = Assert.IsType<CatalogUnchanged>(await plugin.ReadCatalogAsync(request with { HasSnapshot = true }, Context(http)));
+        Assert.Equal(Validators, unchanged.Validators);
+        Assert.Equal(Validators, Assert.Single(http.Requests).Validators);
+    }
+
+    [Fact]
+    public void ArchiveMarkerIsAnAdditiveCatalogWireField()
+    {
+        ReadOnlySpan<byte> oldPayload = """{"board":{"sourceId":"4chan","boardId":"g"}}"""u8;
+        CatalogReadRequest oldRequest = SdkJson.Deserialize<CatalogReadRequest>(oldPayload);
+        Assert.False(oldRequest.IsArchive);
+        Assert.DoesNotContain("isArchive", Encoding.UTF8.GetString(SdkJson.Serialize(oldRequest)), StringComparison.Ordinal);
+        CatalogReadRequest archive = oldRequest with { IsArchive = true };
+        Assert.Equal(archive, SdkJson.Deserialize<CatalogReadRequest>(SdkJson.Serialize(archive)));
     }
 
     private static ISourcePlugin Plugin(bool eightKun) => eightKun ? new EightKunPlugin() : new FourChanPlugin();
