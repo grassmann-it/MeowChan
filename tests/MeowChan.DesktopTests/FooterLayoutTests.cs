@@ -580,7 +580,7 @@ public sealed class FooterLayoutTests
     public void EveryFooterTextExistsInAllTwelveLanguagesWithTheSamePlaceholders()
     {
         string[] keys = FooterSettingsCatalog.Entries.Select(entry => entry.Key).ToArray();
-        Assert.Equal(13, keys.Length);
+        Assert.Equal(15, keys.Length);
         Assert.All(keys, key => Assert.StartsWith("settings.footer.", key, StringComparison.Ordinal));
         Assert.Equal(keys.Length, keys.Distinct().Count());
         foreach (var entry in FooterSettingsCatalog.Entries)
