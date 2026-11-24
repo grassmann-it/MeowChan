@@ -486,8 +486,9 @@ public partial class ArchivePage
 
     private void SaveMediaSidebarWidth()
     {
-        if (_ended || !_mediaSidebarShown || _mediaSidebarHost is not { } host) return;
-        double actual = host.ColumnDefinitions[_mediaSidebarRight ? 2 : 0].ActualWidth;
+        if (_ended || !_mediaSidebarShown || _mediaSidebarHost is not { } host || _mediaSidebar is not { } sidebar) return;
+        // A grid track's actual width can include the gap beside the splitter.
+        double actual = sidebar.Bounds.Width;
         if (actual <= 0) return;
         int width = ReaderMediaSidebarRules.ClampWidth(actual);
         if (width == ReaderMedia.SidebarWidth) return;
