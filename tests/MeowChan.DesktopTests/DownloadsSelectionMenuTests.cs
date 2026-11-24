@@ -10,6 +10,7 @@ using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 using MeowChan.Diagnostics;
 using MeowChan.Persistence;
+using Semi.Avalonia.DataGrid;
 using static MeowChan.DesktopTests.DownloadWindowFixture;
 
 namespace MeowChan.DesktopTests;
@@ -17,10 +18,12 @@ namespace MeowChan.DesktopTests;
 [Collection("Localization")]
 public sealed class DownloadsSelectionMenuTests
 {
+    private static readonly string[] CheckCommands = ["watch.check", "watch.retry-media"];
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void BothGesturesShowTheExecutableSubsetOfTheSelection(bool keyboard) => Run(fixture =>
+    public void BothGesturesShowTheExecutableSubsetOfTheSelection(bool keyboard) => RunWithGrid(fixture =>
     {
         foreach ((int eligible, int selected) in new[] { (0, 9), (1, 9), (9, 9), (1, 1) })
         {
@@ -29,7 +32,7 @@ public sealed class DownloadsSelectionMenuTests
                 ? MediaWorkStatus.NeedsIntervention : MediaWorkStatus.Excluded)).ToArray(), ids.Take(eligible).ToArray());
             fixture.Select(ids);
             ContextMenu menu = OpenMenu(fixture, keyboard);
-            foreach (string command in new[] { "watch.check", "watch.retry-media" })
+            foreach (string command in CheckCommands)
             {
                 MenuItem item = FindItem(menu, command);
                 string label = CommandCatalog.Label(command);
@@ -48,7 +51,7 @@ public sealed class DownloadsSelectionMenuTests
     [Theory]
     [InlineData(false, false)]
     [InlineData(true, true)]
-    public void ActivationSkipsRemovedAndNewlyIneligibleTargetsAndNeverAddsNewOnes(bool keyboard, bool retry) => Run(async fixture =>
+    public void ActivationSkipsRemovedAndNewlyIneligibleTargetsAndNeverAddsNewOnes(bool keyboard, bool retry) => RunWithGrid(async fixture =>
     {
         long[] ids = Enumerable.Range(1, 10).Select(id => (long)id).ToArray();
         fixture.ShowThreads(ids.Select(id => Thread(id, status: id <= 3
@@ -76,7 +79,7 @@ public sealed class DownloadsSelectionMenuTests
     });
 
     [Fact]
-    public void TheOpenMenuRelocalizesTheFrozenCount() => Run(fixture =>
+    public void TheOpenMenuRelocalizesTheFrozenCount() => RunWithGrid(fixture =>
     {
         fixture.ShowThreads([Thread(1), Thread(2)], 1);
         fixture.Select(1, 2);
@@ -89,6 +92,9 @@ public sealed class DownloadsSelectionMenuTests
         menu.Close();
         return Task.CompletedTask;
     });
+
+    private static void RunWithGrid(Func<DownloadWindowFixture, Task> exercise) =>
+        Run(exercise, () => Application.Current!.Styles.Insert(1, new DataGridSemiTheme()));
 
     private static ContextMenu OpenMenu(DownloadWindowFixture fixture, bool keyboard)
     {
@@ -103,9 +109,13 @@ public sealed class DownloadsSelectionMenuTests
         else
         {
             object item = grid.SelectedItems[0]!;
-            DataGridRow row = grid.GetVisualDescendants().OfType<DataGridRow>()
-                .First(candidate => ReferenceEquals(candidate.DataContext, item) && candidate.IsEffectivelyVisible);
-            Point point = row.TranslatePoint(new Point(32, row.Bounds.Height / 2), window)!.Value;
+            grid.ScrollIntoView(item, null);
+            fixture.Layout();
+            DataGridRow row = Assert.Single(grid.GetVisualDescendants().OfType<DataGridRow>(),
+                candidate => ReferenceEquals(candidate.DataContext, item) && candidate.IsEffectivelyVisible && candidate.Bounds.Height > 0);
+            Point point = row.TranslatePoint(new Point(20, row.Bounds.Height / 2), window)!.Value;
+            Visual? hit = window.InputHitTest(point) as Visual;
+            Assert.Same(row, hit?.GetSelfAndVisualAncestors().OfType<DataGridRow>().FirstOrDefault());
             window.MouseDown(point, MouseButton.Right);
             window.MouseUp(point, MouseButton.Right);
         }
