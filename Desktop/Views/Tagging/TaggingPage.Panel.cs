@@ -202,7 +202,7 @@ public sealed partial class TaggingPage
             ShowEmptyTitle = true, SingleClickActs = true
         };
         panel[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.CardEdge");
-        panel.Styles.Add(new Style(selector => selector.Is<Button>()) { Setters = { new Setter(FocusableProperty, false) } });
+        panel.Styles.Add(new Style(selector => selector.OfType<Button>()) { Setters = { new Setter(FocusableProperty, false) } });
         panel.ConfigureInfo(_panelInfo);
         panel.SaveInfoMode = mode =>
         {
@@ -212,6 +212,7 @@ public sealed partial class TaggingPage
         AutomationProperties.SetAutomationId(panel, "TaggingPanel");
         AutomationProperties.SetAutomationId(panel.Frame, "ReaderMediaSidebarFrame");
         AutomationProperties.SetAutomationId(panel.Picture, "ReaderMediaSidebarPicture");
+        AutomationProperties.SetAutomationId(panel.Badges, "ReaderMediaSidebarBadges");
         AutomationProperties.SetName(panel, CommandCatalog.Label(PanelCommand));
         panel.Open.Click += (_, _) => OpenPanelGallery();
         panel.PictureActivated += (_, _) => OpenPanelGallery();
