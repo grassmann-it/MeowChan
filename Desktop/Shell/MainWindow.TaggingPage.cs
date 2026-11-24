@@ -71,6 +71,7 @@ public partial class MainWindow
             ShowInThread = ShowTaggingEntryInThreadAsync,
             ShowInMedia = ShowTaggingEntryInMediaAsync,
             ShowInFolder = ShowTaggingEntryInFolderAsync,
+            OpenExternal = OpenTaggingEntryExternallyAsync,
             CopyPath = CopyTaggingEntryPathAsync,
             SaveViewMode = mode => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPageView = mode.ToString()),
             SavePreviewColumn = visible => _ = _session.SaveViewPreferencesAsync(config => config.TaggingPreviewColumn = visible),
@@ -194,6 +195,11 @@ public partial class MainWindow
     private async Task ShowTaggingEntryInFolderAsync(TagQueueItem item)
     {
         if (await ResolveTaggingEntryAsync(item) is { } entry && Path.GetDirectoryName(entry.Asset.Path) is string directory) OpenDirectory(directory);
+    }
+
+    private async Task OpenTaggingEntryExternallyAsync(TagQueueItem item)
+    {
+        if (await ResolveTaggingEntryAsync(item) is { } entry) await OpenMediaFileExternallyAsync(entry);
     }
 
     private async Task CopyTaggingEntryPathAsync(TagQueueItem item)

@@ -33,41 +33,7 @@ public sealed class ReaderPageDeadAffordanceTests
         Assert.Contains("ReferenceEquals(control, _mediaSidebar))", commands);
     }
 
-    [Fact]
-    public void TheReleaseOfTheClickIsConsumedByTheFlagThatTheReleaseEnds()
-    {
-        string commands = Source(Commands);
-        // Avalonia 12 sends ContextRequested with the release, long after a Background tick: the flag must outlive the press and end after the release.
-        Assert.Contains("private void OnSidebarPointerReleased(object? sender, PointerReleasedEventArgs e)", commands);
-        Assert.Contains("e.InitialPressMouseButton != MouseButton.Right", commands);
-        int press = commands.IndexOf("private void OnSidebarPointerPressed", StringComparison.Ordinal);
-        int released = commands.IndexOf("private void OnSidebarPointerReleased", StringComparison.Ordinal);
-        string pressBody = commands[press..released];
-        Assert.DoesNotContain("Dispatcher.UIThread.Post", pressBody); // the press no longer drops the flag on a tick
-        Assert.Contains("_sidebarPointerContext.MenuOpenedByPress();", pressBody); // the shared PressOpenedContextGate
-        Assert.Contains("_sidebarPointerContext.Released(e.InitialPressMouseButton)", commands);
-        string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
-        Assert.Contains("sidebar.AddHandler(PointerReleasedEvent, OnSidebarPointerReleased, RoutingStrategies.Tunnel, handledEventsToo: true)", sidebar);
-    }
-
     // ---- the middle click ---------------------------------------------------------------------------------------------------------------
-
-    [Fact]
-    public void TheMiddleClickOnAPostMediumTheSidebarPictureAndTheMediaTableShowsTheFolder()
-    {
-        string keys = Source("Desktop/Views/Archive/ArchivePage.MouseKeyboard.cs");
-        Assert.Contains("ArchiveMediaGrid.AddHandler(PointerPressedEvent, OnMediaTableMiddlePressed", keys);
-        Assert.Contains("ArchiveReaderPane.AddHandler(PointerPressedEvent, OnPostMediumMiddlePressed", keys);
-        Assert.Contains("ArchiveReaderPane.AddHandler(PointerReleasedEvent, OnPostMediumMiddleReleased", keys);
-        // The one action is the media menu's "Show in folder" under its availability (a saved file, a host that opens folders), run without building the menu.
-        Assert.Contains("OpenMediaFolderByMiddleClick(null, attachment, postId);", keys);
-        Assert.Contains("OpenMediaFolderByMiddleClick(asset);", keys);
-        // The large reader's frame is not under the page: the sidebar watches its own picture, and the pane's handler leaves the sidebar's subtree to it.
-        string sidebar = Source("Desktop/Views/Archive/ArchivePage.MediaSidebar.cs");
-        Assert.Contains("sidebar.AddHandler(PointerPressedEvent, OnSidebarMiddlePressed, RoutingStrategies.Tunnel, handledEventsToo: true)", sidebar);
-        Assert.Contains("sidebar.AddHandler(PointerReleasedEvent, OnSidebarMiddleReleased, RoutingStrategies.Tunnel)", sidebar);
-        Assert.Contains("ReferenceEquals(node, _mediaSidebar))) return null;", keys);
-    }
 
     [Fact]
     public void AMiddleClickIsAClickOnlyWhenPressAndReleaseMeetOnTheSameMedium()

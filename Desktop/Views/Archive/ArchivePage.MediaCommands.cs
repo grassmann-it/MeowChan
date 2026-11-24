@@ -262,7 +262,7 @@ public partial class ArchivePage
             FollowSavedMediaSelection();
         }
         (ContextMenu menu, MediaMenuSession session) = BuildArchiveMediaMenu(asset, attachment, origin, postId, ArchiveMenuSurface(ancestors, attachment),
-            SeveralSelectedWith(asset, attachment), playback);
+            IsMediaSidebarSource(source) ? null : SeveralSelectedWith(asset, attachment), playback);
         if (keyboard) menu.Placement = PlacementMode.BottomEdgeAlignedLeft;
         _mediaMenuPresenter.Show(menu, session, origin);
     }

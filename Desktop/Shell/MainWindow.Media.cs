@@ -66,6 +66,7 @@ public partial class MainWindow
             EditTagsForMenuAsync = (entry, current) => EditMediaLibraryTagsForMenuAsync(entry, current),
             TagPopoverAsync = OpenMediaLibraryTagPopoverAsync,
             TagPopoverOptions = TagPopoverDefaults,
+            BuildPanelTagMenu = BuildSidebarTagMenu,
             DecisionForEntries = DecisionForMediaEntries,
             ExecuteMediaMenuActionAsync = ExecuteMediaLibraryMenuActionAsync,
             PendingFavorite = PendingMediaFavorite,

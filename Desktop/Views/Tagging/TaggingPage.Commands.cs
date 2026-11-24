@@ -51,6 +51,7 @@ public sealed partial class TaggingPage
     internal Func<TagQueueItem, Task>? ShowInMedia { get; set; }
     /// <summary>Opens the folder of the entry's file.</summary>
     internal Func<TagQueueItem, Task>? ShowInFolder { get; set; }
+    internal Func<TagQueueItem, Task>? OpenExternal { get; set; }
     /// <summary>Copies the path of the entry's file.</summary>
     internal Func<TagQueueItem, Task>? CopyPath { get; set; }
     /// <summary>
@@ -88,7 +89,7 @@ public sealed partial class TaggingPage
         _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
 
         _menuHost = new ContextMenuHost(_list, ComposeFocusedRowMenu, fallbackFocus: () => FocusContent());
-        _list.AddHandler(ContextRequestedEvent, OnRowContextRequested, RoutingStrategies.Tunnel);
+        InstallRowContext(_list);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyUpEvent, OnResultSpaceUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         // A double-click on an entry runs "Continue here" like Enter; one that cannot (a finished entry, a busy queue) says why in the status line
@@ -117,14 +118,43 @@ public sealed partial class TaggingPage
             TaggingHeader.InvalidateGroupMeasure(second);
     }
 
-    // Dead-affordance audit: the middle click on an entry runs "Show in folder", as on the Media page's tiles and the other lists. It acts on the
-    // entry that was clicked (the selection stays as it is), with the menu entry's own rules.
+    // A middle click opens the clicked entry's file with the default program.
     private readonly MiddleClickTracker _middleClick = new();
+    private readonly PressOpenedContextGate _rowContextGate = new();
+    private bool _openingPointerMenu;
+
+    private void InstallRowContext(ListBox surface)
+    {
+        surface.AddHandler(PointerPressedEvent, OnRowContextPressed, RoutingStrategies.Tunnel);
+        surface.AddHandler(PointerReleasedEvent, (_, e) => _rowContextGate.Released(e.InitialPressMouseButton),
+            RoutingStrategies.Tunnel, handledEventsToo: true);
+        surface.AddHandler(ContextRequestedEvent, OnRowContextRequested, RoutingStrategies.Tunnel);
+    }
+
+    private void OnRowContextPressed(object? sender, PointerPressedEventArgs e)
+    {
+        _rowContextGate.BeginPress();
+        if (sender is not ListBox surface || !ContextClick.IsPress(e, surface)
+            || !MainWindow.IsListCommandSource(e.Source, surface)) return;
+        _rowContextGate.MenuOpenedByPress(ContextClick.Button(e, surface));
+        e.Handled = true;
+        if (ItemActivation.ItemAt<TaggingQueueRow>(e.Source, surface) is not { } row)
+        {
+            ActiveMenuHost?.Close();
+            return;
+        }
+        SetContextLead(surface, row);
+        (surface.ContainerFromItem(row) as Control)?.Focus();
+        _openingPointerMenu = true;
+        try { ActiveMenuHost?.Show(atPointer: true); }
+        finally { _openingPointerMenu = false; }
+    }
 
     private void OnRowContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (sender is not ListBox surface || !e.TryGetPosition(surface, out Point position)
-            || !MainWindow.IsListCommandSource(e.Source, surface)) return;
+        if (sender is not ListBox surface || !e.TryGetPosition(surface, out Point position)) return;
+        if (_rowContextGate.TryConsume()) { e.Handled = true; return; }
+        if (!MainWindow.IsListCommandSource(e.Source, surface)) return;
         ListBoxItem? item = (surface.InputHitTest(position) as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
             .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), surface));
         if (item?.DataContext is not TaggingQueueRow row)
@@ -161,7 +191,8 @@ public sealed partial class TaggingPage
             TaggingQueueRow? row = MiddleClickTracker.RowAt<TaggingQueueRow>(MiddleClickTracker.HitAt(e, surface), surface);
             if (!_middleClick.Released(row) || row == null) return;
             e.Handled = true;
-            OpenActions.Start(() => ShowInFolderOfAsync(row), "tagging.middleClick");
+            if (!_queueWork.Ended && Queue.Contains(row.Key))
+                OpenActions.Start(() => Leaving(OpenExternal, row.Item), "tagging.middleClick");
         }, RoutingStrategies.Tunnel);
     }
 
@@ -177,7 +208,7 @@ public sealed partial class TaggingPage
     private ContextMenuBuilder? ComposeFocusedRowMenu()
     {
         ListBox surface = ActiveList;
-        if (ItemActivation.ItemAt<TaggingQueueRow>(TopLevel.GetTopLevel(surface)?.FocusManager?.GetFocusedElement(), surface) is { } row)
+        if (!_openingPointerMenu && ItemActivation.ItemAt<TaggingQueueRow>(TopLevel.GetTopLevel(surface)?.FocusManager?.GetFocusedElement(), surface) is { } row)
             SetContextLead(surface, row);
         return ComposeRowMenu();
     }
@@ -187,8 +218,18 @@ public sealed partial class TaggingPage
         TaggingCommandContext context = CommandContext();
         if (context.Lead == null) return null;
         string names = SelectionFileNames(context.Selected);
-        return TaggingQueueMenu.Compose(context, id => () => OpenActions.Start(id == TaggingCommands.CopyFileName
-            ? () => MenuClipboard.CopyAsync(this, names, ShowStatus) : () => ExecuteRowCommandAsync(id), "tagging.menu"));
+        TagQueueKey[] keys = context.Selected.Select(row => row.Key).ToArray();
+        TagQueueKey lead = context.Lead.Key;
+        return TaggingQueueMenu.Compose(context, id => () => OpenActions.Start(() =>
+        {
+            if (_queueWork.Ended) return Task.CompletedTask;
+            if (id == TaggingCommands.CopyFileName) return MenuClipboard.CopyAsync(this, names, ShowStatus);
+            if (id == TaggingCommands.Remove)
+                return CanChange && keys.All(Queue.Contains)
+                    ? AfterAsync(_queueWork.RemoveAsync(keys), select: RowAfter(context.Selected)?.Key) : Task.CompletedTask;
+            if (Lead?.Key != lead || !keys.SequenceEqual(Selected.Select(row => row.Key))) return Task.CompletedTask;
+            return ExecuteRowCommandAsync(id);
+        }, "tagging.menu"));
     }
 
     private static string SelectionFileNames(IReadOnlyList<TaggingQueueRow> selected) =>

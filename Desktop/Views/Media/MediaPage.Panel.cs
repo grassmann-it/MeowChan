@@ -91,13 +91,16 @@ public sealed partial class MediaPage
 
     // ---- the view -------------------------------------------------------------------------------------------------------------
 
+    internal Func<Control, string, ContextMenuBuilder>? BuildPanelTagMenu { get; set; }
+
     private ReaderMediaSidebar EnsurePanel()
     {
         if (_panel is { } existing) return existing;
         ReaderMediaSidebar panel = _panel = new ReaderMediaSidebar
         {
             Name = "MediaPanel", IsVisible = false, UseGalleryCursor = true, TitleKey = "media.panel.title", EmptyKey = "media.panel.empty",
-            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true, DecisionKeyContext = "media"
+            CloseKey = "media.panel.close", ToggleCommandId = "media.panel.toggle", ShowEmptyTitle = true, DecisionKeyContext = "media",
+            BuildTagMenu = BuildPanelTagMenu
         };
         // The sidebar's border faces the grid (set once; the side comes with the layout).
         panel[!Border.BorderBrushProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.CardEdge");
@@ -200,7 +203,8 @@ public sealed partial class MediaPage
         _panelAnnounceTimer?.Stop();
         _panelThrottle.Reset();
         _panel?.InvalidateTagEditor();
-        _panelRow = _panelWanted = null;
+        _panelWanted = null;
+        SetPanelRow(null);
         _panelDimensions = string.Empty;
         OfferPanelVideo(null);
         _panel?.ShowEmpty();

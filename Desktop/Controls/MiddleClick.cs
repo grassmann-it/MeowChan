@@ -8,7 +8,7 @@ namespace MeowChan.Desktop.Controls;
 
 /// <summary>
 /// The middle click on a row or tile (audit V5): a press and a release of the middle button on the same item run that item's quick action (a thread
-/// row opens its source in the browser, a media tile opens its folder). A press on one item and a release on another is a drag, not a click; the
+/// row opens its source in the browser, a media tile opens the saved file). A press on one item and a release on another is a drag, not a click; the
 /// buttons, chips and links inside an item keep their own meaning. The action itself is always the command the item's menu has, with that command's
 /// own rules for when it is available.
 /// </summary>

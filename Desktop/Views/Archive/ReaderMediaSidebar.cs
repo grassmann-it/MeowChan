@@ -704,6 +704,8 @@ internal sealed class ReaderMediaSidebar : Border
         RefreshDecisions();
     }
 
+    internal Func<Control, string, ContextMenuBuilder>? BuildTagMenu { get; set; }
+
     internal void SetTags(IReadOnlyList<string>? names, string? blocked)
     {
         if (string.Equals(_tagsBlocked, blocked, StringComparison.Ordinal)
@@ -723,7 +725,15 @@ internal sealed class ReaderMediaSidebar : Border
         if (count > 0)
         {
             WrapPanel chips = new() { ItemSpacing = 8, LineSpacing = 8 };
-            foreach (string tag in _tags!) chips.Children.Add(WorkspaceChips.CreateBadge("ReaderMediaSidebarTag", tag));
+            foreach (string tag in _tags!)
+            {
+                Button chip = new() { Name = "ReaderMediaSidebarTag", Content = new TextBlock { Text = tag } };
+                WorkspaceChips.MarkTagPill(chip, WorkspaceChips.TagPillAssigned);
+                AutomationProperties.SetName(chip, tag);
+                chip.AttachedToVisualTree += (_, _) => ContextMenuHost.Install(chip,
+                    () => BuildTagMenu?.Invoke(chip, tag) ?? OwnTagChipMenu.IdentityActions(chip, tag, null, null));
+                chips.Children.Add(chip);
+            }
             tags.Children.Add(chips);
         }
         else tags.Children.Add(new TextBlock { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap,

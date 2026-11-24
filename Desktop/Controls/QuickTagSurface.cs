@@ -1218,12 +1218,9 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         {
             ContextMenuBuilder builder = new();
             IReadOnlyList<MenuItem> stamp = StampMenuItems(tag);
-            if (_session.Snapshot?.Find(tag) is { } definition && FilterMediaByTag is { } filter)
+            if (_session.Snapshot?.Find(tag) is { } definition)
             {
-                builder.Named(definition.Name.Display)
-                    .Command("tags.filter-include", () => filter(tag), showShortcut: false)
-                    .Command("tags.copy-name", () => OpenActions.Start(() => MenuClipboard.CopyAsync(chip, definition.Name.Display), "tags.copy-name"),
-                        showShortcut: false);
+                builder = OwnTagChipMenu.IdentityActions(chip, definition.Name.Display, tag, FilterMediaByTag);
                 builder.Append(new Separator());
             }
             e.Cancel = !builder.Append(stamp.ToArray()).Populate(menu);

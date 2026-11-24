@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Avalonia.Controls;
 using MeowChan.Archive;
 using MeowChan.Desktop;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Favorites;
@@ -83,10 +84,28 @@ public partial class MainWindow
     {
         if (_isClosing) return;
         CloseGallery(restoreOrigin: false);
+        if (_selectedPage == WorkspacePage.Archive) CloseLargeReader(restoreOrigin: false);
         if (!NavigateWorkspace(WorkspacePage.Media) || _mediaPage is not { } page) return;
         await page.ActivateAsync();
         if (!_isClosing && _selectedPage == WorkspacePage.Media && ReferenceEquals(page, _mediaPage))
             page.FilterToTag(tag.Value);
+    }
+
+    private ContextMenuBuilder BuildSidebarTagMenu(Control chip, string name)
+    {
+        PrivateTagDefinition? definition = PrivateTagName.TryCreate(name, out var parsed, out _)
+            ? _session.GetPublishedPrivateTagSnapshot().Snapshot?.Find(parsed) : null;
+        ContextMenuBuilder menu = OwnTagChipMenu.IdentityActions(chip, name, definition?.Id,
+            tag => OpenActions.Start(() => ShowGalleryTagInMediaAsync(tag), "tags.filter-include"));
+        if (definition == null) return menu;
+        QuickTagStamp stamp = QuickTagStampSet;
+        bool included = stamp.Contains(definition.Name);
+        string id = included ? "tags.quick.stamp.menuRemove" : "tags.quick.stamp.menuAdd";
+        return menu.Section().Item(id, Texts.T(id), () =>
+        {
+            if (included) stamp.Remove(definition.Name);
+            else stamp.Add(definition.Name);
+        }, included || !stamp.IsFull, Texts.T("tags.quick.stamp.full", stamp.Capacity), icon: included ? "minus" : "plus");
     }
 
     // What the gallery tag panel needs from the window: the frozen targets, the list, limits and the full dialog.

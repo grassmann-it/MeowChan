@@ -225,9 +225,6 @@ public partial class ArchivePage
         _archivePointerContextHandled.Add(list);
         if (row == null)
         {
-            _archiveSelectionIds.Clear(); _archiveLeadId = null; _selectedThread = null;
-            SynchronizeArchiveSelection(ArchiveVisibleRows);
-            ClearDeselectedArchiveThread();
             list.ContextMenu?.Close();
         }
         else

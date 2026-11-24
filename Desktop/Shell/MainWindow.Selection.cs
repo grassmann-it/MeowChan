@@ -207,9 +207,9 @@ public partial class MainWindow
         }
         if (item == null)
         {
-            grid.SelectedItems.Clear();
-            if (grid == DownloadList(false)) _threadLeadId = null; else _boardLeadId = null;
             grid.ContextMenu?.Close();
+            e.Handled = true;
+            return;
         }
         else
         {

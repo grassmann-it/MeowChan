@@ -363,6 +363,14 @@ public partial class ArchivePage
         return names;
     }
 
+    private readonly List<MeowChan.Desktop.Controls.ContextMenuHost> _threadTagMenus = new();
+
+    private void DisposeThreadTagMenus()
+    {
+        foreach (MeowChan.Desktop.Controls.ContextMenuHost menu in _threadTagMenus) menu.Dispose();
+        _threadTagMenus.Clear();
+    }
+
     private void RenderTagBar()
     {
         ArchivedThreadView thread = _thread!;
@@ -381,6 +389,7 @@ public partial class ArchivePage
 
         WrapPanel chips = ReaderTagChips;
         AutomationProperties.SetName(chips, Texts.T("tags.assigned"));
+        DisposeThreadTagMenus();
         chips.Children.Clear();
         PrivateTagDefinition[] assigned = _privateTags?.TagsOf(id).ToArray() ?? Array.Empty<PrivateTagDefinition>();
         foreach (PrivateTagDefinition tag in assigned)
@@ -394,8 +403,9 @@ public partial class ArchivePage
             ToolTip.SetTip(chip, hint);
             chip.Click += (_, _) => PrivateTagTask = RemoveThreadTagAsync(tagId);
             // Right-click, Menu key, Shift+F10: remove (the click), show the threads that have the tag, copy its name, manage the tags.
-            MeowChan.Desktop.Controls.WorkspaceChips.AttachMenu(chip, () => ComposeThreadTagChipMenu(tag.Name.Display, tagId),
-                fallbackFocus: () => { if (CanEditThreadTags) ReaderTagInput.Focus(); });
+            _threadTagMenus.Add(MeowChan.Desktop.Controls.WorkspaceChips.AttachMenu(chip,
+                () => ComposeThreadTagChipMenu(tag.Name.Display, tagId),
+                fallbackFocus: () => { if (CanEditThreadTags) ReaderTagInput.Focus(); }));
             chips.Children.Add(chip);
         }
         if (assigned.Length == 0)
