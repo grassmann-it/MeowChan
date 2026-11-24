@@ -1,3 +1,10 @@
+using Avalonia;
+using Avalonia.Automation;
+using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Interactivity;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using MeowChan.Archive;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
@@ -104,6 +111,94 @@ public sealed class ArchiveCleanupSelectionTests
         Assert.Equal(new[] { second.Id }, selection.FreezeSelected());
         selection.Clear(); Assert.Empty(selection.SelectedRows);
     }
+
+    [Fact]
+    public void InspectingSevenSelectedRowsRestoresTheFilterAndKeepsExactIdsForLossPreview() => BooruComponentDispatcher.Run(() =>
+    {
+        using IDisposable platform = BooruReviewTestPlatform.Enter();
+        Texts.SetLanguage("de");
+        ArchiveCleanupPreviewRow[] candidates = Enumerable.Range(0, 7)
+            .Select(index => Row((index < 4 ? "shown-" : "hidden-") + index, index % 3)).ToArray();
+        ArchiveCleanupPreview preview = Preview([.. candidates, Row("kept", 3) with { Eligibility = ArchiveCleanupEligibility.Kept }]);
+        ResourceId[] selected = candidates.Select(row => row.Id).ToArray();
+        ResourceId[]? prepared = null;
+        Window owner = new() { Width = 640, Height = 480 };
+        ArchiveCleanupDialog dialog = new(
+            (_, _) => Task.FromResult(preview),
+            (snapshot, ids, _) =>
+            {
+                prepared = ids.ToArray();
+                return Task.FromResult(new ArchiveCleanupExecutionPlan(snapshot, prepared,
+                    snapshot.Rows.Where(row => ids.Contains(row.Id)).ToArray(),
+                    new Dictionary<ResourceId, IReadOnlyList<ArchiveCleanupDirectoryFiles>>(), []));
+            },
+            (_, _) => throw new InvalidOperationException("This test ends at the loss preview."), () => [])
+        { Width = 608, Height = 448 };
+        owner.Show();
+        try
+        {
+            _ = dialog.ShowDialog(owner);
+            T Find<T>(string name) where T : Control => dialog.FindControl<T>("ArchiveCleanup" + name)!;
+            ListBox list = Find<ListBox>("List");
+            TextBox search = Find<TextBox>("Search");
+            Button inspect = Find<Button>("InspectSelection");
+            Button back = Find<Button>("Back");
+            Button review = Find<Button>("Review");
+            TextBlock count = Find<TextBlock>("SelectionSummary");
+            Button selectShown = Find<Button>("SelectShown");
+
+            WaitUntil(() => selectShown.IsEnabled, "inventory");
+            Assert.Equal("0 gewählt · 0 ausgeblendet", count.Text);
+            Assert.False(inspect.IsEnabled);
+            Assert.False(review.IsEnabled);
+            Click(selectShown);
+            search.Text = "shown-";
+            WaitUntil(() => list.ItemCount == 4, "filtered inventory");
+            Assert.Equal("7 gewählt · 3 ausgeblendet", count.Text);
+            Assert.True(count.IsEffectivelyVisible && count.Bounds.Height > 0);
+            Assert.InRange(count.TranslatePoint(default, dialog)!.Value.Y + count.Bounds.Height, 1, dialog.ClientSize.Height + 1);
+
+            Click(inspect);
+            WaitUntil(() => ReferenceEquals(dialog.FocusManager?.GetFocusedElement(), back)
+                && list.GetVisualDescendants().OfType<ListBoxItem>().Any(item => item.Bounds.Height > 0), "inspection layout and focus");
+            Assert.Equal(selected, list.Items.Cast<ArchiveCleanupPreviewRow>().Select(row => row.Id));
+            Assert.Equal("Gewählte Threads", AutomationProperties.GetName(list));
+            Assert.Empty(list.GetVisualDescendants().OfType<CheckBox>());
+            Assert.Null(prepared);
+            Assert.False(review.IsVisible);
+
+            back.RaiseEvent(new KeyEventArgs { RoutedEvent = InputElement.KeyDownEvent, Key = Key.Escape });
+            WaitUntil(() => ReferenceEquals(dialog.FocusManager?.GetFocusedElement(), inspect), "return focus");
+            Assert.Equal("shown-", search.Text);
+            Assert.Equal(selected.Take(4), list.Items.Cast<ArchiveCleanupPreviewRow>().Select(row => row.Id));
+            Assert.Equal("7 gewählt · 3 ausgeblendet", count.Text);
+
+            Click(review);
+            Button confirm = Find<Button>("Confirm");
+            WaitUntil(() => confirm.IsVisible, "loss preview");
+            Assert.Equal(selected, prepared);
+            Assert.False(confirm.IsEnabled);
+        }
+        finally
+        {
+            dialog.Close();
+            owner.Close();
+        }
+
+        static void Click(Button button)
+        {
+            Assert.True(button.IsEnabled);
+            button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        }
+
+        void WaitUntil(Func<bool> condition, string stage) =>
+            Assert.True(SpinWait.SpinUntil(() =>
+            {
+                Dispatcher.UIThread.RunJobs();
+                dialog.UpdateLayout();
+                return condition();
+            }, TimeSpan.FromSeconds(4)), stage);
+    });
 
     [Theory]
     [InlineData("en")]
