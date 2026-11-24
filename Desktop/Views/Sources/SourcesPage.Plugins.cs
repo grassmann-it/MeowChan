@@ -87,7 +87,7 @@ public partial class SourcesPage
         CommandBindings.ApplyLabeled(details, "plugins.details", Texts.T("sources.pluginDetails"));
         details.IsEnabled = !IsBusy;
         Button more = this.FindControl<Button>("SourcePluginMore")!;
-        if (more.Focusable) PopupToggle.Prepare(more);
+        if (more.Focusable) MeowChan.Desktop.Controls.PopupToggle.Prepare(more);
         CommandBindings.Apply(more, "plugins.actions", iconOnly: true);
         this.FindControl<Button>("SourcePluginMore")!.IsEnabled = !IsBusy;
     }

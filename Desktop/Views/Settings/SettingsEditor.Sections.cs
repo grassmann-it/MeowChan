@@ -7,6 +7,7 @@ using System.Linq;
 using Avalonia.VisualTree;
 using Avalonia.LogicalTree;
 using Avalonia.Controls;
+using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Layout;
 using Avalonia.Controls.Primitives;
