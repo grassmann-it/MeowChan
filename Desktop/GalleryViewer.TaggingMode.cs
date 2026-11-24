@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
+using Avalonia.Threading;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.Localization;
@@ -15,8 +16,8 @@ using MeowChan.Tags;
 namespace MeowChan.Desktop;
 
 // The tagging mode (PT3, PLAN-POWER-TAGGEN §1.4/§1.6): the gallery over the open entries of the tagging queue with the tag panel (TP2)
-// and its favorite/rating row (PT6) open, plus a decision strip at the bottom of the controls: Back (Backspace), Skip (S), Done &
-// next (Ctrl/Cmd+Enter) and Stamp & next (Ctrl+Shift+Enter, the PT5 stamp). The strip is part of the controls (_chrome), below the toolbar and
+// and its favorite/rating row (PT6) open, plus a decision strip with Back, Skip, optional Favorite & next, Stamp & next and Done & next.
+// The strip is part of the controls (_chrome), below the toolbar and
 // the video transport, and holds them visible while the mode runs (never auto-hidden). Its keys have their own execution context
 // ("gallery-tagging") and are routed here before the gallery's own keys: in the mode S skips and Space or Shift+Space plays or pauses a
 // video; outside the mode nothing changes. In the tag field Enter keeps taking over the typed tag;
@@ -33,12 +34,15 @@ internal sealed partial class GalleryViewer
     private readonly TextBlock _taggingStatus = new() { Name = "GalleryTaggingStatus", Classes = { "workspace-help" }, TextWrapping = TextWrapping.Wrap };
     private readonly Button _taggingBack = new() { Name = "GalleryTaggingBack", MinHeight = 32 };
     private readonly Button _taggingSkip = new() { Name = "GalleryTaggingSkip", MinHeight = 32 };
-    private readonly Button _taggingDone = new() { Name = "GalleryTaggingDone", MinHeight = 32, Classes = { "primary" } };
+    private readonly Button _taggingFavorite = new() { Name = "GalleryTaggingFavorite", MinHeight = 32 };
     private readonly Button _taggingStamp = new() { Name = "GalleryTaggingStamp", MinHeight = 32 };
+    private readonly Button _taggingDone = new() { Name = "GalleryTaggingDone", MinHeight = 32, Classes = { "primary" } };
+    private static readonly TaggingCardAction FavoriteAndNext = TaggingCardActions.Find("favorite")!;
     private TaggingWalk? _tagging;
     private IGalleryTagPanelOwner? _taggingOwner;
     private TaggingUndo? _taggingUndo;
     private QuickTagSurface? _taggingSurface;
+    private bool _taggingBackRunning;
 
     /// <summary>True while the gallery walks the tagging queue.</summary>
     internal bool IsTaggingMode => _tagging != null;
@@ -59,17 +63,19 @@ internal sealed partial class GalleryViewer
     {
         _taggingStrip[!Border.BorderBrushProperty] = new DynamicResourceExtension("Workspace.ControlBorder");
         _taggingStatus[!TextBlock.ForegroundProperty] = new DynamicResourceExtension("Workspace.Text");
-        foreach (Button button in new[] { _taggingBack, _taggingSkip, _taggingDone, _taggingStamp }) _taggingActions.Children.Add(button);
+        _taggingActions.Children.AddRange([_taggingBack, _taggingSkip, _taggingFavorite, _taggingStamp, _taggingDone]);
         _taggingBack.Click += (_, _) => _ = TaggingBackAsync();
         _taggingSkip.Click += (_, _) => TaggingDecide(TagQueueState.Skipped);
+        _taggingFavorite.Click += (_, _) => _ = ApplyTaggingActionAsync(FavoriteAndNext);
         _taggingDone.Click += (_, _) => TaggingDecide(TagQueueState.Done);
         _taggingStamp.Click += (_, _) => _ = TaggingStampAsync();
+        ToolTip.SetShowOnDisabled(_taggingBack, true);
         // The status line speaks (politely, once); the progress is read on demand, it would repeat every decision.
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite);
         StackPanel content = new() { Spacing = 4 };
-        Grid actionRow = new() { Name = "GalleryTaggingActionRow", ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        Grid actionRow = new() { Name = "GalleryTaggingActionRow", ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
         actionRow.Children.Add(_taggingActions);
-        Grid.SetColumn(_taggingProgress, 2);
+        Grid.SetColumn(_taggingProgress, 1);
         actionRow.Children.Add(_taggingProgress);
         content.Children.Add(actionRow);
         AddCardsRow(content); // the card mode's cards (PT4)
@@ -142,6 +148,9 @@ internal sealed partial class GalleryViewer
         surface.ExtraUndo = _taggingUndo;
         surface.StampApplied += OnTaggingStampApplied;
         _taggingSurface = surface;
+        _taggingUndo.Changed += OnTaggingBackStateChanged;
+        surface.Session.Updated += OnTaggingBackStateChanged;
+        RefreshTaggingBack();
         // QW2: the panel's status line says every sentence once, so the strip's line is neither shown nor read.
         _taggingStatus.IsVisible = GalleryChromePlan.StripStatusVisible(panelCoupled: true);
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Off);
@@ -151,22 +160,29 @@ internal sealed partial class GalleryViewer
     {
         if (surface == null || !ReferenceEquals(surface, _taggingSurface)) return;
         surface.StampApplied -= OnTaggingStampApplied;
+        surface.Session.Updated -= OnTaggingBackStateChanged;
         if (ReferenceEquals(surface.ExtraUndo, _taggingUndo))
             surface.ExtraUndo = ReferenceEquals(surface, _tagSurface) ? _tagController?.ExtraUndo : null;
         _taggingUndo?.Dispose();
         _taggingUndo = null;
         _taggingSurface = null;
+        RefreshTaggingBack();
         _taggingStatus.IsVisible = GalleryChromePlan.StripStatusVisible(panelCoupled: false); // without the panel the strip shows the last sentence
         AutomationProperties.SetLiveSetting(_taggingStatus, AutomationLiveSetting.Polite); // ... and speaks
     }
 
     private void ApplyTaggingLabels()
     {
-        CommandBindings.ApplyLabeled(_taggingBack, "tags.queue.back", Texts.T("tagging.back"));
+        CommandBindings.EnsureIconBeforeText(_taggingBack, CommandCatalog.Get("tags.queue.back").Icon);
+        _taggingBack.Content = Texts.T("tagging.back");
         CommandBindings.ApplyLabeled(_taggingSkip, "tags.queue.skip", Texts.T("tagging.skip"));
+        CommandBindings.EnsureIconBeforeText(_taggingFavorite, FavoriteAndNext.Icon);
+        _taggingFavorite.Content = FavoriteAndNext.Label();
+        AutomationProperties.SetName(_taggingFavorite, FavoriteAndNext.Label());
+        ToolTip.SetTip(_taggingFavorite, FavoriteAndNext.Description());
         CommandBindings.ApplyLabeled(_taggingDone, "tags.queue.done-next", Texts.T("tagging.done"));
         CommandBindings.ApplyLabeled(_taggingStamp, QuickTagCommands.StampApply, Texts.T("tagging.stamp"));
-        foreach ((Button button, string id) in new[] { (_taggingBack, "tags.queue.back"), (_taggingSkip, "tags.queue.skip"),
+        foreach ((Button button, string id) in new[] { (_taggingSkip, "tags.queue.skip"),
             (_taggingDone, "tags.queue.done-next"), (_taggingStamp, QuickTagCommands.StampApply) })
             AutomationProperties.SetAcceleratorKey(button, CommandCatalog.ShortcutDisplay(id) ?? string.Empty);
         AutomationProperties.SetName(_taggingStrip, Texts.T("tagging.strip.name"));
@@ -186,6 +202,44 @@ internal sealed partial class GalleryViewer
         _taggingDone.IsEnabled = decidable;
         _taggingSkip.IsEnabled = decidable;
         _taggingStamp.IsEnabled = decidable;
+        RefreshTaggingBack();
+    }
+
+    private TaggingBackAction NextTaggingBackAction(TaggingWalk walk)
+    {
+        if (_taggingBackRunning || _cardBusy || walk.Busy || _taggingSurface?.Session.Busy == true || _tagController?.Decisions?.Busy == true)
+            return TaggingBackAction.Saving;
+        return _taggingUndo?.BackAction(_taggingSurface?.Session.UndoSteps.Count > 0) ?? walk.BackAction;
+    }
+
+    private bool CanTaggingBack(TaggingBackAction action) => !_navigationPending && !_terminalRetirement && (action switch
+    {
+        TaggingBackAction.Previous => _previous.IsEnabled,
+        TaggingBackAction.Tag => _taggingSurface?.Session.CanUndo == true,
+        TaggingBackAction.Saving => false,
+        _ => true
+    });
+
+    private void OnTaggingBackStateChanged()
+    {
+        if (Dispatcher.UIThread.CheckAccess()) RefreshTaggingBack();
+        else Dispatcher.UIThread.Post(RefreshTaggingBack);
+    }
+
+    private void RefreshTaggingBack()
+    {
+        if (_tagging is not { } walk) return;
+        TaggingBackAction action = NextTaggingBackAction(walk);
+        string label = TaggingModeText.Back(action);
+        string? key = CommandCatalog.ShortcutTooltipDisplay("tags.queue.back", "gallery-tagging");
+        string tip = key == null ? label : label + " · " + key;
+        AutomationProperties.SetName(_taggingBack, label);
+        AutomationProperties.SetHelpText(_taggingBack, tip);
+        AutomationProperties.SetAcceleratorKey(_taggingBack, key ?? string.Empty);
+        ToolTip.SetTip(_taggingBack, tip);
+        _taggingBack.IsEnabled = CanTaggingBack(action);
+        _taggingFavorite.IsEnabled = _taggingDone.IsEnabled && action != TaggingBackAction.Saving && !_navigationPending
+            && _tagController?.DecisionView()?.Available == true;
         RefreshCards();
     }
 
@@ -288,33 +342,44 @@ internal sealed partial class GalleryViewer
     /// </summary>
     private async Task TaggingBackAsync()
     {
-        if (_tagging is not { } walk || _terminalRetirement) return;
+        if (_tagging is not { } walk) return;
+        TaggingBackAction action = NextTaggingBackAction(walk);
+        if (!CanTaggingBack(action)) return;
+        walk.DropGoneSteps();
+        if (action != NextTaggingBackAction(walk)) return;
+        if (action == TaggingBackAction.Previous)
+        {
+            Move(-1);
+            RefreshTaggingBack();
+            return;
+        }
+        _taggingBackRunning = true;
+        RefreshTaggingBack();
         try
         {
-            if (_tagSurface is { } surface && (surface.Session.UndoSteps.Count > 0 || (surface.ExtraUndo?.Steps ?? 0) > 0))
+            if (_taggingSurface is { } surface)
             {
                 await surface.UndoAsync();
-                if (ReferenceEquals(walk, _tagging)) RefreshTaggingStrip();
                 return;
             }
-            if (walk.Steps > 0)
+            TaggingUndoResult? undone;
+            try { undone = await walk.UndoAsync(); }
+            catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
             {
-                TaggingUndoResult? undone;
-                try { undone = await walk.UndoAsync(); }
-                catch (Exception error) when (error is System.IO.IOException or System.IO.InvalidDataException or UnauthorizedAccessException or InvalidOperationException)
-                {
-                    if (ReferenceEquals(walk, _tagging)) SayTagging(Texts.T("tagging.status.failed", TagQueueActions.DescribeFailure(error)));
-                    return;
-                }
-                if (!ReferenceEquals(walk, _tagging)) return;
-                if (undone == null) { SayTagging(Texts.T("tagging.status.undoGone")); return; }
-                ReturnToUndone(undone);
-                SayTagging(TaggingModeText.Undone(undone));
+                if (ReferenceEquals(walk, _tagging)) SayTagging(Texts.T("tagging.status.failed", TagQueueActions.DescribeFailure(error)));
                 return;
             }
-            Move(-1);
+            if (!ReferenceEquals(walk, _tagging)) return;
+            if (undone == null) { SayTagging(Texts.T("tagging.status.undoGone")); return; }
+            ReturnToUndone(undone);
+            SayTagging(TaggingModeText.Undone(undone));
         }
         catch (Exception error) when (UnhandledErrors.TryRecover(error, "gallery.tagging")) { /* Logged and shown. */ }
+        finally
+        {
+            _taggingBackRunning = false;
+            RefreshTaggingBack();
+        }
     }
 
     // An undone queue decision: back to its medium (the strip says what happened; the panel's status line says it when the panel undid it).

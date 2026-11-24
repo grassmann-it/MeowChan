@@ -154,7 +154,10 @@ internal static class TaggingCardsChecks
         for (int i = 0; i < 5; i++)
         {
             Button card = viewer.TaggingCardButtons[i];
-            string expected = TaggingCardsText.Name(viewer.TaggingCards[i], i + 1);
+            TaggingCardAction action = viewer.TaggingCards[i];
+            string expected = action.Kind == TaggingCardKind.Back
+                ? TaggingCardsText.Name(AutomationProperties.GetName(viewer.TaggingBackButton)!, i + 1)
+                : TaggingCardsText.Name(action, i + 1);
             Require(card.IsEffectivelyVisible && card.Bounds.Height >= 48 && card.Bounds.Width >= 120, $"{tag}: card {i + 1} is too small: {card.Bounds.Size}.");
             Require(AutomationProperties.GetName(card) == expected, $"{tag}: card {i + 1} has the name '{AutomationProperties.GetName(card)}', expected '{expected}'.");
             Require(AutomationProperties.GetAcceleratorKey(card) == (i + 1).ToString(), $"{tag}: card {i + 1} does not name its key.");

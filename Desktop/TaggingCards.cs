@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan.Desktop;
@@ -36,6 +37,16 @@ internal sealed record TaggingCardAction(string Id, TaggingCardKind Kind, int Ra
 
     /// <summary>The text key of the longer description (the card's tooltip and help text).</summary>
     internal string DescriptionKey => Kind == TaggingCardKind.Rate ? "cards.desc.rate" : "cards.desc." + Id;
+
+    internal string Icon => Kind switch
+    {
+        TaggingCardKind.Back => CommandCatalog.Get("tags.queue.back").Icon,
+        TaggingCardKind.Skip => CommandCatalog.Get("tags.queue.skip").Icon,
+        TaggingCardKind.Favorite => CommandCatalog.Get("favorites.add").Icon,
+        TaggingCardKind.Stamp => CommandCatalog.Get(QuickTagCommands.StampApply).Icon,
+        TaggingCardKind.Rate => CommandCatalog.Get("media.rating.edit").Icon,
+        _ => CommandCatalog.Get("tags.queue.done-next").Icon
+    };
 
     /// <summary>The card's visible label in the current language.</summary>
     internal string Label() => Kind == TaggingCardKind.Rate ? Texts.T(LabelKey, Rating.ToString(Texts.Culture)) : Texts.T(LabelKey);
@@ -132,10 +143,13 @@ internal static class TaggingCardsText
     internal static string Off() => Texts.T("cards.status.off");
 
     /// <summary>The accessible name of a card: "Skip and next, key 2".</summary>
-    internal static string Name(TaggingCardAction action, int number) => Texts.T("cards.name", action.Label(), KeyOf(number));
+    internal static string Name(TaggingCardAction action, int number) => Name(action.Label(), number);
 
-    /// <summary>The key a card has (as the person sees it), or its number when the key was unbound.</summary>
-    internal static string KeyOf(int number) => Commands.CommandCatalog.ShortcutDisplay(TaggingCardCommands.Card(number)) ?? number.ToString(Texts.Culture);
+    internal static string Name(string label, int number) =>
+        KeyOf(number) is { } key ? Texts.T("cards.name", label, key) : label;
+
+    /// <summary>The effective shortcut, if the card has one.</summary>
+    internal static string? KeyOf(int number) => CommandCatalog.ShortcutTooltipDisplay(TaggingCardCommands.Card(number), "gallery-tagging");
 
     /// <summary>The note in F1 under the mode's keys.</summary>
     internal static string HelpNote() => Texts.T("cards.help.note", TaggingModeText.Key(TaggingCardCommands.Toggle),

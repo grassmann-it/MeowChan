@@ -69,7 +69,8 @@ internal sealed partial class GalleryViewer
 
     private void ShowStripButtons(bool visible)
     {
-        foreach (Button button in new[] { _taggingBack, _taggingSkip, _taggingDone, _taggingStamp }) button.IsVisible = visible;
+        foreach (Control button in _taggingActions.Children) button.IsVisible = visible;
+        _taggingFavorite.IsVisible = visible && _taggingOwner is IGalleryDecisionOwner;
     }
 
     private void BuildCards()
@@ -82,6 +83,8 @@ internal sealed partial class GalleryViewer
             int number = i + 1;
             TaggingCardAction action = _cards[i];
             Button button = new() { Name = "GalleryTaggingCard" + number, Classes = { "card-action" }, HorizontalAlignment = HorizontalAlignment.Stretch };
+            button.Classes.Set("primary", action.Kind == TaggingCardKind.Done);
+            ToolTip.SetShowOnDisabled(button, action.Kind == TaggingCardKind.Back);
             _cardsGrid.ColumnDefinitions.Add(new ColumnDefinition(1, GridUnitType.Star));
             Grid.SetColumn(button, i);
             button.Click += (_, _) => _ = ApplyCardAsync(action);
@@ -98,14 +101,27 @@ internal sealed partial class GalleryViewer
         {
             Button button = _cardButtons[i];
             TaggingCardAction action = _cards[i];
-            TextBlock label = new() { Text = action.Label(), TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold };
-            TextBlock key = new() { Text = TaggingCardsText.KeyOf(i + 1), TextAlignment = TextAlignment.Center, Classes = { "workspace-meta" } };
-            button.Content = new StackPanel { Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center, VerticalAlignment = VerticalAlignment.Center, Children = { label, key } };
-            string name = TaggingCardsText.Name(action, i + 1);
-            AutomationProperties.SetName(button, name);
-            AutomationProperties.SetHelpText(button, action.Description());
-            AutomationProperties.SetAcceleratorKey(button, CommandCatalog.ShortcutDisplay(TaggingCardCommands.Card(i + 1)) ?? string.Empty);
-            ToolTip.SetTip(button, name + " · " + action.Description());
+            bool back = action.Kind == TaggingCardKind.Back;
+            TextBlock label = new() { Text = action.Label(),
+                TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, FontWeight = FontWeight.SemiBold };
+            Control icon = CommandBindings.ButtonIcon(action.Icon, 16, label, byKey: true);
+            Grid caption = new() { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 4, Children = { icon, label } };
+            Grid.SetColumn(label, 1);
+            string? shortcut = TaggingCardsText.KeyOf(i + 1);
+            Border keycap = new() { Classes = { KeyCapText.CapClass }, HorizontalAlignment = HorizontalAlignment.Center,
+                IsVisible = shortcut != null, Height = double.NaN, MinHeight = 24,
+                Child = new TextBlock { Text = shortcut, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center } };
+            AutomationProperties.SetAccessibilityView(keycap, AccessibilityView.Raw);
+            button.Content = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center, Children = { caption, keycap } };
+            AutomationProperties.SetAcceleratorKey(button, shortcut ?? string.Empty);
+            if (!back)
+            {
+                string name = TaggingCardsText.Name(action, i + 1);
+                AutomationProperties.SetName(button, name);
+                AutomationProperties.SetHelpText(button, action.Description());
+                ToolTip.SetTip(button, name + " · " + action.Description());
+            }
         }
         AutomationProperties.SetName(_cardsRow, Texts.T("cards.strip.name"));
     }
@@ -118,14 +134,25 @@ internal sealed partial class GalleryViewer
         RefreshCards();
     }
 
-    // The cards follow the strip: a medium that cannot be decided (left the queue) leaves every card but Back disabled, and a card
-    // being applied holds the others until it ends.
     private void RefreshCards()
     {
-        if (!_cardsOn || _tagging == null) return;
+        if (!_cardsOn || _tagging is not { } walk) return;
         bool decidable = _taggingDone.IsEnabled;
         for (int i = 0; i < _cardButtons.Count && i < _cards.Count; i++)
-            _cardButtons[i].IsEnabled = !_cardBusy && (decidable || _cards[i].Kind == TaggingCardKind.Back);
+        {
+            Button button = _cardButtons[i];
+            if (_cards[i].Kind == TaggingCardKind.Back)
+            {
+                TaggingBackAction action = NextTaggingBackAction(walk);
+                string label = TaggingModeText.Back(action);
+                string name = TaggingCardsText.Name(label, i + 1);
+                button.IsEnabled = CanTaggingBack(action);
+                AutomationProperties.SetName(button, name);
+                AutomationProperties.SetHelpText(button, label);
+                ToolTip.SetTip(button, name);
+            }
+            else button.IsEnabled = !_cardBusy && decidable;
+        }
     }
 
     /// <summary>
@@ -179,17 +206,24 @@ internal sealed partial class GalleryViewer
     /// only when it is saved the medium is finished and the walk goes on, with one sentence for both. A refused write leaves the medium
     /// open and says why. One card at a time: a second key while one is being applied is ignored.
     /// </summary>
-    internal async Task ApplyCardAsync(TaggingCardAction action)
+    internal Task ApplyCardAsync(TaggingCardAction action) =>
+        _cardsOn ? ApplyTaggingActionAsync(action) : Task.CompletedTask;
+
+    private async Task ApplyTaggingActionAsync(TaggingCardAction action)
     {
         ArgumentNullException.ThrowIfNull(action);
-        if (_tagging is not { } walk || !_cardsOn || _cardBusy || _navigationPending || _terminalRetirement || _entry is not { } entry) return;
+        if (_tagging is not { } walk || _cardBusy || _taggingBackRunning || _navigationPending || _terminalRetirement || _entry is not { } entry) return;
+        if (action.Kind == TaggingCardKind.Back)
+        {
+            await TaggingBackAsync();
+            return;
+        }
         _cardBusy = true;
-        RefreshCards();
+        RefreshTaggingBack();
         try
         {
             switch (action.Kind)
             {
-                case TaggingCardKind.Back: await TaggingBackAsync(); break;
                 case TaggingCardKind.Skip: TaggingDecide(TagQueueState.Skipped); break;
                 case TaggingCardKind.Done: TaggingDecide(TagQueueState.Done); break;
                 case TaggingCardKind.Stamp: await TaggingStampAsync(); break;
@@ -200,7 +234,7 @@ internal sealed partial class GalleryViewer
         finally
         {
             _cardBusy = false;
-            RefreshCards();
+            RefreshTaggingBack();
         }
     }
 

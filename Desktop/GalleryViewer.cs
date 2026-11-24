@@ -917,6 +917,7 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
     {
         _sidebarPosition = sidebarPosition;
         _position.Text = _compactPosition.Text = label; _previous.IsEnabled = previous; _next.IsEnabled = next;
+        RefreshTaggingBack();
         ToolTip.SetTip(_compactPosition, ThreadPositions is { Unavailable: > 0 } media
             ? Texts.T("thread.media.unavailable", media.Unavailable) : null);
         RefreshPanelCounter();

@@ -155,6 +155,8 @@ internal sealed class TaggingWalk : IDisposable
     internal int Steps => _steps.Count;
     /// <summary>The stamp of the queue decision undone next (shared order with tag and favorite/rating steps); 0 without one.</summary>
     internal long NewestStamp => _steps.Count == 0 ? 0 : _steps[^1].Stamp;
+    internal TaggingBackAction BackAction => _steps.Count == 0 ? TaggingBackAction.Previous
+        : _steps[^1].Decision.After == TagQueueState.Skipped ? TaggingBackAction.Skip : TaggingBackAction.Done;
     /// <summary>A write or an undo is running.</summary>
     internal bool Busy => Volatile.Read(ref _running) > 0;
 
@@ -371,6 +373,14 @@ internal sealed class TaggingUndo : IQuickTagExtraUndo, IDisposable
     public bool CanUndo => QueueIsNewest ? !_walk.Busy : _decisions?.CanUndo == true;
     public bool IsNewest => Steps > 0 && Math.Max(_walk.NewestStamp, DecisionStamp) > _newestTag();
 
+    internal TaggingBackAction BackAction(bool hasTagSteps)
+    {
+        if (!IsNewest) return hasTagSteps ? TaggingBackAction.Tag : TaggingBackAction.Previous;
+        if (QueueIsNewest) return _walk.BackAction;
+        return _decisions!.UndoSteps[^1].Kind == GalleryDecisionKind.Rating
+            ? TaggingBackAction.Rating : TaggingBackAction.Favorite;
+    }
+
     public async Task<string?> UndoAsync()
     {
         // A queue step whose entry left the queue on the tagging page is neither newest nor undoable: drop it before choosing the stack.
@@ -402,9 +412,22 @@ internal sealed class TaggingUndo : IQuickTagExtraUndo, IDisposable
     }
 }
 
+internal enum TaggingBackAction { Previous, Tag, Rating, Favorite, Skip, Done, Saving }
+
 /// <summary>The sentences of the tagging mode; one place so the strip, the panel and the tests agree.</summary>
 internal static class TaggingModeText
 {
+    internal static string Back(TaggingBackAction action) => Texts.T(action switch
+    {
+        TaggingBackAction.Tag => "command.tags.quick.undo",
+        TaggingBackAction.Rating => "tagging.back.undoRating",
+        TaggingBackAction.Favorite => "tagging.back.undoFavorite",
+        TaggingBackAction.Skip => "tagging.back.undoSkip",
+        TaggingBackAction.Done => "tagging.back.undoDone",
+        TaggingBackAction.Saving => "gallery.saving",
+        _ => "command.gallery.previous"
+    });
+
     /// <summary>"Queue 12 of 200" for the gallery header; null when the medium left the queue.</summary>
     internal static string? Position(TaggingWalk walk, int index) => walk.QueuePosition(index) is { } position
         ? MediaPositionText.Long(new(position.Number, position.Count, More: false, Queue: true)) : null;
