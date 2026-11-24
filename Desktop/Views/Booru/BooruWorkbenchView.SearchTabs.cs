@@ -434,6 +434,7 @@ internal sealed partial class BooruWorkbenchView
         {
             if (_closed || !MiddleClickTracker.IsRelease(e) || !middle.Released(MiddleClickTracker.HitAt(e, header) is { } hit
                 && !ItemActivation.IsOwnedByInteractivePart(hit, header) ? header : null)) return;
+            if (!close.IsEnabled) return;
             e.Handled = true;
             closeTab();
         }, Avalonia.Interactivity.RoutingStrategies.Tunnel);
@@ -472,8 +473,11 @@ internal sealed partial class BooruWorkbenchView
         RenderBottomStatus(view);
         RenderViewToggleLabels();
         foreach (var (id, tab) in _extraTabs)
+        {
             RenderTabHeader(tab.Item, tab.Header,
                 BooruSearchTabs.Title(tabs.ViewOf(id), Texts.T("booru.tabs.blank"), id => Texts.T("booru.tabs.post", id)));
+            tab.Header.Close.IsEnabled = tabs.Ids.Count > 1;
+        }
         if (_watcherHeader is { } header)
             RenderTabHeader(_watchersTab, header, Texts.Count("booru.ui.tab.watchers", _model.Watchers.Count));
         int activeWatchers = watchers.Rows.Count(row => row.Watcher.Status is not (BooruWatcherStatus.Paused or BooruWatcherStatus.Removed));
