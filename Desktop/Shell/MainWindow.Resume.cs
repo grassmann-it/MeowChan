@@ -53,7 +53,7 @@ public partial class MainWindow
 
     private void RegisterReadingResumeCommand()
     {
-        _shortcutRouter?.Register(new CommandRegistration("navigation.continue-reading", this,
+        _shortcutRouter?.RegisterOwned(new CommandRegistration("navigation.continue-reading", this,
             () => true, () => CanResumeReading,
             () => ActivateReadingResume(keyboard: true)));
     }
