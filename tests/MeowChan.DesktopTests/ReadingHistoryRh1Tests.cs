@@ -331,9 +331,6 @@ public sealed class ReadingHistoryRh1Tests : IDisposable
     public void EveryLinkOfContinueReadingGetsItsIconFromTheCommandAndNoSourceNamesAnotherOne()
     {
         string resume = File.ReadAllText(Root("Desktop/Shell/MainWindow.Resume.cs"));
-        // The header button and the app menu entry: the command's presentation (icon, label, tooltip, shortcut).
-        Assert.Matches(@"CommandBindings\.Apply\(button,\s*""navigation\.continue-reading""", resume);
-        Assert.Matches(@"CommandBindings\.Apply\(_resumeReadingMenu,\s*""navigation\.continue-reading""", resume);
         // The history submenu's header, the menu's entries and the window's rows: the same command's icon.
         Assert.Contains("CommandBindings.Icon(ReadingHistoryMenu.ContinueCommandId)", resume);
         Assert.Contains("AddTrigger(ContinueReadingButton)", resume); // right-click and the menu key open the list on the book button

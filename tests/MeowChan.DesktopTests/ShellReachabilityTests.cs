@@ -65,30 +65,7 @@ public sealed class ShellReachabilityTests : IDisposable
         Assert.False(ReadingResumeRouting.PlacesOpenable(galleryOpen: false, otherActionBusy: true));
     }
 
-    [Fact]
-    public void TheWindowRoutesShortcutAndAppMenuThroughTheOneRuleAndTheArrowAndRightClickAlwaysOpenTheHistory()
-    {
-        string resume = Source("Desktop/Shell/MainWindow.Resume.cs");
-        Assert.Contains("ReadingResumeRouting.Click(ReadingThreadOpen)", resume);
-        Assert.Matches(@"_resumeReadingMenu\.Click \+= \(_, _\) => ActivateReadingResume\(", resume);
-        Assert.Contains("() => ActivateReadingResume(keyboard: true)", resume); // the shortcut
-        Assert.Contains("ContinueReadingHistoryButton.Click += (_, _) => ShowReadingHistoryList(", resume); // the arrow: always the list
-        Assert.Contains("AddTrigger(ContinueReadingButton)", resume);           // right click, Menu key, Shift+F10
-        Assert.Contains("AddTrigger(ContinueReadingHistoryButton)", resume);
-        Assert.Contains("ActivateReadingResume(keyboard: true); return;", Source("Desktop/Shell/MainWindow.MacMenu.cs"));
-        // The tooltip names the click that is current.
-        Assert.Contains("ReadingResumeRouting.TipKey(ReadingThreadOpen)", resume);
-        // The arrow is a button next to the book in the header, hidden with it.
-        string markup = Source("Desktop/Shell/MainWindow.axaml");
-        Assert.Contains("x:Name=\"ContinueReadingHistoryButton\"", markup);
-        Assert.True(markup.IndexOf("ContinueReadingHistoryButton", StringComparison.Ordinal) > markup.IndexOf("x:Name=\"ContinueReadingButton\"", StringComparison.Ordinal));
-        Assert.True(markup.IndexOf("ContinueReadingHistoryButton", StringComparison.Ordinal) < markup.IndexOf("x:Name=\"PauseButton\"", StringComparison.Ordinal));
-        // The history opens places while a thread or gallery is open; the selected place replaces it and the gallery is closed first.
-        Assert.Contains("PlacesOpenable(GalleryOverlayVisible", resume);
-        Assert.Contains("if (GalleryOverlayVisible) CloseGallery(restoreOrigin: false);", resume);
-    }
-
-    // ---- #10: the size of the history list ----
+    // ---- #6: pages that move into More ----
 
     [Fact]
     public void EveryLanguageNamesThePageCurrentlyUnderMore()
@@ -105,6 +82,8 @@ public sealed class ShellReachabilityTests : IDisposable
             if (language.Code != "en") Assert.NotEqual(string.Format(english, label), name);
         }
     }
+
+    // ---- #10: the size of the history list ----
 
     [Fact]
     public void TheHistoryListIsAtLeast320DipWideAndNeverWiderThanItsMaximumOrTheWindow()

@@ -90,8 +90,8 @@ Use the footer view selector to switch.
 The footer groups destinations as **Work** (Downloads, Archive, Media, Tagging, Booru), **Set up**
 (Rules, Plugins) and **Observe** (Status), followed by
 **More** (German: **Mehr**) and **Settings**. The current work view and available
-width decide which destinations stay directly in the footer. **More** lists the
-destinations moved out of the footer. When the current page is in **More**, the
+width decide which destinations stay directly in the footer. **More** contains
+only destinations moved out of the footer. When the current page is in **More**, the
 button's tooltip and accessible name identify it and the menu marks its entry.
 Booru has a footer button by default in Simple and Advanced when there
 is room. Barebones and narrow windows can move it under **More**. The ⋯ app menu

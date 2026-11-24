@@ -3,6 +3,7 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using MeowChan.Desktop.Localization;
@@ -261,7 +262,8 @@ internal static class FooterNavigationChecks
             "Continue reading lost its book icon, localized tooltip or accessible name.");
         MenuItem menu = window.FindControl<MenuItem>("WorkspaceMenuItem")!.Items.OfType<MenuItem>()
             .Single(item => item.Header as string == expected);
-        Require(menu.IsEnabled, "Continue reading must remain available in the app menu for empty-state explanation.");
+        Require(menu.IsEnabled && menu.Icon is Border { OpacityMask: not null },
+            "Continue reading lost its book icon or is unavailable in the app menu.");
         Console.WriteLine("SMOKE reading header " + System.Text.Json.JsonSerializer.Serialize(new {
             expected_visible = expectedVisible, action.IsVisible, action.IsEffectivelyVisible, action.IsEnabled,
             scale = window.RenderScaling, client = window.ClientSize.ToString(), window_bounds = window.Bounds.ToString(),
@@ -329,8 +331,16 @@ internal static class FooterNavigationChecks
             await OpenMenuAsync(menu, tools);
             Require(rules.IsChecked && rules.ToggleType == MenuItemToggleType.Radio && rules.Bounds.Width > 0,
                 "The current Rules row is unmarked when More is opened again.");
+            MenuFlyoutPresenter presenter = rules.GetVisualAncestors().OfType<MenuFlyoutPresenter>().First();
+            double scale = TopLevel.GetTopLevel(presenter)!.RenderScaling;
+            using (RenderTargetBitmap screenshot = new(PixelSize.FromSize(presenter.Bounds.Size, scale), new Vector(96 * scale, 96 * scale)))
+            {
+                screenshot.Render(presenter);
+                screenshot.Save(Path.Combine(AppContext.BaseDirectory, "smoke-footer-more-current-page.png"), PngBitmapEncoderOptions.Default);
+            }
             menu.Hide();
             await Program.WaitUntilAsync(() => !menu.IsOpen);
+            Program.CaptureWindow(window, "smoke-footer-more-current-page-narrow.png");
             const double wide = 1380;
             window.Width = wide;
             await Program.WaitUntilAsync(() => Math.Abs(window.Bounds.Width - wide) <= 1);
@@ -343,6 +353,7 @@ internal static class FooterNavigationChecks
             Require(window.SelectedPage == MainWindow.WorkspacePage.Rules && Button(window, "Rules").IsVisible,
                 "Rules did not return to the wide Advanced footer.");
             RequireSelection(window, tools);
+            Program.CaptureWindow(window, "smoke-footer-current-page-wide.png");
             Console.WriteLine("SMOKE More names and marks Rules until the page returns to the footer.");
         }
         finally

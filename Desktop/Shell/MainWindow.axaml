@@ -96,8 +96,10 @@
                         </Button>
                         <StackPanel x:Name="ContinueReadingGroup" Orientation="Horizontal" IsVisible="False">
                             <Button x:Name="ContinueReadingButton" Classes="subtle header-icon" IsVisible="False"
+                                    Width="{StaticResource Workspace.Size.Control}" Height="{StaticResource Workspace.Size.Control}"
                                     CornerRadius="5,0,0,5" BorderBrush="{DynamicResource Workspace.ControlBorder}" BorderThickness="1,1,0,1" />
-                            <Button x:Name="ContinueReadingHistoryButton" Classes="subtle header-icon" IsVisible="False" Width="{StaticResource Workspace.Size.Control}" Padding="0"
+                            <Button x:Name="ContinueReadingHistoryButton" Classes="subtle header-icon" IsVisible="False"
+                                    Width="{StaticResource Workspace.Size.Control}" Height="{StaticResource Workspace.Size.Control}" Padding="0"
                                     CornerRadius="0,5,5,0" BorderBrush="{DynamicResource Workspace.ControlBorder}">
                                 <Path x:Name="ContinueReadingHistoryIcon" Classes="header-icon" Data="M 4,6 L 8,10 L 12,6" />
                             </Button>
