@@ -82,20 +82,18 @@ internal class MinLineWrapPanel : Panel
     protected override Size MeasureOverride(Size availableSize)
     {
         Size item = new(availableSize.Width, double.PositiveInfinity);
-        foreach (Control child in Children) child.Measure(item);
-        CollectShown();
-        double pairWidth = availableSize.Width - ItemSpacing;
-        if (KeepPairOnOneLine && _shown.Count == 2 && _sizes[0].Width + _sizes[1].Width > pairWidth
-            && _shown[0].MinWidth + _shown[1].MinWidth <= pairWidth)
+        if (KeepPairOnOneLine && Children is [{ IsVisible: true } first, { IsVisible: true } second])
         {
-            // Give back space a shorter action does not need. Both labels can trim inside their buttons.
-            double firstWidth = Math.Clamp(Math.Max(pairWidth / 2, pairWidth - _sizes[1].Width),
-                _shown[0].MinWidth, Math.Min(_sizes[0].Width, pairWidth - _shown[1].MinWidth));
-            _shown[0].Measure(item.WithWidth(firstWidth));
-            _shown[1].Measure(item.WithWidth(pairWidth - firstWidth));
-            _sizes[0] = _shown[0].DesiredSize;
-            _sizes[1] = _shown[1].DesiredSize;
+            // Reserve the editor's natural width. The leading thread command can use its icon in the remaining space.
+            second.Measure(item);
+            double remaining = item.Width - ItemSpacing - second.DesiredSize.Width;
+            first.Measure(remaining >= first.MinWidth ? item.WithWidth(remaining) : item);
         }
+        else
+        {
+            foreach (Control child in Children) child.Measure(item);
+        }
+        CollectShown();
         List<Line> lines = Lines(_sizes, availableSize.Width, ItemSpacing, MinLineHeight);
         double width = 0, height = 0;
         for (int i = 0; i < lines.Count; i++)

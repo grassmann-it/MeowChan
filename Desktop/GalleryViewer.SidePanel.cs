@@ -102,6 +102,21 @@ internal sealed partial class GalleryViewer
     }
 
     // The post takes the host over from the tag panel (and is remembered as open): P, the Post segment.
+    private bool _postFactsVisible = true;
+
+    private void TogglePostFacts()
+    {
+        if (!PostContextVisible)
+        {
+            _postFactsVisible = true;
+            _contextDirty = true;
+            ToggleContext();
+            return;
+        }
+        _postFactsVisible = !_postFactsVisible;
+        UpdateContext();
+    }
+
     private void ShowPostSegment()
     {
         ReleaseTagPanel();
