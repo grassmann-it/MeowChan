@@ -27,7 +27,7 @@ public enum PluginSourceUnavailableReason
 }
 
 /// <summary>An optional local provider adapter. Only asynchronous checks acquire a plugin worker.</summary>
-public sealed class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptorSource, ISourceMediaIntegrityPolicyProvider, IDisposable
+public sealed partial class PluginSourceImageBoard : BaseImageBoard, IProviderDescriptorSource, ISourceMediaIntegrityPolicyProvider, IDisposable
 {
     private readonly object _lifecycle = new();
     private readonly Func<CancellationToken, Task<IPluginWorkerClient>> _worker;
