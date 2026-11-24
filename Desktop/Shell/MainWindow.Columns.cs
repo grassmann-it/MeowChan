@@ -42,7 +42,7 @@ public partial class MainWindow
             grid.AddHandler(Avalonia.Input.InputElement.PointerPressedEvent, (_, e) =>
             {
                 // The button is the offer of the work view: where it is hidden, the header does not bring the choice back.
-                if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed || _isClosing || !_restoreCompleted || !DownloadsColumnsButton.IsVisible) return;
+                if (!ContextClick.IsPress(e, grid) || _isClosing || !_restoreCompleted || !DownloadsColumnsButton.IsVisible) return;
                 if ((e.Source as Avalonia.Visual)?.GetSelfAndVisualAncestors().OfType<DataGridColumnHeader>().FirstOrDefault() is not { } header) return;
                 e.Handled = true;
                 ContextMenu menu = BuildDownloadColumnsMenu(gridName);

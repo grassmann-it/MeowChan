@@ -110,7 +110,7 @@ internal sealed class MediaTagSidebar : UserControl
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         _list.AddHandler(PointerPressedEvent, (_, e) =>
         {
-            if (e.GetCurrentPoint(_list).Properties.IsRightButtonPressed) _menuRow = RowAt(e.Source);
+            if (ContextClick.IsPress(e, _list)) _menuRow = RowAt(e.Source);
         }, RoutingStrategies.Tunnel);
         AttachedToVisualTree += (_, _) => _menuHost ??= WorkspaceChips.AttachMenu(_list, ComposeMenu, () => _list.Focus(NavigationMethod.Tab));
         DetachedFromVisualTree += (_, _) => { _menuHost?.Dispose(); _menuHost = null; };

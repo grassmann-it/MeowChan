@@ -57,7 +57,7 @@ public partial class ArchivePage
     private void OnThreadMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (sender is not Control list || e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-        ArchiveThreadRow? row = MiddleClickTracker.RowAt<ArchiveThreadRow>(e.Source, list);
+        ArchiveThreadRow? row = MiddleClickTracker.RowAt<ArchiveThreadRow>(MiddleClickTracker.HitAt(e, list), list);
         if (!_threadMiddleClick.Released(row) || row == null) return;
         e.Handled = true;
         OpenThreadSourceByMiddleClick(row);
@@ -81,7 +81,7 @@ public partial class ArchivePage
     private void OnMediaTileMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-        ArchiveAssetRow? asset = MiddleClickTracker.RowAt<ArchiveAssetRow>(e.Source, ArchiveMediaTiles);
+        ArchiveAssetRow? asset = MiddleClickTracker.RowAt<ArchiveAssetRow>(MiddleClickTracker.HitAt(e, ArchiveMediaTiles), ArchiveMediaTiles);
         if (!_mediaMiddleClick.Released(asset) || asset == null) return;
         e.Handled = true;
         OpenMediaFolderByMiddleClick(asset);
@@ -96,7 +96,7 @@ public partial class ArchivePage
     private void OnMediaTableMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-        ArchiveAssetRow? asset = MiddleClickTracker.RowAt<ArchiveAssetRow>(e.Source, ArchiveMediaGrid);
+        ArchiveAssetRow? asset = MiddleClickTracker.RowAt<ArchiveAssetRow>(MiddleClickTracker.HitAt(e, ArchiveMediaGrid), ArchiveMediaGrid);
         if (!_mediaTableMiddleClick.Released(asset) || asset == null) return;
         e.Handled = true;
         OpenMediaFolderByMiddleClick(asset);
@@ -120,8 +120,8 @@ public partial class ArchivePage
 
     private void OnPostMediumMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
-        if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-        ArchiveAttachmentView? view = PostThumbnailAt(e.Source);
+        if (sender is not Control pane || e.Handled || !MiddleClickTracker.IsRelease(e)) return;
+        ArchiveAttachmentView? view = PostThumbnailAt(MiddleClickTracker.HitAt(e, pane));
         if (!_postMediumMiddleClick.Released(view) || view?.DataContext is not ArchiveAttachmentRow attachment) return;
         e.Handled = true;
         string? postId = view.GetSelfAndVisualAncestors().Select(node => node.DataContext).OfType<ArchivePostRow>().FirstOrDefault()?.Id;
@@ -138,7 +138,7 @@ public partial class ArchivePage
     private void OnSidebarMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.Handled || !MiddleClickTracker.IsRelease(e) || _mediaSidebar is not { } sidebar) return;
-        if (!_sidebarMiddleClick.Released(InSidebarFrame(e.Source, sidebar) ? sidebar.FrameArea : null)) return;
+        if (!_sidebarMiddleClick.Released(InSidebarFrame(MiddleClickTracker.HitAt(e, sidebar), sidebar) ? sidebar.FrameArea : null)) return;
         e.Handled = true;
         if (!_mediaSidebarShown || ArchivePosts.SelectedItem is not ArchivePostRow post || CurrentSidebarAttachment() is not { } attachment) return;
         OpenMediaFolderByMiddleClick(null, attachment, post.Id);

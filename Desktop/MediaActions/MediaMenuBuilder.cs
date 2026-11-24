@@ -318,8 +318,5 @@ internal sealed class MediaMenuPresenter
         && visual.GetSelfAndVisualAncestors().Any(control => PointerFocusReclaim.IsTextInput(control) || control is Slider or SelectableTextBlock);
 
     /// <summary>The keyboard gestures that open a context menu: the Menu key, Shift+F10 and the configurable context-open command.</summary>
-    internal static bool IsContextKey(KeyEventArgs e) => !e.Handled && !CommandRouter.IsNativeInput(e.Source, e.Key)
-        && (e.Key == Key.Apps && e.KeyModifiers == KeyModifiers.None
-            || e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift
-            || CommandBindings.Matches(e, "menu.context-open"));
+    internal static bool IsContextKey(KeyEventArgs e) => ContextClick.IsKey(e);
 }

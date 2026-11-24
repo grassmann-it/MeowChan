@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.VisualTree;
+using MeowChan.Desktop.Controls;
 using MeowChan.Desktop.MediaActions;
 using MeowChan.Gallery;
 
@@ -105,6 +106,7 @@ internal sealed partial class GalleryViewer
     {
         e.Handled = true;
         _contextKeyUpPending = e.Key;
+        ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
     }
 
     // A new key-down ends the wait for the key-up of an earlier context key (a modifier, the Shift of Shift+F10, does not).

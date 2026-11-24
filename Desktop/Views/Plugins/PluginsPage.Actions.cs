@@ -247,7 +247,7 @@ public partial class PluginsPage
     private void OnPluginActionPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         var list = C<SelectionList>("PluginCards");
-        if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed || !MainWindow.IsListCommandSource(e.Source, list)) return;
+        if (!ContextClick.IsPress(e, list) || !MainWindow.IsListCommandSource(e.Source, list)) return;
         e.Handled = true;
         SelectionListItem? row = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<SelectionListItem>().FirstOrDefault();
         string? key = row == null ? null : _cards.FirstOrDefault(pair => ReferenceEquals(pair.Value, row)).Key;

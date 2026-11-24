@@ -1168,7 +1168,7 @@ public sealed partial class MediaPage : UserControl
         _sharedPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || !IsEffectivelyVisible
             || IsNativeContextSource(e.Source) || IsTileTagChip(e.Source)
-            || !e.GetCurrentPoint(_grid).Properties.IsRightButtonPressed) return;
+            || !ContextClick.IsPress(e, _grid)) return;
         MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source));
         Control origin = ResolveMenuOrigin(e.Source, row);
         if (row is not null)
@@ -1178,7 +1178,7 @@ public sealed partial class MediaPage : UserControl
         }
         // MP5: a right click on empty grid space (no tile under the pointer) opens the layout menu, also while a tile is selected.
         OpenSharedMediaMenu(row, origin);
-        _sharedPointerContext.MenuOpenedByPress();
+        _sharedPointerContext.MenuOpenedByPress(ContextClick.Button(e, _grid));
         e.Handled = true;
     }
 
@@ -1197,6 +1197,7 @@ public sealed partial class MediaPage : UserControl
             (_grid.ContainerFromItem(row) as Control ?? origin).Focus();
         }
         OpenSharedMediaMenu(row, origin);
+        ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
         e.Handled = true;
     }
 
@@ -1208,7 +1209,8 @@ public sealed partial class MediaPage : UserControl
             e.Handled = true;
             return;
         }
-        MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source)) ?? SelectedRow;
+        MediaLibraryTileRow? row = TargetForMenu(RowAt(e.Source));
+        if (!e.TryGetPosition(_grid, out _)) row ??= SelectedRow;
         Control origin = ResolveMenuOrigin(e.Source, row);
         if (row is not null)
         {

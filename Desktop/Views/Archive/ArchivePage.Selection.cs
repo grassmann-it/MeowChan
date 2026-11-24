@@ -200,7 +200,7 @@ public partial class ArchivePage
     private void OnArchiveListPointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (sender is not Control list) return;
-        bool rightButton = e.GetCurrentPoint(list).Properties.IsRightButtonPressed;
+        bool rightButton = ContextClick.IsPress(e, list);
         if (!MainWindow.IsListCommandSource(e.Source, list)
             && !(rightButton && e.Source is Visual pressed && IsRowButtonPath(pressed.GetSelfAndVisualAncestors(), list))) return;
         _archivePointerContextHandled.Remove(list);
@@ -211,7 +211,7 @@ public partial class ArchivePage
             _archiveLeadId = row.Summary.Id;
             RefreshArchiveSelectionContext();
         }
-        if (!e.GetCurrentPoint(list).Properties.IsRightButtonPressed)
+        if (!rightButton)
         {
             if (row != null) Dispatcher.UIThread.Post(async () =>
             {
@@ -266,7 +266,7 @@ public partial class ArchivePage
         OpenArchiveKeyboardMenu(list);
     }
 
-    private void OpenArchiveKeyboardMenu(Control list)
+    private void OpenArchiveKeyboardMenu(Control list, Key? openingKey = null)
     {
         if (ArchiveLead is not ArchiveThreadRow lead) return;
         Control? owner = list.ContextMenu != null ? list : list.GetVisualDescendants().OfType<Control>()
@@ -277,6 +277,7 @@ public partial class ArchivePage
                 && control.DataContext is ArchiveThreadRow row && row.Summary.Id == lead.Summary.Id);
         Point anchor = leadRow?.TranslatePoint(new Point(0, leadRow.Bounds.Height), owner) ?? default;
         OpenArchiveSelectionMenu(owner, anchor);
+        if (openingKey is { } key) ContextClick.ConsumeOpeningKeyRelease(owner.ContextMenu, key);
     }
 
     private async void OnArchiveListKeyDown(object? sender, KeyEventArgs e)
@@ -284,9 +285,8 @@ public partial class ArchivePage
         if (IsFilenameSearchOpen) return;
         if (sender is not Control list || e.Handled || !MainWindow.IsListCommandSource(e.Source, list)
             || _ended || !_available || _largeReader || ArchiveExportDialog.IsVisible) return;
-        if (MatchesArchiveCommand(e, "menu.context-open"))
-        { e.Handled = true; OpenArchiveKeyboardMenu(list); return; }
-        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
+        if (ContextClick.IsKey(e))
+        { e.Handled = true; OpenArchiveKeyboardMenu(list, e.Key); return; }
         if (MatchesArchiveCommand(e, "input.focus-search"))
         { e.Handled = true; FocusArchiveTextSearch(); return; }
         // The list owns these navigation gestures. The generic command guard

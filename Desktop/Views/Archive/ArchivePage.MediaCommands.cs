@@ -118,8 +118,18 @@ public partial class ArchivePage
     private void InitializeArchiveMediaCommands()
     {
         AddHandler(ContextRequestedEvent, OnArchiveMediaContextRequested, RoutingStrategies.Tunnel);
+        AddHandler(PointerPressedEvent, OnArchiveMediaControlPress, RoutingStrategies.Tunnel);
         AddHandler(KeyDownEvent, OnArchiveMediaContextKey, RoutingStrategies.Tunnel);
         AddHandler(ArchiveMediaTileView.RateAndTagRequestedEvent, OnTileRateAndTagRequested);
+    }
+
+    private void OnArchiveMediaControlPress(object? sender, PointerPressedEventArgs e)
+    {
+        if (e.Source is not Control source || !ContextClick.IsMacControlPress(e, this)) return;
+        Control[] path = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
+        if (path.Any(control => control is ArchiveAttachmentView || control.Name is "ArchiveMediaGrid" or "ArchiveMediaTiles")
+            || SidebarStripContext(path) != null)
+            ContextClick.RequestOnMacControlPress(e, this);
     }
 
     // The rating caption of a tile (dead-affordance audit 15.11.) opens "Rate and tag" on that tile.
@@ -150,6 +160,7 @@ public partial class ArchivePage
         ContextRequestedEventArgs request = new() { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         e.Handled = request.Handled;
+        if (e.Handled) ContextClick.ConsumeOpeningKeyRelease(_mediaMenuPresenter.Menu, e.Key);
     }
 
     // The sidebar's right click, anywhere in it (picture, video row, header line, the card's edge; a thumbnail of the strip keeps its own request, which
@@ -163,14 +174,14 @@ public partial class ArchivePage
     {
         _sidebarPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _ended || !_available || !_mediaSidebarShown || _mediaSidebar is not { } sidebar || e.Source is not Control source
-            || !e.GetCurrentPoint(sidebar).Properties.IsRightButtonPressed || MediaMenuPresenter.IsNativeTextSource(source)) return;
+            || !ContextClick.IsPress(e, sidebar) || MediaMenuPresenter.IsNativeTextSource(source)) return;
         Control[] ancestors = source.GetSelfAndVisualAncestors().OfType<Control>().ToArray();
         if (ancestors.Any(control => ReferenceEquals(control, sidebar.Strip))) return;
         ContextRequestedEventArgs request = new(e) { RoutedEvent = ContextRequestedEvent };
         source.RaiseEvent(request);
         if (!request.Handled) return;
         e.Handled = true;
-        _sidebarPointerContext.MenuOpenedByPress();
+        _sidebarPointerContext.MenuOpenedByPress(ContextClick.Button(e, sidebar));
     }
 
     // The release of that right click: the request Avalonia sends with it comes through the handlers after this one, so the gate ends after it

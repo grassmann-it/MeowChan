@@ -16,6 +16,9 @@ internal static class ContextGestures
     internal static void MiddleClick(Control target, Point? point = null, RawInputModifiers modifiers = RawInputModifiers.None) =>
         Click(target, MouseButton.Middle, point, modifiers);
 
+    internal static void ControlClick(Control target, Point? point = null) =>
+        Click(target, MouseButton.Left, point, RawInputModifiers.Control);
+
     internal static void DoubleClick(Control target, Point? point = null, RawInputModifiers modifiers = RawInputModifiers.None)
     {
         var (root, position) = Locate(target, point);
@@ -58,7 +61,7 @@ internal static class ContextGestures
         root.MouseUp(position, button, modifiers);
     }
 
-    private static void KeyStroke(Control target, Key key, PhysicalKey physicalKey, RawInputModifiers modifiers)
+    internal static void KeyStroke(Control target, Key key, PhysicalKey physicalKey, RawInputModifiers modifiers = RawInputModifiers.None)
     {
         TopLevel root = Arrange(target);
         if (!ReferenceEquals(root.FocusManager?.GetFocusedElement(), target)) Assert.True(target.Focus());

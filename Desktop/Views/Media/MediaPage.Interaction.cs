@@ -42,7 +42,7 @@ public sealed partial class MediaPage
     private void OnTileMiddleReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-        MediaLibraryTileRow? row = MiddleClickRow(e.Source);
+        MediaLibraryTileRow? row = MiddleClickRow(MiddleClickTracker.HitAt(e, _grid));
         if (!_tileMiddleClick.Released(row) || row == null) return;
         e.Handled = true;
         OpenActions.Start(() => RunMediaCommandOnTileAsync(FolderCommandId, row), "media.grid.middleClick");

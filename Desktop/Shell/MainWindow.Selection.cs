@@ -12,6 +12,7 @@ using Avalonia.VisualTree;
 using MeowChan.Desktop;
 using MeowChan.Desktop.Commands;
 using MeowChan.Desktop.Controls;
+using MeowChan.Desktop.MediaActions;
 using MeowChan.Desktop.Localization;
 
 namespace MeowChan;
@@ -195,7 +196,7 @@ public partial class MainWindow
         object? item = hit?.DataContext;
         if (item is ThreadRow thread) _threadLeadId = thread.WatchId;
         if (item is BoardRow board) _boardLeadId = board.WatchId;
-        if (!e.GetCurrentPoint(grid).Properties.IsRightButtonPressed) return;
+        if (!ContextClick.IsPress(e, grid) || MediaMenuPresenter.IsNativeTextSource(e.Source)) return;
         _downloadPointerContextHandled.Add(grid);
         if (IsDownloadColumnHeaderSource(e.Source))
         {
@@ -286,15 +287,19 @@ public partial class MainWindow
             || _largeReaderOpen || (_gallery != null && !_gallerySuspended) || !IsEnabled
             || _selectedPage != WorkspacePage.Downloads || RowCommandBusy || _selectionCommandRunning) return;
         bool boards = ReferenceEquals(grid, DownloadList(true));
-        if (DownloadsMatches(e, "menu.context-open"))
+        bool contextKey;
+        using (EffectiveShortcutBindings.EnterKeyContext("downloads")) contextKey = ContextClick.IsKey(e);
+        if (contextKey)
         {
             e.Handled = true;
             if (grid.ContextMenu is ContextMenu menu && grid.SelectedItems.Count > 0)
-            { BuildDownloadMenu(grid, menu); if (menu.ItemCount > 0) menu.Open(grid); }
+            {
+                BuildDownloadMenu(grid, menu);
+                if (menu.ItemCount > 0) menu.Open(grid);
+                ContextClick.ConsumeOpeningKeyRelease(menu, e.Key);
+            }
             return;
         }
-        // The dedicated Menu key remains native. An overridden free Shift+F10 does not.
-        if (e.Key == Key.F10 && e.KeyModifiers == KeyModifiers.Shift) { e.Handled = true; return; }
         if (e.Key is Key.Up or Key.Down or Key.Home or Key.End or Key.PageUp or Key.PageDown)
         {
             // Native grid navigation handles range selection and moves CurrentItem.

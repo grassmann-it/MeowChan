@@ -88,7 +88,7 @@ public sealed partial class TaggingPage
         _clearConfirm.KeyDown += (_, e) => { if (e.Key == Key.Escape) { e.Handled = true; CloseClearQuestion(focusClear: true); } };
 
         _menuHost = new ContextMenuHost(_list, ComposeRowMenu, fallbackFocus: () => FocusContent());
-        _list.AddHandler(PointerPressedEvent, OnContextPointerPressed, RoutingStrategies.Tunnel, handledEventsToo: true);
+        _list.AddHandler(ContextRequestedEvent, OnRowContextRequested, RoutingStrategies.Tunnel);
         _list.AddHandler(KeyDownEvent, OnListKeyDown, RoutingStrategies.Tunnel);
         AddHandler(KeyUpEvent, OnResultSpaceUp, RoutingStrategies.Tunnel, handledEventsToo: true);
         // A double-click on an entry runs "Continue here" like Enter; one that cannot (a finished entry, a busy queue) says why in the status line
@@ -121,9 +121,9 @@ public sealed partial class TaggingPage
     // entry that was clicked (the selection stays as it is), with the menu entry's own rules.
     private readonly MiddleClickTracker _middleClick = new();
 
-    private void OnContextPointerPressed(object? sender, PointerPressedEventArgs e)
+    private void OnRowContextRequested(object? sender, ContextRequestedEventArgs e)
     {
-        if (sender is not ListBox surface || !e.GetCurrentPoint(surface).Properties.IsRightButtonPressed
+        if (sender is not ListBox surface || !e.TryGetPosition(surface, out _)
             || !MainWindow.IsListCommandSource(e.Source, surface)) return;
         ListBoxItem? item = (e.Source as Visual)?.GetSelfAndVisualAncestors().OfType<ListBoxItem>()
             .FirstOrDefault(candidate => ReferenceEquals(ItemsControl.ItemsControlFromItemContainer(candidate), surface));
@@ -148,7 +148,7 @@ public sealed partial class TaggingPage
         surface.AddHandler(PointerReleasedEvent, (_, e) =>
         {
             if (e.Handled || !MiddleClickTracker.IsRelease(e)) return;
-            TaggingQueueRow? row = MiddleClickTracker.RowAt<TaggingQueueRow>(e.Source, surface);
+            TaggingQueueRow? row = MiddleClickTracker.RowAt<TaggingQueueRow>(MiddleClickTracker.HitAt(e, surface), surface);
             if (!_middleClick.Released(row) || row == null) return;
             e.Handled = true;
             OpenActions.Start(() => ShowInFolderOfAsync(row), "tagging.middleClick");

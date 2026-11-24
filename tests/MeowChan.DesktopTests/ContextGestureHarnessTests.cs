@@ -64,7 +64,7 @@ public sealed class ContextGestureHarnessTests
     [InlineData(true, true)]
     public void MenuKeysOpenBelowTheControlAndUseTheFocusedRow(bool useGrid, bool shiftF10) => Run(useGrid, fixture =>
     {
-        ShortcutService.Publish(new ShortcutBindingsSection().Set("menu.context-open", []));
+        ShortcutService.Publish(new ShortcutBindingsSection().Set("menu.context-open", [new("F9", [])]));
         ContextGestures.RightClick(fixture.RowHit(fixture.First));
         fixture.Host.Close();
 
@@ -75,6 +75,45 @@ public sealed class ContextGestureHarnessTests
         Assert.Equal(new[] { fixture.First, fixture.Second }, fixture.Compositions);
         Assert.Equal(PlacementMode.BottomEdgeAlignedLeft, fixture.Host.OpenMenu?.Placement);
         AssertMenuAndActivate(fixture, fixture.Second);
+    });
+
+    [Fact]
+    public void ReboundContextKeyUsesTheSameFocusedTarget() => Run(false, fixture =>
+    {
+        ShortcutService.Publish(new ShortcutBindingsSection().Set("menu.context-open", [new("F9", [])]));
+        ContextGestures.KeyStroke(fixture.FocusableRowPart(fixture.Second), Key.F9, PhysicalKey.F9);
+        Assert.Same(fixture.Second, Assert.Single(fixture.Compositions));
+        AssertMenuAndActivate(fixture, fixture.Second);
+    });
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ControlClickOpensOnceOnMacAndMetaClickDoesNot(bool useGrid) => Run(useGrid, fixture =>
+    {
+        ContextClick.MacOSForTests = true;
+        try
+        {
+            ContextGestures.Click(fixture.RowHit(fixture.Second), modifiers: RawInputModifiers.Meta);
+            Assert.Empty(fixture.Compositions);
+            ContextGestures.ControlClick(fixture.RowHit(fixture.Second));
+            Assert.Same(fixture.Second, Assert.Single(fixture.Compositions));
+            AssertMenuAndActivate(fixture, fixture.Second);
+        }
+        finally { ContextClick.MacOSForTests = null; }
+    });
+
+    [Fact]
+    public void ControlClickStaysASelectionGestureOffMac() => Run(false, fixture =>
+    {
+        ContextClick.MacOSForTests = false;
+        try
+        {
+            ContextGestures.ControlClick(fixture.RowHit(fixture.Second));
+            Assert.Empty(fixture.Compositions);
+            Assert.Same(fixture.Second, fixture.Selected);
+        }
+        finally { ContextClick.MacOSForTests = null; }
     });
 
     [Theory]
@@ -314,7 +353,7 @@ public sealed class ContextGestureHarnessTests
             LastReleaseModifiers = e.KeyModifiers;
             Gate.Released(e.InitialPressMouseButton);
             // Implicit capture can keep the press source on the event even when the pointer is over another row.
-            IInputElement? hit = _surface.InputHitTest(e.GetPosition(_surface));
+            IInputElement? hit = MiddleClickTracker.HitAt(e, _surface);
             if (e.InitialPressMouseButton == MouseButton.Right) RightReleaseHit = ItemActivation.ItemAt<Row>(hit, _surface);
             if (!MiddleClickTracker.IsRelease(e)) return;
             Row? row = MiddleClickTracker.RowAt<Row>(hit, _surface);

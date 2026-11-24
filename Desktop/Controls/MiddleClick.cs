@@ -37,6 +37,9 @@ internal sealed class MiddleClickTracker
     /// <summary>Whether the event is the release of the middle button.</summary>
     internal static bool IsRelease(PointerReleasedEventArgs e) => e.InitialPressMouseButton == MouseButton.Middle;
 
+    // Mouse capture can leave Source on the pressed row when the pointer is released elsewhere.
+    internal static IInputElement? HitAt(PointerReleasedEventArgs e, Control surface) => surface.InputHitTest(e.GetPosition(surface));
+
     /// <summary>
     /// The data of the row or list item a pointer event's source lies in, when the source is not an interactive part of it and the item carries a
     /// <typeparamref name="T"/>; null on empty space, a header or a button. Rows and list items only (the card list and the tables).

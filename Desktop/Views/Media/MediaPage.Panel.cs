@@ -579,12 +579,12 @@ public sealed partial class MediaPage
     {
         _panelPointerContext.BeginPress(); // each press starts its own gesture
         if (e.Handled || _lifetime.IsCancellationRequested || IsNativeContextSource(e.Source) || _panel is not { } panel
-            || !e.GetCurrentPoint(panel).Properties.IsRightButtonPressed || _panelRow == null) return;
+            || !ContextClick.IsPress(e, panel) || _panelRow == null) return;
         if (!_grid.Selection.SelectedItems.Contains(_panelRow)) _grid.SelectedItem = _panelRow;
         panel.Frame.Focusable = true;
         panel.Frame.Focus();
         OpenSharedMediaMenu(_panelRow, panel.Frame, _panelVideo);
-        _panelPointerContext.MenuOpenedByPress();
+        _panelPointerContext.MenuOpenedByPress(ContextClick.Button(e, panel));
         e.Handled = true;
     }
 

@@ -1208,6 +1208,8 @@ internal sealed partial class GalleryViewer : UserControl, IAsyncDisposable
         // steal focus from a native video control before it receives the release.
         if (_viewerInteractionStopped || !_interactionAvailable || _videoSuspended || _mediaFailed
             || _sessionCancellation.IsCancellationRequested || sender is not Control root || !IsEffectivelyVisible) return;
+        if (!ItemActivation.IsOwnedByInteractivePart(e.Source, root)) ContextClick.RequestOnMacControlPress(e, root);
+        if (e.Handled) return;
         if (IsVideoView)
         {
             // A video is dragged only while it is zoomed in, and only by the picture itself, never by the transport.
