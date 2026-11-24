@@ -395,6 +395,11 @@ public sealed class OfficialSourceTests
         Assert.IsType<CatalogFailure>(await plugin.ReadCatalogAsync(request with { HasSnapshot = true, Validators = null }, Context(noValidator)));
         Assert.Null(Assert.Single(noValidator.Requests).Validators);
 
+        FixtureHttp revisionOnly = new(Response(304, ""));
+        Assert.IsType<CatalogFailure>(await plugin.ReadCatalogAsync(request with { HasSnapshot = true, Validators = new(Revision: "fixture") },
+            Context(revisionOnly)));
+        Assert.Null(Assert.Single(revisionOnly.Requests).Validators);
+
         FixtureHttp http = new(Response(304, "") with { Validators = new SourceValidators() });
         CatalogUnchanged unchanged = Assert.IsType<CatalogUnchanged>(await plugin.ReadCatalogAsync(request with { HasSnapshot = true }, Context(http)));
         Assert.Equal(Validators, unchanged.Validators);

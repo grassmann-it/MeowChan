@@ -46,7 +46,8 @@ public sealed class FourChanPlugin : ISourcePlugin
         if (!FourChanParser.ValidBoard(request.Board.SourceId, request.Board.BoardId) || request.Cursor is not null || request.Page is not null)
             return new CatalogFailure(request.Board, new FailureDetail("invalid_request", "This source reads one complete board catalog without a cursor or page."));
         string endpoint = request.IsArchive ? "archive.json" : "catalog.json";
-        SourceValidators? sentValidators = request.HasSnapshot && (!request.IsArchive || HasValidator(request.Validators))
+        SourceValidators? sentValidators = request.HasSnapshot
+            && (!request.IsArchive || request.Validators is { EntityTag: not null } or { LastModified: not null })
             ? request.Validators : null;
         HostHttpResult result = await context.Http.SendAsync(new HostHttpRequest("4chan", HostHttpMethod.Get,
             new Uri($"https://a.4cdn.org/{request.Board.BoardId}/{endpoint}"), Validators: sentValidators), cancellationToken);
