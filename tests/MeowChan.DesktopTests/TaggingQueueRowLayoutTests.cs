@@ -34,6 +34,11 @@ public sealed class TaggingQueueRowLayoutTests
                 Name = "A filename long enough to wrap into a second line in the normal preview of the tagging queue.png"
             }).ToArray();
             TagQueueSnapshot queue = new(1, 0, [], items, TagQueueLoadState.Ready, [group]);
+            page.CompactDensity = () => false;
+            TaggingLayoutRhythmTests.RenderSnapshot(page, queue);
+            page.RestorePreviewColumn(true);
+            MeasureOriginalPreviewContainer();
+
             object? chevron = null;
             foreach (bool compact in new[] { false, true })
             {
@@ -73,6 +78,20 @@ public sealed class TaggingQueueRowLayoutTests
             Dispatcher.UIThread.RunJobs();
             window.UpdateLayout();
             return Assert.IsType<ListBoxItem>(list.ContainerFromIndex(index));
+        }
+
+        void MeasureOriginalPreviewContainer()
+        {
+            page.List.Classes.Remove("with-preview");
+            try
+            {
+                ListBoxItem item = ScrollTo(page.List, 0);
+                TaggingQueueRowView row = Assert.Single(item.GetVisualDescendants().OfType<TaggingQueueRowView>());
+                Assert.Equal(44, item.Bounds.Height);
+                Assert.Equal(48, row.Preview.Bounds.Height);
+                Assert.False(new Rect(item.Bounds.Size).Contains(BoundsIn(row.Preview, item)));
+            }
+            finally { page.List.Classes.Add("with-preview"); }
         }
 
         object? CheckRow(int index, double height, bool preview, bool compact)

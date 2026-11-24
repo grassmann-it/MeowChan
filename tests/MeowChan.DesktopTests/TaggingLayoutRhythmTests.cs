@@ -142,6 +142,8 @@ public sealed class TaggingLayoutRhythmTests
     [Fact]
     public void HelpBelongsToTheEmptyQueueAndGroupDeletionRemainsInTheGroupMenu() => WithPage(page =>
     {
+        DesktopSessionHost host = (DesktopSessionHost)typeof(TaggingPage).GetField("_host", Private)!.GetValue(page)!;
+        BooruComponentDispatcher.Wait(host.StartAsync());
         TagQueueGroup group = new("empty", "Empty", 0, Array.Empty<string>());
         TagQueueSnapshot queue = new(1, 0, Array.Empty<string>(), new[] { Item() }, TagQueueLoadState.Ready, new[] { group });
         foreach (string language in new[] { "en", "de" })
@@ -190,6 +192,12 @@ public sealed class TaggingLayoutRhythmTests
         Assert.Equal(items.Take(3).Select(item => item.Key), page.Rows.Select(row => row.Key));
         Assert.Same(queue, page.Queue);
         Assert.Equal(0, adds);
+
+        TagQueueSnapshot unfinished = new(1, 0, [],
+            [.. items, Item() with { AssetId = "unreviewed", GroupId = review.Id }], TagQueueLoadState.Ready, [review, finished]);
+        RenderSnapshot(page, unfinished, TaggingQueueFilter.Open, group: review.Id);
+        Assert.Equal(TaggingEmptyKind.None, page.EmptyKind);
+        Assert.Equal("unreviewed", Assert.Single(page.Rows).Key.AssetId);
 
         RenderSnapshot(page, queue, TaggingQueueFilter.Open, group: finished.Id);
         Assert.Equal(Texts.T("tagging.page.empty.add"), page.EmptyMediaButton.Content);
