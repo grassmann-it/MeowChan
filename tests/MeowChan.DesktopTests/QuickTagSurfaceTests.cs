@@ -86,7 +86,7 @@ public sealed class QuickTagSurfaceTests : IDisposable
     [InlineData(280)]
     [InlineData(360)]
     [InlineData(480)]
-    public void GalleryTagsUsesTheSharedOrderAndAFullWidthEditorAction(int width) => BooruComponentDispatcher.Run(() =>
+    public void GalleryTagsUsesTheSharedOrderAndContentSizedActions(int width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         using TempDirectory temp = new();
@@ -107,8 +107,8 @@ public sealed class QuickTagSurfaceTests : IDisposable
             window.UpdateLayout();
             Assert.Empty(surface.Header.Children);
             Assert.False(surface.CloseButton.IsVisible);
-            Assert.True(surface.FooterStacked);
-            Assert.Equal(surface.Footer.Bounds.Width, surface.AdvancedButton.Bounds.Width, 0.5);
+            Assert.False(surface.FooterStacked);
+            Assert.Equal(surface.AdvancedButton.DesiredSize.Width, surface.AdvancedButton.Bounds.Width, 0.5);
             double Top(Control control) => control.TranslatePoint(default, surface)!.Value.Y;
             Assert.True(Top(decision) < Top(surface.Title));
             Assert.True(Top(surface.Title) < Top(facts));

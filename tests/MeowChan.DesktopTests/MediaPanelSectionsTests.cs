@@ -14,7 +14,7 @@ public sealed class MediaPanelSectionsTests
     [InlineData(280)]
     [InlineData(360)]
     [InlineData(480)]
-    public void SectionsHaveOneSeparatorAndActionsFillTheColumn(double width) => BooruComponentDispatcher.Run(() =>
+    public void SectionsHaveOneSeparatorAndActionsWrapAtTheirMeasuredWidth(double width) => BooruComponentDispatcher.Run(() =>
     {
         using IDisposable platform = BooruReviewTestPlatform.Enter();
         Button show = new() { Content = "Show in thread" };
@@ -22,7 +22,7 @@ public sealed class MediaPanelSectionsTests
         PanelActionStack.Present(show, "file-text");
         PanelActionStack.Present(edit, "edit-2");
         PanelActionStack actions = new("Actions") { Children = { show, edit } };
-        Control rating = new Border { Height = 72 };
+        Control rating = new Border { Height = 32 };
         Control tags = new Border { Height = 40 };
         Control info = new Border { Height = 80 };
         MediaPanelSections sections = new() { Width = width - 32, Rating = rating, Tags = tags, Info = info, Actions = actions };
@@ -36,10 +36,12 @@ public sealed class MediaPanelSectionsTests
             Assert.True(BoundsIn(tags).Bottom < BoundsIn(info).Top);
             Assert.True(BoundsIn(info).Bottom < BoundsIn(actions).Top);
             Assert.Equal(3, sections.Children.OfType<Border>().Count(divider => divider.IsVisible));
-            Assert.Equal(sections.Bounds.Width, show.Bounds.Width, 0.5);
-            Assert.Equal(sections.Bounds.Width, edit.Bounds.Width, 0.5);
+            Assert.Equal(show.DesiredSize.Width, show.Bounds.Width, 0.5);
+            Assert.Equal(edit.DesiredSize.Width, edit.Bounds.Width, 0.5);
             Assert.Equal(WorkspaceMetrics.InputHeight, show.Bounds.Height, 0.5);
-            Assert.Equal(show.Bounds.Bottom + 8, edit.Bounds.Top, 0.5);
+            bool fits = show.Bounds.Width + 8 + edit.Bounds.Width <= sections.Bounds.Width;
+            Assert.Equal(fits ? show.Bounds.Top : show.Bounds.Bottom + 8, edit.Bounds.Top, 0.5);
+            Assert.Equal(fits ? show.Bounds.Right + 8 : show.Bounds.Left, edit.Bounds.Left, 0.5);
             sections.Tags = null;
             window.UpdateLayout();
             Assert.Equal(2, sections.Children.OfType<Border>().Count(divider => divider.IsVisible));

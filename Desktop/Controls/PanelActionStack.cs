@@ -8,27 +8,27 @@ using MeowChan.Desktop.Commands;
 
 namespace MeowChan.Desktop.Controls;
 
-internal sealed class PanelActionStack : StackPanel
+internal sealed class PanelActionStack : MinLineWrapPanel
 {
-    protected override Type StyleKeyOverride => typeof(StackPanel);
-
     internal PanelActionStack(string name)
     {
         Name = name;
-        Spacing = 8;
+        ItemSpacing = LineSpacing = 8;
     }
 
-    internal static void Stretch(Button button)
+    internal static void SizeButton(Button button)
     {
         button.Classes.Set("panel-action", true);
-        button.HorizontalAlignment = HorizontalAlignment.Stretch;
+        button.HorizontalAlignment = HorizontalAlignment.Left;
+        button.Padding = new Thickness(12, 0);
+        button.MinWidth = 96;
         button.HorizontalContentAlignment = HorizontalAlignment.Stretch;
         button.Height = WorkspaceMetrics.InputHeight;
     }
 
     internal static void Present(Button button, string icon)
     {
-        Stretch(button);
+        SizeButton(button);
         button.ContentTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((content, _) =>
         {
             TextBlock text = new()

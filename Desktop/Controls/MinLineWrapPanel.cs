@@ -13,7 +13,7 @@ namespace MeowChan.Desktop.Controls;
 /// minimum. Every item is arranged over its line's full height, so <c>VerticalAlignment.Center</c> centres a one-line text in a 32 dip line
 /// exactly as <c>ItemHeight</c> did. Hidden items take no room and no gap.
 /// </summary>
-internal sealed class MinLineWrapPanel : Panel
+internal class MinLineWrapPanel : Panel
 {
     public static readonly StyledProperty<double> ItemSpacingProperty =
         AvaloniaProperty.Register<MinLineWrapPanel, double>(nameof(ItemSpacing));

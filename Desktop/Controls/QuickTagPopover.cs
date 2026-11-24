@@ -336,7 +336,7 @@ internal sealed class QuickTagPopover
         GalleryDecisionRow row = new(options.Name + "Decision") { FavoriteVisible = decision.SetFavorite != null, KeyContext = options.TooltipKeyContext };
         row.Show(SafeView(decision));
         // The caption (the rating value) is said when it changes; the gallery panel announces through its status line instead.
-        AutomationProperties.SetLiveSetting(row.Summary, AutomationLiveSetting.Polite);
+        AutomationProperties.SetLiveSetting(row.RatingBar, AutomationLiveSetting.Polite);
         return row;
     }
 

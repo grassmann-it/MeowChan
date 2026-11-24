@@ -28,19 +28,12 @@ internal sealed class GalleryDecisionRow : StackPanel
     private readonly StackPanel _bar = new() { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Left };
     private readonly TextBlock _unavailable = new() { Classes = { "workspace-meta" }, TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _error = new() { Classes = { "workspace-error" }, TextWrapping = TextWrapping.Wrap, IsVisible = false };
-    // The second row shares the first row's star and clear-button columns.
     private readonly Grid _group = new()
     {
-        ColumnDefinitions = new ColumnDefinitions("Auto,8,*"),
-        RowDefinitions = new RowDefinitions("32,8,32"),
+        ColumnDefinitions = new ColumnDefinitions("Auto,8,Auto,8,Auto"),
         HorizontalAlignment = HorizontalAlignment.Left
     };
-    private readonly RatingCaption _summary = new()
-    {
-        Classes = { "workspace-meta", "tnum" }, LineHeight = 16, MaxLines = 2, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(8, 0, 0, 0),
-        VerticalAlignment = VerticalAlignment.Center
-    };
-    private readonly TextBlock _favoriteLabel = new() { Classes = { "panel-action-label" }, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _favoriteLabel = new() { Classes = { "panel-action-label" }, MaxLines = 1, VerticalAlignment = VerticalAlignment.Center };
     private readonly Grid _favoriteContent;
     private bool? _favoriteAvailable;
     private GalleryDecisionView _view = GalleryDecisionView.Unavailable;
@@ -50,15 +43,15 @@ internal sealed class GalleryDecisionRow : StackPanel
     private bool _attached;
     private string? _keyContext;
 
-    internal GalleryDecisionRow(string name, bool compact = false)
+    internal GalleryDecisionRow(string name, bool compact = false, bool favorite = true)
     {
         Name = name;
         _starGlyphSize = compact ? 20 : 24;
         _popover = !compact;
         Spacing = 4;
         _group.Children.Add(_bar);
-        _group.ColumnDefinitions[2].MinWidth = WorkspaceMetrics.InputHeight;
-        _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating"; _summary.Name = name + "Summary";
+        FavoriteVisible = favorite;
+        _favorite.Name = name + "Favorite"; _clear.Name = name + "RatingClear"; _group.Name = name + "Rating";
         _favorite.IsThreeState = true;
         _favoriteContent = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 8,
             Children = { FavoriteStar.Create(false, FavoriteGlyphSize), _favoriteLabel } };
@@ -80,12 +73,9 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.VerticalAlignment = VerticalAlignment.Center;
         _clear.HorizontalAlignment = HorizontalAlignment.Left;
         Grid.SetColumn(_clear, 2);
-        Grid.SetRow(_favorite, 2);
-        Grid.SetRow(_summary, 2);
-        Grid.SetColumn(_summary, 2);
+        Grid.SetColumn(_favorite, 4);
         _group.Children.Add(_clear);
         _group.Children.Add(_favorite);
-        _group.Children.Add(_summary);
         Children.Add(_group);
         Children.Add(_unavailable);
         Children.Add(_error);
@@ -104,16 +94,23 @@ internal sealed class GalleryDecisionRow : StackPanel
         double width = !_popover ? WorkspaceMetrics.RatingStarMinWidth
             : availableSize.Width < 336 ? WorkspaceMetrics.InputHeight : WorkspaceMetrics.RatingPopoverStarSize;
         double height = Math.Max(WorkspaceMetrics.InputHeight, width);
-        _favorite.MaxWidth = width * _stars.Length;
-        _group.ColumnDefinitions[0].MinWidth = _favorite.MaxWidth;
-        // A narrow 240-DIP panel may wrap single ratings. At the normal minimum, only mixed ratings wrap.
-        _summary.SetLineLimit(_view.RatingMixed || availableSize.Width < (_popover ? 256 : 246) ? 2 : 1);
-        _group.RowDefinitions[0].Height = new GridLength(height);
-        _bar.Margin = new Thickness((_starGlyphSize - width) / 2, 0, 0, 0);
+        // The label is the same for on, off and mixed. Measure it even while the icon form is shown.
+        double labelWidth = new FormattedText(_favoriteLabel.Text ?? "", Texts.Culture, FlowDirection,
+            new Typeface(_favoriteLabel.FontFamily, _favoriteLabel.FontStyle, _favoriteLabel.FontWeight),
+            _favoriteLabel.FontSize, _favoriteLabel.Foreground).Width;
+        double favoriteWidth = 2 + 24 + FavoriteGlyphSize + 8 + Math.Ceiling(labelWidth);
+        bool labelFits = availableSize.Width >= width * _stars.Length + 48 + favoriteWidth;
+        _favoriteLabel.IsVisible = labelFits;
+        _favoriteContent.ColumnSpacing = labelFits ? 8 : 0;
+        _favorite.Width = labelFits ? favoriteWidth : WorkspaceMetrics.InputHeight;
+        _favorite.Padding = new Thickness(labelFits ? 12 : 0, 0);
+        _group.ColumnDefinitions[3].Width = new GridLength(FavoriteVisible ? 8 : 0);
         foreach (ToggleButton star in _stars)
         {
             star.Width = width;
             star.Height = height;
+            if (star.Content is Control glyph)
+                glyph.RenderTransform = new TranslateTransform((_starGlyphSize - width) / 2, 0);
         }
         return base.MeasureOverride(availableSize);
     }
@@ -123,7 +120,7 @@ internal sealed class GalleryDecisionRow : StackPanel
     internal bool FavoriteVisible { get => _favorite.IsVisible; set => _favorite.IsVisible = value; }
     internal IReadOnlyList<ToggleButton> StarButtons => _stars;
     internal Button ClearButton => _clear;
-    internal RatingCaption Summary => _summary;
+    internal Control RatingBar => _bar;
     internal GalleryDecisionView View => _view;
     internal Control RatingGroup => _group;
 
@@ -224,11 +221,14 @@ internal sealed class GalleryDecisionRow : StackPanel
         _clear.IsTabStop = false;
         _clear.IsEnabled = view.Available && (view.Rating.HasValue || view.RatingMixed);
         Paint();
-        _summary.IsVisible = view.Available;
-        _summary.Text = view.Available ? GalleryDecisionText.Caption(view) : null;
+        string caption = GalleryDecisionText.Caption(view);
+        AutomationProperties.SetName(_bar, caption);
+        AutomationProperties.SetHelpText(_bar, caption);
+        AutomationProperties.SetAccessibilityView(_bar, AccessibilityView.Content);
+        ToolTip.SetTip(_bar, caption);
         _unavailable.IsVisible = !view.Available;
         _unavailable.Text = Texts.T("gallery.decision.status.unavailable");
-        // The group's help is the full sentence (rating and favourite); the caption below the clear button shows the rating alone.
+        // Keep the current rating available to assistive technology and hover.
         AutomationProperties.SetHelpText(_group, ShortcutHelp.Append(GalleryDecisionText.Summary(view),
             ShortcutHelp.Commands(_keyContext ?? "gallery", Enumerable.Range(1, 5).Select(number => "media.rating.set-" + number)
                 .Append("media.rating.clear").ToArray())));

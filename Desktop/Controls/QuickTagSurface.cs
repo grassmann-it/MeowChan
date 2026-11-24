@@ -482,7 +482,10 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         StackPanel tags = new() { Name = _name + "Tags", Spacing = 8,
             Children = { new StackPanel { Spacing = 4, Children = { _title, _fieldArea } }, _upper, suggestionArea, _status } };
         _sidebarActions = new ContentControl { IsVisible = false };
-        PanelActionStack actions = new(_name + "ActionStack") { Children = { _sidebarActions, Footer } };
+        Footer.Children.Clear();
+        PanelActionStack footerButtons = new(_name + "FooterActions") { Children = { _undo, _stamp, _advanced } };
+        Footer.Children.Add(footerButtons);
+        StackPanel actions = new() { Spacing = FooterGap, Children = { _sidebarActions, Footer } };
         _sidebarSections = new MediaPanelSections { Tags = tags, Actions = actions };
         _flow.Content = _sidebarSections;
         ApplyFooterMode();
@@ -1042,6 +1045,12 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         Button[] buttons = [_undo, _stamp, _advanced];
         Footer.ColumnDefinitions.Clear();
         Footer.RowDefinitions.Clear();
+        if (_sidebarSections != null)
+        {
+            FooterStacked = false;
+            foreach (Button button in buttons) PanelActionStack.SizeButton(button);
+            return;
+        }
         if (stacked)
         {
             Footer.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Star));
@@ -1067,8 +1076,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
             buttons[index].Classes.Set("quick-tag-compact-action", !stacked && _compact);
             Grid.SetRow(buttons[index], stacked ? index : 0);
             Grid.SetColumn(buttons[index], stacked ? 0 : index);
-            if (_sidebarSections != null) PanelActionStack.Stretch(buttons[index]);
-            else buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
+            buttons[index].HorizontalAlignment = stacked ? HorizontalAlignment.Stretch : index == buttons.Length - 1 ? HorizontalAlignment.Right : HorizontalAlignment.Left;
         }
     }
 
@@ -1085,7 +1093,7 @@ internal sealed class QuickTagSurface : UserControl, IDisposable
         if (button.Content is not Grid { Children: [ContentControl slot, TextBlock text] }) return;
         text.Text = label;
         // At the popover minimum keep the full command names; the outbound editor retains its arrow.
-        slot.IsVisible = !_compact || FooterStacked || ReferenceEquals(button, _advanced);
+        slot.IsVisible = _sidebarSections != null || !_compact || FooterStacked || ReferenceEquals(button, _advanced);
         // The icon follows the label's foreground (also its disabled look). Only a control in a window can load it.
         if (_attached && slot.Content == null && slot.Tag is string icon)
         {
