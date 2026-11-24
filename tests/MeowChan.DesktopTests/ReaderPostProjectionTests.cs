@@ -77,7 +77,7 @@ public sealed class ReaderPostProjectionTests
     }
 
     [Fact]
-    public void IndexedRowsMaterializeOnlyRequestedPositionsAndReleaseEvictedRows()
+    public void IndexedRowsMaterializeOnlyRequestedPositionsAndKeepTheirIdentity()
     {
         ReaderPostProjection projection = Build(View(10_000),
             [new Rules(index => index % 2 == 0 ? Hidden() : default)]);
@@ -93,13 +93,10 @@ public sealed class ReaderPostProjectionTests
         Assert.Equal(4_999, source.IndexOf(last));
         Assert.Equal(2, rows.BuiltCount);
 
-        rows.Trim((index, _) => index == 4_999, row => Assert.Same(first, row));
-        Assert.Same(last, Assert.Single(rows.Materialized));
-        Assert.Equal(-1, rows.IndexOf(first));
+        Assert.Same(first, source[0]);
+        Assert.Equal(0, rows.IndexOf(first));
         Assert.Equal(0, source.IndexOf(first));
         Assert.Equal(2, rows.BuiltCount);
-        Assert.NotSame(first, rows[0]);
-        Assert.Equal(3, rows.BuiltCount);
 
         ReaderPostRows replacement = new(projection, _ => throw new InvalidOperationException());
         Assert.Equal(-1, replacement.IndexOf(last));

@@ -181,8 +181,6 @@ public partial class ArchivePage
             && VisiblePostRange(out first, out last);
         ReaderPreviewReservation.PostWindow window = !visible ? default : posts == 0 ? new(first, last + 1)
             : ReaderPreviewReservation.PrefetchWindow(first, last, rows.Count, posts);
-        rows.Trim((index, row) => window.Contains(index) || index == ArchivePosts.SelectedIndex
-            || ReferenceEquals(ArchivePosts.ContainerFromIndex(index)?.DataContext, row), RememberEvictedPostInteraction);
         RequestInlineReplyCounts(rows, window);
         if (!visible)
         {

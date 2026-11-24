@@ -243,9 +243,9 @@ internal static class ReaderViewChecks
             && list.SelectedItem is ArchivePostRow { BacklinkCount: 1 },
             () => $"Tail {last} visible: {Visible(list, last)}, selection {Selected(fixture)}, count {(list.SelectedItem as ArchivePostRow)?.BacklinkCount}.");
         Require(list.SelectedIndex == count - 1 && ReferenceEquals(source, list.ItemsSource) && source.BuiltCount <= 200
-            && source.Materialized.Count() <= 100 && source.IndexOf(first) < 0,
-            $"Tail jump selected index {list.SelectedIndex} and built {source.BuiltCount} rows, with {source.Materialized.Count()} resident.");
-        Console.WriteLine($"SMOKE tail {last}: {source.BuiltCount} rows built, {source.Materialized.Count()} resident.");
+            && source.IndexOf(first) == 0,
+            $"Tail jump selected index {list.SelectedIndex} and built {source.BuiltCount} rows.");
+        Console.WriteLine($"SMOKE tail {last}: {source.BuiltCount} rows built.");
         Program.CaptureWindow(fixture.Window, "smoke-reader-10000-last.png");
         ArchivePostRow tail = (ArchivePostRow)list.SelectedItem!;
         await page.SetRepliesExpandedAsync(tail, true);
@@ -254,8 +254,8 @@ internal static class ReaderViewChecks
         Console.WriteLine("SMOKE capture and refresh failures left the distant reply count and reply card usable.");
 
         await page.FocusPostAsync(ThreadId);
-        Require(list.SelectedItem is ArchivePostRow { SpoilersRevealed: true, RepliesExpanded: false, RepliesLoaded: true } rebuilt
-            && !ReferenceEquals(first, rebuilt), "Returning to an evicted post lost its spoiler or reply state.");
+        Require(list.SelectedItem is ArchivePostRow { SpoilersRevealed: true, RepliesExpanded: false, RepliesLoaded: true } returned
+            && ReferenceEquals(first, returned), "Returning to the first post lost its row, spoiler or reply state.");
         await page.LoadThreadAsync(fixture.Id, resetPage: false);
         await Program.WaitUntilAsync(() => list.SelectedItem is ArchivePostRow { Id: ThreadId, BacklinkCount: 1 });
         Require(list.SelectedItem is ArchivePostRow { RepliesExpanded: false }, "Refreshing the same thread reopened replies the reader had closed.");

@@ -27,7 +27,6 @@ public partial class ArchivePage
     private sealed class PostInteraction
     {
         internal Dictionary<string, InlineReplyState> Replies { get; } = new(StringComparer.Ordinal);
-        internal HashSet<int> Spoilers { get; } = new();
     }
 
     private PostInteraction _postInteraction = new();
@@ -35,14 +34,6 @@ public partial class ArchivePage
 
     private static InlineReplyState ReplyState(ArchivePostRow row) => new(row.Id, row.RepliesExpanded, row.RepliesLoaded,
         row.BacklinkCount, row.RepliesOffset, row.Replies, row.RepliesError, row.RepliesAutoExpanded);
-
-    private void RememberEvictedPostInteraction(ArchivePostRow row)
-    {
-        if (row.SpoilersRevealed) _postInteraction.Spoilers.Add(row.ThreadIndex);
-        // A single auto-opened page can be fetched when its card next appears. Keep explicit openings and pagination.
-        if (row.RepliesOffset > 0 || !row.RepliesAutoExpanded && (row.RepliesExpanded || row.RepliesLoaded))
-            _postInteraction.Replies[row.Id] = ReplyState(row);
-    }
 
     private InlineRepliesSnapshot CaptureInlineReplyState()
     {
@@ -67,7 +58,6 @@ public partial class ArchivePage
 
     private void RestorePostInteraction(ArchivePostRow row, PostInteraction interaction)
     {
-        if (interaction.Spoilers.Remove(row.ThreadIndex)) row.SpoilersRevealed = true;
         if (row.IsStub || row.SuppressReplyToggle) return;
         if (!interaction.Replies.Remove(row.Id, out InlineReplyState? state)) return;
         // Restore loaded pages before expanding, including when an origin is realized after returning from a quote.

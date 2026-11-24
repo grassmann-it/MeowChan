@@ -368,8 +368,8 @@ internal sealed class ReaderPostProjection
 internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<ReaderPostEntry, ArchivePostRow> build)
     : IReadOnlyList<ArchivePostRow>, IList
 {
+    // Callers can hold a row before its card is realized. Keep that identity until the list is replaced.
     private readonly Dictionary<int, ArchivePostRow> _rows = new();
-    private readonly ConditionalWeakTable<ArchivePostRow, ReaderPostProjection> _evictedRows = new();
 
     public int Count => projection.Count;
     internal int BuiltCount { get; private set; }
@@ -395,18 +395,6 @@ internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<Reade
 
     internal ArchivePostRow? MaterializedAt(int index) => _rows.GetValueOrDefault(index);
 
-    internal void Trim(Func<int, ArchivePostRow, bool> keep, Action<ArchivePostRow> onEvicted)
-    {
-        // Dictionary removal does not invalidate enumeration. The callbacks only inspect existing rows.
-        foreach ((int index, ArchivePostRow row) in _rows)
-        {
-            if (keep(index, row)) continue;
-            onEvicted(row);
-            _evictedRows.Add(row, projection);
-            _rows.Remove(index);
-        }
-    }
-
     public IEnumerator<ArchivePostRow> GetEnumerator()
     {
         for (int index = 0; index < Count; index++) yield return this[index];
@@ -414,15 +402,7 @@ internal sealed class ReaderPostRows(ReaderPostProjection projection, Func<Reade
 
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
     object? IList.this[int index] { get => this[index]; set => throw new NotSupportedException(); }
-    int IList.IndexOf(object? item)
-    {
-        if (item is not ArchivePostRow row) return -1;
-        // ScrollIntoView and ContainerFromItem resolve a logical post even when the caller's row
-        // has left the cache. Internal row work still requires the current materialized instance.
-        int index = IndexOf(row);
-        return index < 0 && _evictedRows.TryGetValue(row, out _)
-            ? projection.PositionOfThreadIndex(row.ThreadIndex) : index;
-    }
+    int IList.IndexOf(object? item) => item is ArchivePostRow row ? IndexOf(row) : -1;
     bool IList.Contains(object? item) => ((IList)this).IndexOf(item) >= 0;
     bool IList.IsReadOnly => true;
     bool IList.IsFixedSize => true;
