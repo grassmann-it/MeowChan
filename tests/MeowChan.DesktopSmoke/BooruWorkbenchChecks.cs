@@ -595,7 +595,7 @@ internal static partial class BooruWorkbenchChecks
         harness.Search.OnSearch = (query, page, _) => Task.FromResult(BooruCallResult<BooruResultPage>.Ok(
             BooruUiFixtures.Page(query, page, true, posts)));
         using BooruPage page = new(harness.Services);
-        Window window = new() { Width = 1152, Height = 850, Content = page, ShowInTaskbar = false };
+        Window window = new() { Width = 1280, Height = 850, Content = page, ShowInTaskbar = false };
         try
         {
             page.View.NewSearchTarget = () => Config.BooruSearchTargetCurrentTab;
@@ -608,8 +608,10 @@ internal static partial class BooruWorkbenchChecks
                 () => "the Booru sidebar fixture search was not ready");
             Click(Find<Button>(page, BooruWorkbenchView.SubmitName));
             await Program.WaitUntilAsync(() => Previews(page) == 3, () => "the Booru sidebar fixture previews did not arrive");
+            foreach (int width in new[] { 1280, 1920 })
             foreach (ThemeVariant theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
             {
+                window.Width = width;
                 window.RequestedThemeVariant = theme;
                 foreach (BooruResultView mode in new[] { BooruResultView.List, BooruResultView.Grid })
                 {
@@ -618,11 +620,13 @@ internal static partial class BooruWorkbenchChecks
                     page.View.RestoreMediaSidebar(open: true);
                     page.View.SetCursor("102");
                     await SettleAsync(window);
-                    Require(Math.Abs(window.ClientSize.Width - 1152) <= 1, "The sidebar capture is not 1152 DIP wide.");
-                    Control sidebar = Find<Control>(page, "BooruMediaSidebar");
-                    Image image = Find<Image>(sidebar, "BooruMediaPreview");
+                    Require(Math.Abs(window.ClientSize.Width - width) <= 1, $"The sidebar capture is not {width} DIP wide.");
+                    Control sidebar = page.GetVisualDescendants().OfType<Control>()
+                        .Single(control => AutomationProperties.GetAutomationId(control) == "BooruMediaSidebar");
+                    Image image = sidebar.GetVisualDescendants().OfType<Image>()
+                        .Single(control => AutomationProperties.GetAutomationId(control) == "BooruMediaPreview");
                     IImage preview = image.Source ?? throw new InvalidOperationException("The sidebar preview did not arrive.");
-                    string stem = $"booru-sidebar-{mode}-{theme}".ToLowerInvariant();
+                    string stem = $"booru-sidebar-{width}-{mode}-{theme}".ToLowerInvariant();
                     Capture(window, shots, stem + "-preview");
                     page.View.SetCursor("102", requestSidebarSample: true);
                     await Program.WaitUntilAsync(() => image.Source != null && !ReferenceEquals(image.Source, preview),
