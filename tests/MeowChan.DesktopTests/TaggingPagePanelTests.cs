@@ -55,6 +55,13 @@ public sealed class TaggingPagePanelTests
     });
 
     [Fact]
+    public void TheSidebarStartsAtTheNextOpenEntryWithoutASelection() => WithPage(false, async fixture =>
+    {
+        Assert.Empty(fixture.List.SelectedItems!);
+        await fixture.ShowsAsync(2);
+    }, skipFirst: true);
+
+    [Fact]
     public void AnEntryWithoutAPostShowsItsFilenameAndPosition() => WithPage(false, async fixture =>
     {
         fixture.ClickEntry(1);
@@ -203,6 +210,9 @@ public sealed class TaggingPagePanelTests
         Assert.All(queue.Items, item => Assert.Equal(TagQueueState.Open, item.State));
         fixture.Page.SetViewMode(TaggingViewMode.List, save: false);
         await fixture.WaitAsync(() => fixture.FindOrDefault<TextBlock>(fixture.Entry(4), "TaggingQueueRowTags")?.Text == "1", "updated cursor tag count");
+        if (fixture.FindOrDefault<Control>(fixture.Panel, "ReaderMediaSidebarInfoBar") != null)
+            Assert.Equal(Texts.T("tags.media.buttonCount", 1),
+                AutomationProperties.GetName(fixture.Find<Control>(fixture.Panel, "ReaderMediaSidebarTagsToggle")));
         Assert.Equal("3", fixture.Find<TextBlock>(fixture.Entry(4), "TaggingQueueRowRating").Text);
 
         fixture.ClickEntry(4);
@@ -471,7 +481,7 @@ public sealed class TaggingPagePanelTests
     private static DesktopSessionHost NewSession(string profile) => new(profile, [],
         updateSessionFactory: (path, config) => new UpdateSession(path, config, disableEnvironment: () => "1"));
 
-    private static void WithPage(bool grid, Func<Fixture, Task> test, ManualClock? clock = null, int missing = 0, int video = 0, int wideImage = 0,
+    private static void WithPage(bool grid, Func<Fixture, Task> test, ManualClock? clock = null, int missing = 0, int video = 0, int wideImage = 0, bool skipFirst = false,
         Func<GalleryEntry, GalleryDecodeRequest, CancellationToken, Task<(Bitmap, GalleryImageInfo)>>? decode = null,
         Func<string, CancellationToken, Task<MediaAssetSnapshot>>? openManifest = null) =>
         BooruComponentDispatcher.Run(() =>
@@ -505,6 +515,8 @@ public sealed class TaggingPagePanelTests
                 await using DesktopSessionHost session = NewSession(profile.Path);
                 await session.StartAsync();
                 await session.EnqueueTagQueueAsync(items);
+                if (skipFirst)
+                    await session.SetTagQueueStatesAsync([KeyValuePair.Create(items[0].Key, TagQueueState.Skipped)]);
                 using TaggingPage page = new(session)
                 {
                     PanelClock = clock ?? TimeProvider.System,
@@ -623,13 +635,16 @@ public sealed class TaggingPagePanelTests
         {
             string meta = PanelText(MetaId), position = $"{number} / {Items.Length}";
             Control? pill = FindOrDefault<Control>(Panel, "ReaderMediaSidebarThreadPosition");
-            bool positionShown = meta.Contains(position, StringComparison.Ordinal)
+            bool positionShown = PanelText("ReaderMediaSidebarPosition") == position
+                || meta.Contains(position, StringComparison.Ordinal)
                 || pill is { IsEffectivelyVisible: true, Bounds.Width: > 0 }
                 && (AutomationProperties.GetName(pill)?.Contains(position, StringComparison.Ordinal) == true
                     || AutomationProperties.GetName(pill) == Texts.T("tagging.position", number, Items.Length));
             string heading = PanelText("ReaderMediaSidebarHeading");
-            return meta.Contains(Items[number - 1].Name, StringComparison.Ordinal) && positionShown
-                && (Items[number - 1].PostId == null || heading == Texts.T("reader.postNumber", Items[number - 1].PostId!));
+            TagQueueItem item = Items[number - 1];
+            return positionShown && (item.PostId == null
+                ? heading == item.Name
+                : heading == Texts.T("reader.postNumber", item.PostId) && meta.Contains(item.Name, StringComparison.Ordinal));
         }, $"visible header for {Items[number - 1].Name}");
 
         internal Task WaitForEditorAsync() => WaitAsync(() => FindOrDefault<Button>(Panel, EditId) is { IsEffectivelyVisible: true, IsEffectivelyEnabled: true }, "tag editor");
