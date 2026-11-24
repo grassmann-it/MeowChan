@@ -1,5 +1,6 @@
 using MeowChan.Desktop;
 using MeowChan.Archive;
+using MeowChan.Interfaces;
 
 namespace MeowChan.DesktopTests;
 
@@ -63,11 +64,15 @@ public sealed class ArchivePresentationTests
     [Fact]
     public void OpeningPostIsTheThreadNumberOnImageboardsAndTheFirstPostElsewhere()
     {
-        Assert.Equal("100", ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("4chan", "g", "100"), id => id == "100", "100"));
-        // An uncaptured 4chan OP leaves no opening post; the first captured reply stays a reply.
-        Assert.Null(ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("4chan", "g", "100"), _ => false, "105"));
-        Assert.Equal("a1", ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("plugin", "b", "t-9"), _ => false, "a1"));
-        Assert.Null(ArchivePresentation.OpeningPostId(new MeowChan.ResourceId("plugin", "b", "t-9"), _ => false, null));
+        Assert.Equal("100", ArchivePresentation.OpeningPostId(Thread("4chan", "100", Post("105", 1), Post("100", 2))));
+        Assert.Null(ArchivePresentation.OpeningPostId(Thread("4chan", "100", Post("105", 1))));
+        Assert.Equal("a1", ArchivePresentation.OpeningPostId(Thread("plugin", "t-9", Post("t-9", 2), Post("a1", 1))));
+        Assert.Null(ArchivePresentation.OpeningPostId(Thread("plugin", "t-9")));
+
+        static CapturedPost Post(string id, long ordinal) => new(id, ordinal, PostFieldPresence.None);
+        static ArchivedThreadView Thread(string source, string id, params CapturedPost[] posts) =>
+            new(new ArchiveThreadSummary(new ResourceId(source, "g", id), "https://archive.test/g/thread/" + id,
+                string.Empty, string.Empty, ThreadSourceState.Archived, false, default, null, posts.Length, 0), posts);
     }
 
     [Fact]
