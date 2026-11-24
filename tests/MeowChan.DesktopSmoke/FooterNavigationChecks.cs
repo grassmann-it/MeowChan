@@ -229,7 +229,7 @@ internal static class FooterNavigationChecks
             Control titleBar = window.FindControl<Control>("WorkspaceTitleBar")!;
             Require(dragBounds.Width >= 8 && window.InputHitTest(dragBounds.Center) is Visual dragHit
                 && dragHit.GetSelfAndVisualAncestors().Contains(titleBar)
-                && !dragHit.GetSelfAndVisualAncestors().Any(visual => visual is Button or Menu or MenuItem),
+                && !dragHit.GetSelfAndVisualAncestors().Any(visual => visual is Avalonia.Controls.Button or Menu or MenuItem),
                 "The header leaves no free title bar drag area.");
             foreach (Button caption in window.FindControl<StackPanel>("WindowCaptionButtons")!.Children.OfType<Button>().Where(button => button.IsEffectivelyVisible))
             {
