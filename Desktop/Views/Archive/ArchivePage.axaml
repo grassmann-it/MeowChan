@@ -384,7 +384,8 @@
                                              1-px edge (>= 3:1 against the page) on the darker page tone. The active post is an
                                              AccentSurface card with the accent edge; keyboard focus adds a heavier edge and the
                                              shared focus adorner. Semi's hover/pressed tints are suppressed on cards. -->
-                                        <desktop:ReaderPostList x:Name="ArchivePosts" Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                        <desktop:ReaderPostList x:Name="ArchivePosts" AutomationProperties.AutomationId="ArchivePosts"
+                                                 Classes="reader-fit-width" ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                                                  ScrollViewer.BringIntoViewOnFocusChange="False"
                                                  Background="{DynamicResource Workspace.Background}" Padding="0,4"
                                                  ContainerPrepared="OnReaderPostContainerPrepared">

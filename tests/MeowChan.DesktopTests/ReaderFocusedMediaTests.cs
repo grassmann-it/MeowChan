@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Presenters;
 using Avalonia.Threading;
@@ -65,7 +66,7 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
                 CapturedAttachment attachment = Assert.Single(captured.Attachments!);
                 Assert.NotNull(MediaAttachmentResolver.Resolve(media, ThreadId, postId, attachment));
 
-                ListBox posts = page.FindControl<ListBox>("ArchivePosts")!;
+                ListBox posts = Posts(window);
                 if (embedded) BooruComponentDispatcher.Wait(page.FocusPostAsync(postId));
                 ArchivePostRow row = Assert.Single(posts.Items.OfType<ArchivePostRow>(), candidate => candidate.Id == postId);
                 ListBoxItem? focused = null;
@@ -133,16 +134,99 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
         });
     }
 
-    private static Image? Picture(ListBoxItem card) => card.GetVisualDescendants().OfType<ArchiveAttachmentView>()
-        .SelectMany(view => view.PreviewButton.GetVisualDescendants().OfType<Image>())
-        .SingleOrDefault(image => image.IsEffectivelyVisible && image.Source != null);
+    [Fact]
+    public async Task TextlessPortraitAt360PixelsNeverShrinksBetween150And200Percent()
+    {
+        const int post = 108;
+        const string postId = "108";
+        using TempDirectory profile = new();
+        MediaAssetSnapshot media = WritePicture(profile.Path, 540, 960);
+        await CaptureThreadAsync(profile.Path, post, embedded: true, width: 540, height: 960);
+
+        BooruComponentDispatcher.Run(() =>
+        {
+            using IDisposable platform = BooruReviewTestPlatform.Enter();
+            ArchivePage page = new(token => ArchiveReader.OpenAsync(profile.Path, token),
+                (_, _) => Task.CompletedTask, _ => { }, (_, _) => Task.FromResult(media))
+            {
+                IsReadable = true
+            };
+            Window window = new() { Width = 900, Height = 700, Content = page };
+            try
+            {
+                Config config = new()
+                {
+                    ReaderMediaSidebar = false,
+                    ReaderTextlessLargeImages = true,
+                    ReaderTextlessMediaWidth = 360,
+                    ReaderFocusedMediaEnlarge = true,
+                    ReaderFocusedMediaScalePercent = 100
+                };
+                config.ChooseReaderMediaClick(ReaderMediaClickMode.Sidebar);
+                ReaderSettingsPreferences.Apply(page, config);
+                window.Show();
+                window.PlatformImpl!.Activated?.Invoke();
+                BooruComponentDispatcher.Wait(page.LoadThreadAsync(ThreadId));
+                BooruComponentDispatcher.Wait(page.MediaLoadTask);
+                BooruComponentDispatcher.Wait(page.FocusPostAsync(postId));
+
+                ListBox posts = Posts(window);
+                ArchivePostRow row = Assert.IsType<ArchivePostRow>(posts.SelectedItem);
+                Assert.Equal(postId, row.Id);
+                BooruComponentDispatcher.WaitUntil(() =>
+                {
+                    window.UpdateLayout();
+                    return posts.ContainerFromItem(row) is ListBoxItem card
+                        && Picture(card) is { IsArrangeValid: true, Bounds.Width: > 0, Bounds.Height: > 0 };
+                }, "the textless post's portrait preview to be laid out");
+
+                ScrollViewer scroll = Assert.IsType<ScrollViewer>(posts.Scroll);
+                Size previous = default;
+                List<string> measurements = [];
+                foreach (int percent in new[] { 100, 150, 175, 200 })
+                {
+                    config.ReaderFocusedMediaScalePercent = percent;
+                    ReaderSettingsPreferences.Apply(page, config);
+                    Dispatcher.UIThread.RunJobs();
+                    window.UpdateLayout();
+                    Dispatcher.UIThread.RunJobs();
+
+                    ListBoxItem card = Assert.IsAssignableFrom<ListBoxItem>(posts.ContainerFromItem(row));
+                    Assert.True(card.IsSelected);
+                    Image picture = Assert.IsType<Image>(Picture(card));
+                    Size size = picture.Bounds.Size;
+                    measurements.Add($"{percent}%: {size}");
+                    output.WriteLine($"At {percent}%: portrait {size}, viewport {scroll.Viewport}, card {card.Bounds.Size} DIP.");
+                    Assert.InRange(size.Width, 1, scroll.Viewport.Width + 0.5);
+                    Assert.InRange(size.Height, 1, scroll.Viewport.Height + 0.5);
+                    string series = string.Join(" → ", measurements);
+                    if (percent == 150)
+                        Assert.True(size.Width > previous.Width && size.Height > previous.Height, series);
+                    Assert.True(size.Width >= previous.Width - 0.5 && size.Height >= previous.Height - 0.5, series);
+                    previous = size;
+                }
+            }
+            finally
+            {
+                page.EndLifetime();
+                window.Close();
+            }
+        });
+    }
+
+    private static ListBox Posts(Window window) => window.GetVisualDescendants().OfType<ListBox>()
+        .Single(list => AutomationProperties.GetAutomationId(list) == "ArchivePosts");
+
+    private static Image? Picture(ListBoxItem card) => card.GetVisualDescendants().OfType<Image>()
+        .SingleOrDefault(image => AutomationProperties.GetAutomationId(image) == "ReaderAttachmentPreview"
+            && image.IsEffectivelyVisible && image.Source != null);
 
     private static int VisibleReplyCards(ListBoxItem card) => card.GetVisualDescendants().OfType<Button>()
         .Count(button => button.IsEffectivelyVisible && button.Classes.Contains("reader-reply-card"));
 
-    private static async Task CaptureThreadAsync(string directory, int picturePost, bool embedded)
+    private static async Task CaptureThreadAsync(string directory, int picturePost, bool embedded, int width = 960, int height = 540)
     {
-        CapturedAttachment picture = new(0, "picture", Url: PictureUrl, OriginalFileName: FileName) { Width = 960, Height = 540 };
+        CapturedAttachment picture = new(0, "picture", Url: PictureUrl, OriginalFileName: FileName) { Width = width, Height = height };
         List<CapturedPost> posts = [];
         int lastPost = picturePost + ReplyCount + (embedded ? 16 : 0);
         for (int number = 100; number <= lastPost; number++)
@@ -165,9 +249,9 @@ public sealed class ReaderFocusedMediaTests(ITestOutputHelper output)
             ThreadSourceState.Archived, DateTimeOffset.UnixEpoch, directory, posts));
     }
 
-    private static MediaAssetSnapshot WritePicture(string directory)
+    private static MediaAssetSnapshot WritePicture(string directory, int width = 960, int height = 540)
     {
-        using SKBitmap bitmap = new(960, 540);
+        using SKBitmap bitmap = new(width, height);
         bitmap.Erase(SKColors.CornflowerBlue);
         using SKImage image = SKImage.FromBitmap(bitmap);
         using SKData encoded = image.Encode(SKEncodedImageFormat.Png, 100);

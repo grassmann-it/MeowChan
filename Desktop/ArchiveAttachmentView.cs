@@ -427,6 +427,7 @@ public sealed class ArchiveAttachmentView : UserControl
 
     public ArchiveAttachmentView()
     {
+        Avalonia.Automation.AutomationProperties.SetAutomationId(_image, "ReaderAttachmentPreview");
         _placeholder[!Border.BackgroundProperty] = new Avalonia.Markup.Xaml.MarkupExtensions.DynamicResourceExtension("Workspace.Raised");
         _placeholder.Bind(IsVisibleProperty, _status.GetObservable(IsVisibleProperty));
         // Flat: no raised box around the thumbnail. Semi's hover/pressed tint and the shared focus adorner remain the interaction
