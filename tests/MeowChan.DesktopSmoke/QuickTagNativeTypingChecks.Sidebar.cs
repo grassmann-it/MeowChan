@@ -81,7 +81,7 @@ internal static partial class QuickTagNativeTypingChecks
         var snapshot = window.SessionHost.GetPublishedPrivateTagSnapshot().Snapshot!;
         TagId tagId = snapshot.Tags.Single(definition => definition.Name.Display == tag).Id;
         PrivateMediaTagTarget target = ((MediaTagSubject.Bound)visible).Target;
-        Check(snapshot.MediaAssignments.Where(assignment => assignment.TagId == tagId).Select(assignment => assignment.Target).SequenceEqual([target])
+        Check(snapshot.MediaAssignments.Where(assignment => assignment.TagId.Value == tagId.Value).Select(assignment => assignment.Target).SequenceEqual([target])
             && snapshot.TagsOf(prior).All(definition => definition.Name.Display != tag), "The tag was written to an unexpected attachment revision.");
         editor.Input.Dismiss();
         await input.KeyAsync(MediaNativeInput.Escape);
