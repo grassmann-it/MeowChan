@@ -30,6 +30,45 @@ public sealed class SavedMediaReaderTests
     private static readonly ResourceId ThreadId = new("fixture", "g", "42");
     private static readonly string[] FooterActions = ["ArchiveEditRatingButton", "PreviewArchiveMediaButton", "ArchiveManageRatingsButton"];
 
+    [Fact]
+    public void NavigationModesFollowTheReaderTabAndAutoRevealsThenHides() => Run((page, window) =>
+    {
+        TabControl tabs = page.FindControl<TabControl>("ArchiveContentTabs")!;
+        Control bar = page.FindControl<Control>("ReaderNavigation")!;
+        page.ReaderNavigationIdleDelayMs = ReaderNavigationLayout.IdleHideDelayMsMinimum;
+        foreach (string mode in new[] { Config.ReaderNavigationModeOff, Config.ReaderNavigationModeAlways, Config.ReaderNavigationModeAuto })
+        {
+            page.ReaderNavigationMode = mode;
+            tabs.SelectedIndex = 0;
+            Layout(window);
+            page.NotifyReaderPointerMoved(default);
+            if (mode == Config.ReaderNavigationModeOff) Assert.False(bar.IsEffectivelyVisible);
+            else
+            {
+                Assert.True(bar.IsEffectivelyVisible);
+                WaitUntil(() => bar.IsHitTestVisible && bar.Opacity == 1);
+                if (mode == Config.ReaderNavigationModeAuto)
+                {
+                    WaitUntil(() => !bar.IsHitTestVisible && bar.Opacity == 0);
+                    page.NotifyReaderPointerMoved(default);
+                    WaitUntil(() => bar.IsHitTestVisible && bar.Opacity == 1);
+                }
+                else
+                {
+                    long expiry = Environment.TickCount64 + page.ReaderNavigationIdleDelayMs;
+                    WaitUntil(() => Environment.TickCount64 > expiry);
+                    Assert.True(bar.IsHitTestVisible);
+                    Assert.Equal(1, bar.Opacity);
+                }
+            }
+            tabs.SelectedIndex = 1;
+            Layout(window);
+            page.NotifyReaderPointerMoved(default);
+            Assert.False(bar.IsEffectivelyVisible);
+            Assert.False(bar.IsHitTestVisible);
+        }
+    });
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -282,6 +321,7 @@ public sealed class SavedMediaReaderTests
             BooruComponentDispatcher.Wait(page.MediaLoadTask);
             window.Content = page.DetachReader();
             window.Show();
+            window.PlatformImpl!.Activated?.Invoke();
             Layout(window);
             page.FindControl<TabControl>("ArchiveContentTabs")!.SelectedIndex = 1;
             Layout(window);
